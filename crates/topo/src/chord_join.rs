@@ -4564,12 +4564,15 @@ fn path_ring_side<T: Decide>(
 /// copy of the edge, so its curve is the edge's own, from `u1` to `u2`
 /// (the edge's endpoints' copies, at its endpoints' points) — never a
 /// section the lane would compute from the germ's face pair, which may
-/// be two faces on one carrier, or meet in no conic. A line is the
-/// straight chord; a circle is its own arc; any other curve is the
-/// edge's own spec. Either is run back where the chord runs against the
-/// edge ([`run_back`]), and a description no chord states is re-stated
-/// in the chart of the face it divides ([`chord_description`]) (a
-/// closed edge's copy is [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
+/// be two faces on one carrier, or meet in no conic. Its spec is the
+/// edge's own at rest, of every carrier kind, so the copy carries the
+/// edge's description and not a construction's stand-in, except beside a
+/// spline, where a line or a circle is minted as the join's scaffold (the
+/// body below): it is run
+/// back where the chord runs against the edge ([`run_back`]), and a
+/// description no chord states is re-stated in the chart of the face it
+/// divides ([`chord_description`]) (a closed edge's copy is
+/// [`closed_edge_spec`]'s, in every lane). The boolean takes this lane on both
 /// solids for an edge of both, and on the edge's solid alone for a
 /// conic edge of one lying in a face of the other whose pair has no
 /// section lane (a tube's rim on a ball). `None` on every other lane:
@@ -4578,7 +4581,7 @@ fn path_ring_side<T: Decide>(
 /// ruling, a lens rim on a wall).
 ///
 /// `segment`, `u1` and `u2` are keys the join carries, so one that no
-/// longer resolves refuses typed. Past them, the ends' points and the
+/// longer resolves refuses typed. Past them, the
 /// segment's curve and halves are links, mid-operation
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]): a miss panics, and a torn
 /// curve is not an uncertified one.
@@ -4593,15 +4596,12 @@ fn along_edge_spec<T: Decide>(
     let (JoinLane::AlongEdge, Some(edge)) = (lane, segment) else {
         return Ok(None);
     };
-    let point = |v: VertexKey| {
-        body.get_vertex(v)
-            .map(|d| body.point_of(v, d))
-            .ok_or(JoinError::SectionInvariant {
-                face,
-                what: "a chord end along the segment's edge no longer resolves",
-            })
-    };
-    let (p1, p2) = (point(u1)?, point(u2)?);
+    for v in [u1, u2] {
+        body.get_vertex(v).ok_or(JoinError::SectionInvariant {
+            face,
+            what: "a chord end along the segment's edge no longer resolves",
+        })?;
+    }
     let e = body.edge(edge).ok_or(JoinError::SectionInvariant {
         face,
         what: "the segment's edge no longer resolves",
@@ -4612,9 +4612,6 @@ fn along_edge_spec<T: Decide>(
             what: "the segment's edge carries no certified curve",
         });
     };
-    if !curve.carrier().is_curved() {
-        return Ok(Some(EdgeCurveSpec::line_between(p1, p2)));
-    }
     // The chord starts at the copy of whichever end of the edge null
     // edges tie `u1` to; the curve runs from its `he_plus` start.
     let (e_start, e_end) = crate::query::edge_ends(body, edge);
@@ -4636,18 +4633,41 @@ fn along_edge_spec<T: Decide>(
         .get_face(face)
         .ok_or_else(|| corrupt_face(face))?
         .surface;
-    let copy = match curve.carrier() {
-        geom::Curve3::Circle(..) => {
-            let (t0, t1) = curve.params();
-            EdgeCurveSpec::arc_of_circle(curve.carrier().clone(), t0, t1).ok_or(
-                JoinError::SectionInvariant {
-                    face,
-                    what: "a circle segment edge's arc does not state",
-                },
-            )?
-        }
-        _ => curve.restated_spec(),
+    // Beside a spline (a description naming a spline wall, or a chord
+    // dividing a spline face) the mint certifies no pair or chart image
+    // the copy could restate: there a line or a circle is still minted as
+    // the join's scaffold. The describe pass re-states a scaffold only
+    // between a recorded merge skip's faces; anywhere else tier 3 refuses
+    // it (`ScaffoldAtRest`)
+    // (`work/heldrecords/a-chord-beside-a-spline-wall-is-minted-on-a-scaffold.md`).
+    let own = curve.restated_spec();
+    let spline = |k: geom_brep::SurfaceKey| {
+        body.get_surface(k)
+            .is_some_and(|s| !geom_brep::is_analytic(s))
     };
+    let beside_spline = spline(surface)
+        || match &own.description {
+            geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
+                pair.keys().iter().any(|&k| spline(k))
+            }
+            geom_brep::EdgeDescriptionSpec::Chart { surface, .. } => spline(*surface),
+            _ => false,
+        };
+    let (t0, t1) = (own.param_start, own.param_end);
+    let copy = match &own.carrier {
+        geom::Curve3::Line(_) if beside_spline => {
+            EdgeCurveSpec::segment_of_line(own.carrier.clone(), t0, t1)
+        }
+        geom::Curve3::Circle(..) if beside_spline => {
+            EdgeCurveSpec::arc_of_circle(own.carrier.clone(), t0, t1)
+        }
+        _ => Some(own),
+    }
+    .ok_or(JoinError::SectionInvariant {
+        face,
+        what: "a segment edge's scaffold does not state",
+    })?;
     if forward {
         Ok(Some(EdgeCurveSpec {
             description: chord_description(&copy.description, face, Some(surface))?,
@@ -7680,9 +7700,9 @@ mod torn_hop_rows {
         );
     }
 
-    /// `along_edge_spec`: a torn curve on the segment's edge, and a torn
-    /// point under a chord end, panic, where they refused typed; a stale
-    /// segment edge or chord end, keys the join carries, refuses typed.
+    /// `along_edge_spec`: a torn curve on the segment's edge panics, where
+    /// it refused typed; a stale segment edge or chord end, keys the join
+    /// carries, refuses typed.
     #[test]
     fn the_along_edge_spec_panics_on_a_torn_curve_and_refuses_a_stale_edge() {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
@@ -7697,7 +7717,7 @@ mod torn_hop_rows {
         };
         assert!(
             spec(&body, edge).unwrap(),
-            "a line segment's chord is its own line"
+            "a line segment's chord is its own edge"
         );
         let data = body.get_edge(edge).unwrap().clone();
         let gone = body.edges.insert(data);
@@ -7723,20 +7743,6 @@ mod torn_hop_rows {
                 })
             ),
             "a chord end that no longer resolves is the join's key, refused typed"
-        );
-        let mut torn = body.clone();
-        let point = torn.get_vertex(u2).unwrap().point;
-        torn.points.remove(point);
-        let named = format!(
-            "{}'s point names {}",
-            EntityId::Vertex(u2),
-            GeomRef::Point(point)
-        );
-        assert_torn_op_panics(
-            "along_edge_spec (point)",
-            &mut torn,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| spec(b, edge),
         );
         let named = drop_curve(&mut body, he);
         assert_torn_op_panics(

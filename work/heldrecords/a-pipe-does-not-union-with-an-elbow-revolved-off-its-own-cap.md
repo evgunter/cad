@@ -339,6 +339,55 @@ Measured after it:
   as `a-junction-under-subtract-or-intersect-refuses-at-the-fallbacks-extent.md`.
 - Inward poses are unchanged: they are no junction.
 
+## 2026-11-22 — PR 3's stage, located
+
+The stand-in survives in the describe pass, `ops::describe_edges`. Its
+smooth-seam arm restates a seam's description where it is stale or
+where the must-carry rule reads it intrinsic:
+- `JetDeterminate` restates it as `TangentIntersection`;
+- `UnderDetermined` restates it at rest (`rest_locus`) only if stale.
+
+A `Scaffold` description counts as stale only between two faces of a
+recorded merge skip (`recorded_skip`, "any other scaffold stays one, and
+tier 3 refuses it"). The junction's rim reads `UnderDetermined`,
+because the bend's neutral points are not jet-determinate. It is not a
+recorded skip, so the scaffold rests, and tier 3 refuses it
+(`ScaffoldAtRest`).
+
+The stand-in itself is `MappedCurve { RevolvedPoint … }` about the cap
+circle's own axis. Neither operand carries it in. Both bodies' rim
+edges are at rest as `Intersection { pair: {cap plane, wall}, … }`,
+measured by printing every edge's description of the pipe and of the
+elbow before the union. So the stand-in is minted inside the boolean:
+the zip's scaffolding `mekr`/`mef` carriers, the coplanar caps' merge,
+or the graft. Not yet traced: which of these. That decides the fix:
+either the stage that fuses the rim keeps an at-rest description, or
+`describe_edges` describes a scaffold that rests between a glued
+junction's two faces where it lies.
+
+## 2026-11-23 — PR 3's fix pass: the walk certified, the stand-in fixed where it is minted
+
+- **The bend is determinate only where it is certified.** The reviews
+  found the sign rule both too strong and too weak: a neutral point in
+  a half-rim's end gap, or two zeros π apart outside the seven
+  stations, read `JetDeterminate`, and the must-carry rule demanded a
+  `TangentIntersection` its certificate refuses. `second_order_walk`
+  now ends `Determinate` only where the least `|κ_rel|` over its
+  stations and the span's ends, less `kappa_drift`, decides positive
+  under the certificate's own `tangent_tube_margin`
+  (`dihedral::tube_separation`). Otherwise it is `Separated` and the
+  seam is described at rest. The material fold keeps reading the
+  stations, so an opposed contact whose end flips stays `Mixed`.
+- **The stand-in is gone at its minter.** `chord_join::along_edge_spec`
+  re-minted a copied circle edge as `arc_of_circle`'s scaffold (and a
+  copied line as `line_between`'s); the copy now restates the edge's
+  own at-rest spec, so the zip's seam reaches the describe pass as
+  `Intersection { cap plane, wall }`, and `describe_edges_seamed` is
+  gone: a scaffold rests only on a recorded merge skip.
+- **Pinned:** R1's converse arc, R2's end-gap rows and dome in
+  `dihedral::bend_rows`; R2's end-gap poses (δ = 1.15, 1.18, ±1.21,
+  hollow and rod) unioning at the closed form.
+
 ## 2026-11-23 — Fix pass on the end-root door (PR 7463's two reviews)
 
 - **`whole` past a quarter turn.** A circle's window starts from a

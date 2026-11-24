@@ -1853,18 +1853,21 @@ impl DoorCheck for CertCheck {
     }
 }
 
-/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum less
-/// its certified drift, as a sagitta at the folded arm, must classify
-/// positive. Both refusing verdicts are reachable: the drift is a bound
-/// independent of the sampled minimum, so it can exceed it.
-fn tube_separation<T: Decide>(
+/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum (the
+/// schedule's every sample, its ends included) less its certified drift,
+/// as a sagitta at the least folded arm, must classify
+/// positive ([`crate::dihedral::tube_separation`]). Both refusing
+/// verdicts are reachable: the drift is a bound independent of the
+/// sampled minimum, so it can exceed it.
+fn tube_separated<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
-    let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
-    match decide_reported("tangent_tube_margin", tube, band).map(|d| Refused::of(d, band)) {
+    match crate::dihedral::tube_separation(kappa_min, kappa_drift, arm, band)
+        .map(|d| Refused::of(d, band))
+    {
         Ok(None) => Ok(()),
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
@@ -5472,6 +5475,18 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                         band,
                         &mut max_residual,
                     )?;
+                } else {
+                    // An end sample decides nothing of its own here, but
+                    // its `|κ_rel|` and arm enter the tube's minima, as
+                    // the second-order walk's do
+                    // (`crate::dihedral::second_order_walk`): one sample
+                    // set for the tube the walk demands and the tube this
+                    // certificate reads.
+                    let (_, end_tau) = spec.carrier.ders1(t);
+                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, end_tau);
+                    let arm = crate::folded_lever_arm(surf1, surf2, p, reach);
+                    tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                 }
             }
             // The fenced scaffolding arm (D3): the ONE conventional
@@ -5630,7 +5645,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                 CERT_SAMPLES - 2
             );
         };
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
+        tube_separated(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
@@ -8393,7 +8408,7 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     kappa_min,
                     drift,
                     geom_core::test_support::fixture_lever(1.0),
@@ -8403,7 +8418,7 @@ mod tests {
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     point(kappa_min),
                     point(drift),
                     geom_core::test_support::fixture_lever(point(1.0)),

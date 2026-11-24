@@ -329,9 +329,14 @@ edge the result carries on the locus. One tangent pair can leave a seam
 under one op, a knife edge under another and no edge under a third.
 Where both faces end on a rim, the pair is a `Junction` (C4) when the
 routing reads the π seam with the faces leaving on opposite sides and
-each operand's own rim edge is a convex crease; the zip mints a seam
-carrying `TangentIntersection`. Any other rim is read as a tangency
-along its circle, the table first and the routing after a touch (C7). A G1 joint authored inside one
+each operand's own rim edge is a convex crease. The zip leaves a seam,
+carrying the rim edge's own description where it rests:
+`TangentIntersection` where the jet is determinate along it (`|κ_rel|`
+certified bounded away from zero over the edge), the pair where it is
+not (a bend whose `κ_rel` crosses zero on the edge, at a station or
+between them), its bend under-determined. Any other rim is read as a
+tangency along its circle, the table first and the routing after a
+touch (C7). A G1 joint authored inside one
 profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
@@ -1202,8 +1207,10 @@ sides of a face (`MaterialOnBothSides`).
   the circle's identity (`rim_wedge::shared_rim`, decided Zero or
   refused in band); the routing's π wedge at every station round it
   (`rim_wedge::classify_shared_rim`, whose fold runs
-  `second_order_walk` at each station, so a station's in-band bend
-  still stops it, `work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`);
+  `second_order_walk` at each station, read through
+  `geom_brep::rim_routing_wedge`: a station whose bend lands in the band
+  leaves the seam's bend under-determined, not its wedge; the seam's
+  description still refuses on it);
   the two faces leaving it on opposite sides (`rim_wedge::departures`);
   and each operand's own edges on the circle convex creases
   (`rim_wedge::rim_edges_convex`, `dihedral_sign` at each station of
@@ -1223,13 +1230,15 @@ sides of a face (`MaterialOnBothSides`).
   order.
 
   MATE-7's "osculating rims (in-band κ_rel) escalate" is the routing's
-  in-band arm: a station whose bend lands in the band leaves the
-  routing undecided, so no junction glues, and the table along the rim
-  escalates as it always has. An isolated decided zero of `κ_rel` on a
-  π seam is not that: the wedge there is π, a first-order fact the
+  in-band arm where the bend decides the wedge: faces facing each other
+  part at a cusp or a slit by the sign of `κ_rel`, so a station whose
+  bend lands in the band leaves that wedge undecided, no junction
+  glues, and the table along the rim escalates as it always has. On a π
+  seam the bend decides no wedge: the wedge is π, a first-order fact the
   normals decide at every station, and the material is smooth through
-  the rim whatever the bend does between them; only a tangency, whose
-  interiors meet along the locus, needs the side the sheets part to.
+  the rim whatever the bend does there, a decided zero or one in band;
+  only a tangency, whose interiors meet along the locus, needs the side
+  the sheets part to.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own
