@@ -346,12 +346,6 @@ pub struct BooleanNaming {
     /// clone keys as `edge_classes`. A reader that needs a class there
     /// refuses naming the partner, not a missing row.
     pub unread_partners: Vec<super::UnreadPartner>,
-    /// The meridian edges a sphere cut-in minted in each operand before
-    /// the op re-entered on the cut operands, A's then B's, in clone keys
-    /// as `edge_classes`. Each divides one operand face into two of its
-    /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
-    /// face's chart, not an edge of the operand.
-    pub chart_cuts: [Vec<EdgeKey>; 2],
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -421,7 +415,6 @@ impl Default for BooleanNaming {
             uncut: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
-            chart_cuts: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
@@ -1170,6 +1163,70 @@ impl SeamEdges {
     }
 }
 
+/// **The sphere cut-ins' cuts in the result's keys**, which the output
+/// stage closes ([`super::slit::close_cuts`]): a cut the kernel makes for
+/// its own reasons is no edge of the result (`docs/DESIGN.md`, `[edges]`).
+///
+/// Each cut's meridian is read with every edge split off it in its
+/// operand's clone as the join left it, A's directly, B's through the
+/// graft. That is every piece: a piece the op keeps is in the clone, and
+/// one split after the graft is split in the result off a piece it keeps
+/// ([`super::slit::CutRoots::pieces`]), so a piece the carve killed
+/// before the graft, which the graft forwards as a dead stand-in, is no
+/// edge of the result and parents none the clone does not already name.
+/// The operands' own edges are read the same way
+/// ([`super::slit::CutRoots::authored`]). No join
+/// chord runs along a cut: the cut-in runs only where the first pass
+/// found no crossing, and the meridian crosses each circle it cuts
+/// through transversally (`apply_cut_ins` refuses a circle in its own
+/// meridian plane), so the re-entered op's sections cross the cut at
+/// points.
+fn cuts_in_result<T: crate::props::AtRestPolicy>(
+    cuts: &CutsPerOperand,
+    fin: &super::finish::FinishOut<T>,
+) -> super::slit::CutRoots {
+    let graft = &fin.graft;
+    let b_edge = |e: EdgeKey| graft.edges.get(e).copied();
+    let in_result = |seeds: [&[EdgeKey]; 2]| -> BTreeSet<EdgeKey> {
+        let [a, b] = [(0, &fin.clone_a), (1, &fin.clone_b)].map(|(side, clone)| {
+            super::slit::split_descent(&super::edge_join::split_records(clone), seeds[side])
+        });
+        a.into_iter()
+            .chain(b.into_iter().filter_map(b_edge))
+            .collect()
+    };
+    let [ca, cb] = cuts;
+    let held = |made: &ChartCuts| -> Vec<FaceKey> {
+        made.divisions
+            .iter()
+            .map(|&(_, from)| from)
+            .filter(|from| !made.divisions.iter().any(|&(new, _)| new == *from))
+            .collect()
+    };
+    super::slit::CutRoots {
+        edges: in_result([&ca.edges, &cb.edges]),
+        authored: in_result([&ca.inputs, &cb.inputs]),
+        held: held(ca)
+            .into_iter()
+            .chain(
+                held(cb)
+                    .into_iter()
+                    .filter_map(|f| graft.faces.get(f).copied()),
+            )
+            .collect(),
+        surfaces: ca
+            .surfaces
+            .iter()
+            .copied()
+            .chain(
+                cb.surfaces
+                    .iter()
+                    .filter_map(|&s| graft.surfaces.get(s).copied()),
+            )
+            .collect(),
+    }
+}
+
 /// The pipeline behind the front door, on the caller's operands or on
 /// the ones the no-crossings sphere cut-in (M5 S13) made ([`Pass`]).
 pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
@@ -1207,6 +1264,10 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
+    let cut_roots = match &pass {
+        Pass::First => super::slit::CutRoots::default(),
+        Pass::CutIn(cuts) => cuts_in_result(cuts, &fin),
+    };
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 3
@@ -1280,7 +1341,7 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut body,
         &mut desc,
         &glued_pairs,
-        (&mut seam_edges, &struts),
+        (&mut seam_edges, &struts, &cut_roots),
         &recorded,
         band,
         tol,
@@ -1348,7 +1409,6 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         uncut: Vec::new(),
         edge_classes,
         unread_partners,
-        chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
         edge_joins,
@@ -1569,16 +1629,25 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                  both on a finished operand (kernel bug)"
             );
         }
+        #[cfg(any(test, feature = "test-support"))]
+        crate::note_cut_ins(cuts.each_ref().map(|m| m.edges.len()));
         let mut result = boolean_pipeline(op, &a2, &b2, decls, strategy, Pass::CutIn(&cuts), tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
             // cut operands ([`crate::coincidence`]), through the one
             // door ([`spell`]).
             respell_through_cuts(&mut out.coincidences, &cuts)?;
-            let n = &mut out.naming;
-            for (made, edges) in cuts.into_iter().zip(&mut n.chart_cuts) {
-                edges.extend(made.edges);
-            }
+            // The output stage closed every cut, so no row reads a cut
+            // as an edge. A row's edge is the cut operand's edge the
+            // classified piece lies on, never a piece the join split off
+            // it: a cut's meridian, or a piece a later cut's end split off
+            // one, each of which reads back to the face the cut runs in.
+            out.naming.edge_classes.retain(|row| {
+                !matches!(
+                    cuts[row.operand.index()].input_cell(Cell::Edge(row.edge)),
+                    Cell::Face(_)
+                )
+            });
         }
         return Ok(Joined::Answered(Box::new(result)));
     }
@@ -2975,7 +3044,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     glued: &OneRecordTokens,
-    (seam_edges, struts): (&mut SeamEdges, &[EdgeKey]),
+    (seam_edges, struts, cuts): (&mut SeamEdges, &[EdgeKey], &super::slit::CutRoots),
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
@@ -3007,12 +3076,28 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         .copied()
         .filter(|&e| seen.insert(e))
         .collect();
-    let closed = super::slit::close_struts(body, &candidates, tol)?;
+    let mut closed = super::slit::close_struts(body, &candidates, tol)?;
+    seam_edges.retain(|e| !closed.iter().any(|c| c.edge() == *e));
+    let pieces = cuts.pieces(body, &split_from);
+    closed.extend(super::slit::close_cuts(
+        body,
+        &pieces,
+        &cuts.held,
+        &seam_edges.held,
+        band,
+        tol,
+    )?);
+    debug_assert_eq!(
+        cuts.left_standing(body, &split_from, &seam_edges.held),
+        [],
+        "an edge between two pieces of a face a chart cut divided survives the closing, no \
+         seam and no author's edge: a cut the chase into the result's keys missed (kernel bug)"
+    );
     let mut killed_lineage = BTreeMap::new();
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
         &split_from,
-        closed.iter().map(|c| c.edge),
+        closed.iter().map(super::slit::ClosedStrut::edge),
     );
     for row in closed
         .iter()
@@ -3020,7 +3105,6 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     {
         desc.substitute(row)?;
     }
-    seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
     // The closing sweeps the arena, so a glued surface no face held (a
     // dropped copy's) is gone now: its token licenses nothing, as a
     // consumed side does at `OneRecordTokens::of_result`.
@@ -6303,7 +6387,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             let reaches = y_rows.iter().any(|y_row| {
                 row.bbox.overlaps(&y_row.bbox)
-                    && !crate::separating::faces_apart(
+                    && !crate::census::faces_apart(
                         (x, row.face),
                         (y, y_row.face),
                         axes.of(a, b, band),
@@ -6829,6 +6913,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     // own key: `(operand, scanned face, piece)`.
     let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
     let mut made: CutsPerOperand = Default::default();
+    for (side, body) in made.iter_mut().zip([&*a, &*b]) {
+        side.inputs = body.edges().map(|(e, _)| e).collect();
+    }
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
@@ -7295,6 +7382,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         side.divisions.push((created.face, face));
         side.edges.push(created.edge);
         side.arc_splits.extend(arc_splits);
+        side.surfaces.push(sphere);
     }
     for body in [a, b] {
         crate::pcurves::mint_pcurves(body, tol)
@@ -7351,6 +7439,11 @@ pub(super) struct ChartCuts {
     /// `(new vertex, new edge, split edge)` for each arc a cut's end
     /// split, in mint order.
     arc_splits: Vec<(VertexKey, EdgeKey, EdgeKey)>,
+    /// The operand's edges before any cut: an author's, which the closing
+    /// leaves ([`super::slit::CutRoots::authored`]).
+    inputs: Vec<EdgeKey>,
+    /// The surface of each face a cut divided.
+    surfaces: Vec<SurfaceKey>,
 }
 
 impl ChartCuts {
@@ -7584,7 +7677,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &mut body,
                 &mut desc,
                 &glued_pairs,
-                (&mut SeamEdges::default(), &[]),
+                (
+                    &mut SeamEdges::default(),
+                    &[],
+                    &super::slit::CutRoots::default(),
+                ),
                 &recorded,
                 band,
                 tol,
@@ -7938,7 +8035,11 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &mut body,
         &mut desc,
         &OneRecordTokens::none(),
-        (&mut SeamEdges::default(), &[]),
+        (
+            &mut SeamEdges::default(),
+            &[],
+            &super::slit::CutRoots::default(),
+        ),
         &recorded,
         band,
         tol,

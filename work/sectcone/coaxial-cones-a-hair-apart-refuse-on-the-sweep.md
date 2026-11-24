@@ -17,3 +17,12 @@ A narrowing disclosed by U2 (`the-section-certificate-reads-the-cone-pairs-on-th
 The value now refuses such poses wherever they stand within the general search's must-answer distance, and `cone_search` excuses that refusal (`cone_pair_search::must_answer`). That excuse is the narrowing this row schedules.
 
 **What would close it:** the value reads a coaxial pair's parallels in closed form, or the sweep resolves a sheet near an apex it does not pass. Then `cone_search`'s excuse for cylinder and cone partners narrows back to `4·escalate`.
+
+Another draw, from CI's slow set on lane `orbit-tilt`'s PR 7617
+(`CAD_FUZZ_SEED=0x44b4e8fdabe5ac9a`, `CAD_FUZZ_EFFORT=1`, CI run
+45362184176, 2026-11-24). `cone_search` found one mismatch,
+`coaxial cone`: the first cone has `α ≈ 0.438`, and its coaxial
+partner has `α₂ ≈ 0.969` with its apex `2.66·10⁻¹⁰` up the axis. That
+pose read `not classified: Intractable`, so `cone_search`'s excuse
+does not cover it. The seed reproduces on main `181f059dc5` (a local
+replay).

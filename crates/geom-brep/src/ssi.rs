@@ -1407,6 +1407,7 @@ impl SsiError {
                 TorusPair::SphereTorus => TraceDecision::SphereTorusCoaxial,
                 TorusPair::CylinderTorus => TraceDecision::CylinderTorusAxis,
                 TorusPair::TorusTorus => TraceDecision::TorusTorusAxis,
+                TorusPair::PlaneTorus => TraceDecision::PlaneTorusAxis,
             }
             .escalated(diag),
             TorusPoseRefusal::Undecided {
@@ -2604,6 +2605,13 @@ pub enum TraceDecision {
     /// `kt_critical_gap`: the cone × torus pose's critical gap
     /// ([`SsiError::PairTangent`] is its verdict).
     ConeTorusTangency,
+    /// `pt_near_tube`, `pt_far_tube`, `pt_between_tubes`: the plane ×
+    /// torus pose's critical gap ([`SsiError::PairTangent`] is its
+    /// verdict).
+    PlaneTorusTangency,
+    /// The C5 table's plane × torus axis rows: how the plane stands to
+    /// the torus's axis.
+    PlaneTorusAxis,
     /// The torus pose's lever and pivot margins: how the cone's axis
     /// stands to the torus's.
     ConeTorusAxis,
@@ -2673,6 +2681,10 @@ impl TraceDecision {
             Self::CylinderTorusTangency => TangentPair::CylinderTorus.question(),
             Self::TorusTorusTangency => TangentPair::TorusTorus.question(),
             Self::ConeTorusTangency => TangentPair::ConeTorus.question(),
+            Self::PlaneTorusTangency => TangentPair::PlaneTorus.question(),
+            Self::PlaneTorusAxis => {
+                "the plane holds the torus's axis, is square to it, or is parallel to it"
+            }
             Self::ConeTorusAxis => "the cone's axis lies on the torus's axis",
             Self::ConeTorusApex => {
                 "the cone's apex lies on the torus, and the torus's tangent plane there holds a \
@@ -2726,6 +2738,8 @@ impl TraceDecision {
             Self::CylinderTorusTangency => TangentPair::CylinderTorus.sized().recourse(arm, at),
             Self::TorusTorusTangency => TangentPair::TorusTorus.sized().recourse(arm, at),
             Self::ConeTorusTangency => TangentPair::ConeTorus.sized().recourse(arm, at),
+            Self::PlaneTorusTangency => TangentPair::PlaneTorus.sized().recourse(arm, at),
+            Self::PlaneTorusAxis => PLANE_TORUS_AXIS.recourse(arm, at),
             Self::ConeTorusAxis => CONE_TORUS_AXIS.recourse(arm, at),
             Self::ConeTorusApex => CONE_TORUS_APEX.recourse(arm, at),
             Self::ConeAperture => CONE_APERTURE.recourse(arm, at),
@@ -2969,6 +2983,21 @@ const CONE_TORUS_TANGENCY: SizedDecision = SizedDecision {
     ..CYLINDER_SPHERE_TANGENCY
 };
 
+/// The plane × torus tangency decision (`pt_near_tube`, `pt_far_tube`,
+/// `pt_between_tubes`), as [`CYLINDER_SPHERE_TANGENCY`].
+const PLANE_TORUS_TANGENCY: SizedDecision = SizedDecision {
+    lever: "move the plane or the torus so they are clearly not tangent",
+    ..CYLINDER_SPHERE_TANGENCY
+};
+
+/// The plane × torus axis reading (`pt_axis_in_plane`, `pt_axis_normal`
+/// and their offset rows), as [`PAIR_COAXIAL`].
+const PLANE_TORUS_AXIS: SizedDecision = SizedDecision {
+    lever: "turn the plane onto the torus's axis, or clearly off it",
+    size: "axis tilt",
+    ..PAIR_COAXIAL
+};
+
 /// **A pair with a ring torus side**, whose pose
 /// ([`crate::pair_section::torus`]) [`SsiError::of_torus_pose`] reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2979,6 +3008,8 @@ pub enum TorusPair {
     CylinderTorus,
     /// Torus × torus.
     TorusTorus,
+    /// Plane × torus.
+    PlaneTorus,
 }
 
 impl TorusPair {
@@ -2989,6 +3020,7 @@ impl TorusPair {
             Self::SphereTorus => TangentPair::SphereTorus,
             Self::CylinderTorus => TangentPair::CylinderTorus,
             Self::TorusTorus => TangentPair::TorusTorus,
+            Self::PlaneTorus => TangentPair::PlaneTorus,
         }
     }
 }
@@ -3027,6 +3059,10 @@ pub enum TangentPair {
     /// cone's lines in its meridian plane (`kc_sphere_tangency`), or a
     /// double root of the ruling sweep's clearance (`ruling_tangency`).
     ConeRuled,
+    /// Plane × torus (`pt_near_tube`, `pt_far_tube`, `pt_between_tubes`,
+    /// [`crate::PlaneTorusPose`]): the tube circle about a core point of
+    /// extreme height over the plane stands `r` from it.
+    PlaneTorus,
 }
 
 impl TangentPair {
@@ -3039,6 +3075,7 @@ impl TangentPair {
             Self::TorusTorus => "the two tori",
             Self::ConeTorus => "the cone and the torus",
             Self::ConeRuled => "the cone and the other surface",
+            Self::PlaneTorus => "the plane and the torus",
         }
     }
 
@@ -3051,6 +3088,7 @@ impl TangentPair {
             Self::TorusTorus => "the two tori are tangent",
             Self::ConeTorus => "the cone and the torus are tangent",
             Self::ConeRuled => "the cone and the other surface are tangent",
+            Self::PlaneTorus => "the plane and the torus are tangent",
         }
     }
 
@@ -3063,6 +3101,7 @@ impl TangentPair {
             Self::TorusTorus => TraceDecision::TorusTorusTangency,
             Self::ConeTorus => TraceDecision::ConeTorusTangency,
             Self::ConeRuled => TraceDecision::ConeRuledTangency,
+            Self::PlaneTorus => TraceDecision::PlaneTorusTangency,
         }
     }
 
@@ -3074,6 +3113,7 @@ impl TangentPair {
             Self::TorusTorus => &TORUS_TORUS_TANGENCY,
             Self::ConeTorus => &CONE_TORUS_TANGENCY,
             Self::ConeRuled => &CONE_RULED_TANGENCY,
+            Self::PlaneTorus => &PLANE_TORUS_TANGENCY,
         }
     }
 }
@@ -3421,6 +3461,65 @@ pub fn march_cylinder_torus(
     )?;
     past_the_gap(
         TangentPair::CylinderTorus,
+        pose.operands(),
+        pose.tangency(),
+        domain,
+        band,
+    )
+}
+
+/// The plane × torus march's lane, as its wrong-lane refusal names it.
+const PLANE_TORUS_LANE: &str = "a plane tilted against a torus's axis in ℝ³ on their implicit pair";
+
+/// **plane × torus** — the ℝ³ implicit-pair arm, as
+/// [`sphere_torus_ssi`]: the pose decided once
+/// ([`crate::PlaneTorusPose::decide`]), a plane the closed form serves
+/// refused as the wrong lane, the closed-form critical gap the only
+/// tangency decision, and the march past a transverse gap over the
+/// torus's ball ([`march_plane_torus`]).
+///
+/// # Errors
+///
+/// As [`sphere_torus_ssi`], the pair's tangency being
+/// [`TangentPair::PlaneTorus`]'s; a plane holding the torus's axis,
+/// square to it or parallel to it short of the inner equator refuses
+/// [`SsiError::WrongLane`], the closed form's pose.
+pub fn plane_torus_ssi(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let wrong = || SsiError::WrongLane {
+        expected: PLANE_TORUS_LANE,
+    };
+    let pose = crate::PlaneTorusPose::decide(a, b, band)
+        .ok_or_else(wrong)?
+        .map_err(|e| SsiError::of_torus_pose(TorusPair::PlaneTorus, e))?;
+    march_plane_torus(&pose, domain, band)
+}
+
+/// **The ℝ³ march of a decided plane × torus pose** over `domain`, in
+/// the order the pose was asked of: only a tilted pose, and only past a
+/// transverse gap, a tangent pose refusing before any rung
+/// ([`SsiError::PairTangent`]).
+///
+/// # Errors
+///
+/// [`plane_torus_ssi`]'s, but the pose's own.
+pub fn march_plane_torus(
+    pose: &crate::PlaneTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    if matches!(pose.stance(), crate::PtStance::Closed) {
+        return Err(SsiError::WrongLane {
+            expected: PLANE_TORUS_LANE,
+        });
+    }
+    checked([("plane", pose.plane()), ("torus", pose.torus())], domain)?;
+    past_the_gap(
+        TangentPair::PlaneTorus,
         pose.operands(),
         pose.tangency(),
         domain,

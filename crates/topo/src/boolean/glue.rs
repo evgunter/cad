@@ -662,10 +662,10 @@ mod face_read_rows {
     /// **A face is read wherever a pair it forms is built**: a torus, a
     /// cylinder or a sphere against a body of spline walls (with planar
     /// caps or with cone faces) is read through the march door, as a
-    /// plane is; against planes alone a torus forms no pair the value
-    /// builds, and against a cone it forms the cone × torus pair. Red
-    /// where the filter reads only classified pairs and excepts planes
-    /// alone.
+    /// plane is; against planes alone a torus forms the plane × torus
+    /// pair, and against a cone the cone × torus pair; a cone against
+    /// planes forms none. Red where the filter reads only classified
+    /// pairs and excepts planes alone.
     #[test]
     fn a_face_is_read_wherever_a_pair_it_forms_is_built() {
         for kind in [Torus, Cylinder, Sphere, Plane] {
@@ -676,7 +676,8 @@ mod face_read_rows {
                 );
             }
         }
-        assert!(!super::face_read(Torus, &[Plane]));
+        assert!(super::face_read(Torus, &[Plane]));
+        assert!(!super::face_read(Cone, &[Plane]));
         assert!(super::face_read(Torus, &[Cone, Plane]));
         assert!(super::face_read(Cone, &[Torus]));
         assert!(!super::face_read(Nurbs, &[Nurbs, Cone]));

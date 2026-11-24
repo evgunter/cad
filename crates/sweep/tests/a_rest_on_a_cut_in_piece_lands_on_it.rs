@@ -10,8 +10,9 @@
 //! there. A cut keeps the divided cell's key on one piece and mints the
 //! other; the rest lies at azimuth 60° (`x > 0`) or 120° (`x < 0`), so
 //! one of the two poses has it on the minted piece. The carry reads the
-//! face and the arc through the cut, so in either pose the record lands
-//! on the piece on the rest's side.
+//! face and the arc through the cut, and the output stage then closes the
+//! cut, so in either pose the record lands once, on the half-band's face
+//! or on its rim arc.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -71,31 +72,43 @@ fn rested(what: &str, banded: &AtRestBody<f64>, cube: &AtRestBody<f64>) -> Boole
 }
 
 /// `rested` `op` `slab`, carrying `rested`'s records, which cuts the
-/// half-band in once.
+/// half-band in once: `rested` first, or second where `as_b`.
 fn cut_by(
     what: &str,
-    op: BooleanOp,
+    (op, as_b): (BooleanOp, bool),
     rested: &BooleanBody<f64>,
     slab: &AtRestBody<f64>,
 ) -> BooleanBody<f64> {
-    let r = match topo::boolean_op_with(
-        op,
-        &rested.body,
-        slab,
-        &BooleanInputs {
-            records_a: rested.contacts.carried(),
-            ..BooleanInputs::default()
-        },
-        topo::SweepStrategy::Realized,
-        tol(),
-    ) {
+    topo::test_support::take_cut_ins();
+    let records = rested.contacts.carried();
+    let (x, y, inputs) = if as_b {
+        (
+            slab,
+            &rested.body,
+            BooleanInputs {
+                records_b: records,
+                ..BooleanInputs::default()
+            },
+        )
+    } else {
+        (
+            &rested.body,
+            slab,
+            BooleanInputs {
+                records_a: records,
+                ..BooleanInputs::default()
+            },
+        )
+    };
+    let r = match topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("{what}: builds: {:?}", other.map(|_| ())),
     };
+    let cuts = topo::test_support::take_cut_ins();
+    let once = if as_b { [0, 1] } else { [1, 0] };
     assert!(
-        r.naming.chart_cuts[0].len() == 1 && r.naming.chart_cuts[1].is_empty(),
-        "{what}: the slab cuts the half-band in once: {:?}",
-        r.naming.chart_cuts
+        cuts == [once],
+        "{what}: the slab cuts the half-band in once: {cuts:?}"
     );
     r
 }
@@ -155,35 +168,39 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
             "az {az}: the corner rests on the half-band: {:?}",
             rested.contacts
         );
-        for op in [BooleanOp::Union, BooleanOp::Subtract] {
-            let what = format!("az {az}, {op:?}");
-            let r = cut_by(&what, op, &rested, &slab);
+        // The ball second too: whichever piece of the half-band the
+        // closing keeps, a record on the other lands on it through the
+        // closing's row.
+        for (op, as_b) in [
+            (BooleanOp::Union, false),
+            (BooleanOp::Subtract, false),
+            (BooleanOp::Union, true),
+        ] {
+            let what = format!("az {az}, {op:?}, the ball second: {as_b}");
+            let r = cut_by(&what, (op, as_b), &rested, &slab);
             // Red on the carry that read the face by its key alone: at
             // azimuth 60 the record was dropped.
             let rests: Vec<_> = r.contacts.vertex_face().collect();
             let (&[(_, face)], 1) = (&rests[..], r.contacts.len()) else {
                 panic!("{what}: the rest lands once: {:?}", r.contacts)
             };
-            let xs = face_xs(&r.body, face);
+            // The output stage closes the cut again, so the half-band is
+            // one face across it, and the record lands on that face.
             assert!(
-                xs.iter().all(|&x| x * n.x >= -1e-9),
-                "{what}: the record's face lies on the rest's side of the cut, x {xs:?}"
+                matches!(
+                    r.body.face_surface(face),
+                    Some(topo::Surface::Sphere { .. })
+                ) && face_xs(&r.body, face).iter().any(|&x| x * n.x > 0.0),
+                "{what}: the record lands on the half-band's face, x {:?}",
+                face_xs(&r.body, face)
             );
         }
     }
 }
 
-/// The point of `v`.
-fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
-    body.vertex_points()
-        .find(|(k, _)| *k == v)
-        .map(|(_, p)| p)
-        .unwrap()
-}
-
-/// Also at azimuth 90°, the point the cut splits the arc at: there the
-/// record lands on the vertex the split minted, a vertex pair at one
-/// point.
+/// Also at azimuth 90°, the point the cut splits the arc at: the join
+/// rejoins the arc there once the cut is closed, so that record lands on
+/// the arc too.
 #[test]
 fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
     let (banded, slab) = (banded_ball(), slab());
@@ -201,35 +218,27 @@ fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract] {
             let what = format!("az {az}, {op:?}");
-            let r = cut_by(&what, op, &rested, &slab);
+            let r = cut_by(&what, (op, false), &rested, &slab);
             assert_eq!(
                 r.contacts.len(),
                 1,
                 "{what}: the rest lands once: {:?}",
                 r.contacts
             );
-            if az == 90.0 {
-                let pairs: Vec<_> = r.contacts.vertex_vertex().collect();
-                let &[(v, w)] = &pairs[..] else {
-                    panic!(
-                        "{what}: the rest lands on the split's vertex: {:?}",
-                        r.contacts
-                    )
-                };
-                let gap = (point_of(&r.body, v) - point_of(&r.body, w)).norm();
-                assert!(gap <= 1e-9, "{what}: the pair is one point, {gap} apart");
-                continue;
-            }
-            // Red on the carry that read the arc by its key alone: at
-            // azimuth 120 the record named the arc's piece at x > 0.
             let rests: Vec<_> = r.contacts.vertex_edge().collect();
             let &[(_, edge)] = &rests[..] else {
                 panic!("{what}: the rest lands on an arc piece: {:?}", r.contacts)
             };
-            let xs = edge_xs(&r.body, edge);
+            // The cut is closed again and the join rejoins the arc it
+            // split, so the record lands on the rim arc through the rest.
+            let on_rim = edge_xs(&r.body, edge)
+                .iter()
+                .all(|&x| x.abs() <= 0.8 + 1e-9)
+                && r.body.edges().any(|(e, _)| e == edge);
             assert!(
-                xs.iter().all(|&x| x * p.x >= -1e-9),
-                "{what}: the record's arc lies on the rest's side of the cut, x {xs:?}"
+                on_rim,
+                "{what}: the record lands on the rim arc, x {:?}",
+                edge_xs(&r.body, edge)
             );
         }
     }

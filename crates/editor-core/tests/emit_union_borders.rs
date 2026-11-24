@@ -65,7 +65,8 @@ fn union_of(
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
-/// vertices.
+/// vertices, modulo a conventional vertex's position
+/// ([`crate::fixture::point_modulo_position`]).
 fn face_centroids(ev: &Evaluation<f64>, union: RecipeNodeId) -> BTreeMap<StableName, [f64; 3]> {
     let body = body_of(ev, union);
     let mut out = BTreeMap::new();
@@ -74,15 +75,17 @@ fn face_centroids(ev: &Evaluation<f64>, union: RecipeNodeId) -> BTreeMap<StableN
             continue;
         };
         let EntityKey::Face(f) = e.key else { continue };
-        let vs = face_vertices(&body, f);
+        let ps: Vec<_> = face_vertices(&body, f)
+            .into_iter()
+            .filter_map(|v| crate::fixture::point_modulo_position(&body, v))
+            .collect();
         let mut c = [0.0; 3];
-        for &v in &vs {
-            let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        for p in &ps {
             c[0] += p.x;
             c[1] += p.y;
             c[2] += p.z;
         }
-        let n = vs.len() as f64;
+        let n = ps.len() as f64;
         out.insert(name.clone(), [c[0] / n, c[1] / n, c[2] / n]);
     }
     out

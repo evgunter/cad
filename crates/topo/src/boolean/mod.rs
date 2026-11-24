@@ -2797,15 +2797,15 @@ pub enum AlongFace {
 /// this rung; the disposition table cites this paragraph as its home).
 /// A Rust caller can already name and match it — `pncad` re-exports
 /// `topo` whole — and the refusal's sentence names the loops, while the
-/// recourse it states is the same for all three (cut the torus with a
-/// plane the frame serves). Carrying it would add the CUR3 property row
-/// and a Python word with no reader that acts on the difference.
+/// recourse it states is the same for all three (turn the plane clearly
+/// off the torus's axis, where the section value marches every class, or
+/// onto its square or parallel). Carrying it would add the CUR3 property
+/// row and a Python word with no reader that acts on the difference.
 ///
 /// **The falsifier is a caller whose recourse depends on which loops a
-/// slanted plane cuts**: the day the general rung serves one class (the
-/// loops round the axis have a proved frame), a caller must tell it from
-/// the others to know whether the cut builds. Then carry it and delete
-/// this paragraph and the disposition row with it.
+/// slanted plane cuts**: the day one class refuses where another builds,
+/// a caller must tell them apart to know whether the cut builds. Then
+/// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpiricLoops {
     /// Two loops, each winding once round the torus's axis.
@@ -4175,11 +4175,15 @@ pub enum BooleanError {
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
-    /// it, nor parallel to it short of its inner equator. The C5 table
-    /// routes that section to its general rung, which is unbuilt, and no
-    /// carrier holds the curve, so the pair is refused at its frame.
-    /// `loops` is the section certificate's own classification of the
-    /// section, and `section` the table's refusal.
+    /// it, nor parallel to it short of its inner equator, on a pair the
+    /// operation's section table holds no section of. The C5 table routes
+    /// that section to its general rung, which the section value marches
+    /// ([`geom_brep::PlaneTorusPose`]); the value reads the pose over the
+    /// torus's ball and the join's frame at the face's reach, so where
+    /// the value read the closed form's pose the table holds nothing and
+    /// the frame refuses the pair: two readings of one pose straddling
+    /// the band about a tilt. `loops` is the section certificate's own
+    /// classification of the section, and `section` the table's refusal.
     ///
     /// A limit: a section not built (row 2).
     GermSectionSpiric {
@@ -4601,7 +4605,8 @@ pub enum BooleanError {
     /// slit or zero-area ring, whose two edges the zip glued into one
     /// edge of that face with a free end, a strut, and deleting a strut
     /// from a curved face is not built (`slit::close_struts`,
-    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// `crate::strut`'s `StrutRefusal::Curved`), or of a chart cut's
+    /// piece with a free end (`slit::close_cuts`). Of a strut with both
     /// ends free, the lone ring's bridge is a line chord, which lies in
     /// no curved face; the strut deleted with one free end by `kev`
     /// mints nothing and is refused with it. A construction gap, with
@@ -5883,14 +5888,16 @@ impl BooleanError {
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
-                "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). {}",
+                "a flat face of one part cuts a torus face of the other ({}) at a slant so \
+                 near square or parallel to the torus's axis that the cut reads slanted \
+                 where the faces meet but square or parallel over the torus, and is not \
+                 traced. Recourse: turn the flat face clearly off square and parallel to \
+                 the axis, or exactly onto one",
                 match loops {
                     SpiricLoops::AroundAxis => "two loops round the axis",
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
-                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {

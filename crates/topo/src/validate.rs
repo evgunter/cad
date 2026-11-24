@@ -11697,6 +11697,25 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     }
 }
 
+/// Whether `shell`'s faces of `body` are one component across their
+/// edges: the connectedness tier 2's check 3 reads
+/// ([`ValidationError::ShellDisconnected`]), for a door that takes a body
+/// it has not validated. A shell with no face is not connected.
+pub(crate) fn shell_connected<T: Real>(body: &Body<T>, shell: ShellKey) -> bool {
+    let faces: Vec<FaceKey> = body
+        .faces
+        .iter()
+        .filter(|(_, f)| f.shell == shell)
+        .map(|(k, _)| k)
+        .collect();
+    let Some(&seed) = faces.first() else {
+        return false;
+    };
+    let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    shell_component(body, shell, seed, &mut visited);
+    faces.iter().all(|f| visited.contains_key(*f))
+}
+
 /// Marks in `visited` every face of `shell`'s connected component that
 /// holds `seed`, by a bounded traversal: a face glues all its loops,
 /// outer and rings, and a cycle loop glues across each edge via **mate**
