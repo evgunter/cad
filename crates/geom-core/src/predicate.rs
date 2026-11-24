@@ -460,6 +460,91 @@ pub struct Band {
     escalate: f64,
 }
 
+/// **A width the run's tolerance fixes**: a band's zero or its
+/// escalation ([`Band::zero_width`], [`Band::escalate_width`]), the
+/// run's ε ([`BandWidth::of_eps`]), or a combination of those with
+/// numbers the source wrote. The door a band enters a scalar by
+/// (the crate README, DL5.2): it is made of a [`Band`] or a
+/// [`Tol`] and never of an `f64`, so a width the kernel computed from
+/// geometry cannot be handed to it.
+///
+/// Its arithmetic is `f64`'s, in the order written, so a combination
+/// has the bits the same expression over `f64` thresholds has.
+///
+/// What [`BandWidth::at`] is at each scalar: the width at `f64`, its
+/// point at an enclosure scalar, a literal at [`crate::Sym`] (the
+/// tolerance is the run's, the same at every valuation of the
+/// document's unknowns), and a zero tangent at a dual (no parameter of
+/// the model moves the tolerance).
+///
+/// ```compile_fail,E0423
+/// let _ = geom_core::BandWidth(1e-9);
+/// ```
+///
+/// ```compile_fail,E0308
+/// use geom_core::{Band, Tol};
+/// let band = Band::linear(Tol::witness()).unwrap();
+/// let computed: f64 = band.zero() * 3.0;
+/// let _ = band.zero_width().times(computed);
+/// ```
+///
+/// ```
+/// use geom_core::{Band, Tol, lit};
+/// let band = Band::linear(Tol::witness()).unwrap();
+/// let pad = band.escalate_width() + band.zero_width().times(lit!(2.0));
+/// assert_eq!(pad.get(), band.escalate() + 2.0 * band.zero());
+/// assert_eq!(pad.at::<f64>(), pad.get());
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct BandWidth(f64);
+
+impl BandWidth {
+    /// The run's ε as a width.
+    #[must_use]
+    pub fn of_eps(tol: Tol) -> Self {
+        Self(tol.eps())
+    }
+
+    /// The width in metres, for what decides at `f64` (a box pad, a
+    /// floor).
+    #[must_use]
+    pub fn get(self) -> f64 {
+        self.0
+    }
+
+    /// `k` widths.
+    #[must_use]
+    pub fn times(self, k: crate::Lit) -> Self {
+        Self(k.get() * self.0)
+    }
+
+    /// The width over `k`.
+    #[must_use]
+    pub fn over(self, k: crate::Lit) -> Self {
+        Self(self.0 / k.get())
+    }
+
+    /// The width at the scalar `T`.
+    #[must_use]
+    pub fn at<T: crate::Real>(self) -> T {
+        T::from_f64(self.0)
+    }
+}
+
+impl core::ops::Add for BandWidth {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl core::ops::Sub for BandWidth {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 impl Band {
     /// **The least band**: its zero and its escalation the two least
     /// positive `f64`s, so a margin reads its sign alone (any nonzero
@@ -740,6 +825,20 @@ impl Band {
     /// [`Band::zero`] by construction.
     pub fn escalate(self) -> f64 {
         self.escalate
+    }
+
+    /// [`Band::zero`] as the width a scalar enters it by
+    /// ([`BandWidth`]).
+    #[must_use]
+    pub fn zero_width(self) -> BandWidth {
+        BandWidth(self.zero)
+    }
+
+    /// [`Band::escalate`] as the width a scalar enters it by
+    /// ([`BandWidth`]).
+    #[must_use]
+    pub fn escalate_width(self) -> BandWidth {
+        BandWidth(self.escalate)
     }
 
     /// **The band read about a point known only within `pad` metres** of

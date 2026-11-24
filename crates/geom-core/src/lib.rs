@@ -19,6 +19,7 @@
 pub mod arc;
 pub mod bisect;
 pub mod bit_identity;
+pub mod constant;
 pub mod dual;
 pub mod exact;
 pub mod interval;
@@ -62,6 +63,7 @@ pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
 pub const GOLDEN_SECTION: f64 = 0.618_033_988_749_895;
 
 pub use arc::{Arc2, Circles, Circles2, CirclesAt};
+pub use constant::{Constant, Count, Lit};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
@@ -75,7 +77,7 @@ pub use linalg::{
 pub use line2::{Line2, LineMeet};
 pub use param::{bracket_mid, mid_param};
 pub use predicate::{
-    Allowance, Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING,
+    Allowance, Band, BandError, BandField, BandWidth, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING,
     DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading,
     FileCoincidence, Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed,
     KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,

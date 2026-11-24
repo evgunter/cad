@@ -463,14 +463,47 @@ pub trait Real:
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     ///
-    /// **For a constant only**: a literal, a count, a tolerance, data
-    /// that is a constant of the model. At [`crate::Sym`] it is an exact
-    /// rational, so a value the kernel COMPUTED and re-entered here is a
-    /// different function of the parameters than the one it came from,
-    /// and a symbolic `Zero` over it is a theorem about the wrong
-    /// function (ERROR-DESIGN E12). A computed value stays in `Self`, or
-    /// enters through [`Real::from_computed`].
+    /// **For a constant only**, and a constant enters by where it comes
+    /// from (DL5.2): a number the source wrote through [`Real::lit`], a
+    /// count through [`Real::count`], a band through
+    /// [`crate::BandWidth::at`], an authored value through the
+    /// document's parameter door. This is the step those doors and a
+    /// scalar's own impl take; which other calls still stand, and the
+    /// work item each is owed to, is `scripts/gates/from-f64-sites.sh`.
+    ///
+    /// At [`crate::Sym`] it is an exact rational, so a value the kernel
+    /// COMPUTED and re-entered here is a different function of the
+    /// parameters than the one it came from, and a symbolic `Zero` over
+    /// it is a theorem about the wrong function (ERROR-DESIGN E12). A
+    /// computed value stays in `Self`, or enters through
+    /// [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
+
+    /// **A number the source wrote**, at this scalar
+    /// ([`crate::constant`]): the number at `f64`, its point at an
+    /// enclosure scalar, a literal at [`crate::Sym`], a zero tangent at
+    /// a dual. The door a compile-time constant enters by (DL5.2).
+    #[must_use]
+    fn lit(c: crate::Lit) -> Self {
+        crate::constant::lit(c)
+    }
+
+    /// **A count**, at this scalar ([`crate::Count`]): a number of
+    /// pieces, an index, a degree. The integer itself at every scalar,
+    /// a literal at [`crate::Sym`], a zero tangent at a dual.
+    #[must_use]
+    fn count<N: crate::Count>(n: N) -> Self {
+        crate::constant::count(n)
+    }
+
+    /// **The `f64` quotient of two counts**, at this scalar: a
+    /// schedule's fraction `i/n` as the one `f64` the schedule names,
+    /// a point at an enclosure scalar and never the enclosure of the
+    /// rational. The same number at every valuation, as its counts are.
+    #[must_use]
+    fn count_ratio<N: crate::Count, D: crate::Count>(num: N, den: D) -> Self {
+        crate::constant::count_ratio(num, den)
+    }
 
     /// Embeds an `f64` that a NUMERICAL routine computed: the value is
     /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
