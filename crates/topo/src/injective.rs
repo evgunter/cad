@@ -11867,6 +11867,668 @@ mod presentation_rows {
         );
     }
 
+    // ------------------------------------------------ review probes (a3df17)
+    mod review_probes {
+        use super::*;
+
+        struct Lcg(u64);
+        impl Lcg {
+            fn next(&mut self) -> f64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+            }
+        }
+        fn rot(n: [f64; 3], d: [f64; 3], phi: f64) -> [f64; 3] {
+            // d ⟂ n, both unit: d cos + (n × d) sin
+            let c = [
+                n[1] * d[2] - n[2] * d[1],
+                n[2] * d[0] - n[0] * d[2],
+                n[0] * d[1] - n[1] * d[0],
+            ];
+            [
+                d[0] * phi.cos() + c[0] * phi.sin(),
+                d[1] * phi.cos() + c[1] * phi.sin(),
+                d[2] * phi.cos() + c[2] * phi.sin(),
+            ]
+        }
+        fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+            a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+        }
+        fn cross3(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        }
+        fn norm(a: [f64; 3]) -> [f64; 3] {
+            let l = dot(a, a).sqrt();
+            [a[0] / l, a[1] / l, a[2] / l]
+        }
+        /// The angle of `r` in the sector from `d1` CCW about `n`, in [0, 2π).
+        fn angle(n: [f64; 3], d1: [f64; 3], r: [f64; 3]) -> f64 {
+            let y = dot(cross3(n, d1), r);
+            let x = dot(d1, r);
+            let a = y.atan2(x);
+            if a < 0.0 { a + core::f64::consts::TAU } else { a }
+        }
+        /// Some(true) decidedly inside (open), Some(false) decidedly out, None near the rim.
+        fn inside(n: [f64; 3], d1: [f64; 3], open: f64, r: [f64; 3], tol: f64) -> Option<bool> {
+            let a = angle(n, d1, r);
+            if a > tol && a < open - tol {
+                Some(true)
+            } else if a > open + tol && a < core::f64::consts::TAU - tol {
+                Some(false)
+            } else {
+                None
+            }
+        }
+
+        /// Random pairs sharing vertex 1 alone, against the ground truth of
+        /// two infinite sectors: they meet off the apex iff a ray of the
+        /// planes' common line lies in both.
+        #[test]
+        fn rp_vertex_alone_random_pairs_against_ground_truth() {
+            let mut g = Lcg(0x5eed_a3df_17);
+            let tau = core::f64::consts::TAU;
+            let (mut meet, mut apart, mut skipped) = (0, 0, 0);
+            let (mut wrong, mut missed) = (Vec::new(), 0);
+            let mut by_class: BTreeMap<(&str, &str), (u32, u32)> = BTreeMap::new();
+            let special = [
+                0.3, 1.0, 1.5707963267948966, 3.0, 3.1415916, 3.141592653589793, 3.1415936,
+                3.5, 4.71238898038469, 4.8, 5.5, 6.0, 6.2,
+            ];
+            for i in 0..4000 {
+                let pick = |g: &mut Lcg| {
+                    if g.next() < 0.5 {
+                        special[(g.next() * special.len() as f64) as usize]
+                    } else {
+                        0.05 + g.next() * (tau - 0.1)
+                    }
+                };
+                let tx = pick(&mut g);
+                let ty = pick(&mut g);
+                let n = norm([g.next() - 0.5, g.next() - 0.5, g.next() - 0.5]);
+                let seed = norm(cross3(n, [g.next() - 0.5, g.next() - 0.5, g.next() + 0.1]));
+                // Half the time, aim Y's first edge so the common line sits
+                // near a chosen angle inside Y and near X's ray m.
+                let line = norm(cross3(PZ, n));
+                let d1y = if g.next() < 0.5 {
+                    seed
+                } else {
+                    // put the common line at fraction f of Y's opening
+                    let f = g.next();
+                    norm(rot(n, line, -f * ty))
+                };
+                let d2y = rot(n, d1y, ty);
+                let d2x = rot(PZ, PX, tx);
+                let f = sector_at_vertex_1(PZ, PX, d2x, (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, (20, 21));
+                let truth = {
+                    let mut any_meet = false;
+                    let mut all_out = true;
+                    for s in [1.0, -1.0] {
+                        let r = [line[0] * s, line[1] * s, line[2] * s];
+                        let ix = inside(PZ, PX, tx, r, 1e-6);
+                        let iy = inside(n, d1y, ty, r, 1e-6);
+                        if ix == Some(true) && iy == Some(true) {
+                            any_meet = true;
+                        }
+                        if !(ix == Some(false) || iy == Some(false)) {
+                            all_out = false;
+                        }
+                    }
+                    if any_meet {
+                        Some(true)
+                    } else if all_out {
+                        Some(false)
+                    } else {
+                        None
+                    }
+                };
+                if dot(cross3(PZ, n), cross3(PZ, n)).sqrt() < 1e-3 {
+                    skipped += 1;
+                    continue;
+                }
+                let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    parted_at_vertex_1(&f, &h, &[])
+                }));
+                let Ok(got) = got else {
+                    println!("PANIC case {i}: tx {tx} ty {ty} n {n:?} d1y {d1y:?}");
+                    continue;
+                };
+                match truth {
+                    Some(true) => {
+                        meet += 1;
+                        if got {
+                            wrong.push((i, tx, ty, n, d1y));
+                        }
+                    }
+                    Some(false) => {
+                        apart += 1;
+                        let class = |t: f64| {
+                            if t < core::f64::consts::PI - 1e-3 {
+                                "convex"
+                            } else if t < core::f64::consts::PI + 1e-3 {
+                                "straight"
+                            } else {
+                                "reflex"
+                            }
+                        };
+                        *by_class.entry((class(tx), class(ty))).or_insert((0u32, 0u32)) =
+                            {
+                                let (a, m) = by_class.get(&(class(tx), class(ty))).copied().unwrap_or((0, 0));
+                                (a + 1, m + u32::from(!got))
+                            };
+                        if !got {
+                            missed += 1;
+                        }
+                    }
+                    None => skipped += 1,
+                }
+            }
+            println!(
+                "RP vertex-alone: meet {meet} (certified wrongly {}), apart {apart} (not certified {missed}), skipped {skipped}",
+                wrong.len()
+            );
+            println!("RP vertex-alone apart, (X, Y) class -> (cases, not certified): {by_class:?}");
+            assert!(wrong.is_empty(), "certified though the sectors meet: {wrong:?}");
+        }
+
+        /// Random pairs sharing rim 1 of X (the +x edge) and the vertex.
+        /// Both planes hold the x axis, so the sectors meet off the shared
+        /// edge iff both hold the −x ray (inside or as an edge).
+        #[test]
+        fn rp_shared_edge_random_pairs_against_ground_truth() {
+            let mut g = Lcg(0xfeed_a3df_17);
+            let tau = core::f64::consts::TAU;
+            let pi = core::f64::consts::PI;
+            let (mut meet, mut apart) = (0, 0);
+            let (mut wrong, mut missed) = (Vec::new(), Vec::new());
+            let special = [0.3, 1.5707963267948966, 3.0, pi - 1e-6, pi, pi + 1e-6, 3.5, 4.71238898038469, 5.5, 6.2];
+            for i in 0..3000 {
+                let pick = |g: &mut Lcg| {
+                    if g.next() < 0.6 {
+                        special[(g.next() * special.len() as f64) as usize]
+                    } else {
+                        0.05 + g.next() * (tau - 0.1)
+                    }
+                };
+                let tx = pick(&mut g);
+                let ty = pick(&mut g);
+                let alpha = 0.2 + g.next() * (tau - 0.4);
+                if (alpha - pi).abs() < 0.05 {
+                    continue;
+                }
+                // Y's plane holds the x axis, its normal turned by alpha about x from z.
+                let n = [0.0, -alpha.sin(), alpha.cos()];
+                let first = g.next() < 0.5;
+                // Y from +x round by ty (its rim 1 shared), or into +x (its rim 0 shared).
+                let (d1y, d2y, keys, idx) = if first {
+                    (PX, rot(n, PX, ty), (2u64, 21u64), 1usize)
+                } else {
+                    (rot(n, PX, -ty), PX, (21u64, 2u64), 0usize)
+                };
+                let d2x = rot(PZ, PX, tx);
+                let f = sector_at_vertex_1(PZ, PX, d2x, (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, keys);
+                let x_holds = tx >= pi - 1e-9;
+                let y_holds = ty >= pi - 1e-9;
+                let x_clear = tx < pi - 1e-5;
+                let y_clear = ty < pi - 1e-5;
+                let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    parted_at_vertex_1(&f, &h, &[(1, idx)])
+                }));
+                let Ok(got) = got else {
+                    println!("PANIC case {i}: tx {tx} ty {ty} alpha {alpha} first {first}");
+                    continue;
+                };
+                if x_holds && y_holds {
+                    meet += 1;
+                    if got {
+                        wrong.push((i, tx, ty, alpha, first));
+                    }
+                } else if x_clear || y_clear {
+                    apart += 1;
+                    if !got {
+                        missed.push((tx, ty, alpha, first));
+                    }
+                }
+            }
+            println!(
+                "RP shared-edge: meet {meet} (certified wrongly {}), apart {apart} (not certified {})",
+                wrong.len(),
+                missed.len()
+            );
+            for m in missed.iter().take(12) {
+                println!("  missed: {m:?}");
+            }
+            assert!(wrong.is_empty(), "certified though the sectors meet: {wrong:?}");
+        }
+
+        /// What a spike of each opening reads, in a small and a large cell,
+        /// at edge lengths 4 and 4000 (the fixture's rim is 4 × its direction).
+        #[test]
+        fn rp_spike_readings_by_angle_and_edge_length() {
+            let local = both_rims_and_vertex_1();
+            let zero = band().zero();
+            println!("RP band zero {zero:e}");
+            for scale in [1.0, 1000.0, 1e-3] {
+                for k in [0.1, 0.4, 0.9, 1.5, 3.0, 10.0, 100.0, 1e4] {
+                    let angle = k * zero / scale;
+                    for (what, d2) in [
+                        ("spike", [scale, scale * angle, 0.0]),
+                        ("slit", [scale, -scale * angle, 0.0]),
+                    ] {
+                        let f = sector_at_vertex_1(PZ, PX, d2, (1, 2));
+                        let tiny = (-zero, zero);
+                        let r_tiny = read(present_plane(
+                            &cell_of(&f, &local, tiny, tiny),
+                            &[],
+                            &[vertex(1)],
+                            band(),
+                        ));
+                        let about = (-0.5, 0.5);
+                        let r_about = read(present_plane(
+                            &cell_of(&f, &local, about, about),
+                            &[],
+                            &[vertex(1)],
+                            band(),
+                        ));
+                        println!(
+                            "RP {what} rim2 len {:e} angle {angle:e} (len*sin(angle/2) = {:e} = {:.2} zero): tiny cell {r_tiny:?}, about cell {r_about:?}",
+                            4.0 * scale,
+                            4.0 * scale * (angle / 2.0),
+                            4.0 * scale * (angle / 2.0) / zero
+                        );
+                    }
+                }
+            }
+        }
+
+        /// A cell with both rims listed and no vertex, placed past rim 1's
+        /// far end on its non-face side, and one past the end on the face side.
+        #[test]
+        fn rp_a_cell_past_an_edges_far_end_with_no_vertex_listed() {
+            let f = sector_at_vertex_1(PZ, PX, PY, (1, 2));
+            let local = Local {
+                edges: vec![0, 1],
+                vertices: vec![],
+            };
+            for (what, u, v) in [
+                ("past the far end, non-face side", (4.5, 5.0), (-0.3, -0.1)),
+                ("past the far end, face side", (4.5, 5.0), (0.1, 0.3)),
+                ("inside the edge, non-face side", (1.5, 2.0), (-0.3, -0.1)),
+                ("past both ends diagonal", (4.5, 5.0), (4.5, 5.0)),
+            ] {
+                let r = read(present_plane(&cell_of(&f, &local, u, v), &[], &[], band()));
+                println!("RP convex corner, {what}: {r:?}");
+            }
+            // The reflex twin: the face is the other three quadrants.
+            let g = sector_at_vertex_1(PZ, PY, PX, (1, 2));
+            for (what, u, v) in [
+                ("in the wedge, inside both edges", (0.5, 1.0), (0.5, 1.0)),
+                ("in the wedge's direction past both far ends", (4.5, 5.0), (4.5, 5.0)),
+                ("past rim's far end beside the wedge", (0.5, 1.0), (4.5, 5.0)),
+            ] {
+                let r = read(present_plane(&cell_of(&g, &local, u, v), &[], &[], band()));
+                println!("RP reflex corner, {what}: {r:?}");
+            }
+        }
+        /// Random CELLS of two faces sharing vertex 1 alone (the vertex and
+        /// both rims listed for each, as a superset local may): the truth is
+        /// a sampled point of the planes' common line, off the vertex, inside
+        /// both sectors and both cells.
+        #[test]
+        fn rp_random_cells_vertex_alone_against_ground_truth() {
+            let mut g = Lcg(0xce11_a3df_17);
+            let tau = core::f64::consts::TAU;
+            let local = both_rims_and_vertex_1();
+            let (mut meet, mut wrong, mut certified, mut vac, mut total) = (0, Vec::new(), 0, 0, 0);
+            for i in 0..6000 {
+                let tx = 0.2 + g.next() * (tau - 0.4);
+                let ty = 0.2 + g.next() * (tau - 0.4);
+                let n = norm([g.next() - 0.5, g.next() - 0.5, g.next() - 0.5]);
+                let line = norm(cross3(PZ, n));
+                if dot(cross3(PZ, n), cross3(PZ, n)).sqrt() < 1e-2 {
+                    continue;
+                }
+                let d1y = norm(rot(n, line, -g.next() * tau));
+                let d2y = rot(n, d1y, ty);
+                let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, tx), (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, (20, 21));
+                let cell = |g: &mut Lcg| {
+                    let size = 10f64.powf(-3.0 * g.next());
+                    let (cu, cv) = ((g.next() - 0.5) * 2.0 * size, (g.next() - 0.5) * 2.0 * size);
+                    let (hu, hv) = (size * (0.05 + g.next()), size * (0.05 + g.next()));
+                    ((cu - hu, cu + hu), (cv - hv, cv + hv))
+                };
+                let (cx, cy) = (cell(&mut g), cell(&mut g));
+                let vy = cross3(n, d1y);
+                let in_cell = |c: ((f64, f64), (f64, f64)), u: f64, v: f64, m: f64| {
+                    u > c.0.0 + m && u < c.0.1 - m && v > c.1.0 + m && v < c.1.1 - m
+                };
+                let mut truth = false;
+                for s in [1.0, -1.0] {
+                    let r = [line[0] * s, line[1] * s, line[2] * s];
+                    if inside(PZ, PX, tx, r, 1e-6) != Some(true)
+                        || inside(n, d1y, ty, r, 1e-6) != Some(true)
+                    {
+                        continue;
+                    }
+                    for k in 1..400 {
+                        let t = 3.0 * (k as f64) / 400.0;
+                        let p = [r[0] * t, r[1] * t, r[2] * t];
+                        if in_cell(cx, p[0], p[1], 1e-9) && in_cell(cy, dot(p, d1y), dot(p, vy), 1e-9) {
+                            truth = true;
+                        }
+                    }
+                }
+                let (x, y) = (cell_keyed(1, &f, &local, cx.0, cx.1), cell_keyed(2, &h, &local, cy.0, cy.1));
+                let near = Near {
+                    edges: Vec::new(),
+                    vertices: vec![vertex(1)],
+                };
+                let none = FacePoses::default();
+                let got = departure(&x, &y, &near, band(), true, (&none, &none));
+                let cert = matches!(got, Outcome::Certified { .. });
+                total += 1;
+                if cert {
+                    certified += 1;
+                }
+                if matches!(present_plane(&x, &[], &[vertex(1)], band()), Ok(Presentation::Vacuous))
+                    || matches!(present_plane(&y, &[], &[vertex(1)], band()), Ok(Presentation::Vacuous))
+                {
+                    vac += 1;
+                }
+                if truth {
+                    meet += 1;
+                    if cert {
+                        wrong.push((i, tx, ty, cx, cy));
+                    }
+                }
+            }
+            println!(
+                "RP random cells, vertex alone: {total} pairs, {certified} certified ({vac} with a vacuous side), {meet} truly meeting off the vertex, certified wrongly {}",
+                wrong.len()
+            );
+            assert!(wrong.is_empty(), "{:?}", &wrong[..wrong.len().min(5)]);
+        }
+
+        /// The same with X's rim 1 (+x) shared: the truth is a sampled point
+        /// of the −x ray in both sectors and both cells.
+        #[test]
+        fn rp_random_cells_shared_edge_against_ground_truth() {
+            let mut g = Lcg(0xce12_a3df_17);
+            let tau = core::f64::consts::TAU;
+            let pi = core::f64::consts::PI;
+            let local = both_rims_and_vertex_1();
+            let (mut meet, mut wrong, mut certified, mut total) = (0, Vec::new(), 0, 0);
+            for i in 0..6000 {
+                let pick = |g: &mut Lcg| {
+                    let r = g.next();
+                    if r < 0.2 { pi } else if r < 0.6 { pi + 0.1 + g.next() * (pi - 0.3) } else { 0.2 + g.next() * (pi - 0.4) }
+                };
+                let (tx, ty) = (pick(&mut g), pick(&mut g));
+                let alpha = 0.2 + g.next() * (tau - 0.4);
+                if (alpha - pi).abs() < 0.05 {
+                    continue;
+                }
+                let n = [0.0, -alpha.sin(), alpha.cos()];
+                let first = g.next() < 0.5;
+                let (d1y, d2y, keys, idx) = if first {
+                    (PX, rot(n, PX, ty), (2u64, 21u64), 1usize)
+                } else {
+                    (rot(n, PX, -ty), PX, (21u64, 2u64), 0usize)
+                };
+                let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, tx), (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, keys);
+                let cell = |g: &mut Lcg| {
+                    let size = 10f64.powf(-3.0 * g.next());
+                    let (cu, cv) = ((g.next() - 0.5) * 2.0 * size, (g.next() - 0.5) * 2.0 * size);
+                    let (hu, hv) = (size * (0.05 + g.next()), size * (0.05 + g.next()));
+                    ((cu - hu, cu + hu), (cv - hv, cv + hv))
+                };
+                let (cx, cy) = (cell(&mut g), cell(&mut g));
+                let vy = cross3(n, d1y);
+                let in_cell = |c: ((f64, f64), (f64, f64)), u: f64, v: f64| {
+                    u > c.0.0 && u < c.0.1 && v > c.1.0 - 1e-12 && v < c.1.1 + 1e-12
+                };
+                let mut truth = false;
+                if tx >= pi - 1e-9 && ty >= pi - 1e-9 {
+                    for k in 1..400 {
+                        let t = 3.0 * (k as f64) / 400.0;
+                        let p = [-t, 0.0, 0.0];
+                        // exclude cells that only graze the ray's line when the ray is a rim
+                        if in_cell(cx, p[0], p[1]) && in_cell(cy, dot(p, d1y), dot(p, vy)) {
+                            truth = true;
+                        }
+                    }
+                }
+                let (x, y) = (cell_keyed(1, &f, &local, cx.0, cx.1), cell_keyed(2, &h, &local, cy.0, cy.1));
+                let near = Near {
+                    edges: vec![(1, idx)],
+                    vertices: vec![vertex(1)],
+                };
+                let none = FacePoses::default();
+                let got = departure(&x, &y, &near, band(), true, (&none, &none));
+                let cert = matches!(got, Outcome::Certified { .. });
+                total += 1;
+                if cert {
+                    certified += 1;
+                }
+                if truth {
+                    meet += 1;
+                    if cert {
+                        wrong.push((i, tx, ty, alpha, first, cx, cy));
+                    }
+                }
+            }
+            println!(
+                "RP random cells, shared edge: {total} pairs, {certified} certified, {meet} truly meeting off the shared edge, certified wrongly {}",
+                wrong.len()
+            );
+            assert!(wrong.is_empty(), "{:?}", &wrong[..wrong.len().min(5)]);
+        }
+        /// The least dihedral at which two faces sharing rim 1 (+x) are
+        /// certified at the corner cell, by X's corner angle and by which
+        /// face is asked first.
+        #[test]
+        fn rp_least_certified_dihedral_by_corner_angle() {
+            let local = both_rims_and_vertex_1();
+            let about = (-0.5, 0.5);
+            let none = FacePoses::default();
+            for deg in [20.0f64, 45.0, 60.0, 90.0, 120.0, 150.0, 170.0] {
+                let theta = deg.to_radians();
+                let mut least = [None, None];
+                let mut flips = 0;
+                let mut delta = 1e-11f64;
+                while delta < 1e-5 {
+                    let n = [0.0, -delta.sin(), delta.cos()];
+                    let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, theta), (2, 3));
+                    let h = sector_at_vertex_1(n, PX, rot(n, PX, core::f64::consts::FRAC_PI_2), (2, 21));
+                    let (x, y) = (cell_keyed(1, &f, &local, about, about), cell_keyed(2, &h, &local, about, about));
+                    let near = Near { edges: vec![(1, 1)], vertices: vec![vertex(1)] };
+                    let a = matches!(departure(&x, &y, &near, band(), true, (&none, &none)), Outcome::Certified { .. });
+                    let b = matches!(departure(&y, &x, &near, band(), true, (&none, &none)), Outcome::Certified { .. });
+                    if a != b {
+                        flips += 1;
+                    }
+                    for (k, got) in [a, b].into_iter().enumerate() {
+                        if got && least[k].is_none() {
+                            least[k] = Some(delta);
+                        }
+                    }
+                    delta *= 1.05;
+                }
+                println!(
+                    "RP least certified dihedral, corner {deg} deg: X first {:?}, Y first {:?}, orders disagreeing at {flips} steps (sin theta {:.3}, sin theta/2 {:.3})",
+                    least[0], least[1],
+                    theta.sin(),
+                    (theta / 2.0).sin()
+                );
+            }
+        }
+
+        /// A partner in the face's own plane, sharing the vertex alone:
+        /// the sectors overlap iff their angle ranges do. Also a partner
+        /// sharing the +x edge in the same plane, on the far side (a flat
+        /// continuation) or folded onto the face.
+        #[test]
+        fn rp_coplanar_partners_against_ground_truth() {
+            let mut g = Lcg(0xc0_a3df_17);
+            let tau = core::f64::consts::TAU;
+            let (mut meet, mut apart, mut wrong, mut missed) = (0, 0, Vec::new(), 0);
+            for i in 0..3000 {
+                let tx = 0.1 + g.next() * (tau - 0.2);
+                let start = g.next() * tau;
+                let ty = 0.1 + g.next() * (tau - 0.2);
+                let flip = g.next() < 0.5;
+                // Y covers angles [start, start + ty] of the z = 0 plane.
+                let (n, d1y, d2y) = if flip {
+                    (MZ, rot(PZ, PX, start + ty), rot(PZ, PX, start))
+                } else {
+                    (PZ, rot(PZ, PX, start), rot(PZ, PX, start + ty))
+                };
+                let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, tx), (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, (20, 21));
+                // Overlap of [0, tx] and [start, start+ty] mod tau, with a margin.
+                let m = 1e-4;
+                let end = start + ty;
+                let overlap_len = {
+                    let seg = |a: f64, b: f64| (b.min(tx) - a.max(0.0)).max(0.0);
+                    seg(start, end.min(tau)) + if end > tau { seg(0.0, end - tau) } else { 0.0 }
+                };
+                let near_touch = [start, end % tau]
+                    .iter()
+                    .any(|&a| a.abs() < m || (a - tx).abs() < m || (a - tau).abs() < m);
+                let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    parted_at_vertex_1(&f, &h, &[])
+                }));
+                let Ok(got) = got else {
+                    println!("PANIC coplanar case {i}");
+                    continue;
+                };
+                if overlap_len > m {
+                    meet += 1;
+                    if got {
+                        wrong.push((i, tx, start, ty, flip));
+                    }
+                } else if !near_touch {
+                    apart += 1;
+                    if !got {
+                        missed += 1;
+                    }
+                }
+            }
+            println!(
+                "RP coplanar vertex-alone: overlap {meet} (certified wrongly {}), disjoint {apart} (not certified {missed})",
+                wrong.len()
+            );
+            // Sharing rim 1 (+x): Y on the far side of the edge, or folded on.
+            let (mut fold, mut flat, mut wrong2, mut missed2) = (0, 0, Vec::new(), 0);
+            for i in 0..600 {
+                let tx = 0.1 + g.next() * (tau - 0.2);
+                let ty = 0.1 + g.next() * (tau - 0.2);
+                let folded = g.next() < 0.5;
+                // Y from +x round by ty CCW about PZ (folded onto X's side), or
+                // CCW about MZ (the far side: angles [-ty, 0]).
+                let (n, d1y, d2y) = if folded {
+                    (PZ, PX, rot(PZ, PX, ty))
+                } else {
+                    (MZ, PX, rot(MZ, PX, ty))
+                };
+                let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, tx), (2, 3));
+                let h = sector_at_vertex_1(n, d1y, d2y, (2, 21));
+                let truth_meet = folded || tx + ty > tau + 1e-4;
+                let truth_apart = !folded && tx + ty < tau - 1e-4;
+                let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    parted_at_vertex_1(&f, &h, &[(1, 1)])
+                }));
+                let Ok(got) = got else {
+                    println!("PANIC coplanar edge case {i}");
+                    continue;
+                };
+                if truth_meet {
+                    fold += 1;
+                    if got {
+                        wrong2.push((i, tx, ty, folded));
+                    }
+                } else if truth_apart {
+                    flat += 1;
+                    if !got {
+                        missed2 += 1;
+                    }
+                }
+            }
+            println!(
+                "RP coplanar shared-edge: overlap {fold} (certified wrongly {}), flat continuation {flat} (not certified {missed2})",
+                wrong2.len()
+            );
+            assert!(wrong.is_empty() && wrong2.is_empty(), "{wrong:?} {wrong2:?}");
+        }
+
+        /// Delta: two faces each with an in-band spike at the shared vertex.
+        #[test]
+        fn rd_two_spikes_on_the_shared_cell() {
+            let local = both_rims_and_vertex_1();
+            let zero = band().zero();
+            let tiny = (-zero, zero);
+            let none = FacePoses::default();
+            let t = 1.5e-6;
+            for (what, far) in [("apart: Y's spike along -x in y = 0", MX), ("crossing: Y's spike along +x in the plane y = z", PX)] {
+                // X: a spike from +x opening t in z = 0, rim 2 4 mm long.
+                let f = sector_at_vertex_1(PZ, PX, [1e-3, 1e-3 * t, 0.0], (1, 2));
+                // Y: a spike in another plane through the vertex.
+                let (n, d1) = if far == MX { (PY, MX) } else { (norm([0.0, -1.0, 1.0]), PX) };
+                let d2 = rot(n, d1, t);
+                let h = sector_at_vertex_1(n, d1, [d2[0] * 1e-3, d2[1] * 1e-3, d2[2] * 1e-3], (20, 21));
+                let (x, y) = (cell_keyed(1, &f, &local, tiny, tiny), cell_keyed(2, &h, &local, tiny, tiny));
+                let near = Near { edges: Vec::new(), vertices: vec![vertex(1)] };
+                println!(
+                    "RD two spikes, {what}: X {:?}, Y {:?}, departure {:?}",
+                    read(present_plane(&x, &[], &[vertex(1)], band())),
+                    read(present_plane(&y, &[], &[vertex(1)], band())),
+                    departure(&x, &y, &near, band(), true, (&none, &none))
+                );
+                // One spike against a sound right corner.
+                let g = sector_at_vertex_1(n, d1, rot(n, d1, 1.2), (20, 21));
+                let y2 = cell_keyed(2, &g, &local, tiny, tiny);
+                println!(
+                    "RD one spike, {what}: departure {:?} / {:?}",
+                    departure(&x, &y2, &near, band(), true, (&none, &none)),
+                    departure(&y2, &x, &near, band(), true, (&none, &none))
+                );
+            }
+            // The spike off the shared cell: Local.
+            let f = sector_at_vertex_1(PZ, PX, [1e-3, 1e-3 * t, 0.0], (1, 2));
+            println!(
+                "RD spike off the shared cell: {:?}; rim 1 shared, vertex not near: {:?}",
+                read(present_plane(&cell_keyed(1, &f, &local, tiny, tiny), &[], &[], band())),
+                read(present_plane(&cell_keyed(1, &f, &local, tiny, tiny), &[1], &[], band()))
+            );
+        }
+
+        /// Delta: the piece's side span (P8) at a reflex corner in a coarse
+        /// cell short of both far ends along the edges.
+        #[test]
+        fn rd_side_span_at_a_reflex_corner() {
+            let local = both_rims_and_vertex_1();
+            for deg in [200.0f64, 240.0, 270.0, 300.0, 330.0] {
+                let f = sector_at_vertex_1(PZ, PX, rot(PZ, PX, deg.to_radians()), (1, 2));
+                for (u, v) in [((-0.5, 2.5), (-0.5, 1.0)), ((-0.5, 1.5), (-0.5, 1.5)), ((-0.5, 0.5), (-0.5, 0.5)), ((-1.9, 1.9), (-1.9, 1.9))] {
+                    println!(
+                        "RD reflex {deg} deg, cell u {u:?} v {v:?}: {:?}",
+                        read(present_plane(&cell_keyed(1, &f, &local, u, v), &[], &[vertex(1)], band()))
+                    );
+                }
+            }
+        }
+    }
+
     /// A side of a plane face: its key, its chart ends in its run, and
     /// its start and end vertices.
     type Seg = (u64, (f64, f64), (f64, f64), [u64; 2]);
