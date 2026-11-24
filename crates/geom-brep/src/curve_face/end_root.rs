@@ -197,10 +197,6 @@ impl<T: Decide> Local<T> {
     }
 }
 
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: its end's local form reads the radial from its centre (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
 fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Option<Local<T>> {
     let (t_end, t_other, toward) = match end {
         SpanEnd::Start => (t0, t1, T::one()),
@@ -224,9 +220,11 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
         }
         Curve3::Circle(circle) => {
             let r = circle.radius();
-            let c = circle.frame().origin();
             let (p, d) = carrier.ders1(t_end);
-            let u = (p - c) / r;
+            // The unit radial at the end, read through the circle's own
+            // axis: `d = r·(axis × radial)`, so `radial = (d × axis)/r`.
+            let u = d.cross(circle.axis()) / r;
+            let c = p - u * r;
             let v = d * (toward / r);
             // A quarter turn at most: the window lives near the end, and
             // the half angle stays at most one. A longer span is not
