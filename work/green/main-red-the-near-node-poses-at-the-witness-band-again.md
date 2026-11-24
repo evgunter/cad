@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [main-red-a-near-node-cap-at-1e-8-refuses-on-quadrature]
 closed: 2026-11-23
+pr: 7682
 ---
 
 

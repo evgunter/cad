@@ -7,6 +7,7 @@ opened: 2026-11-22
 priority: P0
 cost: E
 closed: 2026-11-23
+pr: 7682
 ---
 
 Found by BOXFINISH's doors-read lane (PR 7384) on 2026-11-22, re-merging
