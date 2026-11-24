@@ -291,7 +291,9 @@ fn a_finished_body_names_the_bar_its_gate_paid() {
 /// constructor or method added beside the others with a list in hand.
 #[test]
 fn no_pub_fn_of_assembled_in_finish_rs_names_a_record_type() {
-    let source = include_str!("../src/finish.rs");
+    // Code alone, through the shared lexer: a comment or a doc line that
+    // spells `pub fn` or a record type is not a signature.
+    let source = test_utils::source::code_only(include_str!("../src/finish.rs"));
     let mut inside = false;
     let mut declared = 0;
     let mut signatures: Vec<String> = Vec::new();
