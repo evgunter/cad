@@ -262,6 +262,36 @@ fn walk_ledger(name: &str, doc: &ProfileDoc, tol: Tol) -> (String, usize) {
     (ledger, largest)
 }
 
+/// The walk ledger of one replay of `doc` at its nominal at
+/// `Sym<Interval>`, at the drive's budget, with the contradiction
+/// instrument asked over its definite decisions after it: the lines of
+/// origin `Instrument` are its walks.
+fn instrumented_ledger(doc: &ProfileDoc, tol: Tol) -> String {
+    let (_, nominal) = boxes(doc).into_iter().next().unwrap();
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(nominal)),
+        ..EvalOptions::default()
+    };
+    let budget = SymBudget {
+        max_terms: DEFAULT_SYM_MAX_TERMS,
+        max_degree: DEFAULT_SYM_MAX_DEGREE,
+    };
+    start_profile();
+    let (report, _) = with_session_rules(budget, SymRules::shipped(), || {
+        let ((), decisions) = geom_core::sym::revalue::record(|| {
+            let _: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+                evaluate(doc, None, &CancelToken::new(), &opts, tol);
+        });
+        geom_core::sym::contradiction::check(&decisions).expect("inside the session")
+    });
+    let ledger = take_profile().walk_ledger();
+    println!(
+        "\nINSTRUMENTED LEDGER eps {:e} {report:?}\n{ledger}",
+        tol.eps()
+    );
+    ledger
+}
+
 /// The frozen count of each line of a walk ledger, by its line's
 /// `walk/origin` label.
 fn frozen_by_line(ledger: &str) -> Vec<(String, u64)> {
@@ -316,17 +346,22 @@ fn the_slabs_walks_build_one_ledger_and_freeze_nothing() {
 /// **And the cap apex's lines freeze nothing** — the witness of an open
 /// row, not a baseline: rule D folds `sin` and `cos` of `q·atan X` but
 /// not `tan`, and a cap apex read through `tan(|Δθ|/4)` froze 104 nodes
-/// on each of `Early/Assertion` and `Door/Decision`
+/// on each of the early and door walks of every definite margin
 /// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it.md`).
-/// The apex reads `Arc2::quarter_tan` now; a reader that mints the
-/// `tan` atom again reds here. It goes when that row closes.
+/// A definite margin's forms are walked by the test instrument alone
+/// (`geom_core::sym::contradiction`), so the replay here is asked by it
+/// ([`instrumented_ledger`]) and the apex's lines are its
+/// `Early/Instrument` and `Door/Instrument`. The apex reads
+/// `Arc2::quarter_tan` now; a reader that mints the `tan` atom again
+/// reds here. It goes when that row closes.
 #[test]
 fn the_plates_largest_form_is_under_the_growth_guard() {
     let tol = Tol::witness();
-    let (ledger, largest) = walk_ledger("plate", &the_plate(tol), tol);
+    let (_, largest) = walk_ledger("plate", &the_plate(tol), tol);
+    let ledger = instrumented_ledger(&the_plate(tol), tol);
     let apex: Vec<_> = frozen_by_line(&ledger)
         .into_iter()
-        .filter(|(label, _)| label == "Early/Assertion" || label == "Door/Decision")
+        .filter(|(label, _)| label == "Early/Instrument" || label == "Door/Instrument")
         .collect();
     assert!(
         apex.len() == 2 && apex.iter().all(|(_, n)| *n == 0),

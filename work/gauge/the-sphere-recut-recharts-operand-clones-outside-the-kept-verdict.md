@@ -28,3 +28,7 @@ through a plane face, `m5_s13_*` poses) that validates the re-charted
 clone at tier 3 before re-entry, run at all three ε; then either a
 debug assertion at re-entry or the clone re-finished through the
 at-rest gate.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The re-chart is retired, so no operand clone is rotated or grafted any more. Every escape is now cut in along a meridian of the ball's own chart (`apply_cut_ins`), and the pipeline re-enters on those cut clones. The row's concern survives for the cut. The cut clone is a body the kept verdict never saw, and the re-entry checks it only with a `debug_assert` of tiers 1 and 2 (`validate_closed`, in `through_the_join`), never tier 3 and never in release. The pipeline is renamed `boolean_pipeline`, and `NoCrossings::Recut` is now `NoCrossings::CutIn`. Still unprobed: tier 3 on the cut clone at all three ε.

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
-blocked_on: [the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
+blocked_on: [a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
 ---
 
 
@@ -223,3 +223,24 @@ table door normalizes what it accepts.
 - `spun_onto`'s argument is a type no written direction inhabits.
 
 **Measured since:** a written radial is read today by the pcurve certificate's envelope, its `Frame` term, not by check 1. `sweep`'s `a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written`: stretched by `0.1·ε` the slab builds holding a `u_ref` that long; by `0.4·ε` the extrude refuses under `pcurve_envelope` reading `2·ε`.
+## One point reopened by the line-directions weighing (2026-11-24): the test-only table door goes
+
+This row's weighing kept the test-only table door that writes
+directions (the orchestrator's choice between two leanings). Both
+designers of the line-directions weighing
+(`a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`)
+now lean the other way, one from its first report and the other after
+a round: a table carries no directions; the door goes, with the
+production check that exists only to serve it (the `segment_direction`
+gate, its resolution gate and its two refusals: `[simple.checks]`); and
+a loop that gives up its provenance (`ConstructedProfile::into_profile`,
+a public and not test-only route that today converts and KEEPS its
+directions) gives them up and has them minted.
+
+**Ruled (the orchestrator, logged): the door goes, in this row's unit.**
+The one cost to measure first: a verb's exact oblique direction on a
+loop converted to a table and then swept. Neither designer found a
+production caller that does that; the unit greps the callers of
+`From<ClosedLoop<T>> for ProfileLoop<T>`, `into_loop` and
+`into_profile` and says what it found. The line-directions units do not
+depend on this point and land either way.

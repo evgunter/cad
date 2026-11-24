@@ -74,7 +74,8 @@ pub(crate) enum Door {
     /// certifies only through the door.
     #[expect(
         dead_code,
-        reason = "no measured document certifies only through the door now; the row keeps the arm for the next that does"
+        reason = "none of the measured documents has a load-bearing door since the link's \
+                  arcs depart along a minted axis; the row still reads one"
     )]
     LoadBearing(&'static str),
     /// Shut, the replay still certifies and decides the same decisions,
@@ -400,14 +401,6 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 ///   had their turn: `Cyclic`, and any FUTURE registrant that binds the
 ///   refusal without asserting. It is the backstop, not the loud
 ///   channel.
-/// - **`theorems_disputed == 0`**, the `Interval` twin of SYM-11's
-///   dispute count. At an EXACT witness a definite non-zero sign is a
-///   certified bracket that excludes zero, so no form over the
-///   parameters can be the zero polynomial under it; the
-///   contradiction is asserted at this scalar rather than counted, and
-///   a count here says the const on `Interval` moved. The same claim
-///   past each document's ceiling — where the residuals are the widest
-///   the corpus produces — is `sym11_exact_channel_rows`.
 ///
 /// The ε rows are the suite's: one process per ε, so this row runs at
 /// `1e-6`, `1e-9` and `1e-12` and the claim is all three.
@@ -442,15 +435,6 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
              this lane that is `Cyclic`, or an exact-witness refusal from a registrant \
              that binds it instead of asserting: {counts:?}"
         );
-        assert_eq!(
-            counts.theorems_disputed, 0,
-            "{name} at eps={eps:e}: what this pins is the CHARGE'S ARM at this lane. \
-             `Interval::WITNESS` is `Exact`, which routes a theorem-vs-numeric \
-             contradiction to the `debug_assert!` and never to this column, and that \
-             assertion is live in every profile this workspace builds — so a count here \
-             is the const having moved, and the soundness question it would otherwise \
-             raise has already been answered by the panic that did not happen: {counts:?}"
-        );
     }
 }
 
@@ -460,8 +444,8 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// every other dial as shipped) beside the shipped replay, read against
 /// its [`Door`]. Where the door-shut replay certifies it decides what
 /// the shipped one does, and the door's decisions move from `symbolic`
-/// to `numeric`; on the link the door is load-bearing, and shut it
-/// refuses. A registrant that started stating something slightly false
+/// to `numeric`; a load-bearing door's document refuses shut (none of
+/// the five is one since the link's arcs depart along a minted axis). A registrant that started stating something slightly false
 /// stops discharging without ever being refused, and this is where that
 /// shows: what the door buys falls, and a load-bearing door's document
 /// refuses.

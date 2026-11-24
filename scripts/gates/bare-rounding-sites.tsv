@@ -214,9 +214,8 @@ crates/topo/src/contain.rs	test	1	oracle
 crates/topo/src/boolean/fan.rs	prod	1	pose
 crates/topo/src/boolean/fan.rs	test	1	oracle
 crates/topo/src/boolean/reduce.rs	prod	1	re-pose
-crates/topo/src/boolean/section_cert/cone_pair_search.rs	test	7	oracle
+crates/topo/src/boolean/section_cert/cone_pair_search.rs	test	8	oracle
 crates/topo/src/boolean/section_cert/cone_search.rs	test	1	oracle
-crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/solid_contain.rs	prod	5	re-pose

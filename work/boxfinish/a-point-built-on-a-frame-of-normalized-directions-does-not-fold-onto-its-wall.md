@@ -4,6 +4,8 @@ kind: issue
 title: A point built on a cylinder or sphere whose frame is made of normalized f64 directions is not proven on it over a box on the radius: the gap's numerator does not fold where the frame's axes are unit only to rounding
 status: open
 opened: 2026-11-22
+priority: P2
+cost: M
 ---
 
 Found by the review of PR 7370 (`boxfinish/radial-readers`), measured

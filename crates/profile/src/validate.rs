@@ -1412,11 +1412,9 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     let kind = match s.kind {
                         SegmentKind::Line { director } => {
                             let frame = seg::ChordFrame::of(start, end);
+                            let Ok(mint) = seg::mint_director(frame.chord, frame.unit);
                             SegmentKind::Line {
-                                director: vec2(
-                                    director,
-                                    seg::mint_director(frame.chord, frame.unit),
-                                ),
+                                director: vec2(director, mint),
                             }
                         }
                         SegmentKind::Arc {
@@ -1429,13 +1427,12 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                                 radius: arc.radius.point_value().ok_or(site)?,
                                 sweep: arc.sweep.point_value().ok_or(site)?,
                             };
+                            let Ok(at_start) = seg::mint_radial(arc, start);
+                            let Ok(at_end) = seg::mint_radial(arc, end);
                             SegmentKind::Arc {
                                 arc,
                                 turn,
-                                radials: [
-                                    vec2(rs, seg::mint_radial(arc, start)),
-                                    vec2(re, seg::mint_radial(arc, end)),
-                                ],
+                                radials: [vec2(rs, at_start), vec2(re, at_end)],
                             }
                         }
                     };
@@ -2586,7 +2583,15 @@ fn canonicalize_loop<T: Decide>(
                 None => StructureRefusal::shape(rec.segments.len(), n),
             }));
         }
-        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
+        let kind = seg::validated_kind(&s, made.get(k).copied().flatten()).map_err(|unsigned| {
+            ProfileError::escalated(
+                EscalationSite::Segment(SegmentRef {
+                    loop_index,
+                    segment_index: k,
+                }),
+                unsigned.source,
+            )
+        })?;
         shapes.push(shape);
         segments.push(ValidatedSegment {
             start: s.a,

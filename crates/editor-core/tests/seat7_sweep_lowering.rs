@@ -225,7 +225,7 @@ fn both_sweeps_evaluate_in_one_document() {
 /// and `boss_union`, on
 /// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`
 /// and, for PR 7354's later move,
-/// `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`.
+/// `work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section.md`.
 /// `die`, `cut_cylinder` and `kitchen_sink` are judged.
 ///
 /// `boss_union` moved again when an arc's carrier and wall frames turned

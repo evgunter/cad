@@ -1,8 +1,8 @@
-//! **A loft's wall rims read their chart ends as their mints placed
+//! **A loft's wall rims hold their chart lines as their mints placed
 //! them**, so an `Interval` loft's walls take check 7's rectangle
 //! certificate and the body finishes at its taker. A rim's span is a
 //! computed length, an enclosure some ulps wide at `Interval`, and its
-//! image's map `p0 + pl·t` read there only encloses the chart's `1`.
+//! image's map read there only encloses the chart's `1`.
 //! Check 7's rectangle is the chart lines the rows hold, each a value the
 //! mint placed exactly, and their meets; no end of an image is read.
 //!
@@ -105,29 +105,50 @@ fn bounds<T: Bounds>(x: T) -> (f64, f64) {
     (x.lo(), x.hi())
 }
 
-/// **A split rim's cut is never read as a chart end**, at `f64` and at
-/// `Interval`. The bottom cap's rim on the wall over the profile's
-/// slanted side, split at a third of its span: each child's wall row
-/// reads the rim's chart corner, exactly, at the end it keeps, and at the
-/// cut a value strictly inside the chart, both as the split carries the
-/// row; minted again, the kept corner is read through the measured map.
-/// As split and minted again the body finishes and its volume holds the
-/// prism's 8.4: check 7 reads the chart lines the rows hold, never an
-/// image's end.
+/// The chart points the wall row of `he` runs between, in its edge's
+/// forward order, as its loop's lift reads them
+/// ([`topo::pcurves::Lift::joint_point`], [`topo::pcurves::Lift::exit_point`]).
+fn row_ends<T: Decide + Bounds>(body: &Body<T>, he: topo::HalfEdgeKey) -> [Point2<T>; 2] {
+    let r#loop = body.get_half_edge(he).unwrap().parent_loop;
+    let lift = topo::pcurves::Lift::read(body, r#loop).expect("the wall's loop stores its rows");
+    let i = lift
+        .rows()
+        .iter()
+        .position(|row| row.half_edge == he)
+        .expect("the half-edge is a row of its loop's lift");
+    let (entry, exit) = (lift.joint_point(i), lift.exit_point(i));
+    if lift.rows()[i].plus {
+        [entry, exit]
+    } else {
+        [exit, entry]
+    }
+}
+
+/// **A split rim's cut is never read as a chart end, and its kept corner
+/// always is**, at `f64` and at `Interval`. The bottom cap's rim on the
+/// wall over the profile's slanted side, split at a third of its span:
+/// each child's wall row runs from the rim's chart corner, which the
+/// loop's lift reads as the meet of the row's held line and the seam's,
+/// exactly, to the cut, a value strictly inside the chart that is the
+/// row's own map there. Minted again the rows hold the same lines, so the
+/// corners read the same. As split and minted again the body finishes and
+/// its volume holds the prism's 8.4: check 7 reads the chart lines the
+/// rows hold, never an image's end.
+///
+/// Red under `Lift::joint_point` reading a corner through the entering
+/// image's map (the kept corner is then an enclosure at `Interval`).
 #[test]
 fn a_split_rims_cut_is_never_read_as_a_chart_end() {
     fn at<T: Decide + Bounds + geom_core::CertifiedBounds + topo::CertifiedPolicy>(scalar: &str) {
         let mut body = point_loft::<T>();
-        let (he, row) = body
+        let he = body
             .pcurves()
             .find_map(|(he, c)| match c.pcurve() {
-                row @ Pcurve::IsoLine {
-                    ends: Some(_), pl, ..
-                } if bounds(pl.y) == (0.0, 0.0) => Some((he, row.clone())),
+                Pcurve::IsoLine { line, .. } if line.axis == geom_brep::ChartAxis::V => Some(he),
                 _ => None,
             })
-            .expect("a wall rim stated by its ends");
-        let [start, end] = row.span_ends(body.pcurve(he).unwrap().edge_span());
+            .expect("a wall rim: a row of its chart");
+        let [start, end] = row_ends(&body, he);
         let corners = (bounds(start.x), bounds(end.x));
         assert!(
             [((0.0, 0.0), (1.0, 1.0)), ((1.0, 1.0), (0.0, 0.0))].contains(&corners),
@@ -139,17 +160,14 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
         let made = body
             .split_edge(edge, t0 + (t1 - t0) / T::from_f64(3.0), tol())
             .expect("the rim splits");
-        // `exact`: each piece reads its kept corner as the point it is;
-        // otherwise only an enclosure of it.
-        let read = |body: &Body<T>, when: &str, exact: bool| {
+        let read = |body: &Body<T>, when: &str| {
             for piece in [edge, made.new_edge] {
                 let e = body.get_edge(piece).unwrap();
                 let he = [e.he_plus, e.he_minus]
                     .into_iter()
                     .find(|h| body.face_of_half_edge(*h) == Some(wall))
                     .expect("the piece bounds the wall");
-                let cache = body.pcurve(he).expect("the piece's wall row is stored");
-                let [a, b] = cache.pcurve().span_ends(cache.edge_span());
+                let [a, b] = row_ends(body, he);
                 let (kept, cut, corner) = if piece == edge {
                     (a, b, corners.0)
                 } else {
@@ -161,31 +179,21 @@ fn a_split_rims_cut_is_never_read_as_a_chart_end() {
                     "{scalar}, {when}: {piece:?}'s cut reads inside the chart, not at its \
                      edge: [{lo}, {hi}]"
                 );
-                let (lo, hi) = bounds(kept.x);
-                assert!(
-                    if exact {
-                        (lo, hi) == corner
-                    } else {
-                        lo <= corner.0 && corner.1 <= hi
-                    },
-                    "{scalar}, {when}: {piece:?} keeps its chart corner {corner:?}: [{lo}, {hi}]"
+                assert_eq!(
+                    bounds(kept.x),
+                    corner,
+                    "{scalar}, {when}: {piece:?} keeps its chart corner, exactly"
                 );
             }
         };
-        read(&body, "as split", true);
+        read(&body, "as split");
         let split = body.clone();
         assert_eq!(
             topo::mint_pcurves(&mut body, tol()),
             Ok(()),
             "{scalar}: the mint pass"
         );
-        // The mint pass derives a piece's row again by its measured end
-        // feet, which state no ends: at `f64` the map reads the corner,
-        // at `Interval` only an enclosure of it. Check 7's rectangle is
-        // the lines the rows hold, so neither the cut nor that corner is
-        // asked to be exact.
-        let interval = T::NAME == geom_core::Interval::NAME;
-        read(&body, "minted again", !interval);
+        read(&body, "minted again");
         for (when, body) in [("as split", split), ("minted again", body)] {
             let finished = topo::finish(body, tol())
                 .unwrap_or_else(|e| panic!("{scalar}, {when}: the split body finishes: {e:?}"));

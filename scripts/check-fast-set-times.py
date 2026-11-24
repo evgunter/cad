@@ -1,70 +1,85 @@
 #!/usr/bin/env python3
-"""Fail the per-PR gate when a fast-set test is slow.
+"""Fail the per-PR gate when a fast-set test costs too much.
 
     check-fast-set-times.py --new-since <base> > new-tests.txt
         print the `pkg:ident` tokens of the Rust lines HEAD adds to <base>,
         and the `pkg:fn:` / `pkg:file:` tokens of the files it edits
-    check-fast-set-times.py <label> <nextest rc> [new-tests.txt]
-        read the `ci` profile's junit report and fail on a slow passing test
+    check-fast-set-times.py <label> <nextest rc> <new-tests.txt> <cargo scope> [--save <dir>]
+        read the `ci` profile's junit report, re-time alone the passing
+        tests it reads over a bar, and fail on a test whose cost is over it
     check-fast-set-times.py --selftest
 
 The `ci` profile's default filter holds back the slow set, so every test the
-default-eps step runs is a fast-set test. Two bars apply to a test that
-passed:
+default-eps step runs is a fast-set test. A test's cost is its time run alone
+on the gate's build (fast_set_alone.py), and two bars apply to it:
 
-- NEW_BAR (0.5 s) to a test this diff adds, so a new test has room before
-  runner noise carries it over the backstop;
-- BAR (1.0 s), the backstop, to every other one.
+- BAR (0.25 s) to a test this diff adds or edits (`is_new` or `is_edited`);
+- CEILING (1.0 s) to every fast-set test, so the PR that makes an old test
+  dramatically slower is the one that goes red.
 
-A test at or over its bar gets an `::error` (the first ANNOTATED, then one
-counting the rest: GitHub keeps 10 error annotations per step, and the step
-also carries nextest-failures.py's and the runner's own) and a row in the
-step summary naming its fix. A failing test is not timed: its own report is
-nextest-failures.py's, which reads the same junit afterwards.
+The parallel pass's reading is a screen: no test reads faster alone than in
+the contended pass, so only a test the pass reads at or over its bar is
+re-run alone, in the same step and on the same binaries, under `<cargo
+scope>` (the step's own): one pass, then up to RUNS in all for a test still
+at or over its bar on every pass so far (`fast_set_alone.retime`). The
+fastest re-run is its cost. A test
+whose cost is under its bar is printed in the log and fails nothing; a test
+that drifts past BAR on main without reaching CEILING is the drift check's
+(`fast-set-drift.py`), not this PR's.
 
-WHAT COUNTS AS NEW. `--new-since` takes `git diff --no-renames -U0 <base>
+A test over its bar gets an `::error` naming the bar, its parallel reading
+and its readings alone (the first ANNOTATED, then one counting the
+rest: GitHub keeps 10 error annotations per step, and the step also carries
+nextest-failures.py's and the runner's own) and a row in the step summary
+naming its fix. A test that fails a re-run alone, having passed in parallel,
+is over its bar too: its cost cannot be read. A failing test is not timed:
+its own report is nextest-failures.py's, which reads the same junit
+afterwards.
+
+WHAT COUNTS AS ADDED. `--new-since` takes `git diff --no-renames -U0 <base>
 HEAD` (two-dot: the per-PR checkout is the test merge, whose first parent is
 the base, and the base is fetched at depth 1 beside it) over the
 `*.rs` files and collects every identifier on an added line, keyed by the
 package whose Cargo.toml is nearest above the file, plus a `mod` token for
-each module an added line declares. A test is new when its leaf name is one
-of its package's identifiers, or a module on its path is one of its
-package's added `mod`s. A renamed or moved test is new; so is an existing
-test whose name an added line merely mentions, which only applies the
-stricter bar. What this cannot see: a test whose name no added line spells
-— a new invocation of a macro that names the test's module rather than the
-test (`rows_at!(at_f32, f32)`), a module renamed through `#[path]`, or a
-name a macro assembles (`paste!`). Those meet BAR.
+each module an added line declares. A test is added when its leaf name is
+one of its package's identifiers, or a module on its path is one of its
+package's added `mod`s (`slow_set.is_new`). A renamed or moved test is
+added; so is an existing test whose name an added line merely mentions.
 
-WHAT COUNTS AS EDITED is slow_set.py's reading, not this bar's: for every
-Rust file the diff edits and HEAD holds, `pkg:fn:<name>` for each `fn` it
-defines and `pkg:file:<module>` for the module it stands for (`file_module`).
-A Rust file whose string literals spell the file name of a non-Rust file the
-diff edits counts as edited too. Those tokens select slow-set tests
-(`slow_set.is_edited`); they never make a test new here.
+WHAT COUNTS AS EDITED: for every Rust file the diff edits and HEAD holds,
+`pkg:fn:<name>` for each `fn` it defines and `pkg:file:<module>` for the
+module it stands for (`file_module`). A Rust file whose string literals
+spell the file name of a non-Rust file the diff edits counts as edited too
+(`slow_set.is_edited`). The same tokens select the slow-set tests the PR
+runs. What neither reading sees is slow_set.py's to say; such a test meets
+CEILING here and BAR in the drift check.
 
-The report is the one nextest-failures.py reads and deletes, so this runs
-first. It exits 0 when nothing is slow, 1 when a test is, and 2 when it
-cannot read a report nextest's rc 0 says exists.
+The parallel report is the one nextest-failures.py reads and deletes, so
+this runs first; the re-runs overwrite it, so it is put back after them,
+and `--save <dir>` copies it to `<dir>/junit.xml` (with the re-timed rows in
+`<dir>/alone.tsv`) for the drift check's upload. It exits 0 when nothing is
+over its bar, 1 when a test is, and 2 when it cannot read a report nextest's
+rc 0 says exists, or a re-run cannot time a test it was asked to.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
-from slow_set import is_new, selected
+import fast_set_alone as alone
+from slow_set import is_edited, is_new, selected
 
-PROFILE = "ci"
-BAR = 1.0
-NEW_BAR = 0.5
+BAR = alone.BAR
+CEILING = 1.0
 ANNOTATED = 3
 CONFIG = ".config/nextest.toml"
 IDENT_RE = re.compile(r"\b[a-z_][A-Za-z0-9_]*\b")
@@ -82,13 +97,6 @@ def _escape_property(s: str) -> str:
 
 def _error(title: str, message: str) -> None:
     print(f"::error title={_escape_property(title)}::{_escape_data(message)}")
-
-
-def _report_path() -> Path:
-    with open(CONFIG, "rb") as f:
-        name = tomllib.load(f)["profile"][PROFILE]["junit"]["path"]
-    target = Path(os.environ.get("CARGO_TARGET_DIR") or "target")
-    return target / "nextest" / PROFILE / name
 
 
 # --- what the diff adds -------------------------------------------------------
@@ -222,22 +230,46 @@ def new_since(base: str) -> int:
 
 # --- the report ----------------------------------------------------------------
 
+# (binary id, name, seconds in the parallel pass, added or edited by the diff)
+Row = tuple[str, str, float, bool]
+# (its row, its readings alone, its cost: the fastest, `None` if one failed)
+Verdict = tuple[Row, list[float | None], float | None]
 
-def slow_rows(
-    report: Path, tokens: set[str]
-) -> tuple[int, list[tuple[float, str, str, bool]]]:
-    """(passing tests timed, [(seconds, binary id, name, new)] over their bar)."""
+
+def bar(touched: bool) -> float:
+    return BAR if touched else CEILING
+
+
+def bar_text(touched: bool) -> str:
+    return f"added or edited in this diff: {BAR} s" if touched else f"any fast-set test: {CEILING} s"
+
+
+def screen(report: Path, tokens: set[str]) -> tuple[int, list[Row]]:
+    """(passing tests timed, the ones the parallel pass reads at or over
+    their bar)."""
     timed, rows = 0, []
-    for case in ET.parse(report).getroot().iter("testcase"):  # noqa: S314 — nextest wrote it, this job
-        if any(case.find(t) is not None for t in ("failure", "error", "skipped")):
+    for (binary, name), secs in alone.readings(report).items():
+        if secs is None:
             continue
         timed += 1
-        secs = float(case.get("time") or 0)
-        binary, name = case.get("classname") or "?", case.get("name") or "?"
-        new = is_new(binary, name, tokens)
-        if secs >= (NEW_BAR if new else BAR):
-            rows.append((secs, binary, name, new))
-    return timed, sorted(rows, reverse=True)
+        touched = is_new(binary, name, tokens) or is_edited(binary, name, tokens)
+        if secs >= bar(touched):
+            rows.append((binary, name, secs, touched))
+    return timed, rows
+
+
+def judge(rows: list[Row], run: alone.Runner) -> tuple[list[Verdict], list[Verdict]]:
+    """The screened rows re-timed alone: (over their bar, slowest first;
+    under it)."""
+    if not rows:
+        return [], []
+    touched = {(b, n): t for b, n, _, t in rows}
+    got = alone.retime(list(touched), run, lambda p: bar(touched[p]))
+    verdicts = [(r, got[r[0], r[1]], alone.cost(got[r[0], r[1]])) for r in rows]
+    over = [v for v in verdicts if v[2] is None or v[2] >= bar(v[0][3])]
+    under = [v for v in verdicts if v not in over]
+    over.sort(key=lambda v: (v[2] is not None, -(v[2] or 0.0)))
+    return over, under
 
 
 def fix(binary: str, name: str) -> str:
@@ -247,54 +279,87 @@ def fix(binary: str, name: str) -> str:
     )
 
 
-def bar_text(new: bool) -> str:
-    return f"new in this diff: {NEW_BAR} s" if new else f"existing test: {BAR} s"
+def verdict_text(v: Verdict) -> str:
+    (binary, name, secs, touched), readings, cost = v
+    if cost is None:
+        return (
+            f"{binary} {name} failed a re-run alone (readings alone: {alone.show(readings)}; "
+            f"{secs:.3f} s in the parallel pass): its cost cannot be read"
+        )
+    runs = f"{alone.show(readings)} s alone, {secs:.3f} s in the parallel pass"
+    return (
+        f"{binary} {name} costs {cost:.3f} s ({runs}; bar: {bar_text(touched)}): "
+        f"{fix(binary, name)}"
+    )
 
 
 def report_rows(
-    label: str, timed: int, rows: list[tuple[float, str, str, bool]]
+    label: str,
+    timed: int,
+    rows: list[Row],
+    over: list[Verdict],
+    under: list[Verdict],
+    spent: float,
 ) -> None:
     print(
-        f"check-fast-set-times [{label}]: {timed} passing tests timed; "
-        f"{len(rows)} at or over the bar ({NEW_BAR} s new in this diff, {BAR} s otherwise)"
+        f"check-fast-set-times [{label}]: {timed} passing tests timed; {len(rows)} read at or "
+        f"over their bar in the parallel pass ({BAR} s added or edited, {CEILING} s any) and "
+        f"were re-run alone (up to {alone.RUNS} passes) in {spent:.1f} s; {len(over)} cost their bar or more"
     )
-    for i, (secs, binary, name, new) in enumerate(rows):
-        line = (
-            f"{binary} {name} took {secs:.3f} s ({bar_text(new)}): {fix(binary, name)}"
+    for v in under:
+        (binary, name, secs, touched), readings, cost = v
+        print(
+            f"  under its bar alone: {binary} {name} {cost:.3f} s "
+            f"({alone.show(readings)}; {secs:.3f} s in parallel; {bar_text(touched)})"
         )
+    for i, v in enumerate(over):
         if i < ANNOTATED:
-            _error(f"{label}: slow fast-set test", line)
+            _error(f"{label}: slow fast-set test", verdict_text(v))
         else:
-            print(f"  {line}")
-    if len(rows) > ANNOTATED:
+            print(f"  {verdict_text(v)}")
+    if len(over) > ANNOTATED:
         _error(
             label,
-            f"{len(rows) - ANNOTATED} more slow fast-set tests: see the step summary",
+            f"{len(over) - ANNOTATED} more slow fast-set tests: see the step summary",
         )
-    if rows and (path := os.environ.get("RUNNER_TEMP")):
+    if over and (path := os.environ.get("RUNNER_TEMP")):
         # The file the test job's last step prints, so the slow rows close the log.
         with open(Path(path) / "nextest-failures.txt", "a") as f:
-            for secs, binary, name, new in rows:
-                f.write(
-                    f"SLOW [{label}] {binary} {name} {secs:.3f} s ({bar_text(new)}): {fix(binary, name)}\n"
-                )
-    if rows and (path := os.environ.get("GITHUB_STEP_SUMMARY")):
+            for v in over:
+                f.write(f"SLOW [{label}] {verdict_text(v)}\n")
+    if over and (path := os.environ.get("GITHUB_STEP_SUMMARY")):
         with open(path, "a") as f:
             f.write(
-                f"### Fast-set tests at or over the bar: {label}\n\n"
+                f"### Fast-set tests over their bar: {label}\n\n"
                 "Make each faster, or add its entry to the slow set "
                 f"(`{CONFIG}`, the `ci` profile's `default-filter`).\n\n"
-                "| time | bar | entry |\n|---|---|---|\n"
+                "| cost alone | alone | parallel | bar | entry |\n|---|---|---|---|---|\n"
             )
-            for secs, binary, name, new in rows:
+            for (binary, name, secs, touched), readings, cost in over:
+                shown = "failed" if cost is None else f"{cost:.3f} s"
                 f.write(
-                    f"| {secs:.3f} s | {bar_text(new)} | `binary_id({binary}) & test(={name})` |\n"
+                    f"| {shown} | {alone.show(readings)} | {secs:.3f} s | {bar_text(touched)} "
+                    f"| `binary_id({binary}) & test(={name})` |\n"
                 )
             f.write("\n")
 
 
-def main(label: str, rc: int, tokens: set[str]) -> int:
-    report = _report_path()
+def save_rows(save: Path, verdicts: list[Verdict]) -> None:
+    with open(save / "alone.tsv", "w") as f:
+        f.write("binary\tname\tparallel\talone\tcost\ttouched\n")
+        for (binary, name, secs, touched), readings, cost in verdicts:
+            shown = "" if cost is None else f"{cost:.3f}"
+            f.write(f"{binary}\t{name}\t{secs:.3f}\t{alone.show(readings)}\t{shown}\t{touched}\n")
+
+
+def main(
+    label: str,
+    rc: int,
+    tokens: set[str],
+    run: alone.Runner,
+    save: Path | None = None,
+) -> int:
+    report = alone.report_path()
     if not report.exists():
         if rc == 0:
             _error(
@@ -303,30 +368,63 @@ def main(label: str, rc: int, tokens: set[str]) -> int:
             )
             return 2
         return 0
-    timed, rows = slow_rows(report, tokens)
-    report_rows(label, timed, rows)
-    return 1 if rows else 0
+    parallel = report.read_bytes()
+    if save:
+        save.mkdir(parents=True, exist_ok=True)
+        (save / "junit.xml").write_bytes(parallel)
+    timed, rows = screen(report, tokens)
+    started = time.monotonic()
+    try:
+        over, under = judge(rows, run)
+    finally:
+        report.write_bytes(parallel)
+    if save:
+        save_rows(save, over + under)
+    report_rows(label, timed, rows, over, under, time.monotonic() - started)
+    return 1 if over else 0
 
 
 # --- selftest --------------------------------------------------------------------
 
 
 FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="nextest-run" tests="8" failures="1" errors="0">
-  <testsuite name="geom::all" tests="4" failures="1">
-    <testcase name="fit::under" classname="geom::all" time="0.400"/>
-    <testcase name="fit::at_new_bar_old" classname="geom::all" time="0.600"/>
+<testsuites name="nextest-run" tests="12" failures="1" errors="0">
+  <testsuite name="geom::all" tests="7" failures="1">
+    <testcase name="fit::under" classname="geom::all" time="0.200"/>
+    <testcase name="fit::untouched_mid" classname="geom::all" time="0.600"/>
     <testcase name="fit::added_row" classname="geom::all" time="0.600"/>
+    <testcase name="fit::added_cheap" classname="geom::all" time="0.400"/>
+    <testcase name="fit::added_tiny" classname="geom::all" time="0.200"/>
+    <testcase name="fit::added_noisy" classname="geom::all" time="0.500"/>
     <testcase name="fit::slow_but_failing" classname="geom::all" time="3.000"><failure message="boom"/></testcase>
   </testsuite>
-  <testsuite name="topo" tests="4">
-    <testcase name="chord::tests::at_bar" classname="topo" time="1.000"/>
-    <testcase name="chord::tests::over_bar" classname="topo" time="1.100"/>
+  <testsuite name="topo" tests="5">
+    <testcase name="chord::tests::off_path_near_bar" classname="topo" time="1.050"/>
+    <testcase name="chord::tests::dramatically_slower" classname="topo" time="1.600"/>
     <testcase name="chord::tests::just_under" classname="topo" time="0.999"/>
-    <testcase name="fresh::tests::inherits_its_module" classname="topo" time="0.500"/>
+    <testcase name="chord::tests::flips_alone" classname="topo" time="0.500"/>
+    <testcase name="fresh::tests::inherits_its_module" classname="topo" time="0.250"/>
   </testsuite>
 </testsuites>
 """
+
+# Each screened test's three readings alone; `None` is a pass it failed.
+ALONE: dict[tuple[str, str], list[float | None]] = {
+    ("geom::all", "fit::added_row"): [0.31, 0.30, 0.33],  # added, 0.30 s: over BAR
+    ("geom::all", "fit::added_cheap"): [0.20, 0.22, 0.19],  # added, 0.4 s in parallel only
+    # Off the diff's path at 1.05 s in parallel: the old rule's 1.0 s bar on
+    # the parallel reading redded the PR for it.
+    ("topo", "chord::tests::off_path_near_bar"): [0.41, 0.40, 0.44],
+    ("topo", "chord::tests::dramatically_slower"): [1.20, 1.00, 1.10],  # at CEILING
+    # Edited, and fails its first pass alone: red, however cheap a later
+    # pass would have read it.
+    ("topo", "chord::tests::flips_alone"): [None, 0.10, 0.10],
+    # Added, over BAR on its first pass and under it on its second: the
+    # fastest of the passes is its cost, and no third pass is paid for.
+    ("geom::all", "fit::added_noisy"): [0.40, 0.22, 0.50],
+    ("topo", "fresh::tests::inherits_its_module"): [0.12, 0.11, 0.13],  # added module, at BAR
+}
+OVER = {"fit::added_row", "chord::tests::dramatically_slower", "chord::tests::flips_alone"}
 
 DIFF = """diff --git a/crates/geom/tests/all/fit.rs b/crates/geom/tests/all/fit.rs
 --- a/crates/geom/tests/all/fit.rs
@@ -334,6 +432,9 @@ DIFF = """diff --git a/crates/geom/tests/all/fit.rs b/crates/geom/tests/all/fit.
 @@ -10,0 +11,2 @@
 +#[test]
 +fn added_row() {
++fn added_cheap() {
++fn added_tiny() {
++fn added_noisy() {
 diff --git a/crates/topo/src/lib.rs b/crates/topo/src/lib.rs
 --- a/crates/topo/src/lib.rs
 +++ b/crates/topo/src/lib.rs
@@ -346,6 +447,98 @@ diff --git a/docs/x.md b/docs/x.md
 @@ -1 +1 @@
 +fit under at_bar
 """
+
+
+def report_selftest(root: Path, tokens: set[str]) -> None:
+    """`main` over FIXTURE with ALONE's re-runs, from a checkout at `root`."""
+    import contextlib
+    import io
+
+    (root / ".config").mkdir()
+    (root / CONFIG).write_text('[profile.ci.junit]\npath = "junit.xml"\n')
+    report = root / "target" / "nextest" / "ci" / "junit.xml"
+    report.parent.mkdir(parents=True)
+    asked: list[str] = []
+
+    def run(filterset: str) -> Path:
+        i = len(asked)
+        asked.append(filterset)
+        rows = "".join(
+            f'<testcase classname="{b}" name="{n}" time="{ts[i] or 0}">'
+            + ("<failure/>" if ts[i] is None else "")
+            + "</testcase>"
+            for (b, n), ts in ALONE.items()
+            if f"test(={n})" in filterset
+        )
+        report.write_text(f"<testsuites><testsuite>{rows}</testsuite></testsuites>")
+        return report
+
+    def skipped(filterset: str) -> Path:
+        report.write_text("<testsuites><testsuite></testsuite></testsuites>")
+        return report
+
+    old_cwd, old_target = os.getcwd(), os.environ.pop("CARGO_TARGET_DIR", None)
+    old_runner_temp = os.environ.pop("RUNNER_TEMP", None)
+    old_summary = os.environ.pop("GITHUB_STEP_SUMMARY", None)
+    os.chdir(root)
+    try:
+        report.write_text(FIXTURE)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = main("default eps", 0, tokens, run, root / "saved")
+        log = out.getvalue()
+        assert rc == 1, log
+        assert len(asked) == alone.RUNS, f"up to RUNS passes alone: {asked}"
+        passes = [{n for _, n in ALONE if f"test(={n})" in f} for f in asked]
+        assert passes[0] == {n for _, n in ALONE}, f"pass 1 is every screened test: {asked[0]}"
+        assert passes[1] == {"fit::added_row", "chord::tests::dramatically_slower", "fit::added_noisy"}, (
+            f"pass 2 is the tests still at or over their bar: {passes[1]}"
+        )
+        assert passes[2] == {"fit::added_row", "chord::tests::dramatically_slower"}, passes[2]
+        for f in asked:
+            for n in ("fit::untouched_mid", "chord::tests::just_under", "fit::added_tiny"):
+                assert n not in f, f"{n} reads under its bar in parallel and is not re-run"
+        errors = [line for line in log.splitlines() if line.startswith("::error")]
+        assert len(errors) == len(OVER), log
+        red = {n for n in OVER if any(n in e for e in errors)}
+        assert red == OVER, f"the tests over their bar alone, and only those: {log}"
+        assert not any("off_path_near_bar" in e for e in errors), (
+            "an off-path test 1.05 s in parallel and 0.41 s alone is under CEILING"
+        )
+        added = next(e for e in errors if "fit::added_row" in e)
+        for part in (f"added or edited in this diff: {BAR} s", "0.310, 0.300, 0.330 s alone",
+                     "costs 0.300 s", "0.600 s in the parallel pass"):  # fmt: skip
+            assert part in added, f"the annotation names the bar and every reading: {added}"
+        assert f"any fast-set test: {CEILING} s" in next(
+            e for e in errors if "dramatically_slower" in e
+        ), errors
+        assert "under its bar alone: topo chord::tests::off_path_near_bar 0.410 s" in log, log
+        assert "under its bar alone: geom::all fit::added_noisy 0.220 s" in log, log
+        assert "chord::tests::flips_alone failed a re-run alone (readings alone: failed;" in next(
+            e for e in errors if "flips_alone" in e
+        ), errors
+        assert report.read_text() == FIXTURE, "the parallel report is put back for nextest-failures.py"
+        assert (root / "saved" / "junit.xml").read_text() == FIXTURE
+        assert (root / "saved" / "alone.tsv").read_text().count("\n") == 1 + len(ALONE)
+        try:
+            main("default eps", 0, tokens, skipped)
+        except alone.RetimeError:
+            pass
+        else:
+            raise AssertionError("a re-run that times no test is a red, never a pass")
+        assert report.read_text() == FIXTURE, "put back after a re-run that failed too"
+        quiet = FIXTURE.replace('time="1.600"', 'time="0.900"').replace('time="1.050"', 'time="0.950"')
+        report.write_text(quiet)
+        asked.clear()
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert main("default eps", 0, set(), run) == 0
+        assert asked == [], "nothing at or over its bar in parallel: no re-run is paid for"
+    finally:
+        os.chdir(old_cwd)
+        for k, v in (("CARGO_TARGET_DIR", old_target), ("RUNNER_TEMP", old_runner_temp),
+                     ("GITHUB_STEP_SUMMARY", old_summary)):  # fmt: skip
+            if v is not None:
+                os.environ[k] = v
 
 
 def selftest() -> int:
@@ -364,30 +557,31 @@ def selftest() -> int:
         assert not any(t.endswith(":at_bar") for t in tokens), (
             "a non-Rust file adds nothing"
         )
+        tokens.add("topo:fn:flips_alone")  # an edited file defines it
         report = root / "junit.xml"
         report.write_text(FIXTURE)
-        timed, rows = slow_rows(report, tokens)
-        got = {name: new for _, _, name, new in rows}
-        assert timed == 7, f"the failing test is not timed ({timed})"
+        timed, rows = screen(report, tokens)
+        got = {name: touched for _, name, _, touched in rows}
+        assert timed == 11, f"the failing test is not timed ({timed})"
         assert got == {
-            "fit::added_row": True,  # new, 0.6 s: over NEW_BAR
-            "chord::tests::at_bar": False,  # existing, 1.0 s: at BAR
-            "chord::tests::over_bar": False,  # existing, 1.1 s
-            "fresh::tests::inherits_its_module": True,  # new module, 0.5 s: at NEW_BAR
+            "fit::added_row": True,
+            "fit::added_cheap": True,
+            "fit::added_noisy": True,
+            "chord::tests::off_path_near_bar": False,
+            "chord::tests::dramatically_slower": False,
+            "chord::tests::flips_alone": True,
+            "fresh::tests::inherits_its_module": True,
         }, got
-        assert "fit::at_new_bar_old" not in got, (
-            "an existing test at 0.6 s is under BAR"
-        )
-        assert "chord::tests::just_under" not in got, "0.999 s is under BAR"
+        assert "fit::untouched_mid" not in got, "an untouched test at 0.6 s is under CEILING"
+        assert "chord::tests::just_under" not in got, "0.999 s is under CEILING"
+        assert "fit::added_tiny" not in got, "an added test at 0.2 s is under BAR"
         assert "fit::slow_but_failing" not in got, (
             "a failing test's report is nextest-failures.py's"
-        )
-        assert [r[0] for r in rows] == sorted((r[0] for r in rows), reverse=True), (
-            "slowest first"
         )
         assert "binary_id(geom::all) & test(=fit::added_row)" in fix(
             "geom::all", "fit::added_row"
         )
+        report_selftest(root, tokens)
         edited_selftest(root)
     print("check-fast-set-times: selftest ok")
     return 0
@@ -495,18 +689,24 @@ if __name__ == "__main__":
         sys.exit(selftest())
     if len(args) == 2 and args[0] == "--new-since":
         sys.exit(new_since(args[1]))
-    if len(args) in (2, 3):
+    save = None
+    if len(args) == 6 and args[4] == "--save":
+        save, args = Path(args[5]), args[:4]
+    if len(args) == 4:
         try:
             sys.exit(
                 main(
                     args[0],
                     int(args[1]),
-                    set(Path(args[2]).read_text().split() if len(args) == 3 else ()),
+                    set(Path(args[2]).read_text().split()),
+                    alone.nextest_runner(shlex.split(args[3])),
+                    save,
                 )
             )
         except Exception as exc:  # noqa: BLE001 — a checker that cannot read is a red, named
             _error("check-fast-set-times.py failed", f"{type(exc).__name__}: {exc}")
             sys.exit(2)
     sys.exit(
-        "usage: check-fast-set-times.py --new-since <base> | <label> <rc> [<tokens file>] | --selftest"
+        "usage: check-fast-set-times.py --new-since <base> "
+        "| <label> <rc> <tokens file> <cargo scope> [--save <dir>] | --selftest"
     )

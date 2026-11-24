@@ -249,8 +249,8 @@ fn r2_evidence_how_loose_is_the_interval_witness_at_the_ceiling_scale() {
             let (norm, radius, _, _) = sagitta(ax, ay, bx, by, b, 1.0);
             let bo = |v: Sym<Interval>| {
                 (
-                    geom_core::Bounds::lo(v.value),
-                    geom_core::Bounds::hi(v.value),
+                    geom_core::Bounds::lo(v.value()),
+                    geom_core::Bounds::hi(v.value()),
                 )
             };
             let (nl, nh) = bo(norm);

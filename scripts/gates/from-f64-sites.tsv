@@ -63,6 +63,7 @@ crates/geom-brep/src/pair_section.rs	1	constant	band.escalate()	the band's escal
 crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
+crates/geom-brep/src/pcurve_cache.rs	1	fixture	<fn>	iso_line_for_tests: a suite's fixture line, its f64 literals lifted to the scalar it is stated at (test-support)
 crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	band.zero()	the band's zero width, a tolerance: the incidence read's charge fraction
@@ -167,8 +168,6 @@ crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's e
 crates/topo/src/boolean/fate.rs	1	constant	f64::from(halves)	a loop's count of half-turn corners, read as a scalar
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
-crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
-crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
 crates/topo/src/census.rs	1	constant	band.escalate() - band.zero()	the band's room (K - 1)·ε, a tolerance
 crates/topo/src/census.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance

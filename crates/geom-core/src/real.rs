@@ -210,11 +210,10 @@ impl SymRegistration {
 /// registered-identity door forwards the lane scalar's refusal arm —
 /// [`SymRegistration::Contradicted`] from an exact witness,
 /// [`SymRegistration::Disputed`] from an inexact one — and
-/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
-/// the same way: asserted at an exact witness, counted
-/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
-/// are the same question about the same channel, so they read one
-/// marker rather than two roster copies.
+/// `Sym<T>::sign_within` checks a symbolic `Zero` against its enclosure
+/// at an exact witness only, where the enclosure is a proof. Both are
+/// the same question about the same channel, so they read one marker
+/// rather than two roster copies.
 ///
 /// **That they cannot drift is a property of the PIN, not of the
 /// marker**, and the difference is one a first cut got wrong: a const
@@ -232,8 +231,11 @@ pub enum Witness {
     /// enclosure that excludes zero proves the margin is not zero.
     /// There is no slack in either test and no scale at which the
     /// answer is the arithmetic giving up, so a disagreement with a
-    /// form is a defect in one of the two channels and this codebase
-    /// fails loud on it.
+    /// form is a defect in one of the two channels: a proven zero whose
+    /// enclosure excludes zero fails a `debug_assert!` where the tier
+    /// returns it (`sym::discharge_checked`), and a zero the tier would
+    /// prove under a definite sign, which the decision does not ask, is
+    /// the test instrument's report (`sym::contradiction`).
     Exact,
     /// **A comparison here is a MEASUREMENT of one rounded number.**
     /// `f64` and [`crate::Probe`] evaluate at a point: at a far
@@ -241,8 +243,7 @@ pub enum Witness {
     /// error in a sign argument becomes a whole `2.0` at the margin,
     /// and at a pole the channel has no clause 1 to refuse with. None
     /// of those is a false claim by the form, so none of them may be
-    /// charged to the form: the numeric answer is kept and the
-    /// disagreement is counted.
+    /// charged to the form: the numeric answer is kept.
     Inexact,
 }
 
@@ -407,6 +408,24 @@ pub trait Real:
     /// through [`CertifiedEnclosure::carried`], so a scalar that holds
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
+
+    /// **The expression this scalar carries**: at [`crate::Sym`] its
+    /// node in the document's expression graph, and at every numeric
+    /// scalar a type with no values ([`NoExpression`]). What is asked
+    /// of an expression is asked of this type ([`Expression`]), so a
+    /// question about the expression cannot be put to a number.
+    ///
+    /// One sentence per scalar: `Sym<T>` carries its node, the
+    /// expression its value was computed as, or the identity a margin
+    /// was given in its place ([`crate::Decide::free_identity`]); `f64`,
+    /// [`crate::Interval`], [`crate::Dual`] and [`crate::Probe`] carry a
+    /// value and no expression.
+    type Expression: Expression;
+
+    /// This value's expression: the node at [`crate::Sym`], and nothing
+    /// at a numeric scalar, where `Option<NoExpression>` has the one
+    /// value.
+    fn expression(self) -> Option<Self::Expression>;
 
     /// **This scalar with its tangent removed**: the scalar a place is
     /// evaluated at and a decision reads, which DL5.2 (the crate README)
@@ -2266,6 +2285,88 @@ pub struct Uncertified;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoLane {}
 
+/// **What a scalar's expression answers** ([`Real::Expression`]): the
+/// symbolic tier's node, or [`NoExpression`].
+pub trait Expression: Copy + Debug + Send + Sync + 'static + expression_seal::Sealed {
+    /// **Is this expression zero as a function of the document's
+    /// variables?** A proof where the symbolic tier's normal form shows
+    /// it (ERROR-DESIGN E12, the structural question), and `None` where
+    /// it shows nothing: the value may still be zero.
+    ///
+    /// Not a decision: it counts nothing, records nothing, defers
+    /// nothing, and reads no value, so a graph built inside its session
+    /// gets one answer at every valuation and in every session. Its
+    /// licence is to choose between two spellings of one real value,
+    /// and the proof is spent on the spelling it chooses.
+    ///
+    /// It is a method of the expression, so it cannot be asked of a
+    /// number or of a scalar that may be one:
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// let _ = 0.0_f64.proves_zero();
+    /// ```
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// let _ = geom_core::Interval::from_bounds(0.0, 0.0).proves_zero();
+    /// ```
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::Expression;
+    /// fn asks<T: geom_core::Real>(x: T) -> bool {
+    ///     x.proves_zero().is_some()
+    /// }
+    /// ```
+    ///
+    /// ```
+    /// use geom_core::{Expression, Real};
+    /// fn asks<T: Real>(x: T) -> bool {
+    ///     x.expression().and_then(Expression::proves_zero).is_some()
+    /// }
+    /// assert!(!asks(0.0_f64));
+    /// ```
+    fn proves_zero(self) -> Option<ProvedZero>;
+}
+
+pub(crate) mod expression_seal {
+    pub trait Sealed {}
+    impl Sealed for super::NoExpression {}
+}
+
+/// **The expression of a scalar that carries none**: a type with no
+/// values, so nothing is asked of it and no impl answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoExpression {}
+
+impl Expression for NoExpression {
+    fn proves_zero(self) -> Option<ProvedZero> {
+        match self {}
+    }
+}
+
+/// **A proof that an expression is zero** wherever the build takes the
+/// decisions it took ([`Expression::proves_zero`]). Only the symbolic
+/// tier makes one, and it is neither copied nor cloned: the caller that
+/// chooses a spelling on it gives it up there.
+#[derive(Debug)]
+#[must_use]
+pub struct ProvedZero(());
+
+impl ProvedZero {
+    /// The tier's proof.
+    pub(crate) fn by_the_tier() -> Self {
+        Self(())
+    }
+
+    /// **The closed spelling of the value proved zero**: the literal
+    /// zero, for which the proof is given up.
+    #[must_use]
+    pub fn zero<T: Real>(self) -> T {
+        T::zero()
+    }
+}
+
 /// **A scalar that transports tangents and never certifies** — the
 /// dual's side of [`Real::Carries`]' partition: its doors construct and
 /// never check, and what they hold in a record's place is
@@ -2461,13 +2562,19 @@ impl Real for f64 {
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same
-    /// reason is why a theorem contradicted by this channel is a
-    /// dispute rather than a defect.
+    /// reason is why a symbolic zero is not checked against this
+    /// channel's reading.
     const WITNESS: Witness = Witness::Inexact;
 
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    type Expression = NoExpression;
+
+    fn expression(self) -> Option<NoExpression> {
+        None
+    }
 
     type Value = f64;
 
@@ -2623,8 +2730,7 @@ impl Real for f64 {
     /// cannot tell a false claim from a true one the arithmetic lost at
     /// this scale, and `Contradicted` is reserved for the exact witness
     /// that can ([`crate::Interval`]'s meet). The same const is what
-    /// keeps a theorem this channel contradicts a counted dispute
-    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// keeps a symbolic zero unchecked against this channel's reading;
     /// a row pins the two together, so the door and the tier cannot
     /// drift apart.
     ///

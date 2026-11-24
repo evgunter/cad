@@ -146,7 +146,11 @@ fn at_sym_the_view_borrows_and_each_place_is_its_own_unknown() {
             "over f64 a Sym surface's view borrows"
         );
         let (a, b) = (s.eval_at(0.3, 0.6), s.eval_at(0.3, 0.6));
-        assert_eq!(a.x.value.to_bits(), b.x.value.to_bits(), "the same number");
+        assert_eq!(
+            a.x.value().to_bits(),
+            b.x.value().to_bits(),
+            "the same number"
+        );
         assert!(a.x.node() != b.x.node(), "one unknown per place");
     });
 }

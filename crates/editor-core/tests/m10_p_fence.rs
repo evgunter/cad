@@ -389,11 +389,11 @@ fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
 }
 
 /// **The `Interval` corpus with ids masked, pinned** — the witness of
-/// an open P0 row, not a baseline. PR 7354 (SECTCONE, merge
+/// an open row, not a baseline. PR 7354 (SECTCONE, merge
 /// `4a94f7109b`) moved `boss_union`'s `Interval` enclosures, and PR 7299
 /// (judged) narrowed `cut_cylinder`'s; this pin holds PR 7354's move
 /// unjudged, and SECTCONE owes the judgement
-/// (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
+/// (`work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section.md`).
 /// Once that row closes, this pin goes and the row above carries the
 /// fence.
 #[test]

@@ -86,7 +86,7 @@ fn point(c: Point3<f64>) -> Point3<S> {
 /// proved it.
 fn reading(d: S) -> (Sign, bool) {
     let Decided { sign, margin } = decide_reported("radial_reader_row", Margin::of(d), band())
-        .unwrap_or_else(|e| panic!("a length that does not decide: {e:?} ({:?})", d.value));
+        .unwrap_or_else(|e| panic!("a length that does not decide: {e:?} ({:?})", d.value()));
     (sign, margin.proven())
 }
 
@@ -189,7 +189,7 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
             };
             let line = geom::Line {
                 origin: point(c) + lit3(x) * r,
-                dir: geom_core::UnitVec3::squared(lit3(axis)),
+                dir: geom_core::UnitVec3::exact_z(),
             };
             let image = chart_pcurve(&Curve3::Line(line), &cylinder, band())
                 .unwrap_or_else(|e| panic!("along {name}: no image: {e:?}"));
@@ -211,7 +211,7 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
                         "along {name} at {t}: the image maps onto the line"
                     );
                 } else {
-                    let (lo, hi) = (q.x.value.lo(), q.x.value.hi());
+                    let (lo, hi) = (q.x.value().lo(), q.x.value().hi());
                     assert!(
                         lo <= angle && angle <= hi && hi - lo < 1e-14,
                         "along {name} at {t}: [{lo}, {hi}] is the literal {angle}"
@@ -570,7 +570,7 @@ fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
             let read = decide_reported("radial_reader_row", Margin::of(d), band())
                 .ok()
                 .map(|g| (g.sign, g.margin.proven()));
-            (read, d.value.hi())
+            (read, d.value().hi())
         })
         .0
     };
@@ -654,7 +654,7 @@ fn an_extruded_circles_wall_places_its_seam_and_rims_at_zero() {
         };
         let seam = Curve3::Line(geom::Line {
             origin: start,
-            dir: geom_core::UnitVec3::squared(lit3(axis)),
+            dir: geom_core::UnitVec3::exact_z(),
         });
         let rim = Curve3::Circle(geom::Circle::new(wall, r.abs()));
         for (name, carrier) in [("the seam", seam), ("a rim", rim)] {
