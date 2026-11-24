@@ -45,7 +45,7 @@
 //!    material ([`crate::point_in_solid_faces`]). With the boundaries
 //!    disjoint, each shell lies wholly in or wholly out of the other
 //!    side (it is connected and misses that side's boundary).
-//!    Connectedness is what [`crate::validate`] enforces at rest
+//!    Connectedness is what [`crate::validate`](mod@crate::validate) enforces at rest
 //!    (`ShellDisconnected`); both doors take a bare body, so each checks
 //!    every shell's connectedness itself when it is built
 //!    (`validate::shell_connected`, one walk of the shell's faces), and
