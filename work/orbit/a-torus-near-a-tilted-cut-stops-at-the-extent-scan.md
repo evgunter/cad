@@ -2,11 +2,14 @@
 id: a-torus-near-a-tilted-cut-stops-at-the-extent-scan
 kind: issue
 title: A torus near or across a tilted cut's ellipse rim stops at the extent scan or the join's germ frame: its oblique plane and wall pairs have no section arm
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: H
 refs: [3973, c5-plane-torus-cone-cylinder-arms]
+closed: 2026-11-24
+pr: 7617
+branch: orbit/tilted-torus-rim
 ---
 
 
@@ -59,3 +62,20 @@ first operand, held to tier 3 and to the closed-form volumes `π/8` and
 The two crossing poses stop at the plane × torus germ's spiric
 (`GermSectionSpiric`), the oblique plane pair's door, which is what this
 row has left.
+
+## Closed (2026-11-24, PR 7617)
+
+A plane tilted against a ring torus (the general quartic section) is now served by marching the pair in ℝ³ into certified `Periodic` loops:
+- `PlaneTorusPose` counts the loops in closed form and matches each carrier by winding; `PlaneTorusMeridian` is the one home for the rows, the witness and the foot;
+- a tangency is a point only at an extreme, and a saddle refuses.
+
+A torus across a tilted cut's ellipse rim builds every op, both crossing poses, held to independent quadratures where the kernel path allows. A slow-set Morse-count sweep pins the counts.
+
+Doors fixed on the way:
+- `edge_join::read_far`, now bounded and fail-loud;
+- the slit's spline-against-curved reading;
+- the bisect budget;
+- a `Periodic` edge's winding;
+- `clamped_view`'s turn tolerance.
+
+Review: dual, APPROVE-WITH-FIXES ×2 (0 MAJOR); then a verify, APPROVE. The remaining test-strength limits are filed: `a-marched-torus-bodys-volume-stops-at-its-floor` (P2), the inside row's spline-chord evidence, and the `section_end_poses` coverage (P3).

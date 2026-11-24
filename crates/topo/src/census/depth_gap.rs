@@ -279,39 +279,20 @@ pub(crate) fn gaps_in_depth<'r, T: Decide>(
         })
 }
 
-/// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
-/// are apart in some depth** either proposes (module docs): whether a
-/// gap of [`gaps_in_depth`] is definitely positive.
+/// **Whether the faces `a` of `x` and `b` of `y`, read as `ra`, `rb`
+/// ([`face_read`]) in one frame, are apart in some depth** either
+/// proposes (module docs): whether a gap of [`gaps_in_depth`] is
+/// definitely positive.
 ///
 /// # Panics
 ///
 /// As [`face_read`].
 pub(super) fn apart_in_depth<T: Decide>(
-    body: &Body<T>,
-    (a, ra): (FaceKey, &Read<T>),
-    (b, rb): (FaceKey, &Read<T>),
+    (x, a, ra): (&Body<T>, FaceKey, &Read<T>),
+    (y, b, rb): (&Body<T>, FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    gaps_in_depth((body, a, ra), (body, b, rb), band).any(|gap| clears(gap, band))
-}
-
-/// **The directions two faces aim across their pair**, each of its own
-/// body: [`toward`] and [`across`] over the two faces' reads
-/// ([`face_read`]). None where either face has no cover. The boolean's
-/// pair doors read these ([`crate::separating::faces_apart`]), as arm 1
-/// reads them ([`proposed`]).
-///
-/// # Panics
-///
-/// As [`face_read`].
-pub(crate) fn pair_directions<T: Decide>(
-    (x, fx): (&Body<T>, FaceKey),
-    (y, fy): (&Body<T>, FaceKey),
-    band: Band,
-) -> Vec<geom_core::UnitVec3<T>> {
-    face_read(x, fx, band)
-        .zip(face_read(y, fy, band))
-        .map_or_else(Vec::new, |(rx, ry)| proposed(&rx, &ry, band))
+    gaps_in_depth((x, a, ra), (y, b, rb), band).any(|gap| clears(gap, band))
 }
 
 /// [`toward`], then [`across`].
@@ -657,12 +638,12 @@ mod tests {
         let body = Body::<f64>::new();
         let f = FaceKey::default();
         assert!(
-            apart_in_depth(&body, (f, &inner), (f, &outer), band()),
+            apart_in_depth((&body, f, &inner), (&body, f, &outer), band()),
             "nested tubes 0.05 apart"
         );
         let touching = face(0.4);
         assert!(
-            !apart_in_depth(&body, (f, &inner), (f, &touching), band()),
+            !apart_in_depth((&body, f, &inner), (&body, f, &touching), band()),
             "one tube against itself touches"
         );
     }
@@ -698,7 +679,7 @@ mod tests {
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
         assert_eq!(rb.cover.range_about(&axis), (1.05, 1.05), "the outer wall");
         assert!(
-            apart_in_depth(&body, (a, &ra), (b, &rb), band()),
+            apart_in_depth((&body, a, &ra), (&body, b, &rb), band()),
             "walls 0.05 apart"
         );
     }

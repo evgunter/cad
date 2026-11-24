@@ -20,11 +20,10 @@
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
-//! For two faces, [`faces_apart`] reads on past [`apart`]: along the
-//! directions the pair's own geometry aims (the census's,
-//! [`crate::census::pair_directions`]), each face's cover read along the
-//! direction ([`crate::cover::face_cover_toward`]), as the census's
-//! arm 1 reads a pair at rest.
+//! The one reading of two faces behind a box overlap,
+//! `census::faces_apart`, starts with [`apart`] and reads on past it
+//! with [`apart_by`]; it lives beside the census's depth and in-plane
+//! readers, which it also reads, so this module reads no census.
 //!
 //! **Soundness.** Every cover holds its item's locus, so a gap decided
 //! positive after both items' pads proves the loci disjoint: the same
@@ -231,49 +230,6 @@ pub(crate) fn apart<T: Decide>(
     apart_by(x, y, axes, pad, band, &|body, f, _| {
         crate::cover::face_cover(body, f, band).ok()
     })
-}
-
-/// **Whether two faces, each of its own body, are certainly apart**:
-/// [`apart`] along `axes`, and past it every direction the pair's own
-/// geometry aims ([`crate::census::pair_directions`]: an axis or
-/// centre toward the other face's nearest boundary segment point, an
-/// arc's chord normal, the line between two carriers' axes or centres)
-/// with `axes` again, each face's cover read along the direction
-/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side
-/// cut). That second read is arm 1's of the census
-/// (`census::backstop_apart`), so a face pair the census parts at rest
-/// these doors part too. It costs a boundary walk per face, and a point
-/// placement per pole of a sphere face, so it runs only on a pair the
-/// first read leaves.
-///
-/// The pole-side cut places a point in a face through its region
-/// ([`crate::contain::curved_face_placement`]), and narrows only on a
-/// definite `Out`. Its callers read operands at rest, or a sphere
-/// re-cut's operands re-entered whole. The boolean's curved sweep arm
-/// places its pierce and end points through the same door
-/// (`boolean::reduce::curved_face_arm`), in the faces of the operand it
-/// sweeps against, and the reverse sweep in the other's, so every face
-/// these callers place into is one the operation already places into by
-/// that door.
-///
-/// # Panics
-///
-/// As [`apart`].
-pub(crate) fn faces_apart<T: Decide>(
-    (x, fx): (&Body<T>, FaceKey),
-    (y, fy): (&Body<T>, FaceKey),
-    axes: &[UnitVec3<T>],
-    pad: f64,
-    band: Band,
-) -> bool {
-    let (xi, yi) = ((x, Item::Face(fx)), (y, Item::Face(fy)));
-    apart(xi, yi, axes, pad, band) || {
-        let mut dirs = crate::census::pair_directions((x, fx), (y, fy), band);
-        dirs.extend_from_slice(axes);
-        apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
-            crate::cover::face_cover_toward(body, f, band, aim).ok()
-        })
-    }
 }
 
 /// A face's cover read along an aim: [`crate::cover::face_cover`], or
