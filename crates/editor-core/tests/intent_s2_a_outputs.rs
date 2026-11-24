@@ -76,7 +76,11 @@ fn every_operation_defines_its_signature_at_insert() {
     let placement = |of: RecipeNodeId| {
         crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(of)))
     };
-    let (doc, moved_copies) = insert(doc, placement(pattern));
+    // A placement of each member is written inside the pattern's binder.
+    let (doc, moved_copies) = insert(
+        doc.clone(),
+        crate::fixture::stood(crate::fixture::member_here(&doc, pattern.into())),
+    );
     let (doc, moved_body) = insert(doc, placement(extrude));
     let (doc, twice_moved) = insert(doc, placement(moved_copies));
     for (node, want) in [
@@ -478,6 +482,7 @@ fn every_node_shape_states_its_signature() {
         "Assemble -> [body:Body]",
         "Place -> [copy:placed]",
         "Place -> [copy:placed]",
+        "Datum -> [frame:Frame]",
         "World -> [space:Space]",
         "Space -> [space:Space]",
         "Place -> [copy:placed]",

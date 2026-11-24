@@ -600,6 +600,10 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
 /// exactly the links where the two disagree. Pinned by
 /// `surgery::tests::trim_selection_is_by_support_kind`.
 #[allow(clippy::type_complexity)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn rim_trim_circles<T: Real>(
     edge: EdgeKey,
     blend: &EdgeBlend<T>,
@@ -641,6 +645,10 @@ pub(super) struct RimCarrier<T: Real> {
 /// lies on. The band inherits this frame rather than reconstructing it,
 /// which is what keeps every arc's seam structure and parameter window
 /// the rim's own.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn rim_carrier<T: Decide>(
     body: &Body<T>,
     link: &Link<T>,

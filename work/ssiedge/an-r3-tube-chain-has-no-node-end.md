@@ -45,5 +45,7 @@ over which the claim is the node's own reading (C5: its Hessian on
 `S`'s tangent plane, the apex's closed-form margin), not the
 transverse enclosure. It waits on a pair door that mints an arc ending
 at a node. `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door`
-(SECTCONE) and `cone-torus-rung-three-arm-waits-on-the-cone` are the
-first.
+(SECTCONE) is the first. The cone × torus door
+(`pair_section/cone_torus.rs`, PR 7395) classifies an apex on the torus
+as a node or a touch and refuses it typed (`ConeTorusPose::unmarched`);
+it becomes a second consumer once a chain can end at a node.

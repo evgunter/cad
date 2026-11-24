@@ -551,6 +551,27 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::tau())
     }
 
+    /// The value `T`'s ([`Real::difference_dot`]); the derivative the
+    /// plain formula's chain rule.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Self {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            deriv: plain.deriv,
+        }
+    }
+
+    /// The value `T`'s ([`Real::harmonic_belly`]); the derivative the
+    /// plain formula's chain rule.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            deriv: plain.deriv,
+        }
+    }
+
     /// `(√a, a' / (r + r))` where `r = √a` — the value-channel root is
     /// computed once and reused; the doubling `r + r` is exact at `f64`
     /// and tight at intervals. At the kink `a = 0` the derivative channel

@@ -2,10 +2,11 @@
 id: an-app-feature-only-test-cannot-be-listed-in-the-slow-set
 kind: issue
 title: A test that exists only under --features app cannot be listed in the slow set: the slow-set name check reads default-feature tests only
-status: open
+status: closed
 opened: 2026-11-02
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 Found by VSEAM's PR 6295 lane (2026-11-02); filed by the VSEAM
@@ -31,3 +32,11 @@ per-feature section.
 1.41 s locally. Listing it in the slow filter failed the same check
 ("slow-set entry matches no test"), so it runs in the app-feature job's
 fast set.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Duplicates GREEN's open P4 `work/green/the-slow-set-name-check-cannot-see-app-feature-tests.md`:
+the same check, the same fix, and the same week (PRs 6284, 6295 and
+6401).
+- Still true. `ci.yml`'s name check lists without `--features app`.
+- Move PR 6401's instance onto GREEN's row.

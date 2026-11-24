@@ -2,10 +2,11 @@
 id: inserting-an-item-above-another-steals-its-docs
 kind: issue
 title: inserting a type above an existing one silently moves the existing item's doc comment onto the new one
-status: open
+status: closed
 opened: 2026-09-05
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -69,3 +70,9 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Asks for a new check. One proxy is a noisy first-paragraph/name heuristic. The other needs a rustdoc JSON build, which is heavy.
+Incidents: three in early September (#1953 and two others), plus one on 2026-10-31 (`work/clear/log.md`, CAVITYDIAG #6105).
+The orchestrator's read caught that one with no fix cycle. Review catches the class for free, and no CI round trip was ever spent on it.

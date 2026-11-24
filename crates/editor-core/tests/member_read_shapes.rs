@@ -171,7 +171,7 @@ fn union(doc: ProfileDoc, reads: Vec<BodyRead<Formula>>) -> (ProfileDoc, RecipeN
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(reads),
+            members: Bodies::spelled(reads),
         },
     )
 }
@@ -180,7 +180,7 @@ fn assemble(doc: ProfileDoc, reads: Vec<BodyRead<Formula>>) -> (ProfileDoc, Reci
     insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(reads),
+            members: Bodies::spelled(reads),
         },
     )
 }

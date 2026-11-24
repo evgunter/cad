@@ -82,22 +82,23 @@ pub enum PartSelectSpec {
 ///
 /// Union and intersect take a LIST — any count is a document the door
 /// accepts (one member builds that body, none the typed empty body,
-/// and a node spelled twice glues) — while subtract takes exactly two
-/// operands that are not interchangeable: `from` is the body KEPT and
-/// `tool` the body REMOVED. Three arms rather than an operation beside
-/// a list, so a subtraction of the wrong count has no spelling.
+/// and a node spelled twice glues) — while subtract's operands are not
+/// interchangeable: `from` is the body KEPT and each `tool` a body
+/// REMOVED, the cut the fold over them (DM4). Three arms rather than an
+/// operation beside a list, so a subtraction with no body kept has no
+/// spelling.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BooleanSpec {
     /// The material in any member, members in fold order.
     Union(Vec<BodyRead<Formula>>),
     /// The material in every member, members in fold order.
     Intersect(Vec<BodyRead<Formula>>),
-    /// `from` with `tool` cut away.
+    /// `from` with every tool cut away, the tools in pick order.
     Subtract {
         /// The body kept.
         from: BodyRead<Formula>,
-        /// The body removed.
-        tool: BodyRead<Formula>,
+        /// The bodies removed.
+        tool: Vec<BodyRead<Formula>>,
     },
 }
 
@@ -112,11 +113,13 @@ impl BooleanSpec {
     }
 
     /// Every operand, in the node's order: the members, or `from`
-    /// then `tool`.
+    /// then each tool.
     pub fn operands(&self) -> Vec<BodyRead<Formula>> {
         match self {
             Self::Union(members) | Self::Intersect(members) => members.clone(),
-            Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
+            Self::Subtract { from, tool } => core::iter::once(from.clone())
+                .chain(tool.iter().cloned())
+                .collect(),
         }
     }
 
@@ -126,23 +129,29 @@ impl BooleanSpec {
     ///
     /// # Panics
     ///
-    /// A subtraction given other than two operands: the list is always
-    /// one [`Self::operands`] answered, re-read.
+    /// A subtraction given no operand: the list is always one
+    /// [`Self::operands`] answered, re-read.
     #[must_use]
     pub fn with_operands(&self, operands: Vec<BodyRead<Formula>>) -> Self {
         match self {
             Self::Union(_) => Self::Union(operands),
             Self::Intersect(_) => Self::Intersect(operands),
-            Self::Subtract { .. } => match <[BodyRead<Formula>; 2]>::try_from(operands) {
-                Ok([from, tool]) => Self::Subtract { from, tool },
-                Err(_) => unreachable!("a subtraction's operands are two"),
-            },
+            Self::Subtract { .. } => {
+                let mut operands = operands.into_iter();
+                let Some(from) = operands.next() else {
+                    unreachable!("a subtraction's operands hold its body kept")
+                };
+                Self::Subtract {
+                    from,
+                    tool: operands.collect(),
+                }
+            }
         }
     }
 
     /// Lower to the node.
     pub fn node(&self) -> AuthoredNode {
-        let spelled = |members: &[BodyRead<Formula>]| Bodies::Spelled(members.to_vec());
+        let spelled = |members: &[BodyRead<Formula>]| Bodies::spelled(members.to_vec());
         match self {
             Self::Union(members) => Node::Union {
                 members: spelled(members),
@@ -152,7 +161,7 @@ impl BooleanSpec {
             },
             Self::Subtract { from, tool } => Node::Subtract {
                 from: from.clone(),
-                tool: tool.clone(),
+                tool: spelled(tool),
             },
         }
     }

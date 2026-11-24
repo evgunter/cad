@@ -228,6 +228,41 @@ true at every type it can produce
 (`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
 scalars).
 
+### A size is a type `[sizes]`
+
+A length the kernel stores as a size is a `Size` (not the user-facing
+`quantity::Length`). A `Size` is
+finite and strictly positive: it is bounded and not definitely at or
+below zero, so at an `Interval` an enclosure that straddles zero is
+still one. It has one mint, and that mint is fallible: a zero, a
+negative, a NaN or an unbounded value refuses with a typed error and
+never panics. Finiteness is decided at the mint and nowhere else.
+`decide` stays a sign verdict, so `decide(+∞)` is `Positive`.
+
+- **A conic's sizes** (a circle's radius, an ellipse's semi-axes) are
+  exact `Size`s, with no band. Whether a computed conic exists is
+  its producer's pose decision, or is implied by the surface it lies
+  on. A second band decision at the mint would be a second place for
+  that fact ([one-way.places]). The readers that meter through a
+  conic decide span questions, and keep them.
+- **A surface kind's convention** is a witness decided on the run's
+  band, minted where the surface comes to exist, on the run's
+  tolerance and never on a caller's band. A cylinder's or a sphere's
+  radius is decided positive, a torus holds a `RingTorus`, and a
+  spindle holds its sheet verdict. A witness hands out `Size`s.
+  The at-rest check's radius half and the section arms' radius guards
+  re-decide this fact, and retire.
+- **A cone's half-angle** is an exact type, strictly inside
+  `(0, π/2)`. Where its band fact lives, and at which lever, is a
+  question of its own.
+- **A builder that computes a size returns `Result`.** Evaluators
+  stay total, and poison flows through numbers, never into a stored
+  size. A builder below a predicate battery hands back numbers, and
+  the entity is minted after the battery passes, from that battery's
+  decision. A blend torus's ring witness is minted from the spine
+  regularity predicate's passed decision, through a token only that
+  decision mints.
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -930,8 +965,12 @@ tiers".
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
-  body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. The embedding certificate is one fact per pair
+  body's verdict: whether it passes, and every finding but the session
+  box and the embedding question's, is a fact of the shape up to
+  isometry. A body that does not pass the embedding question is told
+  the first finding the question meets; which one that is, among
+  several, is a fact of the walk and not of the shape. The embedding
+  certificate is one fact per pair
   of faces, of the two faces and the cells they share: a finish
   carries the fact of a pair it finds unchanged in a finished operand,
   by comparing the faces itself, and asks the rest. The gate's fixed
@@ -1771,8 +1810,8 @@ them only through the freedoms its mates leave.
 nothing. With nothing, it is a **datum**: what it places is a bare
 frame, its one output, and the rules of spaces, bundles and values
 hold of it as written.
-Its mates' near sides are that frame's own roles (its xy plane, its z
-axis, its origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
+Its mates' near sides are that frame's own roles (its frame, xy plane, z
+axis or origin), where a body's are poses of the source. A plane or an axis is read off a datum through a role,
 as a finer pose is read off any frame ([variables.poses]). An offset
 from a face is the mate's far side slid along its normal, as for a
 body ([placement.mates]); a datum has no number of its own beyond its
@@ -2738,7 +2777,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
 | `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997; V1's shape #5457) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb declaration (one payload type per door, `VerbKind`), the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face placed against its plane, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: a sketch on a face drawn on a frame read off the face and a body on a face placed, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and why the four grep gates stay greps (the S13 evaluation of lint alternatives) |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, CC1–CC5: a check owed on what a file says goes at the reading boundary and only there (CC1), and speaks in the harness voice (CC5); CC2–CC4 are the per-column admissions table's own |

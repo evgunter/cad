@@ -11,7 +11,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Dimension, DocEdit, EditError,
     EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, ProfileDoc,
-    RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
+    RecipeNodeId, Rgba8, RoleSeg, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, square, step};
 use geom_core::Tol;
@@ -148,7 +148,7 @@ fn set_appearance_validates_and_applies_purely() {
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode {
-            name: SpokenName::absent(bogus)
+            name: doc.spoken_name(&bogus)
         }
     );
 }
@@ -500,7 +500,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     let (doc, uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -708,7 +708,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
     let (doc, uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

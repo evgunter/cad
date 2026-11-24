@@ -204,7 +204,7 @@ fn union_of_the_next(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::indexed(tall, vec![next(k)])]),
+            members: Bodies::spelled(vec![BodyRead::indexed(tall, vec![next(k)])]),
         },
     )
 }
@@ -329,7 +329,7 @@ fn a_member_reading_a_family_whole_is_rebuilt_when_any_member_moves() {
     let (doc, reader) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(tall),
                 BodyRead::indexed(tall, vec![var(k)]),
             ]),
@@ -357,7 +357,7 @@ fn a_member_of_a_nested_family_is_rebuilt_when_the_member_it_reads_moves() {
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::indexed(tall, vec![next(k), var(j)])]),
+            members: Bodies::spelled(vec![BodyRead::indexed(tall, vec![next(k), var(j)])]),
         },
     );
     let prior = evaluate::<f64>(&doc, None);
@@ -460,7 +460,7 @@ fn a_member_reads_key_holds_while_the_members_place_moves() {
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::indexed(tall, vec![var(k), var(j)])]),
+            members: Bodies::spelled(vec![BodyRead::indexed(tall, vec![var(k), var(j)])]),
         },
     );
     let [one, two] = at_two_places(doc, tall);
@@ -551,7 +551,7 @@ fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
     let (doc, reader) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Node(body))]),
+            members: Bodies::spelled(vec![BodyRead::plain(Operand::Node(body))]),
         },
     );
     let prior = evaluate::<f64>(&doc, None);
@@ -559,7 +559,7 @@ fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
         doc,
         DocEdit::SetMembers {
             node: reader,
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Var(spare))]),
+            members: Bodies::spelled(vec![BodyRead::plain(Operand::Var(spare))]),
         },
     );
     let names = |ev: &Evaluation<f64>| -> Vec<StableName> {

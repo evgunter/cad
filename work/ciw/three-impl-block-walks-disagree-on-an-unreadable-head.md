@@ -5,7 +5,7 @@ title: Three impl-block walks spell the same keyword-to-head walk and disagree o
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
 ---
 
 ## What

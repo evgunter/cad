@@ -544,7 +544,7 @@ fn a_prior_whose_booleans_ran_the_other_sweep_is_refused() {
         doc,
         Node::Subtract {
             from: member(1),
-            tool: member(0),
+            tool: member(0).into(),
         },
     );
     let ideal = EvalOptions {

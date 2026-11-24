@@ -15,8 +15,8 @@
 //! erased on the way out. `format` answers TEXT: the same magnitude
 //! rendered with the unit's own symbol beside it, at digits chosen so
 //! that reading the text back recovers the value's exact bits
-//! (`quantity::fmt`'s pin; the module docs there carry the
-//! derivation and the canonical-unit fallback that pays for it).
+//! (`quantity::fmt`'s pin: the shortest decimal of the unit that the
+//! unit's one door reads back as these bits).
 //!
 //! The distance between those two is the whole of what LIB-B-FORMAT
 //! closed. Choosing digits from a bare float is a decision — how many,
@@ -254,19 +254,10 @@ continuous_quantity!(Length, Dimension::Length, meters, {
     ///
     /// The pin, which is the reason to use this rather than an
     /// f-string: `doc.parse_formula(x.format(u))` evaluates to `x`
-    /// BIT-EXACTLY, for every finite length and every length unit.
-    /// The formatter searches the f64 quotients around
-    /// `meters / unit.factor` for one whose product with the factor
-    /// reproduces these bits, and renders the shortest.
-    ///
-    /// **The suffix is not guaranteed to be `unit`'s.** Some values
-    /// have no preimage in the asked unit at all — the multiply by
-    /// the factor steps over them — and those render in metres
-    /// instead, because the pin above is the promise and the suffix
-    /// is what pays for it. A length AUTHORED in the unit (`25 * mm`,
-    /// or parsed from `"25 mm"`) always keeps it; the fallback bites
-    /// values arrived at by arithmetic. Read the suffix off the text
-    /// rather than assuming it.
+    /// BIT-EXACTLY, for every finite length and every length unit. The
+    /// digits are the shortest decimal of `unit` that reads back so: a
+    /// number in a unit is its decimal times the unit's exact factor,
+    /// rounded once, here and at `25 * mm` alike.
     ///
     /// # Raises
     ///
@@ -304,16 +295,14 @@ continuous_quantity!(Angle, Dimension::Angle, radians, {
 
     /// This angle as DISPLAY TEXT in `unit` — `"90 deg"` — with
     /// digits chosen so the text reads back to this exact value
-    /// (`quantity::fmt_angle`). Same pin, same canonical fallback
-    /// (to radians here) and same caveats as `Length.format`.
+    /// (`quantity::fmt_angle`). Same pin as `Length.format`.
     ///
     /// `pi_rad` is the row this matters most for: a quarter turn
     /// written `0.5 * pi_rad` and one written `90 * deg` are the same
-    /// canonical radians to within an ulp, and NEITHER is exact, so
+    /// canonical radians, the float nearest a true quarter turn, so
     /// nothing but the unit you ask for distinguishes them —
     /// `format(pi_rad)` says `"0.5 pi rad"` and `format(deg)` says
-    /// `"90 deg"` for the respective values, each read back in the
-    /// notation it was authored in.
+    /// `"90 deg"`.
     ///
     /// # Raises
     ///

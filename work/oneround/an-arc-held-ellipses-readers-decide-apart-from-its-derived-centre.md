@@ -140,12 +140,60 @@ fn the_centre_readers_decide_on_the_centres_rounding() {
 
 Not traced: which built results these two reach. Through `split` a far-section body builds only to a semi-axis of about 6e5 m at 1e-9, below where either goes wrong.
 
+## Six more, from running the sweep's suspects (2026-11-23; clean main `dc263f855`, public API, f64)
+
+The suspects lane ran the readers the sweep had marked by reading. All seven reproductions (these six and the first) are one file, `analysis/oneround/conic-suspects/src/suspects_repro.rs` on `oneround/conic-suspects-probe` (`236dcf122`), run on clean main as its own test target: 6 fail at ε 1e-9 and 7 at 1e-12. Each is judged against the curve the stored numbers state at 60 digits; the smallest semi-axis at which each answers wrongly is given as ε 1e-9 / ε 1e-12. The reach measured above stands: no body is built at these sizes.
+
+1. **`meet`, a line that pierces the ellipse's plane through a point of the arc: no meeting** (1e8 / 1e5; 17 of 24 poses at 1e9). The decision log ends on `curve_pair_pose_clear` in 94 of 100 wrong answers: `Polish::closest`'s `decide(row::CLEAR, Margin::of(self.clear − self.reach))`, `clear` being `Curve3::clearance` of the seed about the derived centre and `reach` carrying `height` from it; the other 6 on `curve_carrier_piece_clear_by`. One-sided: the same lines 30 ε off the arc never read a meeting.
+2. **`meet`, a line along the major axis out through the anchor vertex: no meeting** (1e9 / 1e5). `curve_pair_pose_gap` (`route`'s GAP row: the conic's extent on the line, its constant from the derived centre, no charge) in 4, the router's `curve_pair_pose_parallel` first in the other 28.
+3. **`meet`, a unit circle in the ellipse's plane crossing the arc: no meeting** (1e9 / 1e6; 18 of 18). Every one ends on `conic_conic`'s `constant_as(row::PARALLEL, …)` → `Pose::Apart`. Stating each plane through a point of the arc instead leaves 16 of 18 wrong: the ellipse's own constant, read from its centre against the circle's plane, certifies the same.
+4. **`meet`, a small centre-held ellipse in the plane crossing the arc: no meeting** (1e8 / 1e5). `conic_conic`'s constant in 98 of 108; **`curve_pair_coplanar_sub_clear` in 4** (`coplanar_ellipses`' subdivision, its residual about the other's centre with no noise); `Curve3::clearance`'s deciders in 6.
+5. **`meet`, two arc-held ellipses through one point: no meeting** (1e8 / 1e5), in one plane and across planes. In one plane `conic_conic`'s constant, a derived centre on both sides; across planes `curve_pair_window_off` (22) and **`curve_pair_pose_root_gap` (14), a decision in neither the sweep's suspects nor its untraced eight, not read.**
+6. **`OnSurface::under` (`curve_pair/on_surface.rs`) answers wrongly in BOTH directions.** `Roots([])` for a line that lies in the edge's plane (1e9 / 1e6); **`InPlane` for a line 30 ε above it** (at 1e-12 from 1e7: the centre's rounding along the normal cancels the lift); a definite `Roots([])` for a line 5 ε above, in the gap; and for a line piercing at 30° a root 1.2e-7 m from the true crossing at 1e9 (past K ε in 3 of 6 at 1e8). One caller, `topo/src/region.rs`, not read.
+
+The first reproduction's third cause is corrected by the same lane (`task1.md`, `b35f1f349`): the circle-across miss is not `Window::height_jet` alone; four readers certify it in layers. The window handed to `holds_only` is displaced by the centre's rounding along the normal (each plane stated through the derived centre); with the planes stated through a point of the arc, `height_jet` reads 5.96e-8 m at a point 1.7e-16 m from the plane and `off_by`'s clearance 4.48e-7 m; with those re-posed too the miss is still certified, on `curve_pair_window_recedes` then `curve_pair_window_off`, or on `curve_pair_pose_clear`: 48 of 288 truly-meeting poses still wrong at ε 1e-9 and 170 at 1e-12 with all three re-posed. What is left is the level `F = X²/A² + Y²/B² − 1` (`level_on`, `Level::jet_at`), which loses about u·a metres by its own form whatever its centre, so it is owed a re-posing from the stored point, not a constant.
+
+Over all the lane's runs: nothing answers wrongly, and nothing answers definitely in the gap, below a semi-axis of 1e8 at ε 1e-9 (1,908 runs) or 1e5 at 1e-12 (954 runs); `meet` is wrong in one direction only (663 "no meeting" answers for curves that meet; no meeting reported for curves 30 ε or more apart in 800 runs per ε); `under` is wrong in both. The apart twins are the rows that guard a fix against buying meetings by loosening.
+
 ## The unit
 
 `oneround/conic-pair-readers`, stacked on `oneround/conic-readers` (PR 7510). **Letter H; tier single, a FULL review**: the fix is in the certified lane of `curve_pair`, where a reading moved to another datum changes what each margin is measured against, and believing it takes more than reading it.
 
 Every reading of where a conic is that `curve_pair` makes (`pose.rs`, `pose/window.rs`, `walk.rs`, `on_surface.rs`; the gate's list for those files) is read from the point the conic stores, through the conic: a point's height over the conic's plane; a line's or a plane's height along the conic as a first harmonic about the stored point; a foreign point's parameter and level. Nothing outside `conic.rs` learns the placement. Where a reading stays on the derived centre, its verdict is metered for the centre's rounding, so it refuses and cannot certify. The direction is the one three designers signed for the whole family (`analysis/design-fork/conic-reader-interface`): the readings this unit adds to `Conic` are what that design's position would later answer, and no more.
 
-**Extended on the 23rd to the two readers above** (`curve_face::pose::plane_conic`'s belly graze, which reads `curve_pair::pose::height`; `Curve3::clearance`'s ellipse arm in `geom/src/curves/on_carrier.rs`) **and to any further reader the lane's sweep table marks as answering wrongly**: each re-posed from the stored point through the conic, or metered so that it refuses.
+**All of `curve_pair/` was in scope from the start; the six above are in it and each reproduction becomes a row.** **Extended on the 23rd to the two readers above** (`curve_face::pose::plane_conic`'s belly graze, which reads `curve_pair::pose::height`; `Curve3::clearance`'s ellipse arm in `geom/src/curves/on_carrier.rs`) **and to any further reader the lane's sweep table marks as answering wrongly**: each re-posed from the stored point through the conic, or metered so that it refuses.
 
 Acceptance: the reproductions above as rows, and the lane's ladder (`a` from 1e4 to 1e9, fat and thin, line and circle doors, near the anchor and far from it) at 1e-9 and 1e-12 against the 60-digit oracle: no pose certified wrongly, and every refusal that remains named and metered. A differential against the base: every verdict that moves, judged against the oracle.
+
+## From GERM (2026-11-23, PR 7553): the belly is read through the conic; two plane readers folded in
+
+PR 7553 adds `Conic::belly_along(o, n)` (`crates/geom/src/curves/conic.rs`): the reach `√(A² + B²) − |D|` of the conic's height extreme nearer a plane.
+- It is read from the placement the conic stores: the stored point and its phase, the axis, the seam, and the across-seam direction crossed exactly. Everything is exact (`geom_core::Real::harmonic_belly`), so no derived centre is formed.
+- Its readers:
+  - `curve_face::pose::plane_conic`'s belly graze and its graze value;
+  - `curve_pair::pose`'s `line_conic` and `transverse` (the extreme nearer zero), and `conic_conic`'s parallel screen;
+  - `splitting::section_loops::line_clears_conic`.
+- Judged against an exact dyadic oracle on the stored data, it reads 0 wrong for an arc-held ellipse at far 1e4, 1e5 and 1e6, at any angle round the turn. **This branch's `plane_conic` takes the belly from `Height::extremes`.** For a conic held at its centre that is `at ± swing`, which cancels to `u·far` again: PR 7553's probe reads 78 / 596 / 478 wrong of 2000 that way. The merge should keep `belly_along` for the extreme nearer zero.
+
+GERM's row `an-arc-held-ellipses-plane-is-read-at-its-derived-centre` is closed as a duplicate of this unit. Its remaining two readers are folded in here:
+- **`OnSurface::plane`** (`curve_pair/on_surface.rs`) hands `Curve3::frame` out as the edge's plane, at an arc-held ellipse's derived centre. That frame's origin can stand off the true plane by `u·far` along its normal, and `under` / `cross` read curves across it. This is likely one cause of this row's item 6.
+- **`LoopArc::plane`** (`crates/topo/src/ring_path.rs`) builds a section arc's plane from `c.conic().frame()`; `plane_roots` and `misses_in_plane` read pieces across it.
+
+A plane stated through the stored point (which lies in the plane exactly) with the stored axis would not carry that rounding.
+
+Evidence for item 1 (the router and the slant), from PR 7553's rows:
+- **The shape.** A line in an arc-held ellipse's plane (semi-axes 1e6 and 3.3e5), along its tangent at a point at any angle round the turn, set off it within ±2× the escalation at ε 1e-12.
+- **The answers.** At seeds `0x7efbaa71e6759d86` and `0xf0ab266f92cdb939`, one pose in 1000 each is answered `Apart` where the exact belly is +9.3e-14 m, inside the zero band. `Conic::belly_along` reads 9.28e-14, so the `Apart` is decided by a reader of the derived centre, not by the belly.
+- **The row.** PR 7553's line row (`curve_pair::far_graze_rows`) runs centre-held only until this unit lands, and it says so.
+
+## From GERM (2026-11-23, PR 7553's confirmation review): two notes
+
+- **Two first-harmonic doors on `Conic` once both merge.** This branch's `Height` holds `(p, q)` from `Conic::along`, which reads the rounded `v_ref` (`axis × u_ref` crossed on each read). PR 7553's `Conic::belly_along` reads `B = b·((axis × u_ref)·n)` crossed exactly, because a `B` from the rounded `v_ref` carries `u·b`. With a graze away from the seam vertex, that is `u·far` in the belly: the reviewer's probe at θ ∈ (0.5, 1.2) read 6 / 40 / 121 wrong at far 1e4 / 1e5 / 1e6.
+  - So a belly read off `Height` (`extremes`, or `at ± swing`) would bring the far-centre loss back.
+  - Whichever of the two merges second reconciles them: the extreme nearer zero is read through `belly_along`, or `Height` takes its parts from the stored terms.
+- **Correction to the line-row evidence above.** PR 7553's reviewer traced the arc-held line-row residual (seeds `0x7efbaa71e6759d86` and `0xf0ab266f92cdb939`). It exits through `Harmonic::Touch` → `place(theta)` returning `None`: the slant `H` from the derived centre, or `clear_by`. It does not go through the router.
+
+- 2026-11-23 (GERM, PR 7553's CI red): **the `Touch` → `place` → `None` exit is not arc-held-only.**
+  - The case: a centre-held ellipse at far 1e6, seed `0x310ae3910d809302`. The exact belly is +7.5e-13 and `belly_along` reads it in the zero band.
+  - What drops it: `place`'s `b.clear_by(k.point_at(θ), e)`. The carrier walk (`Curve3::clear_by`, CONIC's `on_carrier.rs`) reads the conic clear of its own point because both are evaluated about the far centre at `u·far`, so the pose answers `Apart`.
+  - Filed on CONIC as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`. The fix to `place`, or to the walk, serves both placements.

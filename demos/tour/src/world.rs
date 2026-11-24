@@ -55,7 +55,7 @@ pub fn set_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> D
         several => {
             let insert = DocEdit::InsertNode {
                 node: Box::new(pncad::document::Node::Assemble {
-                    members: pncad::document::Bodies::Spelled(
+                    members: pncad::document::Bodies::spelled(
                         several.iter().cloned().map(BodyRead::plain).collect(),
                     ),
                 }),
@@ -230,8 +230,9 @@ pub fn on_axis(
         on: Operand::Output {
             node: revolve,
             port: 1,
-        },
-        to,
+        }
+        .into(),
+        to: to.into(),
         orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.
