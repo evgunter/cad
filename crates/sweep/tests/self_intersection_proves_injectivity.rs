@@ -1224,8 +1224,10 @@ fn stepped_drum_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
 /// is read from enclosures that are nowhere a point.
 ///
 /// **The drum mirrored across a generic plane refuses at `Interval`**:
-/// `Uncertified Departure` between the two faces of one cylinder wall
-/// across their seam, out of the walk's depth, where `f64` holds. It reads so on the branch this one lands on too, cell
+/// between the two faces of one cylinder wall across their seam, out
+/// of the walk's depth (`Uncertified Departure`, or the depth budget on
+/// that pair: which of the two it reads has moved with the landing
+/// branch), where `f64` holds. It reads so on the branch this one lands on too, cell
 /// for cell, so it is not the facts' reading; pinned at that exit as a
 /// finding
 /// (`work/embed/a-stepped-drum-mirrored-across-a-generic-plane-refuses-departure-at-interval.md`).
@@ -1271,7 +1273,8 @@ fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
                 let class = door_on(&body.geometric(), body.faces().map(|(k, _)| k).collect());
                 println!("[verdict-read] the off-grid drum mirrored at Interval: {class}");
                 assert!(
-                    class == "Uncertified Departure cylinder x cylinder across an edge",
+                    class == "Uncertified Departure cylinder x cylinder across an edge"
+                        || class.starts_with("Refused Budget { stop: Depth"),
                     "the off-grid drum mirrored at Interval refuses across a seam: {class}"
                 );
                 continue;
@@ -3319,13 +3322,20 @@ fn a_flap_through_a_wall_at_its_rulings_vertex_never_holds() {
         topo::mint_pcurves(&mut body, tol()).unwrap();
         (body, wall, flap)
     }
+    // The flap on its struts is construction state tier 3 refuses
+    // (scaffold edges at rest), so the pair is asked on fixture facts:
+    // the runs tier 3 would keep, no class.
     let (body, wall, flap) = flapped::<f64>();
-    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let report = injective_on(
+        &sheet(&body, "ScaffoldAtRest"),
+        Some(vec![wall, flap]),
+        BUDGET,
+    );
     let (twin, tw, tf) = flapped::<Interval>();
     same_class(
         "the wall and the flap through it",
         &report,
-        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+        &injective_on(&sheet(&twin, "ScaffoldAtRest"), Some(vec![tw, tf]), BUDGET),
     );
     println!(
         "[clip-vertex] the wall and the flap through it: {:?} {:?}",

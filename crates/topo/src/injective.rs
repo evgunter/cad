@@ -488,6 +488,19 @@ impl Boundary {
         self
     }
 
+    /// This fixture with its face's run from each of `edges` stated, in
+    /// metres: for a fixture whose boundary is the shared edge alone, so
+    /// that no station of it stands off that edge.
+    pub(crate) fn with_stated_runs(mut self, edges: &[EdgeKey], metres: f64) -> Self {
+        let facts = self.facts.get_or_insert_with(Facts::default);
+        for &edge in edges {
+            facts
+                .edge_runs
+                .insert(edge, geom_core::test_support::fixture_lever(at(metres)));
+        }
+        self
+    }
+
     /// This fixture with `edge` classed as tier 3 would keep it.
     pub(crate) fn with_class(mut self, edge: EdgeKey, class: crate::EdgeClass) -> Self {
         self.facts
@@ -12551,6 +12564,7 @@ mod presentation_rows {
             facts: None,
         }
         .with_runs()
+        .with_vertex_runs(&[vertex(1)])
     }
 
     /// **A convex corner at vertex 1**: the edges `keys` from the origin
@@ -12680,6 +12694,7 @@ mod presentation_rows {
             facts: None,
         }
         .with_runs()
+        .with_vertex_runs(&[vertex(1)])
     }
 
     /// [`certify_pair`] of a wall in the cell `(u, v)` and a plane face
@@ -12961,6 +12976,7 @@ mod presentation_rows {
             facts: None,
         }
         .with_runs()
+        .with_stated_runs(&[edge(20), edge(21)], 1.0)
     }
 
     /// [`certify_pair`] of two faces on [`cylinder`] sharing edge 0 of
