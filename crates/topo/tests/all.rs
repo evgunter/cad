@@ -293,6 +293,8 @@ mod r1_mate8_decomp_probe;
 mod r1_mate8_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
+#[path = "reach_review_probes.rs"]
+mod reach_review_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
 #[path = "records_cite_their_decision.rs"]
