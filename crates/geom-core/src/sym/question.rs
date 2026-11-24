@@ -108,12 +108,10 @@ impl Drop for Ask<'_> {
 }
 
 impl Session {
-    /// Swaps the node table, and the free indeterminates it names, with
-    /// `other`'s: lent on the way into an ask and returned on the way
-    /// out.
+    /// Swaps the node table with `other`'s: lent on the way into an ask
+    /// and returned on the way out.
     fn lend_nodes(&mut self, other: &mut Session) {
         core::mem::swap(&mut self.nodes, &mut other.nodes);
-        core::mem::swap(&mut self.free, &mut other.free);
     }
 }
 

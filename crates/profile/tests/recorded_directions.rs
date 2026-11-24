@@ -1446,7 +1446,7 @@ fn a_symbolic_dual_mints_the_axis_and_a_plain_dual_the_quotient() {
             Dual64::variable(1.0),
         );
         let d = quad_director(w, w);
-        Vec2::new(d.x.value, d.y.value)
+        Vec2::new(d.x.value(), d.y.value())
     });
     assert_eq!(parts(sym), literal, "Sym<Dual64>: the axis");
     let w = Dual64::variable(1.0);
