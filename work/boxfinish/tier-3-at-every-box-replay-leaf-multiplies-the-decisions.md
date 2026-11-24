@@ -2,12 +2,12 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [6371]
-design: true
+blocked_on: [a-drive-keeps-no-node-result-from-one-leaf-to-the-next, a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate]
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -268,3 +268,50 @@ and its tables are re-taken on main.
 longer walks the tier's ladder. What this row waited for can now be
 measured: the plate's and the tour's leaf cost on main with the
 switch's box arm off, against M4's and M9's figures.
+
+## Measured (2026-11-24, M10): on main after PR 7394, the holes build in every leaf and the tour is seven times dearer
+
+`probe/M10-REPORT.md` on `boxfinish/probe-switch-off` at `7901e1b078`
+(probe merged with main `82fd6a46df`; a switch-on control of the same
+commit beside it). What contradicts this row's earlier sections:
+
+- **The tour no longer refuses at the holes.** With PR 7384 the `u_ref`
+  refusal is gone from every study: the box-arm-off tour certifies 211
+  leaves, 94.9069%, as the switch-on tour did at M4. But each hole
+  extrude now finishes in every leaf (520 ms average, where it refused
+  in 40 ms), so the drive's summed leaf time is 1,304.9 s against M9's
+  177.6 s, and the first drive's answer takes 328 s of wall time. The
+  finish's time is on eight `curve_face_pose_disc` decisions that each
+  end indeterminate after a ladder climb:
+  `a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate`.
+- **PR 7458 removed the split waste:** 0 of 511 splits are on an axis
+  the deciding node does not read (M8: 292).
+- **What a store would take:** 967 s of the 1,304.9 s (74%) is on node
+  keys already seen in the drive (finishes 858.7 s, build 108.4 s). The
+  plate alone, one key in 1,023 replays, is 24.3 s (1.9%).
+- **The repeated edge-door decisions** are small: 5.0 ms of a slab
+  finish's 25 ms; 3.7 ms of a tour hole finish's 1.1 s.
+- **The rows of this row's tables, box arm off against switch on:** the
+  slab passes (1 leaf, 33.8 ms); the a0 plate is 1.72 s against
+  1.12 s; the two-parameter and band-parameter plates FAIL at 27 s
+  (switch on: 3.1 s and 4.9 s, pass), refusing in all 31 replays at
+  check 7's volume reading on `props_meridian_on_surface`, which is
+  radial-readers' row (PR 7370, not on main at this measurement);
+  `the_certification_width_is_no_longer_bounded_by_epsilon` still
+  settles at 0.2152 (the rays: PR 7480, not on main at this
+  measurement); the revolved circle is 1.0 to 2.3 s against 0.16 s.
+- **`docm9`'s rows this row names are gone or renamed;** the search rows
+  that replaced them take 1.9 to 7.3 s with the box arm off and 0.2 to
+  2.2 s with the switch on, with no refusing finish: the multiple is
+  finish cost per replay.
+- **New with the box arm off:** one row runs out of memory
+  (`a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off`),
+  and `RingContactEscalated` on `ring_outer_locus_gap` appears in two
+  finishes of the box studies (not filed on its own: two finishes, no
+  row red on it).
+
+**So this row is parked again,** on the two rows that hold its cost:
+the per-drive store (three quarters of the tour's time) and the hole
+finish's ladder climbs (what one finish costs). Its closing test
+stands: the box-lane rows inside their time bars with the switch off,
+taken again when both have landed, with PR 7370 and PR 7480 on main.
