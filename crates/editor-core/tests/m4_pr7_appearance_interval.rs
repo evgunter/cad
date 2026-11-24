@@ -37,7 +37,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let (doc, uni) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's

@@ -7,9 +7,8 @@
 //! to the member's values and every definition reaching them bound again
 //! ([`crate::Doc::bind_member`]), and over the results with each
 //! operation it reads as a member replaced by that member
-//! ([`overlay`]). A seat that reads a family whole — a member seat of
-//! a `union`, `intersect` or `assemble`, or an indexed read
-//! ([`crate::repetition::takes_whole`]), a selection's among them —
+//! ([`overlay`]). A read of a family whole — a list entry spliced in,
+//! `…xs`, or an indexed read `xs[i]`, a selection's among them —
 //! reads the family the member stands for ([`super::NodeValue::whole`]),
 //! so one operation may read a family plainly at one seat and whole at
 //! another. A member that refuses
@@ -424,7 +423,7 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 /// each body named at its member's place; any other as
 /// [`ValuePayload::Family`] with no output. Its keys are its members',
 /// in order.
-fn family_value<T: topo::AtRestPolicy + Decide>(
+pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {
@@ -534,7 +533,7 @@ mod tests {
                     name: name.clone(),
                     def: crate::VarDecl::Index {
                         count: crate::Formula::count(count),
-                        within: None,
+                        after: None,
                     },
                 },
                 tol,

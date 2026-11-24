@@ -348,7 +348,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, consumer) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![sub.into(), big.into()]),
+            members: editor_core::Bodies::spelled(vec![sub.into(), big.into()]),
         },
     );
     let ev = run(&doc, None, false);

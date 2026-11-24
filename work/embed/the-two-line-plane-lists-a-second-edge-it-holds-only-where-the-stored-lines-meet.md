@@ -36,10 +36,14 @@ does not land.
 Two faces that share two line edges meeting at a vertex. Two plane
 faces doing so are coplanar, so the arm's ordinary reach is a plane
 against a ruled or free-form face, or two such faces. With
-`embed/corner-pieces` a plane face's piece holds at most one edge of
-its corner, so no piece pair with a plane piece shares two line edges
-and the arm is not reached from one; it stays for a pair neither of
-whose parts is a plane piece.
+`embed/corner-pieces` a plane face's two-line corner is two pieces,
+each holding one of its edges, but `planes_through` is handed the
+FACES' near, not a piece pair's, so the arm is still built for every
+piece pair of a pair near two shared lines. It cannot certify from a
+plane piece there: a plane through two lines of a plane face is that
+face's own plane, on which its pieces are zero everywhere and not
+strictly signed. So the arm's reach is unchanged: a pair neither of
+whose parts is a plane.
 
 ## What is needed
 

@@ -247,6 +247,10 @@ pair shares `V`, else `None`. The side along `m` is never a zero.
    both pieces are. One vacuous piece only drops its piece pairs. This
    is the order `embed/strip`'s review found broken there: the exit
    comes after the reading has said what bounds the face in the cell.
+   (As first built the off-cone exit came before that piece's span
+   read, so a cell past an edge's far end could read vacuous where the
+   far vertex was not listed; corrected in the fix pass, see "Fix pass"
+   below.)
 4. **A piece pair is certified as a corner is today.** Each piece is a
    convex corner to every reader: under a separator `ψ` it is strictly
    one-signed off its zero (a side: the derivative across; a point: the
@@ -284,7 +288,7 @@ is a real overlap of the faces, or where the margin is in the band.
 | `stuck` | `Structural`, or a past curve | unchanged | a plane piece is neither |
 | `past_read` | the partner's zero is on the shared cell | unchanged; its plane producer (the run's `Zero::Past`) goes | |
 | `sign_on` | one arm per zero | no new arm; `Zero::Through` and `through_read` go | fewer readings |
-| `arm_of` (PR 7329) | per face pair, by `near` | per piece pair, by that piece pair's near | below |
+| `arm_of` (PR 7329) | per face pair, by `near` | as designed: per piece pair, by that piece pair's near. As BUILT: per face pair, by the faces' near, unchanged (a deviation: there is no near per piece pair) | below |
 
 ### The margin (PR 7329, read at `origin/embed/remeter`)
 
@@ -294,9 +298,13 @@ that shares only `V` inside a face pair that shares `e₁` takes the
 vertex arm, the faces' reach from `V`. A piece is not a face, but the
 arm is the faces': the displacement an angle error causes is over the
 face, not over the piece. A thin or oblique piece loses nothing under
-that metering: the sine is free of the rectangle's extent, and for a
-convex corner a piece pair's best sine is at least the face pair's,
-since each piece's cone lies in its face's. For a straight or a reflex
+that metering: the sine is free of the rectangle's extent. For a
+convex corner at a vertex shared ALONE a piece pair's best sine is at
+least the face pair's, since each piece's cone lies in its face's.
+Across a shared edge that is false (corrected after review): the piece
+on the edge departs along the ray, at `sin δ · sin(θ/2)` where the
+quadrant read `sin δ · sin θ`, and the least certified dihedral rises
+(`work/embed/a-convex-corner-across-a-shared-edge-is-read-at-the-rays-sine-and-in-smaller-cells.md`). For a straight or a reflex
 corner there is no face-pair sine to lose. Under main's present
 metering (a derivative times the rectangle's span) a piece is metered
 as a corner's quadrant is today.
@@ -438,10 +446,13 @@ which holds PR 7329's margin (`embed/remeter` `7667c455e`) and PR
 corner's sector on the ray `m`, the sum of the two edges' unit
 toward-face normals, into two pieces, the cones of `(a, m)` and
 `(b, m)`, each presented as a convex corner with its own zero
-(`Presentation::Pair`). `ray_inside` decides `m` strictly on the face
-side of each edge at `SELF_INTERSECTION_CORNER`, a length times a sine
-at a cell-scale lever, as the lean it replaces was; a spike or a slit
-in the band refuses. The lean gate and the one quadrant are gone.
+(`Presentation::Pair`). `ray_inside` asks, at
+`SELF_INTERSECTION_CORNER`, that the ray stand off each edge's line by
+more than the band over that edge's own length, `l·sin(θ/2)`: a test
+that the corner is neither a spike nor a slit, levered at an edge's
+length (a face's extent, not a cell's), which only refuses. It is not
+the lean it replaces (that read the other edge's far end, `l·sin θ`,
+and its sign). The lean gate and the one quadrant are gone.
 `departure` reads a face in two pieces piece by piece: a carrier parts
 the pair only where it signs every piece of the other face; the planes
 and the graph are asked of every piece pair; `one_shared_vertex`'s path
@@ -581,3 +592,55 @@ is two pieces. The endpoint census's entry for `injective.rs` is 215
 reads, 102 asking (the landing tip's 211 / 98 and the pieces' five,
 less the uncapped corner's one). The census through the gate, the cost
 and the tour walk above were taken before this merge and not re-taken.
+
+## Fix pass after the two reviews (2026-11-24)
+
+Both reviews approved with fixes; neither built a wrong certificate.
+What changed, and what is recorded without a change:
+
+- **The ray guard** is ruled an existing decision at its site,
+  tightened, levered at an edge's own length; no new concession, not
+  the departure's lever of PR 7095 and not a sixth margin. A spike or a
+  slit in the band now refuses `Structural` where the corner is on the
+  shared cell (the decision is the corner's, the same in every cell),
+  `Local` elsewhere. It is pinned at the default ε on short rims
+  (1e-2 and 4e-3 long), where only the guard refuses.
+- **Vacuity's order.** The cell is asked short of both edges' far ends,
+  measured along each edge, before either piece is placed, and each
+  piece's side is asked short of its edge's end before its off-cone
+  exit. A cell past a far end is refused on either side of the edge's
+  line (`a_cell_past_an_edges_far_end_is_refused_before_it_is_vacuous`).
+  No verdict or receipt of the suite moved.
+- **One home.** The two edges' preamble (`two_edges`) is shared with
+  strip's `corner`; the guard, the cone's frame and the span reads go
+  through strip's `lean`, `coords` and `positive`; the every-piece rule
+  is `every_piece` / `every_piece_pair`, which the carrier arm, the
+  planes and graph and the vertex-alone path all call.
+- **A convex corner is read narrower than the quadrant read it**, in
+  two ways, filed:
+  `work/embed/a-convex-corner-across-a-shared-edge-is-read-at-the-rays-sine-and-in-smaller-cells.md`.
+- **Beside `embed/clip-vertex`** (PR 7464, merged under the unit at
+  `0a1e9944db`): `departure` asks `planes_through` in its spelling per
+  piece pair. A chart face reading `Zero::Through` at a vertex is read
+  against a plane piece whose zero is nothing or the corner point at
+  that vertex, and not against a piece holding a shared edge as its
+  side; the pair needs every piece.
+- **Recorded, nothing built.** An edge with no arc (null scaffolding)
+  is dropped from the cell's count, so a self pair can reach the
+  two-line arm; two coplanar pieces of one face are never parted, so
+  nothing certifies there. The census through the gate cannot be
+  re-taken on the final head (the measuring harness does not merge
+  onto it); the landing's verification re-takes the census sets.
+  `review_f7_pole_r1_probes::p3_inset_coplanar_patch_still_refuses`'s
+  fall (1,531 to 635 pairs discharged) is traced by a reviewer's tally:
+  the same verdict, pair and edge on both trees, the count being pairs
+  discharged before the first refusal (1,401 to 505), an earlier
+  arrival at the same refusal and not a skipped ask.
+- **Measured on the fix pass.** The tour walk, 85 stops, the landing
+  tip `0a1e9944db` against the unit merged with it: no verdict moves,
+  20 receipts move, total splits 281,165 to 280,040. Fourteen mutants
+  (the unit's seven, now six sites, and the reviewers' seven; the exact
+  edits are in the PR's body), each over the 343 tests of the unit set
+  and the suite file on the head merged with `5285a2d569`: every one
+  reddens a row, the ray guard's at the default ε.
+

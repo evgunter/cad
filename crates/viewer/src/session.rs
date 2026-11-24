@@ -903,7 +903,7 @@ enum Clearances {
     Stopped,
     /// The certify job ran out of its member budget before it answered:
     /// the row's sentence, with the recourse.
-    OutOfBudget(String),
+    OutOfBudget(pncad::document::Sentence),
     /// The certifying scalar's answer, one per clearance assertion, in
     /// document order.
     Settled(Vec<pncad::analysis::ClearanceAnswer>),
@@ -2009,11 +2009,11 @@ impl DocSession {
                     run.clearances = match done.answers {
                         Ok(answers) => Clearances::Settled(answers),
                         Err(pncad::document::Stopped::Exhausted { budget }) => {
-                            Clearances::OutOfBudget(format!(
+                            Clearances::OutOfBudget(pncad::document::sentence!(format_args!(
                                 "certifying ran out of the member budget of {budget} listing \
                                  steps before it answered. {}",
                                 pncad::document::Recourse(pncad::document::RAISE_THE_MEMBER_BUDGET)
-                            ))
+                            )))
                         }
                         // A canceled job was superseded: the request that
                         // canceled it makes this landing stale.
@@ -3051,7 +3051,7 @@ impl DocSession {
     ///
     /// **One parser.** `parse_formula` reads `50 mm` into a literal that
     /// already carries the canonical value and remembers the unit —
-    /// the one multiply is the parser's — so what arrives here is read
+    /// the unit's one door is the parser's — so what arrives here is read
     /// off the literal and never scaled again.
     ///
     /// **One action, therefore one undo.** The value and the notation
@@ -3879,13 +3879,23 @@ impl DocSession {
                 })
                 .collect(),
         );
-        for seat in spec.operands() {
+        // A union's and an intersect's members, and a subtract's tools,
+        // are a list seat, which takes a family whole as well as one body
+        // (D10 `[repetition]`); a subtract's `from` is a seat for one.
+        let from_seat = matches!(spec, BooleanSpec::Subtract { .. });
+        for (i, seat) in spec.operands().into_iter().enumerate() {
             let wanted = if seat.is_indexed() {
                 NodeKindWanted::Instances
             } else {
                 NodeKindWanted::Body
             };
-            self.require_read(&seat.read, wanted)?;
+            let list = !(from_seat && i == 0);
+            let family = list
+                && !seat.is_indexed()
+                && admits_read(doc, &seat.read, NodeKindWanted::Instances);
+            if !family {
+                self.require_read(&seat.read, wanted)?;
+            }
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
@@ -3894,7 +3904,8 @@ impl DocSession {
         let takeover = self.combine_in_world(&spec.operands())?;
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
-            let node = run.insert(spec.with_operands(operands).node())?;
+            let node = splice_families(run.doc(), spec.with_operands(operands).node());
+            let node = run.insert(node)?;
             Ok(Wrote::one(node))
         }))
     }
@@ -3928,7 +3939,7 @@ impl DocSession {
             let halves = pncad::select::SplitHalf::ALL
                 .map(|half| pncad::document::BodyRead::plain(Operand::output(split, half.port())));
             let both = run.insert(Node::Assemble {
-                members: pncad::document::Bodies::Spelled(halves.to_vec()),
+                members: pncad::document::Bodies::spelled(halves.to_vec()),
             })?;
             Ok(Wrote {
                 made: split,
@@ -4032,7 +4043,7 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
-                AssertedSeat::Minted(reference) => Ok(reference.operand()),
+                AssertedSeat::Minted(reference) => Ok(reference.operand(doc)),
             }
         };
         let (a, b) = (read(a)?, read(b)?);
@@ -4112,7 +4123,32 @@ impl DocSession {
         let doc = self.committed_doc();
         let index = combine::fresh_index(doc);
         let target = self.home_space(&input)?;
-        let source = pncad::document::BodyRead::plain(input.clone());
+        // A pattern of a pattern is one binder (D10 `[repetition]`): its
+        // index comes after the inner binder's, and it places each
+        // member, `{i, j: place(xs[i])}`, which the binder yields.
+        let inner = match &input {
+            Operand::Var(var) => Some(*var),
+            Operand::Node(id) => doc.outputs(*id).first().copied(),
+            Operand::Output { node, port } => doc.output(*node, *port),
+            _ => None,
+        }
+        .filter(|&var| doc.family_through_sources(var))
+        .and_then(|var| doc.yielding(doc.through_sources(var).read));
+        let inner_indices = inner
+            .map(|binder| doc.binder_indices(binder))
+            .unwrap_or_default();
+        let source = if inner_indices.is_empty() {
+            pncad::document::BodyRead::plain(input.clone())
+        } else {
+            pncad::document::BodyRead::indexed(
+                input.clone(),
+                inner_indices
+                    .iter()
+                    .map(|&at| Formula::var(at, pncad::document::Dimension::Count))
+                    .collect(),
+            )
+        };
+        let after = inner_indices.last().copied();
         let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
                 let (along, across) = match direction {
@@ -4159,16 +4195,23 @@ impl DocSession {
                 index,
                 pncad::document::VarDecl::Index {
                     count: Formula::count(count),
-                    within: None,
+                    after: after.map(|at| Formula::var(at, pncad::document::Dimension::Count)),
                 },
             )
-            .map(drop)
         };
         let takeover = self.takeover(&input)?;
         let reads_one_body = takeover.reads_one_body();
         Ok(taking_over(takeover, move |run| {
-            declare(run)?;
+            let index = declare(run)?;
             let row = run.insert(placement)?;
+            // The binder yields the copies (D10 `[repetition]`), after
+            // what it yields already.
+            let copy = run
+                .doc()
+                .output(row, 0)
+                .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+            let binder = inner.unwrap_or(index);
+            run.apply(DocEdit::yielding_more(run.doc(), binder, &[copy]))?;
             match output {
                 // Several bodies, the family itself: a reader of one
                 // body reads them through a `⊔`.
@@ -4379,10 +4422,14 @@ impl DocSession {
         // the body it defines: a revolve's body, not its axis.
         let doc = self.committed_doc();
         let read = as_body(doc, target.into());
-        match read {
-            // A node with no body output: the kind gate's own refusal.
-            Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
-            _ => self.require_read(&read, NodeKindWanted::Body)?,
+        // A family is read at the one member the picks name
+        // (`picked_selection`), so the gate takes a family here too.
+        if !admits_read(doc, &read, NodeKindWanted::Instances) {
+            match read {
+                // A node with no body output: the kind gate's own refusal.
+                Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
+                _ => self.require_read(&read, NodeKindWanted::Body)?,
+            }
         }
         let takeover = self.takeover(&read)?;
         let (body, selection) = picked_selection(doc, self.evaluation(), read, selection)
@@ -4634,6 +4681,7 @@ impl DocSession {
             | DocEdit::SetLoftSections { .. }
             // What the document makes: structure, not a panel field.
             | DocEdit::SetProduct { .. }
+            | DocEdit::SetYields { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -5601,13 +5649,24 @@ fn write_product(
         [] => None,
         [one] => Some(one.clone()),
         several => {
-            let members = pncad::document::Bodies::Spelled(
-                several
-                    .iter()
-                    .cloned()
-                    .map(pncad::document::BodyRead::plain)
-                    .collect(),
-            );
+            // A family a binder yields is spliced in whole (D10
+            // `[repetition]`).
+            let binders = run.doc().binders();
+            let entry = |read: Operand| {
+                let var = match &read {
+                    Operand::Var(var) => Some(*var),
+                    Operand::Node(id) => run.doc().outputs(*id).first().copied(),
+                    Operand::Output { node, port } => run.doc().output(*node, *port),
+                    _ => None,
+                };
+                let read = pncad::document::BodyRead::plain(read);
+                match var {
+                    Some(var) => binders.spell(run.doc(), var, read),
+                    None => pncad::document::Spell::One(read),
+                }
+            };
+            let members =
+                pncad::document::Bodies::Spelled(several.iter().cloned().map(entry).collect());
             Some(Operand::Node(run.insert(Node::Assemble { members })?))
         }
     };
@@ -5931,13 +5990,13 @@ fn split_halves_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId
     };
     let Some(split) = members
         .first()
-        .and_then(|member| doc.operation_of(member.read))
+        .and_then(|member| doc.operation_of(member.read().read))
         .filter(|&at| matches!(doc.node(at), Some(Node::Split { .. })))
     else {
         return Vec::new();
     };
     let halves = doc.outputs(split);
-    let read: Vec<VarId> = members.iter().map(|member| member.read).collect();
+    let read: Vec<VarId> = members.iter().map(|member| member.read().read).collect();
     if read == halves { halves } else { Vec::new() }
 }
 
@@ -5973,7 +6032,10 @@ fn assemble_seats(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<(RecipeNodeId, O
             members
                 .into_iter()
                 .enumerate()
-                .filter(|(_, (stored, _))| stored.read == var && !stored.is_indexed())
+                .filter(|(_, (stored, _))| {
+                    matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(move |(i, _)| (id, OperandSlot::Member(i)))
         })
         .collect()
@@ -5992,7 +6054,10 @@ fn drop_seats(run: &mut Recording<'_, ProfileProgram>, var: VarId) -> Result<(),
         .filter_map(|node| {
             let kept = editor_core::continuation::spelled(doc, node)?
                 .into_iter()
-                .filter(|(stored, _)| stored.read != var || stored.is_indexed())
+                .filter(|(stored, _)| {
+                    !matches!(stored, pncad::document::Spell::One(one)
+                        if one.read == var && !one.is_indexed())
+                })
                 .map(|(_, authored)| authored)
                 .collect();
             Some((node, kept))
@@ -6106,6 +6171,58 @@ pub(crate) fn repoint_refusal(
     )
     .map_err(|e| Refusal::Edit(Box::new(e)))?;
     Ok((onto, onto_node))
+}
+
+/// **A list's picked members, each family spliced in whole** (D10
+/// `[repetition]`): a union, an intersect or a subtract's tools picked
+/// over a family read every member, `[a, …xs]`, as a list seat takes a
+/// family; a member read `xs[i]` and a single body are read as they are.
+fn splice_families(
+    doc: &Doc<ProfileProgram>,
+    node: pncad::document::AuthoredNode,
+) -> pncad::document::AuthoredNode {
+    type Entry = pncad::document::Spell<pncad::document::BodyRead<Formula>>;
+    let binders = doc.binders();
+    let spell = |entries: Vec<Entry>| -> Vec<Entry> {
+        entries
+            .into_iter()
+            .map(|entry| match entry {
+                pncad::document::Spell::One(read) if !read.is_indexed() => {
+                    let var = match &read.read {
+                        Operand::Var(var) => Some(*var),
+                        Operand::Node(id) => doc.outputs(*id).first().copied(),
+                        Operand::Output { node, port } => doc.output(*node, *port),
+                        _ => None,
+                    };
+                    match var {
+                        Some(var) => binders.spell(doc, var, read),
+                        None => pncad::document::Spell::One(read),
+                    }
+                }
+                other => other,
+            })
+            .collect()
+    };
+    match node {
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Union {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Intersect {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Intersect {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(entries),
+        } => Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        other => other,
+    }
 }
 
 /// **A body seat's read of `read`**: a node named alone that is no body

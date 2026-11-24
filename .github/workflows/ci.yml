@@ -318,6 +318,9 @@ jobs:
         run: cargo fmt --all --check && (cd benches && cargo fmt --all --check)
       - name: clippy (--all-features)
         if: needs.filter.outputs.run_build == 'true'
+        # An explicit shell runs the block with `pipefail`, so a cargo
+        # that dies in the census's pipe reds the step.
+        shell: bash
         env:
           TIER: ${{ needs.filter.outputs.tier }}
           SCOPE: ${{ needs.filter.outputs.test_scope }}
@@ -325,13 +328,24 @@ jobs:
         run: |
           # viewer's `app` feature is the eframe/wgpu graph; the viewer job
           # lints it when the diff seeds viewer, pncad or bvh.
+          # `--force-warn clippy::disallowed_methods` reports every use of
+          # a door `clippy.toml` lists, whatever attribute sits over it,
+          # as a warning that `-D warnings` does not raise. The second
+          # invocation takes the same arguments, so it replays the first's
+          # diagnostics from cargo's cache, as JSON, and
+          # scripts/conic_centre_census.py holds the production reads of
+          # the crates this run checked at their pins
+          # (scripts/gates/conic-centre-reads.sh holds this wiring).
           if [ "$TIER" = all ]; then
-            cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
+            SCOPE="--workspace --exclude viewer"
           else
             [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
-            # shellcheck disable=SC2086 # SCOPE is a list of -p flags
-            cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo clippy $SCOPE --all-targets --all-features -- -D warnings --force-warn clippy::disallowed_methods
+          # shellcheck disable=SC2086
+          cargo clippy $SCOPE --all-targets --all-features --message-format=json -- -D warnings --force-warn clippy::disallowed_methods \
+            | python3 scripts/conic_centre_census.py --check
       - name: rustdoc (the doc gate's workspace pass)
         if: needs.filter.outputs.run_build == 'true'
         # clippy is blind to rustdoc's lints, so without this a PR that
@@ -495,11 +509,13 @@ jobs:
         run: |
           set -o pipefail
           # Each shard checks the entries of the packages it built; an entry
-          # naming no workspace member is dead in either.
+          # naming no workspace member is dead in either. viewer's entries are
+          # the viewer job's to check: this listing has no `app` feature, so a
+          # test under `app::` is in it as no test at all.
           members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
           # shellcheck disable=SC2086 # SCOPE is a list of -p flags
           cargo nextest list --ignore-default-filter $SCOPE --message-format json \
-            | python3 scripts/check-slow-set-names.py --members "$members"
+            | python3 scripts/check-slow-set-names.py --members "$members" --elsewhere viewer
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed) and slow fast-set tests
         if: failure()
@@ -524,15 +540,45 @@ jobs:
       - name: clippy (viewer app feature)
         run: cargo clippy -p viewer --features app --all-targets -- -D warnings
       - name: install a software Vulkan adapter (lavapipe)
+        if: '!cancelled()'
         timeout-minutes: 8
         run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
       - name: install cargo-nextest (pinned, official prebuilt)
+        if: '!cancelled()'
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        if: '!cancelled()'
         run: cargo nextest run --profile ci -p viewer --features app
+      # The `ci` profile leaves the slow set out, and the test job's slow-set
+      # step builds viewer without `app`, so a slow test under `app::` runs
+      # here: when the diff spells it or edits its file (scripts/slow_set.py,
+      # `selected`). nightly.yml's viewer job runs every one of them.
+      - name: viewer app-feature slow-set tests (the ones this diff adds or edits)
+        if: '!cancelled()'
+        env:
+          BASE: ${{ needs.filter.outputs.base }}
+        run: |
+          touch "$RUNNER_TEMP/new-tests.txt"
+          if [ -n "$BASE" ]; then
+            git fetch -q --no-tags --depth=1 origin "$BASE"
+            scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
+          fi
+          slow="$(python3 scripts/slow_set.py --new-expr "$RUNNER_TEMP/new-tests.txt")"
+          echo "slow set over viewer (app): $slow"
+          cargo nextest run --profile ci --ignore-default-filter -p viewer --features app \
+            -E "package(viewer) & $slow" --no-fail-fast --no-tests=pass
+      # The test job leaves viewer's entries to this listing (`--elsewhere`).
+      - name: the slow set's viewer entries name only tests that exist (the app-feature listing)
+        if: '!cancelled()'
+        run: |
+          set -o pipefail
+          members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
+          cargo nextest list --ignore-default-filter -p viewer --features app --message-format json \
+            | python3 scripts/check-slow-set-names.py --members "$members"
       - name: wasm32 clippy (the browser entry point)
+        if: '!cancelled()'
         run: |
           rustup target add wasm32-unknown-unknown
           RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings

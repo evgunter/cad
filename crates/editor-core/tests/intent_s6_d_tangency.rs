@@ -123,7 +123,7 @@ pub(crate) fn tangency(doc: ProfileDoc, members: Vec<Operand>) -> Proof {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members.into_iter().map(Into::into).collect()),
+            members: editor_core::Bodies::spelled(members.into_iter().map(Into::into).collect()),
         },
     );
     let ev = eval(&doc);
@@ -571,7 +571,7 @@ fn a_boss_on_a_spheres_small_circle_is_not_proven_tangent() {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(sphere, 0).into(),
                 Operand::output(boss, 0).into(),
             ]),
