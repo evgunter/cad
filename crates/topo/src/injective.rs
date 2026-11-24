@@ -170,7 +170,8 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a plane face's corner in a cell, metres. Each
 /// reading is a distance from a line along its unit normal. At a corner
 /// of two line edges: how far, over an edge's length, the ray into the
-/// face stands on that edge's face side ([`ray_inside`]). At a strip's
+/// face stands off that edge's line (`present_plane`'s `ray_inside`: the
+/// corner is neither a spike nor a slit). At a strip's
 /// end: how far the corner's one line edge, at its far end, stands on
 /// the other's face side, and the points of the base the end's cap
 /// stands over from the cap. At a line meeting a curve: how far the
@@ -3631,21 +3632,6 @@ fn partial_zero(
         .then(|| (c.side, Along::of(surface, b, &shared)))
 }
 
-/// **Whether the ray `m` into a plane face lies strictly on the face
-/// side of one of its corner's edges**, `u` that edge's unit toward-face
-/// normal and `l` its length: the sine of the angle from the edge to the
-/// ray, `m·u / |m|`, times `l`, metres, decided positive at
-/// [`SELF_INTERSECTION_CORNER`]. A sine levered at the edge's own
-/// length, a face's extent and not a cell's of the sweep, as the lean it
-/// replaces was. Both edges' answers together put
-/// the ray strictly inside the face's sector with each piece under a
-/// half turn; a spike or a slit (the two normals opposed, `m` vanishing)
-/// is not decided and refuses.
-fn ray_inside(m: [Interval; 2], u: [Interval; 2], l: Interval, band: Band) -> bool {
-    let sine = (m[0] * u[0] + m[1] * u[1]) / (m[0].powi(2) + m[1].powi(2)).sqrt();
-    interval_sign_as(sine * l, SELF_INTERSECTION_CORNER, band) == Some(Sign::Positive)
-}
-
 /// The planar presentation: the plane's chart through an affine map in
 /// which one line edge is `y = 0` and the face `y ≥ 0`, or, at a corner
 /// of two line edges, two of them.
@@ -3863,6 +3849,47 @@ fn present_plane<'a>(
             cache: Cache::default(),
         })))
     };
+    // Two line edges at their common vertex `vtx`, read in the chart:
+    // the vertex, each edge's vector to its far end and its toward-face
+    // normal, and each edge's parameters at the vertex and at its far end.
+    struct TwoEdges {
+        o: Point2<Interval>,
+        a: [Interval; 2],
+        b: [Interval; 2],
+        n1: [Interval; 2],
+        n2: [Interval; 2],
+        on1: (Interval, Interval),
+        on2: (Interval, Interval),
+    }
+    let two_edges = |e1: usize, e2: usize, vtx: VertexKey| -> Result<TwoEdges, Unpresented> {
+        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
+            return Err(Unpresented::Local);
+        };
+        let ((p1, s1), (q1, f1)) = segment(e1)?;
+        let ((p2, s2), (q2, f2)) = segment(e2)?;
+        // Each edge's start in its traversal; its parameters at the
+        // vertex and its far end ride with its points.
+        let start = |r: &Rim| if r.uses[0].plus { r.ends[0] } else { r.ends[1] };
+        let ((o, v1), (far1, w1)) = if start(r1) == vtx {
+            ((p1, s1), (q1, f1))
+        } else {
+            ((q1, f1), (p1, s1))
+        };
+        let ((_, v2), (far2, w2)) = if start(r2) == vtx {
+            ((p2, s2), (q2, f2))
+        } else {
+            ((q2, f2), (p2, s2))
+        };
+        Ok(TwoEdges {
+            o,
+            a: [far1.x - o.x, far1.y - o.y],
+            b: [far2.x - o.x, far2.y - o.y],
+            n1: toward_face([q1.x - p1.x, q1.y - p1.y], orientation),
+            n2: toward_face([q2.x - p2.x, q2.y - p2.y], orientation),
+            on1: (v1, w1),
+            on2: (v2, w2),
+        })
+    };
     // A strip's end: two line edges at a convex corner `vtx` as the
     // positive axes, `e1` along `x`, and `cap`, the line at `e2`'s far end
     // and that vertex, across the face from `e1`. A corner with no cap is
@@ -3879,45 +3906,19 @@ fn present_plane<'a>(
                   vtx: VertexKey,
                   cap: (usize, VertexKey)|
      -> Result<Presentation<'a>, Unpresented> {
-        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
-            return Err(Unpresented::Local);
-        };
         let at_a_corner = |w: VertexKey| w == vtx || w == cap.1;
         if !piece.local.vertices.iter().all(|&w| at_a_corner(w)) {
             return Err(Unpresented::Local);
         }
-        let ((p1, s1), (q1, f1)) = segment(e1)?;
-        let ((p2, s2), (q2, f2)) = segment(e2)?;
-        // Each edge's chart point at the vertex, its far point, and
-        // its traversal direction.
-        let start1 = if r1.uses[0].plus {
-            r1.ends[0]
-        } else {
-            r1.ends[1]
-        };
-        let start2 = if r2.uses[0].plus {
-            r2.ends[0]
-        } else {
-            r2.ends[1]
-        };
-        // Each edge's parameters at the vertex and its far end ride
-        // with its points.
-        let ((o, v1), (far1, w1)) = if start1 == vtx {
-            ((p1, s1), (q1, f1))
-        } else {
-            ((q1, f1), (p1, s1))
-        };
-        let ((_, v2), (far2, w2)) = if start2 == vtx {
-            ((p2, s2), (q2, f2))
-        } else {
-            ((q2, f2), (p2, s2))
-        };
-        let t1 = [q1.x - p1.x, q1.y - p1.y];
-        let t2 = [q2.x - p2.x, q2.y - p2.y];
-        let a = [far1.x - o.x, far1.y - o.y];
-        let bv = [far2.x - o.x, far2.y - o.y];
-        let n1 = toward_face(t1, orientation);
-        let n2 = toward_face(t2, orientation);
+        let TwoEdges {
+            o,
+            a,
+            b: bv,
+            n1,
+            n2,
+            on1: (v1, w1),
+            on2: (v2, w2),
+        } = two_edges(e1, e2, vtx)?;
         if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
             && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
         {
@@ -3982,81 +3983,71 @@ fn present_plane<'a>(
     // cell: the corner's sector cut on the ray into the face into two
     // convex pieces, whatever its angle.
     let pieces = |e1: usize, e2: usize, vtx: VertexKey| -> Result<Presentation<'a>, Unpresented> {
-        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
-            return Err(Unpresented::Local);
-        };
         if piece.local.vertices.iter().any(|&w| w != vtx) {
             return Err(Unpresented::Local);
         }
-        let ((p1, s1), (q1, f1)) = segment(e1)?;
-        let ((p2, s2), (q2, f2)) = segment(e2)?;
-        // Each edge's chart point at the vertex, its far point, and
-        // its traversal direction.
-        let start1 = if r1.uses[0].plus {
-            r1.ends[0]
-        } else {
-            r1.ends[1]
+        let TwoEdges {
+            o,
+            a,
+            b: bv,
+            n1,
+            n2,
+            on1: (v1, w1),
+            on2: (v2, w2),
+        } = two_edges(e1, e2, vtx)?;
+        let length = |w: [Interval; 2]| (w[0].powi(2) + w[1].powi(2)).sqrt();
+        let unit = |w: [Interval; 2]| {
+            let l = length(w);
+            [w[0] / l, w[1] / l]
         };
-        let start2 = if r2.uses[0].plus {
-            r2.ends[0]
-        } else {
-            r2.ends[1]
-        };
-        // Each edge's parameters at the vertex and its far end ride
-        // with its points.
-        let ((o, v1), (far1, w1)) = if start1 == vtx {
-            ((p1, s1), (q1, f1))
-        } else {
-            ((q1, f1), (p1, s1))
-        };
-        let ((_, v2), (far2, w2)) = if start2 == vtx {
-            ((p2, s2), (q2, f2))
-        } else {
-            ((q2, f2), (p2, s2))
-        };
-        let t1 = [q1.x - p1.x, q1.y - p1.y];
-        let t2 = [q2.x - p2.x, q2.y - p2.y];
-        let a = [far1.x - o.x, far1.y - o.y];
-        let bv = [far2.x - o.x, far2.y - o.y];
-        let n1 = toward_face(t1, orientation);
-        let n2 = toward_face(t2, orientation);
-        let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
-        let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
+        // The shared cell holds its edges' ends, so the vertex is shared
+        // where either of the corner's edges is.
+        let vertex_shared =
+            near_vertices.contains(&vtx) || near_edges.contains(&e1) || near_edges.contains(&e2);
         // The ray into the face: the sum of the two edges' unit
-        // toward-face normals.
-        let unit2 = |n: [Interval; 2]| {
-            let l = (n[0].powi(2) + n[1].powi(2)).sqrt();
-            [n[0] / l, n[1] / l]
+        // toward-face normals. It is never on the wrong side of an edge:
+        // at an interior angle `θ` its sine from either edge is
+        // `sin(θ/2)`, zero only at a spike (`θ = 0`) or a slit
+        // (`θ = 2π`), where the two normals are opposed and the ray has
+        // no direction. So this is a test that the corner is neither,
+        // levered at each edge's own length (a face's extent, not a
+        // cell's): the ray stands off each edge's line by more than the
+        // band over that edge, metres, at [`SELF_INTERSECTION_CORNER`].
+        // It only refuses. The decision is the corner's, the same in
+        // every cell holding both edges, so where the corner is on the
+        // shared cell no smaller cell pair changes it.
+        let (u1, u2) = (unit(n1), unit(n2));
+        let ray = [u1[0] + u2[0], u1[1] + u2[1]];
+        let ray_inside = |u: [Interval; 2], edge: [Interval; 2]| {
+            positive(lean(ray, u) * length(edge), SELF_INTERSECTION_CORNER)
         };
-        let (u1, u2) = (unit2(n1), unit2(n2));
-        let m = [u1[0] + u2[0], u1[1] + u2[1]];
-        if !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
-            return Err(Unpresented::Local);
+        if !(ray_inside(u1, a) && ray_inside(u2, bv)) {
+            return Err(if vertex_shared {
+                Unpresented::Structural
+            } else {
+                Unpresented::Local
+            });
         }
-        let mh = unit2(m);
-        let d = [cell_u - o.x, cell_v - o.y];
-        // One piece: the cone of an edge's direction `e`, of length
-        // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
-        // where the cell lies wholly off it.
+        let ray = unit(ray);
+        // One piece: the cone of an edge's vector `e` and the ray, as the
+        // image of `[0, x] × [0, y]`; `None` where the cell lies wholly
+        // off it. Its reach along its edge is asked before that: a cell
+        // past the edge's far end is not this arm's, on or off the cone,
+        // so the face is vacuous only inside both edges' spans.
         let cone = |e: [Interval; 2],
-                    l: Interval,
-                    r: [Interval; 2],
                     zero: &dyn Fn(Interval) -> Zero|
          -> Result<Option<Presented<'a>>, Unpresented> {
-            let r = [r[0] * l, r[1] * l];
-            let det = e[0] * r[1] - e[1] * r[0];
-            let x = (d[0] * r[1] - d[1] * r[0]) / det;
-            let y = (e[0] * d[1] - e[1] * d[0]) / det;
+            let l = length(e);
+            let r = [ray[0] * l, ray[1] * l];
+            let (x, y) = coords(o, e, r, Point2::new(cell_u, cell_v));
             if !(x.is_certified() && y.is_certified()) {
+                return Err(Unpresented::Local);
+            }
+            if !positive((at(1.0) - x) * l, SELF_INTERSECTION_SPAN) {
                 return Err(Unpresented::Local);
             }
             if x.hi() <= 0.0 || y.hi() <= 0.0 {
                 return Ok(None);
-            }
-            if interval_sign_as((at(1.0) - x) * l, SELF_INTERSECTION_SPAN, band)
-                != Some(Sign::Positive)
-            {
-                return Err(Unpresented::Local);
             }
             Ok(Some(Presented {
                 surface: piece.surface,
@@ -4073,12 +4064,10 @@ fn present_plane<'a>(
             }))
         };
         // A piece's zero: its edge where the pair shares it, else the
-        // vertex where the pair shares that, else none. The shared
-        // cell holds its edges' ends, so the vertex is shared where
-        // the other piece's edge is. The edge runs over its
-        // coordinate, 0 at the vertex and 1 at its far end.
-        let vertex_shared =
-            near_vertices.contains(&vtx) || near_edges.contains(&e1) || near_edges.contains(&e2);
+        // vertex where the pair shares that, else none. An off-edge
+        // piece never takes the other's edge as a side: it holds none of
+        // it but the vertex. The edge runs over its coordinate, 0 at the
+        // vertex and 1 at its far end.
         let zero = |e: usize, (v, w): (Interval, Interval)| {
             move |hi: Interval| {
                 if near_edges.contains(&e) {
@@ -4095,8 +4084,8 @@ fn present_plane<'a>(
                 }
             }
         };
-        let first = cone(a, la, mh, &zero(e1, (v1, w1)))?;
-        let second = cone(bv, lb, mh, &zero(e2, (v2, w2)))?;
+        let first = cone(a, &zero(e1, (v1, w1)))?;
+        let second = cone(bv, &zero(e2, (v2, w2)))?;
         Ok(match (first, second) {
             (None, None) => Presentation::Vacuous,
             (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
@@ -7923,10 +7912,9 @@ fn departure(
             if let (Some(imp), Ok(other)) = (implicit_of(sep, band), other) {
                 let psi = Psi::Carrier(imp);
                 let pieces = other.pieces();
-                if pieces
-                    .iter()
-                    .all(|p| sign_on(&psi, None, p, None, arm, band).is_some())
-                {
+                if every_piece(&pieces, |p| {
+                    sign_on(&psi, None, p, None, arm, band).is_some()
+                }) {
                     return Outcome::Certified {
                         corner: pieces.iter().any(|p| p.corner),
                     };
@@ -7964,7 +7952,7 @@ fn departure(
             .any(|sep| apart(qx, qy, sep))
             || graph_of(x, y, near, qx, qy, band).is_some_and(|sep| apart(qx, qy, sep))
     };
-    if qxs.iter().all(|qx| qys.iter().all(|qy| parted(qx, qy))) {
+    if every_piece_pair(&qxs, &qys, parted) {
         return Outcome::Certified {
             corner: corner(&qxs) || corner(&qys),
         };
@@ -8035,16 +8023,11 @@ fn departure(
         );
         if let (Ok(rx), Ok(ry)) = (&rx, &ry) {
             let (rxs, rys) = (rx.pieces(), ry.pieces());
-            if !rxs.is_empty()
-                && !rys.is_empty()
-                && rxs.iter().all(|rx| {
-                    rys.iter().all(|ry| {
-                        planes_through(x, &alone, rx, ry)
-                            .into_iter()
-                            .any(|sep| apart(rx, ry, sep))
-                    })
-                })
-            {
+            if every_piece_pair(&rxs, &rys, |rx, ry| {
+                planes_through(x, &alone, rx, ry)
+                    .into_iter()
+                    .any(|sep| apart(rx, ry, sep))
+            }) {
                 return Outcome::Certified {
                     corner: corner(&rxs) || corner(&rys),
                 };
@@ -8058,6 +8041,26 @@ fn departure(
         return Outcome::Cusp { shared };
     }
     split
+}
+
+/// **Every piece of a face, and at least one.** A face presented in two
+/// pieces ([`Presentation::Pair`]) is certified against something only
+/// where each of its pieces is: a coincidence with the face in the cell
+/// is one with some piece. No piece is no reading, not a vacuous one.
+/// The one home of that rule: the carrier arm, the piece pairs under the
+/// planes and the graph, and the pieces against a vertex alone all ask
+/// through it.
+fn every_piece(pieces: &[&Presented<'_>], holds: impl Fn(&Presented<'_>) -> bool) -> bool {
+    !pieces.is_empty() && pieces.iter().all(|p| holds(p))
+}
+
+/// [`every_piece`] of one face against [`every_piece`] of the other.
+fn every_piece_pair(
+    xs: &[&Presented<'_>],
+    ys: &[&Presented<'_>],
+    parted: impl Fn(&Presented<'_>, &Presented<'_>) -> bool,
+) -> bool {
+    every_piece(xs, |qx| every_piece(ys, |qy| parted(qx, qy)))
 }
 
 /// **The arm a cell pair's departure is levered at**: the reach of the
@@ -8146,7 +8149,9 @@ fn stuck(piece: &Piece<'_>, p: &Result<Presentation<'_>, Unpresented>) -> bool {
         Ok(Presentation::Of(q)) => matches!(&q.zero,
             Zero::Curve(_, c) if c.run.is_none()
                 && c.past.is_some_and(|v| piece.local.vertices.contains(&v))),
-        _ => false,
+        // A plane's two pieces: neither's zero is a curve.
+        Ok(Presentation::Pair(..) | Presentation::Vacuous) => false,
+        Err(Unpresented::Local | Unpresented::Collapsed(_)) => false,
     }
 }
 
@@ -10793,22 +10798,36 @@ mod presentation_rows {
         }
     }
 
-    /// **A plane face cornered at vertex 1**, the origin: the sector from
-    /// `d1` round to `d2`, counter-clockwise about `normal`. Rim 0 runs
-    /// along `d2` into the vertex (key `k2`), rim 1 along `d1` out of it
-    /// (key `k1`); each is the unit chord from the origin to four times
-    /// its direction.
+    /// [`sector_of_reach`], each rim four times its direction long.
     fn sector_at_vertex_1(
         normal: [f64; 3],
         d1: [f64; 3],
         d2: [f64; 3],
+        keys: (u64, u64),
+    ) -> (Surface<Interval>, Boundary) {
+        sector_of_reach(normal, d1, d2, keys, 4.0)
+    }
+
+    /// **A plane face cornered at vertex 1**, the origin: the sector from
+    /// `d1` round to `d2`, counter-clockwise about `normal`, the chart's
+    /// `u` along `d1`. Rim 0 (key `k2`) is traversed along `-d2` into the
+    /// vertex, rim 1 (key `k1`) along `d1` out of it; each is stated as
+    /// the chord from the origin to `reach` times its direction
+    /// ([`chord_segment`]: a unit direction, the far end by enclosure),
+    /// and its far vertex, key `k + 100`, is stored there. The cell
+    /// helpers below list both rims and vertex 1.
+    fn sector_of_reach(
+        normal: [f64; 3],
+        d1: [f64; 3],
+        d2: [f64; 3],
         (k1, k2): (u64, u64),
+        reach: f64,
     ) -> (Surface<Interval>, Boundary) {
         let v3 = |[x, y, z]: [f64; 3]| Vec3::new(iv0(x), iv0(y), iv0(z));
         let rim = |key: u64, d: [f64; 3], plus: bool| Rim {
             stated: None,
             key: edge(key),
-            arc: Some(chord_segment(origin(), origin() + v3(d) * iv0(4.0))),
+            arc: Some(chord_segment(origin(), origin() + v3(d) * iv0(reach))),
             ends: [vertex(1), vertex(key + 100)],
             uses: vec![Use {
                 plus,
@@ -10829,8 +10848,8 @@ mod presentation_rows {
                 // read off their vertices.
                 vertices: BTreeMap::from([
                     (vertex(1), origin()),
-                    (vertex(k1 + 100), origin() + v3(d1) * iv0(4.0)),
-                    (vertex(k2 + 100), origin() + v3(d2) * iv0(4.0)),
+                    (vertex(k1 + 100), origin() + v3(d1) * iv0(reach)),
+                    (vertex(k2 + 100), origin() + v3(d2) * iv0(reach)),
                 ]),
                 extent: None,
                 outer: None,
@@ -10851,8 +10870,21 @@ mod presentation_rows {
         u: (f64, f64),
         v: (f64, f64),
     ) -> Piece<'a> {
+        cell_keyed(1, s, local, u, v)
+    }
+
+    /// [`cell_of`], the face keyed `n`: two faces of a pair take two
+    /// keys, or [`arm_of`] reads the pair as one face against itself and
+    /// takes its reach from the first face's vertices alone.
+    fn cell_keyed<'a>(
+        n: u64,
+        s: &'a (Surface<Interval>, Boundary),
+        local: &'a Local,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Piece<'a> {
         Piece {
-            face: FaceKey::default(),
+            face: face(n),
             surface: &s.0,
             whole: false,
             boundary: &s.1,
@@ -10883,8 +10915,8 @@ mod presentation_rows {
         let local = both_rims_and_vertex_1();
         let about = (-0.5, 0.5);
         let (x, y) = (
-            cell_of(f, &local, about, about),
-            cell_of(g, &local, about, about),
+            cell_keyed(1, f, &local, about, about),
+            cell_keyed(2, g, &local, about, about),
         );
         let near = |edges: Vec<(usize, usize)>| Near {
             edges,
