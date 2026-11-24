@@ -514,8 +514,8 @@ fn a_marched_witness_is_placed_padded() {
 /// **R-reach**: a cone whose apex lies on a torus off its axis (a node,
 /// which no march ends a branch at) and a spline. (A cone against a torus
 /// clear of its apex is the section value's, marched; a
-/// cone against an oblique cylinder or a tilted or parallel-axis cone is
-/// the ruling charts', `section_cert_cone_pair_rows`; a torus on a
+/// cone against a cylinder or another cone is the section value's,
+/// `section_cert_cone_pair_rows`; a torus on a
 /// parallel axis is `section_cert_parallel_tori_rows`'.)
 #[test]
 fn intractable_poses_refuse_on_reach() {

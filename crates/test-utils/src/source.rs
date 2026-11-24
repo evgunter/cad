@@ -1659,7 +1659,8 @@ pub struct PredicateCensus {
 /// wrappers that forward to it, so the scan is for a `decide` token —
 /// with or without a suffix (`_flagged`, `_invariant`) and with or
 /// without a turbofish — followed by an argument list whose first
-/// argument is the name.
+/// argument is the name. A first argument that is a closure is never a
+/// name, so such a call is not a site.
 ///
 /// Three hand-rolled copies of this walk stood in three suites before
 /// it existed, and two of them were defeated by mutation with ordinary
@@ -2271,6 +2272,15 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String, usize)> {
         at = open + 1;
         let arg = code[open + 1..].trim_start();
         let arg_bare = &bare[bare.len() - arg.len()..];
+        // A closure at the head is no name, so the call is another type's
+        // `decide` method (`quantity`'s exact real), not a funnel site.
+        if arg_bare.starts_with('|')
+            || arg_bare
+                .strip_prefix("move")
+                .is_some_and(|tail| tail.trim_start().starts_with('|'))
+        {
+            continue;
+        }
         if let Some(names) = literal_tuple(arg_bare, arg) {
             out.extend(names.into_iter().map(|name| (SiteKind::Name, name, start)));
             continue;
@@ -3490,6 +3500,19 @@ mod tests {
                     && expr.starts_with("(\"lone\"")),
             "a part-literal tuple is indirect: {raw}"
         );
+    }
+
+    /// **A `decide` whose head is a closure is no site**, plain or
+    /// `move`, and a funnel inside that closure is still read.
+    #[test]
+    fn a_decide_handed_a_closure_is_no_site() {
+        let raw = "self.decide(|n, d| n < d); x.decide(move || decide(\"inner\", m, band));";
+        let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
+        let read: Vec<(bool, &str)> = sites
+            .iter()
+            .map(|(kind, text, _)| (matches!(kind, super::SiteKind::Name), text.as_str()))
+            .collect();
+        assert_eq!(read, [(true, "inner")], "{raw}");
     }
 
     /// **A `let` binding of a local funnel is not a call**: its body and
