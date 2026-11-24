@@ -2,10 +2,12 @@
 id: main-red-two-slow-rows-no-row-holds-at-da61db71a
 kind: issue
 title: Main red, held by no row: predicate_name_coverage, the cones-apex rows at 1e-6, and the ring path's re-forked planar sense flip
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: M
+closed: 2026-11-23
+pr: 7678
 ---
 
 
@@ -38,10 +40,14 @@ Neither of the first two was bisected, and neither are these.
 
 Opt-level 0 and 2 agree. So a merge in `ccabcfb..da61db71a` changed which door refuses there. It was not bisected.
 
+## 2026-11-23 — the first bullet's two names resolve on main; the row is red on other causes (GREEN U17, PR 7670)
+
+The probe run 45310731023 (`origin/main` `82273ca89b` plus a comment line in the coverage file so the row runs) no longer reports `ct_critical_gap_straddle` or `pc_parallel_gap`. CIW's lane declared their carriers in geom-brep's roster on the branch of PR 7496: `NameCarrier::Call("GapRows")` (`be8f73fde2`) reads `rows.rs`'s `CT_GAP.straddle`, and `NameCarrier::Const("PC_PARALLEL_GAP")` (`65b8387238`, and `c0db369c8b` via PR 7408) reads the `pc_parallel_gap` pair. The row's name is unchanged on main. So **the first bullet is fixed on main**, and PR 7670 carries no change for it. The row is still red on two new causes, filed as `main-red-predicate-name-coverage-meets-quantitys-decide-and-geom-cores-test-local-row-names`: `quantity`'s `Exact::decide` runs no roster, and four `row`/`row_floor` literals sit in geom-core's `k_stats_doors.rs`. The other bullets are another lane's.
+
 ## 2026-11-23: GREEN U19 on every bullet but the first (PR 7678)
 
-The first bullet, `predicate_name_coverage`, is lane U17's. This row stays
-open for it. Every run below is a hosted throwaway probe; probe run
+The first bullet, `predicate_name_coverage`, is lane U17's (the section
+above). Every run below is a hosted throwaway probe; probe run
 45308109008 read each row on main `a433ff83d6`.
 
 - **Cones-apex rows at 1e-6: re-pinned.** Bisected to PR 7299
@@ -84,3 +90,11 @@ open for it. Every run below is a hosted throwaway probe; probe run
   (`a-sym-posed-reading-carries-a-value-its-node-does-not-compute`).
 - **`germ_tilted_rod` (the "also seen" note):** GREEN already holds it. It
   was not bisected here.
+
+## Closed (2026-11-23, PR 7678)
+
+Every bullet has a disposition. The first is fixed on main (U17, PR
+7670), and its new causes are their own row. The cones-apex rows and
+`corpus_finish_count` are re-pinned with their causes. The planar sense
+flip and the slow-set name check are fixed on main. `m10_p_lift` is
+SYM's row.

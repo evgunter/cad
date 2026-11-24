@@ -3165,7 +3165,7 @@ pub(crate) mod leaf {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, cancel, opts, tol);
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
-                        v.value
+                        v.value()
                     })
                 });
                 out
@@ -3803,15 +3803,15 @@ where
     geom_core::Sym<T>: geom_core::Decide,
 {
     fn quoted(self) -> f64 {
-        self.value.quoted()
+        self.value().quoted()
     }
 
     fn upper(self) -> f64 {
-        self.value.upper()
+        self.value().upper()
     }
 
     fn exactly_zero(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     /// **A box lane's point zero, never a point lane's number**: at
@@ -3821,7 +3821,7 @@ where
     /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
     /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
     fn zero_everywhere(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     /// A chart's map is set from its frames, `rot(a, θ)·S·O`: a

@@ -487,8 +487,9 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::SegmentDirection, NO_FIXTURE),
     (
         Gate::SegmentDirectionAxis,
-        "read outside the log at the least band, a choice between two sound spellings: \
-         it never refuses (audit row F43)",
+        "read only at a symbolic scalar, where a chord's component is proved zero as an \
+         expression: no f64 door reads it (audit row F43; its refusal is \
+         `recorded_directions`' `the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses`)",
     ),
     (
         Gate::SegmentDirectionSign,
