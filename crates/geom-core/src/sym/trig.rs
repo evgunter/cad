@@ -496,7 +496,8 @@ mod tests {
         let atan2 = indet_atom(SymOp::Atan2.tag(), 0, &[x.digest(), x.digest()]);
         let mut sess = session_with(&x, atan, atan2);
         let mut arg = Poly::zero();
-        arg.insert(vec![(atan, 1)], Rat::new(3, 4, 0).unwrap()).unwrap();
+        arg.insert(vec![(atan, 1)], Rat::new(3, 4, 0).unwrap())
+            .unwrap();
         let arg = Form::poly(arg);
         let narrow =
             crate::sym::rational::with_coeff_bound(1, || closed_forms(&arg, &mut sess).is_some());

@@ -554,7 +554,8 @@ fn family_of_cylinders(tol: Tol) -> (ProfileDoc, editor_core::RecipeNodeId) {
             on: None,
         }),
     );
-    let grown = Formula::mul(crate::fixture::scalar_of(k), crate::fixture::len(0.5)).expect("a length");
+    let grown =
+        Formula::mul(crate::fixture::scalar_of(k), crate::fixture::len(0.5)).expect("a length");
     let distance = Formula::add(crate::fixture::len(1.0), grown).expect("a length");
     crate::fixture::insert(
         doc,
@@ -585,7 +586,11 @@ fn a_family_whose_members_register_carries_their_identities() {
         .map(|(_, member)| member.sym.registrations())
         .sum();
     assert!(of_members > 0, "the members registered");
-    assert_eq!(value.sym.registrations(), of_members, "the family holds them all");
+    assert_eq!(
+        value.sym.registrations(),
+        of_members,
+        "the family holds them all"
+    );
     assert_eq!(session, carried(&ev).0, "the receipt is the sum");
 }
 
@@ -600,10 +605,7 @@ fn two_instances_of_one_part_read_one_run() {
     let tol = Tol::witness();
     let part = cylinder("session-state-part", tol);
     let pin = editor_core::content_pin(&part, tol).expect("the pin computes");
-    let doc_ref = editor_core::DocRef {
-        id: part.id(),
-        pin,
-    };
+    let doc_ref = editor_core::DocRef { id: part.id(), pin };
     let doc = ProfileDoc::empty(editor_core::DocumentId::derive("session-state-two"), tol);
     let (doc, first) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, second) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
@@ -614,7 +616,14 @@ fn two_instances_of_one_part_read_one_run() {
         Some(NodeResult::Ok(v)) => v.sym.registrations(),
         _ => panic!("the instance builds"),
     };
-    assert!(identities(first) > 0, "the instance carries the part's identities");
-    assert_eq!(identities(first), identities(second), "both read the one run");
+    assert!(
+        identities(first) > 0,
+        "the instance carries the part's identities"
+    );
+    assert_eq!(
+        identities(first),
+        identities(second),
+        "both read the one run"
+    );
     assert_eq!(session, carried(&ev).0, "the part is counted once");
 }
