@@ -60,6 +60,14 @@ cap, whose cut runs between the circle's two crossings only, glues.
 `joinable-reads-a-chart-singularity-by-distance-alone` may be the same
 ground.
 
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
+
+**This row now stands between the tour's die and building.** That branch retires the re-chart, so a closed ball's escape is cut in too (`apply_cut_ins`). The die of `die_composed_tour` with two pips dragged together used to refuse `UnsupportedTurnedCell` at its pips' union. It now refuses there with this row's `Emission("a chart cut survives in the result")`, in all eight edits (`crates/editor-core/tests/the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut.rs`). The kernel result is sound; only the naming refuses.
+
+Where the cut survives, measured on two radius-0.09 balls 0.08 apart (z-poled, offset along y). The union keeps one live chart cut per ball, and its naming lists `merge_skipped: PeriodClosure` for each ball's run. The run's faces meet across both the cut and the ball's own seam, so merging the whole run would close the sphere's period. `merge_faces` refuses curved runs that close the period (`crates/geom-brep/README.md` C12(5)), and it refuses the whole run rather than merging across the cut while the seam stays as the period's edge. `a - b` keeps its cut for the same reason. The intersect glues both cuts away. The same skip already leaves operand seams unmerged on balls that need no cut-in, for example y-poled balls offset along y. There the edges are operand edges, which names read.
+
+Two ways through, each on other ground. One is a partial merge: kill the chart cut and keep one period edge, the operand's seam. The question there is whether C12(5)'s "a run that closes its period refuses" allows a sub-period merge of the same run. The other is to name a surviving chart cut. By the blocker rule (`work/README.md`, Priority), the part of this row that unblocks the die is P0 work.
+
 ## 2026-11-23 — claimed by ORBIT, re-banded P0 (the die)
 
 ORBIT's P0 (`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`,

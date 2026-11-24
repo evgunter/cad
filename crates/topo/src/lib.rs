@@ -1313,7 +1313,7 @@ pub mod test_support {
     /// The no-crossings path's certificates on `a` × `b` — the sphere
     /// extent scan, then the section pass — as that path runs them over
     /// `op`'s glue door and reduction, whatever the crossing layer
-    /// found. `Ok` with the number of sphere re-cuts the scan asked for
+    /// found. `Ok` with the number of sphere cut-ins the scan asked for
     /// and the number of refusals held for the `On` verdict (pairs the
     /// reduction settled one carrier), which this door does not run.
     ///
