@@ -34,7 +34,7 @@
 //! winding about the torus, which the two essential pairs claim and the
 //! null loop does not. A plane has no channel, so no loop winds about
 //! it. A tangent pose lists one tangent component: a point where it
-//! touches the tube's outer half, an elliptic point, and a loop,
+//! touches the tube's outer half, an extreme of the height, and a loop,
 //! classification only, at a saddle on the inner half.
 
 use geom::Surface;
@@ -333,19 +333,23 @@ impl<T: Decide> PlaneTorusMeridian<T> {
     }
 
     /// **The touch on `T_σ`, where it is a point of the section**: the
-    /// foot, where it stands on the tube's outer half, an elliptic point
-    /// (`σ·d_σ·s` positive, `pt_touch_elliptic`). On the inner half the
-    /// torus is a saddle and the section a node there, which no point
-    /// stands for: `None`, as where the reading is in band or not finite.
+    /// foot, where the height `n·(x − c)` has an extreme there. Off a
+    /// plane normal to the axis that height has the forced critical
+    /// points alone, `±(sR + r)`, its extremes, and `±(sR − r)`, its
+    /// saddles; at the tangency `|d_σ| = r`, so the foot is an extreme
+    /// where `σ·d_σ` is positive (`pt_touch_extreme`). At a saddle the
+    /// section is a node, which no point stands for: `None`, as where the
+    /// reading is in band or not finite. A plane normal to the axis is
+    /// tangent along a parallel, which the caller reads first.
     #[must_use]
     pub fn touch(&self, near: bool, band: Band) -> Option<Point3<T>> {
         let ([big_r, _], sigma) = (self.radii, Self::sigma(near));
         let d = self.h - sigma * self.s * big_r;
-        let elliptic = matches!(
-            geom_core::k_stats::decide("pt_touch_elliptic", Margin::of(sigma * d * self.s), band),
+        let extreme = matches!(
+            geom_core::k_stats::decide("pt_touch_extreme", Margin::of(sigma * d), band),
             Ok(Sign::Positive)
         );
-        if !elliptic {
+        if !extreme {
             return None;
         }
         self.in_pi(sigma * big_r + d * self.s, d * self.na)

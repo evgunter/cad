@@ -44,3 +44,15 @@ one scale together, or say at each site why another scale is the one
 that rounds. Each touch and cover reading is an ε concession, so a
 scale change moves what it drops. Measure the injectivity rows (the
 filleted drum first) and the tour walk before and after.
+
+## 2026-11-24: `continues` reads `few_ulps` at a turn (`embed/conic-symmetry`'s review)
+
+Evidence, from the review of PR 7640; main's, not that unit's.
+`continues` admits two arcs of one conic whose widths sum to no more
+than `TURN + few_ulps(TURN)`: a union `1e-14` or `3e-15` over a turn is
+read as within a turn, and one `1e-13` over is not (the reviewer's
+`rp4_continues` on `embed/conic-symmetry-review-4b5e7c`). Two arcs
+whose union overruns the conic by less than that concession overlap,
+and the reading then runs on through their vertex as though they met
+only at their ends. One more reader of `few_ulps` in the certificate,
+at the scale of a parameter turn.

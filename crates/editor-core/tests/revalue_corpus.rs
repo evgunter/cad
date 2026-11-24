@@ -789,9 +789,9 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
     let margins = |d: f64| {
         let x = at(d) * at(d);
         [
-            x - Sym::from_f64(x.value),
+            x - Sym::from_f64(x.value()),
             x - at(d) * at(d),
-            x - Sym::from_computed(x.value),
+            x - Sym::from_computed(x.value()),
         ]
     };
     let p1: Vec<Decision> = session(|| {
@@ -845,7 +845,7 @@ fn a_check_laundering_is_caught_and_its_flips_part_nothing() {
             let _ = decide("revalue_doc", x);
             geom_core::k_stats::checking(|| {
                 let xx = x * x;
-                let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value));
+                let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value()));
                 let _ = decide("revalue_reader_tie", Sym::param(w, d) - Sym::from_f64(0.25));
                 if d > 0.3 {
                     let _ = decide("revalue_reader_extra", x);
@@ -905,7 +905,7 @@ fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
             let split = decide(
                 "revalue_split",
                 if laundered_split {
-                    x + (x - Sym::from_f64(x.value))
+                    x + (x - Sym::from_f64(x.value()))
                 } else {
                     x
                 },
@@ -1068,10 +1068,7 @@ fn the_instrument_and_the_door_replay_in_one_session() {
     );
     assert!(!instrument.is_empty(), "the replay decides");
     assert_eq!(
-        (
-            instrument_counts.symbolic,
-            instrument_counts.checks_expanded
-        ),
+        (instrument_counts.symbolic, instrument_counts.frozen),
         (0, 0),
         "a deferring session discharges nothing eagerly: {instrument_counts:?}"
     );

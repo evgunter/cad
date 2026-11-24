@@ -128,11 +128,10 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     /// on it and every edge keyed by it. The fields below are read off it
     /// ([`Self::on`]).
     charted: Charted<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
+    /// The torus's frame, as its surface holds it.
+    frame: geom::Frame<T>,
     major: T,
     minor: T,
-    u_ref: Vec3<T>,
     /// The face's sense bit: `false` points its outward normal into the
     /// tube.
     sense: bool,
@@ -205,18 +204,11 @@ impl<T: Decide> TorusFaceRegion<T> {
         else {
             unreachable!("a torus region is built on a torus record")
         };
-        let (center, axis, u_ref) = (
-            carrier_frame.origin(),
-            carrier_frame.axis(),
-            carrier_frame.u_ref(),
-        );
         Self {
             charted,
-            center,
-            axis,
+            frame: carrier_frame,
             major: major_radius,
             minor: minor_radius,
-            u_ref,
             sense,
             outer,
             edges,
@@ -250,7 +242,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(self.center, self.axis, self.u_ref)
+        self.frame
     }
 
     /// The parallel through `p`, run `forward` (the major angle
@@ -275,7 +267,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     fn chart_normal(&self, y: Point3<T>) -> Vec3<T> {
         let n = geom_brep::implicit_gradient(
             &geom::Surface::Torus {
-                frame: geom::Frame::new(self.center, self.axis, self.u_ref),
+                frame: self.frame,
                 major_radius: self.major,
                 minor_radius: self.minor,
             },

@@ -99,6 +99,11 @@ pub(super) fn truncate(mark: Option<usize>) {
 /// thread-local read when no recorder is installed. Returns the
 /// decision's index for [`settle`].
 pub(super) fn note<T: Real>(node: SymId, value: T) -> Option<usize> {
+    debug_assert!(
+        !SESSION.with(|s| s.borrow().as_ref().is_some_and(|s| s.instrumented)),
+        "a decision after `contradiction::check` in its session: the instrument is asked last, \
+         because its walks are in the session's memos"
+    );
     RECORDER.with(|r| {
         r.borrow_mut().as_mut().map(|v| {
             v.push(Decision {

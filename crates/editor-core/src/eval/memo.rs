@@ -4,7 +4,12 @@
 //! the ambient tolerance (ε and k enter every decision the ops make,
 //! so they are inputs by D9's replay identity). Bit-exact floats in,
 //! so same key ⇒ same inputs ⇒ (D9 determinism) same output: the key
-//! IS the correctness proof for reuse.
+//! IS the correctness proof for reuse, within one document and one
+//! run's options. What no key hashes is held at the memo's door: a
+//! prior of another document, or run under other options an op reads,
+//! is refused whole (`PriorRefusal`); an instance is served only over
+//! the part row its prior carried; a clearance's verdict that cites the
+//! `f64` rebuild's point is served only at that point.
 //!
 //! # Hasher choice (spec D4)
 //!
@@ -34,12 +39,13 @@ use geom_core::Real;
 pub struct ContentKey(pub u128);
 
 /// A node's NAMING key (issue #95, disposition 2 — M4 PR 5):
-/// `naming_key(N) = H(content_key(N), [(input_id_i,
+/// `naming_key(N) = H(content_key(N), [(read_i, input_id_i,
 /// naming_key(input_i)), …])` — computed like a content key but
-/// INCLUDING input node ids, composing recursively through the DAG.
-/// Names embed minting node ids (N1) while content keys exclude them
-/// (D8), so the naming half of a memoized value is a pure function of
-/// THIS key, not of the content key; a memo hit additionally requires
+/// INCLUDING input node ids and the variable each read comes through,
+/// composing recursively through the DAG. Names embed minting node ids
+/// (N1) and the reads they are carried through, while content keys
+/// exclude both (D8), so the naming half of a memoized value is a pure
+/// function of THIS key, not of the content key; a memo hit additionally requires
 /// naming-key equality, else the op re-runs (geometry bit-identical
 /// by D9, names honestly re-derived). The recursion is what catches
 /// the grandparent case: re-pointing an input two hops up changes
@@ -202,7 +208,7 @@ where
     geom_core::Sym<T>: Real,
 {
     fn feed(&self, h: &mut KeyHasher) {
-        self.value.feed(h);
+        self.value().feed(h);
     }
 }
 
