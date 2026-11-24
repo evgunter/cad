@@ -247,6 +247,9 @@ pub(crate) struct OpEnv<'a, T: topo::AtRestPolicy + Decide> {
     pub parts: &'a super::parts::Reached<T>,
     /// The environments profile geometry is elaborated over.
     pub lane: LaneEnv<'a, T>,
+    /// The mint scope this evaluation's nodes are named inside
+    /// ([`super::node_mints`]).
+    pub mints: geom_core::sym::MintScope,
 }
 
 /// **A node as its op reads it**: the node, with what

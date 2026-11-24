@@ -209,6 +209,12 @@ failure-output = "immediate-final"
 #    2.77 s  sweep::all volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume (local, four cores)
 # and a slab under a taker driven over eight box widths, taken and not:
 #   14.36 s  editor-core::all a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip
+# A holed slab replayed twice at `Sym<Interval>`, each in a session
+# under the tier's profile (PR 7470, the hosted runner):
+#    0.69 s  editor-core::all a_symbolic_nodes_key_is_its_expression_and_its_number::a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before
+# and the same slab replayed three times, two in a session and one in none
+# (a local run):
+#    0.30 s  editor-core::all a_symbolic_nodes_key_is_its_expression_and_its_number::every_replay_of_one_document_has_one_key_per_node
 # A slab cutting a cap off a pole strut's sphere, as slow on main as on
 # PR 6988's branch (medians of six local runs 1.22 s on the merge base
 # `dbb21b4a`, 1.14 s on the branch; 1.036 s on the hosted runner):
@@ -688,6 +694,7 @@ not (
   (binary_id(sweep::all) & test(=snowman::a_pole_to_pole_cut_of_a_ball_wedge_builds)) |
   (binary_id(sweep::all) & test(=split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly)) |
   (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column)) |
+  (binary_id(editor-core::all) & (test(=a_symbolic_nodes_key_is_its_expression_and_its_number::a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before) | test(=a_symbolic_nodes_key_is_its_expression_and_its_number::every_replay_of_one_document_has_one_key_per_node))) |
   (binary_id(viewer::all) & test(=tree_badges::read_by_is_the_inverse_of_reads_over_the_corpus))
 )
 """
