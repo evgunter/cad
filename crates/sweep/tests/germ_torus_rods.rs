@@ -65,7 +65,9 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
     let vol_donut = volume(&donut);
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let (mut answered, mut checked) = (0_usize, 0_usize);
-    for i in 0..fuzz::scaled(60) {
+    // Each rod's three ops march every tilted face's section, so 24 rods
+    // at EFFORT 1 (the nightly's `CAD_FUZZ_EFFORT` raises it).
+    for i in 0..fuzz::scaled(24) {
         let theta = rng.range(0.0, std::f64::consts::TAU);
         let phi = rng.range(0.0, std::f64::consts::TAU);
         let s = 0.45 * rng.unit().sqrt();
