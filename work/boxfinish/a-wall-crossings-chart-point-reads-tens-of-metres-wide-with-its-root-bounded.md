@@ -38,3 +38,22 @@ hole-wall rays aside on `side_at_infinity_winding`, with margin
 aside on `side_at_infinity_winding`, `curve_face_pose_disc` or
 `side_at_infinity_denom` at every `h` from 1e-6 to 3e-5, on main and
 after the unit alike.
+
+**Whose width is it.** The ray's start is 0.57 mm by 1.21 mm wide over
+a 0.1 mm box (`q = ([-2.06e-3, -1.49e-3], [-1.18e-3, 2.7e-5], 1e-3)`,
+measured), and the crossing parameter is bounded and a few millimetres
+wide. So the crossing point in space is a few millimetres wide; that is
+inferred, since the point itself was not printed. The point the turn
+reads in the wall's chart is tens of metres wide. So the start's width,
+which belongs to the aim's step and reach, accounts for millimetres of
+it, and the rest is the wall chart's own reading. In flight on the
+reader's ray is
+`the-side-readers-ray-rides-the-body-it-reads-over-a-box` (branch
+`boxfinish/fixed-ray`): it makes the aimed ray a fixed place and reads a
+planar crossing as the loops' turn along the ray, and it leaves
+`wall_crosses_by_turn` on a cylinder wall as it is. This row is where
+the wall's own turn is held.
+
+Re-taken with the pose disc's `c` also held (same branch, over
+`origin/main` `f21ca495ca`): undecided 12,178, ladder 457 s, and 14,352
+`[-π, π]` angles.
