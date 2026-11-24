@@ -1675,7 +1675,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionUnbuilt => "germ_section_unbuilt",
         BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
-        BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
