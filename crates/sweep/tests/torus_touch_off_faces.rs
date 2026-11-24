@@ -1,19 +1,20 @@
-//! **A torus touching a partner at one point, decided per face.**
+//! **A torus touching a partner at an extreme, decided per face.**
 //!
 //! The donut (`R = 2`, `r = 0.5`, about y) against a plane, a ball or a
-//! wall parallel to its axis, each tangent to the tube at a point of its
-//! outer half — an elliptic point, where the partner's level function
-//! over the torus has its strict extreme. The touch is at `(0, 0, 2.5)`,
-//! on the outer equator, clear of the donut's seam meridian (the
-//! half-plane `z = 0, x > 0`). Where the partner's face does not hold
-//! the touch, the bodies are apart and every op builds, in both operand
-//! orders, against the volumes the radii and lengths give. Where it
-//! does, the boundaries touch and the pair keeps its refusal. A
-//! tangency on the tube's inner half, where the torus is a saddle,
-//! keeps its refusal wherever it stands. And each pose moved off the
-//! touch by `±100ε` and `±1e-4` answers by the closed-form distance
-//! between the carriers: apart, it builds; across, it builds when the
-//! faces stay apart and refuses typed when they meet.
+//! wall, each tangent to the tube at an extreme of the partner's level
+//! function over the torus (its height, the distance from the ball's
+//! centre or the wall's axis): at a point of the tube's outer half or its
+//! inner, or along a whole parallel. Where the partner's face does not
+//! hold the touch, every op builds, in both operand orders, against the
+//! volumes the radii and lengths give. Where it does, the boundaries
+//! touch and the pair keeps its refusal. A tangency at a saddle of the
+//! level function keeps its refusal wherever it stands. Each pose moved
+//! off the touch by `±100ε` and `±1e-4` answers by the closed-form
+//! distance between the carriers: apart, it builds; across, it builds
+//! when the faces stay apart and refuses typed when they meet. And an
+//! edge standing within the band of the torus beside an off-face touch,
+//! on the side the touch's argument needs the sweep to see it (the
+//! section certificate's S′), refuses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -209,19 +210,218 @@ fn the_same_touches_on_both_faces_refuse() {
     }
 }
 
-/// **A tangency at a saddle point keeps R-tan**, though neither face
-/// holds the touch: the brick's top and the trimmed ball touch the inner
-/// equator at `(0, 0, 1.5)` from the hole (mutant: a touch on the inner
-/// half of the tube).
+/// **A block in the hole whose top touches the inner equator at a
+/// saddle keeps R-tan**, though its face does not hold the touch: the
+/// plane meets the torus in a figure eight there, a saddle of its
+/// height, and a touch at a saddle leans on the line × torus door outside
+/// the solid, which is silent within the band
+/// (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`).
 #[test]
-fn a_touch_on_the_inner_equator_refuses_off_the_faces() {
+fn a_block_at_the_inner_equators_saddle_refuses_off_its_face() {
+    assert_every_op_refuses(
+        "brick in the hole",
+        &donut(1.0),
+        &hole_brick(0.0).0,
+        tangent,
+    );
+}
+
+/// **A trimmed ball in the hole touching the inner equator builds**: the
+/// inner equator's point `(0, 0, 1.5)` is the strict minimum of the
+/// distance from the ball's centre over the torus, an extreme on the
+/// tube's inner half, and the ball's cap about it is taken off (mutant:
+/// the elliptic margin restored).
+#[test]
+fn a_trimmed_ball_in_the_hole_touching_the_inner_equator_builds() {
+    let (b, vb) = hole_ball(0.0);
+    assert_every_op(
+        "ball in the hole",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Apart,
+    );
+}
+
+/// A sleeve of inner radius `inner`, outer `2.8`, `y ∈ [lo, hi]`, about
+/// the donut's axis, over the turn `sweep` (radians) from `+x`.
+fn sleeve(inner: f64, (lo, hi): (f64, f64), sweep: Revolution<f64>) -> Body<f64> {
+    sweep::test_support::revolved_about_y(
+        vec![
+            (Point2::new(inner, lo), 0.0),
+            (Point2::new(2.8, lo), 0.0),
+            (Point2::new(2.8, hi), 0.0),
+            (Point2::new(inner, hi), 0.0),
+        ],
+        sweep,
+        Tol::witness(),
+    )
+}
+
+/// `b` moved by `turn` (an affine map that is rigid).
+fn moved(b: &Body<f64>, turn: &Affine3<f64>) -> Body<f64> {
+    topo::transform_rigid(b, &geom_core::test_support::rigid(turn, Tol::witness())).unwrap()
+}
+
+/// **A touch along a whole parallel keeps R-tan, its faces off it or
+/// not**: a hub flush with the ring's top (a rod of radius 1 along the
+/// axis, its top `y = 0.5` on the top parallel's plane), and a sleeve
+/// above the widest circle (its inner wall coaxial and tangent along the
+/// outer equator, `y ∈ [0.2, 1]`). The near band about a parallel is one
+/// annulus, but in a pose the band admits, the axis moved or tilted, the
+/// partner dips into the tube on one side only, and the edges that part
+/// the dip from a point read off the exact pose stand outside the solid,
+/// where the line × torus door is silent
+/// (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`).
+#[test]
+fn a_touch_along_a_parallel_refuses_off_its_face() {
     let d = donut(1.0);
-    for (label, (b, _)) in [
-        ("brick in the hole", hole_brick(0.0)),
-        ("ball in the hole", hole_ball(0.0)),
-    ] {
-        assert_every_op_refuses(label, &d, &b, tangent);
+    assert_every_op_refuses("hub", &d, &rod_y(1.0, (0.0, 0.0), (-1.0, 0.5)), tangent);
+    assert_every_op_refuses(
+        "sleeve",
+        &d,
+        &sleeve(2.5, (0.2, 1.0), Revolution::Full),
+        tangent,
+    );
+}
+
+/// **A parallel touch read off its exact pose would clear a real
+/// crossing; it refuses** (the review's probes). A sleeve sector over
+/// `[60°, 300°]` about the axis, its inner wall the outer equator's
+/// coaxial tangent, moved `e ∈ {0.2ε, 0.5ε}` along `+x` (into the tube
+/// on the sector's far side, off it beside the window about `+x`); and a
+/// D-pin in the hole, a rod of radius `1.5 − h` about `(−δ, ·, 0)` cut at
+/// `x ≥ −δ + 0.5`, against the inner equator at `(−1.5, 0, 0)` for
+/// `(h, δ)` of `(0.2ε, 0.2ε)`, `(0.4ε, 0.4ε)` and `(0.2ε, 0.6ε)` (a 0.4ε
+/// crossing along some 140° of the arc). Each was built across its
+/// crossing while a parallel touch cleared on the parallel's point at the
+/// torus frame's reference direction.
+#[test]
+fn a_parallel_touch_off_its_exact_pose_refuses() {
+    let eps = Tol::witness().eps();
+    let d = donut(1.0);
+    let sector = sleeve(2.5, (-1.0, 1.0), Revolution::Partial(2.0 * TAU / 3.0));
+    for e in [0.2 * eps, 0.5 * eps] {
+        let place = Affine3::translation(Vec3::new(e, 0.0, 0.0))
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), PI / 3.0);
+        assert_every_op_refuses("sleeve sector", &d, &moved(&sector, &place), |_| true);
     }
+    for (h, delta) in [(0.2, 0.2), (0.4, 0.4), (0.2, 0.6)] {
+        let (h, delta) = (h * eps, delta * eps);
+        let pin = built(
+            BooleanOp::Subtract,
+            &rod_y(1.5 - h, (-delta, 0.0), (-1.0, 1.0)),
+            &brick((-delta + 0.5, 3.0), (-2.0, 2.0), (-3.0, 3.0)),
+        )
+        .expect("the D-pin");
+        assert_every_op_refuses("D-pin", &d, &pin, |_| true);
+    }
+}
+
+/// **A point touch read off its pose clears no crossing; it refuses**:
+/// each point arm moved `0.4ε` across, so the partner dips into the tube
+/// about its actual deepest point, its face cut through that dip on the
+/// far side of the deepest point, which it does not hold: a brick whose
+/// edge stands inside the cap, a ball trimmed through it, and a rod tilted
+/// by a turn the band admits whose end stands in it. Each pair's faces
+/// cross, and every op refuses: a build would move some 1e-19 of volume
+/// against the operands apart, no volume check sees it.
+#[test]
+fn a_point_touch_off_its_exact_pose_refuses() {
+    let eps = Tol::witness().eps();
+    let d = donut(1.0);
+    let dip = 0.4 * eps;
+    let cap = (2.0 * 0.4 * dip).sqrt();
+    let block = brick((0.3 * cap, 2.0), (-1.0, 1.0), (2.5 - dip, 3.5));
+    assert_every_op_refuses("brick", &d, &block, |_| true);
+    let ball_cut = built(
+        BooleanOp::Subtract,
+        &ball(0.5, Vec3::new(0.0, 0.0, 3.0 - dip)),
+        &brick((-2.0, 0.3 * cap), (-2.0, 2.0), (2.0, 4.0)),
+    )
+    .expect("the cut ball");
+    assert_every_op_refuses("ball", &d, &ball_cut, |_| true);
+    let rod = moved(
+        &rod_y(0.5, (0.0, 3.0 - dip), (0.3 * cap, 2.0)),
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::unit_z(),
+            IN_BAND_TILT * eps,
+        ),
+    );
+    assert_every_op_refuses("tilted rod", &d, &rod, |_| true);
+}
+
+/// A turn, in units of ε, the parallel-axis reading takes as parallel:
+/// its tilt over the torus's lever (twice its ball's diameter, 10 here)
+/// is `0.4ε`.
+const IN_BAND_TILT: f64 = 0.04;
+
+/// **A rod tilted by a turn the band admits touches off its face and
+/// builds**: the rod of [`top_rod`], past its end, turned `0.04ε` about
+/// the z line through its axis's point over the touch, so the wall's axis
+/// is read parallel to the donut's, and its touch is read off the wall's
+/// own axis. Every op builds at the operands' volumes.
+#[test]
+fn a_rod_tilted_in_the_band_touching_off_its_face_builds() {
+    let eps = Tol::witness().eps();
+    let (rod, vr) = top_rod(false, 0.0, 1.0);
+    let rod = moved(
+        &rod,
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::unit_z(),
+            IN_BAND_TILT * eps,
+        ),
+    );
+    assert_every_op(
+        "tilted rod",
+        &donut(1.0),
+        &rod,
+        (DONUT_VOLUME, vr),
+        Pose::Apart,
+    );
+}
+
+/// **A ball inside the tube against its inner half builds**: radius `0.2`
+/// about `(0, 0, 1.7)`, tangent from inside to the inner equator at
+/// `(0, 0, 1.5)`, the minimum of the distance from its centre, its cap
+/// below `z = 1.55` taken off; the donut holds it.
+#[test]
+fn a_ball_inside_the_tube_against_its_inner_half_builds() {
+    let (b, vb) = trimmed_ball(0.2, Vec3::new(0.0, 0.0, 1.7), 1.55, false);
+    assert_every_op(
+        "ball in the tube",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Inside,
+    );
+}
+
+/// **An edge within the band of the torus beside an off-face touch
+/// refuses** (S′): a brick whose bottom `z = 2.5 − ε/2` touches the outer
+/// equator's top off its face (`x ≥ a`), its edge `x = a` standing `3ε/8`
+/// inside the solid under the cap the plane cuts; and a ball touching the
+/// top off its face, trimmed to `x ≥ a`, its rim standing `ε/2` above the
+/// torus. Neither pair has a crossing the sweep would miss: the line ×
+/// torus door inside the solid, and the circle × torus door either side,
+/// refuse within the band (mutant: either door silent there).
+#[test]
+fn an_edge_within_the_band_beside_an_off_face_touch_refuses() {
+    let eps = Tol::witness().eps();
+    let d = donut(1.0);
+    let a = 0.5 * (2.5 * eps).sqrt();
+    let block = brick((a, 2.0), (-1.0, 1.0), (2.5 - 0.5 * eps, 3.5));
+    assert_every_op_refuses("brick's edge inside the cap", &d, &block, |_| true);
+    let a = (eps / 2.4).sqrt();
+    let rimmed = built(
+        BooleanOp::Subtract,
+        &ball(0.5, Vec3::new(0.0, 0.0, 3.0)),
+        &brick((-2.0, a), (-2.0, 2.0), (2.0, 4.0)),
+    )
+    .expect("the trimmed ball");
+    assert_every_op_refuses("ball's rim over the top", &d, &rimmed, |_| true);
 }
 
 /// **Off the touch, the closed-form distance decides.** Each pose above
@@ -275,7 +475,9 @@ fn near_misses_answer_by_the_closed_form_distance() {
 /// is [`ROD_SCAN_STOPS`] ε or more (×250 at ε = 1e-12), the rod refuses
 /// every op `FallbackExtentUnsupported`
 /// (`work/orbit/a-rod-touching-a-big-donut-off-its-face-stops-at-the-extent-scan-at-1e-12.md`),
-/// which the row pins.
+/// which the row pins. At ε 1e-12 the rod at a [`ROD_FRAME_COST`] scale
+/// refuses ahead of that, at its own finish, so the extent scan's stop
+/// goes unread at the only ε that reaches it today.
 #[test]
 fn the_off_face_touches_build_at_every_scale() {
     let eps = Tol::witness().eps();
@@ -288,6 +490,21 @@ fn the_off_face_touches_build_at_every_scale() {
             ("rod", top_rod(false, 0.0, l)),
         ] {
             let label = format!("donut ×{l:e}, {label}");
+            if crate::common::frame_cost::at_the_least_band()
+                && ROD_FRAME_COST.contains(&l)
+                && label.ends_with("rod")
+            {
+                crate::common::frame_cost::assert_rod_refuses_its_finish(
+                    &label,
+                    &topo::finish(b.clone(), Tol::witness()).map(|_| ()),
+                    (1.65e-12, 1.8e-12),
+                );
+                test_utils::vacuity::stood_down(
+                    &format!("{label} at ε {eps:e}"),
+                    "the rod refuses its own finish, pinned (the frame cost)",
+                );
+                continue;
+            }
             if rod_stops && label.ends_with("rod") {
                 assert_every_op_refuses(&label, &d, &b, |e| {
                     format!("{e:?}").contains("FallbackExtentUnsupported")
@@ -309,6 +526,16 @@ fn the_off_face_touches_build_at_every_scale() {
 /// and at ×250 at 1e-9 (`2.5e11` ε). A fix that moves the band reads as
 /// this row's pin going red, at the scale it moved.
 const ROD_SCAN_STOPS: f64 = 1.0e14;
+
+/// The scales at which [`the_off_face_touches_build_at_every_scale`]'s
+/// rod refuses its own finish at ε 1e-12
+/// (`crate::common::frame_cost::at_the_least_band`), ahead of the
+/// extent scan: its wall's volume escalates
+/// `props_cylinder_circle_off_axis`, margin in `(1.65e-12, 1.8e-12]`
+/// (measured 1.738e-12). Cause: polar, the rod's stored frame read as
+/// its polar enclosure, levered by the scale; mutant A (PR 7131's body)
+/// finishes it, and turns this pin red; mutant F1X does not.
+const ROD_FRAME_COST: [f64; 1] = [250.0];
 
 /// **A donut past the session box is refused by it**: at ×401 its outer
 /// equator reaches 1002.5 m.

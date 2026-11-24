@@ -139,7 +139,7 @@
     reason = "the conic's own module: the centre is derived here and nowhere else"
 )]
 
-use geom_core::{Decide, Point3, Real, Rounded, UnitVec3, Vec3};
+use geom_core::{Decide, Point3, Real, Rounded, StoredHarmonic, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::cover::{Cover, ParamWindow};
@@ -370,6 +370,30 @@ pub trait Conic<T: Real>: core::fmt::Debug {
         (a * self.u_ref().dot(d), b * self.v_ref().dot(d))
     }
 
+    /// **The conic's belly across the plane through `o` with unit
+    /// normal `n`**: of its height there, `D + A cos θ + B sin θ`, the
+    /// reach `√(A² + B²) − |D|` of its extreme nearer the plane past it
+    /// (positive where the conic crosses the plane, negative where it
+    /// stands clear by that much). Read from the placement the conic
+    /// stores, which no reader sees: its stored point (its centre, or the
+    /// anchor of an ellipse held on its arc), axis, seam and semi-axes,
+    /// the across-seam direction crossed exactly rather than read rounded,
+    /// and posed so its digits are the belly's own
+    /// ([`Real::harmonic_belly`]); never as the difference of the swing
+    /// and the offset, which are each of the conic's size where the belly
+    /// is the band's (a far-centred conic grazing the plane).
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T;
+
+    /// **This conic's belly across the plane `other` lies in**
+    /// ([`Self::belly_along`]): the plane stated at the point `other` is
+    /// placed by and its stored axis, read here so no reader outside this
+    /// module takes `other`'s placement. Held at its centre, that point is
+    /// the stored centre, which lies in the plane exactly; held on its
+    /// arc, the derived centre (`work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md`).
+    fn belly_across(&self, other: &dyn Conic<T>) -> T {
+        self.belly_along(other.frame().origin(), other.axis())
+    }
+
     /// **The parameter of `p` within half a turn of `span`'s middle**:
     /// its [direction](Self::azimuth) read [near](Azimuth::near) the
     /// middle.
@@ -471,6 +495,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn along(&self, n: Vec3<T>) -> (T, T) {
         (**self).along(n)
+    }
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        (**self).belly_along(o, n)
     }
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         (**self).unit_in_plane(p)
@@ -742,9 +769,34 @@ impl<T: Real> Circle<T> {
     }
 }
 
+/// The placement `at` stores, with these semi-axes and phase, as
+/// [`Real::harmonic_belly`] reads it.
+fn stored_harmonic<T: Real>(at: &Frame<T>, semi: (T, T), phase: (T, T)) -> StoredHarmonic<T> {
+    StoredHarmonic {
+        at: point(at.origin()),
+        axis: vector(at.axis()),
+        u_ref: vector(at.u_ref()),
+        semi,
+        phase,
+    }
+}
+
+fn point<T: Real>(p: Point3<T>) -> [T; 3] {
+    [p.x, p.y, p.z]
+}
+
+fn vector<T: Real>(v: Vec3<T>) -> [T; 3] {
+    [v.x, v.y, v.z]
+}
+
 impl<T: Real> Conic<T> for Circle<T> {
     fn frame(&self) -> Frame<T> {
         self.at
+    }
+
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let curve = stored_harmonic(&self.at, (self.radius, self.radius), (T::zero(), T::zero()));
+        T::harmonic_belly(curve, point(o), vector(n))
     }
 
     fn axis(&self) -> Vec3<T> {
@@ -941,6 +993,45 @@ impl<T: Real> Ellipse<T> {
         Self {
             at: self.at.reversed(),
             held: self.held.with_phase(|(c0, s0)| (c0, -s0)),
+            ..*self
+        }
+    }
+
+    /// **The four statements of this ellipse's point set that its stored
+    /// numbers reach exactly**: itself; its seam a half turn on (`u_ref`
+    /// and an anchor's phase negated, `θ ↦ θ + π`); run back
+    /// ([`Self::reversed`], `θ ↦ −θ`); and both (`θ ↦ π − θ`). Each
+    /// negates stored numbers and rounds nothing, and the position
+    /// ([`Conic::point_at`]) of each is the others' at the parameter
+    /// named, as an identity in the stored numbers: `v_ref` is
+    /// `axis × u_ref`, which negates with either factor, and an anchor's
+    /// offsets `(cos θ − cos θ₀, sin θ − sin θ₀)` negate with the phase
+    /// component and the parameter's map together.
+    ///
+    /// A quarter turn is not among them. It would state `u_ref` as the
+    /// old `v_ref` and need `axis × (axis × u_ref)` to be `−u_ref`,
+    /// which holds of stored axes only where they are rigid to the bit;
+    /// [`Self::quarter_turned_where`] rounds, and its ellipse is another
+    /// statement a rounding from this one.
+    #[must_use]
+    pub fn restatements(&self) -> [Self; 4] {
+        let half = self.half_turned_where(T::one());
+        [*self, half, self.reversed(), half.reversed()]
+    }
+
+    /// **This ellipse with its seam a half turn on where `back > 0`**, as
+    /// it is where `back ≤ 0`, read without a branch: `u_ref` and the
+    /// derived `v_ref` reversed, and an anchor's anomaly less `π`, both
+    /// phase components negated. The stored point stays where it is.
+    fn half_turned_where(&self, back: T) -> Self {
+        Self {
+            // The axes alone are selected: the stored point is put back as
+            // stored, its bits and its enclosure untouched by the selection.
+            at: Frame::select_le_zero(back, self.at, self.at.half_turned())
+                .with_origin(self.at.origin()),
+            held: self.held.with_phase(|(c0, s0)| {
+                (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+            }),
             ..*self
         }
     }
@@ -1179,16 +1270,7 @@ impl<T: Real> Ellipse<T> {
         let turn = sin.abs() - cos.abs();
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
-        let e = self.quarter_turned_where(turn);
-        let f = Conic::frame(&e);
-        Self {
-            at: e.stood(Frame::select_le_zero(back, f, f.half_turned())),
-            // A half turn of the seam: the anchor's anomaly less `π`.
-            held: e.held.with_phase(|(c0, s0)| {
-                (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
-            }),
-            ..e
-        }
+        self.quarter_turned_where(turn).half_turned_where(back)
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
@@ -1197,6 +1279,15 @@ impl<T: Real> Ellipse<T> {
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let phase = match self.held {
+            Held::Centre => (T::zero(), T::zero()),
+            Held::Arc { phase } => phase,
+        };
+        let curve = stored_harmonic(&self.at, (self.semi_u, self.semi_v), phase);
+        T::harmonic_belly(curve, point(o), vector(n))
+    }
+
     fn frame(&self) -> Frame<T> {
         match self.held {
             Held::Centre => self.at,
@@ -1462,6 +1553,327 @@ mod tests {
             inexact += usize::from(rounding > 0.0);
         }
         assert!(inexact > 500, "the square rounds at {inexact} of 600");
+    }
+
+    /// **An ellipse's restatements are the four exact ones, of the
+    /// sixteen sign patterns on its statement** ([`Ellipse::restatements`]).
+    /// An ellipse held on its arc at a phase with neither component zero,
+    /// restated with each of the axis, `u_ref` and the two phase
+    /// components kept or negated (sixteen patterns; the stored `v` is
+    /// `axis × u_ref`'s, so the frame has no other): exactly the four of
+    /// the group are a restatement by content, and those four alone keep
+    /// the centre, so every other pattern states another ellipse. All
+    /// negated at once (the axis, `u_ref` and both phase components) is
+    /// not one of them: it is the mirror image across the tangent at the
+    /// anchor. Held at the centre, where no phase exists, all four
+    /// patterns on the axis and `u_ref` are restatements: the centre and
+    /// both axis lines are kept by each. Each restatement's sum of stored
+    /// point, vectors, sizes and offsets, at the offsets its identity
+    /// gives (both negated a half turn on, the sine's run back, the
+    /// cosine's for both), is the ellipse's point bit for bit, with no
+    /// parameter rounded. Over frames not rigid to the bit, held either
+    /// way, each restatement's stored axes are bit negations, run back is
+    /// the ellipse's point at `−θ` and both the half turn's there, the
+    /// half turn's derivatives at one `θ` are the ellipse's negated, and
+    /// about a centre at the origin its point is. Nothing here is held to
+    /// a tolerance: a half turn read through the evaluator at `θ + π`
+    /// would be, the parameter being rounded, and is not asserted. Red if a pattern outside the group is a
+    /// restatement, or one inside is not.
+    #[test]
+    fn an_ellipses_restatements_are_the_four_exact_ones_of_its_sign_patterns() {
+        use super::Conic;
+        let (anchor, n, u) = (
+            Point3::new(0.3, -0.0, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+        );
+        // No constructor states a phase off the principal vertices, so
+        // the statement is written out.
+        let stated = |[sn, su, pc, ps]: [f64; 4]| super::Ellipse {
+            at: crate::Frame::new(anchor, n * sn, u * su),
+            held: super::Held::Arc {
+                phase: (0.6 * pc, 0.8 * ps),
+            },
+            semi_u: 0.75,
+            semi_v: 0.4,
+        };
+        let e = stated([1.0; 4]);
+        let group = [
+            [1.0, 1.0, 1.0, 1.0],
+            [1.0, -1.0, -1.0, -1.0],
+            [-1.0, 1.0, 1.0, -1.0],
+            [-1.0, -1.0, -1.0, 1.0],
+        ];
+        let signs = [1.0, -1.0];
+        let mut restated = Vec::new();
+        for sn in signs {
+            for su in signs {
+                for pc in signs {
+                    for ps in signs {
+                        let pattern = [sn, su, pc, ps];
+                        let other = stated(pattern);
+                        let is = e
+                            .restatements()
+                            .iter()
+                            .any(|r| Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(other)));
+                        let moved = (Conic::center(&other) - Conic::center(&e)).norm();
+                        assert_eq!(is, group.contains(&pattern), "{pattern:?}");
+                        assert!(
+                            if is { moved == 0.0 } else { moved > 0.1 },
+                            "{pattern:?}: the centre moves by {moved:e}"
+                        );
+                        if is {
+                            restated.push(pattern);
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(restated.len(), 4, "{restated:?}");
+        // Held at the centre there is no phase to pair: every one of the
+        // four sign patterns on the axis and `u_ref` is a restatement.
+        let centred = |sn: f64, su: f64| {
+            super::Ellipse::new(crate::Frame::new(anchor, n * sn, u * su), 0.75, 0.4)
+        };
+        for sn in signs {
+            for su in signs {
+                assert!(
+                    centred(1.0, 1.0).restatements().iter().any(|r| {
+                        Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(centred(sn, su)))
+                    }),
+                    "held at the centre: {sn} {su}"
+                );
+            }
+        }
+        let [_, half, back, both] = e.restatements();
+        // The position as the evaluator sums it from a statement, at the
+        // offsets `(ku, kv)`: the stored point plus two stored vectors
+        // times two stored sizes times the offsets.
+        let summed = |x: &super::Ellipse<f64>, (ku, kv): (f64, f64)| {
+            x.at.origin() + (x.at.u_ref() * (x.semi_u * ku) + x.at.v_ref() * (x.semi_v * kv))
+        };
+        for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
+            let p = Conic::point_at(&e, theta);
+            // Term by term at one cosine and sine, with no parameter
+            // rounded: each restatement's sum at its own offsets, the
+            // ellipse's with the signs its identity gives them, is the
+            // ellipse's point to the bit. At `θ + π` both offsets negate;
+            // at `π − θ` the first; at `−θ` the second.
+            let (ku, kv) = super::offsets(theta, (0.6, 0.8));
+            assert!(p.equals_exactly(summed(&e, (ku, kv))), "the sum at {theta}");
+            for (what, r, k) in [
+                ("a half turn on", &half, (-ku, -kv)),
+                ("run back", &back, (ku, -kv)),
+                ("both", &both, (-ku, kv)),
+            ] {
+                assert!(
+                    p.equals_exactly(summed(r, k)),
+                    "{what} at {theta}, term by term"
+                );
+            }
+        }
+        // The same over ellipses whose frames are not rigid to the bit,
+        // held either way: each restatement's stored axes are the bit
+        // negations its row of the group names, on the stored point; run
+        // back is the ellipse's own point at `−θ`, and both is the half
+        // turn's there; at one `θ` the half turn's two derivatives are
+        // the ellipse's negated. Every comparison is of bits.
+        let directions = [
+            (n, u),
+            (Vec3::new(0.3, -0.2, 0.9), Vec3::new(1.0, 0.7, -0.1)),
+            (Vec3::new(-0.61, 0.13, 0.4), Vec3::new(0.2, 0.9, 0.33)),
+            (Vec3::new(0.05, 0.99, -0.07), Vec3::new(-0.8, 0.1, 0.59)),
+            (Vec3::new(0.577, 0.577, 0.578), Vec3::new(0.1, -0.3, 0.2)),
+        ];
+        let negated = |v: Vec3<f64>, s: f64| if s < 0.0 { -v } else { v };
+        let mut bent = false;
+        for (axis, seam) in directions {
+            let at = crate::Frame::new(anchor, axis, seam);
+            let m = at.motion();
+            bent |= m.u().get().dot(m.u().get()) != 1.0 || m.w().get().dot(m.u().get()) != 0.0;
+            for x in [
+                super::Ellipse::new(at, 0.75, 0.4),
+                super::Ellipse {
+                    held: super::Held::Arc { phase: (0.6, 0.8) },
+                    ..super::Ellipse::new(at, 0.75, 0.4)
+                },
+            ] {
+                let [_, half, back, both] = x.restatements();
+                for (what, r, [su, sv, sw]) in [
+                    ("a half turn on", &half, [-1.0, -1.0, 1.0]),
+                    ("run back", &back, [1.0, -1.0, -1.0]),
+                    ("both", &both, [-1.0, 1.0, -1.0]),
+                ] {
+                    let k = r.at.motion();
+                    assert!(
+                        k.origin().same_bits(m.origin())
+                            && k.u().get().same_bits(negated(m.u().get(), su))
+                            && k.v().get().same_bits(negated(m.v().get(), sv))
+                            && k.w().get().same_bits(negated(m.w().get(), sw)),
+                        "{what}: the stored axes of {x:?}: {r:?}"
+                    );
+                }
+                for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
+                    assert!(
+                        Conic::point_at(&x, theta).same_bits(Conic::point_at(&back, -theta)),
+                        "run back at {theta}: {x:?}"
+                    );
+                    assert!(
+                        Conic::point_at(&both, theta).same_bits(Conic::point_at(&half, -theta)),
+                        "both against the half turn at {theta}: {x:?}"
+                    );
+                    assert!(
+                        Conic::derivative_at(&half, theta)
+                            .same_bits(-Conic::derivative_at(&x, theta))
+                            && Conic::second_derivative_at(&half, theta)
+                                .same_bits(-Conic::second_derivative_at(&x, theta)),
+                        "the half turn's derivatives at {theta}: {x:?}"
+                    );
+                }
+            }
+            // Held at a centre at the origin, the half turn's point is the
+            // ellipse's negated.
+            let x = super::Ellipse::new(at.with_origin(Point3::origin()), 0.75, 0.4);
+            let [_, half, ..] = x.restatements();
+            for theta in [-2.9, -0.7, 0.3, 1.1, 2.4, 5.0] {
+                let (p, q) = (Conic::point_at(&x, theta), Conic::point_at(&half, theta));
+                assert!(
+                    (q - Point3::origin()).same_bits(-(p - Point3::origin())),
+                    "about the origin at {theta}: {p:?} {q:?}"
+                );
+            }
+        }
+        assert!(bent, "some frame here is not rigid to the bit");
+    }
+
+    /// **A re-seam and a half-turned restatement store what a half turn
+    /// written out stores, every stored number and its enclosure**
+    /// ([`Ellipse::seamed_toward`], [`Ellipse::restatements`]). The
+    /// reference is test-only and written out apart from the helper the
+    /// two share: the quarter turn, then the centre frame selected against
+    /// its half turn and stood back at the stored point, the phase
+    /// selected against its negation; and for the restatement the stored
+    /// frame half-turned and the phase negated. Over frames rigid to the
+    /// bit and not, anchors that carry `−0.0` in each coordinate, either
+    /// holding at each phase a door states, and seams on the axes, on
+    /// the ties, at signed zeros and between; at `f64`, and at `Interval`
+    /// with the seam a point and a box across zero, where the selection
+    /// hulls. Red if the stored point passes through the selection, which
+    /// rewrites a `−0.0` as `+0.0` and weakens an enclosure hulled with
+    /// itself, or if a turn selects another frame or phase.
+    #[test]
+    fn a_re_seam_stores_what_a_half_turn_written_out_stores() {
+        use super::{Conic, Ellipse};
+        use crate::Frame;
+        use geom_core::interval::Interval;
+        fn seamed<T: Real>(x: &Ellipse<T>, cos: T, sin: T) -> Ellipse<T> {
+            let turn = sin.abs() - cos.abs();
+            let back = T::zero() - turn.select_le_zero(cos, sin);
+            let e = x.quarter_turned_where(turn);
+            let f = Conic::frame(&e);
+            Ellipse {
+                at: e.stood(Frame::select_le_zero(back, f, f.half_turned())),
+                held: e.held.with_phase(|(c0, s0)| {
+                    (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+                }),
+                ..e
+            }
+        }
+        fn half<T: Real>(x: &Ellipse<T>) -> Ellipse<T> {
+            Ellipse {
+                at: x.at.half_turned(),
+                held: x.held.with_phase(|(c0, s0)| (-c0, -s0)),
+                ..*x
+            }
+        }
+        // Every stored number as printed, which tells `−0.0` from `0.0`
+        // and one enclosure from another.
+        fn stored<T: Real>(x: &Ellipse<T>) -> String {
+            format!(
+                "{:?} {:?} {:?} {:?}",
+                x.at.motion(),
+                x.held,
+                x.semi_u,
+                x.semi_v
+            )
+        }
+        let frames = [
+            (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            (Vec3::new(-0.0, 1.0, 0.0), Vec3::new(0.0, -0.0, -1.0)),
+            (
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                Vec3::new(0.6, -0.8, 0.1),
+            ),
+            (Vec3::new(-0.61, 0.13, 0.4), Vec3::new(0.2, 0.9, 0.33)),
+        ];
+        let anchors = [
+            Point3::new(-0.0, 1.25, -2.5),
+            Point3::new(0.3, -0.0, 2.9),
+            Point3::new(1.5, 0.75, -0.0),
+            Point3::new(-0.0, -0.0, -0.0),
+            Point3::new(0.3, -1.1, 2.9),
+        ];
+        let seams = [
+            (1.0, 0.0),
+            (0.0, 1.0),
+            (-1.0, 0.0),
+            (0.0, -1.0),
+            (0.0, 0.0),
+            (-0.0, -0.0),
+            (-1.0, -0.0),
+            (-0.0, 1.0),
+            (0.5, 0.5),
+            (-0.5, 0.5),
+            (-0.5, -0.5),
+            (0.9, -0.3),
+            (-0.2, 0.7),
+            (-0.8, -0.6),
+            (6.123233995736766e-17, 1.0),
+            (-1.0, 1.2246467991473532e-16),
+        ];
+        let lift = Interval::from_f64;
+        let mut asked = 0usize;
+        for (axis, seam) in frames {
+            for anchor in anchors {
+                let frame = Frame::new(anchor, axis, seam);
+                let minted = Ellipse::anchored(anchor, axis, seam, 0.75, 0.4);
+                let mut held = vec![Ellipse::new(frame, 0.75, 0.4), minted];
+                // Each phase a door states, by the reference.
+                held.extend(
+                    [(0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)].map(|(c, s)| seamed(&minted, c, s)),
+                );
+                for x in held {
+                    assert_eq!(
+                        stored(&x.restatements()[1]),
+                        stored(&half(&x)),
+                        "the half-turned restatement of {x:?}"
+                    );
+                    let twin: Ellipse<Interval> = x.map_scalar(|f| f.map_scalar(lift), lift);
+                    assert_eq!(
+                        stored(&twin.restatements()[1]),
+                        stored(&half(&twin)),
+                        "the half-turned restatement of {x:?} at Interval"
+                    );
+                    for (c, s) in seams {
+                        assert_eq!(
+                            stored(&x.seamed_toward(c, s)),
+                            stored(&seamed(&x, c, s)),
+                            "{x:?} toward ({c}, {s})"
+                        );
+                        let wide = |t: f64| Interval::from_bounds(t - 0.3, t + 0.3);
+                        for (ci, si) in [(lift(c), lift(s)), (wide(c), wide(s))] {
+                            assert_eq!(
+                                stored(&twin.seamed_toward(ci, si)),
+                                stored(&seamed(&twin, ci, si)),
+                                "{x:?} at Interval toward ({ci:?}, {si:?})"
+                            );
+                        }
+                        asked += 3;
+                    }
+                }
+            }
+        }
+        assert_eq!(asked, 4 * 5 * 5 * 16 * 3, "every case is asked");
     }
 
     /// **An ellipse held on its arc reads from its anchor.** As minted
@@ -1821,9 +2233,9 @@ mod tests {
     ///   at the anchor);
     /// - run back, its point at `−t` is its own at `t`, bit for bit (red
     ///   where the reversal keeps the phase's sine);
-    /// - at `Interval`, its centre is no wider than the original's: the
-    ///   centre is read from the stored anchor, and a re-seam re-sums
-    ///   nothing (red where the anchor is re-summed, which carries the
+    /// - at `Interval`, its centre is as wide as the original's to within
+    ///   a hundredth and a few roundings of the scale: the centre is read
+    ///   from the stored anchor, and a re-seam re-sums nothing (red where the anchor is re-summed, which carries the
     ///   semi-axis into the centre three times).
     #[test]
     fn a_re_seam_moves_parameter_zero_and_never_the_anchor() {
@@ -1844,7 +2256,14 @@ mod tests {
                 assert_eq!(bits(anchor - o), bits(at - o));
                 let want = [(1.0, 0.0), (0.0, -1.0), (-1.0, 0.0), (0.0, 1.0)][k];
                 assert_eq!(phase, want, "({a}, {b}) seamed near {seam}");
-                assert!((r.center() - e.center()).norm() <= slack, "the centre");
+                // Across a half turn, which negates stored numbers and
+                // rounds nothing, the derived centre does not move; across
+                // a quarter it moves by the turned seam's rounding.
+                if k % 2 == 0 {
+                    assert_eq!(bits(r.center() - o), bits(e.center() - o), "the centre");
+                } else {
+                    assert!((r.center() - e.center()).norm() <= slack, "the centre");
+                }
                 let turn = FRAC_PI_2 * f64::from(u32::try_from(k).unwrap());
                 for t in [-3.0, -1.2, -2e-3, 0.0, 1e-7, 0.4, 1.55, 2.9] {
                     let gap = (r.point_at(t - turn) - e.point_at(t)).norm();

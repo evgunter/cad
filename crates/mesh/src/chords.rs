@@ -977,9 +977,9 @@ pub(crate) mod tests {
             other => panic!("a spline carrier's projected row was admitted: {other:?}"),
         }
         let line = Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         assert!(
             matches!(chart_image(&line, EdgeKey::default()),

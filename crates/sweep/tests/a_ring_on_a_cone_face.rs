@@ -334,7 +334,8 @@ fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
 /// the lune as a ring on the cone face, pass tier 3 and their volume
 /// enclosures bracket the closed forms, each under `1e-10` wide and as
 /// wide as each other in both orders
-/// ([`one_body_reads_alike_in_both_orders`]), at every ε row.
+/// ([`one_body_reads_alike_in_both_orders`]), at ε 1e-9 and 1e-6. At
+/// ε 1e-12 the ops [`RING_FRAME_COST`] names refuse instead.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     use crate::common::interval::{iv, p2, p3, v2, v3};
@@ -377,6 +378,16 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
         ("cone ∖ box", topo::subtract(&c, &x, tol), vc - i),
     ] {
+        if crate::common::frame_cost::at_the_least_band() && RING_FRAME_COST.contains(&op) {
+            // A frame built at Interval from bracket inputs (fork 274).
+            assert!(
+                ring_join_escalates(&r),
+                "{op}: pinned to refuse a joined edge's description, carrier_on_surface_2 in \
+                 (1.0e-12, 1.1e-12], at ε 1e-12: {:?}",
+                r.as_ref().map(|_| "a result")
+            );
+            continue;
+        }
         let bb = match r.as_ref().map(topo::BooleanResult::body) {
             Ok(Some(bb)) => bb,
             _ => panic!("{op}: wanted a body, got {r:?}"),
@@ -396,6 +407,33 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         widths.push(v.hi() - v.lo());
     }
     one_body_reads_alike_in_both_orders(&widths);
+}
+
+/// The ops of [`the_rings_volume_brackets_its_closed_form_at_the_certified_scalar`]
+/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`),
+/// as [`ring_join_escalates`] reads. Cause: bracket, the frames the turn
+/// and the move build at `Interval` from bracket inputs (fork 274);
+/// mutant F1X (PR 7131's body: that squaring stores the stated vectors
+/// raw) builds every op, and turns this pin red.
+const RING_FRAME_COST: [&str; 3] = ["cone ∪ box", "box ∪ cone", "cone ∖ box"];
+
+/// Whether `r` is the refusal [`RING_FRAME_COST`] pins: the join mints
+/// an edge whose description does not certify on the cone face, its
+/// surface residual `carrier_on_surface_2` escalating with its margin's
+/// upper end in `(1.0e-12, 1.1e-12]` (measured 1.058e-12).
+fn ring_join_escalates(
+    r: &Result<topo::BooleanResult<geom_core::Interval>, topo::BooleanError>,
+) -> bool {
+    let Err(topo::BooleanError::Join(j)) = r else {
+        return false;
+    };
+    matches!(
+        j.error(),
+        topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+            error: geom_brep::CertifyError::Escalated { cause, .. },
+            ..
+        }) if crate::common::frame_cost::escalated(cause, "carrier_on_surface_2", (1.0e-12, 1.1e-12))
+    )
 }
 
 /// **A ringed cone face's sense is checked against its boundary.** In

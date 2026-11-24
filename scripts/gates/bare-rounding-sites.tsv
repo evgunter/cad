@@ -68,13 +68,14 @@ crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz/projected.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz/projected_searches.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/harmonic_sup_rows.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/line_incidence_rows.rs	test	1	oracle
+crates/geom-brep/src/pcurve_cache/radial_reader_rows.rs	test	3	oracle
 crates/geom-brep/src/pcurve_cache/projected.rs	prod	1	re-pose
 crates/geom-brep/src/pcurve_cache/radial_pair_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	5	re-pose
 crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	1	oracle
 crates/geom-brep/src/piece.rs	test	3	oracle
 crates/geom-brep/src/props/curved.rs	prod	4	re-pose
-crates/geom-brep/src/props/curved.rs	test	1	oracle
+crates/geom-brep/src/props/curved.rs	test	3	oracle
 crates/geom-brep/src/props/loop_area.rs	test	1	oracle
 crates/geom-brep/src/props/quad/rotational/swap_rows/torus.rs	test	1	oracle
 crates/geom-brep/src/props/quad/trimmed.rs	test	1	oracle
@@ -213,9 +214,8 @@ crates/topo/src/contain.rs	test	1	oracle
 crates/topo/src/boolean/fan.rs	prod	1	pose
 crates/topo/src/boolean/fan.rs	test	1	oracle
 crates/topo/src/boolean/reduce.rs	prod	1	re-pose
-crates/topo/src/boolean/section_cert/cone_pair_search.rs	test	7	oracle
+crates/topo/src/boolean/section_cert/cone_pair_search.rs	test	8	oracle
 crates/topo/src/boolean/section_cert/cone_search.rs	test	1	oracle
-crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/solid_contain.rs	prod	5	re-pose
@@ -258,3 +258,5 @@ demos/tour/src/skinned.rs	test	2	oracle
 demos/tour/src/twopeg.rs	test	1	oracle
 interval-transcendentals/src/arith.rs	test	1	oracle
 tools/tess-meter/tests/derivations.rs	test	1	oracle
+crates/geom-brep/src/curve_pair/far_graze_rows.rs	test	2	oracle
+crates/topo/src/splitting/section_loops.rs	test	2	oracle

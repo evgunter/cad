@@ -2,13 +2,14 @@
 id: the-axis-mint-asks-for-proof-only-where-the-value-reads-zero
 kind: issue
 title: The axis mint asks the tier nothing where the value reads a definite sign, nor on an escalation in a deferring session, so one identity takes two branches at two valuations
-status: review
+status: closed
 opened: 2026-11-15
 priority: P1
 cost: M
 refs: [6963, 6990]
 branch: boxfinish/expression-question
 pr: 7488
+closed: 2026-11-24
 ---
 
 
@@ -266,3 +267,30 @@ unit builds it, in `crates/geom-core/README.md`, as DL5.3 is.
 The earlier sections above that quote text for `[scalars]` and
 `[verdicts.consumers]` record what was weighed; none of it landed.
 
+
+## Closed
+
+PR 7488 (2026-11-24). Whether a chord's component is zero by identity
+is asked of the scalar's expression (`Real::Expression`,
+`Expression::proves_zero`, answered in `geom-core`'s `sym/question.rs`
+by the normal form at a 64-term budget), and a numeric scalar has no
+expression to ask (`NoExpression`, a type with no values). The mint
+(`profile::seg::axis_or`) stores the exact axis on a `ProvedZero`, which
+is spent on the spelling it chooses, and the quotient otherwise. Each
+ask runs in a state of its own that holds the installed session's node
+table and nothing else, so no value, registry or earlier ask can move
+an answer.
+
+**What it guarantees, as corrected in review:** a document built inside
+its session takes one branch at every valuation and in an eager and a
+deferring session. A node minted outside the session is an unknown to
+it and proves nothing (pinned).
+
+What it left, each with its own row:
+`a-hop-whose-axis-changes-sign-inside-the-box-gets-no-flip-verdict`; on
+PROFILE, a chord proved zero is refused by the junction gate and not by
+name, and an arc's tangents and a run along a known ray are not minted
+through the expression; on DECIDE, `register_equal` and `free_identity`
+are answered by every scalar. The retry ladder inside the question is
+kept because E12 names it; a row states it proves nothing more at this
+budget on its measured shapes.

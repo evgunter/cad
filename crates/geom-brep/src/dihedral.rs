@@ -1155,7 +1155,12 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(
 /// `crate::certify`'s `tangent_gap_orientation`: they lever the
 /// normals' cosine by the faces' extent.
 /// A new site levering against its own fold is a silent
-/// non-comparability, so route new callers through this function.
+/// non-comparability, so route new callers through this function. One
+/// reader of the same sine does not: `topo`'s embedding question levers
+/// it at the reach alone, and so reads a definite corner where this fold
+/// reads the smooth class beside a face whose radius is far below its
+/// reach
+/// (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
 pub fn folded_lever_arm<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,

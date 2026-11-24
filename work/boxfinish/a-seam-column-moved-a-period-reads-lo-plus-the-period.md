@@ -2,10 +2,12 @@
 id: a-seam-column-moved-a-period-reads-lo-plus-the-period
 kind: issue
 title: A seam column the lift moves one period of a closed spline chart is held at lo + (hi − lo), computed, which has width at Interval on a domain not starting at 0
-status: open
+status: closed
 opened: 2026-11-15
 priority: P3
 cost: M
+closed: 2026-11-24
+pr: 7393
 ---
 
 
@@ -48,3 +50,32 @@ domain; an imported closed wall would.
 **What would close it:** the period stated by its domain's two ends, so
 that a value that is exactly one end moved by one period is the other
 end (the fork's recommendation).
+
+## From `boxfinish/iso-image` (the period, 2026-11-22)
+
+The cause is closed there. A spline chart's period is stated by its
+domain's two ends (`geom_core::period::Period::of_domain`), and a value
+moved by periods goes through `Period::moved`: a value that is exactly
+one end, moved the one period towards the other, is the other end, with
+no sum formed; every other move adds `k·(hi − lo)`. An iso image's held
+value is moved that way (`geom_brep::Pcurve::shift_branch`,
+`shift_branch_v`), so a seam column stored at `lo` and lifted one period
+is held at `hi` at `f64` and at `Interval`.
+
+The four pinned domains re-pin with the move accounted: `[0.3, 1.7]`,
+`[0.4, 1.7]`, `[0.6, 1.7]`, `[0.7, 3.1]` each read the rectangle
+`[lo, hi]` at both scalars
+(`topo::props::quad_lane::tests::trim_rectangle_rows::a_seam_column_moved_one_period_is_the_domains_other_end`,
+`geom-brep` `an_iso_image_holds_its_line::a_period_moved_seam_column_is_its_other_end`).
+
+What is left, and is by design: a column that is NOT at an end, moved by
+periods, is held at the computed sum, and at `Interval` the rectangle
+certificate still refuses it, naming the move. No construction lifts
+such a column: a lift moves a seam, and a seam is at an end.
+
+## Closed
+
+PR 7393 (2026-11-24): the section above. One period up is
+`hi + (x − lo)` and one down `lo + (x − hi)` (`Period::moved`), so a
+seam column at an end is held at the other end itself at every scalar,
+and the four pinned domains read the rectangle `[lo, hi]`.

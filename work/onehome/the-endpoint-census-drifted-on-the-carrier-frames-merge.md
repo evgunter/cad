@@ -62,3 +62,5 @@ compare the walk's lifted sums with the closed form run again, bit for
 bit, or match the refusal it returns, so no branch is taken on an end. The
 row is re-counted to 11 / 3 with that disposition added to its note. Every
 other file the census walks matched its pin on this tree.
+
+- 2026-11-24 (sectcone, PR 7637): topo's `section_cert/ruling.rs` is deleted, and its rows in the gate tables with it; geom-brep's `pair_section/ruling.rs` is unchanged by that PR.

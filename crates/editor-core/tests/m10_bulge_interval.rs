@@ -323,10 +323,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
-    // Validation's mint reads each component of its three straight
-    // sides' chords exactly (audit row F43): of the six, three are the
-    // zero a theorem proves, and the bulge's sign signs its radials.
-    ("segment_direction_axis", [3, 3]),
+    // The direction mint asks each of its three straight sides' chords
+    // whether a component is zero as an expression (no decision) and
+    // reads the other's sign (audit row F43); the bulge's sign signs
+    // its radials.
+    ("segment_direction_axis", [0, 3]),
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
@@ -541,17 +542,21 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_radial_moving", [14, 12]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
-            // and [28, 6] -> [20, 4].
-            ("pcurve_cylinder_chart_incident", [8, 4]),
+            // and [28, 6] -> [20, 4]. A carrier's distance from its own
+            // wall is read through the rationalized gap
+            // (`geom_core::radius_gap`), so the four numeric Zeros of
+            // each incidence predicate are theorems: [8, 4] -> [12, 0]
+            // and [10, 4] -> [14, 0].
+            ("pcurve_cylinder_chart_incident", [12, 0]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_interval_forward", [0, 12]),
-            ("pcurve_line_chart_incident", [10, 4]),
+            ("pcurve_line_chart_incident", [14, 0]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
-            // Validation's mint reads its one straight side's chord
-            // exactly (audit row F43), and the bulge's sign signs its
-            // radials.
-            ("segment_direction_axis", [1, 1]),
+            // The direction mint reads the sign of its one straight
+            // side's chord along its axis (audit row F43), and the
+            // bulge's sign signs its radials.
+            ("segment_direction_axis", [0, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
             // The boss's placement asks the session box of where it

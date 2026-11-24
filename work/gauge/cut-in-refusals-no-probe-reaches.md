@@ -39,3 +39,7 @@ better, a build), or a statement of why it is unreachable that names
 the constructor-level invariant. A refusal no input reaches is dead
 code to delete; one that is reachable and refuses a buildable body is
 a liveness gap.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The cut-in's population has widened: closed balls now take it too, with every escape cut in and no re-chart. Whether any closed-ball pose reaches these four refusals is not measured. The "a re-charted one" case in the first bullet no longer exists.

@@ -71,6 +71,8 @@ mod a_dual_is_bound_to_its_build_of_record;
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "a_pipes_end_loops_revolve_into_an_elbow.rs"]
 mod a_pipes_end_loops_revolve_into_an_elbow;
+#[path = "a_symbolic_nodes_key_is_its_expression_and_its_number.rs"]
+mod a_symbolic_nodes_key_is_its_expression_and_its_number;
 #[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
 mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
@@ -145,6 +147,8 @@ mod cert3r1_dump;
 mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+#[path = "contradiction_corpus.rs"]
+mod contradiction_corpus;
 #[path = "corpus_finish_count.rs"]
 mod corpus_finish_count;
 #[path = "display_contract.rs"]
@@ -709,8 +713,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
-#[path = "the_tours_die_with_two_pips_run_together_refuses_their_turned_seam.rs"]
-mod the_tours_die_with_two_pips_run_together_refuses_their_turned_seam;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
@@ -944,6 +948,10 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "member_read_key.rs"]
+mod member_read_key;
+#[path = "member_read_shapes.rs"]
+mod member_read_shapes;
 #[path = "review_binders_a.rs"]
 mod review_binders_a;
 #[path = "review_datum_b.rs"]
