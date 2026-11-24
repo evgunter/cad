@@ -7,7 +7,7 @@ opened: 2026-11-02
 priority: P1
 cost: H
 refs: [6371]
-blocked_on: [a-drive-keeps-no-node-result-from-one-leaf-to-the-next, a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate]
+blocked_on: [a-drive-keeps-no-node-result-from-one-leaf-to-the-next, a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate, an-undecided-at-rest-decision-climbs-the-ladder-on-a-margin-that-is-not-zero]
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
