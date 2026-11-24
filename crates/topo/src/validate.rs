@@ -7957,32 +7957,8 @@ pub(crate) fn tier3_local_checks_marked<
         }
     }
 
-    // The vertices two faces can share with no edge on them: those more
-    // than three edges meet at. Each face's run from one is read here,
-    // through the reader that read its edges' runs.
-    {
-        let mut fans: slotmap::SecondaryMap<VertexKey, Vec<FaceKey>> = slotmap::SecondaryMap::new();
-        for (he_key, he) in body.half_edges.iter() {
-            if let Some(face) = body.face_of_half_edge(he_key) {
-                if !fans.contains_key(he.start) {
-                    fans.insert(he.start, Vec::new());
-                }
-                fans[he.start].push(face);
-            }
-        }
-        for (vertex, faces) in fans.iter().filter(|(_, faces)| faces.len() > 3) {
-            let Some(&at) = body
-                .vertices
-                .get(vertex)
-                .and_then(|v| body.points.get(v.point))
-            else {
-                continue; // unreachable on tier-1 input
-            };
-            for &face in faces {
-                facts.keep_vertex_run(face, vertex, wedges.run_from_vertex(face, at));
-            }
-        }
-    }
+    // The vertices two faces can share with no edge on them.
+    facts.keep_fan_runs(body, &wedges);
 
     // ------------------------------------------------------------------
     // Tier 3, checks 4–5 (one edge sweep, samples shared):

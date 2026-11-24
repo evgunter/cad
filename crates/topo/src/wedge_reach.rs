@@ -3,8 +3,10 @@
 //! check 4, certification of an `Intersection` or `TangentIntersection`,
 //! and the must-carry rule wherever a door decides what a join stores
 //! pass it to [`geom_brep::folded_lever_arm`]. The embedding question
-//! (`crate::injective`'s `arm_of`) levers at it alone, with no fold
-//! (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
+//! does not lever at it: it reads each face's run from what a pair
+//! shares, measured across it ([`WedgeReach::run_from_edge`],
+//! [`WedgeReach::run_from_vertex`]), which tier 3 keeps beside its
+//! verdict ([`crate::Tier3Facts`]).
 //!
 //! A dihedral is how far the two faces separate as they leave the edge,
 //! so it is levered at how far they run (D4 ¶1's face extent) and how
@@ -43,12 +45,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use geom::Curve3;
-use geom_core::{Decide, Point3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
+use crate::validate::decide;
 
 /// The reach of the wedge between `faces` along the edge on `carrier`
 /// over `(t0, t1)`: the farthest either face's boundary vertices (module
@@ -136,7 +139,19 @@ pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<geom
 pub struct WedgeReach<'a, T: Decide> {
     body: &'a Body<T>,
     points: RefCell<SecondaryMap<FaceKey, Rc<[Point3<T>]>>>,
-    stations: RefCell<SecondaryMap<FaceKey, Rc<geom_brep::BoundaryStations<T>>>>,
+    stations: RefCell<SecondaryMap<FaceKey, Rc<Stations<T>>>>,
+}
+
+/// One edge of a face's boundary as the crossing count reads it: its
+/// carrier, its span, and how many times the face uses it.
+pub(crate) type Used<T> = (Curve3<T>, (T, T), usize);
+
+/// A face's boundary stations, and its whole boundary as the crossing
+/// count reads it: `None` where an edge of it holds no certified curve,
+/// so no count of it is whole.
+struct Stations<T: Decide> {
+    of: geom_brep::BoundaryStations<T>,
+    rim: Option<Vec<Used<T>>>,
 }
 
 impl<'a, T: Decide> WedgeReach<'a, T> {
@@ -151,8 +166,12 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     }
 
     /// **How far `face` runs from the edge on `carrier` over `span`**,
-    /// measured across it and from below
-    /// ([`geom_brep::BoundaryStations::run_from_edge`]): the extent the
+    /// measured across it and from below: the greater of what its
+    /// boundary stations read ([`geom_brep::BoundaryStations::run_from_edge`])
+    /// and, where the face spans the closed curve the edge lies on (a
+    /// disc on its rim, a cap, a tilted cut, whose stations all stand on
+    /// that curve and read a rounding), that curve's distance from its
+    /// own centre line ([`spanned`]). The extent the
     /// embedding question levers a pair's parting at is the lesser of
     /// the two faces' runs. Not the reach above, which is the farther
     /// face's, from the edge's middle.
@@ -167,7 +186,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         carrier: &Curve3<T>,
         span: (T, T),
     ) -> geom_core::Lever<T> {
-        self.face_stations(face).run_from_edge(carrier, span)
+        let stations = self.face_stations(face);
+        let run = stations.of.run_from_edge(carrier, span);
+        stations
+            .rim
+            .as_deref()
+            .and_then(|rim| spanned(rim, carrier))
+            .map_or(run, |least| run.max(least))
     }
 
     /// **How far `face` runs from `vertex`**, from below
@@ -178,12 +203,12 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     /// As [`wedge_reach`].
     #[must_use]
     pub fn run_from_vertex(&self, face: FaceKey, vertex: Point3<T>) -> geom_core::Lever<T> {
-        self.face_stations(face).run_from_vertex(vertex)
+        self.face_stations(face).of.run_from_vertex(vertex)
     }
 
     /// `face`'s boundary stations: each certified edge of its loops
     /// once, and each lone vertex. Collected on first ask.
-    fn face_stations(&self, face: FaceKey) -> Rc<geom_brep::BoundaryStations<T>> {
+    fn face_stations(&self, face: FaceKey) -> Rc<Stations<T>> {
         if let Some(stations) = self.stations.borrow().get(face) {
             return Rc::clone(stations);
         }
@@ -195,18 +220,28 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
                 match member {
                     BoundaryMember::Isolated { point, .. } => lone.push(point),
                     BoundaryMember::Edge { edge, .. } => {
-                        edges.insert(edge.key(), edge);
+                        edges.entry(edge.key()).or_insert((edge, 0_usize)).1 += 1;
                     }
                 }
             }
         }
-        let stations = Rc::new(geom_brep::BoundaryStations::of_boundary(
-            edges.into_values().filter_map(|edge| {
+        let rim: Option<Vec<Used<T>>> = edges
+            .values()
+            .map(|&(edge, uses)| {
                 let curve = edge.certified()?;
-                Some((curve.carrier(), curve.params()))
-            }),
-            lone,
-        ));
+                Some((curve.carrier().clone(), curve.params(), uses))
+            })
+            .collect();
+        let stations = Rc::new(Stations {
+            of: geom_brep::BoundaryStations::of_boundary(
+                edges.values().filter_map(|&(edge, _)| {
+                    let curve = edge.certified()?;
+                    Some((curve.carrier(), curve.params()))
+                }),
+                lone,
+            ),
+            rim,
+        });
         self.stations
             .borrow_mut()
             .insert(face, Rc::clone(&stations));
@@ -289,4 +324,149 @@ pub fn edge_faces<T: geom_core::Real>(body: &Body<T>, edge: EdgeKey) -> [FaceKey
         body.face_of_half_edge(he)
             .unwrap_or_else(|| unreachable!("{he:?}, a half of live {edge:?}, has no face"))
     })
+}
+
+/// The funnel site of a side of the half-plane a face's boundary is
+/// counted across ([`crosses_oddly`]): a point's or a cover's signed
+/// height off it, read for its sign alone.
+///
+/// An enclosure sign ([`Band::enclosure_sign`]), not a concession of
+/// ε: a side is read only where the whole enclosure excludes zero, and
+/// an enclosure that holds zero is no side and no crossing — never a
+/// coincidence, an incidence or any other fact about the body. Nothing
+/// reads `Zero` from this site.
+pub(crate) const SELF_INTERSECTION_SPANS: &str = "self_intersection_spans";
+
+/// The side `x` is decided on by its enclosure alone, or `None`.
+fn enclosure_side<T: Decide>(x: T) -> Option<Sign> {
+    match decide(
+        SELF_INTERSECTION_SPANS,
+        Margin::sign_of(x),
+        Band::enclosure_sign(),
+    ) {
+        Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
+        _ => None,
+    }
+}
+
+/// **Whether a face's boundary, `edges`, crosses a half-plane bounded
+/// by `line` an odd number of times**: then the face meets the line.
+///
+/// The argument is one of linking. A face is a compact surface, and
+/// `edges` is its whole boundary: every edge of every loop, each use of
+/// an edge by the face counted. A closed curve off a line links it or
+/// does not, and the parity of its crossings of a half-plane the line
+/// bounds is that linking: turning the half-plane about the line to
+/// another sweeps it across the curve, which stays off the line, so
+/// crossings appear and vanish two at a time and **the parity is the
+/// same for every half-plane**. A surface whose boundary links the line
+/// an odd number of times in all meets the line, since one that missed
+/// it could be pushed off the line's neighbourhood and its boundary
+/// would bound in the complement, where it links nothing. So an odd
+/// count shows a point of the face on the line; an even count shows
+/// nothing, and is read as no bound.
+///
+/// What a crossing asks is only that the curve passes from one side of
+/// the half-plane's plane to the other while on the half-plane's side
+/// of the line: it need not be transversal, since a piece whose ends
+/// are on opposite sides crosses an odd number of times however it
+/// touches on the way, and one whose ends are on one side an even
+/// number. It does ask that the boundary is **off the line**: a piece
+/// near the line is decided on neither side of it and the count is
+/// refused, so a rim through the line (a cone's rulings at its apex, a
+/// meridian at a pole on the axis) lends no bound.
+///
+/// A disc's rim crosses such a half-plane once, whatever arcs it is cut
+/// into; an annulus's two rims once each, and it does not meet its
+/// axis. A seam, which the face lies on both sides of, is its boundary
+/// twice, once each way, and its two uses cancel: an edge used an even
+/// number of times counts for nothing. No arc is compared with
+/// another, so nothing is asked of how the carriers are stored: the
+/// count is of the curves themselves, and at a box scalar it holds for
+/// every member, each side being decided by an enclosure that excludes
+/// zero ([`SELF_INTERSECTION_SPANS`]).
+///
+/// The half-plane is the part of a plane through `line` on one side of
+/// it, the plane's normal the line's direction crossed with `off`. Each
+/// edge is read in pieces ([`geom_brep::span_pieces`]). A piece whose
+/// cover is decided on one side of the plane does not cross it. One
+/// whose cover is decided on the half-plane's side of the line crosses
+/// the plane only in the half-plane, an odd number of times where its
+/// two ends are decided on opposite sides and an even number where on
+/// one. One decided on the line's other side crosses the half-plane
+/// nowhere.
+///
+/// `None` where a side is not decided (a piece near the line, a piece
+/// in the plane, an end on the plane, a piece with no cover) or an edge
+/// has no carrier: no crossing is counted that was not shown.
+pub(crate) fn crossings<T: Decide>(
+    edges: &[Used<T>],
+    line: &geom::Line<T>,
+    off: Vec3<T>,
+) -> Option<bool> {
+    let dir = line.dir.get();
+    let normal = dir.cross(off);
+    let toward = normal.cross(dir);
+    let height = |n: Vec3<T>, p: Point3<T>| n.dot(p - line.origin);
+    let floor = |n: Vec3<T>| n.dot(line.origin - Point3::origin());
+    let mut odd = false;
+    for e in edges {
+        let (carrier, span, uses) = e;
+        if uses % 2 == 0 {
+            continue;
+        }
+        for ((t0, t1), cover) in geom_brep::span_pieces(carrier, *span) {
+            let cover = cover?;
+            let side_of = |n: Vec3<T>| {
+                let (lo, hi) = cover.range_along(n);
+                match (enclosure_side(lo - floor(n)), enclosure_side(hi - floor(n))) {
+                    (Some(Sign::Positive), _) => Some(Sign::Positive),
+                    (_, Some(Sign::Negative)) => Some(Sign::Negative),
+                    _ => None,
+                }
+            };
+            if side_of(normal).is_some() {
+                continue;
+            }
+            if side_of(toward)? == Sign::Positive {
+                let a = enclosure_side(height(normal, carrier.eval(t0)))?;
+                let b = enclosure_side(height(normal, carrier.eval(t1)))?;
+                odd ^= a != b;
+            }
+        }
+    }
+    Some(odd)
+}
+
+/// [`crossings`] of the half-plane whose plane's normal is the line's
+/// direction crossed with a fixed vector no modelling direction is
+/// likely to be along. Any half-plane reads the one parity; this one is
+/// seldom one an edge lies in. The vector is the world's, so a curve
+/// whose centre line lies along it has no such half-plane and reads no
+/// count in that one pose: a bound withheld, never one granted.
+pub(crate) fn crosses_oddly<T: Decide>(edges: &[Used<T>], line: &geom::Line<T>) -> Option<bool> {
+    crossings(
+        edges,
+        line,
+        Vec3::new(
+            T::from_f64(0.5377),
+            T::from_f64(-0.2913),
+            T::from_f64(0.7896),
+        ),
+    )
+}
+
+/// **The least run of a face from an edge on `carrier`, where the face
+/// spans that curve** ([`WedgeReach::run_from_edge`]): where `carrier` is a closed curve with a centre
+/// and the face's boundary, `edges`, crosses a half-plane bounded by
+/// that curve's centre line an odd number of times, the face meets the
+/// line ([`crosses_oddly`]), and runs from the curve at least as far as
+/// the line stands from it ([`geom_brep::centre_line`], which argues
+/// it). `None` for any other face.
+pub(crate) fn spanned<T: Decide>(edges: &[Used<T>], carrier: &Curve3<T>) -> Option<Lever<T>> {
+    let line = geom_brep::centre_line(carrier)?;
+    if !crosses_oddly(edges, &line)? {
+        return None;
+    }
+    geom_brep::oval_clearance(carrier, line)
 }

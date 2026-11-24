@@ -230,6 +230,25 @@ fn injective<T: Scalar>(
     injective_on(&geometric(body), faces, budget)
 }
 
+/// A hand-built sheet tier 3's local battery refuses, with a first
+/// finding whose text holds `finding`, on fixture facts
+/// ([`topo::Geometric::fixture`]: the runs tier 3 would keep, no class,
+/// no pole): construction state that is no body, which is all it can be
+/// asked on. Red the day tier 3 passes it or refuses it another way.
+fn sheet<'b, T: Scalar>(body: &'b Body<T>, finding: &str) -> topo::Geometric<'b, T> {
+    match topo::geometric(body, tol()) {
+        Ok(_) => panic!("tier 3 passes this sheet: ask it on its verdict"),
+        Err(findings) => {
+            let first = format!("{:?}", findings.first());
+            assert!(
+                first.contains(finding),
+                "tier 3 refuses this sheet first with {first}, not {finding}"
+            );
+        }
+    }
+    topo::Geometric::fixture(body)
+}
+
 /// [`injective`] on the facts `of` holds for its body: tier 3's, or a
 /// hand-built body's fixture facts ([`topo::Geometric::fixture`]).
 fn injective_on<T: Scalar>(
@@ -2749,7 +2768,7 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     // and no class.
     let (body, wall, flap) = pierced::<f64>();
     let report = injective_on(
-        &topo::Geometric::fixture(&body),
+        &sheet(&body, "UncertifiableSurface"),
         Some(vec![wall, flap]),
         BUDGET,
     );
@@ -2757,7 +2776,11 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     same_class(
         "the seam-crossing wall and its flap",
         &report,
-        &injective_on(&topo::Geometric::fixture(&twin), Some(vec![tw, tf]), BUDGET),
+        &injective_on(
+            &sheet(&twin, "UncertifiableSurface"),
+            Some(vec![tw, tf]),
+            BUDGET,
+        ),
     );
     println!(
         "[selfx] the seam-crossing wall and its flap: {:?} {:?}",
@@ -4983,22 +5006,22 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
     }
 }
 
-/// **One plate in every pose.** A rounded plate of four different
+/// **One plate in every rigid pose.** A rounded plate of four different
 /// corner radii (so its mirror image is not itself), every edge
 /// filleted, at `f64`: as built, turned about a generic axis, a hundred
-/// units out, 990 units out on each axis (the session box's wall is at
-/// 1000; at ε = 1e-12 that move does not finish, at `shared_row_touch`,
-/// and only that refusal is passed over), and
-/// mirrored across `x = 0`, all `Embedded`.
+/// units out and 990 units out on each axis (the session box's wall is
+/// at 1000; at ε = 1e-12 that move does not finish, at
+/// `shared_row_touch`, and only that refusal is passed over), all
+/// `Embedded`.
 ///
-/// **Mirrored across a generic plane it is not**: it reads `Uncertified
-/// Departure cylinder x plane across an edge`, pinned at that exit as a
-/// finding, likely the cause of
-/// `work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`
-/// (the mirror re-mints the rows on a turned frame) and untraced. The
-/// mirror's result is asked as a body and not put through the at-rest
-/// finish, which refuses its re-minted rows on a generic plane. The
-/// probe is the re-review's.
+/// **Its mirror image is not asked.** `topo::mirror_body` re-mints the
+/// rows on the mirrored frame, and tier 3's local battery refuses them
+/// (an edge's certification, its image's `FidelityU` envelope term),
+/// across `x = 0` and across a generic plane alike, as the at-rest
+/// finish does. The embedding question reads tier 3's verdict, so a
+/// body with none is pinned at tier 3's refusal and not at an
+/// embedding. The cause is PCERT's
+/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`).
 #[test]
 fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
@@ -5046,27 +5069,34 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
         }
         Err(e) => panic!("the uneven plate 990 units out does not finish: {e:?}"),
     }
-    let mirrored = |point, n| {
+    // The plate's mirror image is not asked: tier 3's local battery
+    // refuses its re-minted rows, across `x = 0` as across a generic
+    // plane, and a body tier 3 refuses has no verdict for the question
+    // to read. Pinned as tier 3 reads it, by its first finding.
+    for (what, point, n) in [
+        (
+            "x = 0",
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "a generic plane",
+            Point3::new(0.2, -0.1, 0.3),
+            Vec3::new(0.3, -0.5, 0.81),
+        ),
+    ] {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
         let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
-        // Tier 3's battery refuses the generic mirror's re-minted rows
-        // as the finish does, so that body is asked on fixture facts:
-        // the runs tier 3 would keep, and no class.
-        let of = topo::geometric(&mirrored, tol())
-            .unwrap_or_else(|_| topo::Geometric::fixture(&mirrored));
-        door_on(&of, mirrored.faces().map(|(k, _)| k).collect())
-    };
-    assert_eq!(
-        mirrored(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
-        "Embedded",
-        "mirrored across x = 0"
-    );
-    let generic = mirrored(Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81));
-    println!("[tangent] the uneven plate mirrored across a generic plane: {generic}");
-    assert!(
-        generic.starts_with("Uncertified Departure cylinder x plane across an edge"),
-        "mirrored across a generic plane: {generic}"
-    );
+        let first = match topo::geometric(&mirrored, tol()) {
+            Ok(_) => panic!("mirrored across {what}: tier 3 passes it; ask it"),
+            Err(findings) => format!("{:?}", findings.first()),
+        };
+        println!("[tangent] the uneven plate mirrored across {what}: tier 3 refuses, {first}");
+        assert!(
+            first.contains("EdgeCertification") && first.contains("FidelityU"),
+            "mirrored across {what}: {first}"
+        );
+    }
 }
 
 /// **A copy pushed through a tangent joint crosses**: the inset corner

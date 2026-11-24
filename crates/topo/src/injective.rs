@@ -379,148 +379,10 @@ pub(crate) struct Facts {
     singular: BTreeSet<VertexKey>,
 }
 
-/// The funnel site of a side of the half-plane a face's boundary is
-/// counted across ([`crosses_oddly`]): a point's or a cover's signed
-/// height off it, read for its sign alone.
-///
-/// An enclosure sign ([`Band::enclosure_sign`]), not a concession of
-/// ε: a side is read only where the whole enclosure excludes zero, and
-/// an enclosure that holds zero is no side and no crossing — never a
-/// coincidence, an incidence or any other fact about the body. Nothing
-/// reads `Zero` from this site.
-pub(crate) const SELF_INTERSECTION_SPANS: &str = "self_intersection_spans";
-
-/// The side `x` is decided on by its enclosure alone, or `None`.
-fn enclosure_side(x: Interval) -> Option<Sign> {
-    match decide(
-        SELF_INTERSECTION_SPANS,
-        Margin::sign_of(x),
-        Band::enclosure_sign(),
-    ) {
-        Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
-        _ => None,
-    }
-}
-
-/// **Whether a face's boundary, `edges`, crosses a half-plane bounded
-/// by `line` an odd number of times**: then the face meets the line.
-///
-/// The argument is one of linking. A face is a compact surface, and
-/// `edges` is its whole boundary: every edge of every loop, each use of
-/// an edge by the face counted. A closed curve off a line links it or
-/// does not, and the parity of its crossings of a half-plane the line
-/// bounds is that linking: turning the half-plane about the line to
-/// another sweeps it across the curve, which stays off the line, so
-/// crossings appear and vanish two at a time and **the parity is the
-/// same for every half-plane**. A surface whose boundary links the line
-/// an odd number of times in all meets the line, since one that missed
-/// it could be pushed off the line's neighbourhood and its boundary
-/// would bound in the complement, where it links nothing. So an odd
-/// count shows a point of the face on the line; an even count shows
-/// nothing, and is read as no bound.
-///
-/// What a crossing asks is only that the curve passes from one side of
-/// the half-plane's plane to the other while on the half-plane's side
-/// of the line: it need not be transversal, since a piece whose ends
-/// are on opposite sides crosses an odd number of times however it
-/// touches on the way, and one whose ends are on one side an even
-/// number. It does ask that the boundary is **off the line**: a piece
-/// near the line is decided on neither side of it and the count is
-/// refused, so a rim through the line (a cone's rulings at its apex, a
-/// meridian at a pole on the axis) lends no bound.
-///
-/// A disc's rim crosses such a half-plane once, whatever arcs it is cut
-/// into; an annulus's two rims once each, and it does not meet its
-/// axis. A seam, which the face lies on both sides of, is its boundary
-/// twice, once each way, and its two uses cancel: an edge used an even
-/// number of times counts for nothing. No arc is compared with
-/// another, so nothing is asked of how the carriers are stored: the
-/// count is of the curves themselves, and at a box scalar it holds for
-/// every member, each side being decided by an enclosure that excludes
-/// zero ([`SELF_INTERSECTION_SPANS`]).
-///
-/// The half-plane is the part of a plane through `line` on one side of
-/// it, the plane's normal the line's direction crossed with `off`. Each
-/// edge is read in pieces ([`geom_brep::span_pieces`]). A piece whose
-/// cover is decided on one side of the plane does not cross it. One
-/// whose cover is decided on the half-plane's side of the line crosses
-/// the plane only in the half-plane, an odd number of times where its
-/// two ends are decided on opposite sides and an even number where on
-/// one. One decided on the line's other side crosses the half-plane
-/// nowhere.
-///
-/// `None` where a side is not decided (a piece near the line, a piece
-/// in the plane, an end on the plane, a piece with no cover) or an edge
-/// has no carrier: no crossing is counted that was not shown.
-fn crossings(edges: &[Rim], line: &geom::Line<Interval>, off: Vec3<Interval>) -> Option<bool> {
-    let dir = line.dir.get();
-    let normal = dir.cross(off);
-    let toward = normal.cross(dir);
-    let height = |n: Vec3<Interval>, p: Point3<Interval>| n.dot(p - line.origin);
-    let floor = |n: Vec3<Interval>| n.dot(line.origin - Point3::origin());
-    let mut odd = false;
-    for e in edges {
-        let (carrier, span) = e.arc.as_ref()?;
-        if e.uses.len() % 2 == 0 {
-            continue;
-        }
-        for ((t0, t1), cover) in geom_brep::span_pieces(carrier, *span) {
-            let cover = cover?;
-            let side_of = |n: Vec3<Interval>| {
-                let (lo, hi) = cover.range_along(n);
-                match (enclosure_side(lo - floor(n)), enclosure_side(hi - floor(n))) {
-                    (Some(Sign::Positive), _) => Some(Sign::Positive),
-                    (_, Some(Sign::Negative)) => Some(Sign::Negative),
-                    _ => None,
-                }
-            };
-            if side_of(normal).is_some() {
-                continue;
-            }
-            if side_of(toward)? == Sign::Positive {
-                let a = enclosure_side(height(normal, carrier.eval(t0)))?;
-                let b = enclosure_side(height(normal, carrier.eval(t1)))?;
-                odd ^= a != b;
-            }
-        }
-    }
-    Some(odd)
-}
-
-/// [`crossings`] of the half-plane whose plane's normal is the line's
-/// direction crossed with a fixed vector no modelling direction is
-/// likely to be along. Any half-plane reads the one parity; this one is
-/// seldom one an edge lies in.
-fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
-    crossings(edges, line, Vec3::new(at(0.5377), at(-0.2913), at(0.7896)))
-}
-
-/// **The least run from `shared` of a face that spans its curve**
-/// ([`Facts::of`]): where `shared` lies on a closed curve with a centre
-/// and the face's boundary, `edges`, crosses a half-plane bounded by
-/// that curve's centre line an odd number of times, the face meets the
-/// line ([`crosses_oddly`]), and runs from the curve at least as far as
-/// the line stands from it ([`geom_brep::centre_line`], which argues
-/// it). `None` for any other face.
-fn spanned(edges: &[Rim], shared: &Rim) -> Option<Lever<Interval>> {
-    let (carrier, _) = shared.arc.as_ref()?;
-    let line = geom_brep::centre_line(carrier)?;
-    if !crosses_oddly(edges, &line)? {
-        return None;
-    }
-    geom_brep::oval_clearance(carrier, line)
-}
-
 impl Facts {
     /// `face`'s facts off `kept`, each length crossed through `cross`
     /// (a length that does not cross is not kept, so its reading decides
     /// nothing), over the face's lifted `edges` and `vertices`.
-    ///
-    /// **A face that spans the curve one of its edges lies on** (a disc
-    /// on its rim, a cap, a tilted cut) has its stations on that curve,
-    /// so tier 3's run from them is a rounding; its run is then at least
-    /// the curve's distance from its own centre line ([`spanned`]), and
-    /// the greater of the two lower bounds is kept.
     pub(crate) fn of<T: Real>(
         kept: &crate::Tier3Facts<T>,
         face: FaceKey,
@@ -539,10 +401,7 @@ impl Facts {
                 .collect(),
             edge_runs: edges
                 .iter()
-                .filter_map(|e| {
-                    let run = lever(kept.edge_run(face, e.key)?)?;
-                    Some((e.key, spanned(edges, e).map_or(run, |least| run.max(least))))
-                })
+                .filter_map(|e| Some((e.key, lever(kept.edge_run(face, e.key)?)?)))
                 .collect(),
             vertex_runs: vertices
                 .keys()
@@ -555,16 +414,15 @@ impl Facts {
 
 #[cfg(test)]
 impl Boundary {
-    /// **A fixture's boundary with the facts tier 3 would keep on it**:
-    /// the face's run from each of its edges and from each of its
-    /// vertices, through the door tier 3 reads them by
-    /// ([`geom_brep::BoundaryStations`]) over the fixture's own lifted
-    /// edges and vertices; no class; and every vertex of the fixture
-    /// offered as a pole or apex, so that the chart's own reading of
-    /// where a collapse lies decides among them, as it would among the
-    /// vertices check 6 placed. A fixture that reads a class states it
-    /// ([`Self::with_class`]), and one that reads which vertex check 6
-    /// placed states that ([`Self::with_singular`]).
+    /// **A fixture's boundary with the runs tier 3 keeps on every
+    /// face**: the face's run from each of its edges, through the doors
+    /// tier 3 reads them by ([`geom_brep::BoundaryStations`], and
+    /// [`crate::wedge_reach::spanned`] for a face that spans a rim) over
+    /// the fixture's own lifted edges. Nothing else: no class, no vertex
+    /// run and no pole or apex, which tier 3 keeps only where it decided
+    /// them, so a fixture that reads one states it
+    /// ([`Self::with_class`], [`Self::with_vertex_runs`],
+    /// [`Self::with_singular`]).
     pub(crate) fn with_runs(mut self) -> Self {
         let stations = geom_brep::BoundaryStations::of_boundary(
             self.edges.iter().filter_map(|e| {
@@ -573,6 +431,7 @@ impl Boundary {
             }),
             self.vertices.values().copied(),
         );
+        let rim = Self::rim(&self.edges);
         self.facts = Some(Facts {
             classes: BTreeMap::new(),
             edge_runs: self
@@ -581,24 +440,50 @@ impl Boundary {
                 .filter_map(|e| {
                     let (carrier, span) = e.arc.as_ref()?;
                     let run = stations.run_from_edge(carrier, *span);
-                    Some((
-                        e.key,
-                        spanned(&self.edges, e).map_or(run, |least| run.max(least)),
-                    ))
+                    let spans = rim
+                        .as_deref()
+                        .and_then(|rim| crate::wedge_reach::spanned(rim, carrier));
+                    Some((e.key, spans.map_or(run, |least| run.max(least))))
                 })
                 .collect(),
-            vertex_runs: self
-                .vertices
-                .iter()
-                .map(|(&v, &at)| (v, stations.run_from_vertex(at)))
-                .collect(),
-            singular: self
-                .vertices
-                .keys()
-                .copied()
-                .chain(self.edges.iter().flat_map(|e| e.ends))
-                .collect(),
+            vertex_runs: BTreeMap::new(),
+            singular: BTreeSet::new(),
         });
+        self
+    }
+
+    /// The fixture's edges as the crossing count reads a face's whole
+    /// boundary ([`crate::wedge_reach::crossings`]); `None` where one
+    /// holds no carrier.
+    pub(crate) fn rim(edges: &[Rim]) -> Option<Vec<crate::wedge_reach::Used<Interval>>> {
+        edges
+            .iter()
+            .map(|e| {
+                let (carrier, span) = e.arc.as_ref()?;
+                Some((carrier.clone(), *span, e.uses.len()))
+            })
+            .collect()
+    }
+
+    /// This fixture with the face's run from each of `vertices` kept,
+    /// as tier 3 keeps it from a vertex more than three edges meet at:
+    /// the row states that these are such vertices.
+    pub(crate) fn with_vertex_runs(mut self, vertices: &[VertexKey]) -> Self {
+        let stations = geom_brep::BoundaryStations::of_boundary(
+            self.edges.iter().filter_map(|e| {
+                let (carrier, span) = e.arc.as_ref()?;
+                Some((carrier, *span))
+            }),
+            self.vertices.values().copied(),
+        );
+        let runs: Vec<(VertexKey, Lever<Interval>)> = vertices
+            .iter()
+            .filter_map(|v| Some((*v, stations.run_from_vertex(*self.vertices.get(v)?))))
+            .collect();
+        self.facts
+            .get_or_insert_with(Facts::default)
+            .vertex_runs
+            .extend(runs);
         self
     }
 
@@ -9863,7 +9748,8 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_singular(&[vertex(9)]);
         assert_eq!(
             at(&wrapping, (-0.5, -0.1)),
             Read::Vacuous,
@@ -9922,7 +9808,8 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_singular(&[vertex(9)]);
         let local = Local {
             edges: all(1),
             vertices: vec![vertex(9)],
@@ -13898,7 +13785,9 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_vertex_runs(&[vertex(3)])
+        .with_singular(&[vertex(3)]);
         (s, b)
     }
 
@@ -14198,6 +14087,7 @@ mod presentation_rows {
                 facts: None,
             }
             .with_runs()
+            .with_singular(&[vertex(3)])
         };
         let at_pole = |b: &Boundary| {
             let local = Local {
@@ -14251,7 +14141,8 @@ mod presentation_rows {
             extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_singular(&[vertex(3)]);
         let local = Local {
             edges: Vec::new(),
             vertices: vec![vertex(3)],
@@ -14590,6 +14481,7 @@ mod presentation_rows {
                 facts: None,
             }
             .with_runs()
+            .with_singular(&[vertex(9)])
         };
         // The low end the revolved cone at `y = 1.7` stores, and its mirror;
         // then ends past the cover's own `few_ulps`, as a meridian of a
@@ -14992,6 +14884,7 @@ mod presentation_rows {
             facts: None,
         }
         .with_runs()
+        .with_vertex_runs(&[vertex(1)])
     }
 
     /// A cylinder piece of `b` in the cell `u × v`, its local edges the
@@ -15201,7 +15094,8 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_vertex_runs(&[vertex(key)]);
         (plane, b)
     }
 
@@ -19563,7 +19457,8 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_singular(&[vertex(1)]);
         c.edges[0].arc = line(apex, p0);
         c.edges[0].uses[0].plus = false;
         c.edges[1].arc = line(apex, p1);
@@ -19722,7 +19617,8 @@ mod presentation_rows {
             outer: None,
             facts: None,
         }
-        .with_runs();
+        .with_runs()
+        .with_singular(&[vertex(1)]);
         let local = Local {
             edges: vec![0],
             vertices: vec![vertex(1)],
@@ -21820,6 +21716,7 @@ mod margin_rows {
             facts: None,
         }
         .with_runs()
+        .with_vertex_runs(&vertices.iter().map(|(k, _)| key(*k)).collect::<Vec<_>>())
     }
 
     /// **The extent is the narrower face's run, the least over what the
@@ -21962,6 +21859,7 @@ mod margin_reach_rows {
             facts: None,
         }
         .with_runs()
+        .with_vertex_runs(&vertices.iter().map(|(k, _)| key(*k)).collect::<Vec<_>>())
     }
 
     fn piece<'a>(
@@ -22663,6 +22561,22 @@ mod margin_reach_rows {
             read(fixture_lever(iv0(1.0))).is_some(),
             "signed at the plane's metre, which no extent reads"
         );
+    }
+
+    /// [`crate::wedge_reach::spanned`] over a fixture's rims.
+    fn spanned(edges: &[Rim], shared: &Rim) -> Option<Lever<Interval>> {
+        let (carrier, _) = shared.arc.as_ref()?;
+        crate::wedge_reach::spanned(&Boundary::rim(edges)?, carrier)
+    }
+
+    /// [`crate::wedge_reach::crossings`] over a fixture's rims.
+    fn crossings(edges: &[Rim], line: &geom::Line<Interval>, off: Vec3<Interval>) -> Option<bool> {
+        crate::wedge_reach::crossings(&Boundary::rim(edges)?, line, off)
+    }
+
+    /// [`crate::wedge_reach::crosses_oddly`] over a fixture's rims.
+    fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
+        crate::wedge_reach::crosses_oddly(&Boundary::rim(edges)?, line)
     }
 
     /// An arc of the circle of radius `r` about the origin in the `xy`

@@ -482,18 +482,60 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     budget: usize,
     tol: Tol,
 ) -> topo::clearance::BoundReport<Witness> {
+    let of = topo::geometric(body, tol).unwrap_or_else(|findings| {
+        panic!("tier 3's local battery refuses this body, so it is not asked: {findings:?}")
+    });
+    injectivity_on(&of, faces, witnessed, budget, tol)
+}
+
+/// [`injectivity`] of a hand-built sheet tier 3's local battery refuses
+/// with a first finding whose text holds `finding`: construction state
+/// that is no body, asked on fixture facts
+/// ([`topo::Geometric::fixture`]: the runs tier 3 would keep, no class,
+/// no pole), which is all it can be asked on. Red the day tier 3 passes
+/// it, or refuses it another way: the row then says so.
+fn injectivity_of_a_sheet<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+    finding: &str,
+    faces: Option<Vec<topo::FaceKey>>,
+    witnessed: bool,
+    budget: usize,
+    tol: Tol,
+) -> topo::clearance::BoundReport<Witness> {
+    match topo::geometric(body, tol) {
+        Ok(_) => panic!("tier 3 passes this sheet: ask it on its verdict"),
+        Err(findings) => {
+            let first = format!("{:?}", findings.first());
+            assert!(
+                first.contains(finding),
+                "tier 3 refuses this sheet first with {first}, not {finding}"
+            );
+        }
+    }
+    injectivity_on(
+        &topo::Geometric::fixture(body),
+        faces,
+        witnessed,
+        budget,
+        tol,
+    )
+}
+
+/// [`injectivity`] on the facts `of` holds for its body.
+fn injectivity_on<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    of: &topo::Geometric<'_, T>,
+    faces: Option<Vec<topo::FaceKey>>,
+    witnessed: bool,
+    budget: usize,
+    tol: Tol,
+) -> topo::clearance::BoundReport<Witness> {
+    let body = of.body();
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Sign};
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    // The question reads tier 3's facts. This file's hand-built sheets
-    // (two open cylinders on an ellipse, a disk and its annulus) are
-    // construction state tier 3 refuses, and are asked on fixture facts:
-    // the runs tier 3 would keep, no class.
-    let geometric = topo::geometric(body, tol).unwrap_or_else(|_| topo::Geometric::fixture(body));
-    let windows =
-        Side::windows_of(&geometric, faces, Which::First).expect("every face has a window");
+    let windows = Side::windows_of(of, faces, Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
         bound,
@@ -866,9 +908,10 @@ fn a_mitre_between_two_cylinders_certifies_across_its_ellipse() {
     for (o, axis) in [FRAMES[0], FRAMES[2]] {
         let f = Frame::at(o, axis);
         let body = mitred::<f64>(POSES[0], &f, -1.5, tol);
-        let report = injectivity(&body, None, true, BUDGET, tol);
-        let twin = injectivity(
+        let report = injectivity_of_a_sheet(&body, "MixedDihedral", None, true, BUDGET, tol);
+        let twin = injectivity_of_a_sheet(
             &mitred::<Interval>(POSES[0], &f, -1.5, tol),
+            "MixedDihedral",
             None,
             true,
             BUDGET,
@@ -917,13 +960,20 @@ fn the_mitre_folded_back_through_the_wall_reads_violated() {
     let f = Frame::at(FRAMES[0].0, FRAMES[0].1);
     let body = mitred::<f64>(POSES[0], &f, 1.5, tol);
     let faces = walls(&body);
-    let report = injectivity(&body, Some(faces.clone()), true, BUDGET, tol);
+    let report = injectivity_of_a_sheet(
+        &body,
+        "MixedDihedral",
+        Some(faces.clone()),
+        true,
+        BUDGET,
+        tol,
+    );
     let twin = mitred::<Interval>(POSES[0], &f, 1.5, tol);
     let twin_faces = walls(&twin);
     same_class(
         "the folded mitre",
         &report,
-        &injectivity(&twin, Some(twin_faces), true, BUDGET, tol),
+        &injectivity_of_a_sheet(&twin, "MixedDihedral", Some(twin_faces), true, BUDGET, tol),
     );
     println!("[curvedep] fold: {:?} {:?}", report.verdict, report.receipt);
     match report.verdict {
@@ -1035,12 +1085,19 @@ fn a_curved_rim_folded_on_itself_refuses_never_certified() {
     use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
     let (body, disk, other) = across_a_rim::<f64>(true, tol);
-    let report = injectivity(&body, Some(vec![disk, other]), false, 4096, tol);
+    let report = injectivity_of_a_sheet(
+        &body,
+        "LaminaWedge",
+        Some(vec![disk, other]),
+        false,
+        4096,
+        tol,
+    );
     let (twin, td, to) = across_a_rim::<Interval>(true, tol);
     same_class(
         "the lamina",
         &report,
-        &injectivity(&twin, Some(vec![td, to]), false, 4096, tol),
+        &injectivity_of_a_sheet(&twin, "LaminaWedge", Some(vec![td, to]), false, 4096, tol),
     );
     println!(
         "[curvedep] lamina: {:?} {:?}",
@@ -1067,12 +1124,26 @@ fn a_disk_and_its_annulus_certify_across_their_rim() {
     use topo::clearance::BoundVerdict;
     let tol = Tol::witness();
     let (body, disk, other) = across_a_rim::<f64>(false, tol);
-    let report = injectivity(&body, Some(vec![disk, other]), true, BUDGET, tol);
+    let report = injectivity_of_a_sheet(
+        &body,
+        "LoopRoleInverted",
+        Some(vec![disk, other]),
+        true,
+        BUDGET,
+        tol,
+    );
     let (twin, td, to) = across_a_rim::<Interval>(false, tol);
     same_class(
         "the annulus",
         &report,
-        &injectivity(&twin, Some(vec![td, to]), true, BUDGET, tol),
+        &injectivity_of_a_sheet(
+            &twin,
+            "LoopRoleInverted",
+            Some(vec![td, to]),
+            true,
+            BUDGET,
+            tol,
+        ),
     );
     println!(
         "[curvedep] annulus: {:?} {:?}",

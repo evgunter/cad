@@ -96,6 +96,41 @@ impl<T: Copy> Tier3Facts<T> {
         self.vertex_runs[face].insert(vertex, run);
     }
 
+    /// **Keep each face's run from every vertex two faces can share
+    /// with no edge on them**: those more than three face corners meet
+    /// at. The corners about a vertex of a closed two-manifold form one
+    /// cycle, each next to the two it shares an edge with, so two faces
+    /// that share the vertex and no edge at it are not neighbours in a
+    /// cycle of at least four. A vertex the rule misses keeps no run,
+    /// and a pair near it alone then reads no extent and is not
+    /// certified: the miss refuses, it does not permit.
+    pub(crate) fn keep_fan_runs(&mut self, body: &Body<T>, wedges: &crate::WedgeReach<'_, T>)
+    where
+        T: geom_core::Decide,
+    {
+        let mut fans: SecondaryMap<VertexKey, Vec<FaceKey>> = SecondaryMap::new();
+        for (he_key, he) in body.half_edges.iter() {
+            if let Some(face) = body.face_of_half_edge(he_key) {
+                if !fans.contains_key(he.start) {
+                    fans.insert(he.start, Vec::new());
+                }
+                fans[he.start].push(face);
+            }
+        }
+        for (vertex, faces) in fans.iter().filter(|(_, faces)| faces.len() > 3) {
+            let Some(&at) = body
+                .vertices
+                .get(vertex)
+                .and_then(|v| body.points.get(v.point))
+            else {
+                continue; // unreachable on tier-1 input
+            };
+            for &face in faces {
+                self.keep_vertex_run(face, vertex, wedges.run_from_vertex(face, at));
+            }
+        }
+    }
+
     pub(crate) fn keep_singular(&mut self, face: FaceKey, vertex: VertexKey) {
         if !self.singular.contains_key(face) {
             self.singular.insert(face, Vec::new());
@@ -151,9 +186,10 @@ impl<'b, T: geom_core::Real> Geometric<'b, T> {
 
     /// **A hand-built body with the runs tier 3 would keep on it, and
     /// nothing check 4 or check 6 decides**: each face's run from each
-    /// edge and each vertex of its boundary, through the door tier 3
-    /// reads them by ([`crate::WedgeReach`]); no class and no singular
-    /// vertex. For a row that asks the question of construction state
+    /// edge of its boundary and from each vertex more than three edges
+    /// meet at, through the doors tier 3 keeps them by
+    /// ([`crate::WedgeReach`], [`Tier3Facts::keep_fan_runs`]); no class
+    /// and no singular vertex. It states nothing a verdict could not. For a row that asks the question of construction state
     /// tier 3 refuses (two open sheets, a lamina) to exercise a reading
     /// on it: every separator then runs, as on an edge tier 3 read no
     /// class for.
@@ -181,17 +217,7 @@ impl<'b, T: geom_core::Real> Geometric<'b, T> {
                 );
             }
         }
-        for (he, half) in body.half_edges.iter() {
-            let (Some(face), Some(&at)) = (
-                body.face_of_half_edge(he),
-                body.vertices
-                    .get(half.start)
-                    .and_then(|v| body.points.get(v.point)),
-            ) else {
-                continue;
-            };
-            facts.keep_vertex_run(face, half.start, wedges.run_from_vertex(face, at));
-        }
+        facts.keep_fan_runs(body, &wedges);
         Self::new(body, Arc::new(facts))
     }
 

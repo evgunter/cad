@@ -120,3 +120,5 @@ it reads `Uncertified Departure`, cylinder against plane across an
 edge: the exit of this row's traced test. The mirror re-mints the rows
 on a turned frame, where a rigid move keeps the stored images. Likely
 the same cause; not traced. The row pins it at that exit.
+
+- 2026-11-24 — **From EMBED (lane `embed/verdict-read`, PR 7666): a sighting, the uneven plate's mirror image.** The rounded plate of `one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror` (`crates/sweep/tests/self_intersection_proves_injectivity.rs`), mirrored by `topo::mirror_body` across `x = 0` and across the plane through `(0.2, −0.1, 0.3)` with normal `(0.3, −0.5, 0.81)`, is refused by tier 3's local battery (`topo::geometric`): 16 findings on the `x = 0` image, the first `EdgeCertification { … Row { … refusal: Image(Some(EnvelopeTerm(FidelityU))) } }`. Until PR 7666 the row asked the embedding question of that body bare and pinned `Embedded` across `x = 0`; the question now reads tier 3's verdict, so the row pins tier 3's refusal. Whether this is this row's cause or a second one is not traced.
