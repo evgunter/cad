@@ -81,6 +81,27 @@ product's gather is on the product (`Product::sym`); a prior is read
 only under the table it was built under (`PriorRefusal::Table`),
 which is the door a served result comes through.
 
+**Two gaps the session-state unit leaves here** (its merge pass,
+2026-11-24):
+
+- **No row serves one member of a family while its siblings run.** A
+  member is a scope of its own inside the family's
+  (`eval::eval_any`), and what it read goes on the family's record
+  (`NodeRecord`'s `over`) when its scope closes. A member that is
+  served and not run closes no scope, so the family's record has to be
+  handed what the served member's record holds and what it was built
+  over, in member order. No fixture in the tree has a family whose
+  members are served singly; the rows that exist run every member
+  (`editor-core`'s
+  `a_nodes_result_at_the_symbolic_scalar_is_its_keys::a_reader_of_a_member_reads_that_members_record_and_a_reader_of_the_family_all`).
+- **What a record holds beyond the table is not in any size.** A
+  record names the records it was built over, one pointer per
+  registering record upstream of it, shared and not copied
+  (`NodeRecord`'s `over`). `DriveMemo::bytes_estimate` counts the
+  drive's table and neither the records on a leaf's values nor the
+  warm caches. A store that keeps values keeps their records, so its
+  size is its own to measure.
+
 **From the node-key unit's fix pass (PR 7470), two things the store
 should know:**
 
