@@ -44,3 +44,5 @@ residual's rounding except at ε 1e-12 on large reaches, where the
 meters already refuse most such poses.
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+- 2026-11-24 (sectcone, PR 7637): the ruling charts named under "The shape of a fix" (`section_cert/ruling.rs`, `shrunk`) are retired; the cone pairs are the section value's sweep (`geom_brep::pair_section::ruling`), which decides its signs at the band through `k_stats`. The precedent the fix cites is gone; the walk's own question stands.
