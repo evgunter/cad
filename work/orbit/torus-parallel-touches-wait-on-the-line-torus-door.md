@@ -32,3 +32,7 @@ Kε. Once the door is fixed, admit the coaxial wall, sphere, torus and
 cone parallels and the axis-normal plane's tangent circle, and build the
 two poses above as refusals and the off-face poses (a hub flush with a
 ring's top, a sleeve above its widest circle) as builds.
+
+## Ev's ruling (2026-11-24, PR 7587)
+
+Approved once sound ("if it's sound i'm happy with it"). This unit is the build once `the-line-torus-door-misses-silently-within-the-band` lands; no design question remains.

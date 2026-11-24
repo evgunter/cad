@@ -19,3 +19,7 @@ outside the solid; the line × torus door is silent there today. Once
 that door decides its silent answers as a clearance past `Kε`, admit
 the saddle tangencies the extremes unit leaves at R-tan, and build the
 brick in the hole under every op.
+
+## Ev's ruling (2026-11-24, PR 7587)
+
+Approved once sound ("if it's sound i'm happy with it"). This unit is the build once `the-line-torus-door-misses-silently-within-the-band` lands; no design question remains.

@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-23
 priority: P1
 cost: H
-design: true
 refs: [a-torus-touch-along-a-whole-parallel-refuses-r-tan, a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan, 4159, 3978]
 ---
 
@@ -123,3 +122,7 @@ needs is `at` at the deepest point of the ACTUAL pose. So this unit admits
 strict point extremes, with `at` read from the actual pose on every arm.
 Parallels wait on the line × torus door with the saddles:
 `torus-parallel-touches-wait-on-the-line-torus-door`.
+
+## Ev's ruling (2026-11-24, PR 7587)
+
+"if it's sound i'm happy with it": the near-band reading is approved in full, saddles and parallels included, wherever it is sound. Today it is sound at strict point extremes, which this unit builds (PR 7611). The saddle and parallel units stay parked on the line × torus door, because the door's silent answers are what stands between them and soundness.
