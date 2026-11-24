@@ -43,3 +43,29 @@ four held values with the knot domain's ends.
 **Not measured:** whether any face reaches `iso_bounded_domain` with a
 loop whose ends meet only within the slack at `f64` (the case the slack
 exists for).
+
+## From `boxfinish/iso-image` (the image type, 2026-11-22)
+
+Not moved onto the lift's runs by that unit, with what it measured:
+
+- **It never read a stored end.** `iso_bounded_domain` reads each row's
+  two ends through the image's map (`row.pcurve.eval(t0)`, `eval(t1)`),
+  so deleting `Pcurve::IsoLine`'s `ends` changes nothing it reads. Its
+  side test compares the HELD coordinate with the domain's ends, which
+  an iso image now stores as structure (`geom_brep::ChartLine`), exact at
+  every scalar; the moving coordinate is still an enclosure at a cut.
+- **Moving it changes what it admits**, in three ways the unit did not
+  take on: `quad_lane::trim_rectangle` refuses an image that does not
+  move (a rate whose way is undecided), which this test admits at a
+  corner; it reads the winding off the run's ways, where this test reads
+  an interval shoelace over ends chained within `injective::few_ulps`;
+  and it reads any rectangle of held lines, where this test admits only
+  the knot domain's own (a comparison this test would keep).
+- **Its neighbour did move.** `clearance::iso_of`, in the same file, read
+  "which coordinate an iso image holds" off a slope that lifts to the
+  point zero (`injective::exactly(…, 0.0)` on `pl.x`, then `pl.y`); it
+  now reads `Pcurve::held_line`. The harmonic arm beside it still reads
+  three coefficients as point zeros.
+
+Still not measured: whether any face reaches the `few_ulps` chaining
+with ends that meet only within the slack at `f64`.

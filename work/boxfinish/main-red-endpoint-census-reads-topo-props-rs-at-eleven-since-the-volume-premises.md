@@ -2,11 +2,12 @@
 id: main-red-endpoint-census-reads-topo-props-rs-at-eleven-since-the-volume-premises
 kind: issue
 title: Main red (slow set): certified_endpoint_census reads topo/src/props.rs at (11, 3) where the roster pins (7, 3), since PR 7344
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P1
 cost: E
 refs: [7344]
+branch: boxfinish/endpoint-census
 ---
 
 

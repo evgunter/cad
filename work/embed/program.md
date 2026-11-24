@@ -40,8 +40,13 @@ valid bodies:
   ONEDOOR's no-reset lift (PR 6900).
 - `the-graph-separator-accepts-a-side-past-its-edges-piece-by-membership`
   (P1). Probe it first.
-- `the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`
-  (P1, design).
+- `the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`:
+  ruled by Ev on PR 7095 and landed by `embed/remeter` (PR 7329). The
+  sliver is gone; its residue is
+  `the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms`
+  (P1, design) and
+  `five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep`
+  (P1).
 
 **Measuring.** The tour walk is the measure: 82 of 85 bodies hold at
 the cut, and the three bench assemblies are recorded contacts. The
