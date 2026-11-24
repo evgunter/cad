@@ -17,6 +17,10 @@
 use bvh::test_support::boxed;
 use bvh::{Aabb, Bvh};
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 /// The exact separation of two axis-aligned boxes, computed in a way
 /// that cannot overflow: the per-axis gaps are scaled down by the
 /// largest of them before the norm, then scaled back.
@@ -86,7 +90,7 @@ fn a_far_but_within_pad_pair_survives_the_proximity_query() {
     let left = Bvh::build(&[a]);
     let right = Bvh::build(&[b]);
     assert_eq!(
-        left.pairs_within(&right, pad),
+        left.pairs_within(SITE, &right, pad),
         vec![(0, 0)],
         "a pair within the pad is a candidate"
     );
@@ -264,14 +268,14 @@ fn a_pad_exactly_on_an_items_bound_keeps_the_item() {
     for (i, b) in boxes.iter().enumerate() {
         let exact = b.separation_lo(&query);
         assert!(
-            tree.within(&query, exact).contains(&i),
+            tree.within(SITE, &query, exact).contains(&i),
             "item {i} at its own bound {exact} must survive a pad of exactly that"
         );
         // And one ulp under it drops exactly this item, never a nearer
         // one: the comparison is non-strict on the item side.
         let under = exact.next_down();
         assert!(
-            !tree.within(&query, under).contains(&i) || exact == 0.0,
+            !tree.within(SITE, &query, under).contains(&i) || exact == 0.0,
             "item {i} must not survive a pad below its own bound"
         );
     }

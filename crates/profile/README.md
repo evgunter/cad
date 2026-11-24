@@ -67,9 +67,8 @@ when the step opens it, the arrival side when its binder fixes it (which
 may be a later step), then the fit's answer — the fillet circle, or, on
 an anchor-fit refusal, the overrunning candidate circle and its tangent
 points. A step refused between its two sides still has the first. The
-record is filed against the fillet step and a refusal against the step
-that refused, so a refused fit's record is the last one of its step
-with no fillet circle. The editor draws the record in its construction
+record is filed against the fillet step, and a refused fit's record is
+the last one of that step with no fillet circle. The editor draws the record in its construction
 colour and marks each refused corner (`CornerRefusal::at`); nothing
 decides on it. Two refusal classes
 (`ReplayErrorKind`):
@@ -80,6 +79,17 @@ decides on it. Two refusal classes
 - `Path(PathError)` — a well-typed chain whose geometry refuses under
   this binding. Legal at rest; it surfaces as the node's typed
   evaluation error.
+
+A refusal is filed against the step its recourse edits
+(`ReplayError::step`), which need not be the step the replay was
+applying when it refused (`ReplayError::raised_at`). Three refusals are
+raised after the step they are about: a fillet's, where the step
+fixing its arrival resolves it; a fillet arc's stored form, re-read
+where the loop closes; and an arc read back where the loop closes.
+Each is `PathError::Deferred`, filed at the fillet's or the arc's step,
+and its sentence names that step and the one that raised it. A
+resolution's refusal whose only lever is the arrival's own anchor, and
+a junction read at the fillet's run in, stay the raising step's.
 
 Record → replay bit-identity is pinned for every closing verb the suites
 author (`tests/common/mod.rs::pinned`).
@@ -221,9 +231,10 @@ replayed output under every binding: constructed tangency verified,
 never trusted (`TangencyContradicted`); a value-decided junction
 recorded; same-carrier continuation is a tangent joint, constructed or
 decided; fit gating. A `ValidatedProfile` is minted on segments by the
-doors its type's docs list (the validations, and three crossings of a
-canonical form already validated: `lift_onto`, `value_channel`,
-`on_plane`); extrude/revolve/fillet/loft/sweep never see a program. Junction
+doors its type's docs list (the validations, and two crossings of a
+canonical form already validated: `value_channel`, `on_plane`; a
+fixture's `lift_onto` is behind `test-support`);
+extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and
@@ -575,9 +586,16 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. A segment also records the unit directions its
   construction made, a line's director and an arc's radial at each
-  end: the verb that drew the segment holds them exactly, a table's are
-  decided once at validate, and a door that needs one reads it here and
-  never divides the difference of two vertices by its own length. The
+  end. The verb that drew the segment records them: a construction
+  that has the direction holds it exactly, and a hop between two
+  points is given its director by the one mint, which that hop's
+  junction checks read too (the axis where a component of the chord is
+  identically zero by the symbolic tier's structural question
+  (ERROR-DESIGN E12), signed by a
+  reading of the other component; the chord over its length
+  otherwise). A table's are minted the same way, once at validate. A
+  door that needs a direction reads it here, and the mint is the one
+  place that divides the difference of two vertices by its length. The
   form is redundant (the vertices lie on the
   carrier, a recorded direction agrees with them, Δθ agrees with them
   mod 2π, 0 < |Δθ| ≤ 2π), and those

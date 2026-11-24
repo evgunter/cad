@@ -163,6 +163,15 @@ jobs:
             --no-fail-fast || rc=$?
           scripts/nextest-failures.py "viewer app" "$rc"
           exit "$rc"
+      # full-suite-build's listing has no `app` feature and leaves viewer's
+      # slow-set entries to this one (`--elsewhere viewer`).
+      - name: the slow set's viewer entries name only tests that exist (the app-feature listing)
+        if: '!cancelled()'
+        run: |
+          set -o pipefail
+          members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
+          cargo nextest list --ignore-default-filter -p viewer --features app --message-format json \
+            | python3 scripts/check-slow-set-names.py --members "$members"
       - name: failing tests (name, panic, seed)
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
@@ -227,6 +236,9 @@ jobs:
       - name: probe sweep self-test
         if: '!cancelled()'
         run: scripts/k_probe_sweep_selftest.sh
+      - name: attribution self-test
+        if: '!cancelled()'
+        run: python3 scripts/nightly-attribution.py --selftest
   any-first-mutant:
     # Every pin scripts/gates/any-climb-pins.counts names, run under the
     # first-refusal mutant (`--cfg any_first_mutant`): a pin that stays
@@ -512,7 +524,7 @@ jobs:
           esac
           echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
   full-suite-build:
-    name: full suite, build once (archive; doc-tests, slow-set names, topo scalpel, wasm32)
+    name: full suite, build once (archive; doc-tests, slow-set names, wasm32)
     runs-on: ubuntu-latest
     needs: gate
     if: needs.gate.outputs.run == 'true'
@@ -524,7 +536,10 @@ jobs:
     # execution (docs/perf-data/opt-level, 2026-09-27: 1859 s against
     # 2053 s). The PR gate, where the build dominates, keeps its libraries
     # at opt-1 and builds its integration-test binaries at opt-0
-    # (scripts/rustc-test-crates-opt0.sh).
+    # (scripts/rustc-test-crates-opt0.sh). Three leaf crates are the
+    # exception here: viewer, pncad and pncad-py build at opt-1 (the step
+    # that says so, below). The env block is topo-scalpel's too, since both
+    # restore `nightly-opt2` (scripts/gates/build-default-env-agrees.sh).
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -548,9 +563,67 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ steps.nextest.outputs.version }}
+      # Measured (2026-11-22): the build peaks with two or three 5-6 GB rustc
+      # processes at once (the editor-core and sweep integration binaries,
+      # topo's unit-test harness), leaving 0.8-1.4 GB of the runner's 16 GB
+      # available and up to all of its 3 GB of swap in use; with this step
+      # the same build used up to 6.4 GB of swap. That the kills which land
+      # in this window are this exhaustion is a correlation, not a caught
+      # kill. The swap goes on the free disk so the peak can page out.
+      - name: add 12 GB of swap
+        run: |
+          sudo fallocate -l 12G /nightly.swap
+          sudo chmod 600 /nightly.swap
+          sudo mkswap /nightly.swap
+          sudo swapon /nightly.swap
+          free -m
+      # viewer, pncad and pncad-py build at opt-level 1: it takes about 55 of
+      # the build's 330-410 unit-minutes off (about 13 min on 4 cores), and
+      # their tests run about a minute at either level. In CARGO_HOME's
+      # config, so every cargo step below agrees and none rebuilds them. A
+      # name here that is no workspace package reds this step; a package
+      # spec cargo still finds unmatched reds the build step.
+      - name: the leaf crates build at opt-level 1
+        run: |
+          set -o pipefail
+          cargo metadata --no-deps --format-version 1 | python3 -c '
+          import json, sys
+          have = {p["name"] for p in json.load(sys.stdin)["packages"]}
+          missing = [p for p in sys.argv[1:] if p not in have]
+          if missing:
+              sys.exit(f"::error::no workspace package named {missing}: the opt-1 override would apply to nothing")
+          ' viewer pncad pncad-py
+          for p in viewer pncad pncad-py; do
+            for prof in dev test; do
+              printf '[profile.%s.package."%s"]\nopt-level = 1\n' "$prof" "$p"
+            done
+          done >> "$CARGO_HOME/config.toml"
+          cat "$CARGO_HOME/config.toml"
+      # The sampler writes to this step's log, which an exit-143 shutdown
+      # keeps and a lost-communication one does not (scripts/ci-resource-sampler.sh).
       - name: build and archive every test binary
         id: build
-        run: cargo nextest archive --workspace --archive-file "$RUNNER_TEMP/full-suite.tar.zst"
+        run: |
+          set -o pipefail
+          scripts/ci-resource-sampler.sh 60 &
+          sampler=$!
+          rc=0
+          cargo nextest archive --workspace --timings --archive-file "$RUNNER_TEMP/full-suite.tar.zst" 2>&1 \
+            | tee "$RUNNER_TEMP/build.log" || rc=$?
+          kill "$sampler" || true
+          if grep -F 'did not match any packages' "$RUNNER_TEMP/build.log"; then
+            echo "::error::a [profile.*.package] override matched no package, so its crates built at opt-2"
+            rc=1
+          fi
+          exit "$rc"
+      - name: upload the build's per-unit timings
+        if: '!cancelled()'
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-suite-build-timings
+          path: target/cargo-timings/cargo-timing.html
+          if-no-files-found: warn
+          retention-days: 14
       # Already zstd, so not zipped again; its only readers are the rows below.
       - name: upload the archive for the eps rows
         id: upload
@@ -575,7 +648,7 @@ jobs:
           set -o pipefail
           cargo nextest list --workspace --ignore-default-filter --message-format json \
             | tee "$RUNNER_TEMP/test-list.json" \
-            | python3 scripts/check-slow-set-names.py --complete
+            | python3 scripts/check-slow-set-names.py --complete --elsewhere viewer
       - name: upload the test listing for full-suite-coverage
         if: '!cancelled() && steps.build.outcome == ''success'''
         uses: actions/upload-artifact@v4
@@ -584,15 +657,40 @@ jobs:
           path: ${{ runner.temp }}/test-list.json
           if-no-files-found: error
           retention-days: 1
-      - name: the per-op postcondition scalpel (topo)
-        if: '!cancelled()'
-        run: |
-          cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
       - name: wasm32 check (kernel + editor-core)
         if: '!cancelled()'
         run: |
           rustup target add wasm32-unknown-unknown
           cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --target wasm32-unknown-unknown
+  # Its own job so its rebuild of topo is off the build job's clock and the
+  # eps rows do not wait for it. Its env block is full-suite-build's, so
+  # both hash to one `nightly-opt2` key (scripts/gates/build-default-env-agrees.sh).
+  topo-scalpel:
+    name: the per-op postcondition scalpel (topo)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly-opt2
+          save-if: false
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
   full-suite:
     name: full suite (eps ${{ matrix.eps }}${{ matrix.part && format(', shard {0}', matrix.part) || '' }}, slow set included)
     runs-on: ubuntu-latest
@@ -702,6 +800,18 @@ jobs:
         run: |
           scripts/full-suite-coverage.py "$RUNNER_TEMP/test-list.json" "$RUNNER_TEMP/junit" \
             default 1E-06 1E-12-1of3 1E-12-2of3 1E-12-3of3
+  # Names the merge that turned each test red at an eps row where the last
+  # scheduled main nightly to report it had it green. Scheduled runs only:
+  # their baselines are scheduled main runs, and a dispatched nightly may be
+  # on any branch. It never fails, and the run's verdict is not its business.
+  attribution:
+    name: attribution
+    needs: [full-suite-build, full-suite]
+    if: '!cancelled() && needs.full-suite-build.outputs.archived == ''true'' && github.event_name == ''schedule'''
+    uses: ./.github/workflows/nightly-attribution.yml
+    permissions:
+      contents: read
+      actions: read
   all-features:
     # The suite with every workspace feature on at once: the probe-gated
     # suites, the test-only meters and payload features, which no other
@@ -891,7 +1001,7 @@ jobs:
           grep -qE '^test result: ok\. [1-9][0-9]* passed' release-corruption.log
 
   step-import:
-    name: step import (freecad)
+    name: step export fixtures (freecad)
     runs-on: ubuntu-latest
     needs: gate
     if: needs.gate.outputs.run == 'true'
@@ -1066,7 +1176,7 @@ jobs:
     runs-on: ubuntu-latest
     # Every test row, so the tag is written once each has finished; ci-latency
     # is the per-PR gate's latency alarm, not a row of the nightly's own.
-    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
+    needs: [gate, watertight, viewer-toolkit, rebuild-latency, criterion, rustdoc-roots, gate-selftests, any-first-mutant, full-suite-build, topo-scalpel, full-suite, full-suite-coverage, all-features, k-lint, python, topo-release, step-import, interval, renders]
     if: ${{ !cancelled() && needs.gate.outputs.run == 'true' && inputs.ref == '' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: write

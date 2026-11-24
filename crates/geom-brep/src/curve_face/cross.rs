@@ -85,6 +85,45 @@ pub enum CrossWhy {
     },
 }
 
+impl CrossWhy {
+    /// **The window's fault, where it is one**: readings that contradict,
+    /// or a carrier or surface an arm does not read. A kernel fault,
+    /// never a stretch the band leaves undecided: a reader fails loud on
+    /// it rather than set it aside.
+    #[must_use]
+    pub fn fault(self) -> Option<&'static str> {
+        match self {
+            Self::Pose(PoseRefusal::Fault(what)) => Some(what),
+            Self::Method {
+                fault: MeetFault::Contradiction { readings },
+                ..
+            } => Some(readings),
+            Self::Method {
+                fault: MeetFault::Desync,
+                ..
+            } => Some("a carrier read by an arm not its own"),
+            Self::Pose(_) | Self::Method { .. } => None,
+        }
+    }
+
+    /// **The window's diagnostics, where it was read in the band**: a
+    /// pose rung's, or the placement's or a method's escalation (a root in
+    /// band of an end, two roots the band cannot order). `None` for a
+    /// window no margin reads: a limit, an unbuilt or enclosed arm, a
+    /// fault.
+    #[must_use]
+    pub fn diag(self) -> Option<Indeterminate> {
+        match self {
+            Self::Pose(PoseRefusal::InBand { diag, .. })
+            | Self::Method {
+                fault: MeetFault::Escalated(diag) | MeetFault::Touch(diag),
+                ..
+            } => Some(diag),
+            Self::Pose(_) | Self::Method { .. } => None,
+        }
+    }
+}
+
 /// **The crossing reading, read past what it could not read**: the
 /// meetings decided outside the windows, never the complete set, and the
 /// windows of the span it could not read. Exact outside the windows,
@@ -156,6 +195,7 @@ pub fn cross<T: Decide>(
             Door::LineRoots => Vec::new(),
             Door::PlaneCrossing
             | Door::ConicTorus
+            | Door::SpiricPlane
             | Door::SplineComposite
             | Door::SplineFace
             | Door::Spiric
@@ -189,6 +229,13 @@ pub fn cross<T: Decide>(
                     },
                 }
             }
+            Door::SpiricPlane => match form.0 {
+                Formed::SpiricPlane { line, across, sine } => {
+                    super::spiric_plane::spiric_plane_method(span, (line, across, sine), band)
+                        .map_err(method)?
+                }
+                _ => return Err(method(MeetFault::Desync)),
+            },
             Door::SplineComposite | Door::SplineFace | Door::Spiric | Door::Sheet => {
                 return Err(method(MeetFault::Desync));
             }

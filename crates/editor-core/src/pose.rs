@@ -13,6 +13,8 @@
 //! [`Subgroup`] the mates fold is the one a pose is known up to, read
 //! here once ([`crate::VarKind::symmetry`] names its family).
 
+use crate::Said;
+use crate::say;
 use geom_core::linalg::{Point3, RigidMotion, UnitVec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 use geom_core::{Decide, Real};
@@ -78,10 +80,7 @@ impl<T: Real> AxisLine<T> {
     /// origin's foot on that line ([`geom::Line::foot`]).
     #[must_use]
     pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
-        let line = geom::Line {
-            origin: point,
-            dir: dir.get(),
-        };
+        let line = geom::Line { origin: point, dir };
         Self {
             foot: line.foot(Point3::origin()),
             dir,
@@ -93,7 +92,7 @@ impl<T: Real> AxisLine<T> {
     pub fn line(&self) -> geom::Line<T> {
         geom::Line {
             origin: self.foot,
-            dir: self.dir.get(),
+            dir: self.dir,
         }
     }
 
@@ -329,14 +328,19 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
     /// **A face's chart** (D10 `[placement]`; `REFERENCES.md` DM1): the
     /// frame a plane placement onto the face gives under the same
     /// orientation, spin and slides, computed by that placement's own
-    /// code (`mate::value::face_chart`). Its `z` is the face's outward
+    /// code (`mate::value::FaceChart`). Its `z` is the face's outward
     /// normal; its `x` and origin are the face's space's under `orient`,
     /// carried onto the face by the least turn, then turned by `spin`
     /// about the normal and moved by `slides`, along the two target axes
     /// the orientation leaves ([`crate::mate::face_chart_slides`]).
-    /// Within the band
-    /// about the least turn's pole it refuses typed, naming the
-    /// orientation to write ([`PoseConstruction::FaceChartBackwards`]).
+    ///
+    /// It stands in a profile's frame seat alone, read bare there
+    /// ([`PoseConstruction::FaceChartUnseated`] anywhere else), and decides
+    /// nothing there: what stands in it (the profile's loops, each sweep
+    /// of it, the faces it traces) is carried over its own reach, and
+    /// within the band about the least turn's pole that carriage refuses
+    /// typed, naming the orientation to write
+    /// ([`PoseConstruction::FaceChartBackwards`]).
     FaceChart {
         /// The face, a `Face` read of a planar face.
         face: R,
@@ -443,6 +447,20 @@ impl PoseRole {
         }
     }
 
+    /// **The frame axis normal to this coordinate plane**: `z` for `xy`,
+    /// `x` for `yz`, `y` for `zx` — the axis a frame's coordinate plane
+    /// is read about ([`Self::read`]), and the one it stands off along.
+    /// `None` for a role that is no coordinate plane.
+    #[must_use]
+    pub fn normal_axis(self) -> Option<Self> {
+        match self {
+            Self::Xy => Some(Self::Z),
+            Self::Yz => Some(Self::X),
+            Self::Zx => Some(Self::Y),
+            Self::X | Self::Y | Self::Z | Self::Origin | Self::Normal | Self::Direction => None,
+        }
+    }
+
     /// **`value` read through this role**, `None` where its kind offers
     /// no such role (a read the door refuses).
     #[must_use]
@@ -454,17 +472,9 @@ impl PoseRole {
             (PoseValue::Frame(f), Self::Origin) => PoseValue::Point {
                 position: f.origin(),
             },
-            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::plane_through(
-                f.origin(),
-                Self::frame_axis(
-                    f,
-                    match self {
-                        Self::Xy => Self::Z,
-                        Self::Yz => Self::X,
-                        _ => Self::Y,
-                    },
-                ),
-            ),
+            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => {
+                PoseValue::plane_through(f.origin(), Self::frame_axis(f, self.normal_axis()?))
+            }
             (PoseValue::Plane { normal: dir, .. }, Self::Normal) => {
                 PoseValue::Direction { dir: *dir }
             }
@@ -520,6 +530,15 @@ impl<R> RoleRead<R> {
         }
     }
 
+    /// This read in another form by an infallible `f`, its role kept.
+    #[must_use]
+    pub fn map<R2>(&self, f: impl FnOnce(&R) -> R2) -> RoleRead<R2> {
+        RoleRead {
+            read: f(&self.read),
+            role: self.role,
+        }
+    }
+
     /// This read in another form, its role kept.
     ///
     /// # Errors
@@ -539,6 +558,22 @@ impl<R> RoleRead<R> {
     pub fn admits(&self, admits: crate::SlotKind) -> crate::SlotKind {
         self.role
             .map_or(admits, |role| crate::SlotKind::Is(role.of()))
+    }
+}
+
+impl<R> RoleRead<R> {
+    /// **Whether this read keeps its pose's sense**: plainly, or through
+    /// a role that is the pose's own direction (a plane's normal, an
+    /// axis's direction), so a flip of the pose flips what is read. A
+    /// frame's axis or coordinate plane is a pose of its own, whose sense
+    /// no flip beneath it reaches. The one rule [`crate::mate::flipped`],
+    /// [`crate::mate::side_flipped`] and the mate's equated poses read.
+    #[must_use]
+    pub fn keeps_sense(&self) -> bool {
+        matches!(
+            self.role,
+            None | Some(PoseRole::Normal | PoseRole::Direction)
+        )
     }
 }
 
@@ -1178,7 +1213,7 @@ impl core::fmt::Display for PoseReadFault {
 
 /// **A construction that refuses its degenerate case**
 /// ([`crate::NodeErrorKind::PoseDegenerate`]).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PoseConstruction {
     /// [`PoseDef::Through`]: the point lies on the axis.
     Through,
@@ -1197,20 +1232,22 @@ pub enum PoseConstruction {
         /// the face's outward normal: the one to write.
         write: crate::Orientation,
     },
-    /// [`PoseDef::FaceChart`]: the face and the slides stand too far
-    /// from the space's origin for the least turn to be decided over
-    /// them: the two halves of the lever
-    /// ([`crate::mate::LeverRefusal::OutOfRange`]).
+    /// [`PoseDef::FaceChart`]: no lever is formed for what the chart
+    /// carries: its reach is not in hand
+    /// ([`crate::mate::LeverRefusal::Shape`]), or it, the slides and the
+    /// face stand too far from the space's origin for the least turn to
+    /// be decided over them ([`crate::mate::LeverRefusal::OutOfRange`]).
     FaceChartUnleverable {
-        /// The written slides' lengths, summed.
-        parts: f64,
-        /// The face's plane's distance from the space's origin.
-        datum: f64,
+        /// Why.
+        refusal: Box<crate::mate::LeverRefusal>,
     },
+    /// [`PoseDef::FaceChart`] read anywhere but bare in a profile's frame
+    /// seat, where nothing it carries is levered.
+    FaceChartUnseated,
 }
 
-impl core::fmt::Display for PoseConstruction {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for PoseConstruction {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Through => {
                 "the frame through an axis and a point has no x direction: the point lies on \
@@ -1232,18 +1269,26 @@ impl core::fmt::Display for PoseConstruction {
                      orientation {write}"
                 );
             }
-            Self::FaceChartUnleverable { parts, datum } => {
-                return write!(
+            Self::FaceChartUnleverable { refusal } => {
+                return say!(
                     f,
-                    "the face's chart stands too far from its space's origin for its turn to be \
-                     decided: {}",
-                    crate::mate::LeverRefusal::OutOfRange {
-                        parts: *parts,
-                        datum: *datum
-                    }
+                    "the face's chart's turn cannot be levered over what it carries: ",
+                    Said(&refusal, by)
                 );
             }
+            Self::FaceChartUnseated => {
+                "a face's chart stands in a profile's frame seat alone, where what is drawn on it \
+                 is carried over its own reach. Recourse: draw a profile on the chart itself, \
+                 writing its spin and slides there, or read the face as a plane"
+            }
         })
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for PoseConstruction {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

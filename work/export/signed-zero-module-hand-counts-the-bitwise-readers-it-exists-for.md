@@ -64,3 +64,9 @@ inventory in the same header.
 ## Closed (2026-11-17)
 
 PR 7067 (`export/walks-and-zeros`). It had a single style review and a fix pass. The signed-zero fold has one home, `geom_core::fold_signed_zero`, and the importer's half-edge walks go through `topo::Body::face_of_half_edge` or the local `body_loop`/`loop_face` helpers. The PR body lists each site and what was done.
+
+**Since `export/import-records` (2026-11-22):** `adopt::surface_sig` and
+its sibling bitwise surface comparison are deleted; a face wears the
+record its file entity names. The header now names
+`on_built::bitwise_twin` as its importer example; the count this row asks
+for is still owed.

@@ -37,6 +37,10 @@ use bvh::test_support::{boxed, ray};
 use bvh::{Bvh, RayCandidate};
 use test_utils::fuzz;
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 /// A non-negative rational `num/den` with `den > 0`, plus `+∞`.
 #[derive(Clone, Copy, Debug)]
 enum Rat {
@@ -196,9 +200,9 @@ fn exact_oracle_hits_are_never_dropped() {
             [d[0] as f64, d[1] as f64, d[2] as f64],
         );
 
-        let out = tree.ray(&r);
+        let out = tree.ray(SITE, &r);
         assert_documented_order(&out, &format!("case {case}"));
-        assert_bit_identical(&out, &tree.ray(&r), &format!("case {case}"));
+        assert_bit_identical(&out, &tree.ray(SITE, &r), &format!("case {case}"));
 
         for (item, &(lo, hi)) in int_boxes.iter().enumerate() {
             if exact_entry(o, d, lo, hi).is_some() {
@@ -263,7 +267,7 @@ fn t_enter_lower_bounds_the_exact_entry_on_dyadic_geometry() {
             [d[0] as f64, d[1] as f64, d[2] as f64],
         );
 
-        let out = tree.ray(&r);
+        let out = tree.ray(SITE, &r);
         assert_documented_order(&out, &format!("case {case}"));
 
         for (item, &(lo, hi)) in int_boxes.iter().enumerate() {
@@ -333,7 +337,7 @@ fn overflow_prunes_a_truly_hit_box() {
     // (270/170 ≈ 1.588 < 1.6: the true interval is nonempty.)
     let tree = Bvh::build(&[b]);
     assert_eq!(
-        tree.ray(&r).len(),
+        tree.ray(SITE, &r).len(),
         1,
         "a truly intersected box must stay a candidate (conservative \
          superset) — the overflowed x slab wrongly pruned it"

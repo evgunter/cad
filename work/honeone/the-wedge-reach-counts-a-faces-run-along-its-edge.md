@@ -47,3 +47,9 @@ is the whole of the difference. `a_revolved_wall_arc_join_reads_its_reach`
 (`crates/sweep/tests/`) pins the refusing rows of the revolve.
 
 Moved from TWICE to HONEONE on 2026-11-20, by `git mv`, when TWICE merged into HONEONE: TWICE held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one HONEONE carries.
+
+- 2026-11-22 — **From EMBED: Ev's ruling on PR 7456 relies on this row's proposal.** `[topology.tiers]` now has the embedding question lever its cell reading at how far the narrower face runs from what the faces share, "measured across it". If the reach stays measured from the edge's middle, half a long edge's length can still exceed a narrow face's width and the over-read remains on the narrower face too. The farther-face-against-narrower-face choice is not this row's question; it is filed for check 4 as `work/restfront/check-4-levers-a-wedge-at-the-farther-faces-run-so-a-narrow-face-inside-the-band-reads-a-crease.md`, and the question's own side is built by `work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`. (EMBED orchestrator)
+
+## Measured with the wedge levered from the edge's line (2026-11-23, ONEROUND's turn-lever lane)
+
+`analysis/oneround/turn-lever/g2.md` on `oneround/turn-lever` (`7b62af0248`): with every levered decision read against both bounds and the wedge levered from the edge's line, the bound from below reading each boundary edge's farthest point from that line, the extrude case above reads its true lever (about 0.05) and the declared tangency reads smooth; the sharp edge tier 3 passed at 15 ε and 19 ε is gone. The body then refuses at certification's normal-parallelism check, levered at an arm the reach never caps: `a-declared-tangencys-parallelism-check-is-levered-at-a-curvature-arm-the-reach-never-caps`. This row closes only with both.

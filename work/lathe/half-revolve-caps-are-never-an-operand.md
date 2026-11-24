@@ -41,3 +41,15 @@ Waits on `intent-stage4-is-built`, not on the whole program: the F7 gate refuses
 E deletes `UndeclaredCoincidence`, but the half revolve is still no operand. The caps sit in ONE operand, and a Zero-decided coplanar neighbour pair there is `NonMaximalFaces` (`crates/topo/src/boolean/reduce.rs:636`), or `CoplanarNeighbours` where the θ = π margin reads in band (`reduce.rs:643`). The boolean's glue door reads cross-operand pairs only (`crates/topo/src/boolean/glue.rs:40`). The revolve runs no merge of its own (`crates/sweep/src/` calls no `merge_coplanar_faces`), so it still returns the caps on two keys. The row's ask stands: either the revolve emits one cap across the axis, or it merges what its margins decide one plane. The merge now glues such a pair by margin (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`).
 
 - 2026-11-02 — moved from CARVETAIL to LATHE by `git mv` when CARVETAIL merged into LATHE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and CARVETAIL had fallen far under it).
+
+## Re-measured (2026-11-22, EXPORT, a probe for the `[ev]` PR 7331 fork)
+
+The caps now share ONE plane record. `sweep/src/revolve/partial.rs` joins them across the axis edge through `one_record_across`, and `sweep/tests/revolve_partial.rs::half_revolve_axis_edge_stays_conventional` asserts it. The body is still no operand.
+
+Probe at the default ε (`Tol::witness()`), main at 3a9a9b82e1: the square (0,0)–(1,1) on `SketchPlane::zx()`, axis dir (−1,0), `Revolution::Partial(±π)`.
+- **Faces:** 5. The caps are two faces on one `SurfaceKey`, both sense true, with the same outward normal (±y), meeting across the axis edge.
+- **Tier 3:** `validate_geometric` returns `Ok`.
+- **As an operand:** union, subtract and reversed union against a far brick and against a box poking the top face all return `NonMaximalFaces { edge: <the axis edge> }` (`gate_maximal_faces` in `boolean/reduce.rs`).
+- **Other routes leave no such pair:** π/2 and 3π/2 revolves, a triangle touching the axis at one point, a square off the axis, a flush-topped union, and an L union followed by a split.
+
+**The same state reaches import.** `step-import`'s `freecad/fuse_boxes.step` imports with top and bottom each three same-facing faces on one plane record (8 same-key planar adjacencies), passes tier 3, and is refused by the same gate. That is filed as `work/export/an-imported-union-ships-coplanar-same-record-neighbours-no-boolean-takes.md`. Both point at one gap: maximal faces are checked at the boolean's input, but not at rest, although DESIGN says the form "is checked at rest on the result alone".

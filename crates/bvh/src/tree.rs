@@ -8,6 +8,7 @@
 
 use crate::aabb::{Aabb, Axis};
 use crate::ray::{Ray, RayCandidate};
+use geom_core::k_stats::QuerySite;
 
 /// The fixed leaf-size constant (C10: named, fixed, not tuned): a
 /// range of at most this many items becomes a leaf.
@@ -156,7 +157,12 @@ impl Bvh {
     /// the D9-relevant contract; tree shape never leaks into the
     /// result). Conservative by [`Aabb::overlaps`]: poison boxes are
     /// always candidates.
-    pub fn overlapping(&self, query: &Aabb) -> Vec<usize> {
+    ///
+    /// `site` is the caller's: the candidates are marked under it
+    /// ([`geom_core::k_stats::mark_candidates`]), so a reader of a
+    /// verdict log can tell which query handed them on. Every query
+    /// below takes one alike.
+    pub fn overlapping(&self, site: QuerySite, query: &Aabb) -> Vec<usize> {
         let mut out = Vec::new();
         // Explicit stack, fixed order (right pushed first, left
         // visited first); order is irrelevant to the sorted result but
@@ -193,7 +199,7 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a
         // permutation sort, never a dedup.
         out.sort_unstable();
-        geom_core::k_stats::mark_candidates(OVERLAPPING, out.iter().copied());
+        geom_core::k_stats::mark_candidates(site, out.iter().copied());
         out
     }
 
@@ -218,7 +224,7 @@ impl Bvh {
     /// Otherwise [`Bvh::overlapping`]'s contract verbatim: ascending
     /// input order, poison never pruned (a poison box separates from
     /// nothing).
-    pub fn within(&self, query: &Aabb, pad: f64) -> Vec<usize> {
+    pub fn within(&self, site: QuerySite, query: &Aabb, pad: f64) -> Vec<usize> {
         let pad = if pad.is_nan() || pad < 0.0 {
             f64::INFINITY
         } else {
@@ -262,7 +268,7 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a permutation
         // sort, never a dedup.
         out.sort_unstable();
-        geom_core::k_stats::mark_candidates(WITHIN, out.iter().copied());
+        geom_core::k_stats::mark_candidates(site, out.iter().copied());
         out
     }
 
@@ -279,10 +285,10 @@ impl Bvh {
     /// Deterministic (D9): the outer loop is input order and each inner
     /// answer is already ascending, so the result is sorted by
     /// construction.
-    pub fn pairs_within(&self, other: &Self, pad: f64) -> Vec<(usize, usize)> {
+    pub fn pairs_within(&self, site: QuerySite, other: &Self, pad: f64) -> Vec<(usize, usize)> {
         let mut out = Vec::new();
         for (i, b) in self.boxes.iter().enumerate() {
-            out.extend(other.within(b, pad).into_iter().map(|j| (i, j)));
+            out.extend(other.within(site, b, pad).into_iter().map(|j| (i, j)));
         }
         out
     }
@@ -313,7 +319,7 @@ impl Bvh {
     /// `total_cmp` agrees with the naive order and is used purely to
     /// keep the sort total by construction. Same query, same tree ⇒
     /// bit-identical output (the crate's determinism posture).
-    pub fn ray(&self, ray: &Ray) -> Vec<RayCandidate> {
+    pub fn ray(&self, site: QuerySite, ray: &Ray) -> Vec<RayCandidate> {
         let mut out = Vec::new();
         // Same fixed traversal shape as `overlapping`; order is
         // irrelevant to the sorted result but fixed anyway (D9
@@ -349,20 +355,10 @@ impl Bvh {
             }
         }
         out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.item.cmp(&b.item)));
-        geom_core::k_stats::mark_candidates(RAY, out.iter().map(|c| c.item));
+        geom_core::k_stats::mark_candidates(site, out.iter().map(|c| c.item));
         out
     }
 }
-
-/// The names the queries mark their candidates under
-/// ([`geom_core::k_stats::mark_candidates`]): a query prunes what its
-/// caller decides next and decides nothing itself, so a reader of a
-/// verdict log can see two runs' pruning part only through these marks.
-const OVERLAPPING: &str = "bvh_overlapping";
-/// [`Bvh::within`]'s marks.
-const WITHIN: &str = "bvh_within";
-/// [`Bvh::ray`]'s marks.
-const RAY: &str = "bvh_ray";
 
 /// Recursive build over `items[..]` (a contiguous range of the final
 /// permutation starting at absolute offset `base`); returns the

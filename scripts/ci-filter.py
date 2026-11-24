@@ -88,7 +88,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
-  RUN_STEP_EXPORT=true|false    step import (freecad) row
+  RUN_STEP_EXPORT=true|false    step export fixtures (freecad) row
   RUN_PNCAD_PY=true|false       whether this diff's SEEDS reach the members a
                                 BUILD OF THE WHEEL compiles (pncad-py's non-dev
                                 dependency closure; see `pncad_py_seeds`).
@@ -1292,7 +1292,7 @@ def _seeds(files: list[str], root: str) -> str:
 # exact-name entry of the `ci` profile's `default-filter` added, dropped or
 # moved. That edit moves only the tests it names, so it seeds their crates: a
 # dropped name runs in that crate's default step, an added one in the
-# slow-set step when the diff's Rust lines also spell it (else the nightly),
+# slow-set step when the diff also spells it or edits its file (else the nightly),
 # and the name check reads both binaries' listings.
 #
 # THE TEST IS STRUCTURAL AND FAILS SAFE. Both revisions must parse; the file

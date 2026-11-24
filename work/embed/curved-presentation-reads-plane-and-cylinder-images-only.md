@@ -2,10 +2,11 @@
 id: curved-presentation-reads-plane-and-cylinder-images-only
 kind: issue
 title: The curved presentation reads a harmonic image on a plane or a cylinder only, so a curved shared edge on a cone, sphere or torus chart, or a focal-section, projected or spiric image, still refuses at depth 0
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P0
 cost: M
+branch: embed/cone-image
 ---
 
 ## Finding
@@ -70,3 +71,29 @@ shared arcs' images are `FocalSection` is inferred from the fixtures
 on PR 7115's topo diff. The other 21 rows are assigned by bucket,
 unchecked. Valid bodies, so P0 at the gate's landing. Cheapest:
 `sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment` (0.21 s).
+
+## Three plane/cone instances (lane `embed/apex-separator`, 2026-11-21)
+
+Three census tests the apex row (`a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator`)
+held unchecked, traced on main `0c1eb97ad` with the gate (`CV_TRACE`):
+their last cell pair is a cone part `Structural` at a shared conic edge
+with no shared vertex near, the same before and after the apex lane's
+change. Plane/cone, f64:
+- `mesh::all reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`:
+  cone `1v1` `Structural` at `u ∈ (1.66897, 1.71806)`,
+  `v ∈ (−0.03516, −0.03281)`, against plane `10v1` read by its curve
+  (`Zero::Curve(XLo)`), shared edge `9v1`;
+- `sweep::all a_ring_on_a_cone_face::a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners`:
+  cone `1v1` `Structural`, the plane `Local`, edge `8v1`;
+- `mesh::all split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`:
+  the plane by its side, cone `2v1` `Structural`, edge `19v3`.
+
+## 2026-11-23 — the first unit cut from this row: a cone chart reads a plane section's image (EMBED orchestrator)
+
+**Unit `embed/cone-image`. Letter H. Tier: dual** (a new certified enclosure, a trigonometric polynomial of degree two on a cone chart and degree four under a quadric separator, whose soundness is not to be believed by reading it). Stacked on the second landing branch (`embed/wave3-land`), which holds PR 7113's sphere reading and PR 7315's apex arm.
+
+Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 269,522 of the 297,886 crease cell pairs the remetered reading refuses for good at no plane separator at all, presentations `Structural` or `Local` on one face or both. The margin is not what refuses there. PR 7113's review is done, which is what this row waited on.
+
+**The unit takes:** the images on a CONE's chart that this row lists, measured on the 24 cone/cone census tests above and the two cone cavities (2026-11-18 section): a plane section of a cone (ellipse, hyperbola, parabola: `FocalSection`), any other harmonic image on a cone that is no coordinate line, and the corner those edges make at a shared vertex, as far as the corner is unread only because its curved edge is (`reads_curve`).
+
+**It leaves on this row:** a non-coordinate harmonic image on a torus chart, a Villarceau circle, `Projected`, `Spiric` and `Fitted`/`General` images, and a plane face bounded by a spiric or spline carrier (the two cone cavities' plane cap is bounded by a rational quadratic: the lane says whether they close without it). At the unit's close the lane rewrites this row's title and Finding to what is left.

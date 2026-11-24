@@ -2,7 +2,8 @@
 id: main-red-bounds-census-misses-reach-rs-crossing-and-sure-below
 kind: issue
 title: Main red: bounds_census reports reach.rs's crossing and sure_below as sole-bracket-bound doors missing from its roster since PR 7114
-status: open
+status: closed
+closed: 2026-11-22
 opened: 2026-11-20
 priority: P1
 cost: E
@@ -31,3 +32,7 @@ Give each door a roster line with its disposition, or read it through a door the
 ## Bisected (EXCH triage, 2026-11-20)
 
 Only `sure_below` is PR 7114's. On `e7d1a14b11^1` the census already reports `crossing` alone, and `e7d1a14b11` adds `sure_below`. `crossing` arrived with PR 7078 (`band/mixed-corner-reach`, merge `36c7cb2b66`). It is filed on BAND as `blend-reach-crossing-is-a-sole-bracket-door-missing-from-the-bounds-roster`, so this row owes `sure_below` alone (`crates/sweep/src/blend/reach.rs:152`).
+
+## Closed
+
+`sure_below` has a `Selection` roster line in `crates/geom-core/tests/bounds_census.rs`, beside `sure`'s. Its one reader, `reach::screened`, uses the read only to choose which support vertices' depths go to `battery::face_clearance_margin`, which decides at the funnel. The census no longer lists `sure_below`. It still lists `crossing`, which is BAND's row `blend-reach-crossing-is-a-sole-bracket-door-missing-from-the-bounds-roster`.

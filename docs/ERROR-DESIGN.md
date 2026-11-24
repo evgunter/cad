@@ -312,7 +312,9 @@ drive(doc, box) -> ParamBoxVerdict {
   refused:   [ Leaf { box, reason: SliverTerminal { predicate }
                | FlipCrossing { flipped predicates }  // no-flips v1
                | Bifurcation(WitnessBifurcation) | Infeasible  // E8
-               | Budget { depth/work bound hit } } ],
+               | Budget { depth/work bound hit }
+               | ReadsNoVariable { node, undecided | failed } } ],
+                 // the deciding node reads no variable of the box
   measure_accounting: per-reason mass under the product measure,
                       + Unanalyzed = tail mass outside `box` (E2),
 }
@@ -333,9 +335,18 @@ box (parameters = intervals; witness data verbatim per E8).
   subdivision only localizes the boundary to shrink refused mass.
   Branch enumeration = the recorded v2 door (with W3, E8).
 - Any `Indeterminate` → **bisect** and recurse. Split rule named,
-  deterministic (D9): max relative width, ties to lowest index.
-  Leaves are independent — parallel under D9 idiom 1, CPU/rayon per
-  the ratified GPU-boundary table.
+  deterministic (D9): of the variables the leaf's deciding node reads
+  (the first undecided node in evaluation order) that have depth
+  left, the one of greatest relative width, ties to lowest index. A
+  leaf whose deciding node reads no variable of the box is refused,
+  naming the node: no split changes it. A leaf's verdict is a function
+  of its box alone — leaves run in parallel under D9 idiom 1,
+  CPU/rayon per the ratified GPU-boundary table.
+- A node whose inputs a leaf leaves unchanged is served from an
+  earlier replay of the drive: result or refusal, and record, whole
+  (DESIGN [determinism]). A leaf's receipt counts what its result
+  rests on, served or built; the drive's total counts each distinct
+  node result once.
 - **Terminal sliver** (enclosure wholly inside (ε, Kε)) → refuse,
   never refine (ratified PR 7 semantics: a genuine semantic sliver).
 - **Budget exhaustion** (depth/work caps, run config like K) →
@@ -565,9 +576,10 @@ mass has no valid build" — is not sayable about any macroscopic box.
   driver's replay): the numeric value as today plus a DAG node id.
   Parameters are symbols; every `Real` op mints one hash-consed node
   (structural sharing is free and deterministic — D9). Float
-  literals are atoms keyed by their bits. Nothing in the kernel
-  changes: `Sym<T>` is one more scalar in the Real-generic pipeline,
-  and no funnel site is edited.
+  literals are atoms keyed by their bits. `Sym<T>` is one more scalar
+  in the Real-generic pipeline, and no funnel site is edited; a
+  construction asks one thing of its expression beyond arithmetic and
+  decisions, the structural question below.
 - **The identity test, on demand.** A `decide` site first asks the
   DAG whether the margin's expression is identically zero: the
   node's POLYNOMIAL NORMAL FORM in the parameter symbols, with
@@ -579,6 +591,33 @@ mass has no valid build" — is not sayable about any macroscopic box.
   exceeding a stated term/degree budget is FROZEN into an atom —
   cancellation past that point is lost, soundness is not (an atom is
   an unknown function; the margin falls to the numeric path).
+- **The structural question.** A construction may ask the tier
+  whether a value is zero as a function of the document's variables,
+  to choose between two spellings of one real value: the exact axis
+  `(0, ±1)` for a hop `(W, 0) → (W, H)` where the general form is the
+  chord over its length, and for nothing else: a branch that changes
+  what is built is a decision. The answer is not a
+  decision: no count, no record, nothing deferred, and the same in an
+  eager and in a deferring session. It is the normal form and the
+  retry ladder with every rule that reads a value switched off (the
+  certified read at `min` / `max` / `select`, and the
+  registered-identity door, whose entries are witnessed against
+  values), under rules and a term budget that are kernel constants
+  and not the session's, so it is a function of the expression DAG
+  alone: one graph gets one answer, whatever the value channel reads
+  and in every symbolic lane, and the zero it proves holds at every
+  parameter value at which the build takes the decisions this replay
+  took. A numeric scalar carries no expression, so the question cannot
+  be put to it: the question is a method of the expression, and a
+  numeric scalar's `Real::Expression` is a type with no values (DESIGN
+  [unrepresentable], a signature is a claim). There the general
+  spelling is taken. A sign reading cannot stand in for the question:
+  a decision
+  reads the value first and asks the tier only where the value reads
+  no definite sign, so `(x + w) − w − x` is asked about where it
+  rounds to 0 and not where it rounds to `2.8e-17`. A `Sym<T>` run's
+  value channel is the plain `T` run's except where a construction
+  chose a closed spelling on this answer.
 - **What "identically zero" buys.** `carrier.eval(t0) − start` with
   both built from the profile vertex P(p): the zero polynomial.
   `y₁ − y₂` with both `h`: zero. `|(Q − P) × d|` with `Q = P + t·d`:
@@ -596,6 +635,18 @@ mass has no valid build" — is not sayable about any macroscopic box.
   pass still evaluates every residual numerically at a point, so a
   constructor that fails to build what it claims is still caught
   where widening cannot hide it.
+- **The two channels are checked where an answer is returned.** A
+  definite numeric sign is the answer, and the tier is asked nothing
+  about it. Where the tier answers `Zero` at an exact witness
+  (`Sym<Interval>`), a `debug_assert!` checks that the certified
+  enclosure contains 0 (DESIGN [failure.taxonomy] row 5: a kernel bug
+  only a re-derivation detects); it leaves out
+  `Decide::free_identity`, whose number is a measured bound and not
+  its expression's value. Whether the algebra or a registration would
+  have claimed `Zero` on a margin the numbers decided is a question
+  about the kernel, never about a document: a test instrument that no
+  shipped build contains asks it, and no receipt column counts it
+  (DESIGN [simple.checks]).
 - **The K instrument sees it.** A symbolic `Zero` is recorded in the
   k_stats funnel as its OWN outcome (`Symbolic`), never as a
   vanished sample — the driver population E6 promised K stays
@@ -667,8 +718,10 @@ number.
   reads no value except its own witness and writes none — and the
   numeric channel runs FIRST at every decide site, so no registration
   can turn a margin the enclosure proved non-zero into a `Zero`; where
-  a registration WOULD have, the run counts the contradiction
-  (`SymCounts::registrations_contradicted`) instead of folding it away.
+  a registration would have, nothing is folded, and the tier's test
+  instrument (the two channels' bullet above) is where that is counted.
+  A registered zero that does decide is asserted against its exact
+  enclosure like any other.
 
   **What the witness is worth, stated exactly, because this clause's
   own wording ("verified at the f64 witness point") overstates it.** A

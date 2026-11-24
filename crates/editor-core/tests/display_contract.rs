@@ -1010,6 +1010,7 @@ test_utils::f6_variants! {
         OutputSignature,
         VarNotMinted,
         NameOnMissingVar,
+        IndexSeat,
         VarNameTwice,
         ReaderOfUnmintedVar,
         SlotVarKind,
@@ -1090,7 +1091,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             SnapshotError::NodeNotMinted { id: node() },
-            vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
+            vec!["\"base plate\" (000000000005) is not in the document's mint log"],
         ),
         (
             SnapshotError::PlacementReadsNoSource {
@@ -1098,7 +1099,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 read: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads #9:",
+                "\"base plate\" (000000000005) reads #9:",
                 "as its source directly",
                 "through a source",
             ],
@@ -1128,7 +1129,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
             },
             vec![
-                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "\"base plate\" (000000000005)'s target reads #9:",
                 "mint log does not hold as a variable",
                 "written before an operand was a read",
             ],
@@ -1145,7 +1146,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
             },
             vec![
-                "Extrude \"base plate\" (000000000005)'s target reads #9:",
+                "\"base plate\" (000000000005)'s target reads #9:",
                 "which is a profile, where it takes a body",
             ],
         ),
@@ -1186,7 +1187,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::WitnessSite { node: node() },
             vec![
-                "a witness is attached to Extrude \"base plate\" (000000000005)",
+                "a witness is attached to \"base plate\" (000000000005)",
                 "bears no sketch",
             ],
         ),
@@ -1367,6 +1368,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            SnapshotError::IndexSeat {
+                var: editor_core::VarId::new(0, tagged(7)),
+                other: editor_core::VarId::new(0, tagged(8)),
+                fault: editor_core::persist::IndexSeatFault::YieldIndex,
+            },
+            vec!["yields #0:0000000000080000, which is an index"],
+        ),
+        (
             SnapshotError::VarNameTwice {
                 name: VarName::from_static("width"),
                 a: editor_core::VarId::new(0, tagged(7)),
@@ -1380,7 +1389,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 var: editor_core::VarId::new(0, tagged(7)),
             },
             vec![
-                "Extrude \"base plate\" (000000000005) reads variable #0:0000000000070000",
+                "\"base plate\" (000000000005) reads variable #0:0000000000070000",
                 "never minted",
             ],
         ),
@@ -1523,7 +1532,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 error: MetaVersionError::MissingVersion,
             },
             vec![
-                "metadata \"swatch\" on the start cap of Extrude \"base plate\" (000000000005)",
+                "metadata \"swatch\" on the start cap of \"base plate\" (000000000005)",
                 "\"v\" version field",
             ],
         ),
@@ -1624,7 +1633,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 step: StepId::new(0, tagged(8)),
             },
             vec![
-                "of Extrude \"base plate\" (000000000005) spells",
+                "of \"base plate\" (000000000005) spells",
                 "profile step id 000000000008",
                 "mint log does not hold",
             ],
@@ -1984,6 +1993,49 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 ],
             );
         }
+    }
+}
+
+/// **A parting says where in words and claims no cause**: the site is
+/// said by what it asks, a query's search or a test's question, and
+/// its static name and the step ride `Debug`, as a predicate's name
+/// does.
+#[test]
+fn a_parting_says_where_and_claims_no_cause() {
+    use geom_core::k_stats::{QuerySite, TestSite};
+    let node = RecipeNodeId::new(0, tagged(8));
+    let rows = [
+        (
+            Diagnosis::Parted {
+                node,
+                site: QuerySite::new("bool_glue_pairs", "the faces whose boxes meet a face's")
+                    .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the search for the faces whose \
+             boxes meet a face's found other candidates, before any verdict flipped; which \
+             change made it do so is not on record",
+            "bool_glue_pairs",
+        ),
+        (
+            Diagnosis::Parted {
+                node,
+                site: TestSite::new(
+                    "blend_reach_cell_clear",
+                    "a metered cell reads surely clear",
+                )
+                .site(),
+                step: 19,
+            },
+            "at node 000000000008, the two runs part where the test whether a metered cell \
+             reads surely clear answered otherwise, before any verdict flipped; which change \
+             made it do so is not on record",
+            "blend_reach_cell_clear",
+        ),
+    ];
+    for (d, want, name) in rows {
+        assert_eq!(d.to_string(), want);
+        assert_f6(&d, &[], &["Parted", name, "19"]);
     }
 }
 
@@ -2840,6 +2892,7 @@ test_utils::f6_variants! {
         ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
+        YieldRemoved,
     ];
 }
 
@@ -2885,6 +2938,25 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Shell 000000000005 selects the end cap of Extrude 000000000007",
                 "this edit kept a step it names but no longer draws that piece",
                 "so Shell 000000000005 refuses until the name is rebound",
+            ],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Run,
+            },
+            vec!["this edit kept the pieces it names but joined or broke their run"],
+        ),
+        (
+            Maintenance::Strand {
+                node: held(5, "Shell"),
+                name: spoken_face_name(),
+                took: editor_core::Took::Corner,
+            },
+            vec![
+                "this edit kept the pieces it names but continued one into the other at the \
+                 corner it names",
             ],
         ),
         (
@@ -2965,6 +3037,13 @@ fn maintenance_display_says_what_the_edit_did() {
                 "nothing reading #0:0000000000070000",
                 "the tolerance it carried went with it",
             ],
+        ),
+        (
+            Maintenance::YieldRemoved {
+                binder: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(3)), None),
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec!["yields #0:0000000000070000 no more", "the edit removed it"],
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
@@ -3512,7 +3591,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
     for (error, said) in rows {
         let text = error.to_string();
         for node in said {
-            let spoken = node.to_string();
+            let spoken = editor_core::test_support::node_text(&node);
             let at = text
                 .find(&spoken)
                 .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));

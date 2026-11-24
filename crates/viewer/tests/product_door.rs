@@ -77,7 +77,7 @@ fn a_fresh_body_is_placed_into_the_world_and_its_copy_added() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 2, "the placement and the slot");
     let doc = session.committed_doc();
-    let [copy] = viewer::world::placements_of(doc, body)[..] else {
+    let [copy] = doc.placements_of(body)[..] else {
         panic!("one copy of the box")
     };
     assert!(
@@ -124,7 +124,7 @@ fn a_world_copy_is_added_to_the_slot() {
     session.pump();
     // The second box through the door first, so the slot reads one body.
     assert!(add(&mut session, b).refusal.is_none());
-    let [b_copy] = viewer::world::placements_of(session.committed_doc(), b)[..] else {
+    let [b_copy] = session.committed_doc().placements_of(b)[..] else {
         panic!("one copy of the second box")
     };
     let before = session.committed_doc().clone();
@@ -186,11 +186,7 @@ fn a_copy_nothing_reads_is_moved_into_the_world_and_a_space_it_did_not_mint_kept
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 2, "the re-target and the slot");
     let doc = session.committed_doc();
-    assert_eq!(
-        viewer::world::placements_of(doc, body),
-        [copy],
-        "no second copy"
-    );
+    assert_eq!(doc.placements_of(body), [copy], "no second copy");
     assert_eq!(
         doc.node_space(copy),
         Some(VarId::WORLD),
@@ -224,7 +220,7 @@ fn a_stray_the_product_reads_is_moved_back_into_the_world() {
     let tol = Tol::witness();
     let (mut session, body) = fresh_box(tol);
     assert!(add(&mut session, body).refusal.is_none());
-    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+    let [copy] = session.committed_doc().placements_of(body)[..] else {
         panic!("one copy of the box")
     };
     let own = session.perform(SessionOp::IntoOwnSpace { placement: copy });
@@ -238,9 +234,8 @@ fn a_stray_the_product_reads_is_moved_back_into_the_world() {
         "{:?}",
         session.product_fault()
     );
-    let recourse =
-        viewer::frame::product_recourse(session.product_fault(), session.committed_doc());
-    let [(label, op)] = &recourse[..] else {
+    let recourse = viewer::test_support::product_commits(session.current());
+    let [viewer::recourse::Commit { label, op }] = &recourse[..] else {
         panic!("one action, on the stray copy: {recourse:?}")
     };
     assert!(label.starts_with("Move "), "{label}");
@@ -285,7 +280,7 @@ fn a_body_with_a_world_copy_is_not_placed_again() {
     let tol = Tol::witness();
     let (mut session, body) = fresh_box(tol);
     assert!(add(&mut session, body).refusal.is_none());
-    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+    let [copy] = session.committed_doc().placements_of(body)[..] else {
         panic!("one copy of the box")
     };
     let twice = add(&mut session, body);
@@ -303,11 +298,7 @@ fn a_body_with_a_world_copy_is_not_placed_again() {
     let outcome = add(&mut session, other);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    assert_eq!(
-        viewer::world::placements_of(doc, other),
-        [held],
-        "no second copy"
-    );
+    assert_eq!(doc.placements_of(other), [held], "no second copy");
     assert_eq!(
         product(&session),
         doc.outputs(held),
@@ -330,7 +321,7 @@ fn a_world_union_is_added_as_itself() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(
+            members: Bodies::spelled(
                 [a_copy, b_copy]
                     .map(|copy| BodyRead::plain(Operand::Node(copy)))
                     .to_vec(),
@@ -439,7 +430,7 @@ fn a_copy_something_reads_is_placed_rather_than_moved() {
     let (doc, _) = common::inserted(
         session.committed_doc(),
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Var(read))]),
+            members: Bodies::spelled(vec![BodyRead::plain(Operand::Var(read))]),
         },
         tol,
     );

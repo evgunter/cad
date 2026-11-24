@@ -292,6 +292,10 @@ enum Path<'a, T: CertifiedBounds> {
 }
 
 impl<'a, T: CertifiedBounds> Path<'a, T> {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(carrier: &'a SpanCarrier<'a, T>) -> Option<Self> {
         let (sheet, carrier) = (carrier.sheet.as_ref(), carrier.curve);
         let p = |p: Point3<T>| [p.x, p.y, p.z].map(Interval::from_certified);
@@ -299,7 +303,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let path = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
-                d: v(dir),
+                d: v(dir.get()),
             },
             Curve3::Circle(_) | Curve3::Ellipse(_) => {
                 let lifted = carrier.map_scalar(Interval::from_certified);
@@ -568,8 +572,8 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     /// middle is taken. `None` where the foot is not found.
     fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
         let c = self.path.at(exact(end));
-        let [x, y, z] = midpoint(&c).map(T::from_computed);
-        let foot = chart.project(Point3::new(x, y, z)).ok()?;
+        let [x, y, z] = midpoint(&c);
+        let foot = chart.project_at(Point3::new(x, y, z)).ok()?;
         let at = [end, foot.u, foot.v];
         Some(End {
             at: Cell(at.map(|c| (c, c))),
@@ -1121,7 +1125,7 @@ fn held(found: &[Found], ends: &[Cell], x: Cell) -> bool {
 /// # Errors
 ///
 /// [`SplineFaceRefusal`], as its variants say.
-pub fn settle<T: Decide>(
+pub fn settle<T: geom_core::Certifies>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
     isolated: &Isolated,
@@ -1131,7 +1135,7 @@ pub fn settle<T: Decide>(
     let gap_as = |row, p: Point3<T>, q: Point3<T>| {
         decide(row, Margin::of((p - q).norm()), band).map_err(SplineFaceRefusal::Escalated)
     };
-    let ends = [a, b].map(|t| carrier.eval(T::from_computed(t)));
+    let ends = [a, b].map(|t| carrier.eval_at(t));
     let mut out: Vec<ChartMeeting<T>> = Vec::with_capacity(isolated.roots.len());
     for &root in &isolated.roots {
         let root = Cell(root);
@@ -1140,7 +1144,7 @@ pub fn settle<T: Decide>(
         }
         let [tm, um, vm] = root.mid();
         let point = carrier.eval(T::from_computed(tm));
-        let foot = chart.eval(T::from_computed(um), T::from_computed(vm));
+        let foot = chart.eval_at(um, vm);
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
         if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {

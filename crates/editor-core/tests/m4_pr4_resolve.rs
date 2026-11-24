@@ -170,7 +170,7 @@ fn slide_union(tx: f64) -> Slide {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), placement.into()]),
         },
     );
     Slide {
@@ -428,14 +428,16 @@ fn a_vanished_join_diagnoses_honestly_with_tombstone() {
     assert_eq!(*name, probe);
     // The union's two runs part where its pruning queries hand on other
     // candidates (the slid block leaves the other's boxes), before any
-    // choice turns: no flip is on the record, so the diagnosis is the
-    // evidence-free fallback at the minting node, and never a flip read
-    // off decisions about different pairs (N5's first turn).
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::RecipeEdit {
-            edit: editor_core::RecipeEditRef::NodeChanged { node: s.union }
-        }
+    // choice turns: no flip is on the record, so the diagnosis names
+    // the union's face-pair query where the runs parted, and never a
+    // flip read off decisions about different pairs (N5's first turn).
+    assert!(
+        matches!(
+            diagnosis,
+            Diagnosis::Parted { node, site, step: 0 }
+                if *node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{diagnosis:?}"
     );
     // The tombstone: last-good entry at the union, edge kind, owning
     // body = the union's body name.
@@ -483,7 +485,7 @@ fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constit
         s.doc.clone(),
         DocEdit::SetMembers {
             node: s.union,
-            members: editor_core::Bodies::Spelled(vec![s.a.into()]),
+            members: editor_core::Bodies::spelled(vec![s.a.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -527,7 +529,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
     let (doc, u2) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![s.union.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![s.union.into(), c.into()]),
         },
     );
     let ev1 = run(&doc, None);
@@ -554,7 +556,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
         doc.clone(),
         DocEdit::SetMembers {
             node: u2,
-            members: editor_core::Bodies::Spelled(vec![s.union.into()]),
+            members: editor_core::Bodies::spelled(vec![s.union.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -686,8 +688,8 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
         },
         "the upstream vanish carries the root cause"
     );
-    // And the through-name's own resolution is the union's honest
-    // fallback (`a_vanished_join_diagnoses_honestly_with_tombstone`).
+    // And the through-name's own resolution names where the union's
+    // runs part (`a_vanished_join_diagnoses_honestly_with_tombstone`).
     let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
@@ -702,13 +704,17 @@ fn member_of_vanished_master_name_diagnoses_cascade() {
     let Resolution::Failed(fm) = res_master else {
         panic!("expected Failed, got {res_master:?}");
     };
-    assert!(matches!(
-        fm.error,
-        ResolveError::Vanished {
-            diagnosis: Diagnosis::RecipeEdit { .. },
-            ..
-        }
-    ));
+    assert!(
+        matches!(
+            fm.error,
+            ResolveError::Vanished {
+                diagnosis: Diagnosis::Parted { node, site, .. },
+                ..
+            } if node == s.union && site.name == "bool_glue_pairs"
+        ),
+        "{:?}",
+        fm.error
+    );
 }
 
 // ---- Indeterminate: failed and poisoned targets ----
@@ -722,7 +728,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -1127,7 +1133,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let (doc1, bl) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1163,7 +1169,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc1.clone(),
         DocEdit::SetMembers {
             node: bl,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), c.into()]),
         },
     );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
@@ -1242,7 +1248,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![b.into(), d.into()]),
         },
     );
     let (doc1, _, n) = fixture::linear(doc, x, [0.0, 1.0, 0.0], 2.0, 2);
@@ -1251,7 +1257,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc1,
         DocEdit::SetMembers {
             node: x,
-            members: editor_core::Bodies::Spelled(vec![c.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![c.into(), d.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));

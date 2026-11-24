@@ -5,7 +5,8 @@ title: The viewer expresses no backend or adapter preference, and a faulting ICD
 status: open
 opened: 2026-09-04
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 

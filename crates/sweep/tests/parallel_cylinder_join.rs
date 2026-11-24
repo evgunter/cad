@@ -430,53 +430,215 @@ fn the_lens_oracle_agrees_with_a_second_slicing() {
 /// of radius `r` about `(c, 0)` over `z ∈ [−half, half]`, tipped `theta`
 /// about the `x` axis through its centre.
 fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
+    try_tipped(r, c, half, theta)
+        .unwrap_or_else(|e| panic!("the tipped rod is not a finished body: {e:?}"))
+}
+
+/// [`tipped`], or the tipped rod's own finish refusal.
+fn try_tipped(r: f64, c: f64, half: f64, theta: f64) -> Result<Pose, topo::NotFinished> {
     let tol = Tol::witness();
     let m = Affine3::rotation_about_axis(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
     let rod_b = rod(r, (c, 0.0), (-half, half));
-    Pose {
+    let b = topo::finish(
+        topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
+        tol,
+    )?;
+    Ok(Pose {
         label: format!("drum × rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
-        b: finished(
-            "the tipped rod",
-            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
-            tol,
-        ),
+        b,
         va: PI * 0.25 * (2.0 * half + 2.0),
         vb: PI * r * r * 2.0 * half,
         shared: lens((0.0, 0.0), 0.5, (c, 0.0), r).0 * 2.0 * half,
-    }
+    })
 }
 
-/// **A rod tipped off parallel over a long wall takes a decided door.**
-/// The frame levers the axes' parallelism by the walls' reach, so a tip
-/// whose drift over the walls is past the band reads as a skew pair (at
-/// the witness tolerance, `GermFrameUnsupported`; at a finer one the
-/// crossing layer meets the drift first) rather than reaching the
-/// rulings arm and failing at the result's pcurve pass, as it did with
-/// the parallelism levered by the radius alone. A tip whose drift stays
-/// inside the zero band is parallel, and builds. The tips are set from
-/// the band, so the row asks the same question at every tolerance.
-#[test]
-fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
+/// **The half-lengths at which a tipped rod past the band refuses its
+/// own finish at ε 1e-12** (`crate::common::frame_cost::at_the_least_band`):
+/// its wall's volume escalates `props_cylinder_circle_off_axis`, margin
+/// in `(1.25e-12, 1.35e-12]` (measured 1.307e-12 at every tip and both
+/// radii), so [`tipped_poses`] holds no such pose there. Cause: polar, the rod's stored frame read as its polar
+/// enclosure, levered by its length; mutant A (PR 7131's body) finishes
+/// it, and turns this pin red; mutant F1X does not. At half-length 50
+/// the rod finishes and every op refuses `CurvedPierceUnsupported`.
+const TIPPED_ROD_FRAME_COST: [f64; 1] = [200.0];
+
+/// Whether the rod [`try_tipped`] builds at `(r, c, half, theta)` is
+/// pinned by [`TIPPED_ROD_FRAME_COST`] here, after checking that it
+/// refuses as pinned.
+fn tipped_rod_refuses_as_pinned(r: f64, c: f64, half: f64, theta: f64) -> bool {
+    if !(crate::common::frame_cost::at_the_least_band() && TIPPED_ROD_FRAME_COST.contains(&half)) {
+        return false;
+    }
+    crate::common::frame_cost::assert_rod_refuses_its_finish(
+        &format!("the rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
+        &try_tipped(r, c, half, theta).map(|_| ()),
+        (1.25e-12, 1.35e-12),
+    );
+    true
+}
+
+/// The tipped poses [`a_rod_tipped_off_parallel_over_a_long_wall_is_read_as_skew`]
+/// and [`a_tipped_rod_reads_alike_in_both_operand_orders`] read: the
+/// half-lengths 50 and 200, drifts of 2 and 20 escalations over the
+/// rod's length, and two rods. The r 0.2 rod stands at `x = 0.55`, off
+/// the drum's seam: at `x = 0.5` its axis runs within the tip's drift of
+/// the drum's seam line, which is a reading of its own
+/// ([`a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band`]). At
+/// ε 1e-12 the half-length 200 rods refuse their own finish and are not
+/// read ([`TIPPED_ROD_FRAME_COST`]).
+fn tipped_poses() -> Vec<(f64, f64, Pose)> {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let mut poses = Vec::new();
     for half in [50.0, 200.0] {
-        for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
-            for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
-                let pose = tipped(r, c, half, drift / (2.0 * half));
-                for (op, res, _) in pose.runs() {
-                    assert!(
-                        matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
-                        "{} | {op}: {:?}",
-                        pose.label,
-                        res.map(|_| "a body")
-                    );
+        for k in [2.0, 20.0] {
+            for (r, c) in [(0.2, 0.55), (0.3, 0.6)] {
+                let drift = k * band.escalate();
+                if tipped_rod_refuses_as_pinned(r, c, half, drift / (2.0 * half)) {
+                    continue;
                 }
+                poses.push((half, k, tipped(r, c, half, drift / (2.0 * half))));
             }
         }
     }
+    poses
+}
+
+/// **Where a tipped pose builds at ε `1e-6`, the widest certified
+/// volume half-width its runs admit**: twice the widest each pose
+/// measured there (`1.3e-6`, `2.5e-5`, `2.2e-3` at main `032c2f9f5`).
+/// These are the certified enclosures' widths at that band, of a
+/// section traced over a 100 m or 400 m wall, not a volume missed:
+/// every body holds the closed form inside its own. `None` where the
+/// pose refuses at that ε (the larger tip over the half-length 50,
+/// `Coincidence(SectorSide, Moot)`).
+fn built_at_coarse(half: f64, k: f64) -> Option<f64> {
+    match (half, k) {
+        (50.0, 2.0) => Some(3e-6),
+        (200.0, 2.0) => Some(5e-5),
+        (200.0, 20.0) => Some(5e-3),
+        _ => None,
+    }
+}
+
+/// **A rod tipped off parallel over a long wall is read as skew.** The
+/// frame levers the axes' parallelism by the walls' reach, so a tip
+/// whose drift over the walls is past the band reads as a skew pair:
+/// no op reaches the rulings arm and fails at the result's pcurve pass,
+/// as it did with the parallelism levered by the radius alone. A tip
+/// whose drift stays inside the zero band is parallel, and builds. The
+/// tips are set from the band, so the row asks the same question at
+/// every tolerance, and each ε answers it:
+/// - at the default ε every tip past the band escalates
+///   (`Coincidence(Section, Moot)` or `Coincidence(SectorSide, Moot)`);
+/// - at `1e-6` the skew pair's section is traced by the general march
+///   (each section edge a `Nurbs` carrier, no ruling), and every op of
+///   every pose past the band builds a SOUND body within the widths
+///   [`built_at_coarse`] admits, but for the larger tip over the
+///   half-length 50, which escalates;
+/// - at `1e-12` the half-length 50 poses refuse at
+///   `CurvedPierceUnsupported`; the half-length 200 rods refuse their own
+///   finish there ([`TIPPED_ROD_FRAME_COST`]).
+///
+/// At `1e-6` these tips refused every op until PR 7112, with
+/// `JoinDesync { "the march found one loop of the section twice" }`:
+/// the march's distinct-loop check read a branch's witness on the other
+/// branch through a foot seeded at the span's start, and 7112 reads it
+/// over the pieces the point lies in.
+#[test]
+fn a_rod_tipped_off_parallel_over_a_long_wall_is_read_as_skew() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
     let parallel = tipped(0.3, 0.6, 5.0, band.zero() / 10.0 / 10.0);
     let bad = unsound(&[parallel]);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let coarse = tol.eps() == 1e-6;
+    for (half, k, pose) in tipped_poses() {
+        for (op, res, want) in pose.runs() {
+            match built_at_coarse(half, k).filter(|_| coarse) {
+                Some(ceiling) => {
+                    let j =
+                        crate::common::differential::judged_within(res, Some(want), tol, ceiling);
+                    assert_eq!(
+                        j.verdict,
+                        crate::common::differential::Verdict::Sound,
+                        "{} | {op}: {}",
+                        pose.label,
+                        j.line
+                    );
+                }
+                None => assert!(
+                    matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                    "{} | {op}: {:?}",
+                    pose.label,
+                    res.map(|_| "a body")
+                ),
+            }
+        }
+    }
+}
+
+/// **A tipped rod on the drum's seam escalates its census in band.**
+/// The r 0.2 rod at `x = 0.5`, over the half-length 50 and tipped two
+/// escalations: its axis lies on the drum's seam line (`x = 0.5`,
+/// `y = 0`), and tipped, the seam runs within the tip's drift (to
+/// `1e-5` at the caps) of the axis of the rod's cap circles, a line in
+/// band of coaxial with a circle. At ε `1e-6` every op builds a body that
+/// is closed, certified, a legal operand, and holds the closed form
+/// inside its enclosure, and tier 3′ escalates: the census cannot decide
+/// the seam against the caps' carriers (`curve_carrier_piece_clear`,
+/// `curve_carrier_gap`, margins `9.28e-6` to `9.9999e-6` against the
+/// `1e-5` escalation), an honest in-band reading. Off the seam, at
+/// `x = 0.45` or `0.55`, tier 3′ passes. At the other ε every op refuses
+/// (escalated at the default, `CurvedPierceUnsupported` at `1e-12`).
+#[test]
+fn a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let pose = tipped(0.2, 0.5, 50.0, 2.0 * band.escalate() / 100.0);
+    for (op, res, want) in pose.runs() {
+        if tol.eps() != 1e-6 {
+            assert!(
+                matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                "{} | {op}: {:?}",
+                pose.label,
+                res.map(|_| "a body")
+            );
+            continue;
+        }
+        let Ok(BooleanResult::Body(bb)) = &res else {
+            panic!(
+                "{} | {op}: builds at 1e-6: {:?}",
+                pose.label,
+                res.map(|_| ())
+            );
+        };
+        let escalated = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+            .expect_err("tier 3′ escalates on the seam");
+        assert!(
+            escalated.iter().all(|e| {
+                let said = format!("{e:?}");
+                matches!(e, topo::ValidationError::CensusEscalated { .. })
+                    && (said.contains("curve_carrier_piece_clear")
+                        || said.contains("curve_carrier_gap"))
+            }),
+            "{} | {op}: tier 3′ escalates the seam against the caps alone: {escalated:?}",
+            pose.label
+        );
+        let j = crate::common::differential::judged_within(res, Some(want), tol, 1.0);
+        assert!(
+            j.line.contains("t2=true t3p=false cert=true operand=true"),
+            "{} | {op}: {}",
+            pose.label,
+            j.line
+        );
+        let (v, pad) = (j.volume.unwrap(), j.pad.unwrap());
+        assert!(
+            (v - want).abs() <= pad + crate::common::differential::VOLUME_CLAIM,
+            "{} | {op}: {v} ± {pad} holds {want}",
+            pose.label
+        );
+    }
 }
 
 /// A rod of radius `r` about `(x, y)`, extruded over `z ∈ [−far, far]`
@@ -911,34 +1073,27 @@ fn one_face_walls_read_their_axes_as_an_angle_row() {
     }
 }
 
-/// **A tipped rod's refusal does not hang on the operand order.** At
+/// **A tipped rod's reading does not hang on the operand order.** At
 /// the half-length 50 and the larger tip, the drum's seam vertex lies on
 /// the rod's tipped cap with its ruling a tip off the cap's plane, an
 /// honest in-band reading, while the rod's own rim vertex on the drum's
 /// wall reads the pair's definite skew frame. Whichever operand's
-/// vertices are read first, the definite refusal is the answer: every
-/// op of the pose, in both orders, refuses alike.
+/// vertices are read first, the definite reading is the answer: every
+/// op of each pose ([`tipped_poses`]), in both orders, refuses alike, or,
+/// where the pose builds ([`built_at_coarse`], at ε `1e-6`), every op
+/// builds.
 #[test]
-fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    for half in [50.0, 200.0] {
-        for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
-            for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
-                let pose = tipped(r, c, half, drift / (2.0 * half));
-                let kinds: Vec<_> = pose
-                    .runs()
-                    .into_iter()
-                    .map(|(op, res, _)| match res {
-                        Err(e) => (op, e.kind()),
-                        Ok(_) => panic!("{} | {op}: refuses", pose.label),
-                    })
-                    .collect();
-                assert!(
-                    kinds.iter().all(|(_, k)| *k == kinds[0].1),
-                    "{}: every op in both orders refuses alike: {kinds:?}",
-                    pose.label
-                );
-            }
-        }
+fn a_tipped_rod_reads_alike_in_both_operand_orders() {
+    for (_, _, pose) in tipped_poses() {
+        let read: Vec<_> = pose
+            .runs()
+            .into_iter()
+            .map(|(op, res, _)| (op, res.map(|_| ()).map_err(|e| e.kind())))
+            .collect();
+        assert!(
+            read.iter().all(|(_, r)| *r == read[0].1),
+            "{}: every op in both orders reads alike: {read:?}",
+            pose.label
+        );
     }
 }

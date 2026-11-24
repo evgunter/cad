@@ -2,10 +2,13 @@
 id: a-refusal-offers-no-action-in-the-viewer
 kind: issue
 title: viewer: a kernel refusal is shown as prose with no action the viewer can take on it
-status: open
+status: closed
 opened: 2026-09-17
 priority: P1
-cost: D
+cost: H
+pr: 7562
+branch: offer/one-offers-function
+closed: 2026-11-23
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union
@@ -131,3 +134,47 @@ is an `Offer { question, label, accept() -> SessionOp, stands(now) }`
 with one drawer. Each of the three answers `stands` in its own way: the
 name field, the generation plus the tool's picks, and the session not
 being `busy()`.
+
+## Correction (2026-11-22)
+
+The two evidence sections above describe code that has since been retired. Declarations are gone: a contact now glues and is linted. So `DeclareOffer`, `declare_offer`, `declare_question`, `UndeclaredContactFinding::recourse` and `pane::create::declare_offer_rows` are no longer in the tree. What used to be "declare the pair" is now "assert the coincidence at its site", on the Checks window. That makes this row and `a-check-offers-no-way-to-add-the-assertion-it-asks-for` one lever on one surface.
+
+There are about eight offer shapes in the viewer, not three. Three of them are stored: `drafts.new_variable_offer`, `ViewerApp::save_choice`, and the session's `derived.offer`.
+
+## Design (2026-11-22)
+
+This design was weighed by two designers and a further designer (`work/offer/log.md`).
+
+**The kernel.** A failure carries as data what its recourse determines, and its words are rendered from that data.
+- The coincidence finding carries the assertion itself (a `Gap` or `Distance` measure `= 0` over its two cells) in place of `quietable: bool`. The assertion is minted by the same rule (`saying`) that later quiets the row. "Could an assertion quiet this" is the same question as whether that value exists.
+- The interference finding carries its opposed face pair.
+- A corpus test holds the law: apply a finding's edit, re-run the checks, and the finding is quiet.
+- Python reads the same value.
+
+**The viewer.**
+- One assertion tool covers clearance, `Gap` and `Distance`.
+- One offers function maps each failure to its offers by an exhaustive match, and each offer is one of two kinds:
+  - **Commit**: one click, one undo.
+  - **Lead**: opens the form pre-filled.
+- A typed act this viewer has no door for is said in plain words, with no control, covering only its own clause.
+- Existing offers move onto this function: `version_offer`, `product_recourse`, the check row's buttons, `save_choice`, and create-variable.
+
+**Staleness.**
+- An offer is drawn when what it was read from describes what its op acts on.
+  - Document-editing ops are offered only from the committed document's run, handed out as a value that exists only when the landed and committed generations match.
+  - Re-evaluate is always current.
+- No generation is carried to the door. Each door keeps its own check.
+- An offer that answers a state is never stored. An offer that answers an event holds the event in one place and is read off it.
+
+**Order.** Assert ships first. The one-variable edit promised by `[intent.checked]` follows once the kernel can state it.
+
+## Decided (Ev, 2026-11-22, on PR #7341)
+
+"This all sounds good." The `## Design` section above is the decision. Three points it settles:
+- the `[one-way.places]` sentence is signed;
+- Assert ships first, and "make these one variable" follows directly after;
+- a typed act that has no door in this viewer is said in plain words.
+
+## For the offers unit (2026-11-22, from PR #7348's review)
+
+`SessionOp::AddAssertion`'s `AssertedSeat::Read(Operand)` admits any operand. A seat built from a finding's raw `NamedCell` name, `Operand::select(input, [name])`, is accepted at the door and then fails at evaluation (`SelectResolve{Vanished}`). The finding's names are keyed by ⊔ (`at_rest::keyed_by`), so the document gains a broken assertion. The offers unit must therefore fill the op from the kernel-minted value only, and that value comes from `a-check-offers-no-way-to-add-the-assertion-it-asks-for`. The unit should also decide whether the op takes that value directly, which would rule out a hand-built read by type.

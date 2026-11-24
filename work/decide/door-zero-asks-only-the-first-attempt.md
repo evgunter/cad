@@ -2,9 +2,10 @@
 id: door-zero-asks-only-the-first-attempt
 kind: issue
 title: door_zero asks only the first attempt's door form, so a registration contradicted only at a retry goes uncounted
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
+closed: 2026-11-24
 ---
 
 
@@ -56,3 +57,7 @@ it first: a retry is paid today only where every first-attempt rung
 failed, and the definite-sign path would pay it at every definite
 margin that has a registration in its session. Doing it only where the
 registry is non-empty bounds that to documents with arcs.
+
+## Closed
+
+PR 7394 (2026-11-24): the instrument asks the door at every attempt (`work/sym/the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision.md`).

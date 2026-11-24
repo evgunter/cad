@@ -7,11 +7,14 @@
 //!
 //! # What this is, and is not
 //!
-//! This is an **identity channel, not a comparison door**: NO
-//! production coincidence path consults it (see the retirement note
-//! below) — a coincidence is its margin's to decide (D10), and what
-//! remains is exact-representation plumbing. It never orders
-//! values, never bands, and is deliberately NOT part of the
+//! This is an **identity channel, not a comparison door**: no
+//! coincidence between two cells consults it (see the retirement note
+//! below) — a coincidence is its margin's to decide (D10). What remains
+//! is exact-representation plumbing, and one decision DESIGN
+//! `[extensibility]` makes on stored values: a spline net's collapsed
+//! side, a boundary iso whose control points are all one stored point
+//! ([`one_stored_point`]), which is a chart singularity there. It never
+//! orders values, never bands, and is deliberately NOT part of the
 //! [`Real`](crate::Real) trait surface — evaluation code stays
 //! comparison-free.
 //!
@@ -23,10 +26,11 @@
 //!   sources (allowlist: this file, plus `interval.rs` which defines
 //!   `Interval::repr_bits` over its own storage).
 //! - **Retired from production coincidence (NAMING-DESIGN N6)**: no
-//!   production path checks coincidence through this channel. The CI
-//!   tripwires stay armed with an EMPTY production-consumer
-//!   allowlist; the remaining allowlisted files are non-consumers
-//!   (scalar plumbing).
+//!   production path checks a coincidence between two cells through
+//!   this channel. The CI tripwire (`scripts/gates/bit-identity-consumer.sh`)
+//!   stays armed: every file that reaches the channel is listed there
+//!   with what it reads it for, scalar plumbing or the collapsed-side
+//!   reading and the knot algebra that keeps it.
 //!
 //! A scalar type without an arm below (e.g. `Dual`, which no `Body`
 //! instantiates) yields `None`: no bit channel, so a caller takes the
@@ -67,15 +71,33 @@ pub fn repr_bits<T: crate::Real>(x: &T) -> Option<ScalarBits> {
 /// same expression) and a bit-equal numeric channel. Any other `Sym`
 /// value type has no channel.
 ///
-/// **An identity, never a verdict.** A caller reads it only to choose
-/// between two sound paths, where a false "no" costs the slower one:
-/// it decides nothing about geometry, and a coincidence is still its
+/// **An identity, never a coincidence verdict.** A caller reads it to
+/// choose between two sound paths, where a false "no" costs the slower
+/// one, or to read which description is stored, as [`one_stored_point`]
+/// reads a collapsed side; a coincidence between two cells is still its
 /// margin's to decide (D10).
 pub fn eq_bits<T: crate::Real>(a: &T, b: &T) -> Option<bool> {
     if let Some(same) = eq_sym::<f64, T>(a, b).or_else(|| eq_sym::<crate::Interval, T>(a, b)) {
         return same;
     }
     Some(repr_bits(a)? == repr_bits(b)?)
+}
+
+/// **Whether `a` and `b` are one stored point**: every coordinate the
+/// same description ([`eq_bits`]) or both a zero of either sign (`−0`
+/// and `+0` are one value, so a net revolved from the axis, whose apex
+/// row is `0·x` for `x` of either sign, holds one point there), and
+/// `false` at a scalar with no channel. The one reading of a spline net's collapsed side (DESIGN
+/// `[extensibility]`: a boundary iso whose control points are all one
+/// stored point is a chart singularity), which the singular set's home
+/// reads, and which the knot algebra keeps by carrying such a pair's
+/// blend as the point itself.
+pub fn one_stored_point<T: crate::Real>(a: &crate::Point3<T>, b: &crate::Point3<T>) -> bool {
+    let zero =
+        |x: &T| eq_bits(x, &T::zero()) == Some(true) || eq_bits(x, &-T::zero()) == Some(true);
+    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+        .iter()
+        .all(|(p, q)| eq_bits(p, q) == Some(true) || (zero(p) && zero(q)))
 }
 
 /// [`eq_bits`] of two `Sym<V>`s, or `None` when `T` is not `Sym<V>`.
@@ -86,7 +108,7 @@ fn eq_sym<V: crate::Real, T: crate::Real>(a: &T, b: &T) -> Option<Option<bool>> 
         b.downcast_ref::<crate::Sym<V>>()?,
     );
     Some(if a.node() == b.node() {
-        eq_bits(&a.value, &b.value)
+        eq_bits(&a.value(), &b.value())
     } else {
         Some(false)
     })
@@ -107,6 +129,20 @@ mod tests {
         let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
         assert_eq!(eq_bits(&nan1, &nan2), Some(false));
         assert_eq!(eq_bits(&nan1, &nan1), Some(true));
+    }
+
+    /// **One stored point**: the same bits, or zeros of either sign, in
+    /// every coordinate; a point one ulp off is another.
+    #[test]
+    fn one_stored_point_reads_bits_and_either_zero() {
+        use crate::Point3;
+        let p = Point3::new(0.0, -0.0, 1.0);
+        assert!(
+            one_stored_point(&p, &Point3::new(-0.0, 0.0, 1.0)),
+            "zeros of either sign"
+        );
+        let ulp = Point3::new(0.0, 0.0, f64::from_bits(1.0_f64.to_bits() + 1));
+        assert!(!one_stored_point(&p, &ulp), "one ulp off");
     }
 
     /// A channel-less scalar yields `None` — the conservative rung.

@@ -159,7 +159,7 @@ fn perpendicular_cut_stays_rung_1_circles() {
                 continue;
             };
             if let Curve3::Circle(k) = *c.carrier()
-                && (k.frame.origin().z - 0.5).abs() < 1e-12
+                && (k.frame().origin().z - 0.5).abs() < 1e-12
             {
                 assert!((k.radius() - 0.5).abs() < 1e-12);
                 section_circles += 1;

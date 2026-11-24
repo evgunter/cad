@@ -306,7 +306,11 @@ fn a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_
         PathError::NoCornerForFillet {
             reason:
                 PathNoCornerReason::TurnWithinTolerance {
-                    lever_of: TurnLever::ShorterLeg,
+                    turn:
+                        profile::LeveredTurn {
+                            lever_of: TurnLever::ShorterLeg,
+                            ..
+                        },
                     ..
                 },
             ..

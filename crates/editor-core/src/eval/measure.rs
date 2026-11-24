@@ -95,6 +95,8 @@
 //! which face stands outside the other, positive where the inner stands
 //! out of the outer's material: no clearance and no interference.
 
+use crate::Said;
+use crate::say;
 use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Point3, Vec3};
@@ -435,7 +437,7 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             let round = topo::Round::of(&surface, face.sense);
             match (&surface, round) {
                 (Surface::Cylinder { frame, radius, .. }, Some(round)) => {
-                    let (origin, axis) = (frame.origin(), frame.axis());
+                    let (origin, axis) = (frame.origin(), frame.axis_unit());
                     let Some(reach) = reach(|s| s.frame().map(|f| f.origin())) else {
                         return Carrier::Other("a face with no cover");
                     };
@@ -468,12 +470,12 @@ pub(crate) fn carrier_of<'b, T: Decide>(
                 return Carrier::Other("an unreadable edge");
             };
             let carrier = body
-                .get_curve_geom(edge.curve)
-                .and_then(|g| g.certified())
+                .edge(k)
+                .and_then(topo::EdgeView::certified)
                 .map(topo::EdgeCurve::carrier);
             match carrier {
                 Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
-                    dir: seat.vec(*dir),
+                    dir: seat.vec(dir.get()),
                     ends: body
                         .half_edge_start_point(edge.he_plus)
                         .zip(body.half_edge_start_point(edge.he_minus))
@@ -596,8 +598,9 @@ fn parallel<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, PrimitiveRefusal> {
-    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-    // points' separation, a sum no extent read spells in this order.
+    // Unsourced lever: [`arm`], each operand's stored reach summed with their reference
+    // points' separation; the union's read needs each `Carrier` to hold its region
+    // (`work/oneround/stored-reach-scalars-a-union-cannot-be-read-from.md`).
     geom_brep::directions_parallel(what, u, v, geom_core::Lever::unsourced(arm), band)
         .map_err(PrimitiveRefusal::Escalated)
 }
@@ -704,7 +707,13 @@ pub(crate) fn reach_of<T: Decide>(
     band: Band,
 ) -> Option<T> {
     let cover = topo::face_cover(body, k, band).ok()?;
-    Some(cover.distance_range(&geom::cover::Site::Point(origin)).1)
+    Some(far_from(&cover, origin))
+}
+
+/// **The farthest a region's cover stands from `origin`**: the one
+/// reading of a reach, a face's ([`reach_of`]) or a profile's loop's.
+pub(crate) fn far_from<T: geom_core::Real>(cover: &geom::cover::Cover<T>, origin: Point3<T>) -> T {
+    cover.distance_range(&geom::cover::Site::Point(origin)).1
 }
 
 /// `distance(a, b)` -> Length. Unsigned throughout: a distance is a
@@ -765,7 +774,7 @@ fn distance<T: Decide>(
         // pair shares, which is `gap`'s refusal for the same reason.
         (Carrier::Cylinder { axis: la, .. }, Carrier::Cylinder { axis: lb, .. }) => {
             let axes = geom_brep::Directions::Axes;
-            if !parallel(axes, la.dir, lb.dir, arm(a, b), band)? {
+            if !parallel(axes, la.dir.get(), lb.dir.get(), arm(a, b), band)? {
                 return not_parallel("distance", axes.name(), a, b);
             }
             Ok(la.distance(lb.origin))
@@ -1038,8 +1047,9 @@ fn face_pose<T: Decide>(
 ) -> Option<Result<geom_brep::CarrierPose<T>, PrimitiveRefusal>> {
     use geom_brep::CarrierPoseRefusal as R;
     let (a, b) = (posed(outer)?, posed(inner)?);
-    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-    // points' separation, a sum no extent read spells in this order.
+    // Unsourced lever: [`arm`], each operand's stored reach summed with their reference
+    // points' separation; the union's read needs each `Carrier` to hold its region
+    // (`work/oneround/stored-reach-scalars-a-union-cannot-be-read-from.md`).
     let lever = geom_core::Lever::unsourced(arm(outer, inner));
     let (first, second) = match (outer, inner) {
         (Carrier::Sphere { .. } | Carrier::Cylinder { .. }, Carrier::Plane { .. }) => {
@@ -1343,12 +1353,19 @@ pub enum ObservedRefusal {
     Expr(crate::expr::EvalError),
 }
 
-impl core::fmt::Display for ObservedRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ObservedRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Measure(standing) => write!(f, "{standing}"),
+            Self::Measure(standing) => say!(f, Said(&standing, by)),
             Self::Expr(source) => write!(f, "{source}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for ObservedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1599,7 +1616,7 @@ mod tests {
         };
         let axis = geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            dir: v(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(v(0.0, 0.0, 1.0)),
         };
         let cylinder = |convex| Carrier::Cylinder {
             axis,
@@ -1704,7 +1721,10 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
-        let axis = geom::Line { origin, dir: axis };
+        let axis = geom::Line {
+            origin,
+            dir: geom::stated_direction(axis),
+        };
         Carrier::Cylinder {
             axis,
             radius,

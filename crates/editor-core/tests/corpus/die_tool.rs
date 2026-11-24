@@ -139,10 +139,10 @@ pub fn document() -> CorpusDoc {
     // ---- the cutting tool: one placement of the master per pip ----
     let pips: Vec<editor_core::BodyRead<Formula>> = placements()
         .into_iter()
-        .map(|values| editor_core::BodyRead::plain(r.copies(master, values)))
+        .map(|values| editor_core::BodyRead::plain(r.copy(master, values)))
         .collect();
     let tool = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(pips),
+        members: editor_core::Bodies::spelled(pips),
     });
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),

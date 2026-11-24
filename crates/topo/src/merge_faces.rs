@@ -750,9 +750,7 @@ pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
 ) -> Option<Indeterminate> {
-    let (EulerOpError::Certification { error } | EulerOpError::RechartFalsifies { error, .. }) =
-        refusal
-    else {
+    let EulerOpError::DescriptionUncertified { error, .. } = refusal else {
         return None;
     };
     match (carrier, error) {
@@ -785,17 +783,18 @@ pub(crate) fn edge_on_faces_reading(
 /// other refusal's whole text. The door reporting it gives the ending.
 pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
     match cause {
-        EulerOpError::Certification {
+        EulerOpError::DescriptionUncertified {
             error:
                 geom_brep::CertifyError::ResidualExceeded {
                     check,
                     sample,
                     margin,
                 },
+            ..
         } if *sample != geom_brep::certify::NOT_A_SAMPLE => {
             format!("{check} at sample {sample} is {margin:e}, definitely past the tolerance")
         }
-        EulerOpError::Certification { error } => error.to_string(),
+        EulerOpError::DescriptionUncertified { error, .. } => error.to_string(),
         other => other.to_string(),
     }
 }
@@ -808,7 +807,7 @@ pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
 /// walk broke.
 pub(crate) fn undescribed_ending(cause: Option<&EulerOpError>, fitted: bool) -> String {
     match cause {
-        Some(EulerOpError::Certification { error }) if fitted => error
+        Some(EulerOpError::DescriptionUncertified { error, .. }) if fitted => error
             .ending(Reading::Build)
             .unwrap_or_else(|| geom_core::KERNEL_DEFECT_ENDING.to_owned()),
         _ => geom_core::KERNEL_DEFECT_ENDING.to_owned(),
@@ -1553,10 +1552,10 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_unasked` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
+/// | `ring_move_unasked` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Band` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
 /// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_unasked`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
-/// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
+/// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Band`, `DescriptionUncertified` |
 /// | `kemr` | `NotSameLoop` (C) |
 ///
 /// The `mekr_chord` row and the `kev` after it run only on a planar
@@ -1617,7 +1616,7 @@ impl OpPlacement {
             // survivor, so a nested group meets it on a body that was
             // never torn. ----
             E::SameFace { .. }
-            | E::Certification { .. }
+            | E::DescriptionUncertified { .. }
             | E::RebasedCarrier { .. }
             | E::RebasedNullEdge { .. }
             | E::MergeRebasesCarriers { .. }
@@ -1627,11 +1626,11 @@ impl OpPlacement {
             | E::RechartStrandsDescriptions { .. }
             | E::RechartUnvouched { .. }
             | E::RechartUndescribed { .. }
-            | E::RechartFalsifies { .. }
             | E::RechartOffBoundary { .. }
             | E::RechartBoundaryEscalated { .. }
             | E::NotMovedEdge { .. }
             | E::FaceMovedTwice { .. }
+            | E::Band(_)
             | E::FanStartMismatch { .. }
             | E::LoopNotEmpty { .. }
             | E::NotSameFace { .. }
@@ -2277,16 +2276,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
                 for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
-                    let BoundaryMember::Edge {
-                        he,
-                        ek: edge,
-                        edge: e,
-                        ..
-                    } = member
-                    else {
+                    let BoundaryMember::Edge { he, edge: e, .. } = member else {
                         continue;
                     };
-                    let Some(claim) = e.claim(he) else {
+                    let edge = e.key();
+                    let Some(claim) = e.record().claim(he) else {
                         unreachable!(
                             "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
                              an edge claims the two half-edges that name it"

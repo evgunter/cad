@@ -39,3 +39,41 @@ unchanged. Rows dispatchable: 10, for 23.5 points.
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` touches this program's ground. `eval/wire.rs` and `eval/mod.rs`: as on WIRE's log (`resolve_name`, `reference_body`). `eval/measure.rs`: `gap_value` returns the measure's finite value (`gap(..).and_then(finite)`), as `wire_measure` does.
 - 2026-11-18 — **Seam (DOCTAIL, PR 7087):** a pick of a pick now has one composing rule, `Doc::pick_path` (`crates/editor-core/src/doc.rs`), which `eval/wire.rs`'s seat `pick_of`, the edit door's `pick_fault`, `product::picked` and split all call. A seat reading `Source(pick(pick(copy,[g1]),[a]))` now evaluates to `a`; before, it refused "names no piece at step 1". `product.rs`'s gather also reads through a source. (DOCTAIL orchestrator)
 - 2026-11-18 — **From EMBED: Ev ruled on what an op over an assembly owes between its pieces** (PR 7068, decision 3; `docs/DESIGN.md` `[topology.tiers]`, `[operations.operators]`, `[topology.records]`). Cells carried unchanged between two pieces keep the meeting they arrived with and are not read again; the op reads what it made once (a touch is its record, an overlap from material it added is a new interference finding, never a refusal); nothing but contact records rides the finished body; a fresh census over all the new pieces was rejected as deciding carried touches twice. The unit is `work/embed/an-op-over-an-assembly-answers-only-for-what-it-made.md` (P1, H), which waits on `embed/records`. It is the "done when" of `a-cut-distributed-over-a-seat-re-decides-the-seat-and-reports-its-split-tool` (P1) and bears on `the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean`: read the unit's row before dispatching either. (EMBED orchestrator)
+
+## 2026-11-22 — sitting opened
+
+Picked up by a new TALLY orchestrator (all lanes on Opus 5.5: Fable usage
+is out, Ev in chat 2026-11-22, so the model comparison's draws do not
+run this sitting; its rows are recorded as not drawn).
+- Closed `main-red-rustdoc-eval-mod-links-to-measure-observed`: it no
+  longer reproduces (nightly 104's rustdoc gate is green).
+- Parked `a-cut-distributed-over-a-seat-re-decides-the-seat-and-reports-its-split-tool`
+  on EMBED's `an-op-over-an-assembly-answers-only-for-what-it-made`,
+  whose ruling and pins cover it.
+- Banded the two unbanded rows P3 (`a-shell-role-left-open-at-the-target-is-typed-zero-volume`:
+  latent mis-typing with no reachable witness;
+  `probe-lane-content-and-naming-keys-split-from-f64-on-every-corpus-document`:
+  tooling against a silent split).
+- Sitting slate: P1 `the-door-gates-other-in-band-findings-are-typed-the-kernels`.
+  Its code has moved since filing (`ops.rs`'s `finding_arm` is gone; the
+  arms now live in `topo/src/finish.rs`), so the lane measures first.
+  Review tier: FULL single review — typing a refusal as the operands'
+  or the kernel's needs its conditioning claims falsified, not just read.
+— (TALLY orchestrator)
+- 2026-11-22 — `the-door-gates-other-in-band-findings-are-typed-the-kernels`
+  closed as superseded, after a lane re-measured it on main (`fd7e5f47bf`).
+  The door-level `Escalated`/`ResultInvalid` split it asked to extend was
+  retired by Ev's PR 6326 ruling (PR 6371), and the row's evidence (ring
+  contacts, the large-ball union) now builds. D10's Booleans sentence is
+  re-worded to the ruled `[topology.tiers]` text: a stale description, not
+  a new decision. The residue is filed as
+  `an-in-band-pinch-corner-at-the-gate-ends-in-the-kernel-limit-recourse`
+  (P3, design: 6 of 28 884 probe runs refuse on an in-band pinch corner
+  that ends in the kernel-limit recourse, although the margin scales with
+  the tilt). Not dispatched this sitting: it is P3. Tier: no review (no
+  code changed). Model comparison: the lane stopped before building, so
+  no row. — (TALLY orchestrator)
+- 2026-11-22 — Sitting closed: no P0 or P1 row is dispatchable. TALLY
+  goes back to `ready`. — (TALLY orchestrator)
+- 2026-11-23 — **A note from BOXFINISH, for whoever picks this track up: a live stale result on your ground, taken by BOXFINISH.** A family member's indexed read of ANOTHER member is served from a prior that read the old body, because the reader's content key hashes the upstream key of the member at its own index and not of the member the index picks (`eval::members::overlay`). Demonstrated at `f64` with a row; `work/boxfinish/a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body.md` (P0). BOXFINISH builds the fix on `boxfinish/member-read-key` and settles four other inputs the key leaves out (the clearance witness, the computing twist, the boolean sweep strategy, a part row's options).
+- 2026-11-23 — (CIW) One doc-comment line in `topo/src/props.rs` now says `sweep`'s thread-count rows read 1 and 4 threads against the serial walk, not a golden (PR `ciw: digest and count goldens narrowed...`).

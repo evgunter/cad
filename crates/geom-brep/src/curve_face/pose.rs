@@ -32,7 +32,7 @@
 
 use geom::Conic;
 use geom_core::k_stats::{decide, decide_nonzero, straddle};
-use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, Rounded, Sign};
 
 use super::{Door, Route, route};
 use crate::curve_pair::Span;
@@ -125,6 +125,18 @@ pub(super) enum Formed<T: Real> {
     /// A conic against a torus on the general walk, `Lies` excluded, and
     /// the ring's floor on `|F|` per metre.
     TorusWalk { floor: T },
+    /// A spiric across a plane not parallel to its own: the line where
+    /// the two planes meet, a unit direction from its point nearest the
+    /// spiric's foot ([`super::spiric_plane`]), `across`, the unit in
+    /// the spiric's plane square to the line, and `sine`, the planes' tilt
+    /// sine as the line's own form reads it, `√(α² + β²)`: a move `d`
+    /// along `across` is a height `d·sine` off the plane. It is the
+    /// `|û × n̂|` the parallel rung decides to a rounding, not that value.
+    SpiricPlane {
+        line: geom::Line<T>,
+        across: geom_core::Vec3<T>,
+        sine: T,
+    },
 }
 
 /// **Which pose rung read in the band** ([`PoseRefusal`]).
@@ -162,6 +174,9 @@ pub enum PoseRung {
     Contour,
     /// One carrier point's residual decided past the band.
     NotLies,
+    /// Whether a spiric span is in its two-oval convention,
+    /// `0 < |offset| < R − r`.
+    SpiricRegime,
 }
 
 /// **Why [`super::pose()`] gave no class.** Each is one window over the
@@ -274,6 +289,7 @@ pub fn pose<T: Decide>(
         Door::LineRoots => line(span, surface, band),
         Door::ConicQuadric => conic_quadric(span, surface, band),
         Door::ConicTorus => conic_torus(span, surface, band),
+        Door::SpiricPlane => spiric_plane(span, surface, band),
         Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed),
         Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way)),
     }
@@ -380,6 +396,11 @@ struct Graze<T: Real> {
     /// a wall's or a sphere's radius, the touch's distance from a cone's
     /// apex.
     scale: T,
+    /// Whether the form is exactly `value + bend·(1 − cos(t − at))` in the
+    /// carrier's angle, a first harmonic with no error term (a conic's
+    /// height above a plane): its in-band arc is read in closed form
+    /// ([`arc`]).
+    harmonic: bool,
     /// Whether the root is the residual's, where the arm's form is not
     /// the residual (a cone's `F`, read through its floor). Read only
     /// once the root is known to reach the span ([`Reaching::confirmed`]):
@@ -408,9 +429,17 @@ impl<T: Real> Reaching<T> {
 /// `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the extreme's
 /// own reading. A form that falls from its extreme no faster than a first
 /// harmonic of that curvature leaves the band no nearer than that
-/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there.
+/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. A form that
+/// is exactly that first harmonic ([`Graze::harmonic`]) leaves the band at
+/// `acos(1 − z/bend)`, read in closed form.
 fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
     let z = width + g.value.abs() + g.noise;
+    if g.harmonic {
+        return (T::one() - z / g.bend.abs())
+            .max(T::zero() - T::one())
+            .min(T::one())
+            .acos();
+    }
     (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
         .min(T::pi())
 }
@@ -549,21 +578,35 @@ fn plane<T: Decide>(
 /// **A line against a plane** over the run `(t0, t1)`: the axis-parallel
 /// rung on its drift `|d·n̂|·run` ([`axis_drift`]), then its offset at the
 /// run's middle ([`axis_offset`]: lies or apart); past it, its one root.
+/// A drift in its gap answers `Apart` where the offset reads the run
+/// clear of the plane all along it, and escalates otherwise.
 pub(super) fn plane_line<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
     (origin, normal): (Point3<T>, geom_core::Vec3<T>),
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
-    let lead = line.dir.dot(normal);
+    let lead = line.dir.get().dot(normal);
     let mid = geom::mid_param(t0, t1);
-    let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
+    let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir.get() * mid);
     let run = (t1 - t0).abs();
-    if axis_drift(
+    let half_drift = lead.abs() * run / T::from_f64(2.0);
+    // A drift in its gap does not part a line from a plane it stands
+    // clear of all along the run: the offset rung reads it apart first.
+    let parallel = match axis_drift(
         Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
         band,
-    )? {
-        return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
+    ) {
+        Ok(parallel) => parallel,
+        Err(refusal) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(Pose::Apart),
+                _ => Err(refusal),
+            };
+        }
+    };
+    if parallel {
+        return axis_offset(at_mid, half_drift, band);
     }
     Ok(Pose::Isolated(Form(Formed::PlaneLine {
         root: mid - at_mid / lead,
@@ -572,7 +615,8 @@ pub(super) fn plane_line<T: Decide>(
 
 /// **A conic against a plane**: its height above the plane,
 /// `d₀ + R cos(θ − φ)` (`Conic::along`), read on its rungs: the belly
-/// (`R − |d₀|`: negative, apart), the parallel gate (`R` in the zero
+/// (`R − |d₀|`, read to its own digits by
+/// [`geom::Conic::belly_along`]: negative, apart), the parallel gate (`R` in the zero
 /// band: the offset `d₀ ± R` decides lies or apart), then the belly's
 /// two roots or its graze, whose side `d₀`'s sign decides and whose
 /// curvature [`kappa`] reads.
@@ -589,13 +633,12 @@ pub(super) fn plane_conic<T: Decide>(
     // frames, and an interval product's spurious negative low end makes
     // the sqrt refuse.
     let r = (a.powi(2) + b.powi(2)).sqrt();
+    // `r − |d₀|`, read to its own digits rather than as the difference of
+    // two terms of the conic's size.
+    let gap = conic.belly_along(origin, normal);
     // The miss first: a conic wholly on one side never meets the plane,
     // whatever its tilt reads.
-    let belly = decide(
-        "curve_face_pose_belly_graze",
-        Margin::of(r - d0.abs()),
-        band,
-    );
+    let belly = decide("curve_face_pose_belly_graze", Margin::of(gap), band);
     if let Ok(Sign::Negative) = belly {
         return Ok(Pose::Apart);
     }
@@ -639,17 +682,189 @@ pub(super) fn plane_conic<T: Decide>(
             let at = geom_core::period::Period::angle().near(at, near);
             let graze = Graze {
                 at,
-                value: r - d0.abs(),
+                value: gap,
                 noise: T::zero(),
                 bend: r,
                 speed: conic.speed_at(at),
                 // The conic's diameter at the touch.
                 scale: T::from_f64(2.0) * conic.speed_at(at),
+                harmonic: true,
                 confirm: Ok(()),
             };
             kappa(span, graze, band)
         }
     }
+}
+
+// ------------------------------------------------------------ spiric
+
+/// **The spiric × plane arm** ([`Door::SpiricPlane`]). The span's
+/// convention first (`curve_face_pose_spiric_*`, read at no swing: the
+/// spiric's own data): outside its two-oval regime, or in its band, the
+/// arm refuses on [`PoseRung::SpiricRegime`] with the regime's margin, as
+/// for a span spelled past the mint. Then whether the two planes are parallel, by
+/// their tilt `|û × n̂|` levered by the radius of the span's cover ball
+/// (`curve_face_pose_plane_parallel`): parallel, the spiric's plane's
+/// height off the plane at that ball's centre, to within that levered
+/// tilt, decides `Lies` or `Apart` (`curve_face_pose_plane_offset`); a
+/// tilt in its gap is `Apart` where that height clears it, and escalates
+/// otherwise. Past the
+/// band, the planes meet in a line, and the span meets the plane where
+/// that line meets the oval: `Lies` is excluded, and the line is the
+/// method's ([`super::spiric_plane`]).
+fn spiric_plane<T: Decide>(
+    span: &Span<'_, T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Pose<T>, PoseRefusal> {
+    let (
+        &geom::Curve3::Spiric {
+            frame: spiric_frame,
+            offset,
+            ..
+        },
+        &geom::Surface::Plane {
+            frame: plane_frame, ..
+        },
+    ) = (span.carrier(), surface)
+    else {
+        return Err(PoseRefusal::Fault(
+            "the spiric × plane arm was handed a pair that is not a spiric and a plane",
+        ));
+    };
+    let Some(ring) = span.carrier().spiric_torus() else {
+        unreachable!("a spiric carrier names its torus")
+    };
+    match geom::spiric_regime(
+        ring,
+        offset,
+        T::zero(),
+        geom::SpiricReader::CurveFace.sites(),
+        band,
+    )
+    .map_err(PoseRefusal::in_band(PoseRung::SpiricRegime))?
+    {
+        geom::SpiricRegime::TwoOvals => {}
+        regime @ (geom::SpiricRegime::ThroughAxis | geom::SpiricRegime::PastInnerEquator) => {
+            // Data a span spelled past the mint can carry, so a refusal,
+            // not a fault: the regime's margin read as its rejection.
+            let in_band = PoseRefusal::in_band(PoseRung::SpiricRegime);
+            let (name, read) = match regime {
+                geom::SpiricRegime::ThroughAxis => (
+                    "curve_face_pose_spiric_off_axis",
+                    geom_core::k_stats::decide_reported(
+                        "curve_face_pose_spiric_off_axis",
+                        Margin::of(offset.abs()),
+                        band,
+                    )
+                    .map_err(in_band)?,
+                ),
+                _ => (
+                    "curve_face_pose_spiric_two_ovals",
+                    geom_core::k_stats::decide_reported(
+                        "curve_face_pose_spiric_two_ovals",
+                        Margin::of((ring.major_radius() - ring.minor_radius()) - offset.abs()),
+                        band,
+                    )
+                    .map_err(in_band)?,
+                ),
+            };
+            return Err(PoseRefusal::InBand {
+                rung: PoseRung::SpiricRegime,
+                diag: geom_core::k_stats::gate_rejection(
+                    name,
+                    read,
+                    band,
+                    geom_core::SizedPass::Positive,
+                ),
+            });
+        }
+    }
+    let (center, u) = (spiric_frame.origin(), spiric_frame.u_ref());
+    let (origin, n) = (plane_frame.origin(), plane_frame.axis());
+    let foot = center + u * offset;
+    let Some((height, arm)) = span_in_plane(span, (foot, u), (origin, n)) else {
+        return Err(PoseRefusal::Fault(
+            "a spiric span in its convention with no cover",
+        ));
+    };
+    let levered = u.cross(n).norm() * arm;
+    let parallel = match decide("curve_face_pose_plane_parallel", Margin::of(levered), band) {
+        Ok(sign) => sign == Sign::Zero,
+        Err(diag) => {
+            return match constant_residual_as(
+                "curve_face_pose_plane_offset",
+                PoseRung::PlaneParallel,
+                (height, levered),
+                band,
+            ) {
+                Ok(Constant::Apart) => Ok(Pose::Apart),
+                _ => Err(PoseRefusal::in_band(PoseRung::PlaneParallel)(diag)),
+            };
+        }
+    };
+    if parallel {
+        return constant_residual_as(
+            "curve_face_pose_plane_offset",
+            PoseRung::PlaneParallel,
+            (height, levered),
+            band,
+        )?
+        .pose(PoseRung::PlaneParallel);
+    }
+    // The line `P ∩ Q`, read in `P`'s own frame (`m = â × û`, `â`): a
+    // point `foot + m·x + â·z` of `P` is on `Q` where `α·x + β·z + γ = 0`,
+    // `α = m·n̂`, `β = â·n̂`, `γ` the foot's height off `Q`. Its point
+    // nearest the foot is `foot − across·γ/s`, `s = √(α² + β²)` the
+    // planes' tilt and `across = (α·m + β·â)/s`, and it runs along
+    // `(α·â − β·m)/s`. Built from `P`'s own data, it lies in `P` to a
+    // rounding of the foot's scale at any tilt. A change `δ` in `α`, `β`
+    // or `γ` moves it, at a point of `P` a distance `d` from the foot, by
+    // `(|δγ| + d·|δ(α, β)|)/s` to first order: the two planes' own
+    // conditioning, `1/s`, and no worse, where the closest-point form
+    // `((o − h·k)·û + (h − o·k)·n̂)/(1 − k²)`, `k = û·n̂`, cancels to
+    // `1/s²` in both `1 − k²` and its numerators. A meeting's height off
+    // `Q` is read along the oval to a rounding of its scale, and its place
+    // to that over the crossing's slope.
+    let axis = spiric_frame.axis();
+    let m = axis.cross(u);
+    let (alpha, beta) = (m.dot(n), axis.dot(n));
+    let s = (alpha.powi(2) + beta.powi(2)).sqrt();
+    let gamma = (foot - origin).dot(n);
+    let across = (m * alpha + axis * beta) / s;
+    let along = (axis * alpha - m * beta) / s;
+    let to_line = gamma / s;
+    Ok(Pose::Isolated(Form(Formed::SpiricPlane {
+        line: geom::Line {
+            origin: foot - across * to_line,
+            // `(a·α − m·β)/s` over the orthonormal `a`, `m` with
+            // `s = √(α² + β²)`: unit by its construction, checked.
+            dir: geom_core::UnitVec3::checked(along),
+        },
+        across,
+        sine: s,
+    })))
+}
+
+/// **A planar span's height off a plane `(origin, n)`, and the radius it
+/// holds to**: the span's cover ball, its centre read onto the span's own
+/// plane `(through, u)`. Every point of the span lies in that plane within
+/// the ball's radius of the centre's foot there, so its height off the
+/// other plane is the foot's to within that radius times the planes' tilt.
+/// `None` where the span has no cover.
+fn span_in_plane<T: Decide>(
+    span: &Span<'_, T>,
+    (through, u): (Point3<T>, geom_core::Vec3<T>),
+    (origin, n): (Point3<T>, geom_core::Vec3<T>),
+) -> Option<(T, T)> {
+    let (t0, t1) = span.params();
+    let cover = span
+        .carrier()
+        .cover_over(geom::cover::ParamWindow::new(t0, t1))
+        .ok()?;
+    let (ball, radius) = cover.ball();
+    let at = ball - u * (ball - through).dot(u);
+    Some(((at - origin).dot(n), radius))
 }
 
 // -------------------------------------------------------------- line
@@ -667,7 +882,7 @@ fn line<T: Decide>(
     };
     match *surface {
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             line_wall(span, line, (geom::Line { origin, dir: axis }, radius), band)
         }
         geom::Surface::Sphere { frame, radius, .. } => {
@@ -677,7 +892,7 @@ fn line<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             line_cone(
                 span,
                 line,
@@ -754,6 +969,7 @@ impl<T: Decide> LineQuadric<T> {
                     speed: span.speeds().1.get(),
                     // The wall's or the sphere's radius.
                     scale: radius,
+                    harmonic: false,
                     confirm: Ok(()),
                 },
                 band,
@@ -791,10 +1007,10 @@ pub(super) fn line_wall_read<T: Decide>(
     band: Band,
 ) -> Result<LineQuadric<T>, PoseRefusal> {
     let d = line.dir;
-    let dp = d - wall.dir * d.dot(wall.dir);
+    let dp = d.get() - wall.dir.get() * d.get().dot(wall.dir.get());
     let run = (t1 - t0).abs();
     let mid = geom::mid_param(t0, t1);
-    let at_mid = wall.distance(line.origin + d * mid) - radius;
+    let at_mid = wall.distance(line.origin + d.get() * mid) - radius;
     let speed = dp.norm();
     if axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band)? {
         return Ok(LineQuadric::Parallel {
@@ -825,7 +1041,12 @@ pub(super) fn line_sphere_read<T: Decide>(
     band: Band,
 ) -> Result<LineQuadric<T>, PoseRefusal> {
     let centred = super::line_quadric::sphere_quadratic(line, (center, radius), about);
-    discriminant(&centred, (line.dir.norm_squared(), radius), about, band)
+    discriminant(
+        &centred,
+        (line.dir.get().norm_squared(), radius),
+        about,
+        band,
+    )
 }
 
 /// **The wall's and the sphere's discriminant** (`curve_face_pose_disc`):
@@ -953,15 +1174,13 @@ pub(super) fn line_cone_read<T: Decide>(
         dir: axis,
     } = cone;
     let w0 = origin - apex;
-    let dd = dir.norm_squared();
-    let at = |t: T| w0 + dir * t;
+    let dd = dir.get().norm_squared();
+    let at = |t: T| w0 + dir.get() * t;
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
-    // Unsourced lever: a length read off the parameter run, not the
-    // run's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
     let lead = || {
         decide(
             "curve_face_pose_cone_lead",
@@ -986,7 +1205,7 @@ pub(super) fn line_cone_read<T: Decide>(
     let on_surface = || -> Result<bool, PoseRefusal> {
         let star = line.param(apex);
         let e = at(star).norm();
-        let far = (lo - star).abs().max((hi - star).abs()) * dir.norm();
+        let far = (lo - star).abs().max((hi - star).abs()) * dir.get().norm();
         let (sin, cos) = half_angle.sin_cos();
         let reach = e + a2.abs() / dd * far / sin.min(cos);
         match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band)
@@ -1018,13 +1237,13 @@ pub(super) fn line_cone_read<T: Decide>(
                 return Ok(ConeRead::Lies);
             }
             not_lies_over((t0, t1), residual, band)?;
-            let spread = apex_root_spread(at(at_apex), dir, (axis, half_angle));
+            let spread = apex_root_spread(at(at_apex), dir.get(), (axis.get(), half_angle));
             return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band)
                 .map_err(PoseRefusal::in_band(PoseRung::ApexSpread))?
             {
                 Sign::Zero => Ok(ConeRead::Through {
                     at: at_apex,
-                    reach: spread / dir.norm(),
+                    reach: spread / dir.get().norm(),
                 }),
                 Sign::Positive | Sign::Negative => Err(PoseRefusal::Meter {
                     rung: PoseRung::ApexSpread,
@@ -1122,9 +1341,10 @@ fn line_cone<T: Decide>(
                 value,
                 noise: T::zero(),
                 bend,
-                speed: line.dir.norm(),
+                speed: line.dir.get().norm(),
                 // The vertex's distance from the apex.
                 scale,
+                harmonic: false,
                 confirm,
             };
             return kappa(span, graze, band);
@@ -1158,12 +1378,10 @@ fn conic_quadric<T: Decide>(
             let s_center = sphere_frame.origin();
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.lo,
-                hi: h.hi,
+                lo: h.lo.with_charge(h.frame_error),
+                hi: h.hi.with_charge(h.frame_error),
                 cos_part: h.e_u,
                 sin_part: h.e_v,
-                lo_noise: h.lo_error + h.frame_error,
-                hi_noise: h.hi_error + h.frame_error,
                 phase_noise: h.phase_error,
             };
             first_harmonic(span, &conic, first, None, band)
@@ -1176,7 +1394,7 @@ fn conic_quadric<T: Decide>(
                 ..
             },
         ) => {
-            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis_unit());
             let h = door::cone_harmonics(&conic, (apex, axis, half_angle));
             let noise = door::cone_noise(&h);
             if let Some(through) = conic_apex(span, &conic, (apex, axis, half_angle), &h, band)? {
@@ -1220,13 +1438,15 @@ fn lane<T: Decide>(
     match decide("curve_face_pose_second_harmonic", Margin::of(second), band) {
         Ok(Sign::Zero) if !ladder_lane::forced() => {
             let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+            let extreme = |value| Rounded {
+                value,
+                error: noise,
+            };
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.c0 - a1,
-                hi: h.c0 + a1,
+                lo: extreme(h.c0 - a1),
+                hi: extreme(h.c0 + a1),
                 cos_part: h.c1,
                 sin_part: h.s1,
-                lo_noise: noise,
-                hi_noise: noise,
                 phase_noise: T::zero(),
             };
             first_harmonic(span, conic, first, cone, band)
@@ -1268,7 +1488,7 @@ fn first_harmonic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
     let two = T::from_f64(2.0);
-    let noise = h.lo_noise.max(h.hi_noise);
+    let noise = h.lo.error.max(h.hi.error);
     match decide("curve_face_pose_noise", Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {
@@ -1278,7 +1498,10 @@ fn first_harmonic<T: Decide>(
             });
         }
     }
-    let (c0, a1) = ((h.lo + h.hi) / two, (h.hi - h.lo) / two);
+    let (c0, a1) = (
+        (h.lo.value + h.hi.value) / two,
+        (h.hi.value - h.lo.value) / two,
+    );
     if let Ok(Sign::Zero) = decide("curve_face_pose_coaxial", Margin::of(a1), band) {
         match constant_residual_as(
             "curve_face_pose_constant",
@@ -1294,7 +1517,7 @@ fn first_harmonic<T: Decide>(
                 // `|res| ≤ |F| / floor`: a constant `F` in the band is the
                 // carrier on the cone once its reach, read through the
                 // floor, is in the band too.
-                let reach = (h.lo.abs().max(h.hi.abs()) + h.lo_noise) / floor;
+                let reach = h.most() / floor;
                 return match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band) {
                     Ok(Sign::Zero) => Ok(Pose::Lies),
                     Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(PoseRefusal::Meter {
@@ -1308,9 +1531,9 @@ fn first_harmonic<T: Decide>(
     }
     // Each extreme read as the interval its noise spans: ends that
     // disagree read zero, and the zero end is kept for a refusal.
-    let extreme = |value, noise| {
+    let extreme = |read: Rounded<T>| {
         let (below, above) =
-            crate::roots::spread_readings("curve_face_pose_extreme", value, noise, band)
+            crate::roots::spread_readings("curve_face_pose_extreme", read.value, read.error, band)
                 .map_err(PoseRefusal::in_band(PoseRung::Extreme))?;
         Ok::<_, PoseRefusal>(if below.sign == above.sign {
             (below.sign, below)
@@ -1320,18 +1543,18 @@ fn first_harmonic<T: Decide>(
             (Sign::Zero, below)
         })
     };
-    let (lo, lo_read) = extreme(h.lo, h.lo_noise)?;
+    let (lo, lo_read) = extreme(h.lo)?;
     if lo == Sign::Positive {
         return Ok(Pose::Apart);
     }
-    let (hi, hi_read) = extreme(h.hi, h.hi_noise)?;
+    let (hi, hi_read) = extreme(h.hi)?;
     if hi == Sign::Negative {
         return Ok(Pose::Apart);
     }
     let near = geom::mid_param(span.params().0, span.params().1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(near);
     let turn = geom_core::period::Period::angle();
-    let graze = |at: T, (value, noise): (T, T), read: geom_core::Decided| {
+    let graze = |at: T, extreme: Rounded<T>, read: geom_core::Decided| {
         // On a cone the extreme is `F`'s, `|res| ≤ |F| / floor`: an `F`
         // in the zero band is the residual's graze only once it reads in
         // the zero band through the floor too
@@ -1341,7 +1564,7 @@ fn first_harmonic<T: Decide>(
         let confirm = cone.map_or(Ok(()), |floor| {
             match decide(
                 "curve_face_pose_cone_graze",
-                Margin::of((value.abs() + noise) / floor),
+                Margin::of(extreme.magnitude() / floor),
                 band,
             ) {
                 Ok(Sign::Zero) => Ok(()),
@@ -1360,20 +1583,21 @@ fn first_harmonic<T: Decide>(
         let at = turn.near(at, near);
         let g = Graze {
             at,
-            value,
-            noise,
+            value: extreme.value,
+            noise: extreme.error,
             bend: a1,
             speed: conic.speed_at(at),
             // The conic's diameter at the touch.
             scale: T::from_f64(2.0) * conic.speed_at(at),
+            harmonic: false,
             confirm,
         };
         kappa(span, g, band)
     };
     match (lo, hi) {
         (Sign::Negative, Sign::Positive) => Ok(Pose::Isolated(Form(Formed::FirstHarmonic(h)))),
-        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), (h.lo, h.lo_noise), lo_read),
-        (Sign::Negative, Sign::Zero) => graze(phi, (h.hi, h.hi_noise), hi_read),
+        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), h.lo, lo_read),
+        (Sign::Negative, Sign::Zero) => graze(phi, h.hi, hi_read),
         _ => Err(zero_band(
             PoseRung::Extreme,
             "curve_face_pose_extreme",
@@ -1392,7 +1616,7 @@ fn first_harmonic<T: Decide>(
 fn conic_apex<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn geom::Conic<T>,
-    cone: (Point3<T>, geom_core::Vec3<T>, T),
+    cone: (Point3<T>, geom_core::UnitVec3<T>, T),
     h: &crate::ConicHarmonics<T>,
     band: Band,
 ) -> Result<Option<Pose<T>>, PoseRefusal> {
@@ -1539,7 +1763,7 @@ fn conic_torus<T: Decide>(
             "the conic × torus arm was handed a surface that is not a torus",
         ));
     };
-    let (t_center, t_axis) = (frame.origin(), frame.axis());
+    let (t_center, t_axis) = (frame.origin(), frame.axis_unit());
     // The doors read only a ring, asked of the convention before any
     // pose: their harmonics take the witness, whose floor on `|F|` per
     // metre and whose meridian bound lean on `R − r > 0`.
@@ -1589,7 +1813,7 @@ fn conic_torus<T: Decide>(
     // A tilt in the gap is no coaxial pose: the general rungs read it.
     let deviation = door::meridian(
         &circle,
-        (t_center, t_axis, major_radius, minor_radius),
+        (t_center, t_axis.get(), major_radius, minor_radius),
         &axes,
     );
     match decide("curve_face_pose_meridian", Margin::of(deviation), band)

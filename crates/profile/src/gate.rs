@@ -13,11 +13,9 @@ use geom_core::{
 use crate::fillet_recourse::{
     FILLET_ANCHOR_TURN_RECOURSE, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
-    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, JUNCTION_TURN_LEVER,
 };
-use crate::validate::{
-    ARC_READ_BACK_UNDECIDED_RECOURSE, ARC_SCENE_RESOLUTION_RECOURSE, JUNCTION_TANGENT_LEVER,
-};
+use crate::validate::{ARC_READ_BACK_UNDECIDED_RECOURSE, ARC_SCENE_RESOLUTION_RECOURSE};
 
 /// What the fillet construction's gates say they were deciding: the
 /// corner the caller asked to round.
@@ -211,7 +209,7 @@ gates! {
     /// The cosine of a junction's turn, levered by the arriving arm; one question at both doors (`seg::junction_reverses`), asked of a junction already tangent, so neither outcome is something `.tangent()` would change, and a raw-authored loop has no path verbs.
     PathJunctionSide => "path_junction_side", Lever(COINCIDENCE_RECOURSE), "whether the path carries straight on at this junction or doubles back into a cusp";
     /// The sine of a junction's turn at the shorter leg's arm: the path door's, and validation's joint pass's (`seg::joint_tangency`).
-    PathJunctionTurn => "path_junction_turn", Lever(JUNCTION_TANGENT_LEVER), "whether the path turns at this junction";
+    PathJunctionTurn => "path_junction_turn", Lever(JUNCTION_TURN_LEVER), "whether the path turns at this junction";
     /// An authored leg's extent metered against zero.
     PathLegLength => "path_leg_length", Sized(LEG_LENGTH_LEVER), "whether an authored leg has any length";
     /// A rectangle's width or height metered against zero.
@@ -233,7 +231,7 @@ gates! {
     SegmentDirectionAxis => "segment_direction_axis", Lever(COINCIDENCE_RECOURSE), "whether a direction minted from two points lies along an axis";
     /// The sign of a bulge, which signs its lowering's radials, read exactly and outside the log (audit row F43).
     SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";
-    /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at. The one reading of a table's direction, and what "unit" means: the miss bounds (|d| − 1)·ℓ by the triangle inequality, check 1's measure for a unit datum at arm ℓ (`geom::convention::frame_margins`); check 1 length-reads no plane or line, so a director stored as a plane's normal is a unit only at its chord's lever.
+    /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at. The one reading of a table's direction, and what "unit" means: the miss bounds (|d| − 1)·ℓ by the triangle inequality, so the direction is a unit to within ε at arm ℓ; no at-rest check reads a stored direction's length, so a director stored as a plane's normal is a unit only at its chord's lever.
     SegmentDirection => "segment_direction", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction points at its vertex";
     /// The magnitude a recorded direction's miss was read at, against the one where its f64 rounding reaches the band.
     SegmentDirectionResolution => "segment_direction_resolution", Lever(ARC_SCENE_RESOLUTION_RECOURSE), "whether the scene can read a recorded direction's miss of its vertex at its magnitude";

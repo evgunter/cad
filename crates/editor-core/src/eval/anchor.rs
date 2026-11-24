@@ -389,25 +389,59 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// **The frame the profile is drawn on**, where it is drawn on one
     /// ([`crate::DrawnOn`]): a sweep of it is built in the profile's own
     /// coordinates and stands in that frame of its space.
-    pub(crate) frame: Option<super::Frame<T>>,
+    pub(crate) frame: Option<DrawnFrame<T>>,
 }
 
-impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
+/// The frame a profile is drawn on ([`super::wire::trace::DrawnFrame`]).
+pub(crate) use super::wire::trace::DrawnFrame;
+
+/// **How far a profile's loops reach from its origin**, as a lever reads
+/// it ([`crate::mate::reach::loops_reach_from`]).
+pub(crate) fn loops_reach<T: crate::mate::SolveScalar>(
+    validated: &profile::ValidatedProfile<T>,
+    profile: crate::RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    use crate::mate::ReachRefusal;
+    crate::mate::reach::lever_reach(
+        crate::mate::reach::loops_reach_from(validated, geom_core::Point3::origin())
+            .and_then(|r| r.ok_or(ReachRefusal::NoExtent)),
+    )
+    .map_err(|refusal| crate::mate::LeverRefusal::Shape {
+        shape: profile,
+        refusal,
+    })
+}
+
+impl<T: geom_core::Real> ProfileValue<T> {
+    /// **The frame the profile is drawn on**, in its space's coordinates,
+    /// as the profile's own carriage decided it; `None` for a profile
+    /// drawn on no frame.
+    #[must_use]
+    pub fn drawn_frame(&self) -> Option<&geom_core::RigidMotion<T>> {
+        self.frame.as_ref().map(|d| &**d.map())
+    }
+}
+
+impl<T: topo::AtRestPolicy + crate::mate::SolveScalar> ProfileValue<T> {
     /// **A body swept from this profile**, built in the profile's own
-    /// coordinates: in the frame the profile is drawn on, or its own.
+    /// coordinates: in the frame the profile is drawn on, carrying the
+    /// body over its reach, or its own. `sweep` is the sweep's node.
     ///
     /// # Errors
     ///
-    /// Where it stands in its space past the session box
-    /// ([`super::Framed::asked_where_it_stands`]).
+    /// The frame's refusal to carry the body; where it stands in its
+    /// space past the session box ([`super::Framed::asked_where_it_stands`]).
     pub(crate) fn framed(
         &self,
         body: std::sync::Arc<T::Leaf>,
+        sweep: crate::RecipeNodeId,
         tol: geom_core::Tol,
     ) -> Result<super::Framed<T>, super::NodeErrorKind> {
         match &self.frame {
-            Some(frame) => {
-                super::Framed::in_frame_leaf(body, frame.clone()).asked_where_it_stands(tol)
+            Some(drawn) => {
+                let reach = swept_reach(&body, geom_core::Point3::<T>::origin(), sweep, tol)?;
+                super::Framed::in_frame_leaf(body, drawn.carry(reach, tol)?)
+                    .asked_where_it_stands(tol)
             }
             None => Ok(super::Framed::own_leaf(body)),
         }
@@ -415,20 +449,35 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
 
     /// **A body swept from this profile, lifted `by` along its `z`**:
     /// built in the profile's own coordinates, and standing `by` along
-    /// the profile's `z` in the frame it is drawn on, or its own.
+    /// the profile's `z` in the frame it is drawn on, carrying the lifted
+    /// body over its reach, or its own. `sweep` is the sweep's node.
     ///
     /// # Errors
     ///
-    /// The lift's or the composition's overflow.
+    /// The frame's refusal to carry the body; the lift's or the
+    /// composition's overflow.
     pub(crate) fn lifted(
         &self,
         body: std::sync::Arc<T::Leaf>,
         by: T,
-    ) -> Result<super::Framed<T>, geom_core::RigidMotionError> {
+        sweep: crate::RecipeNodeId,
+        tol: geom_core::Tol,
+    ) -> Result<super::Framed<T>, super::NodeErrorKind> {
+        let motion = super::NodeErrorKind::Motion;
         let lift =
-            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))?;
-        let map = match self.frame.as_ref().and_then(super::Frame::map) {
-            Some(on) => on.compose(lift)?,
+            geom_core::RigidMotion::translation(geom_core::Vec3::new(T::zero(), T::zero(), by))
+                .map_err(motion)?;
+        let map = match &self.frame {
+            Some(drawn) => {
+                // The lifted body's reach from the frame's origin: the
+                // body's from the point the lift carries there.
+                let about = geom_core::Point3::new(T::zero(), T::zero(), -by);
+                let reach = swept_reach(&body, about, sweep, tol)?;
+                match drawn.carry(reach, tol)?.map() {
+                    Some(on) => on.compose(lift).map_err(motion)?,
+                    None => lift,
+                }
+            }
             None => lift,
         };
         Ok(super::Framed::in_frame_leaf(
@@ -436,6 +485,25 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
             super::Frame::Map(std::sync::Arc::new(map)),
         ))
     }
+}
+
+/// **How far a swept body reaches from `about`**, in its own
+/// coordinates, as a placement reads its copy's ([`crate::mate::part_reach_from`]).
+fn swept_reach<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    about: geom_core::Point3<T>,
+    sweep: crate::RecipeNodeId,
+    tol: geom_core::Tol,
+) -> Result<Result<f64, crate::mate::LeverRefusal>, super::NodeErrorKind> {
+    let band = super::wire::band(tol)?;
+    Ok(
+        crate::mate::reach::lever_reach(crate::mate::part_reach_from(body, about, band)).map_err(
+            |refusal| crate::mate::LeverRefusal::Shape {
+                shape: sweep,
+                refusal,
+            },
+        ),
+    )
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed

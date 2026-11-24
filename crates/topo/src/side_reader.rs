@@ -17,6 +17,7 @@
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
@@ -417,10 +418,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
         return None;
     }
-    let curve = |e: crate::entity::EdgeKey| {
-        body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
-            .certified()
-    };
+    let curve = |e: crate::entity::EdgeKey| body.proven_edge(e).certified();
     let (m, tau) =
         crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
     let half = T::from_f64(0.5);
@@ -872,7 +870,9 @@ fn aimed_ray_inner<T: Decide>(
     let crossings = match ray_crossings(
         body,
         geos,
-        &geom::Ray::starting(aim, -out, start),
+        // The aim squared: the face's normal is unit only to its
+        // carrier's convention, and the ray's advance is in metres.
+        &geom::Ray::starting(aim, -UnitVec3::squared(out), start),
         reach,
         band,
         AIMED_ROWS,
@@ -919,7 +919,9 @@ fn aimed_ray_inner<T: Decide>(
     )
 }
 /// **How far each solid's aimed rays start from `aim`, over two**
-/// ([`selection_reach`]): the probes read the reach's scale off it.
+/// ([`selection_reach`]): the probes read the reach's scale off it. A
+/// solid with no face aims no ray, and reads as such: the reach is asked
+/// only of a selection holding a face, as every production caller asks.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn beyond_report(
     body: &Body<f64>,
@@ -929,6 +931,9 @@ pub(crate) fn beyond_report(
     body.solids()
         .map(|(solid, _)| {
             let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+            if sel.faces().is_empty() {
+                return Err("a solid with no face aims no ray".to_owned());
+            }
             selection_reach(body, sel.faces(), aim, band)
                 .map(|reach| reach.length())
                 .map_err(|e| format!("{e:?}"))
@@ -1033,14 +1038,10 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     let mut out = Vec::new();
     for (face, _) in body.faces() {
         for fe in body.proven_face(face).edges() {
-            let Some(edge) = body.edges.get(fe.edge) else {
-                continue;
-            };
-            let Some(curve) = body
-                .curves
-                .get(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let edge =
+                body.linked_edge(fe.edge, crate::entity::EntityId::HalfEdge(fe.half), "edge");
+            // Null scaffolding has no carrier to aim along.
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             let (t0, t1) = curve.params();
@@ -1048,7 +1049,7 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
                 let t = t0 + (t1 - t0) * x;
                 let point = curve.carrier().eval(t);
                 let mut tau = curve.carrier().deriv(t).normalize();
-                if edge.he_minus == fe.half {
+                if edge.record().he_minus == fe.half {
                     tau = tau * -1.0;
                 }
                 let Ok(Some(normal)) =
@@ -1211,13 +1212,19 @@ mod aimed_ray_tests {
             ("through two faces", through_faces, 2, false),
             ("through two corners", through_corners, 2, true),
         ] {
-            let from_start = counts(&geom::Ray::new(start, d), marks_only);
+            let from_start = counts(
+                &geom::Ray::new(start, geom::stated_direction(d)),
+                marks_only,
+            );
             assert!(
                 from_start.len() >= hits,
                 "{what}: the ray from its start reads the brick: {from_start:?}"
             );
             for k in [0.5, 3.0, 7.0] {
-                let given = counts(&geom::Ray::starting(start + d * k, d, -k), marks_only);
+                let given = counts(
+                    &geom::Ray::starting(start + d * k, geom::stated_direction(d), -k),
+                    marks_only,
+                );
                 assert_eq!(
                     given.len(),
                     from_start.len(),
@@ -1234,7 +1241,10 @@ mod aimed_ray_tests {
             }
             // The same origin with no start before it reads nothing
             // behind itself.
-            let past = counts(&geom::Ray::new(start + d * 7.0, d), marks_only);
+            let past = counts(
+                &geom::Ray::new(start + d * 7.0, geom::stated_direction(d)),
+                marks_only,
+            );
             assert!(past.is_empty(), "{what}: past the brick: {past:?}");
         }
     }

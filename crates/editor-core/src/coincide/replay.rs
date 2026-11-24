@@ -81,12 +81,15 @@ const BUDGET: SymBudget = SymBudget {
 /// its own degenerate boxes) — so the instrument reads exactly what
 /// the door replays.
 ///
-/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
-/// polynomial in the atoms it mints, and an eager session builds every
-/// definite margin's form for its contradiction check. Measured on
-/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
-/// 120 s, here 136 MB in 1.07 s
-/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+/// Deferring is what makes the replay's branches the build's (the
+/// module docs): an in-band margin is taken as the numeric channel takes
+/// it and discharged when a rung asks, where an eager session would
+/// answer it at the decision. The memory reading that also argued for
+/// it (`plate_param` eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s,
+/// `work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`)
+/// was taken while an eager session walked every definite margin's form
+/// as well, which no session does now; it is not re-taken.
 pub fn with_replay_session<R>(
     base: EvalOptions,
     f: impl FnOnce(&EvalOptions) -> R,
@@ -350,7 +353,7 @@ const SWEPT_ALONG: &str = "replay_swept_along_the_traced_axis";
 /// **Whether a traced sweep runs along the face its piece leaves**, the
 /// heading the trace statement leaves to the replay
 /// ([`super::Traced::HeadingUnread`]): the face, read as the profile
-/// reads it ([`crate::eval::traced_faces`]), on a cylinder whose axis,
+/// reads it through its decided frame (`crate::eval::traced_faces_of`), on a cylinder whose axis,
 /// carried into the sketch's coordinates, has no component across the
 /// sketch's `z`, the heading every extrude of the profile sweeps along.
 /// Each component is decided Zero and discharged by the tier, so the
@@ -369,10 +372,7 @@ fn swept_along(
     band: Band,
     tol: Tol,
 ) -> bool {
-    let Some(crate::Node::Profile(program)) = doc.node(heading.profile) else {
-        return false;
-    };
-    let Ok(faces) = crate::eval::traced_faces(doc, ev, program, tol) else {
+    let Some(Ok(faces)) = crate::eval::traced_faces_of(doc, ev, heading.profile, tol) else {
         return false;
     };
     let Some(across) = faces.get(heading.face).and_then(axis_in_sketch) else {
@@ -685,9 +685,8 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
         .filter_map(|he| {
             let he = body.get_half_edge(he)?;
             match body
-                .get_edge(he.edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
+                .edge(he.edge)
+                .and_then(topo::EdgeView::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
                 Some(geom::Curve3::Circle(circle)) => {

@@ -78,3 +78,17 @@ The note above that names the rulings plane no longer points at live
 code. The rest of the row stands as filed.
 
 Moved from `work/issues/` to `work/honeone/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## A further site (2026-11-22, PROFILE's cut of PR 7290)
+
+`crates/geom-brep/src/curve_pair/pose.rs` `coplanar_circles` (near
+:2158) spells the circle pair's extremes by hand: `near = |r₁ − d|`,
+`far = r₁ + d`, `lo = near − r₂`, `hi = far − r₂`, beside
+`geom_core::Circles`' `external()`/`nested()` margins
+(`crates/geom-core/src/arc/pair.rs`). Found by the PLANAR weighing (fork
+log row 299). Its range is a first harmonic in the angle, not a margin
+alone, so whether `Circles` can serve it as it stands is the taker's
+first check. PLANAR's plane instance
+(`work/planar/two-curves-in-one-plane-meet-by-the-in-plane-arms.md`)
+reads this arm for every circle pair in a plane; a lane touching it there
+should read this row.

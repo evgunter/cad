@@ -2,10 +2,13 @@
 id: a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses
 kind: issue
 title: a plane touching a counterbore's floor rim ships sides tier 3′ refuses with unrecorded vertex-on-face contacts
-status: open
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
+branch: heldrecords/nesting
+pr: 7436
+closed: 2026-11-23
 ---
 
 
@@ -69,3 +72,38 @@ So the defect reads as the split's: a half would carry one cut face notched
 at the crossing, not a face across it and a face of the other sense
 cancelling it. A record for the `VertexOnFace` contacts would not clear
 these halves.
+
+## 2026-11-22 — measured: the same cause; fixed on `heldrecords/nesting`
+
+Dumped at t 0.2, a ∈ {0, 0.3}, both leans, both normals: every half
+held one outline (the cylinder's whole ellipse, one edge) and one hole
+face (`sense` false, no rings). The hole is the counterbore's ellipse
+arc closed by the floor's chord (two line edges where the chord is cut
+at `P`), and leaning in, the bore's ellipse through `P` as well, one
+loop through `P` twice. `nest` left it unplaced because the chord's
+line crosses the outer ellipse's carrier (`line_clears_conic`), which
+is the elliptic row's cause: face 11 in the earlier measurement is the
+outline's face, and face 13 the hole's. The contacts tier 3′ reported
+are the hole's vertices and edges lying in the outline's face.
+
+With the edge reading of `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`
+the hole nests as a ring, and each half carries one cut face.
+`review_6020_seam_probes::a_plane_touching_a_counterbores_floor_rim_splits_at_tier_three_prime`
+pins tiers 1, 3 and 3′ (no records) and the quadrature's volume on each
+half at t 0.05 and 0.2, a 0 and 0.3, both leans and both normals. Every
+pose builds at ε 1e-9 and 1e-12. At ε 1e-6 the pose leaning 0.05 in at
+a 0.3 refuses under both normals, upstream of the nesting, with
+`Reduce(SliverSector { .. "enters_material" })`. Its margin is −9.9e-6,
+inside that ε's escalation band (1e-5): a sector about 1e-5 wide at the
+bore rim, which that band does not resolve, so the refusal is right
+there. The row pins it as that typed refusal at that pose at ε 1e-6
+alone, and requires every pose to build at every other ε; it refuses
+any other. It replaces
+`a_counterbore_half_with_two_faces_on_each_other_refuses_at_the_point`,
+whose two faces no longer exist; the census's `Degenerate` reading of
+two planar faces on each other keeps its own rows in `link` and
+`two_wedge_ends_on_one_line`.
+
+## Closed (2026-11-23, HELDRECORDS orchestrator)
+
+Closed by PR 7436 (`c51d65be18`). The split nests a hole as a ring of its outline: `section_loops::edges_clear` reads `geom_brep::curve_pair::meet`, and an unplaced hole refuses typed `UnplacedHole`. The "sound by cancellation" allowance is retired. Pinned at tier 3′ across three ε. Residue filed: `nest-reads-an-undecided-pair-of-enclosing-outlines-as-a-contradiction` (P2).

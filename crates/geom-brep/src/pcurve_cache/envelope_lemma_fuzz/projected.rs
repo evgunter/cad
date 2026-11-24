@@ -628,7 +628,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             Meters::Cone {
                                 sin: iv(sin),
                                 cos: iv(cos),
-                                nappe: Nappe::Opening,
+                                locus: crate::pcurve_cache::projected::Locus::Nappe(Nappe::Opening),
                             },
                             Box::new(move |p: Vec3<Interval>| {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
@@ -1556,8 +1556,10 @@ fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
         let mid = if s.below(2) == 0 { 1.0 } else { -1.0 } * s.range(1.0, 2.0);
         let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
         let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
-        let carrier = Curve3::line(at_mid - dir * mid, dir);
-        let (t0, t1) = (mid - h, mid + h);
+        // The same segment on its unit direction, its span in metres.
+        let len = dir.norm();
+        let carrier = Curve3::line(at_mid - dir * mid, geom_core::UnitVec3::squared(dir));
+        let (t0, t1) = ((mid - h) * len, (mid + h) * len);
         let what = format!("{carrier:?} [{t0}, {t1}] on {surf:?} — {}", fuzz::replay());
         let image = super::super::chart_pcurve_over(&carrier, t0, t1, &surf, b)
             .unwrap_or_else(|e| panic!("{what}: the derivation refused: {e:?}"));
@@ -2086,7 +2088,7 @@ fn each_conversion_reads_its_stated_floors() {
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2101,7 +2103,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Mirror),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -2146,9 +2148,16 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let (inc, floor) =
-            net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), None, &surf, d, b, false)
-                .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) = net_incidence(
+            &hull(rho, (0.0, 0.0)),
+            (0.0, 1.0),
+            crate::pcurve_cache::projected::Locus::Carrier,
+            &surf,
+            d,
+            b,
+            false,
+        )
+        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -2157,7 +2166,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2558,7 +2567,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         super::super::projected::net_incidence(
             hull,
             edge,
-            image.chart.nappe(),
+            image.chart.locus(),
             &twin,
             0.0,
             b,

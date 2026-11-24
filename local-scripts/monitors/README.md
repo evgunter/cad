@@ -3,6 +3,11 @@
 been resolved. If NOT, do not arm these monitors. If it has, delete this
 note.]**
 
+**Meanwhile (Ev, 2026-11-21): wait on Ev's answer with an ordinary backgrounded
+shell command** (`run_in_background`) that polls one PR's comments, reviews and
+review comments by `evgunter` and exits when a new one appears. Arm it only on
+the PRs you asked Ev something on, not on every PR.
+
 Since a Claude Code release in September 2026 the Monitor tool kills
 every watch after at most 30 minutes and the `persistent` option these
 scripts were written for is gone, so an armed monitor costs a re-arm turn every half hour per script

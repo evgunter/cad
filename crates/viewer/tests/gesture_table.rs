@@ -32,7 +32,7 @@
 //! file asserts `Refusal::GestureInFlight` for it with a drag open —
 //! the union of the ops in those five assertion sites. That union is 19
 //! of the 24 refusals. The five with no external witness are
-//! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
+//! [`SessionOp::DeleteNode`], [`SessionOp::ProveRange`],
 //! [`SessionOp::SetSlotUnit`], [`SessionOp::DeclareVar`] and
 //! [`SessionOp::AddMate`]; for those, `expected` is the only place the
 //! answer is written down rather than a check on a written answer.
@@ -103,8 +103,8 @@ use pncad::prelude::{EntityKind, MM, StableName};
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PartSelectSpec, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
+    CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered, PartSelectSpec,
+    PatternRuleSpec, RangeTarget, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 63;
+const OP_COUNT: usize = 65;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -171,8 +171,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             slot: SlotId::Distance,
             value: SlotValue::Continuous(0.02),
         },
-        SessionOp::ProbeBounds {
-            target: BoundsTarget::Slot {
+        SessionOp::ProveRange {
+            target: RangeTarget::Slot {
                 node,
                 slot: SlotId::Distance,
             },
@@ -223,6 +223,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Undo,
         SessionOp::Redo,
         SessionOp::CancelEvaluation,
+        SessionOp::StopRange,
         SessionOp::Reevaluate,
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
@@ -247,17 +248,10 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
         },
-        SessionOp::SketchOnFace {
-            face: FaceSelection {
-                name: face(node),
-                node,
-                body: 0,
-            },
-            loops: vec![],
-            distance: len(0.01),
-            spin: Formula::zero(Dimension::Angle),
-        },
         SessionOp::AddProfile { loops: vec![] },
+        SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+        },
         SessionOp::AddExtrude {
             profile: node,
             distance: len(0.01),
@@ -276,7 +270,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            plane: viewer::session::SplitPlane::Face(FaceSelection {
+            plane: viewer::session::ToolPlane::Face(FaceSelection {
                 name: face(node),
                 node,
                 body: 0,
@@ -392,7 +386,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddMirror {
             body: node.into(),
-            plane: viewer::session::FaceSelection {
+            plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
                     node,
@@ -400,14 +394,50 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 },
                 node,
                 body: 0,
+            }),
+        },
+        // A finding's assertion, as the kernel minted it: the touching
+        // blocks' rest, in a document of its own.
+        SessionOp::AssertQuieting {
+            quieting: minted_rest(),
+        },
+        // A value claim, the op's two-node arm: the measure and the
+        // assertion over its output.
+        SessionOp::AddAssertion {
+            a: viewer::session::AssertedSeat::Body(node.into()),
+            b: viewer::session::AssertedSeat::Body(node.into()),
+            claim: viewer::session::AssertedClaim::Value {
+                measure: pncad::document::MeasureVerb::Gap,
+                relation: pncad::document::AssertionRelation::Equal,
+                bound: Formula::zero(Dimension::Length),
             },
         },
-        SessionOp::AddClearance {
-            a: viewer::session::ClearedSeat::Body(node.into()),
-            b: viewer::session::ClearedSeat::Body(node.into()),
-            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
-        },
     ]
+}
+
+/// **The assertion two touching blocks' rest carries**, as the kernel
+/// minted it ([`crate::offers::blocks`]); checked once per process.
+fn minted_rest() -> pncad::document::Quieting {
+    static MINTED: std::sync::OnceLock<pncad::document::Quieting> = std::sync::OnceLock::new();
+    MINTED
+        .get_or_init(|| {
+            let session =
+                crate::offers::blocks(Tol::witness(), viewer::test_support::CLEARANCE_SIDE);
+            session
+                .checks()
+                .expect("the registry ran")
+                .findings
+                .iter()
+                .find_map(|f| match &f.evidence {
+                    pncad::document::CheckEvidence::UnprovenCoincidence {
+                        quieting: Some(quieting),
+                        ..
+                    } => Some(quieting.clone()),
+                    _ => None,
+                })
+                .expect("the blocks' rest carries its claim")
+        })
+        .clone()
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.
@@ -419,7 +449,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::Hover(_) => (1, true),
         SessionOp::DeleteNode { .. } => (2, false),
         SessionOp::SetSlot { .. } => (3, false),
-        SessionOp::ProbeBounds { .. } => (4, false),
+        SessionOp::ProveRange { .. } => (4, false),
         SessionOp::SetSlotUnit { .. } => (5, false),
         SessionOp::SetSlotExpression { .. } => (6, false),
         SessionOp::SetVariable { .. } => (7, false),
@@ -448,6 +478,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::Undo => (16, false),
         SessionOp::Redo => (17, false),
         SessionOp::CancelEvaluation => (18, true),
+        // Stops a `range?` run, which reads the document and moves
+        // nothing a drag previews against.
+        SessionOp::StopRange => (62, true),
         SessionOp::Reevaluate => (19, true),
         SessionOp::Open(_) => (20, false),
         // Save writes the COMMITTED history, which a preview is not
@@ -465,8 +498,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CancelFreeMove => (26, true),
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
-        SessionOp::SketchOnFace { .. } => (29, false),
         SessionOp::AddProfile { .. } => (30, false),
+        SessionOp::AddDatum { .. } => (63, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
@@ -526,9 +559,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddToProduct { .. } => (60, false),
         // What the placements place: a document edit, fenced with every
         // other one.
-        SessionOp::RepointPlacements { .. } => (62, false),
+        SessionOp::RepointPlacements { .. } => (29, false),
         // An insert door, fenced with every other one.
-        SessionOp::AddClearance { .. } => (45, false),
+        SessionOp::AddAssertion { .. } => (45, false),
+        // The same insert door, from a finding's value.
+        SessionOp::AssertQuieting { .. } => (64, false),
     }
 }
 
@@ -792,6 +827,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             stepped.bundle(),
         ),
     );
+    let doc = crate::fixture::yielded(doc, family);
     let (doc, pattern) = crate::fixture::insert(
         doc,
         Node::place(
@@ -1000,7 +1036,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
+        | SessionOp::ProveRange { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -1018,6 +1054,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
+        | SessionOp::StopRange
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
@@ -1029,16 +1066,17 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddClearance { .. }
+        | SessionOp::AddAssertion { .. }
+        | SessionOp::AssertQuieting { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

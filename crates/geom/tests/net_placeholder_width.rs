@@ -12,16 +12,17 @@
 //!
 //! What this suite pins, at `f64` and `Dual<f64>`:
 //!
-//! - the masquerading net reads DESCRIBED, on both halves (the row the
-//!   narrow predicate fails);
+//! - the masquerading net reads DESCRIBED (the row the narrow
+//!   predicate fails);
 //! - its mirror — a finite first channel over poisoned rest — reads
 //!   described too, which it always did, so the widening moves nets in
 //!   one direction only;
-//! - the placeholder both payload doors mint still reads placeholder;
+//! - the placeholder the payload door mints still reads placeholder;
 //! - the direction itself, as a property: the widened predicate implies
 //!   the narrow one over a battery, so the placeholder set only shrank
 //!   and no consumer's placeholder arm gained a member;
-//! - what the masquerade actually is downstream — evaluation carries
+//! - what the masquerade actually is downstream, on a surface and on a
+//!   curve carrier — evaluation carries
 //!   the poison in the one channel and finite values in the others, and
 //!   the projection door refuses rather than returning a foot.
 //!
@@ -35,7 +36,7 @@ use std::sync::Arc;
 use bvh::{Aabb, Axis};
 use geom::curves::boxes::nurbs_curve_aabb;
 use geom::surfaces::boxes::nurbs_surface_aabb;
-use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Dual, Point3, Real};
 
@@ -49,8 +50,8 @@ fn knots2() -> KnotVector {
     KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
 }
 
-/// The masquerade, curve half: every control point carries a poisoned
-/// `x` and a finite `y`/`z`. Structurally valid — the constructor
+/// The masquerade on a curve carrier: every control point carries a
+/// poisoned `x` and a finite `y`/`z`. Structurally valid — the constructor
 /// validates counts and weights, and a coordinate is data.
 fn masquerading_curve<T: SpanLocate>() -> NurbsCurve3<T> {
     let control: Vec<Point3<T>> = (0..5)
@@ -70,17 +71,8 @@ fn masquerading_curve<T: SpanLocate>() -> NurbsCurve3<T> {
     .unwrap()
 }
 
-/// The masquerade, surface half: the same shape on a bilinear net.
-fn masquerading_surface<T: SpanLocate>() -> NurbsSurface<T> {
-    let control: Vec<Point3<T>> = (0..4)
-        .map(|i| {
-            Point3::new(
-                T::from_f64(f64::NAN),
-                T::from_f64(f64::from(i)),
-                T::from_f64(2.0),
-            )
-        })
-        .collect();
+/// A bilinear net over the four points given, unit weights.
+fn bilinear<T: SpanLocate>(control: Vec<Point3<T>>) -> NurbsSurface<T> {
     NurbsSurface::new(
         Knots::from(knots2()).lift(geom_core::Real::from_f64),
         Knots::from(knots2()).lift(geom_core::Real::from_f64),
@@ -90,47 +82,52 @@ fn masquerading_surface<T: SpanLocate>() -> NurbsSurface<T> {
     .unwrap()
 }
 
-/// The mirror: a FINITE first channel over a poisoned rest.
-fn mirrored_curve<T: SpanLocate>() -> NurbsCurve3<T> {
-    let control: Vec<Point3<T>> = (0..5)
-        .map(|i| {
-            Point3::new(
-                T::from_f64(f64::from(i)),
-                T::from_f64(f64::NAN),
-                T::from_f64(f64::NAN),
-            )
-        })
-        .collect();
-    NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        control,
-        vec![Real::one(); 5],
+/// The masquerade on a surface: every control point carries a poisoned
+/// `x` and a finite `y`/`z`.
+fn masquerading_surface<T: SpanLocate>() -> NurbsSurface<T> {
+    bilinear(
+        (0..4)
+            .map(|i| {
+                Point3::new(
+                    T::from_f64(f64::NAN),
+                    T::from_f64(f64::from(i)),
+                    T::from_f64(2.0),
+                )
+            })
+            .collect(),
     )
-    .unwrap()
+}
+
+/// The mirror: a FINITE first channel over a poisoned rest.
+fn mirrored_surface<T: SpanLocate>() -> NurbsSurface<T> {
+    bilinear(
+        (0..4)
+            .map(|i| {
+                Point3::new(
+                    T::from_f64(f64::from(i)),
+                    T::from_f64(f64::NAN),
+                    T::from_f64(f64::NAN),
+                )
+            })
+            .collect(),
+    )
 }
 
 /// The row the narrow predicate fails: a described net whose every
 /// control point has a poisoned `x` and a finite `y`/`z` is NOT the
-/// benign placeholder, on either half.
+/// benign placeholder.
 #[test]
 fn a_net_poisoned_in_one_channel_is_described_not_the_placeholder() {
-    let c = masquerading_curve::<f64>();
-    assert!(
-        !c.is_placeholder(),
-        "a control net with finite y and z is described geometry, corrupt in x — \
-         answering `placeholder` hands it the benign arm at every consumer"
-    );
     let s = masquerading_surface::<f64>();
     assert!(
         !s.is_placeholder(),
-        "the surface half answers the same rule as the curve half"
+        "a control net with finite y and z is described geometry, corrupt in x — \
+         answering `placeholder` hands it the benign arm at every consumer"
     );
     // The enum doors carry the same answer: this is what a consumer
     // matching on `Surface::Nurbs(payload)` asks.
     let e = Surface::Nurbs(Arc::new(s));
     assert!(matches!(&e, Surface::Nurbs(n) if !n.is_placeholder()));
-    let ec = Curve3::Nurbs(Arc::new(c));
-    assert!(matches!(&ec, Curve3::Nurbs(n) if !n.is_placeholder()));
 }
 
 /// The mirror of that net answers described as well — it did under the
@@ -138,28 +135,23 @@ fn a_net_poisoned_in_one_channel_is_described_not_the_placeholder() {
 /// described geometry; neither is the placeholder.
 #[test]
 fn the_mirror_with_a_finite_first_channel_is_described_too() {
-    let c = mirrored_curve::<f64>();
-    assert!(!c.is_placeholder());
-    assert!(!c.map_scalar(Dual::constant).is_placeholder());
+    let s = mirrored_surface::<f64>();
+    assert!(!s.is_placeholder());
+    assert!(!s.map_scalar(Dual::constant).is_placeholder());
 }
 
-/// The state the predicate exists to name still answers it, at both
-/// payload doors and both enum doors.
+/// The state the predicate exists to name still answers it, at the
+/// payload door and the enum door.
 #[test]
 fn the_minted_placeholder_still_reads_as_the_placeholder() {
-    assert!(NurbsCurve3::<f64>::placeholder().is_placeholder());
     assert!(NurbsSurface::<f64>::placeholder().is_placeholder());
-    assert!(matches!(
-        Curve3::<f64>::nurbs_placeholder(),
-        Curve3::Nurbs(ref n) if n.is_placeholder()
-    ));
     assert!(matches!(
         Surface::<f64>::nurbs_placeholder(),
         Surface::Nurbs(ref n) if n.is_placeholder()
     ));
     // And through a lift, which is where the two states must not swap.
-    let d = Curve3::<f64>::nurbs_placeholder().map_scalar(Dual::constant);
-    assert!(matches!(&d, Curve3::Nurbs(n) if n.is_placeholder()));
+    let d = Surface::<f64>::nurbs_placeholder().map_scalar(Dual::constant);
+    assert!(matches!(&d, Surface::Nurbs(n) if n.is_placeholder()));
 }
 
 /// The DIRECTION of the change, as a property rather than a sentence:
@@ -169,38 +161,30 @@ fn the_minted_placeholder_still_reads_as_the_placeholder() {
 /// placeholder arm gained a member; some lost one.
 #[test]
 fn the_widened_predicate_implies_the_narrow_one() {
-    let described = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        (0..5)
+    let described = bilinear(
+        (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, 0.0))
             .collect(),
-        vec![Real::one(); 5],
-    )
-    .unwrap();
+    );
     let mut one_point_poisoned = described.control().to_vec();
     one_point_poisoned[2] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
     let battery = [
-        NurbsCurve3::<f64>::placeholder(),
-        masquerading_curve::<f64>(),
-        mirrored_curve::<f64>(),
+        NurbsSurface::<f64>::placeholder(),
+        masquerading_surface::<f64>(),
+        mirrored_surface::<f64>(),
         described,
-        NurbsCurve3::new(
-            Knots::from(knots5()).lift(geom_core::Real::from_f64),
-            one_point_poisoned,
-            vec![Real::one(); 5],
-        )
-        .unwrap(),
+        bilinear(one_point_poisoned),
     ];
-    for c in &battery {
-        if c.is_placeholder() {
+    for s in &battery {
+        if s.is_placeholder() {
             assert!(
-                c.control().iter().all(|p| p.x.is_poison()),
+                s.control().iter().all(|p| p.x.is_poison()),
                 "the widened answer must be a subset of the narrow one"
             );
         }
     }
     // And the subset is PROPER: the masquerade is the witness.
-    let m = masquerading_curve::<f64>();
+    let m = masquerading_surface::<f64>();
     assert!(m.control().iter().all(|p| p.x.is_poison()));
     assert!(!m.is_placeholder());
 }
@@ -236,12 +220,9 @@ fn the_masquerade_evaluates_partly_finite_and_refuses_projection() {
 
 /// The lift neither narrows nor widens the rule (the scalar-lift
 /// module's one home for this argument): the masquerade lifts to a
-/// described net, the placeholder to the placeholder.
+/// described net.
 #[test]
 fn the_widened_answer_survives_a_lift() {
-    let e = Curve3::Nurbs(Arc::new(masquerading_curve::<f64>()));
-    let d = e.map_scalar(Dual::constant);
-    assert!(matches!(&d, Curve3::Nurbs(n) if !n.is_placeholder()));
     let s = Surface::Nurbs(Arc::new(masquerading_surface::<f64>()));
     let sd = s.map_scalar(Dual::constant);
     assert!(matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()));
@@ -288,15 +269,11 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
     assert!(ph.min(Axis::X).is_nan() && ph.overlaps(&elsewhere));
 
     // And a fully described net still gets its real, pruning box.
-    let described = NurbsSurface::new(
-        Knots::from(knots2()).lift(geom_core::Real::from_f64),
-        Knots::from(knots2()).lift(geom_core::Real::from_f64),
+    let described = bilinear(
         (0..4)
             .map(|i| Point3::new(f64::from(i), 1.0, 2.0))
             .collect(),
-        vec![Real::one(); 4],
-    )
-    .unwrap();
+    );
     assert!(
         !nurbs_surface_aabb(&described).overlaps(&elsewhere),
         "the screen must not cost a described net its pruning power"
@@ -313,12 +290,10 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
     // At `f64` only NaN is poison, so a net of infinities — which a
     // file CAN spell, `1.E999` overflowing on read — is DESCRIBED, not
     // a placeholder, and its every channel is non-finite.
-    let inf = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        vec![Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY); 5],
-        vec![Real::one(); 5],
-    )
-    .unwrap();
+    let inf = bilinear(vec![
+        Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
+        4
+    ]);
     assert!(
         !inf.is_placeholder(),
         "+inf is not this scalar's poison, so this is described data"
@@ -326,19 +301,14 @@ fn the_placeholder_set_differs_in_extension_between_scalars() {
 
     // At `Dual` the question is the VALUE channel only: a poisoned
     // value over a finite derivative reads as the placeholder.
-    let d = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        vec![
-            Point3::new(
-                Dual::new(f64::NAN, 1.0),
-                Dual::new(f64::NAN, 1.0),
-                Dual::new(f64::NAN, 1.0)
-            );
-            5
-        ],
-        vec![Real::one(); 5],
-    )
-    .unwrap();
+    let d = bilinear(vec![
+        Point3::new(
+            Dual::new(f64::NAN, 1.0),
+            Dual::new(f64::NAN, 1.0),
+            Dual::new(f64::NAN, 1.0)
+        );
+        4
+    ]);
     assert!(
         d.is_placeholder(),
         "at Dual the discriminator reads the value channel; the finite \

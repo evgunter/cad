@@ -276,7 +276,7 @@ proptest! {
         let margin = (dtheta.sin() * 2.0).abs();
         match leg.angle(dep, Tol::witness()) {
             Ok(_) => prop_assert!(margin > tol.eps, "accepted inside the ε band"),
-            Err(PathError::JunctionTangent { .. }) => {
+            Err(PathError::JunctionTurnWithinTolerance { .. }) => {
                 prop_assert!(!flip && margin <= tol.eps * tol.k);
             }
             Err(PathError::JunctionCusp { .. }) => {
@@ -311,7 +311,7 @@ fn turn_zero_refuses_toward_tangent() {
         .unwrap();
     assert!(matches!(
         leg.turn(0.0, Tol::witness()),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
 }
 
@@ -406,7 +406,9 @@ fn parallel_carriers_refuse_no_corner() {
         .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap();
     assert!(matches!(
-        arrival.angle(std::f64::consts::FRAC_PI_2, Tol::witness()),
+        arrival
+            .angle(std::f64::consts::FRAC_PI_2, Tol::witness())
+            .map_err(|e| e.refusal().clone()),
         Err(PathError::NoCornerForFillet { .. })
     ));
 }
@@ -564,7 +566,10 @@ fn the_seam_tangent_close_refuses_always() {
         .line_to(Point2::new(-2.0, 0.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness());
-    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
+    assert!(matches!(
+        refused,
+        Err(PathError::SeamTurnWithinTolerance { .. })
+    ));
 }
 
 #[test]
@@ -709,10 +714,10 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
         .tangent_arc_to(Start, Tol::witness());
     // The seam's own junction is UNDECLARED here, and that is what
     // still refuses: `Start` alone declares nothing, so a zero-turn
-    // seam is `SeamTangent`. Carrier identity is no longer a reason for
+    // seam is `SeamTurnWithinTolerance`. Carrier identity is no longer a reason for
     // anything (Ev, in-chat, 2026-09-02).
     assert!(
-        matches!(refused, Err(PathError::SeamTangent { .. })),
+        matches!(refused, Err(PathError::SeamTurnWithinTolerance { .. })),
         "an undeclared seam on one carrier still refuses: {refused:?}"
     );
 }
@@ -863,7 +868,7 @@ fn toward_runs_the_same_junction_check_as_angle() {
         .unwrap();
     assert!(matches!(
         leg.clone().toward(1.0, 0.0, Tol::witness()),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     assert!(matches!(
         leg.toward(-1.0, 0.0, Tol::witness()),
@@ -1197,7 +1202,7 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 #[test]
 fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
-    let PathError::NoCornerOfPair { radius, .. } = &err else {
+    let PathError::NoCornerOfPair { radius, .. } = err.refusal() else {
         panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
     let Some((_, carrier_radius, offset_radius, largest_tangent_radius)) =
@@ -2056,7 +2061,7 @@ fn authored_collinear_target_refuses_naming_the_structural_spelling() {
         .unwrap()
         .line_to(Point2::new(4.0, 0.0), Tol::witness())
         .unwrap_err();
-    assert!(matches!(err, PathError::JunctionTangent { .. }));
+    assert!(matches!(err, PathError::JunctionTurnWithinTolerance { .. }));
     let text = err.to_string();
     assert!(
         text.contains("line(len)"),
@@ -2085,7 +2090,7 @@ fn curved_zero_turn_still_refuses() {
         .unwrap();
     assert!(matches!(
         arc_end.turn(0.0, Tol::witness()),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
 }
 
@@ -2143,7 +2148,7 @@ fn continuation_off_an_arc_is_a_constructed_tangency() {
 /// - **Rotation 1 — seam at a CORNER.** The closer departs the run's
 ///   subdivision vertex, so the junction in band is the CLOSER'S OWN
 ///   departure. Undeclared, that still refuses
-///   (now an ordinary `JunctionTangent`): `line_to(Start)` computed
+///   (now an ordinary `JunctionTurnWithinTolerance`): `line_to(Start)` computed
 ///   a direction and found it collinear, and reading intent off that is
 ///   the inference the ladder refuses. DECLARED, it closes —
 ///   `continue_to(Start)` takes the departing point's own ray and
@@ -2152,7 +2157,7 @@ fn continuation_off_an_arc_is_a_constructed_tangency() {
 ///   departs the corner asserted below, and the junction in band is the
 ///   SEAM'S. This half was the wall BOOL-11 left standing, and it is
 ///   over too: no spelling of the closing leg's DEPARTURE moves it —
-///   `line_to(Start)` still refuses `SeamTangent` and the declared
+///   `line_to(Start)` still refuses `SeamTurnWithinTolerance` and the declared
 ///   closer still does not apply, because the leg departs a CORNER and
 ///   `Start` is off its ray — but the declaration the seam wanted was
 ///   never on the departure. It is on the ARRIVAL, and
@@ -2165,8 +2170,8 @@ fn continuation_off_an_arc_is_a_constructed_tangency() {
 /// what makes each rotation have exactly ONE in-band junction. The site
 /// The two mechanisms are separable at the REFUSAL rather than only
 /// through the fixture that provoked each — which was BOOL-8's ask —
-/// and they are separable by TYPE: `JunctionTangent` for a departure,
-/// `SeamTangent` for a seam. That is strictly better than the payload
+/// and they are separable by TYPE: `JunctionTurnWithinTolerance` for a departure,
+/// `SeamTurnWithinTolerance` for a seam. That is strictly better than the payload
 /// tag an earlier draft used. A tag has to be read and can be ignored
 /// by a `{ .. }` pattern; two types cannot be confused by a caller,
 /// cannot be matched by accident, and let each refusal carry only the
@@ -2226,7 +2231,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     };
     assert!(matches!(
         at_m3().line_to(Start, t),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     let closed = pinned_constructed(
         at_m3()
@@ -2251,7 +2256,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     let back_at_keel = || side(side(side(round(), right, ridge), ridge, left), left, keel);
     assert!(matches!(
         back_at_keel().line_to(Start, t),
-        Err(PathError::SeamTangent { .. })
+        Err(PathError::SeamTurnWithinTolerance { .. })
     ));
     // The declared closer does not even APPLY here, and that is the
     // sharper half: in this rotation the closing leg departs a corner,
@@ -2293,7 +2298,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
 /// as a "continuation". Every director that could re-author the
 /// incoming direction — `.toward` with the exact same displacement,
 /// `.turn(0)`, `.angle(exact incoming angle)` — still refuses
-/// `JunctionTangent`, which is the probe's whole subject and is
+/// `JunctionTurnWithinTolerance`, which is the probe's whole subject and is
 /// unchanged. The DECLARED spelling used to refuse
 /// `SameCarrierJunction` and is legal since the Q1 sixth round (Ev,
 /// in-chat, 2026-09-02: every zero-turn joint is a constructed tangent
@@ -2313,18 +2318,18 @@ fn r2_probe_authored_spellings_cannot_sneak_the_continuation() {
     // .toward with the exact incoming displacement: authored, refuses.
     assert!(matches!(
         tip().toward(3.0, 7.0, t),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     // .turn(0) off a LINE end (the arc case has its own row): refuses.
     assert!(matches!(
         tip().turn(0.0, t),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     // .angle at the exact incoming angle: authored, refuses.
     let theta = 7.0f64.atan2(3.0);
     assert!(matches!(
         tip().angle(theta, t),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     // declared identity: LEGAL since 2026-09-02 — a declared zero-turn
     // joint is a tangent joint whatever the carriers do. The probe's
@@ -2449,7 +2454,7 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
         .unwrap();
     assert!(matches!(
         rev_at_last_mid.line_to(Start, t),
-        Err(PathError::JunctionTangent { .. })
+        Err(PathError::JunctionTurnWithinTolerance { .. })
     ));
     // (c) the continuation lands ON Start's coordinates but mints a
     // directed point, not a closure; the leftover closer is

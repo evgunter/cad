@@ -28,7 +28,7 @@ any member:
 
 The answer is a construction fact about the names, so it plausibly
 belongs to the program's structure: the piece order a program's
-structure draws is `profile::chain_shape` (`ProfileProgram::drawable_pieces`
+structure draws is `profile::chain_shape` (`ProfileProgram::structure`
 reads it), from which a piece's end vertex is the next piece's start.
 Which one applies (structural adjacency, or per-member pieces) is this
 row's question; the 7082 strand-report widening (runs and corners at

@@ -17,10 +17,10 @@ which retired sphere × torus at rung 3 and left this pair's arm unretired.
 The torus's halves of the ℝ³ certificate are built and pair-independent:
 `crates/geom-brep/src/ssi/enclose.rs` `implicit_enclosure` and
 `implicit_gradient_enclosure` (the mean-value form of `g = F/(4rA)` and
-its exact gradient, `Quartic`), `ssi/certify.rs` `composite_form`'s
-torus arm with its per-span conversion (`ToMeters::Torus`,
-`enclose::torus_meters_sup`), and `has_implicit_enclosure` lists the
-torus. `ssi::sphere_torus_ssi` is the pattern: a pair gate, the pair's
+its exact gradient, `Quartic`), limb 2's one reader
+(`pcurve_cache::limb2_offset_sup` at `Limb2Locus::Carrier`, whose
+`projected::Meters::Torus` converts per part), and
+`has_implicit_enclosure` lists the torus. `ssi::sphere_torus_ssi` is the pattern: a pair gate, the pair's
 own tangency decision before any rung, then `implicit_pair_r3`.
 
 ## Measured
@@ -33,7 +33,7 @@ as `implemented: false`.
 ## What the taker owes
 
 An ℝ³ plane × torus door over `implicit_pair_r3` (the plane's arms of
-the enclosures and of `composite_form` exist), the pair's tangency
+the enclosures and of limb 2's reader exist), the pair's tangency
 decision before any rung (a plane is tangent to a torus where its
 distance from the core circle's nearest or farthest point in the
 plane's normal direction equals `r`, the bitangent Villarceau pose

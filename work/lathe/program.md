@@ -2,7 +2,7 @@
 id: lathe
 kind: program
 title: LATHE — what extrude, revolve and the loft's arc walls build: the cap's frame plane, the full revolve's one band, the revolve's decisions, and the readings they refuse by
-status: ready
+status: active
 opened: 2026-10-31
 group: kernel/sweep/loft
 prefix: lathe/

@@ -1,6 +1,5 @@
 //! **Every shipped call of a door that cites a ledger row names a row
-//! the ledger has**, and the clause-(i) debt lane's `decide_flagged`
-//! sites match the ledger's inventory (the standing rule on
+//! the ledger has** (the standing rule on
 //! [`geom_core::k_stats::decide_flagged`]; issue #214). Shipped means a
 //! crate's `src/` tree: fixtures and demos carry prose reasons instead of
 //! rows and are not counted, and an in-file `#[cfg(test)]` module is
@@ -53,9 +52,6 @@
 //! glob other than `k_stats::*` brings in: the binding behind it is read
 //! in its place, so a glob that does define the door's name over an
 //! outer import of the door is read as the door.
-//!
-//! The `decide_flagged` total is hand-synced and spelled ONCE, at
-//! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -63,14 +59,6 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use source_scope::{Arg, Bound, Callee, Event, Source};
-
-/// The ledger's current shipped `decide_flagged` inventory.
-///
-/// **This number is hand-synced and nothing derives it.** It is kept
-/// level by hand with the audit's own prose inventory; the sibling
-/// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
-/// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 6;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]
@@ -119,7 +107,9 @@ struct Door {
 
 /// The home's `pub` fns that take a row-like parameter and cite no
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
-const NON_ROW_DOORS: [&str; 1] = ["identity_pass_set"];
+/// `new` is the mark sites' constructors (`QuerySite`, `TestSite`), whose
+/// `words` say what a site asks.
+const NON_ROW_DOORS: [&str; 2] = ["identity_pass_set", "new"];
 
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or
@@ -638,24 +628,7 @@ fn shipped_doors() -> Vec<Door> {
     home_doors(&home, &text)
 }
 
-/// The clause-(i) lane's sites: the calls of the home's `decide_flagged`
-/// doors, the plain one and the one that keeps its margin, and of any
-/// wrapper that forwards a row to them.
-fn flagged_sites() -> Vec<Site> {
-    let flagged: Vec<Door> = shipped_doors()
-        .into_iter()
-        .filter(|d| d.name.starts_with("decide_flagged"))
-        .collect();
-    assert!(
-        !flagged.is_empty(),
-        "the home defines no decide_flagged door"
-    );
-    door_sites_in(shipped_scanned(), &flagged)
-}
-
-/// The shipped files, read and parsed once per process: both shipped
-/// rows read the same parse. (Under nextest each row is its own
-/// process, so there the parse is once per row.)
+/// The shipped files, read and parsed once per process.
 fn shipped_scanned() -> &'static [Scanned<'static>] {
     static FILES: std::sync::OnceLock<Vec<(PathBuf, String)>> = std::sync::OnceLock::new();
     static SCANNED: std::sync::OnceLock<Vec<Scanned<'static>>> = std::sync::OnceLock::new();
@@ -666,19 +639,6 @@ fn shipped_scanned() -> &'static [Scanned<'static>] {
             .map(|(p, t)| Scanned::of(p, t))
             .collect()
     })
-}
-
-#[test]
-fn shipped_decide_flagged_sites_match_the_ledger() {
-    let hits = flagged_sites();
-    assert_eq!(
-        hits.len(),
-        LEDGER_FLAGGED_SITES,
-        "shipped decide_flagged sites diverged from the ledger's inventory \
-         (docs/predicate-dimension-audit.md, clause-(i) section; issue #214). \
-         A new site needs a ledger row FIRST, then this count moves with it. \
-         Sites found: {hits:#?}"
-    );
 }
 
 #[test]

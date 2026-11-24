@@ -40,7 +40,7 @@ Consolidated register per Ev's ask at M6 closure (PR #243 comment 5224869607). O
 - Fillet family named refusals incl. the tangent-seam case (lily wall 6; verified still refusing at walk assembly).
 
 ## Triage (recorded, no milestone obligation)
-- Lily walls 4 (spheroid surface kind — D3 closed-enum extension), 5 (mirror instancing — Band-3 patterns/mirror), 9 (variable-radius/taper), 13 (per-feature tessellation δ — display-mesh lane era).
+- Lily walls 4 (spheroid surface kind — ruled on PR 7289: the bud is a stretched meridian, so wall 4 is deleted, not re-aimed, by OVOID's `the-lily-bud-is-an-ovoid-and-wall-4-is-deleted`), 5 (mirror instancing — Band-3 patterns/mirror), 9 (variable-radius/taper), 13 (per-feature tessellation δ — display-mesh lane era).
 - F10/F12-class attribution + arm-policy questions: tracked at #214 (dimensional-debt inventory), not duplicated here.
 
 Closing discipline: a row closes by naming the merging PR; this issue closes when every non-triage row is closed or has moved into a milestone plan.

@@ -297,10 +297,10 @@ fn r1_a_user_cancel_keeps_the_last_completed_result_on_screen() {
 }
 
 /// The text door swings BOTH ways: a literal slot accepts an
-/// expression, after which the slot refuses numbers — the affordance's
+/// expression, after which the slot refuses a drag — the affordance's
 /// two directions composed into one walk.
 #[test]
-fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
+fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_a_drag() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-literal-first", tol);
     let (doc, _) = edited(
@@ -343,8 +343,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
 
-    // Now the same slot is driven and refuses the number it took
-    // before.
+    // Now the same slot is driven, and a drag over it is refused.
     let row = session
         .slot_rows()
         .into_iter()
@@ -355,10 +354,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         row.value,
         Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
     );
-    let refused = session.perform(SessionOp::SetSlot {
+    let refused = session.perform(SessionOp::BeginGesture {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::Continuous(0.02),
     });
     assert!(matches!(
         refused.refusal,

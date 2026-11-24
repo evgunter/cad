@@ -10,13 +10,11 @@
 //! a taken name, `SetVariable` refuses an absent variable — both in the
 //! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the
-//! refuse-with-affordance on a numeric write to a driven slot (G4
-//! rules it for a drag; the write follows the same rule), display
+//! refuse-with-affordance on a drag over a driven slot (G4), display
 //! units as a separate door from values (`SetSlotUnit`), slider
 //! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a
-//! locally-valid-range probe (`ProbeBounds`) and its discard on the
-//! next edit, param edits rippling through evaluation against a closed
+//! `range?` run (`ProveRange`) and its discard on the next edit, param edits rippling through evaluation against a closed
 //! form, tree-shaped undo history (an edit after an undo mints a
 //! sibling), and a save/reopen round trip that keeps the expressions,
 //! the variables and the written units.
@@ -35,15 +33,15 @@ use viewer::session::BooleanSpec;
 use core::f64::consts::PI;
 
 use common::{body_volume, circle_at, len, near, session_insert};
+use pncad::analysis::RangeRefusal;
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
-use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
+use viewer::session::{DocSession, RangeTarget, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the variables are first declared:
@@ -425,16 +423,14 @@ fn the_parametric_living_walk() {
         "every row green: {rows:?}"
     );
 
-    // ── 7. Living in it, first touch: a direct number onto the
-    // tower's driven distance refuses with G4's affordance (ruled for
-    // a drag, applied here to a typed write) —
+    // ── 7. Living in it, first touch: a drag on the tower's driven
+    // distance refuses with G4's affordance —
     // the typed payload names the driving variable and the value the
     // slot has today, and the refusal commits nothing.
     let before = session.history().len();
-    let outcome = session.perform(SessionOp::SetSlot {
+    let outcome = session.perform(SessionOp::BeginGesture {
         node: tower,
         slot: SlotId::Distance,
-        value: SlotValue::Continuous(0.1),
     });
     match outcome.refusal {
         Some(Refusal::DrivenByExpression {
@@ -463,85 +459,77 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe targets the VARIABLE, and on a driven slot it must:
-    // the probe refuses an expression-driven slot with the same
-    // affordance the numeric write above got, which names the
-    // variable to ask about instead. The probe is explicit, commits
-    // nothing,
-    // and answers in the session: below, a wall exists (a drum's radius hits zero before
-    // taper does — degenerate profile), so the low side is an EDGE
-    // strictly inside (0, taper); above, the drums merely re-stack, so
-    // the search finds real room past the first reach. A probe on an
-    // undeclared variable refuses through the same typed door as the
-    // value write.
-    let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Slot {
+    // `range?` targets the VARIABLE, and on the tower's depth it must:
+    // that slot reads `height * 2.0`, a variable a formula defines,
+    // which has no interval of its own, and the kernel's admission
+    // refuses it in words that send the user to the variables the
+    // formula reads. A run on an undeclared variable refuses through
+    // the same door. The run is explicit and commits nothing; it is
+    // stopped before it builds its witness, since what this walk needs
+    // of it is that the next edit drops it.
+    let before = session.history().len();
+    let taper_var = common::var_of(session.committed_doc(), taper.as_str());
+    let outcome = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable { var: taper_var },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.committed.is_empty(), "a run commits nothing");
+    assert_eq!(session.history().len(), before, "and mints no history");
+    let outcome = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Slot {
             node: tower,
             slot: SlotId::Distance,
         },
     });
     match outcome.refusal {
-        Some(Refusal::DrivenByExpression { ref variables, .. }) => {
-            assert_eq!(
-                variables,
-                &vec![spoken(session.committed_doc(), &height)],
-                "probe THAT instead"
+        Some(Refusal::Range(ref refusal)) => {
+            assert!(
+                matches!(**refusal, RangeRefusal::SlotIsDefined { .. }),
+                "{refusal:?}"
+            );
+            assert!(
+                refusal
+                    .to_string()
+                    .contains("certify the variables that formula reads"),
+                "{refusal}"
             );
         }
-        ref other => panic!("expected the driven refusal on the probe, got {other:?}"),
+        ref other => panic!("expected the kernel's admission refusal, got {other:?}"),
     }
-    assert!(
-        session.bounds().is_none(),
-        "a refused probe lands no reading"
-    );
-    let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Variable {
+    let outcome = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable {
             var: pncad::document::VarId::new(0, 0x7461_7070_6572),
         },
     });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));
-    let before = session.history().len();
-    let outcome = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Variable {
-            var: common::var_of(session.committed_doc(), taper.as_str()),
-        },
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(outcome.committed.is_empty(), "a probe commits nothing");
-    assert_eq!(session.history().len(), before, "and mints no history");
-    let reading = session.bounds().expect("the probe landed").clone();
-    let bounds = reading.bounds;
+    assert!(
+        matches!(
+            outcome.refusal.as_ref(),
+            Some(Refusal::Range(refusal))
+                if matches!(**refusal, RangeRefusal::NotAContinuousParam { .. })
+        ),
+        "{:?}",
+        outcome.refusal
+    );
+    let reading = session.range().expect("the run started").clone();
     assert_eq!(
         reading.target,
-        BoundsTarget::Variable {
-            var: common::var_of(session.committed_doc(), taper.as_str())
-        }
+        RangeTarget::Variable { var: taper_var },
+        "the refusals neither set a reading nor cleared the run in flight"
     );
-    assert_eq!(bounds.origin, TAPER, "searched from where the field is");
+    assert!(reading.proving(), "and it proves until stopped");
+    session.perform(SessionOp::StopRange);
+    session.pump();
     assert!(
-        bounds.low.is_edge(),
-        "a zero-radius drum walls off the low side: {:?}",
-        bounds.low
-    );
-    let floor = bounds.low.limit();
-    assert!(
-        floor > 0.0 && floor < TAPER,
-        "the furthest valid taper down is strictly inside (0, {TAPER}): {floor}"
-    );
-    assert!(
-        bounds.high.limit() >= TAPER + 1.0,
-        "real room upward, at least one seed out (a scalar's seed is 1): {:?}",
-        bounds.high
-    );
-    assert!(
-        bounds.samples > 0 && bounds.samples <= BoundsProbe::MAX_SAMPLES,
-        "the cost bound holds: {}",
-        bounds.samples
+        !session
+            .range()
+            .expect("a stopped run keeps its reading")
+            .proving(),
+        "the stop ends it"
     );
 
     // ── 9. The ripple: one variable moves and the whole part
-    // follows. The probe's answer — a statement about the OLD document
-    // — is discarded by the edit; the volume tracks the closed form;
+    // follows. The range's reading — a statement about the OLD
+    // document — is dropped by the edit; the volume tracks the closed form;
     // one undo restores the old geometry exactly; redo returns.
     let v_before = body_volume(&mut session, lighthouse, tol);
     let outcome = session.perform(SessionOp::SetVariable {
@@ -554,8 +542,8 @@ fn the_parametric_living_walk() {
         Some(DocEdit::SetVarValue { .. })
     ));
     assert!(
-        session.bounds().is_none(),
-        "the probe's answer dies with the document it was about"
+        session.range().is_none(),
+        "the range's reading dies with the document it was about"
     );
     let v_wide = body_volume(&mut session, lighthouse, tol);
     let want = lighthouse_volume(BASE_R, 0.7, HEIGHT, EMBED, LAMP_H);

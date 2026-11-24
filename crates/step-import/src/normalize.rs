@@ -219,6 +219,10 @@ fn band_seam(
 }
 
 /// One tagged band face's re-mint ([`band_seam`] docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mint_band(
     solid: &mut SolidSpec,
     fi: usize,
@@ -228,12 +232,12 @@ fn mint_band(
 ) -> Result<(), StepImportError> {
     let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
-    let surface = solid.faces[fi].surface.clone();
+    let surface = solid.surface(fi).clone();
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
     let (s_axis, s_u_ref, axis_point, torus) = match surface {
         Surface::Cylinder { frame, .. } => {
-            let (origin, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (origin, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
             (axis, u_ref, origin, None)
         }
         Surface::Torus {
@@ -241,7 +245,7 @@ fn mint_band(
             major_radius,
             minor_radius,
         } => {
-            let (axis, u_ref, center) = (frame.axis(), frame.u_ref(), frame.origin());
+            let (axis, u_ref, center) = (frame.axis_unit(), frame.u_ref(), frame.origin());
             (
                 axis,
                 u_ref,
@@ -302,17 +306,17 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                    let (center, n) = (frame.origin(), frame.axis());
+                Curve3::Circle(circle) => {
+                    let (center, n) = (circle.frame().origin(), circle.axis());
                     let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
                         dir: s_axis,
                     }
                     .distance(center);
-                    let tilt = radius * n.cross(s_axis).norm();
+                    let tilt = radius * n.cross(s_axis.get()).norm();
                     if ui == 0 {
-                        raises = Some(u.forward == (n.dot(s_axis) > 0.0));
+                        raises = Some(u.forward == (n.dot(s_axis.get()) > 0.0));
                     }
                     // Coaxial is a lane choice (`[verdicts]`): Zero
                     // takes the re-mint, whose winding read, splits and
@@ -405,7 +409,7 @@ fn mint_band(
         }),
         Some((center, major_radius, minor_radius)) => Curve3::circle(
             crate::signed_zero::plus_zero_point(center + s_u_ref * major_radius),
-            crate::signed_zero::plus_zero(s_u_ref.cross(s_axis)),
+            crate::signed_zero::plus_zero(s_u_ref.cross(s_axis.get())),
             minor_radius,
             s_u_ref,
         ),
@@ -499,6 +503,10 @@ fn mint_band(
 /// budget), else minted by splitting the rim arc that crosses the
 /// azimuth, propagating the split to every sharing face.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn seam_vertex_on_loop(
     solid: &mut SolidSpec,
     fi: usize,
@@ -550,8 +558,9 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q =
-            crate::signed_zero::plus_zero_point(circle.frame.origin() + s_u_ref * circle.radius());
+        let q = crate::signed_zero::plus_zero_point(
+            circle.frame().origin() + s_u_ref * circle.radius(),
+        );
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
@@ -611,12 +620,18 @@ fn seam_vertex_on_loop(
 /// whole-body inversion at the planar faces (`step-export`'s
 /// `m6_6_sense_gate` rows); the readings themselves close with the
 /// ellipse-rim material-side encoding.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_inversion(
     solid: &SolidSpec,
     chart_band: Option<geom_core::Band>,
 ) -> Result<(), StepImportError> {
     for face in &solid.faces {
-        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) = face.surface else {
+        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) =
+            *solid.surface_of(face)
+        else {
             continue;
         };
         let axis = frame.axis();
@@ -629,22 +644,29 @@ fn wall_inversion(
         let mut readable = true;
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
-            let Curve3::Circle(geom::Circle { frame, .. }) = spec.carrier else {
+            let Curve3::Circle(the_circle @ geom::Circle { .. }) = spec.carrier else {
                 continue;
             };
+            let frame = the_circle.frame();
             let n_c = frame.axis();
             if n_c.dot(axis).abs() <= 0.5 {
                 continue;
             }
-            let Some(p) =
-                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, chart_band)
-            else {
+            let Some(p) = chart_direction(
+                solid.surface_of(face),
+                &spec.carrier,
+                spec.t0,
+                spec.t1,
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
-            let Some(uv) =
-                crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0), chart_band)
-            else {
+            let Some(uv) = crate::chart::uv_of(
+                solid.surface_of(face),
+                spec.carrier.eval(spec.t0),
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
@@ -705,7 +727,10 @@ mod tests {
             EdgeSpec {
                 start: apex_v,
                 end: base_v,
-                carrier: Curve3::line(apex, Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt()),
+                carrier: Curve3::line(
+                    apex,
+                    geom::stated_direction(Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt()),
+                ),
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,
@@ -740,14 +765,7 @@ mod tests {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Cone {
-                    frame: geom::Frame::new(
-                        apex,
-                        Vec3::new(0.0, 0.0, -1.0),
-                        Vec3::new(1.0, 0.0, 0.0),
-                    ),
-                    half_angle: std::f64::consts::FRAC_PI_4,
-                },
+                record: 900,
                 sense: true,
                 loops: vec![LoopSpec {
                     outer: true,
@@ -757,6 +775,17 @@ mod tests {
             }],
             edges,
             vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Cone {
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                },
+            )]),
             band_seams: Default::default(),
         };
         let mut minted = 0_u64;

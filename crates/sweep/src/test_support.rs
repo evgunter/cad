@@ -710,14 +710,19 @@ pub fn reflex_edge_and_floor_leg(body: &Body<f64>, (x, y): (f64, f64)) -> [EdgeK
 /// The `1e-9` and the sole [`Bounds`] bound are [`rim_arcs_at`]'s, for
 /// its reasons.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = *c.carrier() else {
+            let geom::Curve3::Circle(conic_k) = *c.carrier() else {
                 return None;
             };
+            let frame = conic_k.frame();
             let center = frame.origin();
             let radius = conic_k.radius();
             if !near(radius, rim_r) || !near(center.y, rim_y) {
@@ -1300,6 +1305,39 @@ pub fn loft_prism_sections() -> Vec<Section> {
 /// naming this.
 pub fn stacked_at(zs: &[f64]) -> Vec<SketchPlane<f64>> {
     zs.iter().map(|z| sketch_at(*z)).collect()
+}
+
+/// The pinned-corner fixtures' square's corners: 2×2, corner 0 at
+/// (−1, −1), counterclockwise.
+pub const PINNED_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// **The pinned-corner fixtures' section**: [`PINNED_SQUARE`], one loop.
+#[must_use]
+pub fn pinned_square() -> Section {
+    use profile::RawLoop;
+    vec![ProfileLoop::polygon(
+        PINNED_SQUARE
+            .iter()
+            .map(|&(x, y)| geom_core::Point2::new(x, y)),
+    )]
+}
+
+/// The rotation by `angle` about the axis through `at` along `about`.
+#[must_use]
+pub fn turn_about(at: [f64; 3], about: [f64; 3], angle: f64) -> geom_core::Affine3<f64> {
+    geom_core::Affine3::rotation_about_axis(
+        geom_core::Point3::new(at[0], at[1], at[2]),
+        geom_core::Vec3::new(about[0], about[1], about[2]),
+        angle,
+    )
+}
+
+/// Each rigid map of `ms` as a section's placement, kept rigid at `tol`.
+#[must_use]
+pub fn rigid_places(ms: &[geom_core::Affine3<f64>], tol: geom_core::Tol) -> Vec<SketchPlane<f64>> {
+    ms.iter()
+        .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(m, tol)))
+        .collect()
 }
 
 /// **Fixture sections at a lane scalar**: each loop of `sections`
@@ -2030,6 +2068,10 @@ pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> 
 /// Every edge whose stored carrier is a circle that `pick` accepts
 /// (centre, radius, axis), in key order — the seed scan [`z_rim`] and
 /// [`circle_arcs_at_z`] share.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn circle_arcs_where(
     body: &Body<f64>,
     pick: impl Fn(Point3<f64>, f64, Vec3<f64>) -> bool,
@@ -2041,7 +2083,7 @@ fn circle_arcs_where(
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
                 Some(geom::Curve3::Circle(c))
-                    if pick(c.frame.origin(), c.radius(), c.frame.axis())
+                    if pick(c.frame().origin(), c.radius(), c.axis())
             )
         })
         .map(|(k, _)| k)
@@ -2647,6 +2689,50 @@ pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::loft_body_construction(sections, places, v_degree, tol)
+}
+
+/// **A spline-walled body at `T` whose carriers hold `f64` values as
+/// points**: the `f64` body [`crate::loft_body`] builds over `sections`
+/// and `places`, every carrier value entered at `T` as the point it is,
+/// finished as its scalar's leaf with every key kept. A family of one
+/// whose member has `f64` values.
+///
+/// It is NOT the loft of these sections at `T`: that one is built in
+/// `T`, and at an enclosure scalar its arc weights and chord-length
+/// parameters are enclosures, which a carrier does not hold yet
+/// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+/// This door is for rows that hand SOME spline-walled body at an
+/// enclosure scalar to a certifier. No row about the loft may use it,
+/// and it goes when the carrier's door lifts
+/// (`work/scalar/the-point-carrier-fixture-goes-when-the-carriers-door-lifts.md`).
+///
+/// # Errors
+///
+/// [`crate::loft_body`]'s at `f64` short of its finish, the assembly's
+/// at `T`, and the finish's there.
+pub fn f64_body_held_as_points<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[Section],
+    places: &[profile::SketchPlane<f64>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T>, crate::LoftError> {
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)?.leaf(tol)
+}
+
+/// [`f64_body_held_as_points`] before its finish: the body in
+/// construction state, for the rows that read its walls at an enclosure
+/// scalar whose finish does not run on them.
+///
+/// # Errors
+///
+/// [`f64_body_held_as_points`]'s, short of the finish.
+pub fn f64_body_held_as_points_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[Section],
+    places: &[profile::SketchPlane<f64>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].

@@ -1,17 +1,11 @@
-//! **Every crate that decides a predicate name runs a roster, or is
-//! listed here with the row that gives it one; and every name a
-//! predicate literal references is one some crate decides.**
+//! **Every crate that decides a predicate name runs a roster, and every
+//! name a predicate literal references is one some crate decides.**
 //!
 //! A roster (`crates/<crate>/tests/recourse_roster.rs`, on the shared
-//! harness `test_utils::source::roster_violations`) holds that nothing
-//! its crate decides is invisible to the census. This row is what makes
-//! a crate fall under one without anyone remembering to add it: it walks
-//! every crate's `src`, and **a crate with a decide site that runs no
-//! roster is red** unless [`KNOWN_MISSING`] lists it with its row.
-//!
-//! The list is a **two-way ratchet**. A listed crate that now runs a
-//! roster, or has no site left, is red too ("remove it from the list"),
-//! so the list only shrinks, and an entry cites a row that exists.
+//! harness `test_utils::source::roster_violations`) holds that its
+//! crate's census reads every site it meets. This row walks every
+//! crate's `src`, and **a crate with a decide site that runs no roster
+//! is red**: read off the tree, with no list of crates excused.
 //!
 //! **References.** A literal a `predicate` field or comparison names
 //! (`predicate: Some("…")`, `d.predicate == Some("…")`, every
@@ -29,10 +23,12 @@
 //!   one in production code is red, since a production name nothing
 //!   decides needs a home, not a marker. And it ratchets the other way
 //!   too: a marked name some census decides is red ("drop the marker").
-//! - **A hold.** A listed crate holds a name only where it spells it as
-//!   decided — a `const` of it (`test_utils::source::held_spellings`) —
-//!   never at a reference or an arbitrary literal. Once the crate's
-//!   roster reads it, the name resolves on its own.
+//! - **A hold.** A crate that decides names and runs no roster
+//!   (`crates/<crate>/tests/recourse_roster.rs`, whose carriers the
+//!   census reads with) holds a name only where it spells it as decided
+//!   — a `const` of it (`test_utils::source::held_spellings`) — never at
+//!   a reference or an arbitrary literal. Once a roster reads it, the
+//!   name resolves on its own.
 //! - **A closed type's table** (profile's `Gate`, sweep's blend
 //!   decisions, geom-brep's pose and pair decisions, editor-core's
 //!   `decisions!`) is no hold: its crate's roster declares it
@@ -49,13 +45,6 @@ use test_utils::source::{
     PredicateCensus, SiteNames, crate_roster, held_spellings, holds_rust_sources, predicate_census,
     repo_root, test_references,
 };
-
-/// The crates that decide names and run no roster yet, each with the
-/// row that gives it one. A reference only such a crate spells as a
-/// `const` is held by its entry. Empty today: every deciding crate runs
-/// a roster, and a closed type's table is a declared carrier
-/// (`NameCarrier::Table`) its crate's roster reads, not a hold.
-const KNOWN_MISSING: &[(&str, &str)] = &[];
 
 /// A crate as this row reads it.
 struct Crate {
@@ -110,37 +99,18 @@ fn has_sites(census: &PredicateCensus) -> bool {
         || !census.unreadable.is_empty()
 }
 
-/// **Every crate with a site runs a roster or is listed, the list holds
-/// only crates that need it, and every referenced name resolves.** One
-/// walk of the tree for both halves.
+/// **Every crate with a site runs a roster, and every referenced name
+/// resolves.** One walk of the tree for both halves.
 #[test]
 fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
     let crates = crates();
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let listed: BTreeMap<&str, &str> = KNOWN_MISSING.iter().copied().collect();
-    assert_eq!(listed.len(), KNOWN_MISSING.len(), "a crate is listed twice");
     let mut out = Vec::new();
-    for (name, row) in KNOWN_MISSING {
-        if !root.join(row).is_file() {
-            out.push(format!("`{name}` cites `{row}`, which is not a file"));
-        }
-        match crates.get(*name) {
-            None => out.push(format!("`{name}` is listed but is no crate with a src")),
-            Some(c) if c.runs_roster => out.push(format!(
-                "`{name}` runs a roster now — remove it from KNOWN_MISSING"
-            )),
-            Some(c) if !has_sites(&c.census) => out.push(format!(
-                "`{name}` decides nothing now — remove it from KNOWN_MISSING"
-            )),
-            Some(_) => {}
-        }
-    }
     for (name, c) in &crates {
-        if has_sites(&c.census) && !c.runs_roster && !listed.contains_key(name.as_str()) {
+        if has_sites(&c.census) && !c.runs_roster {
             out.push(format!(
                 "`{name}` decides predicate names and runs no roster — give it \
-                 `tests/recourse_roster.rs` on `test_utils::source::roster_violations`, or \
-                 list it in KNOWN_MISSING with the row that will"
+                 `tests/recourse_roster.rs` on `test_utils::source::roster_violations`"
             ));
         }
     }
@@ -150,12 +120,18 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
         .collect();
     assert!(!union.is_empty(), "the census read no name anywhere");
     let crates_dir = root.join("crates");
-    // A listed crate holds a name only where it spells it as decided —
-    // a `const` of it — never at a reference and never at an arbitrary
-    // literal.
-    let held: BTreeMap<&str, BTreeSet<String>> = KNOWN_MISSING
+    // A crate that runs no roster holds a name only where it spells it
+    // as decided — a `const` of it — never at a reference and never at
+    // an arbitrary literal.
+    let held: BTreeMap<&str, BTreeSet<String>> = crates
         .iter()
-        .map(|(name, _)| (*name, held_spellings(&crates_dir.join(name).join("src"))))
+        .filter(|(_, c)| !c.runs_roster && has_sites(&c.census))
+        .map(|(name, _)| {
+            (
+                name.as_str(),
+                held_spellings(&crates_dir.join(name).join("src")),
+            )
+        })
         .collect();
     for (name, c) in &crates {
         let sites = c

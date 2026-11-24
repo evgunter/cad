@@ -72,7 +72,10 @@
 //! precision. Posed about `b`'s centre their harmonics carry rounding of
 //! order `((|w| + R)/s)²` for `F` and the carriers' distance from the
 //! origin for `H`, which at a far, thin or large pair reaches the band's
-//! zero; read about the piece, each rounds as its few local terms do.
+//! zero. Read about the piece, `H` rounds as its few local terms do, and
+//! the far centre drops out of both; `F` still divides by `b`'s squared
+//! semi-axes, so its rounding as a length grows with `b`'s aspect, which
+//! the local read does not cure (`local_taylor`).
 
 //! **On, along `b`.** Where `a` touches `b`, tangent to it, `d` stays
 //! within the zero band `z` over a run about `√(2z/κ)` long, `κ` their
@@ -103,10 +106,11 @@ mod oracle;
 use geom::PieceStep;
 use geom_core::bisect::Step;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Rounded, Sign};
 
 use super::super::span::{Place, Span};
 use super::{Conic, Level, level_on, up};
+use crate::piece::Taylor;
 
 /// The most turns of a window or a ring a span is read over.
 const MAX_TURNS: usize = 64;
@@ -149,33 +153,18 @@ enum SpanRead {
     Unread,
 }
 
-/// `p` over a piece: lower and upper bounds on `|p|` and on `|p′|`, and
-/// `p` and `p′` at the middle.
-struct Bounds<T> {
-    lo: T,
-    hi: T,
-    slope_lo: T,
-    slope_hi: T,
-    at: T,
-    slope_at: T,
-}
-
-/// [`Bounds`] over the piece of half-width `w` about a middle where the
-/// value and its first three derivatives are `d`, each within `err`, and
-/// the fourth is at most `top` throughout.
-fn taylor<T: Decide>([v, d1, d2, d3]: [T; 4], [e0, e1, e2, e3]: [T; 4], top: T, w: T) -> Bounds<T> {
-    let (two, six, tf) = (T::from_f64(2.0), T::from_f64(6.0), T::from_f64(24.0));
-    let (a1, a2, a3) = (d1.abs() + e1, d2.abs() + e2, d3.abs() + e3);
-    let fall = a1 * w + a2 * w.powi(2) / two + a3 * w.powi(3) / six + top * w.powi(4) / tf;
-    let turn = a2 * w + a3 * w.powi(2) / two + top * w.powi(3) / six;
-    Bounds {
-        lo: v.abs() - e0 - fall,
-        hi: v.abs() + e0 + fall,
-        slope_lo: d1.abs() - e1 - turn,
-        slope_hi: d1.abs() + e1 + turn,
-        at: v,
-        slope_at: d1,
-    }
+/// [`Taylor`] over the piece of half-width `w` about a middle where a
+/// jet read locally (the height's or the level's) is `jet`, its fourth
+/// derivative at most `top` throughout. The jet is read uncharged, as
+/// exact (DESIGN `[simple.conditioned]`); an `Interval` reading encloses
+/// it (module docs, (ii)). The height's jet is a short division-free
+/// chain on in-box coordinates, which the run's admission rule covers.
+/// The level's is not: it divides by the squared semi-axes, and its
+/// rounding read as a length grows with `b`'s aspect `L/s`, which the
+/// rule does not cover. It is owed a re-posing as a length
+/// (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+fn local_taylor<T: Decide>(jet: [T; 4], top: T, w: T) -> Taylor<T> {
+    Taylor::over(jet.map(Rounded::exact), top, w)
 }
 
 /// **The bend term** `(A + k²·B)·w²/2` of the on reading along `b`
@@ -204,8 +193,12 @@ impl<T: Decide> Window<'_, T> {
     /// `a`'s height above `b`'s plane and its first three derivatives at
     /// `θ`, read locally as the level is ([`Level`]): on a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn height_jet(&self, theta: T) -> [T; 4] {
-        let (n, centre) = (self.b.frame().axis(), self.b.frame().origin());
+        let (n, centre) = (self.b.axis(), self.b.frame().origin());
         let (p, dp) = self.a.jet_at(theta);
         let slope = dp.dot(n);
         let bend = (self.a.frame().origin() - p).dot(n);
@@ -237,56 +230,54 @@ impl<T: Decide> Window<'_, T> {
         let reach = speed * w;
         let q = self.a.point_at(m);
         let row = "curve_pair_window_recedes";
-        // The height and the level are read locally at the middle,
-        // uncharged: their few terms round far below the band, and an
-        // Interval reading encloses them.
-        let z0 = T::zero();
-        let h = taylor(self.height_jet(m), [z0; 4], self.height_fourth(), w);
-        let f = taylor(level.jet_at(m), [z0; 4], level.fourth(), w);
+        // The height and the level, read locally at the middle.
+        let (h_jet, f_jet) = (self.height_jet(m), level.jet_at(m));
+        let h = local_taylor(h_jet, self.height_fourth(), w);
+        let f = local_taylor(f_jet, level.fourth(), w);
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         // `D` from the level, read locally (module docs, (ii)).
         let s2 = small.powi(2);
         let (six, twelve) = (T::from_f64(6.0), T::from_f64(12.0));
         let grad = level.gradient_at(m);
         let (g_lo, g_hi) = (grad - two * reach / s2, grad + two * reach / s2);
-        let f_lo = f.lo.max(T::zero());
+        let f_lo = f.least.max(T::zero());
         let four = T::from_f64(4.0);
         let d_lo = (two * f_lo / (g_hi + (g_hi.powi(2) + twelve * f_lo / s2).sqrt()))
             .max((small / four).min(f_lo * small / four));
-        let disc = g_lo.powi(2) - twelve * f.hi / s2;
+        let disc = g_lo.powi(2) - twelve * f.most / s2;
         let d_hi = if positive(row, g_lo)
             && positive(row, disc)
-            && positive(row, (g_lo + disc.sqrt()) * s2 / six - big * f.hi)
+            && positive(row, (g_lo + disc.sqrt()) * s2 / six - big * f.most)
         {
-            (two * f.hi / (g_lo + disc.sqrt())).min(big * f.hi)
+            (two * f.most / (g_lo + disc.sqrt())).min(big * f.most)
         } else {
-            big * f.hi
+            big * f.most
         };
         // `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`.
-        let level_drift = d_hi * big * (f.slope_hi + two * d_hi * speed / s2);
-        let level_negligible = positive(row, two * h.lo * h.slope_lo - level_drift);
+        let level_drift = d_hi * big * (f.most_slope + two * d_hi * speed / s2);
+        let level_negligible = positive(row, two * h.least * h.least_slope - level_drift);
         let foot_grad = (two / small).min(g_hi + two * d_hi / s2);
         // `(D²)′ ≥ 2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|`.
-        let level_growth = two * d_lo * (f.slope_lo - two * d_hi * speed / s2) / foot_grad;
+        let level_growth = two * d_lo * (f.least_slope - two * d_hi * speed / s2) / foot_grad;
         // Whether `d` grows strictly up `θ` (`up`) or down it over the piece.
         let recedes = |up: bool| {
-            let height_recedes = positive(row, h.lo)
-                && positive(row, h.slope_lo)
-                && same_way(row, h.at, h.slope_at, up);
-            let level_way = positive(row, f.lo) && same_way(row, f.at, f.slope_at, up);
+            let height_recedes = positive(row, h.least)
+                && positive(row, h.least_slope)
+                && same_way(row, h_jet[0], h_jet[1], up);
+            let level_way = positive(row, f.least) && same_way(row, f_jet[0], f_jet[1], up);
             let level_recedes = level_way
-                && positive(row, f.slope_lo)
-                && positive(row, f.slope_lo - two * d_hi * speed / s2);
+                && positive(row, f.least_slope)
+                && positive(row, f.least_slope - two * d_hi * speed / s2);
             let level_dominates = level_way
-                && positive(row, f.slope_lo)
-                && positive(row, level_growth - two * h.hi * h.slope_hi);
+                && positive(row, f.least_slope)
+                && positive(row, level_growth - two * h.most * h.most_slope);
             (height_recedes && (level_recedes || level_negligible)) || level_dominates
         };
         let z = match away {
             Some(_) => T::from_f64(band.zero()),
             None => T::from_f64(band.escalate()),
         };
-        if self.off_by((l, r), h.lo, z) {
+        if self.off_by((l, r), h.least, z) {
             return Some(Read::Off);
         }
         // Unless the middle's foot on `b`'s carrier is read inside `b`'s
@@ -339,7 +330,7 @@ impl<T: Decide> Window<'_, T> {
         // span's question, which (i) off and the span walk ask.
         let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
-        let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
+        let close = (h.most.powi(2) + d_hi.powi(2)).sqrt();
         let on = |x: T| decide("curve_pair_window_on", Margin::of(x), band) == Ok(Sign::Zero);
         if on(close) || on(gap) || on(self.along_b(m, w, &foot)) {
             return Some(Read::On);
@@ -354,8 +345,8 @@ impl<T: Decide> Window<'_, T> {
         let (l, r) = piece;
         let two = T::from_f64(2.0);
         let (m, w) = ((l + r) / two, (r - l) / two);
-        let h = taylor(self.height_jet(m), [T::zero(); 4], self.height_fourth(), w);
-        self.off_by(piece, h.lo, z)
+        let h = local_taylor(self.height_jet(m), self.height_fourth(), w);
+        self.off_by(piece, h.least, z)
     }
 
     /// (i) over the piece `(l, r)`, `h_lo` the least `|H|` on it: whether
@@ -434,6 +425,10 @@ impl<T: Decide> Window<'_, T> {
 
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
     /// `b`'s unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn foot_seed(&self, q: Point3<T>) -> T {
         let (x, y) = self.b.unit_in_plane(q);
         geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
@@ -695,7 +690,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -839,7 +834,7 @@ mod rows {
             span_a: (0.0, FRAC_PI_2),
             b: &kb,
             span_b: &span_b,
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let level = super::super::level_on(&ka, &kb);
         let piece = (2.5e-5, 5e-5);
@@ -986,7 +981,7 @@ mod rows {
                     &b,
                     (-core::f64::consts::PI, core::f64::consts::PI),
                 ),
-                height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+                height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
@@ -1033,7 +1028,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -1056,8 +1051,8 @@ mod rows {
     }
 
     /// `p`'s jet at `m` and `Σ k⁴·|c_k|`, read over `±w` by
-    /// [`super::taylor`].
-    fn bounds(p: &TrigPoly<f64>, m: f64, w: f64) -> super::Bounds<f64> {
+    /// [`super::local_taylor`].
+    fn bounds(p: &TrigPoly<f64>, m: f64, w: f64) -> crate::piece::Taylor<f64> {
         let mut d = [p.cos[0], 0.0, 0.0, 0.0];
         let mut top = 0.0;
         for k in 1..=usize::from(p.degree) {
@@ -1070,13 +1065,13 @@ mod rows {
             d[3] -= kf.powi(3) * odd;
             top += kf.powi(4) * p.cos[k].hypot(p.sin[k]);
         }
-        super::taylor(d, [0.0; 4], top, w)
+        super::local_taylor(d, top, w)
     }
 
     /// **A jet's bounds over a piece hold at its extremes.** Three
     /// polynomials of degree two, one of them flat to third order at `0`,
     /// and one of degree one, over pieces of half-width `10⁻³` to `1.5`
-    /// about 64 middles round the turn, read by [`super::taylor`] from
+    /// about 64 middles round the turn, read by [`super::local_taylor`] from
     /// their jet and `Σ k⁴·|c_k|`: the lower and upper bounds on `|p|`
     /// and `|p′|` enclose the least and greatest sampled. Red where the
     /// Taylor remainder drops its fourth-order term.
@@ -1120,16 +1115,16 @@ mod rows {
                     }
                     let tiny = 1e-12;
                     assert!(
-                        b.lo <= lo + tiny && b.hi >= hi - tiny,
+                        b.least <= lo + tiny && b.most >= hi - tiny,
                         "poly {n} about {m} ± {w}: |p| in [{lo}, {hi}], bounds [{}, {}]",
-                        b.lo,
-                        b.hi
+                        b.least,
+                        b.most
                     );
                     assert!(
-                        b.slope_lo <= slo + tiny && b.slope_hi >= shi - tiny,
+                        b.least_slope <= slo + tiny && b.most_slope >= shi - tiny,
                         "poly {n} about {m} ± {w}: |p′| in [{slo}, {shi}], bounds [{}, {}]",
-                        b.slope_lo,
-                        b.slope_hi
+                        b.least_slope,
+                        b.most_slope
                     );
                 }
             }
@@ -1186,7 +1181,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -1248,7 +1243,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -1307,7 +1302,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.frame().axis()),
+            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {

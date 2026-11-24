@@ -2,10 +2,13 @@
 id: cascade-delete-shows-the-strand-count
 kind: issue
 title: The cascade-delete affordance shows the names a delete would strand, beside its dependent count (DM7)
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
-cost: D
+cost: M
+pr: 7346
+branch: offer/cascade-delete-shows-the-strand-count
+closed: 2026-11-22
 ---
 
 
@@ -153,3 +156,59 @@ already owed.
 ## Narrowed (2026-10-02, RECIPE `declared-pairs-are-a-booleans-own-payload`)
 
 The `Declare` node is gone: declared pairs are a boolean's or union's own payload, so no delete can orphan a declaration, and `Maintenance::OrphanedDeclare` (`orphaned_declare`) no longer exists. What this row says of the orphan arm no longer applies; the rest stands.
+
+## Built (2026-11-22)
+
+**The count is the delete's own rehearsal, not the formula above.**
+The affordance reads `editor_core::continuation::splice` now, and a
+splice is hand-over edits followed by deletes. What follows is what
+the `doomed`-set formula gets wrong, three ways:
+
+- a reader handed to the body the target continues is outside `doomed`
+  and may hold a name whose `name.node` is inside it that the target
+  only CARRIED IN from that body; the splice rebinds it back
+  (`continuation::carried_back`), so it strands nothing and the formula
+  counts it;
+- a hand-over can strand by reach (`Took::Reach`) as well as by
+  delete, and the two report one name twice;
+- a hand-over strands a name whose minting node the delete does not
+  remove: a shell of a cut, handed to the cut's target when the tool
+  goes, holds a name minted upstream of the tool only. Nothing in
+  `doomed` minted it, so the formula says 0.
+
+So the session rehearses the delete (`DocSession::priced_delete`):
+`delete_node`'s own action — the planned splice, or the single edit —
+staged through `stage_run` and dropped. `DeleteAffordance::of` words
+the result: the nodes removed, and the count of distinct answers of
+`Maintenance::stranded_name` over the action's net
+(`MaintenanceNet`, through `Recording::finish`). Those are the rows the
+click's `OpOutcome::maintenance` carries, so the button and the click
+cannot disagree about which names. Which rows are a stranded name, and
+what holds each, is the kernel's answer (`NameCarrier`); the viewer
+counts distinct answers rather than rows, because the net reports one
+name twice where a hand-over and the delete each strand it
+(`work/doctail/maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it.md`)
+and a record can hold one name at two sites. The label says
+`, stranding N name(s)` and the hover gains a sentence; both are
+omitted at zero.
+
+The same rehearsal answers `DocSession::delete_refusal`, so a delete a
+door would refuse is drawn disabled with that refusal and prices
+nothing. It is kept per history state and node (`DocSession::priced`):
+the committed document is all it reads, and a gesture's previews do
+not move it.
+
+**After the click** the rows already reach the status line, one notice
+each in the row's own sentence (`frame::outcome_notices`, PR #3196);
+nothing was added there. The viewer has no `Rebind` door, so none is
+linked: `a-stranded-name-row-offers-no-rebind-in-the-viewer`.
+
+Rows: the `edit_maintenance::the_delete_button_…` rows
+(`crates/viewer/tests/edit_maintenance.rs`), and the die's inner fillet
+in `cascade_delete::the_delete_affordance_names_the_count_and_the_kinds`.
+
+## Closed (2026-11-22, PR #7346)
+
+The delete button now shows "stranding N names". N is the number of distinct references that the click's own netted maintenance reports. The affordance rehearses the click's action through `stage_run` once per committed history state, and that same rehearsal answers the button's refusal. The item's `doomed` formula was not built: the review demonstrated three ways it is wrong for a splice. Only the `## Built` section above describes the code as merged. Filed by this unit:
+- `a-stranded-name-row-offers-no-rebind-in-the-viewer` (P2);
+- DOCTAIL's `maintenance-net-reports-one-stranded-name-once-per-edit-that-strands-it` (P3).

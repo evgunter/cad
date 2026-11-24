@@ -72,7 +72,7 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     Operand::Var(read).into(),
                     extrude.into(),
                 ]),
@@ -195,7 +195,7 @@ fn a_forward_member_saves_loads_and_cascades() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, _, c) = placed_block(doc, 6.0);
@@ -203,7 +203,7 @@ fn a_forward_member_saves_loads_and_cascades() {
         &doc,
         DocEdit::SetMembers {
             node: union,
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into(), c.into()]),
         },
     )
     .doc;
@@ -320,7 +320,7 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b_at.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b_at.into()]),
         },
     );
     let (doc, moved) = xform(doc, union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
@@ -468,7 +468,7 @@ fn a_split_port_read_is_its_half() {
     let (doc, by_port) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![port.into(), far.into()]),
+            members: editor_core::Bodies::spelled(vec![port.into(), far.into()]),
         },
     );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
@@ -516,7 +516,7 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let text = save(&doc, Tol::witness()).expect("saves");
@@ -558,7 +558,7 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
     let (doc, _) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(split, 0).into(),
                 far.into(),
             ]),
@@ -772,7 +772,7 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
     let (doc, boolean) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(split, 0).into(),
                 far.into(),
             ]),
@@ -824,7 +824,7 @@ fn dm5_is_over_the_variables_read() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(split, 0).into(),
                 Operand::output(split, 1).into(),
             ]),
@@ -842,7 +842,7 @@ fn dm5_is_over_the_variables_read() {
     let (doc, twice) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(split, 0).into(),
                 Operand::output(split, 0).into(),
             ]),
@@ -851,7 +851,7 @@ fn dm5_is_over_the_variables_read() {
     let (doc, once) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![Operand::output(split, 0).into()]),
+            members: editor_core::Bodies::spelled(vec![Operand::output(split, 0).into()]),
         },
     );
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
@@ -892,7 +892,7 @@ fn union_under_a_placement() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeN
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, moved) = xform(doc, union, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);

@@ -2,11 +2,12 @@
 id: a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root
 kind: unit
 title: A point's distance to a cylinder or sphere and a ruling's chart azimuth recover the radius through a root or an angle, where each holds the stored radius
-status: dispatched
+status: review
 opened: 2026-11-15
 priority: P0
 cost: M
 branch: boxfinish/radial-readers
+pr: 7370
 ---
 
 

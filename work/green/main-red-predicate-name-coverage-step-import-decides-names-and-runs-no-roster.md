@@ -2,9 +2,11 @@
 id: main-red-predicate-name-coverage-step-import-decides-names-and-runs-no-roster
 kind: issue
 title: Main red (slow set): predicate_name_coverage finds step-import deciding predicate names with no roster, since PR 7091 (the interp layer)
-status: open
+status: closed
 opened: 2026-11-21
 priority: P1
+closed: 2026-11-22
+pr: 7371
 ---
 
 
@@ -25,3 +27,9 @@ A first-parent bisect from `b7e8f5c4` (2026-11-17, passes) to `b2773f6b` (fails)
 ## Owed (IMPORTGATE, the PR's program)
 
 A roster for step-import on `test_utils::source::roster_violations`, or a `KNOWN_MISSING` line citing the row that will add it, as the message says. The class is `work/green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster.md`.
+
+## 2026-11-21: greened by a KNOWN_MISSING line in GREEN's PR (branch `green/small-reds`)
+
+**Why the census sees step-import.** PR 7091 gave the crate its first decide site: `FileBand::read` in `interpret.rs` calls `k_stats::decide(name, …)` on its caller's name. On the merge's first parent, `crates/step-import/src` has no `decide*(` call. Const-named sites came after it (`build.rs`, `snap.rs`).
+
+**Why there is no roster.** The names reach `decide` through `FileBand::read` and its forwarders. Most of those are spelled with tokens that other calls share (`read`, `on`, the closure `zero`), next to refusal builders that take a reading's name as a label. A roster on the shared harness has to rename those funnels to `*_as` spellings and decide which of the builders are carriers. That is work in IMPORTGATE's band layer, so it is filed there: `work/importgate/step-import-runs-no-recourse-roster-over-its-band-funnels.md`. `KNOWN_MISSING` in `crates/test-utils/tests/predicate_name_coverage.rs` cites it, and the ratchet fails the coverage row once the roster runs.

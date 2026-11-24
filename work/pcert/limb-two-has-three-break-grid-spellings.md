@@ -19,3 +19,13 @@ and `chart_grid`'s closed-form arm (against a chart, deferring to the
 image's knots). They agree in intent (an `SSI_CERT_SPANS` grid clear of
 mandatory knots) and differ in what they defer to. One function taking
 the carrier and the knots it must clear would make them one rule.
+
+
+## 2026-11-21 — two of the spellings went (SECTCONE)
+
+`sectcone/one-limb-two-reader` moved the search's analytic limb 2 onto
+`pcurve_cache::limb2_offset_sup` at `Limb2Locus::Carrier`, so `analytic_limbs` builds no
+breaks of its own: its `cert_grid` and `range_grid_points` arms are
+gone, and the reader's (`closed_form_grid`, a spline's own knots) are
+the analytic side's. `cert_grid` remains for `refined_net`, and
+`chart_grid` for the chart arm.

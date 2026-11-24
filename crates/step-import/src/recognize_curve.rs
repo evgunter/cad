@@ -498,7 +498,10 @@ pub(crate) fn try_line(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<LineC
     if file.read(STEP_RECOGNIZED_RESIDUAL, residual) != Read::Zero {
         return None;
     }
-    let line = Curve3::line(plus_zero_point(first), plus_zero(dir));
+    let line = Curve3::line(
+        plus_zero_point(first),
+        geom_core::UnitVec3::stated(plus_zero(dir))?,
+    );
     Some((line, residual, length))
 }
 
@@ -544,7 +547,13 @@ pub(crate) fn straight_map(curve: &NurbsCurve3<f64>, file: FileBand) -> Option<(
     if file.read(STEP_STRAIGHT_MAP, hull) != Read::Zero {
         return None;
     }
-    Some((Curve3::line(plus_zero_point(first), plus_zero(dir)), hull))
+    Some((
+        Curve3::line(
+            plus_zero_point(first),
+            geom_core::UnitVec3::stated(plus_zero(dir))?,
+        ),
+        hull,
+    ))
 }
 
 /// An upper bound on `|p − q|`, rounded outward.
@@ -589,6 +598,9 @@ pub(crate) fn try_circle(
     // surface recognizer's near-flat class, verbatim).
     let chord = s2 - s0;
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
+        return Ok(None);
+    };
+    let Some(chord_dir) = geom_core::UnitVec3::stated(chord_dir) else {
         return Ok(None);
     };
     let off = geom::Line {
@@ -1008,13 +1020,7 @@ mod tests {
     fn c1_the_rational_quadratic_circle_certifies_exactly() {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
-            curve:
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: carrier_frame_3,
-                        ..
-                    },
-                ),
+            curve: Curve3::Circle(circle),
             residual,
             kind,
             covers,
@@ -1023,9 +1029,9 @@ mod tests {
             panic!("dm1's carrier class must certify");
         };
         let (center, axis, u_ref) = (
-            carrier_frame_3.origin(),
-            carrier_frame_3.axis(),
-            carrier_frame_3.u_ref(),
+            circle.frame().origin(),
+            circle.frame().axis(),
+            circle.frame().u_ref(),
         );
         let radius = circle.radius();
         assert_eq!(kind, PromotedCurveKind::Circle);
@@ -1046,7 +1052,7 @@ mod tests {
     #[test]
     fn c2_winding_survives_the_promotion() {
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle(geom::Circle { frame, .. }),
+            curve: Curve3::Circle(the_circle @ geom::Circle { .. }),
             ..
         } = recognize(
             &rational_circle(0.005, true),
@@ -1055,7 +1061,7 @@ mod tests {
         else {
             panic!("the reversed circle must certify too");
         };
-        let axis = frame.axis();
+        let axis = the_circle.frame().axis();
         assert!((axis.z + 1.0).abs() < 1e-12, "reversed axis {axis:?}");
     }
 
@@ -1384,14 +1390,14 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(circle @ geom::Circle { frame, .. }),
+                curve: Curve3::Circle(circle),
                 residual,
                 ..
             } = recognize(&curve, crate::interpret::FileBand::test(EPS_IN))
             else {
                 panic!("delta {delta:e} is inside the budget and must certify");
             };
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let r = circle.radius();
             let (a, b) = curve.domain();
             let mut worst = 0.0f64;
@@ -1463,7 +1469,7 @@ mod tests {
             Some((0.0, a.distance(b))),
             "a chord covers its segment"
         );
-        assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
+        assert!((dir.get().x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
             curve: Curve3::Line(geom::Line { dir: rdir, .. }),
@@ -1472,7 +1478,7 @@ mod tests {
         else {
             panic!("the reversed chord certifies too");
         };
-        assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
+        assert!((rdir.get().x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
     /// L2: **the segment obligation and the map, each pinned at its
@@ -1586,7 +1592,15 @@ mod tests {
                         residual,
                         ..
                     } => (
-                        [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
+                        [
+                            origin.x,
+                            origin.y,
+                            origin.z,
+                            dir.get().x,
+                            dir.get().y,
+                            dir.get().z,
+                        ]
+                        .map(f64::to_bits),
                         residual,
                     ),
                     other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
@@ -1664,7 +1678,7 @@ mod tests {
         else {
             panic!("the re-timing is 0.05/3, inside a 0.02 budget");
         };
-        assert!((dir.x - 1.0).abs() < 1e-15);
+        assert!((dir.get().x - 1.0).abs() < 1e-15);
         assert!(
             (residual - 0.05 / 3.0).abs() < 1e-12,
             "the residual IS the re-timing hull: {residual:e}"
@@ -1732,8 +1746,8 @@ mod tests {
             let mut worst = 0.0f64;
             for k in 0..=4096 {
                 let p = curve.eval(d0 + (d1 - d0) * f64::from(k) / 4096.0);
-                let t = (p - origin).dot(dir).clamp(0.0, len);
-                worst = worst.max(p.distance(origin + dir * t));
+                let t = (p - origin).dot(dir.get()).clamp(0.0, len);
+                worst = worst.max(p.distance(origin + dir.get() * t));
             }
             assert!(
                 worst <= residual,
@@ -2111,7 +2125,7 @@ mod r2_probes {
             .unwrap();
             let outcome = recognize(&curve, crate::interpret::FileBand::test(EPS_IN));
             let CurveRecognition::Promoted {
-                curve: Curve3::Circle(circle @ geom::Circle { frame, .. }),
+                curve: Curve3::Circle(circle),
                 residual,
                 ..
             } = outcome
@@ -2119,6 +2133,7 @@ mod r2_probes {
                 println!("R2-C[{i}] delta={delta:e}: stays NURBS");
                 continue;
             };
+            let frame = circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let r = circle.radius();
             // Dense true deviation.

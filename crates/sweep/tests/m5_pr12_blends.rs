@@ -31,7 +31,7 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
     let r = 0.15;
     let b = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.4),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         Vec3::new(-1.0, 0.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
         r,
@@ -69,7 +69,7 @@ fn plane_plane_setback_is_r_times_tan_half_the_normal_angle() {
         let n_b = Vec3::new(-phi.cos(), -phi.sin(), 0.0);
         let b = plane_plane_blend(
             Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::UnitVec3::exact_z(),
             n_a,
             n_b,
             r,
@@ -94,7 +94,7 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
     let (n_a, n_b) = (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
     let convex = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         n_a,
         n_b,
         r,
@@ -102,7 +102,7 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
     );
     let concave = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         n_a,
         n_b,
         r,
@@ -188,7 +188,7 @@ fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
     ] {
         let b = plane_plane_blend(
             Point3::new(0.0, 0.0, 0.0),
-            tau,
+            geom::stated_direction(tau),
             normals[i],
             normals[j],
             r,
@@ -254,15 +254,10 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     assert!((major_radius - s).abs() < 1e-12);
     assert!((minor_radius - r).abs() < 1e-15);
     assert!((b.spine_curvature - 1.0 / s).abs() < 1e-12);
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = b.trim_a.0
-    else {
+    let Curve3::Circle(conic_k) = b.trim_a.0 else {
         panic!("a circular trimline on the plane");
     };
+    let carrier_frame = conic_k.frame();
     let ca = carrier_frame.origin();
     let ra = conic_k.radius();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
@@ -270,15 +265,10 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         (b.trim_a.1 - (s - a)).abs() < 1e-12,
         "the plane-side setback is s − a"
     );
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = b.trim_b.0
-    else {
+    let Curve3::Circle(conic_k) = b.trim_b.0 else {
         panic!("a circular trimline on the sphere");
     };
+    let carrier_frame = conic_k.frame();
     let cb = carrier_frame.origin();
     let rb = conic_k.radius();
     assert!((rb - big_r * s / (big_r + r)).abs() < 1e-12);
@@ -332,15 +322,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         major_radius > minor_radius,
         "the spine is a ring torus, which is what #889's net also checks at rest"
     );
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = b.trim_a.0
-    else {
+    let Curve3::Circle(conic_k) = b.trim_a.0 else {
         panic!("a circular trimline on the plane");
     };
+    let carrier_frame = conic_k.frame();
     let ca = carrier_frame.origin();
     let ra = conic_k.radius();
     assert!(ca.z.abs() < 1e-14 && (ra - s).abs() < 1e-12);
@@ -348,9 +333,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
-    let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = b.trim_b.0 else {
+    let Curve3::Circle(conic_k) = b.trim_b.0 else {
         panic!("a circular trimline on the sphere");
     };
+    let frame = conic_k.frame();
     let cb = frame.origin();
     let rb = conic_k.radius();
     assert!((rb - big_r * s / (big_r - r)).abs() < 1e-12);

@@ -4,51 +4,55 @@ what the viewer offers a person to do about what it shows, and what it
 asks of the platform beneath it
 
 Opened 2026-09-22 by CHROME's priority-seam cut (`work/README.md`,
-Track size). Nothing dispatched.
+Track size). Re-cut 2026-11-22 at its first sitting (`log.md`).
 
 ## The slate
 
-**18.5 budget points** of dispatchable work against a ceiling of 30.
+**30 budget points** of dispatchable P0/P1 work against a ceiling of 30.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P1 | `a-refusal-offers-no-action-in-the-viewer` | D | A kernel refusal is shown as prose with no action the viewer can take on it (Ev's report) |
-| P1 | `cascade-delete-shows-the-strand-count` | D | The cascade-delete affordance shows the names a delete would strand (DM7) |
-| P1 | `certify-affordance-on-the-bounds-panel` | H | The bounds panel has no on-demand certify affordance |
-| P1 | `document-seam-no-in-session-change-detection` | D | The document seam cannot see a store edit until reopen |
-| P1 | `viewer-free-move-misses-pattern-placed-mates` | D | Free-move admission misses pattern-placed mates |
-| P3 | `chooser-probe-misses-dbus-autolaunch` | E | The chooser probe's 'no session bus' does not mean rfd cannot reach a portal |
-| P3 | `viewer-expresses-no-gpu-adapter-preference` | D | The viewer expresses no GPU adapter preference |
+| pri | item | cost | design | title |
+|---|---|---|---|---|
+| P1 | `a-refusal-offers-no-action-in-the-viewer` | H | yes | a kernel refusal is prose with no action the viewer can take on it (Ev's report) |
+| P1 | `a-check-offers-no-way-to-add-the-assertion-it-asks-for` | M | yes | a check asks for an assertion and no door adds one (Ev's report) |
+| P1 | `a-node-name-the-viewer-shows-is-not-a-link-to-it` | M | yes | a node's name on screen is not a link to it (Ev's report) |
+| P1 | `a-placement-and-its-part-do-not-link-to-each-other` | M | | a placement and its part do not link (Ev's report) |
+| P1 | `a-made-body-does-not-show-the-profile-it-was-made-from` | E | | a made body does not show its profile (Ev's report) |
+| P1 | `certify-affordance-on-the-bounds-panel` | H | yes | the bounds panel has no certify control |
+| P1 | `cascade-delete-shows-the-strand-count` | M | | the delete button shows what a delete would strand (DM7) |
+| P1 | `the-viewer-has-no-guide-to-its-controls` | E | | the viewer has no guide to its controls (Ev's report) |
+| P3 | `chooser-probe-misses-dbus-autolaunch` | E | | the chooser probe misses D-Bus autolaunch |
+| P3 | `viewer-expresses-no-gpu-adapter-preference` | M | yes | the viewer expresses no GPU adapter preference |
 
 ## Order
 
-**`a-refusal-offers-no-action-in-the-viewer` first**: Ev reported it,
-from the same failed union whose text CHROME is shortening
-(`work/chrome/error-and-check-text-overflows-its-region`, the concision
-half). The two are one experience for the person holding the mouse —
-the explanation shrinks there, the recourse becomes its own thing
-here — so the unit reads CHROME's row first and announces itself on
-CHROME's log. Its first step is the measurement the row says nobody has
-taken: whether the kernel's typed refusals carry a machine-readable
-recourse at all. If they carry only prose, that half is a kernel-side
-row filed on the owning program's slate.
+Three design questions are weighed first, concurrently, while the two
+rows whose fix is written are built:
 
-**`viewer-free-move-misses-pattern-placed-mates` next** — a live wrong
-answer (admission reads a pattern-placed mate as absent), so it wants a
-correctness arm on its review.
+- **Built now**: `cascade-delete-shows-the-strand-count` (its body is
+  the spec: the pre-click count is the END state over
+  `cascade_delete_order`, the post-click panel lists the door's rows)
+  and `the-viewer-has-no-guide-to-its-controls`.
+- **An offer** — `a-refusal-offers-no-action-in-the-viewer` and
+  `a-check-offers-no-way-to-add-the-assertion-it-asks-for` are one
+  question: what a recourse the viewer can act on is, where it is
+  composed, and how it reaches the screen as a control. Three
+  refuse-then-offer instances already exist in three shapes.
+- **A node named to a person** — `a-node-name-the-viewer-shows-is-not-a-link-to-it`,
+  with VNEWS' `the-viewer-spells-a-node-as-its-kind-before-its-name`
+  (the same sites, the same value). The two Ev-reported instances,
+  `a-placement-and-its-part-do-not-link-to-each-other` and
+  `a-made-body-does-not-show-the-profile-it-was-made-from`, are built
+  on whatever answer lands.
+- **The certify control** — `certify-affordance-on-the-bounds-panel`:
+  a long-running query's panel, its budget, and the three readings its
+  body says a panel can get wrong.
 
-Then `cascade-delete-shows-the-strand-count` (Ev's ruling DM7 is the
-spec), `document-seam-no-in-session-change-detection`, and
-`certify-affordance-on-the-bounds-panel`, whose kernel side DOCM-9
-already built. The two platform rows are independent and cheap to take
-beside any of them.
+The two P3 platform rows are tail.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. CHROME's posture is the
-natural inheritance — **no duals and no row in `docs/MODEL-AB-LOG.md`**
-(Ev, in chat, 2026-09-04, reaffirmed 2026-09-15 and 2026-09-22: *"no
-AB protocol"*), a style review against
-`docs/prompts/reviewer-style-lane.md`, and a correctness arm where a
-unit's failure mode is a confident wrong answer — but nobody has
-re-asked it for this slate, so the first orchestrator answers it here.
+The review tiers in `memories/orchestration-model.md` apply, and every
+unit sent to a review is a row of the model comparison
+(`docs/MODEL-COMPARE-PROTOCOL.md`). CHROME's 2026-09 "no AB protocol"
+posture concerned the concluded model A/B and does not carry over.
+Each unit's letter, tier and reason are logged at dispatch.

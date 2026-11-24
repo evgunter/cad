@@ -1,12 +1,15 @@
 ---
 id: certify-affordance-on-the-bounds-panel
-kind: issue
+kind: unit
 title: The bounds panel has no on-demand certify affordance for the certified range query
-status: open
+status: closed
 opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
+branch: offer/range-is-the-certified-search
+pr: 7548
+closed: 2026-11-23
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
@@ -139,3 +142,66 @@ leaf, certifying nothing.
 That is a design pass and a unit, not a lane brief. Nothing about the
 finding changes; only the price does, so that the board stops offering
 it as cheap work.
+
+## Design (2026-11-22)
+
+What follows was weighed by two designers and a further designer (`work/offer/log.md`).
+
+**The kernel query changes first.** `editor_core::range` gains a resumable search that refines outward from the field's current value and keeps every finished step:
+- It splits at the current value first. On each side it replays the interval whole, and where the result is undecided it halves and replays both halves, nearest the current value first. Because the far half is replayed too, the search looks past undecided ground and can find a proven difference beyond it.
+- Its answer after n steps is a pure function of the inputs and n, so stopping keeps the answer. Ground it has not reached is priced as budget (E6).
+- It takes the session's part resolver (`work/certread/the-box-driver-carries-no-part-resolver` is the same gap in `drive`).
+- `certified_range` becomes a wrapper that runs the search to completion. `drive` is unchanged.
+
+**The answer type** states three things and nothing shaped like a second interval:
+- a proven interval around the current value, possibly empty, derived from the two sides;
+- per side, either "reached the seed's end" or "proven different at a point", carrying the driver's evidence, with its kind derived from that evidence;
+- per side, "not decided past x", carrying the typed reason. "Can more proving help" is derived from the reason.
+
+The `within` pair and the straddling span go.
+
+**The viewer control.**
+- **Prove** sits on a sampled reading. The seed is the range the reading states, as exact offsets carried on the reading: on each side, the furthest value the probe found valid, or as far as it looked where nothing failed.
+- One kernel admission door, which runs no geometry, greys the button before the click.
+- The search runs on its own seam with a stop, and its busy state is separate from `Session::busy()`. An edit, a new probe or a value gesture cancels it and drops its result.
+- Every number is rendered through `props::shown_text`.
+- The undecided ground between a proven end and a point proven different is never called valid. Outside the sampled range the proof says nothing.
+
+**When the proof replaces the sampled reading:** when both sides reach the seed's ends, the line reads "proven c…d". Otherwise it reads "proven a…b, of the sampled c…d", then says what stopped each side.
+
+## Decided (Ev, 2026-11-22, on PR #7340)
+
+The sampling probe goes. `range?` was never meant to sample, and nothing is to be kept solely to support it. `range?` becomes the certified query, rebuilt as the kernel search described in `## Design` above. The `## Design` section's kernel half stands as written. Its viewer half is replaced by what follows.
+
+- **The search.** `range?` on a slot or variable starts the certified search on its own seam. It runs off the frame, and its busy state is separate from `Session::busy()`.
+  - While it runs, the line reads "proving… proven a…b so far · stop".
+  - Stop keeps what has been proven. An edit cancels the run and drops its result.
+- **The seed** is how far the search looks. No sampled reading exists to supply one. It comes from the field's own admissible domain where the kernel states one, such as a length's lower bound. Otherwise it is a fixed span relative to the current value, chosen in the unit and stated on the reading ("checked to …").
+  - The directed search spends steps near the current value first, so a wide seed costs little.
+  - The reading never says "unbounded".
+- **The readings, and their wording.** Every number goes through `props::shown_text`.
+  - "proven a…b";
+  - per side, one of:
+    - "at y it builds, differently";
+    - "node stops building at y";
+    - "not decided past x", followed by "more proving may go further" or "more time will not help";
+  - "nothing proven around v";
+  - "holding names at their current values".
+- **Admission.** One kernel admission door, which runs no geometry, greys `range?` with the refusal's own words.
+- **What is deleted.** The sampling probe: `viewer::bounds`'s probe and `BoundsProbe`, `Session::probe_bounds`, `SessionOp::ProbeBounds` as a sampler, and `crates/viewer/tests/docm9_range_vs_probe.rs`. `work/offer/the-bounds-probe-runs-inline-on-the-frame` therefore has nothing left to fix.
+
+## What the kernel unit hands this one (2026-11-22)
+
+From `the-certified-range-refines-away-from-the-current-value`; the surface is `editor_core::range`, and its module docs are the reference.
+
+- **The search**: `RangeSearch::new(doc, field, seed, budget, resolver, stop, tol)`, `step(&Stop) -> Step`, `answer()`. One step is one replay; `Step::Stopped` leaves the answer where it stood and a later step continues it, so a cancel token on the step's `Stop` is the stop control.
+- **Admission**: `admit(doc, field, seed, built)` runs no geometry. Handed the session's own finished `f64` build as `built`, it also refuses a document that does not build now, in the witness's words, and a build of another document (`EvaluationOfAnotherDocument`).
+- **The seed**: `RangeSeed::of(doc, field)` is `±|current value|`, and `±1` at zero. No field of the kernel states an admissible domain, so there is no domain to read; the answer states the seed (`CertifiedRange::seed`) for "checked to …".
+- **The budget is `RangeBudget`, the search's own; pass `RangeBudget::for_seed(seed, tol, usize::MAX)` and stop the search with the step's `Stop`.**
+  - `max_depth` is halvings of one side. It bounds a side only until that side's first proof: after it, an end of the answer stops being refined `STALL_LEVELS` (4) halvings past the width that last moved it, whatever the depth. A deeper bound costs two replays a level on a side that never proves anything.
+  - So the depth is sized to reach the width a curved field certifies at, near `ε/4`: `for_seed` reaches `ε/16` on the wider side, about 32 halvings for the plate's `hole_r` under `RangeSeed::of`. At the old default of 24 that field proves nothing.
+  - The `f64` grid is no bound near the current value, so a depth of 64 is not free on a side that never proves.
+  - `max_replays` is a cap, and the search is stepped, so the panel's stop is the real budget: a field that certifies only near `ε` grows its proof by about that much every two replays and never finishes a wide seed. `Step::Finished` means the answer can no longer move.
+- **The readings**: `RangeSide::proven_to`, `reached_seed_end`, `different()` (`at`, `kind()`: `StandingChange { node }` or `BuildsDifferently`), `not_decided()` (`past`, `reason()`: `Unproven::Unfinished { replays }`, `Stalled { width }` or the driver's `Floor(reason)`, and `more_time_helps()`, true only for `Unfinished`); `CertifiedRange::nothing_proven`, `pinned`, and `proven_interval`, whose absolute ends are rounded toward the nominal. Render the ends from `proven_interval`, not from `absolute` of the offsets.
+- **What a replay costs** is in `range.rs`'s module docs and on `work/certread/a-replay-that-nearly-certifies-costs-fifty-times-one-that-stops-early`: seconds while the interval is wide, 20 s to 2 min near a width that certifies. The first proof on the plate arrives after about 47 replays from a seed of `±1e-6`, and later from the chosen one.
+- `crates/viewer/tests/docm9_range_vs_probe.rs` and `viewer::bounds`'s module docs were kept compiling and true on the new answer type, nothing more.

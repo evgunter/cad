@@ -200,7 +200,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
     // The two doors are DIFFERENT: the goldening form carries bits, the
     // human form carries percentages and prose. Neither is the other's
     // substitute, which is what makes shipping both worth it.
-    let rendered = one.render(&doc, &analyzed);
+    let rendered = one.render(&doc, &analyzed).to_string();
     assert!(
         rendered.contains("CERTIFIED WORST CASE"),
         "the human form leads with the gating number: {rendered}"
@@ -467,7 +467,7 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
         );
         assert!(row.mass.is_ok(), "a uniform law prices every leaf");
     }
-    let rendered = histogram.render(&doc);
+    let rendered = histogram.render(&doc).to_string();
     assert!(
         rendered.contains("ADVISORY") && rendered.contains("Not a density"),
         "the advisory label and the E11.6 disclaimer are the first line: {rendered}"
@@ -566,13 +566,13 @@ fn the_mc_report_is_deterministic_and_labeled() {
 
     // Every estimate line carries the count and the seed. Each one opens
     // with its node as the document speaks it.
-    let rendered = a.render(&doc);
+    let rendered = a.render(&doc).to_string();
     let nodes: Vec<String> = a
         .measures
         .iter()
         .map(|m| m.node)
         .chain(a.assertions.iter().map(|x| x.node))
-        .map(|n| doc.spoken(n).to_string())
+        .map(|n| editor_core::test_support::node_text(&doc.spoken(n)))
         .collect();
     assert!(!nodes.is_empty(), "the report estimates at least one node");
     for node in &nodes {
@@ -693,7 +693,7 @@ fn the_budget_renders_its_tail_and_its_containment() {
     )
     .expect("the nominal builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
-    let rendered = budget.render(&doc);
+    let rendered = budget.render(&doc).to_string();
     assert!(rendered.contains("tail"), "the tail has a line: {rendered}");
     assert!(
         rendered.contains("UNRESOLVED"),

@@ -2,11 +2,13 @@
 id: the-sweep-doors-read-the-profiles-recorded-directions
 kind: issue
 title: The sweep doors read the profile's recorded directions where they derive one from a segment's ends, so the tour's stop and the cut plate certify
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P0
 cost: M
 branch: boxfinish/doors-read
+pr: 7384
+closed: 2026-11-23
 ---
 
 
@@ -118,3 +120,43 @@ a wrong side or a wrong containment answer under the old rule
 `reaches_root_in_band` opened, on such a body. The searches PR 6979
 adopts from its review are the tripwires to run first.
 
+
+## Ruled (2026-11-22): this unit ships the type move only
+
+On the lane's measurement (with the line arm reading the recorded
+director the slow sets go about 20 rows red against a green base, by
+two mechanisms: a minted axis beside a quotient-minted partner, and a
+projection span that folds only under rule A), no door reads a
+recorded direction in this unit. What ships is the validated type: a
+segment holds its directions in its kind's arm, and the sweep's
+traversal carries them. The "tests that say it is closed" above are
+not met by it and move with the work: the line half to
+`a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`,
+the arc half to
+`a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`.
+This row closes when PR 7384 merges; `delete-the-box-scalar-sweep-leaf-switch`
+is re-parked on those two at that merge.
+
+## Closed
+
+PR 7384 (2026-11-23), as the type move the ruling above cut it to: a
+validated segment holds its directions in its kind's arm
+(`SegmentKind::Line { director }`, `SegmentKind::Arc { arc, turn,
+radials }`), the parallel field is gone, and the sweep's traversal
+(`swept::Traversed`) carries the directions through `backward`,
+`continued` and `half_turn`. No door reads them.
+
+The title's claim is not made true by this, and each part has its own
+file:
+
+- A door reading a line's recorded director:
+  `a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners`
+  (P1 M), which carries the measurement and its closing tests.
+- An arc's radials and the stored radius:
+  `a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided`
+  (the signed-radius unit).
+- A direction held as a unit by type:
+  `a-recorded-direction-claims-a-unit-and-is-held-as-two-numbers`.
+- `a-validated-arcs-turn-is-a-sign-that-admits-zero` and
+  `a-constructed-loop-keeps-its-directions-beside-its-segments`, filed
+  by the lane.

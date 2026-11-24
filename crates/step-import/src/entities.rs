@@ -29,7 +29,7 @@ use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
 use crate::signed_zero;
-use crate::units::{self, UnitKind};
+use crate::units::{self, Scale, UnitKind};
 use crate::{
     CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT,
     STEP_PLACEMENT_IDENTITY, StructureNormalization,
@@ -162,6 +162,14 @@ pub(crate) struct SolidSpec {
     pub(crate) edges: BTreeMap<u64, EdgeSpec>,
     /// Every vertex referenced, keyed by `VERTEX_POINT` id.
     pub(crate) vertices: BTreeMap<u64, Point3<f64>>,
+    /// The shell's surface records, each worn by every face that names
+    /// it (`[import]`, "Records follow the file"): a surface entity the
+    /// file states, keyed by its entity id, or a record a normalization
+    /// mints, keyed by a minted id. While the shell is read it may hold a
+    /// record no face wears any more (one a join emptied, a split's
+    /// source); the finished shell holds exactly the records its faces
+    /// wear.
+    pub(crate) surfaces: BTreeMap<u64, SurfaceRecord>,
     /// Edge ids of seam generators MINTED by the band re-mint
     /// (M7-5): D1 states each one spatially as its surface's u_ref
     /// half-plane, so adoption must certify it as
@@ -171,6 +179,56 @@ pub(crate) struct SolidSpec {
     pub(crate) band_seams: std::collections::BTreeSet<u64>,
 }
 
+impl SolidSpec {
+    /// The surface face `fi` wears.
+    pub(crate) fn surface(&self, fi: usize) -> &Surface<f64> {
+        self.surface_of(&self.faces[fi])
+    }
+
+    /// The surface `face` wears.
+    pub(crate) fn surface_of(&self, face: &FaceSpec) -> &Surface<f64> {
+        &self.surfaces[&face.record].surface
+    }
+
+    /// Where record `record` stands in the file, the order "earlier"
+    /// reads: its position in the DATA section, then its id.
+    pub(crate) fn order(&self, record: u64) -> (usize, u64) {
+        (self.surfaces[&record].position, record)
+    }
+
+    /// A new record of `surface`, minted from record `from` under the
+    /// fresh id `id`: it stands where `from` stands in the file.
+    pub(crate) fn mint_record(&mut self, id: u64, from: u64, surface: Surface<f64>) {
+        let position = self.surfaces[&from].position;
+        self.surfaces
+            .insert(id, SurfaceRecord { surface, position });
+    }
+}
+
+/// A test shell's record table: each `(id, surface)` a record, standing
+/// in the file in the order given.
+#[cfg(test)]
+pub(crate) fn records_of(
+    stated: impl IntoIterator<Item = (u64, Surface<f64>)>,
+) -> BTreeMap<u64, SurfaceRecord> {
+    stated
+        .into_iter()
+        .enumerate()
+        .map(|(position, (id, surface))| (id, SurfaceRecord { surface, position }))
+        .collect()
+}
+
+/// One surface record of a shell ([`SolidSpec::surfaces`]).
+#[derive(Clone, Debug)]
+pub(crate) struct SurfaceRecord {
+    /// The interpreted kernel surface: its placement built by
+    /// `build_axes`.
+    pub(crate) surface: Surface<f64>,
+    /// Where its entity stands in the DATA section, the order "earlier"
+    /// reads; a minted record's is the record it was minted from.
+    pub(crate) position: usize,
+}
+
 /// One `ADVANCED_FACE`.
 #[derive(Debug)]
 pub(crate) struct FaceSpec {
@@ -178,10 +236,8 @@ pub(crate) struct FaceSpec {
     /// normalization's minted faces keep the id of the face they
     /// replace, so a reported census mapping names a real record).
     pub(crate) id: u64,
-    /// The interpreted kernel surface: its placement built by
-    /// `build_axes`, its record one with another of its locus where
-    /// interpretation made them one.
-    pub(crate) surface: Surface<f64>,
+    /// The surface record it wears, a key of [`SolidSpec::surfaces`].
+    pub(crate) record: u64,
     /// `same_sense`, honored verbatim as [`topo::Face::sense`].
     pub(crate) sense: bool,
     /// The bounds: outer first (`FACE_OUTER_BOUND`), rings after in
@@ -265,16 +321,16 @@ pub(crate) struct EdgeSpec {
 pub(crate) struct Resolver<'a> {
     file: &'a StepFile,
     /// The file's SI length factor into kernel meters (M7-2 Leg A):
-    /// 1.0 for the kernel's own dialect, 1e-3 for FreeCAD's
-    /// millimeters. EVERY length the resolver reads passes through
-    /// [`Resolver::as_length`].
-    length_scale: f64,
+    /// 1 for the kernel's own dialect, 1/1000 for FreeCAD's
+    /// millimeters, held exactly. EVERY length the resolver reads
+    /// passes through [`Resolver::as_length`].
+    length_scale: Scale,
     /// The file's angle factor into kernel radians (M7-4 Leg B): 1.0
     /// for a radian context, the file's own declared π/180 for the
     /// wild's dominant `CONVERSION_BASED_UNIT('DEGREE', …)`. Only one
     /// slot in the subset states an angle — a `CONICAL_SURFACE`'s
     /// `semi_angle` — and it passes through [`Resolver::as_angle`].
-    angle_scale: f64,
+    angle_scale: Scale,
     /// ε_in in kernel metres (the file's declared uncertainty, scaled
     /// with every other length) and the band the file is read at: the
     /// one interpretation budget, spent by every reading that decides
@@ -301,6 +357,29 @@ pub(crate) struct Resolver<'a> {
     /// edge's trim on it ([`Self::edge`]) and is a wireframe curve's
     /// span ([`Self::curve_set`]).
     partial_promotions: std::cell::RefCell<BTreeMap<u64, (f64, f64)>>,
+    /// Each surface entity as interpretation reads it, keyed by entity
+    /// id: recognition acts on the record, once, whichever faces cite it.
+    interpreted: std::cell::RefCell<BTreeMap<u64, Interpreted>>,
+    /// The surface entities whose reading is reported, once each,
+    /// against the first face citing it: its healed sides
+    /// ([`NormalizationKind::CollapsedSideMadeOne`]) and its promotion
+    /// ([`NormalizationKind::SurfacePromotion`]).
+    promotions_reported: std::cell::RefCell<std::collections::BTreeSet<u64>>,
+}
+
+/// One surface entity as interpretation reads it: the kernel surface,
+/// and what stage-1 recognition made of a spline.
+#[derive(Clone, Debug)]
+struct Interpreted {
+    surface: Surface<f64>,
+    /// How far each net side healing made one point moved
+    /// ([`recognize::heal_collapsed_sides`]), before recognition.
+    healed: Vec<f64>,
+    /// The promotion, its residual, and whether it turned the chart
+    /// over (composed into each citing face's sense).
+    promoted: Option<(recognize::PromotedKind, f64, bool)>,
+    /// The kind whose estimator declined, and its margin.
+    ill_conditioned: Option<(recognize::PromotedKind, f64)>,
 }
 
 impl<'a> Resolver<'a> {
@@ -419,10 +498,10 @@ impl<'a> Resolver<'a> {
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
         let raw = as_real(id, value, expected)?;
-        // Multiplication by an exact power of ten is one correctly
-        // rounded operation; the unprefixed case multiplies by 1.0 and
-        // moves no bits at all (the own-corpus identity is untouched).
-        Ok(raw * self.length_scale)
+        // The number's decimal times the exact factor, rounded once; the
+        // unprefixed case moves no bits at all (the own-corpus identity
+        // is untouched).
+        Ok(self.length_scale.apply(raw))
     }
 
     /// One stated angle into kernel radians. A radian context
@@ -435,7 +514,7 @@ impl<'a> Resolver<'a> {
         value: &Value,
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
-        Ok(as_real(id, value, expected)? * self.angle_scale)
+        Ok(self.angle_scale.apply(as_real(id, value, expected)?))
     }
 
     /// A fresh entity id for minted topology (module docs).
@@ -1296,6 +1375,62 @@ impl<'a> Resolver<'a> {
         self.point(id, as_ref(id, point, expected)?)
     }
 
+    /// Surface entity `surface_id` as interpretation reads it, cited by
+    /// face `face`: read and tested for promotion the first time a face
+    /// cites it, the same reading answered to every later one.
+    fn interpreted(&self, face: u64, surface_id: u64) -> Result<Interpreted, StepImportError> {
+        if let Some(known) = self.interpreted.borrow().get(&surface_id) {
+            return Ok(known.clone());
+        }
+        let mut surface = self.surface(face, surface_id)?;
+        // **A net side read one point at the file's band is made that
+        // point** (`[import]` healing), before recognition reads the
+        // patch's collapsed side as its pole.
+        let mut healed = Vec::new();
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+            && let Some((made_one, sides)) =
+                recognize::heal_collapsed_sides(patch.as_ref(), self.budget)
+                    .map_err(|refusal| self.budget.refused(face, refusal))?
+        {
+            healed = sides.into_iter().map(|(_, moved_by)| moved_by).collect();
+            surface = Surface::Nurbs(std::sync::Arc::new(made_one));
+        }
+        let mut read = Interpreted {
+            surface,
+            healed: healed.clone(),
+            promoted: None,
+            ill_conditioned: None,
+        };
+        if let Surface::Nurbs(ref patch) = read.surface
+            && !patch.is_placeholder()
+        {
+            match recognize::recognize(patch.as_ref(), self.budget) {
+                recognize::Recognition::Promoted {
+                    surface: promoted,
+                    residual,
+                    kind,
+                } => {
+                    let flipped = recognize::chart_flipped(patch.as_ref(), &promoted);
+                    read = Interpreted {
+                        surface: promoted,
+                        healed,
+                        promoted: Some((kind, residual, flipped)),
+                        ill_conditioned: None,
+                    };
+                }
+                recognize::Recognition::StaysNurbs => {}
+                recognize::Recognition::IllConditioned { kind, margin } => {
+                    read.ill_conditioned = Some((kind, margin));
+                }
+            }
+        }
+        self.interpreted
+            .borrow_mut()
+            .insert(surface_id, read.clone());
+        Ok(read)
+    }
+
     /// One `ADVANCED_FACE`, its bounds and their loops, accumulating
     /// shared vertices/edges into the shell tables.
     ///
@@ -1316,6 +1451,7 @@ impl<'a> Resolver<'a> {
         id: u64,
         edges: &mut BTreeMap<u64, EdgeSpec>,
         vertices: &mut BTreeMap<u64, Point3<f64>>,
+        surfaces: &mut BTreeMap<u64, SurfaceRecord>,
     ) -> Result<Vec<FaceSpec>, StepImportError> {
         let args = self.simple(from, id, "ADVANCED_FACE")?;
         let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
@@ -1323,7 +1459,12 @@ impl<'a> Resolver<'a> {
             return Err(StepImportError::MalformedRecord { id, expected });
         };
         let surface_id = as_ref(id, surface_ref, expected)?;
-        let mut surface = self.surface(id, surface_id)?;
+        let Interpreted {
+            surface,
+            healed,
+            promoted,
+            ill_conditioned,
+        } = self.interpreted(id, surface_id)?;
         let mut sense = as_bool(id, same_sense, expected)?;
         let mut bound_specs = Vec::new();
         for bound in as_list(id, bounds, expected)? {
@@ -1349,40 +1490,49 @@ impl<'a> Resolver<'a> {
         // (census identity; the recorded residual bounds the motion),
         // and the face's `same_sense` composes with the chart
         // orientation so the promoted chart means what the NURBS chart
-        // meant.
-        let mut ill_conditioned = None;
-        if let Surface::Nurbs(ref patch) = surface
-            && !patch.is_placeholder()
-        {
-            match recognize::recognize(patch.as_ref(), self.budget) {
-                recognize::Recognition::Promoted {
-                    surface: promoted,
-                    residual,
-                    kind,
-                } => {
-                    if recognize::chart_flipped(patch.as_ref(), &promoted) {
-                        sense = !sense;
-                    }
-                    let census = bounds_census(&bound_specs, edges);
-                    self.normalizations
-                        .borrow_mut()
-                        .push(StructureNormalization {
-                            face: id,
-                            kind: NormalizationKind::SurfacePromotion { to: kind, residual },
-                            file_census: census,
-                            kernel_census: census,
-                        });
-                    surface = promoted;
-                }
-                recognize::Recognition::StaysNurbs => {}
-                recognize::Recognition::IllConditioned { kind, margin } => {
-                    ill_conditioned = Some((kind, margin));
-                }
+        // meant. The surface entity is read once ([`Self::interpreted`]),
+        // so every face citing it wears one record, and what reading it
+        // did (a net side made one point, a promotion) is reported once,
+        // against the first face citing it.
+        if let Some((_, _, true)) = promoted {
+            sense = !sense;
+        }
+        if self.promotions_reported.borrow_mut().insert(surface_id) {
+            let census = bounds_census(&bound_specs, edges);
+            let healings = healed
+                .iter()
+                .map(|&moved_by| NormalizationKind::CollapsedSideMadeOne { moved_by });
+            let promotion = promoted.map(|(kind, residual, _)| {
+                NormalizationKind::SurfacePromotion { to: kind, residual }
+            });
+            for kind in healings.chain(promotion) {
+                self.normalizations
+                    .borrow_mut()
+                    .push(StructureNormalization {
+                        face: id,
+                        kind,
+                        file_census: census,
+                        kernel_census: census,
+                    });
             }
+        }
+        if let std::collections::btree_map::Entry::Vacant(slot) = surfaces.entry(surface_id) {
+            let position = self.instance(id, surface_id)?.position;
+            slot.insert(SurfaceRecord {
+                surface: surface.clone(),
+                position,
+            });
         }
         // The edge-free closed face: one VERTEX_LOOP and nothing else.
         if bound_specs.iter().any(|b| b.vertex_loop.is_some()) {
-            return self.edge_free_face(id, surface, sense, &bound_specs, edges, vertices);
+            return self.edge_free_face(
+                id,
+                (surface_id, surface),
+                sense,
+                &bound_specs,
+                edges,
+                vertices,
+            );
         }
 
         let mut loops: Vec<LoopSpec> = bound_specs
@@ -1420,7 +1570,7 @@ impl<'a> Resolver<'a> {
             if is_periodic_band(&surface, &loops, edges, Some(self.budget.band())) {
                 return Ok(vec![FaceSpec {
                     id,
-                    surface,
+                    record: surface_id,
                     sense,
                     loops,
                     band: true,
@@ -1469,7 +1619,7 @@ impl<'a> Resolver<'a> {
         loops.swap(0, outer);
         Ok(vec![FaceSpec {
             id,
-            surface,
+            record: surface_id,
             sense,
             loops,
             band: false,
@@ -1615,7 +1765,7 @@ impl<'a> Resolver<'a> {
     fn edge_free_face(
         &self,
         id: u64,
-        surface: Surface<f64>,
+        (record, surface): (u64, Surface<f64>),
         sense: bool,
         bounds: &[BoundSpec],
         edges: &mut BTreeMap<u64, EdgeSpec>,
@@ -1643,7 +1793,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
-        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -1675,7 +1825,10 @@ impl<'a> Resolver<'a> {
         let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
             let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center,
+                radius,
+                axis.get(),
+                d,
             ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(
@@ -1700,7 +1853,7 @@ impl<'a> Resolver<'a> {
 
         let lune = |a: u64, a_fwd: bool, b: u64, b_fwd: bool| FaceSpec {
             id,
-            surface: surface.clone(),
+            record,
             sense,
             loops: vec![LoopSpec {
                 outer: true,
@@ -1948,24 +2101,6 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// The surface record an `ADVANCED_FACE` states, and where it stands
-    /// in the DATA section.
-    fn face_surface_record(
-        &self,
-        from: u64,
-        id: u64,
-    ) -> Result<crate::one_record::Record, StepImportError> {
-        let expected = "ADVANCED_FACE(name, (bounds), #surface, same_sense)";
-        let [_, _, surface_ref, _] = self.simple(from, id, "ADVANCED_FACE")? else {
-            return Err(StepImportError::MalformedRecord { id, expected });
-        };
-        let surface = as_ref(id, surface_ref, expected)?;
-        Ok(crate::one_record::Record {
-            position: self.instance(id, surface)?.position,
-            id: surface,
-        })
-    }
-
     /// One solid record: a `MANIFOLD_SOLID_BREP` and its `CLOSED_SHELL`,
     /// or a `BREP_WITH_VOIDS`, its outer `CLOSED_SHELL` and its voids.
     ///
@@ -2043,10 +2178,11 @@ impl<'a> Resolver<'a> {
         };
         let mut edges = BTreeMap::new();
         let mut vertices = BTreeMap::new();
+        let mut surfaces = BTreeMap::new();
         let mut faces = Vec::new();
         for face_ref in as_list(shell_id, face_list, sexpected)? {
             let face_id = as_ref(shell_id, face_ref, sexpected)?;
-            faces.extend(self.face(shell_id, face_id, &mut edges, &mut vertices)?);
+            faces.extend(self.face(shell_id, face_id, &mut edges, &mut vertices, &mut surfaces)?);
         }
         if reversed {
             faces.iter_mut().for_each(reverse_face);
@@ -2083,22 +2219,18 @@ impl<'a> Resolver<'a> {
                 });
             }
         }
-        let records = faces
-            .iter()
-            .map(|face| self.face_surface_record(shell_id, face.id))
-            .collect::<Result<Vec<_>, _>>()?;
         let mut solid = SolidSpec {
             id,
             faces,
             edges,
             vertices,
+            surfaces,
             band_seams: std::collections::BTreeSet::new(),
         };
         // Two records the file's faces read as one locus become one,
         // before anything is built.
         crate::one_record::one_record(
             &mut solid,
-            &records,
             self.budget,
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -2106,7 +2238,6 @@ impl<'a> Resolver<'a> {
         // made exact by the snap catalogue.
         crate::snap::snap(
             &mut solid,
-            &records,
             self.budget,
             self.tol,
             &mut self.normalizations.borrow_mut(),
@@ -2119,6 +2250,10 @@ impl<'a> Resolver<'a> {
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
+        // A record a join or a split left unworn is no surface of the
+        // shell.
+        let worn: std::collections::BTreeSet<u64> = solid.faces.iter().map(|f| f.record).collect();
+        solid.surfaces.retain(|id, _| worn.contains(id));
         Ok(solid)
     }
 
@@ -2469,7 +2604,7 @@ fn length_factor(
     r: &Resolver<'_>,
     id: u64,
     records: &[Record],
-) -> Result<Option<f64>, StepImportError> {
+) -> Result<Option<Scale>, StepImportError> {
     if !records.iter().any(|(kw, _)| kw == "LENGTH_UNIT") {
         return Ok(None);
     }
@@ -2658,12 +2793,10 @@ fn first_proj_axis(axis: Vec3<f64>) -> Vec3<f64> {
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding, so a unit direction
 /// the writer printed is kept bit for bit; otherwise the triple
-/// normalized. Read by the kernel's f64 door: the line's frame is built by
-/// `build_axes` about the triple, and with the triple as stated put back
-/// as its axis, [`geom_core::RigidMotion::check_rigid`] says whether the
-/// frame is still rigid within its rounding. `None` for a triple that
-/// names no direction.
-fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
+/// normalized, the axis of the frame `build_axes` decides about it. Unit
+/// within its rounding is [`geom_core::UnitVec3::stated`]'s column test,
+/// the frame door's. `None` for a triple that names no direction.
+fn unit_line_direction(ratios: Vec3<f64>) -> Option<geom_core::UnitVec3<f64>> {
     let reference = first_proj_axis(ratios);
     let built = geom_core::RigidMotion::from_axis_and_reference(
         Point3::origin(),
@@ -2673,13 +2806,9 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
         geom_core::Band::least(),
     )
     .ok()?;
-    let (u, v) = (built.u().get(), built.v().get());
-    let stated = Affine3::from_parts(Mat3::from_cols(u, v, ratios), Vec3::zero());
-    Some(if geom_core::RigidMotion::check_rigid(&stated).is_ok() {
-        ratios
-    } else {
-        built.w().get()
-    })
+    // The stated ratios where they are a unit direction to rounding, the
+    // built frame's axis otherwise.
+    Some(geom_core::UnitVec3::stated(ratios).unwrap_or_else(|| built.w()))
 }
 
 /// A placement as interpretation built it: the frame, the same frame as a
@@ -2723,12 +2852,12 @@ struct ContentRoots {
 }
 
 /// The scales and uncertainty one file states.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct UnitContext {
     /// Meters per file length unit.
-    pub(crate) length_scale: f64,
+    pub(crate) length_scale: Scale,
     /// Radians per file angle unit.
-    pub(crate) angle_scale: f64,
+    pub(crate) angle_scale: Scale,
     /// The declared uncertainty in kernel meters, when the governing
     /// contexts declare one. `None` is not yet an error: a file with
     /// no geometry to import should say *that*, not complain about a
@@ -2766,11 +2895,11 @@ fn resolve_units_and_uncertainty(
     // different length units would leave every coordinate's meaning
     // ambiguous, so a second, distinct factor refuses typed rather
     // than letting the first one win silently.
-    let mut length_scale: Option<(u64, f64)> = None;
-    let mut note_scale = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match length_scale {
+    let mut length_scale: Option<(u64, Scale)> = None;
+    let mut note_scale = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &length_scale {
             None => length_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2784,11 +2913,11 @@ fn resolve_units_and_uncertainty(
     };
     // The file's ONE angle scale, by the same argument: a semi_angle
     // read in the wrong angular unit is a different cone.
-    let mut angle_scale: Option<(u64, f64)> = None;
-    let mut note_angle = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match angle_scale {
+    let mut angle_scale: Option<(u64, Scale)> = None;
+    let mut note_angle = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &angle_scale {
             None => angle_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2833,10 +2962,10 @@ fn resolve_units_and_uncertainty(
                     for entry in as_list(id, list, expected)? {
                         let uid = as_ref(id, entry, expected)?;
                         let (raw, factor, unit_id) = r.uncertainty_value(id, uid)?;
-                        note_scale(unit_id, factor)?;
                         // Into kernel meters with every other length
                         // (D7's ε_in rule unchanged; 1.E-07 mm → 1e-10 m).
-                        let value = raw * factor;
+                        let value = factor.apply(raw);
+                        note_scale(unit_id, factor)?;
                         // A coincidence distance is a length no less
                         // than zero; a declaration that is negative or
                         // not finite is no budget any band reads.
@@ -2881,8 +3010,8 @@ fn resolve_units_and_uncertainty(
         }
     }
     Ok(UnitContext {
-        length_scale: length_scale.map_or(1.0, |(_, f)| f),
-        angle_scale: angle_scale.map_or(1.0, |(_, f)| f),
+        length_scale: length_scale.map_or_else(Scale::one, |(_, f)| f),
+        angle_scale: angle_scale.map_or_else(Scale::one, |(_, f)| f),
         uncertainty_m: uncertainty,
     })
 }
@@ -2894,7 +3023,7 @@ impl<'a> Resolver<'a> {
     /// meters, the unit's entity id)` — the caller scales, so ε_in
     /// lands in kernel meters like every other length, and a foreign
     /// unit can never silently rescale it.
-    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, f64, u64), StepImportError> {
+    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, Scale, u64), StepImportError> {
         let args = self.simple(from, id, "UNCERTAINTY_MEASURE_WITH_UNIT")?;
         let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), #unit, \
                         name, description)";
@@ -3415,14 +3544,16 @@ fn resolve_shape(
 fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
-        length_scale: 1.0,
-        angle_scale: 1.0,
+        length_scale: Scale::one(),
+        angle_scale: Scale::one(),
         budget: interpret::FileBand::unread(),
         tol,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
         partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     }
 }
 
@@ -3483,6 +3614,8 @@ pub(crate) fn resolve(
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
         partial_promotions: std::cell::RefCell::new(BTreeMap::new()),
+        interpreted: std::cell::RefCell::new(BTreeMap::new()),
+        promotions_reported: std::cell::RefCell::new(std::collections::BTreeSet::new()),
     };
     let (shape, owners) = resolve_shape(&r, file)?;
     // The instance list is resolved for a SOLID model only: a

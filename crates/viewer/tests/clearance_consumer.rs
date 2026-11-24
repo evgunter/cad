@@ -23,7 +23,7 @@ use pncad::prelude::MM;
 use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
 use viewer::generation::Generation;
 use viewer::props::Notation;
-use viewer::session::{ClearedSeat, DocSession, SessionOp};
+use viewer::session::{AssertedSeat, DocSession, SessionOp};
 use viewer::test_support::{CLEARANCE_SIDE as SIDE, STEP_GAP as GAP, len, two_blocks_apart};
 use viewer::tree::{Certified, Readout, TreeRow};
 
@@ -51,7 +51,7 @@ fn scene(
 
 /// The world placement that draws `block`.
 fn drawn(session: &DocSession, block: RecipeNodeId) -> RecipeNodeId {
-    let [placement] = viewer::world::placements_of(session.committed_doc(), block)[..] else {
+    let [placement] = session.committed_doc().placements_of(block)[..] else {
         panic!("each block is placed once");
     };
     placement
@@ -63,10 +63,10 @@ fn requirement(
     right: RecipeNodeId,
     bounds: ClearanceBounds<Formula>,
 ) -> SessionOp {
-    SessionOp::AddClearance {
-        a: ClearedSeat::Body(left.into()),
-        b: ClearedSeat::Body(right.into()),
-        bounds,
+    SessionOp::AddAssertion {
+        a: AssertedSeat::Body(left.into()),
+        b: AssertedSeat::Body(right.into()),
+        claim: viewer::session::AssertedClaim::Clearance(bounds),
     }
 }
 
@@ -274,7 +274,10 @@ fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
     assert!(!session.certifying(), "the premise: nothing is certifying");
     let row = cleared(&session, id);
     assert_eq!(row.state(), "not certified");
-    assert_eq!(row.sentence(), Some(viewer::tree::CERTIFY_STOPPED));
+    assert_eq!(
+        row.sentence().map(|said| said.to_string()).as_deref(),
+        Some(viewer::tree::CERTIFY_STOPPED)
+    );
 }
 
 /// **Each verdict reads as its equation**, the seats in the document's
@@ -295,7 +298,7 @@ fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
 fn each_certified_verdict_reads_as_its_equation_in_the_documents_words() {
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
-    let said = |id| session.doc().spoken(id).to_string();
+    let said = |id| viewer::tree::spelled(&session.doc().spoken(id));
     let (l, r) = (said(left), said(right));
     assert!(l.contains("\"left\""), "the premise: {l}");
     let cases = [
@@ -368,21 +371,23 @@ fn a_face_seat_reads_as_the_face_the_document_names() {
     let face = facing_wall(&session, left);
     let id = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(face.clone()),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.005)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(face.clone()),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.005))),
         },
     );
     session.pump();
     let row = cleared(&session, id);
     let doc = session.doc();
-    let wall = pncad::document::Speaker::of(doc)
-        .name(&face.name)
-        .to_string();
+    let wall = editor_core::test_support::text(pncad::document::Speaker::of(doc).name(&face.name));
     assert_eq!(
         row.equation(IN_MM),
-        format!("clearance({wall}, {}) ≥ 5 mm", doc.spoken(right)),
+        format!(
+            "clearance({wall}, {}) ≥ 5 mm",
+            viewer::tree::spelled(&doc.spoken(right)),
+            wall = pncad::document::sentence!(wall)
+        ),
     );
     assert_eq!(row.state(), "Holds", "{:?}", row.answer);
 }
@@ -449,12 +454,12 @@ fn a_refused_bound_reads_as_the_kernels_sentence_and_recourse() {
         assert_eq!(*got, name);
         assert_eq!(row.state(), "Refused");
         assert_eq!(
-            row.sentence(),
-            Some(sentence.as_str()),
+            row.sentence().as_ref(),
+            Some(sentence),
             "the sentence is drawn as said"
         );
         assert!(
-            sentence.contains("Recourse:"),
+            sentence.to_string().contains("Recourse:"),
             "{name} says what to do: {sentence}"
         );
     }
@@ -530,27 +535,29 @@ fn the_witness_is_offered_only_for_the_shown_documents_run() {
 
 /// **The create door writes each shape of bound**, through the
 /// document's own insert door: `≥`, `≤`, `=` and the band, each the
-/// clearance tool's choice, every end at the one length it is given; a
+/// assertion tool's choice for a clearance, every end at the one length it is given; a
 /// band's upper end is then moved at its own row.
 ///
 /// Red if a choice writes another shape, or the band's ends swap.
 #[test]
-fn the_clearance_tool_writes_each_shape_of_bound() {
-    use viewer::combine::{ClearanceBoundChoice, ClearanceTool};
+fn the_assertion_tool_writes_each_shape_of_clearance_bound() {
+    use viewer::combine::{AssertionMeasure, AssertionTool, BoundChoice};
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let wall = facing_wall(&session, left);
-    let mut tool = ClearanceTool::new();
+    let mut tool = AssertionTool::new();
     tool.seat_face(session.committed_doc(), wall.clone());
     assert!(tool.seat_body(session.committed_doc(), right).is_none());
-    for (choice, _) in ClearanceBoundChoice::ALL {
+    for (choice, _) in BoundChoice::ALL {
         let op = tool
-            .op(choice.bounds(len(0.005)))
+            .op(AssertionMeasure::Clearance
+                .claim(choice, len(0.005))
+                .expect("every shape bounds a clearance"))
             .expect("both seats are held");
         let id = add(&mut session, op);
         // A band's upper end moved apart at its own row, so ends that
         // swapped would read back swapped.
-        if choice == ClearanceBoundChoice::Between {
+        if choice == BoundChoice::Between {
             let moved = session.perform(SessionOp::SetSlotExpression {
                 node: id,
                 slot: pncad::document::SlotId::ClearanceBound(pncad::document::BoundEnd::High),
@@ -572,10 +579,10 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
             .try_map(|&var| Ok::<_, ()>(value(var)))
             .expect("lengths");
         let want = match choice {
-            ClearanceBoundChoice::AtLeast => ClearanceBounds::AtLeast(0.005),
-            ClearanceBoundChoice::AtMost => ClearanceBounds::AtMost(0.005),
-            ClearanceBoundChoice::Equal => ClearanceBounds::Equal(0.005),
-            ClearanceBoundChoice::Between => ClearanceBounds::Within {
+            BoundChoice::AtLeast => ClearanceBounds::AtLeast(0.005),
+            BoundChoice::AtMost => ClearanceBounds::AtMost(0.005),
+            BoundChoice::Equal => ClearanceBounds::Equal(0.005),
+            BoundChoice::Between => ClearanceBounds::Within {
                 lo: 0.005,
                 hi: 0.02,
             },
@@ -605,7 +612,7 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
 #[test]
 fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
     use pncad::document::{BoundEnd, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let slots = |session: &DocSession, id| {
@@ -619,10 +626,10 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
         SlotId::ClearanceBound(BoundEnd::High),
     );
     for (choice, want) in [
-        (ClearanceBoundChoice::AtLeast, vec![low]),
-        (ClearanceBoundChoice::AtMost, vec![high]),
-        (ClearanceBoundChoice::Equal, vec![low]),
-        (ClearanceBoundChoice::Between, vec![low, high]),
+        (BoundChoice::AtLeast, vec![low]),
+        (BoundChoice::AtMost, vec![high]),
+        (BoundChoice::Equal, vec![low]),
+        (BoundChoice::Between, vec![low, high]),
     ] {
         let id = add(
             &mut session,
@@ -633,7 +640,7 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
 
     let id = add(
         &mut session,
-        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+        requirement(left, right, BoundChoice::AtLeast.bounds(len(0.0))),
     );
     session.pump();
     assert_eq!(cleared(&session, id).state(), "Holds", "contact holds");
@@ -691,17 +698,19 @@ fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
 /// Red if the tool seats a body the world draws more than once.
 #[test]
 fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
-    use viewer::combine::{ClearanceEvent, ClearanceTool};
+    use viewer::combine::{AssertionEvent, AssertionTool};
     let tol = Tol::witness();
     let (doc, [left, _], _) = two_blocks_apart(tol);
     let (doc, _) = viewer::test_support::placed(&doc, left, tol);
-    let mut tool = ClearanceTool::new();
+    let mut tool = AssertionTool::new();
     let refused = tool.seat_body(&doc, left).expect("the pick is refused");
     assert!(
-        matches!(refused, ClearanceEvent::SeveralCopies { copies: 2, .. }),
+        matches!(refused, AssertionEvent::SeveralCopies { copies: 2, .. }),
         "{refused:?}"
     );
-    let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc)).to_string();
+    let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc))
+        .sentence()
+        .to_string();
     assert!(
         said.contains("\"left\"")
             && said.contains("pick a face of the copy you mean in the picture"),
@@ -710,17 +719,17 @@ fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
     assert_eq!(tool.body(0), None, "the seat is untouched");
 }
 
-/// **A requirement over a pattern's members refuses in words, never
-/// crashes**: a pattern seat lifts the assertion over the family, one
-/// requirement per member, which the certifying lane does not decide
-/// yet. The row says so with its recourse, under the requirement's own
-/// name. A face of one drawn member, picked in the picture, seats that
-/// member alone, and is certified.
+/// **A requirement over a pattern's family is refused**: a clearance
+/// seat takes one body, so a family there refuses at the body gate, as
+/// the door refuses it by kind (D10 `[repetition]`); nothing reaches the
+/// certify door. A face of
+/// one drawn member, picked in the picture, seats that member alone, and
+/// is certified.
 ///
-/// Red if the landing hands the family to the certify door as a verdict
-/// (which panicked the worker), or the row stays silent.
+/// Red if a family at the seat is lifted over its members implicitly,
+/// or the refusal says nothing to do.
 #[test]
-fn a_requirement_over_a_patterns_members_refuses_in_words() {
+fn a_requirement_over_a_patterns_family_is_refused_by_kind() {
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     // Picked on the left block's world copy, the pattern repeats the copy
@@ -738,54 +747,21 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         },
     );
     session.pump();
-    let by_body = add(
-        &mut session,
-        requirement(pattern, right, ClearanceBounds::AtLeast(len(0.02))),
-    );
-    let label = pncad::document::Label::new("pattern gap").expect("a label");
-    let labelled = session.perform(SessionOp::SetLabel {
-        node: by_body,
-        label: Some(label),
-    });
-    assert!(labelled.refusal.is_none(), "{:?}", labelled.refusal);
-    session.pump();
-    let row = cleared(&session, by_body);
+    let refused = session.perform(requirement(
+        pattern,
+        right,
+        ClearanceBounds::AtLeast(len(0.02)),
+    ));
     assert!(
         matches!(
-            row.answer,
-            Certified::Answered(ClearanceOutcome::OverMembers { .. })
+            &refused.refusal,
+            Some(viewer::session::Refusal::WrongNodeKind {
+                wanted: viewer::session::NodeKindWanted::Body,
+                ..
+            })
         ),
-        "{:?}",
-        row.answer
-    );
-    assert_eq!(row.state(), "Refused");
-    let sentence = row.sentence().expect("the refusal is said");
-    assert!(
-        sentence.contains("\"pattern gap\"") && sentence.contains("Recourse:"),
-        "{sentence}"
-    );
-    // A landing whose only clearance is lifted owes no certified answer.
-    let seam = Recording::default();
-    let mut fresh = DocSession::inline(session.committed_doc().clone(), tol)
-        .with_certifier(Box::new(seam.clone()));
-    fresh.pump();
-    assert!(
-        seam.submits().is_empty(),
-        "a family is not handed to the certify door as a verdict"
-    );
-    // The certify door answers it the same way, in words, rather than
-    // reading the family as a verdict.
-    let answers =
-        clearances_at_nominal(session.doc(), None, &pncad::document::Stop::default(), tol)
-            .expect("an uncancelled run answers");
-    let door = answers
-        .iter()
-        .find(|answer| answer.assertion == by_body)
-        .expect("one answer per clearance");
-    assert!(
-        matches!(&door.answer, ClearanceOutcome::OverMembers { sentence } if sentence.contains("Recourse:")),
-        "{:?}",
-        door.answer
+        "a family at a clearance seat refuses at the body gate: {:?}",
+        refused.refusal
     );
     // A face of the second member, picked where the picture draws it.
     // The family stands in the world and is drawn as itself.
@@ -810,10 +786,10 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
     let member_face = index.face_of(id).expect("a drawn patch is a named face");
     let by_face = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(member_face),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(member_face),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         },
     );
     session.pump();
@@ -876,7 +852,9 @@ fn member_scene(
     }
     // A pattern moved into the world is drawn by its own node; a copy
     // of one, by the copy.
-    let drawn = viewer::world::placements_of(session.committed_doc(), pattern)
+    let drawn = session
+        .committed_doc()
+        .placements_of(pattern)
         .first()
         .copied()
         .unwrap_or(pattern);
@@ -952,10 +930,10 @@ fn a_pattern_member_face_seat_is_witnessed_on_that_member() {
     let face = member_face(&index, drawn, 2);
     let requirement = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(face.clone()),
-            b: ClearedSeat::Body(right.into()),
-            bounds: ClearanceBounds::AtLeast(len(0.05)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(face.clone()),
+            b: AssertedSeat::Body(right.into()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.05))),
         },
     );
     session.pump();
@@ -995,10 +973,10 @@ fn two_pattern_members_faces_are_witnessed_where_each_stands() {
     let (second, third) = (member_face(&index, drawn, 1), member_face(&index, drawn, 2));
     let requirement = add(
         &mut session,
-        SessionOp::AddClearance {
-            a: ClearedSeat::Face(second.clone()),
-            b: ClearedSeat::Face(third.clone()),
-            bounds: ClearanceBounds::AtLeast(len(0.2)),
+        SessionOp::AddAssertion {
+            a: AssertedSeat::Face(second.clone()),
+            b: AssertedSeat::Face(third.clone()),
+            claim: viewer::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.2))),
         },
     );
     session.pump();
@@ -1037,12 +1015,12 @@ fn two_pattern_members_faces_are_witnessed_where_each_stands() {
 #[test]
 fn a_variable_a_clearance_bound_reads_focuses_nothing() {
     use pncad::document::{BoundEnd, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     let id = add(
         &mut session,
-        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+        requirement(left, right, BoundChoice::AtLeast.bounds(len(0.0))),
     );
     let declared = session.perform(SessionOp::DeclareVar {
         name: pncad::document::VarName::new("gap").expect("a name"),
@@ -1081,14 +1059,14 @@ fn a_variable_a_clearance_bound_reads_focuses_nothing() {
 #[test]
 fn a_bound_that_does_not_evaluate_names_its_own_end() {
     use pncad::document::{BoundEnd, NodeErrorKind, SlotId};
-    use viewer::combine::ClearanceBoundChoice;
+    use viewer::combine::BoundChoice;
     let tol = Tol::witness();
     for (choice, end) in [
-        (ClearanceBoundChoice::AtLeast, BoundEnd::Low),
-        (ClearanceBoundChoice::AtMost, BoundEnd::High),
-        (ClearanceBoundChoice::Equal, BoundEnd::Low),
-        (ClearanceBoundChoice::Between, BoundEnd::Low),
-        (ClearanceBoundChoice::Between, BoundEnd::High),
+        (BoundChoice::AtLeast, BoundEnd::Low),
+        (BoundChoice::AtMost, BoundEnd::High),
+        (BoundChoice::Equal, BoundEnd::Low),
+        (BoundChoice::Between, BoundEnd::Low),
+        (BoundChoice::Between, BoundEnd::High),
     ] {
         let (mut session, left, right) = scene(tol, None);
         let id = add(

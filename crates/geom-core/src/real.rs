@@ -210,11 +210,10 @@ impl SymRegistration {
 /// registered-identity door forwards the lane scalar's refusal arm —
 /// [`SymRegistration::Contradicted`] from an exact witness,
 /// [`SymRegistration::Disputed`] from an inexact one — and
-/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
-/// the same way: asserted at an exact witness, counted
-/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
-/// are the same question about the same channel, so they read one
-/// marker rather than two roster copies.
+/// `Sym<T>::sign_within` checks a symbolic `Zero` against its enclosure
+/// at an exact witness only, where the enclosure is a proof. Both are
+/// the same question about the same channel, so they read one marker
+/// rather than two roster copies.
 ///
 /// **That they cannot drift is a property of the PIN, not of the
 /// marker**, and the difference is one a first cut got wrong: a const
@@ -232,8 +231,11 @@ pub enum Witness {
     /// enclosure that excludes zero proves the margin is not zero.
     /// There is no slack in either test and no scale at which the
     /// answer is the arithmetic giving up, so a disagreement with a
-    /// form is a defect in one of the two channels and this codebase
-    /// fails loud on it.
+    /// form is a defect in one of the two channels: a proven zero whose
+    /// enclosure excludes zero fails a `debug_assert!` where the tier
+    /// returns it (`sym::discharge_checked`), and a zero the tier would
+    /// prove under a definite sign, which the decision does not ask, is
+    /// the test instrument's report (`sym::contradiction`).
     Exact,
     /// **A comparison here is a MEASUREMENT of one rounded number.**
     /// `f64` and [`crate::Probe`] evaluate at a point: at a far
@@ -241,9 +243,73 @@ pub enum Witness {
     /// error in a sign argument becomes a whole `2.0` at the margin,
     /// and at a pole the channel has no clause 1 to refuse with. None
     /// of those is a false claim by the form, so none of them may be
-    /// charged to the form: the numeric answer is kept and the
-    /// disagreement is counted.
+    /// charged to the form: the numeric answer is kept.
     Inexact,
+}
+
+/// **The plain formula `(q − o)·n`**, in [`crate::Vec3::dot`]'s order:
+/// [`Real::difference_dot`]'s default, and the reading every scalar falls
+/// back to where its posed one does not apply.
+#[must_use]
+pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
+    (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+}
+
+/// **A first harmonic's curve as it is stored**: the point `at` it
+/// stores, its unit `axis` and seam `u_ref`, its semi-axes `(a, b)`, and
+/// the phase `(c₀, s₀)` at which `at` lies on it, so that its point at
+/// `θ` is `at + u_ref·a·(cos θ − c₀) + (axis × u_ref)·b·(sin θ − s₀)`.
+/// A conic held at its centre states the phase `(0, 0)`; an ellipse held
+/// on its arc, its anchor's. [`Real::harmonic_belly`] reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredHarmonic<T> {
+    /// The stored point.
+    pub at: [T; 3],
+    /// The stored unit axis.
+    pub axis: [T; 3],
+    /// The stored unit seam.
+    pub u_ref: [T; 3],
+    /// The semi-axes along the seam and across it.
+    pub semi: (T, T),
+    /// Where on the curve `at` lies: `(0, 0)` at its centre.
+    pub phase: (T, T),
+}
+
+impl<T: Copy> StoredHarmonic<T> {
+    /// Every scalar of the placement, read through `f`.
+    #[must_use]
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> StoredHarmonic<U> {
+        StoredHarmonic {
+            at: self.at.map(&f),
+            axis: self.axis.map(&f),
+            u_ref: self.u_ref.map(&f),
+            semi: (f(self.semi.0), f(self.semi.1)),
+            phase: (f(self.phase.0), f(self.phase.1)),
+        }
+    }
+}
+
+/// **The plain formula for [`Real::harmonic_belly`]**: `√(A² + B²) − |D|`
+/// with every term rounded as it is formed: its default, and the reading
+/// every scalar falls back to where its posed one does not apply.
+#[must_use]
+pub fn plain_harmonic_belly<T: Real>(curve: StoredHarmonic<T>, o: [T; 3], n: [T; 3]) -> T {
+    let StoredHarmonic {
+        at,
+        axis: w,
+        u_ref: u,
+        semi: (a, b),
+        phase: (c0, s0),
+    } = curve;
+    let v = [
+        w[1] * u[2] - w[2] * u[1],
+        w[2] * u[0] - w[0] * u[2],
+        w[0] * u[1] - w[1] * u[0],
+    ];
+    let dot = |p: [T; 3]| p[0] * n[0] + p[1] * n[1] + p[2] * n[2];
+    let (big_a, big_b) = (a * dot(u), b * dot(v));
+    let d = plain_difference_dot(at, o, n) - c0 * big_a - s0 * big_b;
+    (big_a.powi(2) + big_b.powi(2)).sqrt() - d.abs()
 }
 
 /// The scalar type the geometry evaluation layer is generic over.
@@ -342,6 +408,40 @@ pub trait Real:
     /// through [`CertifiedEnclosure::carried`], so a scalar that holds
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
+
+    /// **This scalar with its tangent removed**: the scalar a place is
+    /// evaluated at and a decision reads, which DL5.2 (the crate README)
+    /// calls the value channel. It is not [`crate::SpanLocate`]'s
+    /// `value_channel`, an `f64` a structure decision reads (NaN where a
+    /// value is wider than a point). What it is at each scalar:
+    ///
+    /// - `f64`, [`crate::Interval`], [`crate::Probe`]: the scalar itself,
+    ///   which carries no tangent.
+    /// - `Dual<f64>`, `Dual<Interval>`: the base scalar, the value part.
+    /// - [`crate::Sym`]`<T>`: `Sym<T::Value>`, node for node: the symbols
+    ///   are an identity over the document's unknowns, which a decision
+    ///   reads, not a tangent. Over `f64` or `Interval` that is the
+    ///   scalar itself.
+    ///
+    /// It carries no tangent of its own, so a second read is the
+    /// identity. `T: Real<Value = T>` (or `Decide<Value = T>`) is the
+    /// bound "a scalar that carries no tangent", which no dual meets.
+    type Value: crate::Decide<Value = Self::Value>;
+
+    /// The read down to [`Real::Value`]: a dual's value part, bit for
+    /// bit; the `Sym` over its numeric channel's read, its node kept;
+    /// the scalar itself elsewhere.
+    fn without_tangent(self) -> Self::Value;
+
+    /// **`x` without its tangent**: [`Real::without_tangent`] of every
+    /// scalar it holds, through `F`'s map. Borrowed where the scalar
+    /// carries no tangent; a copy at a dual, and at a `Sym` over one.
+    /// Plumbing for a geometry type's `value_view()`, which is what a
+    /// caller names.
+    #[doc(hidden)]
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self::Value>>;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     ///
@@ -468,6 +568,69 @@ pub trait Real:
         None
     }
 
+    /// **`(q − o)·n`, posed so its digits are the result's own**: the
+    /// offset of `q` from `o` along `n`, which cancels whenever `q` and
+    /// `o` lie far apart across `n` (a plane's stored origin far along
+    /// the plane from the point read against it). At a value scalar each
+    /// difference and product is error-free and their sum compensated
+    /// (Ogita, Rump and Oishi's `Dot2`), so the value is the exact one's
+    /// rounding up to a term of order `u²·Σ|nᵢ(qᵢ − oᵢ)|`, whatever the
+    /// cancellation; at an enclosure stated at points it is the exact sum
+    /// enclosed. The
+    /// default is the plain formula, the real function every scalar
+    /// computes; a scalar that carries `T`'s value channel computes it
+    /// through `T`'s own.
+    #[must_use]
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        plain_difference_dot(q, o, n)
+    }
+
+    /// **The belly `√(A² + B²) − |D|` of a first harmonic read across a
+    /// plane, posed so its digits are the belly's own**: the height
+    /// `D + A cos θ + B sin θ` of the stored curve `curve`
+    /// ([`StoredHarmonic`]) above the plane through `o` with unit normal
+    /// `n` ([`crate::exact::harmonic_belly`] names `A`, `B` and `D`). Its
+    /// sign is whether the curve reaches the plane. Where the curve is
+    /// far larger than its belly (an arc of a far-centred conic grazing
+    /// the plane), `√(A² + B²)` and `|D|` are each of the curve's size and
+    /// their difference cancels to the belly: read as that difference,
+    /// it would be off by `u` of the curve's size.
+    ///
+    /// **At a value scalar** it is read as
+    /// `(A² + B² − D²)/(√(A² + B²) + |D|)`, the numerator an exact
+    /// expansion of the stored terms rounded once, and `A`, `B` and `D`
+    /// each its exact value rounded once. A double-double reading of the
+    /// same terms answers first where its own error bound shows it
+    /// already holds that ([`crate::exact::harmonic_belly_near`]); one
+    /// that cancels is read from the expansions. The numerator is within `2u` of
+    /// itself ([`crate::exact::Expansion::estimate`]); `√(A² + B²)` is
+    /// within `3u` (each square's `2u` halved by the root, and the
+    /// root's `u`); the denominator sums two non-negative terms, `4u`;
+    /// the quotient's own rounding adds `u`. So the belly is **within
+    /// `7u` of itself, relative to the belly and not to the curve**, to
+    /// first order; the row pins `8u`, judged exactly. Where the inputs'
+    /// digits do not fit an exact expansion (an input whose lowest bit
+    /// is so fine that `D²`'s deepest monomial, `(s₀·b·w·u·n)²`, falls
+    /// below the least subnormal, or an overflow), it is poison: the
+    /// belly cannot be read to its digits there, and a decision on it
+    /// escalates rather than answering on a plain reading.
+    ///
+    /// **At an enclosure** stated at points the same expansions are
+    /// enclosed, each step widened outward by an ulp or two (the row pins
+    /// the width at `32u`); anywhere else, the plain enclosure, which is
+    /// sound but carries the curve's size. A frame lifted from `f64` the
+    /// production way (`Curve3::map_scalar(Interval::from_f64)`) states
+    /// its axis and seam as enclosures of the polar factor, not as
+    /// points, so it reads the plain enclosure, about `10¹⁶u` of the
+    /// belly wide at a far scale, and a decision on it escalates
+    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`). The default is the plain formula ([`plain_harmonic_belly`]);
+    /// a scalar that carries `T`'s value channel computes it through
+    /// `T`'s own.
+    #[must_use]
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        plain_harmonic_belly(curve, o, n)
+    }
+
     /// **The `f64` this value states**, where it is a plain enclosure
     /// that is a certified point (its two ends one `f64`); `None` (the
     /// default) elsewhere: a point scalar's value is a rounding, not a
@@ -501,19 +664,6 @@ pub trait Real:
     fn meet_readings(first: Self, second: impl FnOnce() -> Self) -> Self {
         let _ = second;
         first
-    }
-
-    /// **Is this scalar an exact zero in every channel it carries?** At
-    /// the point and interval scalars, [`is_exact_zero`] (the value
-    /// channel is the scalar). A scalar that carries more than its value
-    /// overrides it to ask each channel: at the dual scalar the value and
-    /// the derivative both exactly zero, so an exact test made through it
-    /// holds of the function and not only of its value at the point. It
-    /// is how a structural shortcut taken on an exact zero (the least
-    /// turn's identity, [`crate::UnitVec3::is_exactly`]) keeps every
-    /// channel the arithmetic it skips would have carried.
-    fn is_exact_zero_in_every_channel(self) -> bool {
-        is_exact_zero(self)
     }
 
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
@@ -1550,7 +1700,7 @@ pub mod bounds_allowlist {
     //! that does rests on its callee's entry (the delegation rule,
     //! below) and says so; an entry that does neither is OWED its
     //! argument, not discharged, and
-    //! `work/scalar/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
+    //! `work/certread/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
     //! lists the ones found.
     //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
     //! for the reasons rather than restating them.
@@ -1910,10 +2060,9 @@ pub mod bounds_allowlist {
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
     //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
-    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
-    //! for the axisymmetric kinds of both, the frame's unit-ness and
-    //! orthogonality stated as ε-slack margins at the kind's radius), the
-    //! representability read. Its `hi` decides nothing either: the datum
+    //! radius, an ellipse's semi-axes and a spiric's tube radius; a
+    //! carrier's frame has no margin, being a `geom::Frame`, rigid by its
+    //! type, so no bracket of it is read), the representability read. Its `hi` decides nothing either: the datum
     //! passes on `lo` alone, and `hi` only says which refusal a margin not
     //! passed is reported as, outside the convention where the whole
     //! bracket is, undecided where it straddles zero (ONEHOME fork 259).
@@ -2031,7 +2180,11 @@ pub mod bounds_allowlist {
 /// holds the line — the only door between a dual and certified code.
 /// Reopening it would be a ratified reversal of DL1 on its own
 /// evidence, never an impl someone can add in passing.
-pub trait CertifiedEnclosure: Copy + enclosure_seal::Sealed {
+///
+/// A scalar that certifies carries no tangent: it is its own
+/// [`Real::Value`], so certification code hands a place straight to a
+/// place-taking evaluator (`geom`'s `eval_at`).
+pub trait CertifiedEnclosure: Real<Value = Self> + enclosure_seal::Sealed {
     /// The bracket, or `None` if this value carries a domain violation.
     ///
     /// `Some([lo, hi])` promises both things at once: the pair brackets
@@ -2170,6 +2323,9 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// doors. At `Sym<Sym<f64>>` it means what it means at `Sym<f64>`: the
 /// symbolic tier certifies as the scalar under it does and changes only
 /// how an identically-zero margin decides, however deep it is nested.
+/// A scalar that certifies is its own [`Real::Value`] (it carries no
+/// tangent), so code at `T: Certifies` hands a place straight to a
+/// place-taking evaluator.
 /// A [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
 /// (`docs/DUAL-DESIGN.md` DL1), over any base:
 ///
@@ -2195,7 +2351,7 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// certifies::<geom_core::Sym<f64>>();
 /// certifies::<geom_core::Sym<geom_core::Interval>>();
 /// ```
-pub trait Certifies: crate::predicate::Decide + certifies_seal::Sealed {}
+pub trait Certifies: crate::predicate::Decide<Value = Self> + certifies_seal::Sealed {}
 
 mod certifies_seal {
     pub trait Sealed {}
@@ -2206,7 +2362,7 @@ mod certifies_seal {
 /// which is sealed). The bound still grants neither: code at
 /// `T: Certifies` can name no method of either trait's bracket doors.
 impl<T: CertifiedEnclosure> certifies_seal::Sealed for T {}
-impl<T: crate::predicate::Decide + certifies_seal::Sealed> Certifies for T {}
+impl<T: crate::predicate::Decide<Value = T> + certifies_seal::Sealed> Certifies for T {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
@@ -2274,13 +2430,68 @@ impl Real for f64 {
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same
-    /// reason is why a theorem contradicted by this channel is a
-    /// dispute rather than a defect.
+    /// reason is why a symbolic zero is not checked against this
+    /// channel's reading.
     const WITNESS: Witness = Witness::Inexact;
 
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    type Value = f64;
+
+    fn without_tangent(self) -> f64 {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
+
+    /// `Dot2` over the error-free differences; where that is not finite
+    /// the plain formula's poison or overflow is the answer.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        use crate::exact::{two_product, two_sum};
+        let (mut hi, mut lo) = (0.0, 0.0);
+        for i in 0..3 {
+            let (d, de) = two_sum(q[i], -o[i]);
+            let (p, pe) = two_product(d, n[i]);
+            let (s, se) = two_sum(hi, p);
+            hi = s;
+            lo += se + pe + de * n[i];
+        }
+        let v = hi + lo;
+        if v.is_finite() {
+            v
+        } else {
+            plain_difference_dot(q, o, n)
+        }
+    }
+
+    /// The double-double reading where it already holds the belly
+    /// ([`crate::exact::harmonic_belly_near`]), else the exact expansions,
+    /// each rounded once; poison where they cannot be exact (the trait's
+    /// docs).
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        if !crate::exact::kept_exactly(curve, o, n) {
+            return f64::NAN;
+        }
+        if let Some(belly) = crate::exact::harmonic_belly_near(curve, o, n) {
+            return belly;
+        }
+        let Some((squares, parts)) = crate::exact::harmonic_belly(curve, o, n) else {
+            return f64::NAN;
+        };
+        let [big_a, big_b, d] = parts.map(|e| e.estimate());
+        let rise = big_a.hypot(big_b) + d.abs();
+        // A zero denominator is `A = B = D = 0`, whose belly is zero.
+        if rise == 0.0 {
+            return 0.0;
+        }
+        squares.estimate() / rise
+    }
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
@@ -2381,8 +2592,7 @@ impl Real for f64 {
     /// cannot tell a false claim from a true one the arithmetic lost at
     /// this scale, and `Contradicted` is reserved for the exact witness
     /// that can ([`crate::Interval`]'s meet). The same const is what
-    /// keeps a theorem this channel contradicts a counted dispute
-    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// keeps a symbolic zero unchecked against this channel's reading;
     /// a row pins the two together, so the door and the tier cannot
     /// drift apart.
     ///
@@ -2850,6 +3060,260 @@ mod tests {
         assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
         // Contrast: the IEEE bit operation launders the NaN sign.
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    proptest! {
+        /// **A plane's offset read across a far stored origin keeps its
+        /// own digits** ([`Real::difference_dot`]): `q` near the world
+        /// origin, `o` on a plane through it a megametre and more along
+        /// that plane. The `f64` value is within an ulp or two of the
+        /// exact sum and `Dot2`'s second-order term, where the plain
+        /// formula rounds at `ulp(far)`; the
+        /// enclosure stated at points holds the exact sum within a few
+        /// ulps of it.
+        #[test]
+        fn a_far_origins_offset_is_read_to_its_own_digits(
+            far in 1e3f64..1e9,
+            c in prop::array::uniform3(-10.0f64..10.0),
+            n in prop::array::uniform3(-1.0f64..1.0),
+            t in prop::array::uniform3(-1.0f64..1.0),
+            gap in -1.0f64..1.0,
+        ) {
+            use crate::exact::Expansion;
+            let n = crate::Vec3::new(n[0], n[1], n[2]);
+            prop_assume!(n.norm() > 0.1);
+            let n = n.normalize();
+            let w = n.cross(crate::Vec3::new(t[0], t[1], t[2]));
+            prop_assume!(w.norm() > 0.1);
+            let w = w.normalize();
+            let q = crate::Point3::new(c[0], c[1], c[2]);
+            let o = q - n * gap + w * far;
+            let (q, o, n) = ([q.x, q.y, q.z], [o.x, o.y, o.z], [n.x, n.y, n.z]);
+            let exact: f64 = Expansion::difference_dot(q, o, n).components().iter().sum();
+            let ulp = |x: f64| f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
+            let got = f64::difference_dot(q, o, n);
+            // `Dot2`'s bound: the result's rounding and a second-order term.
+            let terms: f64 = (0..3).map(|i| (n[i] * (q[i] - o[i])).abs()).sum();
+            let u = f64::EPSILON / 2.0;
+            prop_assert!(
+                (got - exact).abs() <= 2.0 * ulp(exact) + 16.0 * u * u * terms,
+                "f64: {got:e} against the exact {exact:e} (far {far:e})"
+            );
+            let point = |a: [f64; 3]| a.map(crate::Interval::from_f64);
+            let enclosed = crate::Interval::difference_dot(point(q), point(o), point(n));
+            // `exact` is the expansion's sum rounded, so the true sum is
+            // within an ulp of it.
+            prop_assert!(
+                enclosed.lo() <= exact + ulp(exact) && exact - ulp(exact) <= enclosed.hi(),
+                "interval: [{:e}, {:e}] misses the exact {exact:e}", enclosed.lo(), enclosed.hi()
+            );
+            prop_assert!(
+                enclosed.hi() - enclosed.lo() <= 8.0 * ulp(exact),
+                "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
+                enclosed.lo(), enclosed.hi()
+            );
+        }
+    }
+
+    /// One draw of the far-centred belly row
+    /// ([`a_far_centred_harmonics_belly_is_read_to_its_own_digits`]).
+    #[derive(Debug)]
+    struct BellyDraw {
+        far: f64,
+        k: f64,
+        by: [f64; 3],
+        axis: [f64; 3],
+        seam: [f64; 3],
+        graze: f64,
+        anchor: f64,
+        arc_held: bool,
+        tilt: f64,
+        across: [f64; 3],
+        depth: f64,
+        below: bool,
+        slide: f64,
+    }
+
+    /// **The draw read and judged**: `Ok(false)` for a degenerate draw,
+    /// `Ok(true)` where every reading holds, the failure otherwise.
+    fn belly_draw(d: &BellyDraw) -> Result<bool, String> {
+        use crate::test_support::stored_belly;
+        let vec = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
+        let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
+        if vec(d.axis).norm() <= 0.1 {
+            return Ok(false);
+        }
+        let axis = vec(d.axis).normalize();
+        let u = axis.cross(vec(d.seam));
+        if u.norm() <= 0.1 {
+            return Ok(false);
+        }
+        let u = u.normalize();
+        let v = axis.cross(u);
+        let (a, b) = (d.far, d.k * d.far);
+        // The stored point is by the world origin on the arc, or the
+        // centre `far` from it.
+        let by = crate::Point3::new(d.by[0], d.by[1], d.by[2]);
+        let on_arc = |t: f64| u * (a * t.cos()) + v * (b * t.sin());
+        let centre = by - on_arc(d.anchor);
+        let (at, phase) = if d.arc_held {
+            (by, (d.anchor.cos(), d.anchor.sin()))
+        } else {
+            (centre, (0.0, 0.0))
+        };
+        let outward = u * (b * d.graze.cos()) + v * (a * d.graze.sin());
+        let n = (outward.normalize() * d.tilt.cos() + axis * d.tilt.sin()).normalize();
+        let w = n.cross(vec(d.across));
+        if w.norm() <= 0.1 {
+            return Ok(false);
+        }
+        let w = w.normalize();
+        // From a tenth of the curve's size down to its last digits, so
+        // both the double-double reading and the expansions answer.
+        let gap = d.far * 10f64.powf(-d.depth);
+        let gap = if d.below { -gap } else { gap };
+        let o = centre + on_arc(d.graze) + n * gap + w * d.slide;
+        let curve = StoredHarmonic {
+            at: [at.x, at.y, at.z],
+            axis: arr(axis),
+            u_ref: arr(u),
+            semi: (a, b),
+            phase,
+        };
+        let (o, n) = ([o.x, o.y, o.z], arr(n));
+        let u_ = f64::EPSILON / 2.0;
+        let got = f64::harmonic_belly(curve, o, n);
+        if !stored_belly::within(
+            curve,
+            o,
+            n,
+            (got - 8.0 * u_ * got.abs(), got + 8.0 * u_ * got.abs()),
+        ) {
+            return Err(format!(
+                "f64: {got:e} is not within 8u of the belly (the plain formula reads {:e}): {d:?}",
+                plain_harmonic_belly(curve, o, n)
+            ));
+        }
+        let enclosed = crate::Interval::harmonic_belly(
+            curve.map(crate::Interval::from_f64),
+            o.map(crate::Interval::from_f64),
+            n.map(crate::Interval::from_f64),
+        );
+        if !stored_belly::within(curve, o, n, (enclosed.lo(), enclosed.hi())) {
+            return Err(format!(
+                "interval: [{:e}, {:e}] misses the belly: {d:?}",
+                enclosed.lo(),
+                enclosed.hi()
+            ));
+        }
+        if enclosed.hi() - enclosed.lo() > 32.0 * u_ * got.abs() {
+            return Err(format!(
+                "interval: [{:e}, {:e}] is wider than 32u of {got:e}: {d:?}",
+                enclosed.lo(),
+                enclosed.hi()
+            ));
+        }
+        Ok(true)
+    }
+
+    proptest! {
+        /// **A far-centred harmonic's belly is read to its own digits**
+        /// ([`Real::harmonic_belly`]): a curve of semi-axes `far` and
+        /// `k·far`, held at its centre (`far` from the world origin) or on
+        /// its arc at a point by the origin, against a plane grazing it at
+        /// any angle round the turn, its normal tilted out of the curve's
+        /// plane, so `√(A² + B²)` and `|D|` are each about `far`, and the
+        /// belly from a tenth of `far` down to its last digits. Judged
+        /// exactly on the stored data
+        /// ([`crate::test_support::stored_belly`]): the `f64` value is
+        /// within `8u` of the belly, relatively, and the enclosure stated
+        /// at points holds it and is no wider than `32u` of it.
+        #[test]
+        fn a_far_centred_harmonics_belly_is_read_to_its_own_digits(
+            far in 1e3f64..1e9,
+            k in 0.1f64..1.0,
+            by in prop::array::uniform3(-10.0f64..10.0),
+            axis in prop::array::uniform3(-1.0f64..1.0),
+            seam in prop::array::uniform3(-1.0f64..1.0),
+            graze in 0.0f64..core::f64::consts::TAU,
+            anchor in 0.0f64..core::f64::consts::TAU,
+            arc_held in any::<bool>(),
+            tilt in -1.4f64..1.4,
+            across in prop::array::uniform3(-1.0f64..1.0),
+            depth in 1.0f64..16.0,
+            below in any::<bool>(),
+            slide in -10.0f64..10.0,
+        ) {
+            let read = belly_draw(&BellyDraw {
+                far, k, by, axis, seam, graze, anchor, arc_held, tilt, across, depth, below, slide,
+            });
+            prop_assume!(read != Ok(false));
+            prop_assert!(read.is_ok(), "{}", read.unwrap_err());
+        }
+    }
+
+    /// **A belly at the stored data's own rounding is read from the
+    /// expansions, not the double-double** ([`Real::harmonic_belly`]'s
+    /// filter): a draw of the row above at semi-axis 8.9e8, where the
+    /// belly is of the order of `u` of the curve's size. A double-double
+    /// reading errs there by more than `8u` of the belly, so it holds only
+    /// if the filter hands it to the expansions. Red against the filter
+    /// accepting every double-double reading.
+    #[test]
+    fn a_belly_at_the_datas_own_rounding_is_read_from_the_expansions() {
+        let draw = BellyDraw {
+            far: 888128454.2190003,
+            k: 0.47112202864400915,
+            by: [0.0, 0.0, -6.179153848113178],
+            axis: [
+                -0.8602968179554397,
+                -0.1678607116122417,
+                0.11944456902113416,
+            ],
+            seam: [0.41905906378434005, 0.5317759491401944, -0.8204683221011131],
+            graze: 2.454010139702463,
+            anchor: 5.21957173226654,
+            arc_held: false,
+            tilt: -0.14796864220551767,
+            across: [
+                -0.21743992587270297,
+                -0.12484256262884375,
+                -0.6085511504449894,
+            ],
+            depth: 15.904608451721286,
+            below: true,
+            slide: 3.9130836524939507,
+        };
+        assert_eq!(belly_draw(&draw), Ok(true));
+    }
+
+    /// **A belly whose digits no exact expansion keeps is poison, not a
+    /// plain reading** ([`Real::harmonic_belly`]): a normal component of
+    /// `1e-200` puts `D²`'s deepest monomial below the least subnormal, so
+    /// the `f64` reading is NaN (a decision on it escalates), and the
+    /// enclosure falls back to the plain one, which still holds the belly.
+    #[test]
+    fn a_belly_past_the_exact_range_is_poison() {
+        let curve = StoredHarmonic {
+            at: [-1e6, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            u_ref: [1.0, 0.0, 0.0],
+            semi: (1e6, 3e5),
+            phase: (0.0, 0.0),
+        };
+        let (o, n) = ([1e-9, 0.0, 0.0], [1.0, 1e-200, 0.0]);
+        assert!(f64::harmonic_belly(curve, o, n).is_nan());
+        let enclosed = crate::Interval::harmonic_belly(
+            curve.map(crate::Interval::from_f64),
+            o.map(crate::Interval::from_f64),
+            n.map(crate::Interval::from_f64),
+        );
+        assert!(crate::test_support::stored_belly::within(
+            curve,
+            o,
+            n,
+            (enclosed.lo(), enclosed.hi())
+        ));
     }
 
     /// The door at `f64`: a total order, sign-blind at the tie, and

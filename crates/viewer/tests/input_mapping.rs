@@ -30,10 +30,7 @@ fn round_map() -> InputMap {
     InputMap {
         orbit_radians_per_px: 0.01,
         zoom_rate_per_notch: 0.1,
-        orbit_button: PointerButton::Middle,
-        alt_orbit_button: PointerButton::Primary,
-        pan_button: PointerButton::Secondary,
-        select_button: PointerButton::Primary,
+        ..InputMap::DEFAULT
     }
 }
 

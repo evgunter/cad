@@ -67,23 +67,12 @@ pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
 
 /// The dimension a value read in `unit` has.
 fn dimension(unit: UnitDef) -> geom_core::Dimension {
-    dimension_of(unit.quantity())
+    geom_core::Dimension::of(unit.quantity())
 }
 
-/// The told dimension of a unit table's quantity.
-fn dimension_of(quantity: UnitQuantity) -> geom_core::Dimension {
-    match quantity {
-        UnitQuantity::Length => geom_core::Dimension::Length,
-        UnitQuantity::Angle => geom_core::Dimension::Angle,
-        UnitQuantity::Scalar => geom_core::Dimension::Dimensionless,
-    }
-}
-
-/// A canonical value nobody wrote, told in `unit` with its unit word.
-///
-/// Where `unit` cannot say the value (its factor carries it out of the
-/// format) the text is in the canonical unit and says so: `1e306 m`
-/// for a length a millimetre reader asked about.
+/// A canonical value nobody wrote, told in `unit` with its unit word:
+/// `1e309 mm` for a length of `1e306 m`, whose number of millimetres
+/// no float holds.
 pub fn computed(canonical: f64, unit: UnitDef) -> String {
     Told::computed(&canonical, dimension(unit))
         .told_in(Notation::CANONICAL.with(unit))
@@ -91,12 +80,11 @@ pub fn computed(canonical: f64, unit: UnitDef) -> String {
 }
 
 /// [`computed`]'s number alone, for a surface that writes the unit
-/// itself; `None` where `unit` cannot say the value, since a number
-/// with the wrong unit beside it is a different value.
-pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
+/// itself.
+pub fn computed_number(canonical: f64, unit: UnitDef) -> String {
     Told::computed(&canonical, dimension(unit))
         .number_in(Notation::CANONICAL.with(unit))
-        .map(|number| number.to_string())
+        .to_string()
 }
 
 /// A value the chrome computed, told on the grid in the canonical unit
@@ -104,14 +92,12 @@ pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
 /// words the unit itself: `NaN` and `inf` for a value that is neither
 /// a number nor finite.
 pub fn bare(value: f64, quantity: UnitQuantity) -> String {
-    canonical_number(&Told::computed(&value, dimension_of(quantity)))
+    canonical_number(&Told::computed(&value, geom_core::Dimension::of(quantity)))
 }
 
-/// A quantity's number in the canonical unit, which says every
-/// quantity.
+/// A quantity's number in the canonical unit.
 fn canonical_number(told: &Told) -> String {
-    told.number_in(Notation::CANONICAL)
-        .map_or_else(|| told.to_string(), |number| number.to_string())
+    told.number_in(Notation::CANONICAL).to_string()
 }
 
 /// The number a field holds, as the field shows it.
@@ -138,7 +124,7 @@ pub fn field_number(value: f64) -> String {
 pub fn names(spelling: &str, value: f64) -> bool {
     spelling
         .parse::<f64>()
-        .is_ok_and(|read| as_field(read) == as_field(value))
+        .is_ok_and(|read| field_number(read) == field_number(value))
 }
 
 /// A field's number as the told quantity [`field_number`] renders.
@@ -170,14 +156,18 @@ mod tests {
         assert_eq!(computed(0.0, MM.def()), "0 mm");
     }
 
+    /// A value whose number of the unit no float holds is said in the
+    /// unit all the same.
     #[test]
-    fn a_value_the_unit_cannot_say_reads_in_the_canonical_unit() {
-        assert_eq!(computed(1.0e306, MM.def()), "1e306 m");
-        assert_eq!(computed_number(1.0e306, MM.def()), None);
-        assert_eq!(computed(5.0e-324, PI.def()), "5e-324 rad");
-        assert_eq!(computed_number(5.0e-324, PI.def()), None);
-        assert_eq!(computed_number(0.025, MM.def()).as_deref(), Some("25"));
-        assert_eq!(computed_number(0.25, ONE.def()).as_deref(), Some("0.25"));
+    fn a_unit_says_a_value_its_number_has_no_float_for() {
+        assert_eq!(computed(1.0e306, MM.def()), "1e309 mm");
+        assert_eq!(computed_number(1.0e306, MM.def()), "1e309");
+        // The floats there are a whole least subnormal apart, so one
+        // figure is all the decimal carries.
+        assert_eq!(computed(5.0e-324, PI.def()), "2e-324 pi rad");
+        assert_eq!(computed_number(5.0e-324, PI.def()), "2e-324");
+        assert_eq!(computed_number(0.025, MM.def()), "25");
+        assert_eq!(computed_number(0.25, ONE.def()), "0.25");
     }
 
     #[test]

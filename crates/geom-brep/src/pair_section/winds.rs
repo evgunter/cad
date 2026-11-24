@@ -1,7 +1,7 @@
 //! **How a fitted loop winds about a surface**: its integer turns about
 //! each of the surface's essential channels, read over the loop's
-//! uniqueness tube in ℝ³ — about the axis on a cylinder; about the axis
-//! and about the core circle on a ring torus. A sphere has none: every
+//! uniqueness tube in ℝ³ — about the axis on a cylinder and on a cone;
+//! about the axis and about the core circle on a ring torus. A sphere has none: every
 //! loop on it is null. On the surface these are the loop's turns in the
 //! chart's periodic parameters; they are read here in ℝ³, where they
 //! stay defined off the surface.
@@ -93,7 +93,7 @@ use geom_core::{Bounds as _, Interval, Point3, Vec3};
 pub(crate) type Piece = (Box3, Vec3<f64>, (f64, f64));
 
 /// **A loop's turns about one surface's channels**: about its axis
-/// (cylinder and torus) and about its core circle (torus); zero on a
+/// (cylinder, cone and torus) and about its core circle (torus); zero on a
 /// channel the surface does not have.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Winding {
@@ -181,7 +181,7 @@ impl WindsRefusal {
 /// **The largest principal difference trusted as a piece's turning**:
 /// `3π/4`, leaving `π/4` before the branch cut, which an end's angle
 /// error (its rounding over the tube radius, module docs) cannot cross.
-const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
+pub(super) const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
 
 /// **How far the turns may miss a whole number and still close**, in
 /// radians: the loop's closing gap (its fitted ends one point to the
@@ -215,11 +215,15 @@ fn clears(x: Interval) -> bool {
 }
 
 impl Channel {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         match self {
             Self::Axis(frame) => frame.azimuth(p),
             Self::Core(circle) => {
-                let frame = circle.frame;
+                let frame = circle.frame();
                 let (_, rho) = super::square_part(p - frame.origin(), frame.axis());
                 geom::Azimuth::tube(frame.height(p), rho, circle.radius())
             }
@@ -233,6 +237,10 @@ impl Channel {
     /// azimuth ([`Self::azimuth`]) reads the stored entries, which are
     /// that rotation to rounding: the box is cleared on the carrier the
     /// azimuth rounds.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn clear(self, b: Box3) -> bool {
         let b = Vec3::new(b.x, b.y, b.z);
         match self {
@@ -241,7 +249,7 @@ impl Channel {
                 clears(x) || clears(y)
             }
             Self::Core(circle) => {
-                let (h, rho) = over_core(&circle.frame, b);
+                let (h, rho) = over_core(&circle.frame(), b);
                 clears(rho - lift(circle.radius())) || clears(h)
             }
         }
@@ -268,7 +276,9 @@ fn over_core(frame: &geom::Frame<f64>, b: Vec3<Interval>) -> (Interval, Interval
 /// The essential channels of `surface`.
 fn channels(surface: &Surface<f64>) -> Vec<Channel> {
     match (surface, surface.frame()) {
-        (Surface::Cylinder { .. }, Some(frame)) => vec![Channel::Axis(frame)],
+        (Surface::Cylinder { .. } | Surface::Cone { .. }, Some(frame)) => {
+            vec![Channel::Axis(frame)]
+        }
         (Surface::Torus { major_radius, .. }, Some(frame)) => vec![
             Channel::Axis(frame),
             Channel::Core(geom::Circle::new(frame, *major_radius)),

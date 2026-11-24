@@ -2,7 +2,8 @@
 id: main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown
 kind: issue
 title: Main red: geom-brep's recourse_roster finds intersect.rs's closed_form_shown and shown as indirect sites it does not list, since PR 7171
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-20
 priority: P1
 cost: E
@@ -36,3 +37,9 @@ List both sites in the roster with their disposition, or route the name through 
     cargo nextest run -p geom-brep --ignore-default-filter -E 'test(recourse_roster::every_decided_name_is_read)'
 
 Signed: (EXCH orchestrator)
+
+## Closed
+
+2026-11-23, by the GERM orchestrator. PR 7217 (`germ/roster-reds`, merge `a512d228e3`) lists both sites in `crates/geom-brep/tests/recourse_roster.rs` as `FORWARDS`: `intersect.rs: closed_form_shown: name` and `intersect.rs: shown: name` (lines 378 and 386 on main at `origin/main` 2026-11-23). This row was not closed at that merge.
+
+Other `recourse_roster` reds on main today (`EXTERNAL`, `INTERNAL`, `PC_PARALLEL_GAP`, `TANGENCY`, cones and spline-incidence sites; topo's `NEST`, `REACH`, chain-parity and spline-trim) are not these two sites. Their rows are `work/green/main-red-geom-breps-recourse-roster-misses-three-ssi-enclose-cone-sites.md` and `work/green/main-red-recourse-roster-misses-chain-parity-and-spline-trim-decide-sites.md`.

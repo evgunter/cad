@@ -552,7 +552,8 @@ fn a_seated_loop_has_no_start() {
     }
 }
 
-/// **Every other kind pair is read elsewhere**, with `route`'s own arm.
+/// **Every other kind pair is read elsewhere**, with `route`'s own arm,
+/// and `serves` says so.
 #[test]
 fn every_other_pair_is_read_elsewhere() {
     let plane = Surface::Plane {
@@ -562,10 +563,22 @@ fn every_other_pair_is_read_elsewhere() {
             Vec3::new(1.0, 0.0, 0.0),
         ),
     };
-    for (a, b) in [
-        (&plane, &sphere(0.0, 1.0)),
-        (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-    ] {
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    for (a, b) in [(&plane, &plane), (&plane, &torus), (&torus, &plane)] {
+        assert!(
+            !geom_brep::pair_section::serves(a.kind(), b.kind()),
+            "{:?} × {:?} is not served",
+            a.kind(),
+            b.kind()
+        );
         match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
             Ok(SectionRead::Elsewhere(route)) => {
                 assert_eq!(route, geom_brep::route(a.kind(), b.kind()));

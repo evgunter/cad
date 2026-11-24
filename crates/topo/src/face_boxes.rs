@@ -65,9 +65,15 @@ impl FaceBoxes {
     }
 
     /// The faces whose box meets the closed box `[lo, hi]`, each with its
-    /// own box, in arena order. A poison query box meets every face.
+    /// own box, in arena order, its candidates marked under the caller's
+    /// `site`. A poison query box meets every face.
     #[must_use]
-    pub fn meeting(&self, lo: [f64; 3], hi: [f64; 3]) -> Vec<(FaceKey, FaceBox)> {
+    pub fn meeting(
+        &self,
+        site: geom_core::k_stats::QuerySite,
+        lo: [f64; 3],
+        hi: [f64; 3],
+    ) -> Vec<(FaceKey, FaceBox)> {
         let query = Aabb {
             min_x: lo[0],
             min_y: lo[1],
@@ -76,7 +82,7 @@ impl FaceBoxes {
             max_y: hi[1],
             max_z: hi[2],
         };
-        let hits = self.tree.overlapping(&query);
+        let hits = self.tree.overlapping(site, &query);
         hits.into_iter()
             .map(|i| {
                 let b = &self.boxes[i];
@@ -93,6 +99,9 @@ impl FaceBoxes {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    const SITE: geom_core::k_stats::QuerySite =
+        geom_core::k_stats::QuerySite::new("face_boxes_test", "the test's query");
     use geom_core::Tol;
 
     /// A query near one face of a brick meets that face and the four
@@ -104,19 +113,19 @@ mod tests {
         let body: Body<f64> = crate::test_support::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let band = Band::linear(tol).expect("the witness band");
         let boxes = FaceBoxes::of(&body, band);
-        let near_top = boxes.meeting([0.4, 0.4, 0.9], [0.6, 0.6, 1.1]);
+        let near_top = boxes.meeting(SITE, [0.4, 0.4, 0.9], [0.6, 0.6, 1.1]);
         assert_eq!(
             near_top.len(),
             1,
             "only the top face reaches the top's middle"
         );
-        let top_edge = boxes.meeting([0.4, -0.1, 0.9], [0.6, 0.1, 1.1]);
+        let top_edge = boxes.meeting(SITE, [0.4, -0.1, 0.9], [0.6, 0.1, 1.1]);
         assert_eq!(
             top_edge.len(),
             2,
             "the top and the front meet along their edge"
         );
-        let all = boxes.meeting([f64::NAN; 3], [f64::NAN; 3]);
+        let all = boxes.meeting(SITE, [f64::NAN; 3], [f64::NAN; 3]);
         assert_eq!(all.len(), 6, "a poison query prunes nothing");
     }
 }

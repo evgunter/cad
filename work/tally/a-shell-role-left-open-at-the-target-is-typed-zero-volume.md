@@ -4,6 +4,8 @@ kind: issue
 title: A shell role whose volume bracket is left open at the reporting target is typed zero volume, not unmeasured
 status: open
 opened: 2026-10-18
+priority: P3
+cost: M
 ---
 
 

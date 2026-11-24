@@ -31,7 +31,11 @@ pub(crate) trait SaidKey {
 
 impl SaidKey for crate::node::RecipeNodeId {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", crate::SpokenNode::absent(*self))
+        write!(
+            f,
+            "{}",
+            crate::spoken::node_text(&crate::SpokenNode::absent(*self))
+        )
     }
 }
 
@@ -43,7 +47,15 @@ impl SaidKey for crate::var::VarId {
 
 impl SaidKey for crate::names::StableName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", crate::SpokenName::absent(self.clone()))
+        write!(
+            f,
+            "{}",
+            crate::Said(
+                &crate::SpokenName::absent(self.clone()),
+                crate::Speaker::TAG
+            )
+            .sentence()
+        )
     }
 }
 

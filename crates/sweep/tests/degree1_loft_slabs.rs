@@ -1,7 +1,9 @@
 //! **A degree-1 loft is one wall per segment per slab**
 //! (`work/tesslane/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`):
 //! through `k ≥ 3` sections at v-degree 1, `sweep::loft_body` builds
-//! `k − 1` two-section lofts glued at the shared sections, so every wall
+//! `k − 1` two-section lofts glued at the shared sections (each slab's
+//! wall is its two sections' rows, `sweep::skin`'s `body_walls`; no wall
+//! through every section is skinned and cut), so every wall
 //! is a single-span ruled patch, each interior section is a ring of
 //! edges on the placed sketch segments and each strut a straight edge
 //! per slab. Red on `main` before the split: the creased wall refused at
@@ -313,6 +315,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         for (j, walls) in lofted.side_faces[0].iter().enumerate() {
             assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
             for &w in walls {
+                let w = w.unwrap();
                 let face = body.get_face(w).unwrap();
                 let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
@@ -331,6 +334,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         for (j, struts) in lofted.seam_edges[0].iter().enumerate() {
             assert_eq!(struts.len(), slabs, "{what}: vertex {j}'s struts");
             for &e in struts {
+                let e = e.unwrap();
                 let c = body.stored_curve(e).unwrap();
                 let Curve3::Nurbs(net) = c.carrier() else {
                     panic!("{what}: strut {e:?} is a wall's boundary column")
@@ -346,7 +350,10 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
         // `s − 1`'s and slab `s`'s wall of each segment.
         for s in 1..slabs {
             for j in 0..segs {
-                let (below, above) = (lofted.side_faces[0][j][s - 1], lofted.side_faces[0][j][s]);
+                let (below, above) = (
+                    lofted.side_faces[0][j][s - 1].unwrap(),
+                    lofted.side_faces[0][j][s].unwrap(),
+                );
                 let shared = shared_edges(body, below, above);
                 let [rim] = shared[..] else {
                     panic!("{what}: section {s}, segment {j}: walls share {shared:?}")

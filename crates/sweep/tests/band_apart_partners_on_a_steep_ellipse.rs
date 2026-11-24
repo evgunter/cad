@@ -19,15 +19,16 @@
 //! tie the `k = 60` pose (`g` 12 bands) `Zero`, at 0.8, and a tie would
 //! fall back to the chord from the germ, which on the lower arc shrinks
 //! toward the far wall and picks the wrong one.
-//! The join's travel margin reads the arc (`boolean::join`'s
-//! `turned_past`), clear of the slack two sites up to ε off the conic
-//! leave it, `2ε cot ψ` (`travel`): 9.9 bands at `k = 10`, 60 at
-//! `k = 60`. So the `k = 10` pose orders its partners and stops at a
-//! later band-scale reading, which is filed, and the `k = 60` pose
-//! escalates at the travel's clearance ([`stops_where_expected`]). The
-//! finger's own two sites are `g` apart, so the `k = 10` gap clears the
-//! slack by more than the band there too. The
-//! order itself, on synthetic germs, is `boolean::join`'s `travel_rows`.
+//! The section table carries the plane × cylinder ellipse, so the join
+//! orders the partners by their feet's travel along it
+//! (`bool_join_foot_travel`), metered at the carrier's speed floor over
+//! the window between the two feet: `2g` of arc, 48 bands at `k = 10`
+//! and 24 at `k = 60`, clear of the band at both. A foot is orthogonal,
+//! so a site moved across the conic keeps its foot and the order reads
+//! no along-section slack. Both poses take the true neighbour and run on
+//! to the finish, where the merge's pcurve span check meters the
+//! finger's arc at the ellipse's global speed floor, its minor
+//! semi-axis ([`stops_where_expected`]).
 //!
 //! The volume each op must have is the block's share of the cylinder,
 //! `∫∫_Q max(0, h(y) − x cot θ) dx dy` with `h = √(1 − y²)/sin θ`: the
@@ -152,21 +153,19 @@ fn shared(k: f64, g: f64) -> f64 {
         .sum()
 }
 
-/// Where a run that does not build may stop, by `k`.
-///
-/// - `k = 10`, past the travel order: the notch's two walls are parallel
-///   and `24ε` apart, and their section arcs' chords differ by a few ε,
-///   so the order between the two pairs reads in band
-///   (`bool_join_nearest`). The round is all mutual, so that order is
-///   free (`join::first_pair`: its matching is the round's in any order),
-///   and the run moves on to the finish. It stops there: the coplanar
-///   merge's pcurve span check on a merged half-edge reads in band
-///   (`pcurve_interval_forward`), an escalation at a later door, not a
-///   guess
-///   (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`;
-///   `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
-/// - `k = 60`, at the travel order: `24` bands of arc do not clear the
-///   sites' slack of `60` (`bool_join_arc_clear`).
+/// **Where a run that does not build may stop, by `k`: the coplanar
+/// merge's pcurve span check** (`pcurve_interval_forward`), which meters
+/// the finger's arc span at the ellipse's global speed floor, its minor
+/// semi-axis 1, where the arc's own speed there is about `k/√2`
+/// (`work/hone/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
+/// At `k = 10` the `24ε` arc spans `3.4ε` of parameter and reads in band,
+/// an escalation; at `k = 60` the `12ε` arc spans `0.28ε` and reads Zero,
+/// the span not forward. A probe run on PR 7354 measured both at
+/// `k = 60`: the foot order took the true neighbour on `24ε` of arc, and
+/// check 2 read a span of `2.83e-10` at a rate of `1`. Either is the
+/// check's own reading, at a door
+/// that moves with the speed floor, not a guess
+/// (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
     match e {
         BooleanError::Merge(merge) if k == 10.0 => matches!(
@@ -178,20 +177,23 @@ fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
                 },
             } if cause.predicate == Some("pcurve_interval_forward")
         ),
-        BooleanError::Escalated { diag, .. } if k == 60.0 => {
-            diag.predicate == Some("bool_join_arc_clear")
-        }
+        BooleanError::Merge(merge) if k == 60.0 => matches!(
+            merge.error(),
+            topo::MergeCoplanarError::Pcurve {
+                source: topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::IntervalNotForward,
+                    ..
+                },
+            }
+        ),
         _ => false,
     }
 }
 
 /// **Every op on two partners `2g` apart along a steep ellipse's flank
 /// builds `SOUND` at the closed form or refuses where
-/// [`stops_where_expected`] says**, in both operand orders: at `k = 10`,
-/// where the plane distance read `4.78` bands, past the travel order, and
-/// the all-mutual round's free order moves the run on to the merge's
-/// pcurve span check; at `k = 60`, where it read `0.8` and tied, at the
-/// travel's clearance.
+/// [`stops_where_expected`] says**, in both operand orders: past the foot
+/// order at both `k`, at the merge's pcurve span check.
 #[test]
 fn band_apart_partners_on_a_steep_ellipse_build_or_stop_where_expected() {
     let tol = Tol::witness();

@@ -18,9 +18,11 @@
 //! certificate, the volume; [`at_its_volume`]) or
 //! refuses at its pinned door past the join ([`Door`]): the join cuts
 //! both sides' chords from the section's carried loop, and the chorded
-//! faces measure through the rotational lane, the sphere's included. Two chords meeting end to end on the loop both crease
-//! there (each is a clamped spline piece), so the edge join leaves that
-//! vertex standing rather than refusing. [`door`] is the one reading
+//! faces measure through the rotational lane, the sphere's included. Two
+//! chords meeting end to end on a closed loop are two spans of its one
+//! periodic carrier, which holds no crease there
+//! (`topo::boolean::edge_join`'s `crease_at` reads the stored carrier),
+//! so the edge join can take that vertex back. [`door`] is the one reading
 //! of those doors the other cylinder × sphere rows share. The turned-chart
 //! pose's ops close a carried chord's ring-lane island on the drum's wall,
 //! and the two-loop poses' on the ball (`IslandClosing::Carried`), so the
@@ -193,12 +195,7 @@ fn poses() -> Vec<Pose> {
         full("one loop, centre outside", 0.3, [0.7, 0.1, -0.2], 0.0),
         full("one loop, turned chart", 0.25, [0.3, -0.35, 0.4], 0.9),
         // Wider than the wall, short of its far side: `r < R < r + d`.
-        full(
-            "one loop, ball wider than the wall",
-            0.699,
-            [0.2, 0.0, 0.0],
-            0.0,
-        ),
+        full(SLIVER, 0.699, [0.2, 0.0, 0.0], 0.0),
         full("two loops", 0.7, [0.1, 0.0, 0.0], 0.0),
         full("two loops, turned chart", 0.8, [0.2, 0.1, 0.05], 0.6),
         Pose {
@@ -533,11 +530,75 @@ pose_rows! {
     a_ball_across_a_cylinder_wall_centre_inside: 1;
     a_ball_across_a_cylinder_wall_centre_outside: 2;
     a_ball_across_a_cylinder_wall_turned_chart: 3;
-    a_ball_across_a_cylinder_wall_wider_than_the_wall: 4;
     a_ball_across_a_cylinder_wall_in_two_loops: 5;
     a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
     a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
-    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim: 8;
+}
+
+/// Pinned at every ε to main's one stop, B ∖ A refused at the slit's
+/// unread carrier, while its fix row is open
+/// (`work/sectarms/a-rim-ball-refuses-b-minus-a-at-the-slits-unread-carrier-since-the-periodic-loop.md`):
+/// the other five runs still build at their volumes, and any other stop
+/// is red. The pin is the whole `{off:#?}` list, keys included, so a
+/// second off run, another edge or face, or another gap is red
+/// (`work/green/a-pinned-red-row-passes-a-stop-that-says-more-than-main.md`).
+/// It reads the list's `{:#?}` layout (one element between the
+/// brackets), so a change of that format reds the pin too; the order of
+/// [`runs`] does not matter, since any second element sits inside the
+/// brackets.
+#[test]
+fn a_ball_across_a_cylinder_wall_r_0_1_across_the_rim() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the r 0.1 rim pose",
+        &[
+            "[\n    \"the row's ball r 0.1 across the rim, B ∖ A: refused at None: \
+           EdgeInFace { edge: EdgeKey(16v1), face: FaceKey(4v5), gap: CarrierUnread }\",\n]",
+        ],
+        || builds_at_its_volume_or_refuses_at_its_door(8),
+    );
+}
+
+/// The sliver pose's label: the ball wider than the wall, a millimetre
+/// short of the far wall.
+const SLIVER: &str = "one loop, ball wider than the wall";
+
+/// The sliver pose's refusal at ε = 1e-6 in the run `op` (`swapped`
+/// when the ball is the first operand): its carry refuses its tube
+/// (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
+fn sliver_refusal(op: &str, swapped: bool) -> String {
+    let (a, a_kind, b, b_kind) = if swapped {
+        ("2v1", "Sphere", "3v1", "Cylinder")
+    } else {
+        ("4v1", "Cylinder", "1v1", "Sphere")
+    };
+    format!(
+        "{SLIVER}, {op}: refused at None: GermSectionUnbuilt {{ a_face: FaceKey({a}), \
+         a_kind: {a_kind}, b_face: FaceKey({b}), b_kind: {b_kind}, why: Carry(March(\
+         TubeStraddles {{ verdict: Zero(Classified {{ margin: MarginDiag(Value(0.0, None, \
+         ZeroWord(0))), band: Band {{ zero: 1e-6, escalate: 9.999999999999999e-6 }} }}), \
+         boxes: 437 }})) }}"
+    )
+}
+
+/// Pinned at 1e-6 to every run refusing the sliver's tube: the pin is
+/// the whole `{off:#?}` list, keys included, so a run that refuses
+/// otherwise, builds, or is off at its volume is red
+/// (`work/green/a-pinned-red-row-passes-a-stop-that-says-more-than-main.md`).
+#[test]
+fn a_ball_across_a_cylinder_wall_wider_than_the_wall() {
+    let off: Vec<String> = runs(0.0, 0.0, 0.0)
+        .into_iter()
+        .map(|(op, _, swapped, _)| sliver_refusal(op, swapped))
+        .collect();
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        SLIVER,
+        &[&format!("{off:#?}")],
+        || builds_at_its_volume_or_refuses_at_its_door(4),
+    );
 }
 
 /// A site's place on its loop of the analytic section, read off the
@@ -578,7 +639,17 @@ fn every_segment_joins_neighbouring_sites_along_its_loop() {
         for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
             let label = format!("{}, {op_label}", pose.label);
             let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
-            let (records, segments) = topo::test_support::boolean_segment_sites(op, x, y, tol)
+            let sites = topo::test_support::boolean_segment_sites(op, x, y, tol);
+            // The sliver pose refuses its tube at 1e-6, as its pose row pins.
+            if pose.label == SLIVER && test_utils::kernel_limit::at_row(tol.eps(), &[1e-6]) {
+                let refusal = format!("{:?}", sites.as_ref().err());
+                assert!(
+                    refusal.contains("Carry(March(TubeStraddles") && refusal.contains("boxes: 437"),
+                    "{label}: pinned to refuse its tube at ε = 1e-6, got {refusal}"
+                );
+                continue;
+            }
+            let (records, segments) = sites
                 .unwrap_or_else(|e| panic!("{label}: the matcher refused {e:?}"))
                 .unwrap_or_else(|| panic!("{label}: the walls cross"));
             assert_eq!(segments.len(), records, "{label}: every germ is consumed");

@@ -440,7 +440,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
   - `UndeclaredTangency` (`validate.rs:1090`) retires.
   - `TangencyContradicted` (`:1104`) stays for a constructor-made joint the geometry contradicts ("verified, never trusted").
   - `TangentJointOutOfRange` and `TangentJointOnFullTurn` stay.
-  - `PathError::JunctionTangent`/`SeamTangent` (`path.rs:827`, `:883`) stay: they are the authoring lattice's "what did you mean by this corner?" gate (DS2's paragraph on the lattice), not a declaration.
+  - `PathError::JunctionTurnWithinTolerance`/`SeamTurnWithinTolerance` (`path.rs`) stay: they are the authoring lattice's "what did you mean by this corner?" gate (DS2's paragraph on the lattice), not a declaration.
 - **Lift.** `profile::lift` (`lift.rs:19`, `:343`, `:595`, `:635`) reads the derived set, and V5's "declared junctions become `.tangent()`" reads "tangent junctions".
 - **Other readers.** `editor-core/eval/anchor.rs:573`, `mesh/src/curved.rs:1422`, `path.rs:6060`/`:6082` and `validate.rs:2539`/`:2622`.
 - **The record's door.** A constructor-made joint is not decided from values, so it is not recorded. A Zero-decided one is proven only by rung 3 (D) or, from stage 6, a tangency construction.

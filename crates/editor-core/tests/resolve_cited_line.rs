@@ -172,12 +172,10 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
     else {
         panic!("the line vanished: {:?}", f.error);
     };
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::RecipeEdit {
-            edit: editor_core::RecipeEditRef::NodeChanged { node: m }
-        },
-        "the line at the notch still has both pieces on it, so the line at M is gone at M"
+    assert!(
+        matches!(diagnosis, Diagnosis::Parted { node, .. } if *node == m),
+        "the line at the notch still has both pieces on it, so the line at M is gone at M: \
+         {diagnosis:?}"
     );
     assert!(
         last_good.is_some(),
@@ -284,7 +282,7 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
+            members: editor_core::Bodies::spelled(vec![notched.into(), post.into()]),
         },
     );
     let ev = run(&doc, None);

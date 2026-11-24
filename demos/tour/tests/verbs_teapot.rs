@@ -301,7 +301,7 @@ fn bullet(tol: Tol) -> Body<f64> {
             .line_to(Point2::new(r, TOP), tol)
             .expect("wall")
             // The tangency is DECLARED, not stumbled into: the
-            // lattice refuses an implicit G1 junction (`JunctionTangent`)
+            // lattice refuses an implicit G1 junction (`JunctionTurnWithinTolerance`)
             // and names this door, so the dome meets the wall tangentially
             // by construction rather than to within a margin.
             .tangent()

@@ -239,11 +239,13 @@ fn program_breaking_slot_edit_refuses_at_evaluation() {
             NodeErrorKind::ProfileReplay {
                 loop_: 0,
                 error:
-                    profile::ReplayError {
-                        step: 0,
+                    error @ profile::ReplayError {
                         kind: profile::ReplayErrorKind::Path(path),
+                        ..
                     },
-            } => assert_eq!(path.kind(), profile::PathErrorKind::NonpositiveCircleRadius),
+            } if error.step() == 0 => {
+                assert_eq!(path.kind(), profile::PathErrorKind::NonpositiveCircleRadius)
+            }
             other => panic!("r = 0 refuses at the circle's own step, got {other:?}"),
         },
         other => panic!("r = 0 refuses at evaluation, got {other:?}"),
@@ -305,7 +307,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
     match ev.nodes.get(&doc.ids()[0]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
-                assert_eq!(error.step, 0, "the circle step names itself");
+                assert_eq!(error.step(), 0, "the circle step names itself");
             }
             other => panic!("expected ProfileReplay, got {other:?}"),
         },
@@ -537,6 +539,7 @@ test_utils::f6_variants! {
         Assemble,
         Intersect,
         Place,
+        Datum,
         World,
         Space,
         InstantiatePart,
@@ -685,13 +688,13 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             tool: nid(2).into(),
         },
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
+            members: editor_core::Bodies::spelled(vec![nid(1).into(), nid(2).into()]),
         },
         // The identity bundle: no constraint, so no slot.
         Node::Place {
@@ -705,6 +708,11 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             source: nid(1).into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![slide_z(1, 2.0), spin_z(2, 0.25)],
+        },
+        // A datum on the world's axes: a slide slot under its id.
+        Node::Datum {
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: vec![slide_z(1, 2.0)],
         },
         // The world: no slot at all.
         Node::World,

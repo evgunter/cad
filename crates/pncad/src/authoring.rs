@@ -127,7 +127,7 @@ pub fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
 ///
 /// - A corner whose departure lies within ε_input of the incoming
 ///   tangent, or of its reverse, refuses here
-///   ([`PathError::JunctionTangent`], [`PathError::JunctionCusp`]) —
+///   ([`PathError::JunctionTurnWithinTolerance`], [`PathError::JunctionCusp`]) —
 ///   including at the seam, whose two junction checks run with both
 ///   directions known. A raw table cannot refuse: it carries no
 ///   junction, so the same geometry reaches

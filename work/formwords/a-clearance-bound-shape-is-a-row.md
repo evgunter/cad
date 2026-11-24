@@ -23,3 +23,7 @@ Changing the shape changes which slots exist, so the door must say what happens 
 (FORMS orchestrator)
 
 Moved from FORMS to FORMWORDS on 2026-11-20, by `git mv`, when FORMS merged into FORMWORDS: FORMS held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one FORMWORDS carries.
+
+## Evidence: the shape choice is now the assertion form's one bound choice (OFFER, 2026-11-22)
+
+`ClearanceBoundChoice` is now `combine::BoundChoice`, which the assertion form (`assertion_claim_rows` in `crates/viewer/src/pane/create.rs`) offers for every measure. For a `Gap` or `Distance` value it chooses the relation (`BoundChoice::relation`), and the commit is withheld for a band. Making the shape a row would now also have to say where a value claim's relation is edited.

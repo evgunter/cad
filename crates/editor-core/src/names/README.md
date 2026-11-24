@@ -106,7 +106,7 @@ a step id is below; never positional, never reused), and
 (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`, ...), the carry-through
 `From { read, of }` (an entity an operation brings in from an input, keyed
 by the variable the input slot reads, DM4: a union's or intersect's members,
-a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
+a subtract's body kept and each tool, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
 chamfer, told apart by the minting node), family `Member { at, of }`
@@ -727,6 +727,9 @@ never answers it.
   `RecipeEdit { edit }`: evidence on the name's derivation path;
 - `Cascade { through }`: an embedded operand name vanished first;
 - `BorderDelta { node, gone, new }`: a face piece's walls changed (below);
+- `Parted { node, site, step }`: a node on the path whose two runs part where
+  the query `site` handed on different candidates, at `step` along the
+  choices and candidates both runs walked alike;
 - `GroupResized { node, was, now, cutters }`: the fragment's group changed in
   number, and `cutters` names the seams on its parent only one run spells;
 - `Upstream { node, cause }`: evidence upstream of the minting node, off the
@@ -763,17 +766,20 @@ without deciding it. A node in neither set is never read.
 2. the qualifier delta: for a face piece, the BORDER delta, the divider walls a
    vanished piece bordered last run and does not now, and the reverse;
 3. the upstream scope;
-4. the GROUP-SIZE rung;
-5. the fallback `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
+4. the PARTING rung (`Diagnosis::Parted`), the first node on the path, in id
+   order, whose runs part at a mark;
+5. the GROUP-SIZE rung;
+6. the fallback `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
    NodeChanged(minting node) }`, a site rather than a claim that an edit
    happened. It is reached in particular when the evidence lived on a pair the
-   boolean's BVH sweep pruned; results are unaffected, only diagnosis richness
-   degrades.
+   boolean's BVH sweep pruned and no mark on the path records the pruning;
+   results are unaffected, only diagnosis richness degrades.
 
 The ladder orders cause before effect: the flips, the qualifier delta, the
-doc-diff lanes and `Upstream` name a cause, while the group-size change is an
-effect whose cause the evidence does not hold, so it runs after every
-cause-naming rung and before the fallback.
+doc-diff lanes and `Upstream` name a cause, while the parting names only where
+two runs stopped being comparable and the group-size change is an effect whose
+cause the evidence does not hold, so they run after every cause-naming rung,
+the parting first, and before the fallback.
 
 **The border delta** (`resolve::border_delta`) reads the walls off the names:
 the vanished piece's against those of the current piece of its parent nearest

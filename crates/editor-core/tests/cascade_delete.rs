@@ -43,11 +43,8 @@ impl editor_core::ProfilePayload for FakeProfile {
     ) -> Self {
         self.clone()
     }
-    fn drawable_pieces(
-        &self,
-    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
-    {
-        Ok(std::collections::BTreeSet::new())
+    fn partition(&self) -> Result<editor_core::ProfilePartition, editor_core::ProgramRefusal> {
+        Ok(editor_core::ProfilePartition::default())
     }
 }
 
@@ -189,7 +186,10 @@ fn deleting_a_read_node_strands_its_reader_and_reports_it() {
     assert_eq!(applied.doc.operation_of(read), None);
     let sentence = applied.maintenance[0].to_string();
     assert!(
-        sentence.contains(&format!("{}'s profile reads", doc.spoken(body))),
+        sentence.contains(&format!(
+            "{}'s profile reads",
+            editor_core::test_support::node_text(&doc.spoken(body))
+        )),
         "the reader and its operand are stated: {sentence}"
     );
 }

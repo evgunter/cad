@@ -73,8 +73,9 @@ fn cut_d(sin: f64) -> (Body<f64>, EdgeKey, f64) {
             };
             let on = (origin.x - c).abs() < 1e-9 && (origin.y - sin).abs() < 1e-9;
             // The parameter at z = 0.
-            (on && dir.z.abs() > 0.5).then(|| {
-                let at0 = (Point3::new(c, sin, 0.0) - origin).dot(dir) / dir.dot(dir);
+            (on && dir.get().z.abs() > 0.5).then(|| {
+                let at0 =
+                    (Point3::new(c, sin, 0.0) - origin).dot(dir.get()) / dir.get().dot(dir.get());
                 (e, at0)
             })
         })
@@ -96,7 +97,7 @@ fn station(sin: f64, s: f64) -> Result<Body<f64>, topo::EulerOpError> {
     let Curve3::Line(geom::Line { dir, .. }) = *c.carrier() else {
         unreachable!()
     };
-    let u = u0 + s * dir.z.signum() / dir.norm();
+    let u = u0 + s * dir.get().z.signum() / dir.get().norm();
     body.split_edge(edge, u, tol()).map(|_| body)
 }
 
@@ -108,9 +109,10 @@ fn arc_station(s: f64) -> Result<Body<f64>, topo::EulerOpError> {
         .edges()
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
-            let Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+            let Curve3::Circle(circle @ geom::Circle { .. }) = *c.carrier() else {
                 return None;
             };
+            let frame = circle.frame();
             let center = frame.origin();
             (center.z.abs() < 1e-9).then(|| {
                 let (t0, t1) = c.params();

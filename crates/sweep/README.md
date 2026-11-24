@@ -24,7 +24,7 @@ other curved supports) is registered in `docs/KERNEL-VERBS.md`; the canal blend 
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`, `slab_walls`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`), `crates/sweep/src/skin.rs` (`body_walls`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -252,8 +252,10 @@ refused inside the bands and built clear of them
 A *run* is a maximal chain of adjacent profile pieces that profile
 validation's joint verdict puts on one carrier (decided once per joint,
 by a margin that reads both legs, so neither traversal direction reads
-it differently; the sweep, the names and the edit door all read that
-record) — collinear lines, cocircular
+it differently; the sweep and the names read that record, and the edit
+door instead compares the partition the program's structure draws at
+generic values, read off its shape, `crates/editor-core/REFERENCES.md`
+DM7) — collinear lines, cocircular
 same-turn arcs — however the author wrote them (a declared straight
 continuation, a station kept on a side, a raw collinear polygon). Extrude
 and revolve build ONE wall per run on every carrier kind, so no sweep mints

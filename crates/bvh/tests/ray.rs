@@ -14,6 +14,10 @@ use bvh::test_support::{boxed, ray};
 use bvh::{Aabb, Bvh, Ray, RayCandidate};
 use test_utils::fuzz;
 
+/// The query site every call in this file marks under.
+const SITE: geom_core::k_stats::QuerySite =
+    geom_core::k_stats::QuerySite::new("bvh_test", "the test's query");
+
 fn items(cands: &[RayCandidate]) -> Vec<usize> {
     cands.iter().map(|c| c.item).collect()
 }
@@ -28,7 +32,7 @@ fn zero_direction_on_slab_boundary_is_a_candidate() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
     // dir.x = 0, origin.x == min_x = 0: on the closed bound = inside.
     let r = ray([0.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(items(&out), vec![0]);
     // Entry is metered by z: exact 1.0, reported within the documented
     // 4-ULP-per-endpoint conservative widening (and never above it).
@@ -49,16 +53,16 @@ fn zero_direction_outside_slab_prunes() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
     // Above the slab (o > hi).
     let r = ray([2.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
-    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    assert_eq!(tree.ray(SITE, &r), Vec::<RayCandidate>::new());
     // Below the slab (o < lo) — the side the pre-fix code kept.
     let r = ray([-2.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
-    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    assert_eq!(tree.ray(SITE, &r), Vec::<RayCandidate>::new());
     // Both sides even with NO other axis constraining (a zero-length
     // point ray strictly outside the slab).
     let r = ray([-2.0, 0.5, 0.5], [0.0, 0.0, 0.0]);
-    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    assert_eq!(tree.ray(SITE, &r), Vec::<RayCandidate>::new());
     let r = ray([2.0, 0.5, 0.5], [0.0, 0.0, 0.0]);
-    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    assert_eq!(tree.ray(SITE, &r), Vec::<RayCandidate>::new());
 }
 
 /// The reciprocal-overflow hole (R2's second witness class): a
@@ -72,7 +76,7 @@ fn subnormal_direction_does_not_prune_a_true_hit() {
     let b = boxed([1e-315, -1.0, -1.0], [2e-315, 5.0, 1.0]);
     let tree = Bvh::build(&[b]);
     let r = ray([0.0, 0.5, 0.0], [1e-315, 1.0, 0.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(items(&out), vec![0]);
     assert!(
         out[0].t_enter <= 1.0 && out[0].t_enter > 0.9,
@@ -91,7 +95,7 @@ fn entry_beyond_f64_range_stays_a_candidate_with_finite_t_enter() {
     let tree = Bvh::build(&[b]);
     // True t ≈ [1e330, 1.5e330]: beyond MAX, still a real intersection.
     let r = ray([0.0, 0.0, 0.0], [1e-30, 0.0, 0.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(items(&out), vec![0]);
     assert!(out[0].t_enter.is_finite(), "t_enter is never +∞");
     assert!(
@@ -106,7 +110,7 @@ fn entry_beyond_f64_range_stays_a_candidate_with_finite_t_enter() {
 fn negative_zero_direction_on_boundary_is_a_candidate() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
     let r = ray([0.0, 0.5, -1.0], [-0.0, 0.0, 1.0]);
-    assert_eq!(items(&tree.ray(&r)), vec![0]);
+    assert_eq!(items(&tree.ray(SITE, &r)), vec![0]);
 }
 
 /// A ray originating inside a box enters at exactly `t = 0` (the fold
@@ -115,7 +119,7 @@ fn negative_zero_direction_on_boundary_is_a_candidate() {
 fn origin_inside_box_enters_at_zero() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
     let r = ray([0.5, 0.5, 0.5], [1.0, 0.0, 0.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].t_enter, 0.0);
 }
@@ -126,7 +130,7 @@ fn origin_inside_box_enters_at_zero() {
 fn zero_extent_box_is_hittable() {
     let tree = Bvh::build(&[boxed([0.0, 0.0, 0.5], [1.0, 1.0, 0.5])]);
     let r = ray([0.5, 0.5, -1.0], [0.0, 0.0, 1.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(items(&out), vec![0]);
     assert!(
         out[0].t_enter <= 1.5 && out[0].t_enter > 1.5 - 1e-12,
@@ -145,7 +149,7 @@ fn poison_box_is_always_a_candidate() {
     // A ray pointing away from every real box still returns the
     // poison item.
     let r = ray([500.0, 500.0, 500.0], [1.0, 0.0, 0.0]);
-    let out = tree.ray(&r);
+    let out = tree.ray(SITE, &r);
     assert_eq!(items(&out), vec![7]);
     assert_eq!(out[0].t_enter, 0.0);
 }
@@ -158,7 +162,7 @@ fn poison_ray_returns_everything() {
     let boxes = vec![boxed([0.0; 3], [1.0; 3]); 5];
     let tree = Bvh::build(&boxes);
     let r = ray([0.0; 3], [f64::NAN, 0.0, 1.0]);
-    assert_eq!(items(&tree.ray(&r)), vec![0, 1, 2, 3, 4]);
+    assert_eq!(items(&tree.ray(SITE, &r)), vec![0, 1, 2, 3, 4]);
 }
 
 /// A box entirely behind the origin is pruned (its exit parameter is
@@ -168,7 +172,7 @@ fn poison_ray_returns_everything() {
 fn box_behind_origin_is_pruned() {
     let tree = Bvh::build(&[boxed([-2.0; 3], [-1.0; 3])]);
     let r = ray([0.0; 3], [1.0, 1.0, 1.0]);
-    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    assert_eq!(tree.ray(SITE, &r), Vec::<RayCandidate>::new());
 }
 
 /// The documented candidate order: ascending `t_enter`, ties broken by
@@ -182,14 +186,14 @@ fn candidates_order_by_entry_then_index() {
         boxed([1.0, -1.0, -1.0], [2.0, 1.0, 1.0]), // duplicate of 0: a tie
     ];
     let tree = Bvh::build(&boxes);
-    let out = tree.ray(&ray([0.0; 3], [1.0, 0.0, 0.0]));
+    let out = tree.ray(SITE, &ray([0.0; 3], [1.0, 0.0, 0.0]));
     assert_eq!(items(&out), vec![0, 2, 1]);
     assert_eq!(
         out[0].t_enter, out[1].t_enter,
         "duplicate boxes tie exactly"
     );
     // Unnormalized direction: doubling |dir| halves every t_enter.
-    let out2 = tree.ray(&ray([0.0; 3], [2.0, 0.0, 0.0]));
+    let out2 = tree.ray(SITE, &ray([0.0; 3], [2.0, 0.0, 0.0]));
     assert_eq!(items(&out2), vec![0, 2, 1]);
     assert!(out2[0].t_enter <= 0.5 && out2[0].t_enter > 0.5 - 1e-12);
 }
@@ -302,7 +306,7 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
         }
         let r = ray(origin, dir);
 
-        let got = tree.ray(&r);
+        let got = tree.ray(SITE, &r);
         let want = brute(&boxes, &r);
         assert_eq!(
             got,
@@ -312,7 +316,7 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
         );
         assert_eq!(
             got,
-            tree.ray(&r),
+            tree.ray(SITE, &r),
             "case {case}: determinism; {}",
             fuzz::replay()
         );

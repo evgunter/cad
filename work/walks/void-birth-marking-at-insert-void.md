@@ -2,11 +2,11 @@
 id: void-birth-marking-at-insert-void
 kind: issue
 title: voids - structural void-birth marking at insert_void (planned, unscheduled, the eventual outer/void rung)
-status: open
+status: deferred
 opened: 2026-08-25
 refs: [978, 907]
-priority: P1
-cost: D
+priority: P3
+cost: M
 ---
 
 ## From GitHub issue 979
@@ -35,3 +35,13 @@ Pointers: `docs/DISCIPLINES-DESIGN.md` DS6 (round 4), PR #978, `crates/topo/src/
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to TOPO (crates/topo/src/split.rs, euler.rs and the provenance graft are TOPO's paths) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Deferred (2026-11-22, WALKS)
+
+Status set to `deferred` and the band to P3, to match what the row has always recorded: Ev's ruling of 2026-08-25 (above) is "planned, unscheduled, not to be implemented yet", a ratified not-now, so `open` at P1 put a row on the board as dispatchable that Ev had ruled is not. Nothing in the ruling is changed here; reopening it is Ev's.
+
+What a staleness audit found has moved under the plan since, for whoever reopens it:
+- The role reader is no longer mainly the signed-volume trilean: `props::shell_role` reads the side at infinity off an aimed ray, with the certified volume sign as fallback (DESIGN.md `[topology.conventions]`, crates/topo/README.md).
+- A solid is one piece (DESIGN.md, PR 3901) and check 10 refuses two `Outer` shells under one solid, so within a solid outer/void is already one choice among its shells, not a per-shell fact. Most of "what it buys" is now bought by counting solids (`work/coincide/connectedness-counts-outer-shells-where-it-could-count-solids.md`) and by the ray read.
+- `docs/DISCIPLINES-DESIGN.md` no longer exists; PR #978 holds the round-4 text.
+- Unchecked: whether a cavity closed off by boolean face surgery (a union of two cups) is born through `insert_void` at all. The plan's ground is that single birthplace; check it first.

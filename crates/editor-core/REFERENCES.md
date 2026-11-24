@@ -157,9 +157,10 @@ family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family
 keyed by two indices: a read of the family at one `Count` expression per
 index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
-re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
-makes implicitly, with the index written in the slot rather than supplied
-by the evaluation. A member read answers the member's own table: its
+re-pointed. `xs[i]` is not a variable: it is a read of the family with
+its index written in the slot, and it is the one way to read a member,
+inside a binder (`{k in xs: …xs[k]…}`) or outside one. A member read
+answers the member's own table: its
 names are its source's names, carried verbatim, with no `Member`
 qualifier. An operation carrying an entity from it keys the name
 `From { read: xs, of: Member { (i, …), of } }` (`role.rs`, DM4), keyed by
@@ -167,14 +168,12 @@ the index variables' ids and the integers, exactly as reading the family
 whole does. The index is said once: in the read, and in `Member` only
 where the family is read whole or a member's entity is carried. So
 `Union(xs)` and `Union([xs[0], …, xs[N−1]])` name alike, because they read
-the same things, and inside a per-`k` reader `union(xs)` and
-`union(xs[k])` are one read with one name. A selection reads a member
+the same things. A selection reads a member
 the same way: `Select { body: xs[i], names }` holds the indexed read,
 its index the selection's own `Count` slots, and the member's own names,
 so D10's per-copy `gap(c[k].r, c[(k + 1) mod N].l)` is a selection of
-`c` beside a selection of `c[(k + 1) mod N]`. A selection whose indices
-are exactly the family's own index chain is the plain read: `xs[k]` is
-stored as `xs`. A selection reads one body: its body is a body seat. A
+`c[k]` beside a selection of `c[(k + 1) mod N]`, each stored as written.
+A selection reads one body: its body is a body seat. A
 member is reached by an indexed read, never through the family's table,
 and the index is never stored twice. At a mate side, each index is absent
 or a written count — a count literal, or a free `Count` variable, each
@@ -187,13 +186,16 @@ name is scoped by the variable that holds its body (N1), so a split half's names
 and a selection of `split.above` states its body once. A body seat
 reading a profile refuses by kind at the door (`SlotVarKind`), and a
 split read as a whole names no one output (`AmbiguousOutput`). A family
-read plainly at a body seat is read one member at a time, so no body
-seat reads a family whole.
+handed to a one-body seat is refused at the door by kind, with the
+recourse `{k in xs: op(xs[k])}`; a list seat takes it whole (DM4).
 
 *Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
-(PR 4527); a selection's body read, PR 6555. Every family a node defines is one flat list, so `xs[i, j]`
-waits on a family keyed by two indices
-(`work/refs/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+(PR 4527); a selection's body read, PR 6555; the binder, its yields, the
+splice `[a, …xs]` and the refusal of a family at a one-body seat, the
+formwords binder build (`repetition.rs`). A binder's further index reads
+at the binder's rank, so `xs[i, j]` reads one member of a binder of two
+indices; the flat listing of a pattern of patterns is tracked at
+`work/refs/an-indexed-read-of-rank-two-has-no-family.md`. Until stage
 3 G, `Part { select: Instance }` stands beside it, a second way to pick a
 member; new authoring writes `xs[i]`.*
 
@@ -203,10 +205,11 @@ member; new authoring writes `xs[i]`.*
 names each entity by the read it came through. `Node::Intersect { members }`
 keeps the material in every member, the same shape over the
 kernel's intersection verb. `Node::Subtract { from, tool }` cuts
-one body by another and is the one pair: difference neither commutes nor
-associates, and nothing is a unary "not", so its two seats are named, and
-several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
-way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
+one body by a list of tools and is the one pair: difference neither
+commutes nor associates, and nothing is a unary "not", so its two seats
+are named. Its tool is a `Bodies`, like a union's members, and the cut
+is the fold `a − t₁ − … − tₙ`, which is order-free in the tools and fuses
+none of them with another. There is no `Boolean { op, a, b }` and no `BooleanOp`.
 `Node::Assemble { members }` is the fourth operator, a list like a
 union's: it keeps its members as separate pieces, glues nothing,
 records each touch between two members and reports an overlap as an
@@ -214,9 +217,10 @@ interference finding, and it is the at-rest census's door (DESIGN
 [operations.operators], [assertions]).
 
 A union or an intersect takes one argument of kind `Bodies` (D10). A
-`Bodies` is defined by index or by enumeration. By index it is a family:
-one program per value of `k`, its length a `Count`, its members named by
-`Member { (k), of }`; `Union(xs)` joins them in index order. By
+`Bodies` is defined by index or by enumeration. By index it is a family
+a binder yields: one member per value of `k`, its length a `Count`, its
+members named by `Member { (k), of }`; `Union(xs)` joins them in index
+order. By
 enumeration it is a spelled list of independent reads, `Union([a, b, c])`
 for the three unrelated bodies just made, each member named by its own
 read and joined in the spelled order; D10's "an irregular family is its
@@ -225,9 +229,9 @@ intersect, a placement's shapes) takes either. Today an enumeration is
 spelled at the slot; naming one, a definition several readers share, is
 not built, for lack of immediate need, and nothing in the design forbids
 it. It is the argument a placement's
-shape list takes (S3M). A mix (`[xs, a]`) puts a `Bodies` where a `Body`
-goes and is ill-typed at the door (`SlotVarKind`), so a list beside an
-individual cannot be written. A union or intersect of one body builds that
+shape list takes (S3M). A family inside a spelled list is written as a
+splice, `[a, …xs]`, each of its members keyed by its read, so a list
+beside an individual is one list. A union or intersect of one body builds that
 body (no boolean runs; names are `From { read, of }` as in any union), and
 of none builds the typed empty body, so a family whose `N` is 1 or 0
 builds instead of refusing.
@@ -290,8 +294,8 @@ carry that cost on top of its own. So the chain goes, not the link:
 - **`DocEdit::SetMembers { node, members: Vec<Operand> }`** is the one
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
-  (`WouldCycle` through the existing check), or a mix of a family and a
-  member (`SlotVarKind`).
+  (`WouldCycle` through the existing check), or a family written as one
+  member rather than spliced (`SlotVarKind`).
   Deleting a pip is `SetMembers` without it, and the other
   twenty rims survive. The pip the union no longer reads is still
   defined, and out of the product because no placement names it;

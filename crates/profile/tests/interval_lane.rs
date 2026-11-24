@@ -27,7 +27,7 @@ fn rectangle_validates_at_interval() {
         vp.loops()[0]
             .segments()
             .iter()
-            .all(|s| matches!(s.kind, SegmentKind::Line))
+            .all(|s| matches!(s.kind, SegmentKind::Line { .. }))
     );
     // The canonical start's enclosure is the exact point (0, 0).
     let v0 = vp.loops()[0].vertices()[0];
@@ -47,7 +47,7 @@ fn annulus_validates_at_interval_with_roles_and_turns() {
         for s in vp.loops()[li].segments() {
             match s.kind {
                 SegmentKind::Arc { turn, .. } => assert_eq!(turn, want),
-                SegmentKind::Line => panic!("annulus segments are arcs"),
+                SegmentKind::Line { .. } => panic!("annulus segments are arcs"),
             }
         }
     }
@@ -526,13 +526,14 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
         .expect("the computed point beside (1, 3)")
         .line_to(ip2(0.0, 3.0), t)
         .expect_err("a chord continuing the incoming direction is a tangent junction");
-    let profile::PathError::JunctionTangent { margin, .. } = err else {
-        panic!("expected the tangent refusal, got {err:?}");
+    let profile::PathError::JunctionTurnWithinTolerance { turn } = err else {
+        panic!("expected the zero-turn refusal, got {err:?}");
     };
-    let (lo, hi) = margin.pinned_ends();
+    let (lo, hi) = turn.sin_turn.pinned_ends();
     assert!(
         lo <= 0.0 && 0.0 <= hi && hi - lo < 1e-12,
-        "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
+        "the tangent junction's turn encloses zero narrowly, got {:?}",
+        turn.sin_turn
     );
 }
 

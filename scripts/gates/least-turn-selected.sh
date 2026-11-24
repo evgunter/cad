@@ -8,10 +8,11 @@
 # verdict and its conditioning, the lever against the run's rounding
 # reach. `RigidMotion::least_turn_selected` decides the pole alone. It is
 # for a turn that only selects (DESIGN `[scalars]`: a choice, never a
-# claim), whose landing no claim consumes. Its one such caller is the
-# path sweep's station step, which selects each station's roll as a
-# reference vector, while each lane mints the station's frame from the
-# tangent read there. A turn a claim consumes owes the conditioning, and
+# claim), whose landing no claim consumes. Its callers are the path
+# sweep's station step, which selects each station's roll as a reference
+# vector, while each lane mints the station's frame from the tangent read
+# there; and a face's chart a trace reads before the profile's loops
+# resolve, whose conditioning each carriage that consumes it decides. A turn a claim consumes owes the conditioning, and
 # nothing in the type tells the two apart, so the callers are pinned here.
 #
 # THE SCAN: every Rust file under crates/, demos/ and benches/ (src,
@@ -32,10 +33,12 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 HOME_FILE=crates/geom-core/src/linalg/rigid_motion.rs
-# file count: the definition, and the sweep's station step.
+# file count: the definition, the sweep's station step, and a face's
+# chart selected before what it carries exists (DESIGN `[placement]`).
 CALLERS=(
   "$HOME_FILE 1"
   'crates/sweep/src/skin.rs 1'
+  'crates/editor-core/src/mate/value.rs 1'
 )
 
 # Records on stdin (`FILE:LINE:TEXT`); prints `FILE COUNT` for each file

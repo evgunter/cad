@@ -86,6 +86,15 @@
 //! chart where its exact distance is a few roundings of a far patch's
 //! placement past the zero band. That ends the read as not shown off, a
 //! lane gap and never a false `Off`.
+//!
+//! # The scalar
+//!
+//! The read's only exit is the decided incidence, so it runs at a
+//! scalar that carries no tangent (`Decide<Value = T>`, which no dual
+//! meets): the doors take the chart and carrier at any scalar and read
+//! them without their tangent (`value_view()`). A scheduled sample is a
+//! count's fraction between the held ends; a carrier's own sample, a foot
+//! and a cell's centre are places handed to `eval_at`.
 
 use geom::{Curve3, NurbsSurface};
 use geom_core::k_stats::{decide, decide_reported, straddle};
@@ -124,7 +133,7 @@ const CELL_VISITS: usize = 1 << 12;
 /// **The spline chart's incidence test of `carrier` over `[t0, t1]`**
 /// (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters,
 /// its ends included, and at a spline carrier's own parameters inside the
-/// span ([`own_fractions`]). A chart patch is bounded, so the read is
+/// span ([`own_parameters`]). A chart patch is bounded, so the read is
 /// always the edge's span, never a closed conic's turn.
 ///
 /// # Errors
@@ -141,38 +150,59 @@ pub(super) fn spline_incidence_as<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
+    span_incidence_as(
+        name,
+        &chart.value_view(),
+        &carrier.value_view(),
+        (t0.without_tangent(), t1.without_tangent()),
+        band,
+    )
+}
+
+/// [`spline_incidence_as`] without the tangent: its only exit is the
+/// incidence decided, so every sample is read at a scalar that carries
+/// none (the bound `Decide<Value = T>`).
+fn span_incidence_as<T: Decide<Value = T>>(
+    name: &'static str,
+    chart: &NurbsSurface<T>,
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
     let n = f64::from(INCIDENCE_SAMPLES);
     // Each fraction with the even schedule's index, or none where it is
     // the carrier's own, read in order so each sample's foot starts from
     // the last.
-    let mut fractions: Vec<(f64, Option<u32>)> = (0..=INCIDENCE_SAMPLES)
-        .map(|i| (f64::from(i) / n, Some(i)))
+    // Each fraction with the even schedule's index, or the carrier's
+    // own parameter there, read in order so each sample's foot starts
+    // from the last. A scheduled sample is the fraction, a count's
+    // ratio, between the held ends; an own sample is a place, the
+    // parameter the carrier's shape is set at.
+    let mut fractions: Vec<(f64, Result<u32, f64>)> = (0..=INCIDENCE_SAMPLES)
+        .map(|i| (f64::from(i) / n, Ok(i)))
         .chain(
-            own_fractions(carrier, (t0, t1))
+            own_parameters(carrier, (t0, t1))
                 .into_iter()
-                .map(|f| (f, None)),
+                .map(|(f, t)| (f, Err(t))),
         )
         .collect();
     fractions.sort_by(|a, b| a.0.total_cmp(&b.0));
     fractions.dedup_by(|a, b| a.0 == b.0);
-    let samples = fractions.into_iter().map(|(f, schedule)| {
-        let f = match schedule {
-            Some(i) => T::from_f64(f64::from(i) / n),
-            None => T::from_computed(f),
-        };
-        carrier.eval(t0 + (t1 - t0) * f)
+    let samples = fractions.into_iter().map(|(_, at)| match at {
+        Ok(i) => carrier.eval(t0 + (t1 - t0) * T::from_f64(f64::from(i) / n)),
+        Err(t) => carrier.eval_at(t),
     });
     read_samples_as(name, chart, samples, band)
 }
 
-/// **Where a spline carrier's own shape is set**, as fractions strictly
-/// inside `[t0, t1]`: its breakpoints and its control points' Greville
-/// abscissae. A feature of the carrier narrower than the even schedule's
+/// **Where a spline carrier's own shape is set**, strictly inside
+/// `[t0, t1]`, each as its fraction of the span and its parameter: its
+/// breakpoints and its control points' Greville abscissae. A feature of the carrier narrower than the even schedule's
 /// step is made by control points close together, and peaks near their
 /// abscissae, so the read takes its samples there too. They place
 /// samples and decide nothing (each is read as any sample is), so they
 /// are taken on the brackets' middles. Empty for any other carrier.
-fn own_fractions<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Vec<f64> {
+fn own_parameters<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Vec<(f64, f64)> {
     let Curve3::Nurbs(net) = carrier else {
         return Vec::new();
     };
@@ -186,8 +216,8 @@ fn own_fractions<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Vec<f64> {
         .iter()
         .copied()
         .chain(greville)
-        .map(|t| (t - a) / (b - a))
-        .filter(|f| *f > 0.0 && *f < 1.0)
+        .map(|t| ((t - a) / (b - a), t))
+        .filter(|(f, _)| *f > 0.0 && *f < 1.0)
         .collect()
 }
 
@@ -203,13 +233,18 @@ pub(super) fn spline_point_incidence_as<T: Decide>(
     point: Point3<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    read_samples_as(name, chart, core::iter::once(point), band)
+    read_samples_as(
+        name,
+        &chart.value_view(),
+        core::iter::once(point.map(Real::without_tangent)),
+        band,
+    )
 }
 
 /// Each sample's walk over the chart's cells, cut once: `Off` at the
 /// first sample shown off, else unsettled at the first sample not shown
 /// on, else `On`.
-fn read_samples_as<T: Decide>(
+fn read_samples_as<T: Decide<Value = T>>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     samples: impl Iterator<Item = Point3<T>>,
@@ -379,7 +414,7 @@ fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool
     (h, e)
 }
 
-impl<'a, T: Decide> Net<'a, T> {
+impl<'a, T: Decide<Value = T>> Net<'a, T> {
     fn of(chart: &'a NurbsSurface<T>, band: Band) -> Option<Self> {
         let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
         let (pu, pv) = (ku.degree(), kv.degree());
@@ -501,11 +536,7 @@ impl<'a, T: Decide> Net<'a, T> {
                     })
             });
             if let Some(at) = start.and_then(|start| self.foot(q, start)) {
-                let distance = (self
-                    .chart
-                    .eval(T::from_computed(at.0), T::from_computed(at.1))
-                    - q)
-                    .norm();
+                let distance = (self.chart.eval_at(at.0, at.1) - q).norm();
                 match decide(FOOT, Margin::of(distance), band) {
                     Ok(Sign::Zero) => {
                         *hint = Some(at);
@@ -570,10 +601,9 @@ impl<'a, T: Decide> Net<'a, T> {
                 break;
             }
             let [u0, u1, v0, v1] = cell.rect;
-            let centre = self.chart.eval(
-                T::from_computed(geom::bracket_mid((u0, u1))),
-                T::from_computed(geom::bracket_mid((v0, v1))),
-            );
+            let centre = self
+                .chart
+                .eval_at(geom::bracket_mid((u0, u1)), geom::bracket_mid((v0, v1)));
             let distance = (centre - q).norm();
 
             match decide(FOOT, Margin::of(distance), band) {

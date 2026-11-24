@@ -21,7 +21,9 @@ use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
     AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault, SlotId, StableName, StepId,
 };
-use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
+use crate::say;
+use crate::sentence;
+use crate::spoken::{Said, SaidNode, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenVar};
 use crate::var::{FreshEntry, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -114,8 +116,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node to delete.
         id: RecipeNodeId,
     },
-    /// **Replace a node's whole LIST input** (DM4) — a union's or an
-    /// intersect's `Bodies` argument, or a loft's section reads re-pointed
+    /// **Replace a node's whole LIST input** (DM4) — a union's, an
+    /// intersect's or an assemble's `Bodies` argument, a subtract's
+    /// tools, or a loft's section reads re-pointed
     /// in place: the slot door
     /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
     /// new list is stated in full, so nothing is inferred about which of
@@ -702,9 +705,46 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The body read, `None` for an empty product.
         product: Option<crate::Operand>,
     },
+    /// **Write what a binder yields** (D10 `[repetition]`), whole and in
+    /// order: each yield a family to every reader, one member per value
+    /// of the binder's indices. `binder` is its first index.
+    ///
+    /// Refuses a binder that is no binder's first index, a yield that
+    /// is an index, is listed twice or is another binder's
+    /// ([`EditError::Yields`]); and, as every edit does, one that leaves
+    /// a reader reading a family at a seat for one body
+    /// ([`EditError::SlotVarKind`]).
+    SetYields {
+        /// The binder, by its first index.
+        binder: VarRef,
+        /// What it yields.
+        yields: Vec<VarRef>,
+    },
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **The edit giving the binder `binder` also the yields `more`**,
+    /// after what it yields in `doc` ([`DocEdit::SetYields`]): the one
+    /// spelling of "this binder yields one more", a yield it already
+    /// writes kept once.
+    #[must_use]
+    pub fn yielding_more<Q: crate::ProfilePayload>(
+        doc: &Doc<Q>,
+        binder: VarId,
+        more: &[VarId],
+    ) -> Self {
+        let mut yields: Vec<VarId> = doc.yields(binder).to_vec();
+        for &var in more {
+            if !yields.contains(&var) {
+                yields.push(var);
+            }
+        }
+        Self::SetYields {
+            binder: binder.into(),
+            yields: yields.into_iter().map(VarRef::from).collect(),
+        }
+    }
+
     /// **The edit removing the constraint `at`**
     /// ([`DocEdit::RemoveConstraint`]), which writes the bundle whole
     /// again without it. Empty where `at` names no constraint `doc`
@@ -798,6 +838,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::ClearAppearanceMeta { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::SetYields { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -1565,7 +1606,7 @@ fn mint_pose<P: crate::ProfilePayload>(
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            Some(node) if node.makes_a_copy()
         )
     {
         return Err(shape(PoseFault::NotACopy { var: *copy }));
@@ -1620,7 +1661,10 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
         SlotId::Operand(seat) | SlotId::Index { seat, .. } => seat,
         _ => return None,
     };
-    let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
+    // A family's rank is its binder's (D10 `[repetition]`).
+    let rank = doc
+        .yielding(doc.through_sources(body.read).read)
+        .map_or(0, |binder| doc.binder_indices(binder).len());
     if body.at.len() != rank {
         return Some(crate::var::SelectionFault::Input(Box::new(
             crate::node::InputFault::IndexRank {
@@ -1682,9 +1726,8 @@ pub(crate) fn written_member<P>(doc: &Doc<P>, body: &crate::BodyRead<VarId>) -> 
 /// index lowered as a `Count` slot of the selection, the names checked
 /// live and in the stored form of the seat's selection kind, and one
 /// anonymous selection variable minted for the seat to read. A
-/// selection authored at two seats is two variables. A member read
-/// whose indices are exactly its family's own index chain is the plain
-/// read, as a per-member reader reads it: `xs[k]` is stored as `xs`.
+/// selection authored at two seats is two variables. A member read is
+/// stored as written: `xs[k]` reads one member, and `xs` the family.
 fn mint_selection<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1715,14 +1758,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    let body = crate::BodyRead {
-        read,
-        at: if own { Vec::new() } else { at },
-    };
+    let body = crate::BodyRead { read, at };
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1838,12 +1874,7 @@ fn mint_pick<P: crate::ProfilePayload>(
 /// each index a `Count` written at the seat. A plain read of a source is
 /// that source, shared: the seat reads it, and VR2 asks for its name where
 /// it is anonymous and read already. Any other read mints one anonymous
-/// source for the seat to read.
-///
-/// A member read at the family's own indices (`xs[i]`, `i` the index the
-/// family is over) reads every member at its own value, which is the family
-/// read whole; it is stored as the plain read, as a selection's body is, so
-/// the two spellings mint one source definition.
+/// source for the seat to read. A member read is stored as written.
 fn mint_source<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1873,17 +1904,7 @@ fn mint_source<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    mint_anonymous(
-        doc,
-        WrittenDef::Source(crate::BodyRead {
-            read,
-            at: if own { Vec::new() } else { at },
-        }),
-    )
+    mint_anonymous(doc, WrittenDef::Source(crate::BodyRead { read, at }))
 }
 
 /// **A declared source's body read as the door writes it** (VR4): a
@@ -1927,8 +1948,12 @@ fn lower_source_decl<P: crate::ProfilePayload>(
         true => VarKind::Bodies,
         false => VarKind::Body,
     });
-    if let Some(crate::doc::ReadFault::Kind { found }) =
-        doc.read_fault(read, held, expected, Reader::Constructs)
+    // A source reading a family whole is that family to its readers,
+    // each of which reads it whole or by member (D10 `[repetition]`).
+    let family = !body.is_indexed() && doc.family_through_sources(read);
+    if !family
+        && let Some(crate::doc::ReadFault::Kind { found }) =
+            doc.read_fault(read, held, expected, Reader::Constructs)
     {
         return Err(refused(SourceFault::Kind { found }));
     }
@@ -1988,7 +2013,7 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     };
     let copied = matches!(
         doc.operation_of(copy).and_then(|at| doc.node(at)),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        Some(node) if node.makes_a_copy()
     );
     if !copied || of.is_empty() {
         return Some(None);
@@ -2273,16 +2298,55 @@ pub enum SourceFault {
     Fresh,
 }
 
+/// **Why a binder's yields are refused** ([`EditError::Yields`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum YieldsFault {
+    /// The variable named is no binder's first index.
+    NotABinder,
+    /// A yield is an index, which its binder mints rather than yields.
+    Index {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is written twice.
+    Twice {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is another binder's.
+    Elsewhere {
+        /// The yield.
+        var: Box<SpokenVar>,
+        /// The binder yielding it.
+        binder: Box<SpokenVar>,
+    },
+    /// The yields are empty: a binder yields what repeats in it, and one
+    /// that yields nothing is refused (an assertion inside is its own
+    /// yield, and needs none written).
+    Nothing,
+    /// A yield reads none of the binder's indices, so it repeats nothing.
+    Outside {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+}
+
 /// **Why an index is refused as declared** ([`EditError::Index`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexFault {
     /// Its count is of another dimension.
     CountNotCount {
         /// The count's dimension.
         found: Dimension,
     },
-    /// What it is declared within is no index of the document.
-    WithinNoIndex,
+    /// What it is declared after is no index of the document.
+    AfterNoIndex,
+    /// The index it is declared after already has an index after it:
+    /// a binder's indices are one sequence, outermost first.
+    AfterTaken {
+        /// The index already after it.
+        taken: Box<SpokenVar>,
+    },
 }
 
 /// **A declared definition as the door writes it**: a free one as
@@ -2302,7 +2366,7 @@ fn lower_decl<P: crate::ProfilePayload>(
         VarDecl::Defined(formula) => lowering
             .lower_definition(doc, var, formula)
             .map(WrittenDef::Defined),
-        VarDecl::Index { count, within } => {
+        VarDecl::Index { count, after } => {
             let refused = |fault| EditError::Index {
                 var: var.clone(),
                 fault,
@@ -2310,18 +2374,37 @@ fn lower_decl<P: crate::ProfilePayload>(
             if count.dim() != Dimension::Count {
                 return Err(refused(IndexFault::CountNotCount { found: count.dim() }));
             }
-            let within = match within {
-                None => None,
-                Some(within) => Some(
-                    lowering
-                        .lower_definition(doc, var, within)?
+            let seat = match after {
+                // A redefined binder keeps what it yields.
+                None => crate::IndexSeat::Binder {
+                    yields: doc
+                        .var(var.id())
+                        .and_then(|held| held.def().index())
+                        .and_then(|index| match &index.seat {
+                            crate::IndexSeat::Binder { yields } => Some(yields.clone()),
+                            crate::IndexSeat::After(_) => None,
+                        })
+                        .unwrap_or_default(),
+                },
+                Some(after) => {
+                    let before = lowering
+                        .lower_definition(doc, var, after)?
                         .as_var()
-                        .filter(|&at| doc.var(at).is_some_and(|v| v.def().index().is_some()))
-                        .ok_or_else(|| refused(IndexFault::WithinNoIndex))?,
-                ),
+                        .filter(|&at| {
+                            at != var.id() && doc.var(at).is_some_and(|v| v.def().index().is_some())
+                        })
+                        .ok_or_else(|| refused(IndexFault::AfterNoIndex))?;
+                    if let Some(taken) = doc.index_after(before).filter(|&taken| taken != var.id())
+                    {
+                        return Err(refused(IndexFault::AfterTaken {
+                            taken: Box::new(doc.spoken_var(taken)),
+                        }));
+                    }
+                    crate::IndexSeat::After(before)
+                }
             };
             let count = lowering.lower_definition(doc, var, count)?;
-            Ok(WrittenDef::Index(crate::Index { count, within }))
+            Ok(WrittenDef::Index(crate::Index { count, seat }))
         }
         VarDecl::Source(body) => lower_source_decl(doc, lowering, var, body),
     }
@@ -2466,6 +2549,8 @@ pub enum CarryForwardDoor {
     Rename,
     /// [`DocEdit::DeleteVar`] — the variable itself.
     Delete,
+    /// [`DocEdit::SetYields`] — what a binder yields.
+    Yields,
 }
 
 // The door as it appears inside a refusal's sentence, in the user's
@@ -2479,6 +2564,7 @@ impl core::fmt::Display for CarryForwardDoor {
             Self::Annotation => "an annotation edit",
             Self::Rename => "a rename",
             Self::Delete => "a delete",
+            Self::Yields => "a binder's yields",
         })
     }
 }
@@ -2518,17 +2604,22 @@ pub(crate) struct DefinitionCycleSentence<'a> {
     pub(crate) through: &'a [SpokenVar],
 }
 
-impl core::fmt::Display for DefinitionCycleSentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for DefinitionCycleSentence<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         let var = self.var;
-        write!(f, "the definition of {var} reads {var} back, through ")?;
+        say!(
+            f,
+            sentence!("the definition of ", by.var(var), " reads "),
+            by.var(var),
+            " back, through "
+        )?;
         for (i, held) in self.through.iter().enumerate() {
             if i > 0 {
                 f.write_str(" → ")?;
             }
-            write!(f, "{held}")?;
+            say!(f, by.var(held))?;
         }
-        write!(f, " → {var}")
+        say!(f, " → ", by.var(var))
     }
 }
 
@@ -2539,13 +2630,16 @@ pub(crate) struct DefinitionTooLargeSentence<'a> {
     pub(crate) nodes: usize,
 }
 
-impl core::fmt::Display for DefinitionTooLargeSentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
+impl crate::Say for DefinitionTooLargeSentence<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} expands, through the definitions it reads, to {} expression nodes, past the \
+            by.var(self.var),
+            format_args!(
+                " expands, through the definitions it reads, to {} expression nodes, past the \
              bound of {DEFINITION_NODE_BOUND}",
-            self.var, self.nodes
+                self.nodes
+            )
         )
     }
 }
@@ -2559,12 +2653,16 @@ pub(crate) struct DefinitionVarKindSentence<'a> {
     pub(crate) referenced: Dimension,
 }
 
-impl core::fmt::Display for DefinitionVarKindSentence<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
+impl crate::Say for DefinitionVarKindSentence<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} is declared {} but the definition of {} reads it as {}",
-            self.read, self.declared, self.var, self.referenced
+            by.var(self.read),
+            sentence!(
+                format_args!(" is declared {} but the definition of ", self.declared),
+                by.var(self.var),
+                format_args!(" reads it as {}", self.referenced)
+            )
         )
     }
 }
@@ -2589,19 +2687,20 @@ impl LoftFault {
     /// The problem, said of `node`: the one sentence both doors that
     /// refuse a loft's shape forward ([`EditError::LoftShape`],
     /// [`crate::SnapshotError::LoftShape`]).
-    pub(crate) fn problem(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        node: &impl core::fmt::Display,
-    ) -> core::fmt::Result {
+    pub(crate) fn problem(&self, f: &mut Sentence, node: SaidNode) -> core::fmt::Result {
         match self {
-            Self::TooFewSections { have } => write!(
+            Self::TooFewSections { have } => say!(
                 f,
-                "{node} is a loft through {have} section, and a loft passes through two or more"
+                node,
+                format_args!(
+                    " is a loft through {have} section, and a loft passes through two or more"
+                )
             ),
-            Self::EmptyStation { section } => write!(
+            Self::EmptyStation { section } => say!(
                 f,
-                "section {section} of {node} has no station, so it stands in the first \
+                format_args!("section {section} of "),
+                node,
+                " has no station, so it stands in the first \
                  section's plane"
             ),
         }
@@ -2671,6 +2770,13 @@ impl LoftFault {
 /// paragraph instead of re-wording it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
+    /// A binder's yields refused as written ([`DocEdit::SetYields`]).
+    Yields {
+        /// The binder, by its first index.
+        binder: SpokenVar,
+        /// Why.
+        fault: YieldsFault,
+    },
     /// The edit targets a node id that is not live.
     UnknownNode {
         /// The missing id.
@@ -2680,7 +2786,7 @@ pub enum EditError {
     /// order its lattice of verbs refuses
     /// ([`crate::ProfilePayload::lattice`]), or, for a `SetProgram`
     /// whose names spell a kept step's piece, a program whose pieces
-    /// cannot be named ([`crate::ProfilePayload::drawable_pieces`]). No
+    /// cannot be named ([`crate::ProfilePayload::partition`]). No
     /// value is read (`[recipe.doors]`): a program whose values refuse
     /// is admitted and refused typed at evaluation.
     ProfileProgramRefused {
@@ -3109,9 +3215,9 @@ pub enum EditError {
         /// The kind the definition holds.
         offered: VarKind,
     },
-    /// **A reader of two indices neither of which is within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **A reader of the indices of two binders** (D10 `[repetition]`):
+    /// no binder holds it, so it would repeat over both unwritten.
+    TwoBinders {
         /// The reader.
         node: SpokenNode,
         /// One index.
@@ -3768,20 +3874,16 @@ enum Tail {
 
 impl Tail {
     /// Ends the sentence with `recourse`, labelled, or with nothing.
-    fn recourse(
-        self,
-        f: &mut core::fmt::Formatter<'_>,
-        recourse: core::fmt::Arguments<'_>,
-    ) -> core::fmt::Result {
+    fn recourse(self, f: &mut Sentence, recourse: impl crate::Put) -> core::fmt::Result {
         match self {
-            Self::Recourse => write!(f, ". {}", crate::sentence::Recourse(recourse)),
+            Self::Recourse => say!(f, ". ", crate::sentence::Recourse(sentence!(recourse))),
             Self::ProblemOnly => Ok(()),
         }
     }
 
     /// Ends the sentence with a dead end's whole ending, or with
     /// nothing.
-    fn ending(self, f: &mut core::fmt::Formatter<'_>, ending: &str) -> core::fmt::Result {
+    fn ending(self, f: &mut Sentence, ending: &str) -> core::fmt::Result {
         match self {
             Self::Recourse => write!(f, ". {ending}"),
             Self::ProblemOnly => Ok(()),
@@ -3796,7 +3898,7 @@ impl EditError {}
 /// `NotMinted` is the load door's, which an edit door
 /// spells [`EditError::NameStepNeverMinted`].
 fn step_ids_recourse(
-    f: &mut core::fmt::Formatter<'_>,
+    f: &mut Sentence,
     tail: Tail,
     fault: &crate::program::StepIdFault,
 ) -> core::fmt::Result {
@@ -3828,7 +3930,7 @@ fn step_ids_recourse(
 /// [`EditError::SectionIdsRefused`]'s recourse, by the fault.
 /// `InsertNode` raises `Preminted`, `SetLoftSections` the keep arms.
 fn section_ids_recourse(
-    f: &mut core::fmt::Formatter<'_>,
+    f: &mut Sentence,
     tail: Tail,
     fault: &crate::node::SectionIdFault,
 ) -> core::fmt::Result {
@@ -3849,15 +3951,24 @@ fn section_ids_recourse(
 /// [`EditError::problem`]'s rendering.
 struct Problem<'a>(&'a EditError);
 
-impl core::fmt::Display for Problem<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.render(f, Tail::ProblemOnly)
+impl Say for Problem<'_> {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        self.0.render(f, by, Tail::ProblemOnly)
     }
 }
 
+/// Each node as it was spoken when the door refused, mentioned in the
+/// speaker's document.
+impl Say for EditError {
+    fn say(&self, f: &mut Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        self.render(f, by, Tail::Recourse)
+    }
+}
+
+/// Its sentence, each node said by tag ([`Speaker::TAG`]).
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.render(f, Tail::Recourse)
+        crate::spoken::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3869,7 +3980,7 @@ impl EditError {
     /// forwards another layer's sentence (`ProfileProgramRefused`,
     /// `MateRefused`) forwards it whole here too:
     /// the forwarded layer owns that text.
-    pub fn problem(&self) -> impl core::fmt::Display + '_ {
+    pub fn problem(&self) -> impl Say + '_ {
         Problem(self)
     }
 
@@ -3920,10 +4031,23 @@ impl EditError {
                 **source = source.respoken(doc);
                 **other = other.respoken(doc);
             }
-            Self::IndicesUnrelated { node, a, b } => {
+            Self::TwoBinders { node, a, b } => {
                 *node = node.respoken(doc);
                 **a = a.respoken(doc);
                 **b = b.respoken(doc);
+            }
+            Self::Yields { binder, fault } => {
+                *binder = binder.respoken(doc);
+                match fault {
+                    YieldsFault::NotABinder | YieldsFault::Nothing => {}
+                    YieldsFault::Index { var }
+                    | YieldsFault::Twice { var }
+                    | YieldsFault::Outside { var } => **var = var.respoken(doc),
+                    YieldsFault::Elsewhere { var, binder } => {
+                        **var = var.respoken(doc);
+                        **binder = binder.respoken(doc);
+                    }
+                }
             }
             Self::ProfileProgramRefused { node, refusal: _ }
             | Self::SelectionShape {
@@ -4164,23 +4288,32 @@ impl EditError {
     }
 
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn render(&self, f: &mut core::fmt::Formatter<'_>, tail: Tail) -> core::fmt::Result {
+    fn render(&self, f: &mut Sentence, by: Speaker<'_>, tail: Tail) -> core::fmt::Result {
         match self {
             Self::UnknownNode { id } => {
-                write!(f, "{id} is not live")?;
+                say!(f, by.mention(id), " is not live")?;
                 tail.recourse(f, format_args!("aim the edit at {HELD_NODE}"))
             }
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "{node}'s sketch refused: {refusal}")
+                say!(
+                    f,
+                    by.mention(node),
+                    format_args!("'s sketch refused: {refusal}")
+                )
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "the input {input} is not a live node")?;
+                say!(f, "the input ", by.mention(input), " is not a live node")?;
                 tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
             // Only `SetMembers` can close a loop: an insert's inputs are
             // already live, so none of them can be built from it.
             Self::WouldCycle { at } => {
-                write!(f, "the recipe graph would cycle (through {at})")?;
+                say!(
+                    f,
+                    "the recipe graph would cycle (through ",
+                    by.mention(at),
+                    ")"
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -4190,9 +4323,10 @@ impl EditError {
                 )
             }
             Self::LoftSectionsSpelled { node } => {
-                write!(
+                say!(
                     f,
-                    "{node} is a loft, whose sections are spelled one read each"
+                    by.mention(node),
+                    " is a loft, whose sections are spelled one read each"
                 )?;
                 tail.recourse(f, format_args!("list the sections the loft passes through"))
             }
@@ -4201,10 +4335,13 @@ impl EditError {
                 sections,
                 given,
             } => {
-                write!(
+                say!(
                     f,
-                    "{node} is a loft of {sections} sections, each after the first at its own \
+                    by.mention(node),
+                    format_args!(
+                        " is a loft of {sections} sections, each after the first at its own \
                      station, and {given} were handed"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4215,7 +4352,11 @@ impl EditError {
                 )
             }
             Self::SetLoftSectionsOnNonLoft { node } => {
-                write!(f, "{node} is not a loft, so it has no sections to write")?;
+                say!(
+                    f,
+                    by.mention(node),
+                    " is not a loft, so it has no sections to write"
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -4225,13 +4366,14 @@ impl EditError {
                 )
             }
             Self::LoftShape { node, fault } => {
-                fault.problem(f, node)?;
+                fault.problem(f, by.mention(node))?;
                 tail.recourse(f, format_args!("{}", fault.recourse()))
             }
             Self::SetMembersOnNonList { node } => {
-                write!(
+                say!(
                     f,
-                    "{node} carries no list input, so it has no members to set"
+                    by.mention(node),
+                    " carries no list input, so it has no members to set"
                 )?;
                 tail.recourse(
                     f,
@@ -4244,9 +4386,10 @@ impl EditError {
             // A document's profile node always holds a program; the
             // node named is of another kind.
             Self::SetProgramOnNonProfile { node } => {
-                write!(
+                say!(
                     f,
-                    "{node} holds no profile program, so it has no program to set"
+                    by.mention(node),
+                    " holds no profile program, so it has no program to set"
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
             }
@@ -4255,18 +4398,27 @@ impl EditError {
             // and the recourse, since only it knows which edit wrote
             // them.
             Self::StepIdsRefused { node, fault } => {
-                write!(
+                say!(
                     f,
-                    "{node}'s program cannot take the step ids given: {fault}"
+                    by.mention(node),
+                    format_args!("'s program cannot take the step ids given: {fault}")
                 )?;
                 step_ids_recourse(f, tail, fault)
             }
             Self::SectionIdsRefused { node, fault } => {
-                write!(f, "{node} cannot take the section ids given: {fault}")?;
+                say!(
+                    f,
+                    by.mention(node),
+                    format_args!(" cannot take the section ids given: {fault}")
+                )?;
                 section_ids_recourse(f, tail, fault)
             }
             Self::IndexedRead { node, fault } => {
-                write!(f, "{node} cannot read that member: {fault}")?;
+                say!(
+                    f,
+                    by.mention(node),
+                    format_args!(" cannot read that member: {fault}")
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -4296,10 +4448,27 @@ impl EditError {
             } => {
                 match slot {
                     SlotId::Operand(seat) => match seat.selection_entry(*at) {
-                        Some(entry) => write!(f, "{node}'s {entry} names {name}")?,
-                        None => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                        Some(entry) => say!(
+                            f,
+                            by.mention(node),
+                            format_args!("'s {entry} names "),
+                            Said(&name, by)
+                        )?,
+                        None => say!(
+                            f,
+                            format_args!("name {at} of "),
+                            by.mention(node),
+                            format_args!("'s {slot} is "),
+                            Said(&name, by)
+                        )?,
                     },
-                    _ => write!(f, "name {at} of {node}'s {slot} is {name}")?,
+                    _ => say!(
+                        f,
+                        format_args!("name {at} of "),
+                        by.mention(node),
+                        format_args!("'s {slot} is "),
+                        Said(&name, by)
+                    )?,
                 }
                 write!(
                     f,
@@ -4319,7 +4488,10 @@ impl EditError {
                 )
             }
             Self::PickPath { node, slot, at } => {
-                write!(f, "{}", PicksNoPiece(format_args!("{node}'s {slot}"), *at))?;
+                say!(
+                    f,
+                    PicksNoPiece(sentence!(by.mention(node), format_args!("'s {slot}")), *at)
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -4329,9 +4501,10 @@ impl EditError {
                 )
             }
             Self::SelectionShape { node, slot, fault } => {
-                write!(
+                say!(
                     f,
-                    "{node}'s {slot} is not a selection a document stores: {fault}"
+                    by.mention(node),
+                    format_args!("'s {slot} is not a selection a document stores: {fault}")
                 )?;
                 match fault.count_bound() {
                     Some((entity, holds)) => tail.recourse(
@@ -4349,9 +4522,12 @@ impl EditError {
                 }
             }
             Self::OperandUnresolved { node, slot, read } => {
-                write!(
+                say!(
                     f,
-                    "{node}'s {slot} reads {read}, which is not a variable of this document"
+                    by.mention(node),
+                    format_args!(
+                        "'s {slot} reads {read}, which is not a variable of this document"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4359,21 +4535,32 @@ impl EditError {
                 )
             }
             Self::AmbiguousOutput { input, slot, ports } => {
-                write!(
+                say!(
                     f,
-                    "{input} defines {} outputs ({}), so naming it alone does not say which its \
+                    by.mention(input),
+                    format_args!(
+                        " defines {} outputs ({}), so naming it alone does not say which its \
                      {slot} reads",
-                    ports.len(),
-                    ports.join(", ")
+                        ports.len(),
+                        ports.join(", ")
+                    )
                 )?;
                 tail.recourse(f, format_args!("name the port the {slot} reads"))
             }
             Self::DefinesNothing { input, slot } => {
-                write!(f, "{input} defines nothing a {slot} could read")?;
+                say!(
+                    f,
+                    by.mention(input),
+                    format_args!(" defines nothing a {slot} could read")
+                )?;
                 tail.recourse(f, format_args!("read an operation that defines a value"))
             }
             Self::UnknownSlot { id, slot } => {
-                write!(f, "{id} has no slot {}", slot.label())?;
+                say!(
+                    f,
+                    by.mention(id),
+                    format_args!(" has no slot {}", slot.label())
+                )?;
                 tail.recourse(f, format_args!("edit a slot this node has"))
             }
             // The rule's own clause, forwarded rather than restated:
@@ -4416,10 +4603,11 @@ impl EditError {
                 tail.recourse(f, format_args!("set it with a continuous edit"))
             }
             Self::PayloadUnknownVarName { name, node } => {
-                write!(
+                say!(
                     f,
-                    "no variable is named {name} (read by {}'s payload expression)",
-                    node
+                    format_args!("no variable is named {name} (read by "),
+                    by.mention(node),
+                    "'s payload expression)"
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
             }
@@ -4429,20 +4617,26 @@ impl EditError {
                 declared,
                 referenced,
             } => {
-                write!(
+                say!(
                     f,
-                    "{var} is declared {declared} but {}'s payload expression reads it as \
-                     {referenced}",
-                    node
+                    by.var(var),
+                    format_args!(" is declared {declared} but "),
+                    by.mention(node),
+                    format_args!(
+                        "'s payload expression reads it as \
+                     {referenced}"
+                    )
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
             Self::PayloadUnresolvedVar { var, node } => {
-                write!(
+                say!(
                     f,
-                    "{var} is not a variable of this document (read by {}'s payload \
-                     expression)",
-                    node
+                    by.var(var),
+                    " is not a variable of this document (read by ",
+                    by.mention(node),
+                    "'s payload \
+                     expression)"
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
             }
@@ -4451,13 +4645,15 @@ impl EditError {
                 measured,
                 bound,
             } => {
-                write!(
+                say!(
                     f,
-                    "{} bounds {} {measured} value with {} {bound} expression — an assertion \
+                    by.mention(node),
+                    format_args!(
+                        " bounds {} {measured} value with {} {bound} expression — an assertion \
                      compares like with like or not at all",
-                    node,
-                    measured.article(),
-                    bound.article(),
+                        measured.article(),
+                        bound.article()
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4465,11 +4661,13 @@ impl EditError {
                 )
             }
             Self::ConstructionReadsObserved { node, slot, var } => {
-                write!(
+                say!(
                     f,
-                    "{node}'s slot {} reads {var}, a measured value — only an assertion reads a \
-                     measured value; a construction reads what was written",
-                    slot.label()
+                    by.mention(node),
+                    format_args!("'s slot {} reads ", slot.label()),
+                    by.var(var),
+                    ", a measured value — only an assertion reads a \
+                     measured value; a construction reads what was written"
                 )?;
                 tail.recourse(
                     f,
@@ -4480,11 +4678,11 @@ impl EditError {
                 )
             }
             Self::SlotUnknownVarName { name, node, slot } => {
-                write!(
+                say!(
                     f,
-                    "no variable is named {name} (read by {}, slot {})",
-                    node,
-                    slot.label()
+                    format_args!("no variable is named {name} (read by "),
+                    by.mention(node),
+                    format_args!(", slot {})", slot.label())
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
             }
@@ -4496,37 +4694,88 @@ impl EditError {
                 expected,
             } => match expected {
                 crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => {
-                    write!(
+                    say!(
                         f,
-                        "{var} is declared {found} but {} (slot {}) reads it as {referenced}",
-                        node,
-                        slot.label(),
+                        by.var(var),
+                        format_args!(" is declared {found} but "),
+                        by.mention(node),
+                        format_args!(" (slot {}) reads it as {referenced}", slot.label())
                     )?;
                     tail.recourse(f, format_args!("{}", ParamDimensionRecourse(referenced)))
                 }
                 _ => {
-                    write!(
+                    say!(
                         f,
-                        "{node}'s {} reads {var}, which is {} {found}, where it takes {expected}",
-                        slot.label(),
-                        crate::sentence::article(&found.to_string()),
+                        by.mention(node),
+                        format_args!("'s {} reads ", slot.label()),
+                        by.var(var),
+                        format_args!(
+                            ", which is {} {found}, where it takes {expected}",
+                            crate::sentence::article(&found.to_string())
+                        )
                     )?;
-                    tail.recourse(f, format_args!("read {expected} there"))
+                    match (found, slot) {
+                        // A yield in a spelled list (a boolean's members, a
+                        // subtract's tools) is spliced in whole.
+                        (
+                            VarKind::Bodies,
+                            SlotId::Operand(
+                                crate::OperandSlot::Member(_) | crate::OperandSlot::Cut(_),
+                            ),
+                        ) => tail.recourse(f, sentence!("splice it, `…", by.var(var), "`")),
+                        // A family at a seat for one: write the binder,
+                        // one node per member, in the seat's own words.
+                        (VarKind::Bodies, _) => {
+                            let op = node
+                                .kind()
+                                .map_or_else(|| "op".to_owned(), str::to_lowercase);
+                            let held = var.name().map(crate::doc::VarName::as_str);
+                            let k = ["k", "i", "j", "m", "n"]
+                                .into_iter()
+                                .find(|k| held != Some(*k))
+                                .unwrap_or("k");
+                            tail.recourse(
+                                f,
+                                sentence!(
+                                    format_args!("write a binder, `{{{k} in "),
+                                    by.var(var),
+                                    format_args!(": {op}("),
+                                    by.var(var),
+                                    format_args!("[{k}])}}`"),
+                                ),
+                            )
+                        }
+                        // One body spliced in, `…a`, where a splice takes a
+                        // family: it is one member, written alone.
+                        (
+                            VarKind::Body,
+                            SlotId::Operand(
+                                crate::OperandSlot::Member(_) | crate::OperandSlot::Cut(_),
+                            ),
+                        ) if matches!(expected, crate::SlotKind::Is(VarKind::Bodies)) => tail
+                            .recourse(
+                                f,
+                                sentence!("write it as one member, `[", by.var(var), "]`"),
+                            ),
+                        _ => tail.recourse(f, format_args!("read {expected} there")),
+                    }
                 }
             },
             Self::SlotUnresolvedVar { var, node, slot } => {
-                write!(
+                say!(
                     f,
-                    "{var} is not a variable of this document (read by {}, slot {})",
-                    node,
-                    slot.label()
+                    by.var(var),
+                    " is not a variable of this document (read by ",
+                    by.mention(node),
+                    format_args!(", slot {})", slot.label())
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
             }
             Self::ContinuousVarCannotBeCount { var } => {
-                write!(
+                say!(
                     f,
-                    "{var} is continuous, and a continuous variable cannot be a count"
+                    by.var(var),
+                    " is continuous, and a continuous variable cannot be a count"
                 )?;
                 tail.recourse(
                     f,
@@ -4545,54 +4794,78 @@ impl EditError {
                 tail.recourse(f, format_args!("{UNKNOWN_VAR_RECOURSE}"))
             }
             Self::VarIsAnOutput { var, node, door } => {
-                write!(
+                say!(
                     f,
-                    "{var} is an output of {node}, which defines it, so {door} cannot reach it"
+                    by.var(var),
+                    " is an output of ",
+                    by.mention(node),
+                    format_args!(", which defines it, so {door} cannot reach it")
                 )?;
-                tail.recourse(f, format_args!("edit or delete {node}"))
+                tail.recourse(f, sentence!("edit or delete ", by.mention(node)))
             }
             Self::NotAFreeVar { var, door } => {
-                write!(
+                say!(
                     f,
-                    "{var} is defined by an expression, so {door} has no value, notation or \
+                    by.var(var),
+                    format_args!(
+                        " is defined by an expression, so {door} has no value, notation or \
                      distribution of its own to write"
+                    )
                 )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "edit a free variable its definition reads, or redefine {var} as a \
+                    sentence!(
+                        "edit a free variable its definition reads, or redefine ",
+                        by.var(var),
+                        " as a \
                          free variable"
                     ),
                 )
             }
             Self::DefinitionCycle { var, through } => {
-                write!(f, "{}", DefinitionCycleSentence { var, through })?;
+                say!(f, Said(&DefinitionCycleSentence { var, through }, by))?;
                 tail.recourse(
                     f,
-                    format_args!("define {var} without reading any variable on that cycle"),
+                    sentence!(
+                        "define ",
+                        by.var(var),
+                        " without reading any variable on that cycle"
+                    ),
                 )
             }
             Self::DefinitionTooLarge { var, nodes } => {
-                write!(f, "{}", DefinitionTooLargeSentence { var, nodes: *nodes })?;
+                say!(
+                    f,
+                    Said(&DefinitionTooLargeSentence { var, nodes: *nodes }, by)
+                )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "define {var} over fewer nested definitions, or make one of them free"
+                    sentence!(
+                        "define ",
+                        by.var(var),
+                        " over fewer nested definitions, or make one of them free"
                     ),
                 )
             }
             Self::DefinitionUnknownVarName { var, name } => {
-                write!(
+                say!(
                     f,
-                    "no variable is named {name} (read by the definition of {var})"
+                    format_args!("no variable is named {name} (read by the definition of "),
+                    by.var(var),
+                    ")"
                 )?;
                 tail.recourse(f, format_args!("{DECLARE_THE_NAME}{OR_A_DECLARED_PARAM}"))
             }
             Self::DefinitionUnresolvedVar { var, read } => {
-                write!(
+                say!(
                     f,
-                    "{read} is not a variable of this document (read by the definition of \
-                     {var})"
+                    by.var(read),
+                    sentence!(
+                        " is not a variable of this document (read by the definition of \
+                     ",
+                        by.var(var),
+                        ")"
+                    )
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
             }
@@ -4602,15 +4875,17 @@ impl EditError {
                 declared,
                 referenced,
             } => {
-                write!(
+                say!(
                     f,
-                    "{}",
-                    DefinitionVarKindSentence {
-                        var,
-                        read,
-                        declared: *declared,
-                        referenced: *referenced,
-                    }
+                    Said(
+                        &DefinitionVarKindSentence {
+                            var,
+                            read,
+                            declared: *declared,
+                            referenced: *referenced,
+                        },
+                        by
+                    )
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
@@ -4629,14 +4904,16 @@ impl EditError {
             Self::VarNameUnchanged { var } => {
                 match var.name() {
                     Some(name) => write!(f, "{} is already named {name}", var.id())?,
-                    None => write!(f, "{var} already has no name")?,
+                    None => say!(f, by.var(var), " already has no name")?,
                 }
                 tail.recourse(f, format_args!("offer a different name"))
             }
             Self::AnonymousVarUnread { var } => {
-                write!(
+                say!(
                     f,
-                    "nothing reads {var}, and a variable with no name is one something reads"
+                    "nothing reads ",
+                    by.var(var),
+                    ", and a variable with no name is one something reads"
                 )?;
                 tail.recourse(
                     f,
@@ -4644,9 +4921,11 @@ impl EditError {
                 )
             }
             Self::SharedVarNeedsName { var } => {
-                write!(
+                say!(
                     f,
-                    "this edit leaves {var} with no name and more than one reader, and a \
+                    "this edit leaves ",
+                    by.var(var),
+                    " with no name and more than one reader, and a \
                      variable with no name has exactly one"
                 )?;
                 tail.recourse(
@@ -4655,9 +4934,10 @@ impl EditError {
                 )
             }
             Self::DeleteAnonymousVar { var } => {
-                write!(
+                say!(
                     f,
-                    "{var} has no name, and a variable with no name goes with the one \
+                    by.var(var),
+                    " has no name, and a variable with no name goes with the one \
                      expression reading it"
                 )?;
                 tail.recourse(
@@ -4702,71 +4982,188 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("read the entry, or drop it from the table"))
             }
-            Self::IndicesUnrelated { node, a, b } => {
-                write!(
+            Self::TwoBinders { node, a, b } => {
+                say!(
                     f,
-                    "{node} reads the indices {a} and {b}, and neither is within the other, so \
-                     they meet in no reader"
+                    by.mention(node),
+                    " reads the indices ",
+                    by.var(a),
+                    " and ",
+                    by.var(b),
+                    ", which are of two binders, and a reader repeats inside one binder"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("declare one within the other, or read one of them here"),
+                    format_args!("bind both indices in one binder, or read what one binder yields"),
                 )
             }
+            Self::Yields { binder, fault } => match fault {
+                YieldsFault::NotABinder => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " is no binder's first index, and a binder's yields are written on \
+                         its first index"
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("write the yields on the binder's first index"),
+                    )
+                }
+                YieldsFault::Index { var } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which is an index: a binder mints its indices and yields what \
+                         reads them"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "yield a variable that reads ",
+                            by.var(var),
+                            ", not ",
+                            by.var(var)
+                        ),
+                    )
+                }
+                YieldsFault::Twice { var } => {
+                    say!(f, by.var(binder), " would yield ", by.var(var), " twice")?;
+                    tail.recourse(f, sentence!("name ", by.var(var), " once"))
+                }
+                YieldsFault::Elsewhere { var, binder: other } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which ",
+                        by.var(other),
+                        " already yields"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "drop ",
+                            by.var(var),
+                            " from ",
+                            by.var(binder),
+                            "'s yields; ",
+                            by.var(other),
+                            " yields it"
+                        ),
+                    )
+                }
+                YieldsFault::Nothing => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield nothing, and a binder yields what repeats in it"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!("name what ", by.var(binder), "'s binder yields"),
+                    )
+                }
+                YieldsFault::Outside { var } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which reads none of the binder's indices"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "yield a variable that reads the binder's index, or read ",
+                            by.var(var),
+                            " outside the binder"
+                        ),
+                    )
+                }
+            },
             Self::Index { var, fault } => {
                 match fault {
-                    IndexFault::CountNotCount { found } => write!(
+                    IndexFault::CountNotCount { found } => say!(
                         f,
-                        "{var} is an index, and its count is {} {found}: an index ranges over \
+                        by.var(var),
+                        format_args!(
+                            " is an index, and its count is {} {found}: an index ranges over \
                          a whole number of values",
-                        found.article()
+                            found.article()
+                        )
                     )?,
-                    IndexFault::WithinNoIndex => write!(
+                    IndexFault::AfterNoIndex => say!(
                         f,
-                        "{var} is declared within a variable that is no index, and an index \
-                         is within another index or nothing"
+                        by.var(var),
+                        " is declared after a variable that is no other index, and a \
+                         binder's further index comes after one of its indices"
+                    )?,
+                    IndexFault::AfterTaken { taken } => say!(
+                        f,
+                        by.var(var),
+                        " is declared after an index that ",
+                        by.var(taken),
+                        " already comes after, and a binder's indices are one sequence"
                     )?,
                 }
                 tail.recourse(
                     f,
                     format_args!(
-                        "give it a count expression, and declare it within an index, or no \
-                         index"
+                        "give it a count expression, and declare it as a new binder's index, \
+                         or after the last index of a binder"
                     ),
                 )
             }
             Self::SourceRead { var, fault } => {
                 match fault {
-                    SourceFault::Unresolved { read } => write!(
+                    SourceFault::Unresolved { read } => say!(
                         f,
-                        "{var} is a source reading {read}, which the document does not hold"
+                        by.var(var),
+                        format_args!(
+                            " is a source reading {read}, which the document does not hold"
+                        )
                     )?,
-                    SourceFault::WrittenInPlace => write!(
+                    SourceFault::WrittenInPlace => say!(
                         f,
-                        "{var} is a source whose read is written in place, which only a seat \
+                        by.var(var),
+                        " is a source whose read is written in place, which only a seat \
                          writes"
                     )?,
-                    SourceFault::Kind { found } => write!(
+                    SourceFault::Kind { found } => say!(
                         f,
-                        "{var} is a source reading {} {found}, and a source reads one body",
-                        crate::sentence::article(&found.to_string())
+                        by.var(var),
+                        format_args!(
+                            " is a source reading {} {found}, and a source reads one body",
+                            crate::sentence::article(&found.to_string())
+                        )
                     )?,
-                    SourceFault::IndexRank { found, rank } => write!(
+                    SourceFault::IndexRank { found, rank } => say!(
                         f,
-                        "{var} is a source reading a member by {found} {}, where its \
+                        by.var(var),
+                        format_args!(
+                            " is a source reading a member by {found} {}, where its \
                          family has {rank}, and a member is read at its family's rank",
-                        if *found == 1 { "index" } else { "indices" }
+                            if *found == 1 { "index" } else { "indices" }
+                        )
                     )?,
-                    SourceFault::IndexNotCount { k, found } => write!(
+                    SourceFault::IndexNotCount { k, found } => say!(
                         f,
-                        "{var} is a source reading a member at index {} that is {} {found}, \
+                        by.var(var),
+                        format_args!(
+                            " is a source reading a member at index {} that is {} {found}, \
                          and an index is a count",
-                        k + 1,
-                        found.article()
+                            k + 1,
+                            found.article()
+                        )
                     )?,
-                    SourceFault::Fresh => write!(
+                    SourceFault::Fresh => say!(
                         f,
-                        "{var} is a source in an edit's fresh table, and a fresh entry is a \
+                        by.var(var),
+                        " is a source in an edit's fresh table, and a fresh entry is a \
                          scalar a formula reads"
                     )?,
                 }
@@ -4776,9 +5173,12 @@ impl EditError {
                 )
             }
             Self::PlacementReadsNoSource { node, read } => {
-                write!(
+                say!(
                     f,
-                    "{node} reads {read} as its source directly, and a placement reads its body \
+                    by.mention(node),
+                    " reads ",
+                    by.var(read),
+                    " as its source directly, and a placement reads its body \
                      through a source"
                 )?;
                 tail.recourse(
@@ -4787,10 +5187,13 @@ impl EditError {
                 )
             }
             Self::VarKindFixed { var, kind, offered } => {
-                write!(
+                say!(
                     f,
-                    "{var} is of kind {kind} and the definition offered is of kind {offered}, \
+                    by.var(var),
+                    format_args!(
+                        " is of kind {kind} and the definition offered is of kind {offered}, \
                      and a variable's kind is fixed when it is declared"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4801,9 +5204,10 @@ impl EditError {
                 )
             }
             Self::VarCountHasNoUnit { var } => {
-                write!(
+                say!(
                     f,
-                    "{var} is a count, and a count is an integer rather than a \
+                    by.var(var),
+                    " is a count, and a count is an integer rather than a \
                      quantity, so it has no display unit to change"
                 )?;
                 tail.recourse(
@@ -4812,9 +5216,10 @@ impl EditError {
                 )
             }
             Self::VarCountHasNoDistribution { var } => {
-                write!(
+                say!(
                     f,
-                    "{var} is a count, and a count is a structural parameter that \
+                    by.var(var),
+                    " is a count, and a count is a structural parameter that \
                      is fixed under any error analysis, so it has no distribution to change"
                 )?;
                 tail.recourse(
@@ -4827,10 +5232,13 @@ impl EditError {
                 unit,
                 declared,
             } => {
-                write!(
+                say!(
                     f,
-                    "{var} is declared {declared} but the display unit offered \
+                    by.var(var),
+                    format_args!(
+                        " is declared {declared} but the display unit offered \
                      measures {unit}"
+                    )
                 )?;
                 tail.recourse(f, format_args!("offer a unit that measures {declared}"))
             }
@@ -4839,10 +5247,13 @@ impl EditError {
                 declared,
                 offered,
             } => {
-                write!(
+                say!(
                     f,
-                    "{var} is declared {declared} but the value edit offered a \
+                    by.var(var),
+                    format_args!(
+                        " is declared {declared} but the value edit offered a \
                      {offered}, and a variable's kind is fixed when it is declared"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4854,12 +5265,11 @@ impl EditError {
             }
             Self::PathOffTree { node, slot, path } => {
                 let steps: Vec<String> = path.iter().map(u8::to_string).collect();
-                write!(
+                say!(
                     f,
-                    "the expression path [{}] in {}'s {} slot runs off the tree",
-                    steps.join(", "),
-                    node,
-                    slot.label()
+                    format_args!("the expression path [{}] in ", steps.join(", ")),
+                    by.mention(node),
+                    format_args!("'s {} slot runs off the tree", slot.label())
                 )?;
                 tail.recourse(
                     f,
@@ -4874,11 +5284,13 @@ impl EditError {
                 )
             }
             Self::NameStepNeverMinted { name, step } => {
-                write!(
+                say!(
                     f,
-                    "{name} spells the profile step id {}, which this document never minted \
-                     (its mint log does not hold it)",
-                    step
+                    Said(&name, by),
+                    format_args!(
+                        " spells the profile step id {step}, which this document never minted \
+                     (its mint log does not hold it)"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -4886,28 +5298,42 @@ impl EditError {
                 )
             }
             Self::DeclareNamesMissingNode { name } => {
-                write!(
+                say!(
                     f,
-                    "the declaration names {name}, which refers to a node that is not live"
+                    "the declaration names ",
+                    Said(&name, by),
+                    ", which refers to a node that is not live"
                 )?;
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::ReadSiteMissingNode { at } => {
-                write!(f, "the reference is read at {at}, which is not live")?;
+                say!(
+                    f,
+                    "the reference is read at ",
+                    by.mention(at),
+                    ", which is not live"
+                )?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
             }
             Self::NonFiniteVar { var, field } => {
-                write!(
+                say!(
                     f,
-                    "{var}'s {field} is not finite — the value and every \
+                    by.var(var),
+                    format_args!(
+                        "'s {field} is not finite — the value and every \
                      distribution offset must be a number"
+                    )
                 )?;
                 tail.recourse(f, format_args!("give each of them a finite value"))
             }
             // A non-finite offset never arrives here: the edit door
             // routes it to `NonFiniteVar` (`distribution_fault_error`).
             Self::InvalidDistribution { var, fault } => {
-                write!(f, "{var} has an invalid distribution: {fault}")?;
+                say!(
+                    f,
+                    by.var(var),
+                    format_args!(" has an invalid distribution: {fault}")
+                )?;
                 match fault {
                     DistributionFault::NonFinite { .. } => {
                         tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
@@ -4925,16 +5351,20 @@ impl EditError {
                 }
             }
             Self::RebindTargetMissingNode { name } => {
-                write!(
+                say!(
                     f,
-                    "the rebind target ({name}) refers to a node that is not live"
+                    "the rebind target (",
+                    Said(&name, by),
+                    ") refers to a node that is not live"
                 )?;
                 tail.recourse(f, format_args!("rebind to a name of {HELD_NODE}"))
             }
             Self::RebindUnknownName { name } => {
-                write!(
+                say!(
                     f,
-                    "the rebind source ({name}) was never minted by this document"
+                    "the rebind source (",
+                    Said(&name, by),
+                    ") was never minted by this document"
                 )?;
                 tail.recourse(f, format_args!("rebind a name this document minted"))
             }
@@ -4948,36 +5378,44 @@ impl EditError {
                 tail.recourse(f, format_args!("rebind it to another {} name", from.noun()))
             }
             Self::RebindIdentity { name } => {
-                write!(f, "rebinding {name} to itself would change nothing")?;
+                say!(
+                    f,
+                    "rebinding ",
+                    Said(&name, by),
+                    " to itself would change nothing"
+                )?;
                 tail.recourse(f, format_args!("rebind it to a different name"))
             }
             Self::RebindNoReferences { name } => {
-                write!(
+                say!(
                     f,
-                    "no document site references {name}, so there is nothing to repair"
+                    "no document site references ",
+                    Said(&name, by),
+                    ", so there is nothing to repair"
                 )?;
                 tail.recourse(f, format_args!("rebind a name the document references"))
             }
             Self::WitnessOnNonSketch { node } => {
-                write!(
+                say!(
                     f,
-                    "{} is not sketch-bearing, so it has nothing to re-witness",
-                    node
+                    by.mention(node),
+                    " is not sketch-bearing, so it has nothing to re-witness"
                 )?;
                 tail.recourse(f, format_args!("re-witness a sketch-bearing node"))
             }
             Self::DuplicateWitnessEntry { node } => {
-                write!(f, "{node} appears twice in the re-witness bulk")?;
+                say!(f, by.mention(node), " appears twice in the re-witness bulk")?;
                 tail.recourse(f, format_args!("list each node once"))
             }
             Self::TakeOverRepeatsCopy { node } => {
-                write!(f, "{node} is given twice to the takeover")?;
+                say!(f, by.mention(node), " is given twice to the takeover")?;
                 tail.recourse(f, format_args!("give each copy once"))
             }
             Self::TakeOverNotASource { var } => {
-                write!(
+                say!(
                     f,
-                    "{var} is no source, and a takeover redefines the sources placements read"
+                    by.var(var),
+                    " is no source, and a takeover redefines the sources placements read"
                 )?;
                 tail.recourse(f, format_args!("hand it the source a placement reads"))
             }
@@ -4986,26 +5424,48 @@ impl EditError {
                 source,
                 other,
             } => {
-                write!(
+                say!(
                     f,
-                    "{copy} reads its body through {source}, which {other} reads too, so \
-                     redefining it would re-point {other} unasked"
+                    by.mention(copy),
+                    " reads its body through ",
+                    by.var(source),
+                    sentence!(
+                        sentence!(
+                            ", which ",
+                            by.mention(other),
+                            " reads too, so \
+                     redefining it would re-point "
+                        ),
+                        by.mention(other),
+                        " unasked"
+                    )
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("name every copy reading {source}, or redefine {source} itself"),
+                    sentence!(
+                        sentence!("name every copy reading ", by.var(source), ", or redefine "),
+                        by.var(source),
+                        " itself"
+                    ),
                 )
             }
             Self::SourceReaderRefused { source, reader } => {
-                write!(
+                say!(
                     f,
-                    "redefining {source} so would leave what reads it holding what no \
-                     document holds: {reader}"
+                    "redefining ",
+                    by.var(source),
+                    sentence!(
+                        " so would leave what reads it holding what no \
+                     document holds: ",
+                        Said(&reader, by)
+                    )
                 )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "redefine {source} as a read of what its readers read, or change \
+                    sentence!(
+                        "redefine ",
+                        by.var(source),
+                        " as a read of what its readers read, or change \
                          the readers first"
                     ),
                 )
@@ -5015,9 +5475,10 @@ impl EditError {
                 tail.recourse(f, format_args!("list at least one node to re-witness"))
             }
             Self::NameUnresolvedInEvaluation { name } => {
-                write!(
+                say!(
                     f,
-                    "{name} does not resolve in the supplied evaluation — recording the \
+                    Said(&name, by),
+                    " does not resolve in the supplied evaluation — recording the \
                      reference would strand it"
                 )?;
                 tail.recourse(f, format_args!("name an entity the evaluation holds"))
@@ -5035,31 +5496,39 @@ impl EditError {
                 )
             }
             Self::RebindAppearanceCollision { name, kind } => {
-                write!(
+                say!(
                     f,
-                    "the rebind would land two {} attributes on {name}",
-                    kind.noun()
+                    format_args!("the rebind would land two {} attributes on ", kind.noun()),
+                    Said(&name, by)
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
             }
             Self::AppearanceWrongKind { name } => {
-                write!(
+                say!(
                     f,
-                    "appearance attaches to faces and bodies only (refused for {name})"
+                    "appearance attaches to faces and bodies only (refused for ",
+                    Said(&name, by),
+                    ")"
                 )?;
                 tail.recourse(f, format_args!("set it on a face or a body"))
             }
             Self::AppearanceNamesMissingNode { name } => {
-                write!(
+                say!(
                     f,
-                    "the appearance target ({name}) refers to a node that is not live"
+                    "the appearance target (",
+                    Said(&name, by),
+                    ") refers to a node that is not live"
                 )?;
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::AppearanceBodyNotARead { name, body } => {
-                write!(
+                say!(
                     f,
-                    "the appearance target ({name}) is read in {body}, which no live operation \
+                    "the appearance target (",
+                    Said(&name, by),
+                    ") is read in ",
+                    by.var(body),
+                    ", which no live operation \
                      defines as an output"
                 )?;
                 tail.recourse(
@@ -5068,7 +5537,11 @@ impl EditError {
                 )
             }
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "no {} attribute is set on {name}", kind.noun())?;
+                say!(
+                    f,
+                    format_args!("no {} attribute is set on ", kind.noun()),
+                    Said(&name, by)
+                )?;
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value, k } => {
@@ -5085,35 +5558,47 @@ impl EditError {
                 )
             }
             Self::MetaUnversioned { name, key, error } => {
-                write!(
+                say!(
                     f,
-                    "metadata {key:?} on {name} does not carry an integer \"v\" version \
+                    format_args!("metadata {key:?} on "),
+                    Said(&name, by),
+                    format_args!(
+                        " does not carry an integer \"v\" version \
                      field: {error}"
+                    )
                 )?;
                 tail.recourse(f, format_args!("store a map with an integer \"v\" entry"))
             }
             Self::MetaNonFinite { name, key, path } => {
-                write!(
+                say!(
                     f,
-                    "metadata {key:?} on {name} carries a non-finite float at {path}"
+                    format_args!("metadata {key:?} on "),
+                    Said(&name, by),
+                    format_args!(" carries a non-finite float at {path}")
                 )?;
                 tail.recourse(f, format_args!("store a finite number there"))
             }
             Self::MetaNotSet { name, key } => {
-                write!(f, "no metadata {key:?} is set on {name}")?;
+                say!(
+                    f,
+                    format_args!("no metadata {key:?} is set on "),
+                    Said(&name, by)
+                )?;
                 tail.recourse(f, format_args!("clear only a key the name carries"))
             }
             Self::RebindMetadataCollision { name, key } => {
-                write!(
+                say!(
                     f,
-                    "the rebind would land two values under metadata {key:?} on {name}"
+                    format_args!("the rebind would land two values under metadata {key:?} on "),
+                    Said(&name, by)
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
             }
             Self::WorldIsUndeletable { node } => {
-                write!(
+                say!(
                     f,
-                    "{node} is the world, which every document holds from its creation"
+                    by.mention(node),
+                    " is the world, which every document holds from its creation"
                 )?;
                 tail.recourse(
                     f,
@@ -5121,14 +5606,23 @@ impl EditError {
                 )
             }
             Self::ProductRead { read, fault } => {
-                write!(f, "{read} is no product: {fault}")?;
+                say!(f, format_args!("{read} is no product: "), Said(&fault, by))?;
                 tail.recourse(f, format_args!("set the product to a body in the world"))
             }
             Self::SpaceMismatch { node, a, b } => {
-                write!(
+                say!(
                     f,
-                    "{node} would read {a} and {b}, and {}",
-                    crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES
+                    by.mention(node),
+                    " would read ",
+                    Said(&a, by),
+                    sentence!(
+                        " and ",
+                        Said(&b, by),
+                        format_args!(
+                            ", and {}",
+                            crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES
+                        )
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -5136,20 +5630,29 @@ impl EditError {
                 )
             }
             Self::ConstraintOnNonPlacement { node } => {
-                write!(f, "{node} is no placement, so it holds no constraint")?;
+                say!(
+                    f,
+                    by.mention(node),
+                    " is no placement, so it holds no constraint"
+                )?;
                 tail.recourse(
                     f,
                     format_args!("aim the edit at a placement or an instance"),
                 )
             }
             Self::UnknownConstraint { node, constraint } => {
-                write!(f, "{node} holds no constraint {constraint}")?;
+                say!(
+                    f,
+                    by.mention(node),
+                    format_args!(" holds no constraint {constraint}")
+                )?;
                 tail.recourse(f, format_args!("name a constraint the placement holds"))
             }
             Self::PlacementAxis { error } => {
-                write!(
+                say!(
                     f,
-                    "the placement frame's rotation axis is unusable: {error}"
+                    "the placement frame's rotation axis is unusable: ",
+                    Said(&error, by)
                 )?;
                 tail.recourse(
                     f,
@@ -5166,15 +5669,27 @@ impl EditError {
                     crate::mate::MateFault::Overconstrained { .. }
                         | crate::mate::MateFault::Unpinned { .. }
                 ) {
-                    write!(f, "the constraint is refused at {node}'s door: {said}")
+                    say!(
+                        f,
+                        "the constraint is refused at ",
+                        by.mention(node),
+                        "'s door: ",
+                        said
+                    )
                 } else {
-                    write!(f, "{node} is refused by the solve on its own datum: {said}")
+                    say!(
+                        f,
+                        by.mention(node),
+                        " is refused by the solve on its own datum: ",
+                        said
+                    )
                 }
             }
             Self::UpdateOnNonInstance { node } => {
-                write!(
+                say!(
                     f,
-                    "{node} does not instantiate a part, so it has no pinned version to update"
+                    by.mention(node),
+                    " does not instantiate a part, so it has no pinned version to update"
                 )?;
                 tail.recourse(
                     f,
@@ -5182,9 +5697,12 @@ impl EditError {
                 )
             }
             Self::PinUnchanged { node, pin } => {
-                write!(
+                say!(
                     f,
-                    "{node} already pins {pin}, so this update would record no version move"
+                    by.mention(node),
+                    format_args!(
+                        " already pins {pin}, so this update would record no version move"
+                    )
                 )?;
                 tail.recourse(
                     f,
@@ -5193,8 +5711,8 @@ impl EditError {
             }
             Self::LabelUnchanged { node } => {
                 match node.label() {
-                    Some(_) => write!(f, "{node} already has that label")?,
-                    None => write!(f, "{node} has no label to clear")?,
+                    Some(_) => say!(f, by.mention(node), " already has that label")?,
+                    None => say!(f, by.mention(node), " has no label to clear")?,
                 }
                 tail.recourse(f, format_args!("offer a label other than the one it has"))
             }
@@ -5410,9 +5928,55 @@ pub enum Maintenance {
         /// the document is shown ([`Maintenance::is_silent_retirement`]).
         distribution: Option<Distribution>,
     },
+    /// **A yield this edit removed from its binder** (D10
+    /// `[repetition]`): the edit removed the variable (its node was
+    /// deleted, or the variable itself), or a refactoring carried it
+    /// where it reads none of its binder's indices (its reads of them
+    /// stayed behind), so the binder yields it no more. Its readers
+    /// outside the binder say so where they read it.
+    YieldRemoved {
+        /// The binder, by its first index, spoken from the document the
+        /// edit entered.
+        binder: SpokenVar,
+        /// The yield that went, spoken from the document the edit
+        /// entered.
+        var: SpokenVar,
+    },
 }
 
 impl Maintenance {
+    /// **The name this row reports stranded, with what holds it**, or
+    /// `None` for a row about anything else: the one answer to which
+    /// rows are a name the document keeps whose referent an edit took
+    /// (DM7), one variant of [`NameCarrier`] per arm that is.
+    ///
+    /// Two rows of one action can answer the same carrier and name — a
+    /// re-point that takes the minting node out of reach and a delete
+    /// of that node each report it — so a caller counting the names an
+    /// action stranded counts the distinct answers.
+    pub fn stranded_name(&self) -> Option<NameCarrier<'_>> {
+        match self {
+            Self::Strand { node, name, .. } => Some(NameCarrier::Payload {
+                node: node.id(),
+                name: name.name(),
+            }),
+            Self::StrandedSelection { var, name, .. } => Some(NameCarrier::Select {
+                var: var.id(),
+                name: name.name(),
+            }),
+            Self::StrandedAppearance { body, name, .. } => Some(NameCarrier::Store {
+                body: body.id(),
+                name: name.name(),
+            }),
+            Self::StrandedRead { .. }
+            | Self::StrandedSpace { .. }
+            | Self::ProductOutsideWorld { .. }
+            | Self::ValueDropped { .. }
+            | Self::AnonymousVarRemoved { .. }
+            | Self::YieldRemoved { .. } => None,
+        }
+    }
+
     /// **A retirement nothing a reader of the document is shown went
     /// with**: an anonymous variable that carried no tolerance. Its
     /// removal is what rewriting or deleting the slot it was written at
@@ -5444,7 +6008,7 @@ impl Maintenance {
     /// unchanged; this is the wording for a surface that tells a person
     /// what one edit cost, where one line per freedom says one thing
     /// several times.
-    pub fn values_dropped(rows: &[Self]) -> impl Iterator<Item = impl core::fmt::Display + '_> {
+    pub fn values_dropped(rows: &[Self]) -> impl Iterator<Item = impl Say + '_> {
         let mut said: Vec<ValuesDropped<'_>> = Vec::new();
         for row in rows {
             if let Self::ValueDropped {
@@ -5472,10 +6036,10 @@ struct ValuesDropped<'a> {
     freedoms: Vec<(crate::mate::Coord, &'a SpokenVar)>,
 }
 
-impl core::fmt::Display for ValuesDropped<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ValuesDropped<'_> {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         fn joined<T: core::fmt::Display>(
-            f: &mut core::fmt::Formatter<'_>,
+            f: &mut crate::Sentence,
             items: &[T],
         ) -> core::fmt::Result {
             for (i, item) in items.iter().enumerate() {
@@ -5510,9 +6074,10 @@ impl core::fmt::Display for ValuesDropped<'_> {
             1 => "value",
             _ => "values",
         };
-        write!(
+        say!(
             f,
-            "{placement}'s placement was written again without the {values} on its "
+            by.mention(placement),
+            format_args!("'s placement was written again without the {values} on its ")
         )?;
         joined(f, &coords)?;
         if !named.is_empty() {
@@ -5526,8 +6091,10 @@ impl core::fmt::Display for ValuesDropped<'_> {
 /// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
 /// [`Maintenance::StrandedAppearance`]), said in the row: the node that
 /// minted it (a delete), a profile step it names (a reshaping that
-/// dropped the step), or a piece a kept step stopped drawing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// dropped the step), or a piece, a run or a corner of kept steps a
+/// reshaping stopped drawing. Ordered as a reshaping ranks what it
+/// took from one name: a piece over its run, a run over its corner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Took {
     /// The node that minted the name was deleted.
     Node,
@@ -5535,6 +6102,12 @@ pub enum Took {
     Step,
     /// A step the name names was kept and no longer draws its piece.
     Piece,
+    /// The pieces the name names were kept and drawn, and the run of
+    /// them it names was joined into a longer one or broken.
+    Run,
+    /// The pieces the name names were kept and drawn, and the corner it
+    /// names became a station inside a run.
+    Corner,
     /// A read was re-pointed, and the node that minted the name is no
     /// longer upstream of the node that carries it.
     Reach,
@@ -5550,22 +6123,35 @@ impl Took {
     /// Boolean's or a fillet's output is not — and a reshaping says
     /// what it dropped.
     #[must_use]
-    pub fn said<'a>(&'a self, name: &'a SpokenName) -> impl core::fmt::Display + 'a {
+    pub fn said<'a>(&'a self, name: &'a SpokenName) -> impl crate::Say + 'a {
         struct Said<'a>(&'a Took, &'a SpokenName);
-        impl core::fmt::Display for Said<'_> {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        impl crate::Say for Said<'_> {
+            fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
                 match self.0 {
                     Took::Node => {
-                        write!(f, "deleted {}, which minted the name", self.1.minter())
+                        say!(
+                            f,
+                            "deleted ",
+                            by.mention(self.1.minter()),
+                            ", which minted the name"
+                        )
                     }
                     Took::Step => f.write_str("dropped a profile step it names"),
                     Took::Piece => {
                         f.write_str("kept a step it names but no longer draws that piece")
                     }
-                    Took::Reach => write!(
+                    Took::Run => {
+                        f.write_str("kept the pieces it names but joined or broke their run")
+                    }
+                    Took::Corner => f.write_str(
+                        "kept the pieces it names but continued one into the other at the \
+                         corner it names",
+                    ),
+                    Took::Reach => say!(
                         f,
-                        "re-pointed a read past {}, which minted the name",
-                        self.1.minter()
+                        "re-pointed a read past ",
+                        by.mention(self.1.minter()),
+                        ", which minted the name"
                     ),
                     Took::Body => {
                         f.write_str("deleted the operation defining the body it is read in")
@@ -5577,30 +6163,38 @@ impl Took {
     }
 }
 
-impl core::fmt::Display for Maintenance {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for Maintenance {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             // The sentence names what was taken as the name's
             // REFERENT ([`Took`]): "the end cap of node 7, which this
             // edit deleted" would read as though the name were deleted,
             // and the name is exactly what survives.
-            Self::Strand { node, name, took } => write!(
+            Self::Strand { node, name, took } => say!(
                 f,
-                "{} carries a name for {}; this edit {}, so the name resolves to nothing \
-                 until it is rebound",
-                node,
-                name,
-                took.said(name)
+                by.mention(node),
+                " carries a name for ",
+                Said(&name, by),
+                sentence!(
+                    "; this edit ",
+                    Said(&took.said(name), by),
+                    ", so the name resolves to nothing \
+                 until it is rebound"
+                )
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
             // is still there and what took its referent. A store holds
             // a thing UNDER a key, and the key is a name for the
             // entity `SpokenName`'s Display says.
-            Self::StrandedRead { node, slot, var } => write!(
+            Self::StrandedRead { node, slot, var } => say!(
                 f,
-                "{node}'s {slot} reads {var}, which this edit deleted with its operation, so \
-                 {node} refuses until the {slot} reads a live value"
+                sentence!(by.mention(node), format_args!("'s {slot} reads ")),
+                by.var(var),
+                ", which this edit deleted with its operation, so \
+                 ",
+                by.mention(node),
+                format_args!(" refuses until the {slot} reads a live value")
             ),
             Self::StrandedSelection {
                 var,
@@ -5608,52 +6202,83 @@ impl core::fmt::Display for Maintenance {
                 name,
                 took,
             } => match (var.name(), readers.as_slice()) {
-                (None, [reader]) => write!(
+                (None, [reader]) => say!(
                     f,
-                    "{reader} selects {name}; this edit {}, so {reader} refuses until the name \
-                     is rebound",
-                    took.said(name)
+                    sentence!(by.mention(reader), " selects "),
+                    Said(&name, by),
+                    sentence!("; this edit ", Said(&took.said(name), by), ", so "),
+                    by.mention(reader),
+                    " refuses until the name \
+                     is rebound"
                 ),
-                _ => write!(
+                _ => say!(
                     f,
-                    "{var} selects {name}; this edit {}, so every reader of {var} refuses until \
-                     the name is rebound",
-                    took.said(name)
+                    sentence!(by.var(var), " selects "),
+                    Said(&name, by),
+                    sentence!(
+                        "; this edit ",
+                        Said(&took.said(name), by),
+                        ", so every reader of "
+                    ),
+                    by.var(var),
+                    " refuses until \
+                     the name is rebound"
                 ),
             },
-            Self::StrandedAppearance { body, name, took } => write!(
+            Self::StrandedAppearance { body, name, took } => say!(
                 f,
-                "the appearance store holds an attachment under a name for {} read in {}; this \
-                 edit {}, so the name resolves to nothing until it is rebound, re-attached in a \
-                 live body or cleared",
-                name,
-                body,
-                took.said(name)
+                "the appearance store holds an attachment under a name for ",
+                Said(&name, by),
+                " read in ",
+                by.var(body),
+                sentence!(
+                    "; this \
+                 edit ",
+                    Said(&took.said(name), by),
+                    ", so the name resolves to nothing until it is rebound, re-attached in a \
+                 live body or cleared"
+                )
             ),
-            Self::StrandedSpace { node, a, b } => write!(
+            Self::StrandedSpace { node, a, b } => say!(
                 f,
-                "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
+                sentence!(by.mention(node), " reads "),
+                Said(&a, by),
+                sentence!(
+                    " and ",
+                    Said(&b, by),
+                    ", which this edit left in two spaces, so "
+                ),
+                by.mention(node),
+                " \
                  refuses until its reads are in one space"
             ),
-            Self::ProductOutsideWorld { read, space } => write!(
+            Self::ProductOutsideWorld { read, space } => say!(
                 f,
-                "the product reads {read}, which this edit moved into {space}, so the product \
+                "the product reads ",
+                by.var(read),
+                ", which this edit moved into ",
+                Said(&space, by),
+                ", so the product \
                  refuses until it reads a body in the world"
             ),
             Self::ValueDropped {
                 placement,
                 coord,
-                by,
-            } => write!(
+                by: read,
+            } => say!(
                 f,
-                "{placement}'s {} read {by}; the bundle written whole does not leave that \
-                 freedom, so this edit dropped the value",
-                coord.name()
+                by.mention(placement),
+                format_args!("'s {} read ", coord.name()),
+                by.var(read),
+                "; the bundle written whole does not leave that \
+                 freedom, so this edit dropped the value"
             ),
             Self::AnonymousVarRemoved { var, distribution } => {
-                write!(
+                say!(
                     f,
-                    "the edit left nothing reading {var}, which had no name, so it went with \
+                    "the edit left nothing reading ",
+                    by.var(var),
+                    ", which had no name, so it went with \
                      its reader"
                 )?;
                 if distribution.is_some() {
@@ -5661,7 +6286,22 @@ impl core::fmt::Display for Maintenance {
                 }
                 Ok(())
             }
+            Self::YieldRemoved { binder, var } => say!(
+                f,
+                by.var(binder),
+                "'s binder yields ",
+                by.var(var),
+                " no more: the edit removed it, or carried it where it reads none of the \
+                 binder's indices"
+            ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for Maintenance {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -5842,25 +6482,64 @@ fn settle_step_ids(
     Ok((minted, dropped))
 }
 
-/// **The pieces of kept steps a `SetProgram` stops drawing**, among
-/// those a name in `doc` spells ([`StableName::step_pieces`]): a piece
-/// `old`'s structure can draw and `new`'s cannot, as
-/// [`crate::ProfilePayload::drawable_pieces`] answers from each program
-/// alone (REFERENCES.md DM7). A kept step's piece goes undrawable when
-/// another piece takes its segment by construction (N1, "Undrawn pieces
-/// vanish rather than alias") — a fillet inserted before its leg — or a
-/// `circle_split` count drops it. A piece a value leaves undrawn (a run
-/// that fits `Zero`) is no removal: no value is read, so the same
-/// values written by any door report the same.
-fn undrawn_kept_pieces<P: crate::ProfilePayload>(
+/// **What a `SetProgram` changed of the partition its node's program
+/// draws** (REFERENCES.md DM7): the steps it kept, and the partition
+/// the old and the new program's structure each draw at generic
+/// values ([`crate::ProfilePayload::partition`]), read off each program
+/// alone. No value is read, so the same values written by any door
+/// report the same.
+struct Reshaped {
+    kept: std::collections::BTreeSet<StepId>,
+    before: crate::ProfilePartition,
+    after: crate::ProfilePartition,
+}
+
+impl Reshaped {
+    /// **What the reshaping took from `name`**, judged whole: each
+    /// referent it spells on kept steps ([`StableName::referents`])
+    /// that the old partition holds and the new one does not. A piece
+    /// the new structure stops drawing, which another piece took by
+    /// construction (N1, "Undrawn pieces vanish rather than alias") or
+    /// a `circle_split` count dropped, is [`Took::Piece`]; a run it
+    /// joined or broke with every piece still drawn, [`Took::Run`]; a
+    /// corner it made a station inside a run, [`Took::Corner`]. `None`
+    /// where it took nothing: what the name denotes is still drawn,
+    /// or never was in the old partition.
+    fn took(&self, name: &StableName) -> Option<Took> {
+        name.referents()
+            .into_iter()
+            .filter(|r| {
+                r.pieces()
+                    .iter()
+                    .all(|p| p.step().is_some_and(|s| self.kept.contains(&s)))
+            })
+            .filter(|r| self.before.denotes(r) && !self.after.denotes(r))
+            .map(|r| {
+                if r.pieces().iter().any(|p| !self.after.pieces().contains(p)) {
+                    Took::Piece
+                } else if matches!(r, crate::names::Referent::Wall(_)) {
+                    Took::Run
+                } else {
+                    Took::Corner
+                }
+            })
+            .min()
+    }
+}
+
+/// **The partitions a `SetProgram` from `old` to `new` compares**
+/// ([`Reshaped`]), `None` where no name in `doc` spells a piece of a
+/// step it keeps ([`StableName::step_pieces`]), so nothing kept can be
+/// taken.
+fn reshaped<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     old: &P,
     new: &P,
     dropped: &std::collections::BTreeSet<StepId>,
-) -> Result<std::collections::BTreeSet<ProfileEdgeRef>, EditError> {
+) -> Result<Option<Reshaped>, EditError> {
     let Some(ids) = old.step_ids() else {
-        return Ok(std::collections::BTreeSet::new());
+        return Ok(None);
     };
     let kept: std::collections::BTreeSet<StepId> = ids
         .iter()
@@ -5868,30 +6547,28 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         .filter(|s| !dropped.contains(s))
         .copied()
         .collect();
-    let named: std::collections::BTreeSet<ProfileEdgeRef> = doc
+    let named = doc
         .name_carriers()
         .flat_map(|c| c.name().step_pieces())
-        .filter(|p| p.step().is_some_and(|s| kept.contains(&s)))
-        .collect();
-    if named.is_empty() {
-        return Ok(named);
+        .any(|p| p.step().is_some_and(|s| kept.contains(&s)));
+    if !named {
+        return Ok(None);
     }
     let refused = |refusal| EditError::ProfileProgramRefused {
         node: doc.spoken(node),
         refusal: Box::new(refusal),
     };
-    let before = old.drawable_pieces().map_err(refused)?;
-    let after = new.drawable_pieces().map_err(refused)?;
-    Ok(named
-        .into_iter()
-        .filter(|p| before.contains(p) && !after.contains(p))
-        .collect())
+    Ok(Some(Reshaped {
+        kept,
+        before: old.partition().map_err(refused)?,
+        after: new.partition().map_err(refused)?,
+    }))
 }
 
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// (`StableName::spelled_outside`), or a kept step's piece it stopped
-/// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
+/// (`StableName::spelled_outside`), or denotes a piece, a run or a
+/// corner of kept steps it took ([`Reshaped::took`]) —
 /// [`Maintenance::Strand`] on its carrying node,
 /// [`Maintenance::StrandedAppearance`] on a store key, in that order.
 /// Nothing is rewritten: the name keeps its spelling and resolves
@@ -5903,9 +6580,9 @@ fn stranded_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
-    undrawn: &std::collections::BTreeSet<ProfileEdgeRef>,
+    reshaped: Option<&Reshaped>,
 ) -> Vec<Maintenance> {
-    if dropped.is_empty() && undrawn.is_empty() {
+    if dropped.is_empty() && reshaped.is_none() {
         return Vec::new();
     }
     let mut strands = Vec::new();
@@ -5915,14 +6592,15 @@ fn stranded_steps<P: crate::ProfilePayload>(
         if matches!(carrier, NameCarrier::Select { var, .. } if goes.contains(&var)) {
             continue;
         }
-        let pieces = carrier.name().step_pieces();
-        let took = if pieces
+        let took = if carrier
+            .name()
+            .step_pieces()
             .iter()
             .any(|p| p.step().is_some_and(|s| dropped.contains(&s)))
         {
             Took::Step
-        } else if pieces.iter().any(|p| undrawn.contains(p)) {
-            Took::Piece
+        } else if let Some(took) = reshaped.and_then(|r| r.took(carrier.name())) {
+            took
         } else {
             continue;
         };
@@ -6063,9 +6741,12 @@ pub struct Applied<P> {
 ///   repairs exactly this), strands nothing.
 /// - A [`Maintenance::StrandedAppearance`] survives when the store
 ///   still holds its key.
-/// - A strand of a piece a kept step stopped drawing ([`Took::Piece`])
-///   survives only while the end document's structure still cannot draw
-///   it: a later reshaping that draws it again takes the strand back.
+/// - A strand of what a reshaping took from kept steps
+///   ([`Took::Piece`], [`Took::Run`], [`Took::Corner`]) survives only
+///   where the start document's structure draws what the name denotes
+///   and the end document's does not: a later reshaping that draws it
+///   again takes the strand back, and a name that denoted something
+///   only between two edits of the action strands nothing.
 /// - A [`Maintenance::StrandedRead`] survives when its reader is live at
 ///   the end and its operand still reads the removed output: a later
 ///   edit that deleted the reader or re-pointed the operand took it
@@ -6091,16 +6772,27 @@ impl MaintenanceNet {
         self.rows.extend(edit.maintenance.iter().cloned());
     }
 
-    /// The rows that survive, against `end` — the document the last
-    /// pushed edit produced.
-    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+    /// Fold in a row the action reports itself, beside its edits' own.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.rows.push(row);
+    }
+
+    /// The rows that survive, against `start` — the document the first
+    /// pushed edit was applied to — and `end`, the one the last
+    /// produced.
+    pub fn finish<P: crate::ProfilePayload>(
+        self,
+        start: &Doc<P>,
+        end: &Doc<P>,
+    ) -> Vec<Maintenance> {
         self.rows
             .into_iter()
             .filter(|row| match row {
                 Maintenance::Strand { took, name, .. }
                 | Maintenance::StrandedSelection { took, name, .. }
                 | Maintenance::StrandedAppearance { took, name, .. }
-                    if *took == Took::Piece && drawable_again(end, name.name()) =>
+                    if matches!(took, Took::Piece | Took::Run | Took::Corner)
+                        && (drawn(end, name.name()) || !drawn(start, name.name())) =>
                 {
                     false
                 }
@@ -6125,33 +6817,37 @@ impl MaintenanceNet {
                 Maintenance::ProductOutsideWorld { read, .. } => {
                     end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
                 }
-                Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
+                Maintenance::ValueDropped { .. }
+                | Maintenance::AnonymousVarRemoved { .. }
+                | Maintenance::YieldRemoved { .. } => true,
             })
             .collect()
     }
 }
 
-/// **Whether every kept-step piece `name` spells is one `end`'s
-/// structure can draw again**: each piece's step is held by a profile
-/// of `end` whose program can draw it
-/// ([`crate::ProfilePayload::drawable_pieces`]). What a
-/// [`Took::Piece`] strand was about came back when this holds; no value
-/// is read, so a value that leaves the piece undrawn does not keep the
-/// strand.
-fn drawable_again<P: crate::ProfilePayload>(end: &Doc<P>, name: &StableName) -> bool {
-    let pieces = name.step_pieces();
-    !pieces.is_empty()
-        && pieces.iter().all(|piece| {
-            end.nodes.values().any(|node| {
+/// **Whether `doc`'s structure draws everything `name` denotes of a
+/// profile** ([`StableName::referents`]): each referent's steps are
+/// held by a profile of `doc` whose partition holds it
+/// ([`crate::ProfilePayload::partition`]). No value is read, so a value
+/// that leaves a piece undrawn neither keeps a strand nor takes one
+/// back.
+fn drawn<P: crate::ProfilePayload>(doc: &Doc<P>, name: &StableName) -> bool {
+    let referents = name.referents();
+    !referents.is_empty()
+        && referents.iter().all(|referent| {
+            doc.nodes.values().any(|node| {
                 let Node::Profile(program) = node else {
                     return false;
                 };
-                program
-                    .step_ids()
-                    .is_some_and(|ids| ids.iter().flatten().any(|id| Some(*id) == piece.step()))
+                let holds = |piece: &ProfileEdgeRef| {
+                    program
+                        .step_ids()
+                        .is_some_and(|ids| ids.iter().flatten().any(|id| Some(*id) == piece.step()))
+                };
+                referent.pieces().iter().all(holds)
                     && program
-                        .drawable_pieces()
-                        .is_ok_and(|drawable| drawable.contains(piece))
+                        .partition()
+                        .is_ok_and(|partition| partition.denotes(referent))
             })
         })
 }
@@ -6317,6 +7013,13 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         refusal
     }
 
+    /// **A row the action reports itself** (a refactoring's carry that
+    /// keeps no yield for a variable it carried, say), kept with its
+    /// edits' rows.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.maintenance.report(row);
+    }
+
     fn take(&mut self, edit: DocEdit<P>, applied: Applied<P>) -> Option<RecipeNodeId> {
         self.maintenance.push(&applied);
         self.edits.push(edit);
@@ -6369,7 +7072,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         }
         // A variable the action minted and removed again was never the
         // document's: its removal is no maintenance of the action's.
-        let mut maintenance = self.maintenance.finish(&doc);
+        let mut maintenance = self.maintenance.finish(self.start, &doc);
         maintenance.retain(|row| match row {
             Maintenance::AnonymousVarRemoved { var, .. } => self.start.var(var.id()).is_some(),
             _ => true,
@@ -7321,126 +8024,7 @@ pub struct Measured {
     pub outputs: Vec<VarId>,
 }
 
-/// **What "sketch on this face" inserted** ([`fn@sketch_on_face`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SketchedOnFace {
-    /// The profile, drawn on its own plane.
-    pub profile: RecipeNodeId,
-    /// The construction: the profile extruded up its own `z`.
-    pub extrude: RecipeNodeId,
-    /// The construction's copy, placed on the face.
-    pub placement: RecipeNodeId,
-    /// The face's body and the copy, fused.
-    pub union: RecipeNodeId,
-}
-
 impl Recording<'_, crate::ProfileProgram> {
-    /// **"Sketch on this face"** (D10; `REFERENCES.md` DM1): `profile`
-    /// drawn on its own plane and extruded `distance` up its own `z`,
-    /// the extrude's copy placed against `face` of `body` — a `Plane`
-    /// mate from its start cap, flipped to look up its own `z`, to the
-    /// face's plane, with the copy's origin over the face body's own
-    /// (the two slides the plane leaves the constant `0`) and turned
-    /// `spin` about the face's normal — and the face's body and the copy
-    /// fused. `orient` is the mate's orientation: where the profile's
-    /// axes lie among the target space's. `None` is the one nearest
-    /// where the copy stands, the profile's `z` along the face's outward
-    /// normal ([`crate::Orientation::toward`]), read off the face under
-    /// `opts`; a face that does not read takes the identity, which the
-    /// solve then judges. The profile's `z` lies along the target axis
-    /// the orientation puts it on, so the plane fixes that slide and the
-    /// bundle writes the other two; an `orient` putting `z` opposite the
-    /// face's normal refuses [`crate::MateFault::Backwards`], naming the
-    /// orientation to write.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::apply`]'s: the first door that refuses ends the action.
-    #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
-    pub fn sketch_on_face(
-        &mut self,
-        body: crate::BodyRead<Formula>,
-        face: crate::StableName,
-        profile: crate::ProfileProgram<Formula>,
-        distance: Formula,
-        spin: Formula,
-        orient: Option<crate::Orientation>,
-        opts: &crate::EvalOptions,
-        cancel: &crate::CancelToken,
-    ) -> Result<SketchedOnFace, EditError> {
-        use crate::pose::{PoseDef, RoleRead};
-        let orient = orient.unwrap_or_else(|| {
-            nearest_to_face(self.doc(), &self.evaluated(opts, cancel), &body, &face)
-                .unwrap_or(crate::Orientation::IDENTITY)
-        });
-        let whole = body.read.clone();
-        let profile = self.insert(Node::Profile(profile))?;
-        let extrude = self.insert(Node::Extrude {
-            profile: profile.into(),
-            distance,
-        })?;
-        let cap = crate::StableName {
-            kind: crate::EntityKind::Face,
-            node: extrude,
-            path: vec![crate::RoleSeg::Cap(crate::CapEnd::Start)],
-        };
-        let plane = |of: crate::BodyRead<Formula>, name: crate::StableName| {
-            crate::Operand::Pose(Box::new(PoseDef::Plane {
-                face: crate::Operand::select(of, vec![name]),
-            }))
-        };
-        let on = crate::Operand::Pose(Box::new(PoseDef::Flip {
-            pose: RoleRead::plain(plane(crate::Operand::Node(extrude).into(), cap)),
-        }));
-        // The copy joins the face's body's space, where the mate reads
-        // the face; a body that does not resolve leaves the world,
-        // which the union below refuses in the read's own words.
-        let target = self
-            .doc()
-            .operand_space(&whole)
-            .map_or(crate::Operand::Var(VarId::WORLD), crate::Operand::Var);
-        let placed = crate::mate::pin::Placed {
-            mates: vec![crate::Mate {
-                on,
-                to: plane(body, face),
-                orient,
-            }],
-            values: crate::mate::face_chart_slides(orient)
-                .into_iter()
-                .map(|axis| {
-                    (
-                        crate::Coord::slide(axis),
-                        Formula::zero(crate::expr::Dimension::Length),
-                    )
-                })
-                .chain([(crate::Coord::SPIN, spin)])
-                .collect(),
-        };
-        let placement = self.insert(Node::place(
-            crate::BodyRead::plain(crate::Operand::Output {
-                node: extrude,
-                port: 0,
-            }),
-            target,
-            placed.bundle(),
-        ))?;
-        let union = self.insert(Node::Union {
-            members: crate::Bodies::Spelled(vec![
-                crate::BodyRead::plain(whole),
-                crate::BodyRead::plain(crate::Operand::Output {
-                    node: placement,
-                    port: 0,
-                }),
-            ]),
-        })?;
-        Ok(SketchedOnFace {
-            profile,
-            extrude,
-            placement,
-            union,
-        })
-    }
-
     /// **A profile drawn on a face** (D10 `[placement]`;
     /// `REFERENCES.md` DM1): `loops` drawn on the face's chart, the frame
     /// a plane placement onto `face` of `body` gives under `on`'s
@@ -7643,13 +8227,20 @@ pub enum FaceUnread {
     Face(crate::InterrogateError),
 }
 
-impl core::fmt::Display for FaceUnread {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for FaceUnread {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::NoBody => f.write_str("the face is read through no node of the document"),
             Self::NoMember => f.write_str("the family has no such face at the member read"),
-            Self::Face(e) => write!(f, "{e}"),
+            Self::Face(e) => say!(f, Said(&e, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for FaceUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -7692,55 +8283,6 @@ pub fn nearest_to_face(
     let pose = crate::names::interrogate::face_frame(ev, at, face).map_err(FaceUnread::Face)?;
     let outward = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
     Ok(crate::Orientation::IDENTITY.toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward))
-}
-
-/// [`fn@sketch_on_face`]'s outcome: the action applied, and what it
-/// inserted.
-#[derive(Debug)]
-pub struct SketchOutcome {
-    /// The document the action produced.
-    pub doc: Doc<crate::ProfileProgram>,
-    /// The edits that produce `doc` from the start.
-    pub edits: Vec<DocEdit<crate::ProfileProgram>>,
-    /// The maintenance they reported.
-    pub maintenance: Vec<Maintenance>,
-    /// What the gesture inserted.
-    pub sketched: SketchedOnFace,
-}
-
-/// **"Sketch on this face", as one action** ([`Recording::sketch_on_face`]).
-///
-/// # Errors
-///
-/// The first door's refusal; the document is untouched.
-#[allow(clippy::too_many_arguments)] // the gesture and its document
-pub fn sketch_on_face(
-    doc: &Doc<crate::ProfileProgram>,
-    body: crate::BodyRead<Formula>,
-    face: crate::StableName,
-    profile: crate::ProfileProgram<Formula>,
-    distance: Formula,
-    spin: Formula,
-    orient: Option<crate::Orientation>,
-    opts: &crate::EvalOptions,
-    cancel: &crate::CancelToken,
-    tol: Tol,
-) -> Result<SketchOutcome, EditError> {
-    let mut action = Recording::start(doc, tol);
-    let sketched =
-        action.sketch_on_face(body, face, profile, distance, spin, orient, opts, cancel)?;
-    let Recorded {
-        doc,
-        edits,
-        maintenance,
-        ..
-    } = action.finish()?;
-    Ok(SketchOutcome {
-        doc,
-        edits,
-        maintenance,
-        sketched,
-    })
 }
 
 /// **Where a profile drawn on a face stands on it**
@@ -8052,6 +8594,37 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
+    // D10 `[repetition]`, on EVERY arm: a yield goes with its variable,
+    // and the edit reports it (`Maintenance::YieldRemoved`).
+    let gone: Vec<(VarId, crate::Index)> = new
+        .vars
+        .iter()
+        .filter_map(|(&id, var)| {
+            let index = var.def().index()?;
+            let crate::IndexSeat::Binder { yields } = &index.seat else {
+                return None;
+            };
+            yields
+                .iter()
+                .any(|y| !new.vars.contains_key(y))
+                .then(|| (id, index.clone()))
+        })
+        .collect();
+    for (id, mut index) in gone {
+        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+            for &y in yields.iter().filter(|y| !new.vars.contains_key(y)) {
+                reported.push(Maintenance::YieldRemoved {
+                    binder: doc.spoken_var(id),
+                    var: doc.spoken_var(y),
+                });
+            }
+            yields.retain(|y| new.vars.contains_key(y));
+        }
+        new.vars
+            .insert(id, Var::written(crate::WrittenDef::Index(index)));
+    }
+    // D10 `[repetition]`, on EVERY arm: the yield rules' one home.
+    yields_door(doc, &new)?;
     // D10 `[placement.spaces]`, on EVERY arm: the node an edit
     // re-points (`held`) is refused reading two spaces, as one written
     // whole is at its own door; any other node an edit left reading two
@@ -8083,20 +8656,45 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             });
         }
     }
-    // D10 `[repetition]`, on EVERY arm: two indices meet in one reader
-    // only when one is within the other. An edit that leaves a reader of
-    // two unrelated indices refuses, naming the first in id order that
-    // the document before did not hold.
+    // D10 `[repetition]`, on EVERY arm: a reader repeats inside one
+    // binder. An edit that leaves a reader of two binders' indices
+    // refuses, naming the first in id order that the document before did
+    // not hold.
     if let Some((node, a, b)) = new
         .indices_faults()
         .into_iter()
         .find(|fault| !doc.indices_faults().contains(fault))
     {
-        return Err(EditError::IndicesUnrelated {
+        return Err(EditError::TwoBinders {
             node: spoken_before_else_after(doc, &new, node),
             a: Box::new(new.spoken_var(a)),
             b: Box::new(new.spoken_var(b)),
         });
+    }
+    // D10 `[repetition]`, on EVERY arm: a yield is a family to every
+    // reader, so an edit that leaves one read at a seat for one body, or
+    // a member read of a variable no binder yields, refuses by kind,
+    // naming the first the document before did not hold.
+    let family_faults = new.family_read_faults();
+    if !family_faults.is_empty() {
+        let before = doc.family_read_faults();
+        if let Some(crate::repetition::FamilyReadFault::Seat {
+            node,
+            slot,
+            var,
+            found,
+        }) = family_faults.into_iter().find(|f| !before.contains(f))
+        {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(new.spoken_var(var)),
+                node: spoken_before_else_after(doc, &new, node),
+                slot: SlotId::Operand(slot),
+                found,
+                expected: new
+                    .node(node)
+                    .map_or_else(|| slot.kind(), |held| held.seat_kind(slot)),
+            });
+        }
     }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
@@ -8425,15 +9023,14 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
     }
     let left: Vec<&crate::mate::Constraint> =
         bundle.iter().filter(|c| !removed.contains(&c.id)).collect();
-    let kind = |var: VarId| new.var(var).map(crate::Var::kind);
     let mut families: Vec<crate::SubgroupFamily> = left
         .iter()
         .filter_map(|c| c.mate())
-        .filter_map(|m| kind(m.on).and_then(crate::VarKind::symmetry))
+        .filter_map(|m| crate::mate::side_kind(new, m.on).and_then(crate::VarKind::symmetry))
         .collect();
     if let Some(mate) = &added
         && let Some(family) =
-            crate::mate::pin::operand_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
+            crate::mate::pin::side_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
     {
         families.push(family);
     }
@@ -8442,8 +9039,8 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
         c.mate().map(|m| Constraint {
             id: c.id,
             kind: ConstraintKind::Mate(Mate {
-                on: crate::Operand::Var(m.on),
-                to: crate::Operand::Var(m.to),
+                on: m.on.map(|&v| crate::Operand::Var(v)),
+                to: m.to.map(|&v| crate::Operand::Var(v)),
                 orient: m.orient,
             }),
         })
@@ -8532,12 +9129,7 @@ fn removed((ids, _): (Vec<crate::node::ConstraintId>, Vec<VarId>)) -> EditRecord
 /// A placement's bundle, writable; `None` for a node that is no
 /// placement.
 fn bundle_of_mut<P>(node: &mut Node<P>) -> Option<&mut Vec<crate::mate::Constraint>> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
-        _ => None,
-    }
+    node.bundle_mut()
 }
 
 /// **The door of every edit that writes a bundle**
@@ -8569,24 +9161,21 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
         }
     }
     // The constraints lowered as a bundle of their own: their reads at
-    // their seats, under the ids as written, which the mint replaces.
-    // The carrier copies the placement's own copy, a body read that
-    // lowers wherever the placement stands.
-    let copy = new
-        .output(placement, 0)
-        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
-    let carrier: Node<P::Authored, Formula> = Node::Place {
-        source: crate::BodyRead::plain(crate::Operand::Var(copy)),
+    // their seats, under the ids as written, which the mint replaces. The
+    // carrier is the placement that reads nothing but its bundle (a
+    // datum in the world), so it lowers whatever the placement places;
+    // the written node is checked whole below.
+    let carrier: Node<P::Authored, Formula> = Node::Datum {
         target: crate::Operand::Var(VarId::WORLD),
         constraints,
     };
     let lowering = Lowering::start(new, fresh)?;
     let lowered = lower_node(new, &lowering, &carrier, || doc.spoken(placement))?;
-    let Node::Place {
+    let Node::Datum {
         mut constraints, ..
     } = lowered
     else {
-        unreachable!("a placement lowers to a placement")
+        unreachable!("a datum lowers to a datum")
     };
     // A whole rewrite keeps the id of a constraint it writes again.
     let held: Vec<crate::node::ConstraintId> = if replace {
@@ -8642,7 +9231,10 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
         .get(&placement)
         .and_then(crate::mate::solve::bundle_of)
     else {
-        unreachable!("the edit wrote {} into the document", new.spoken(placement))
+        unreachable!(
+            "the edit wrote {} into the document",
+            crate::sentence!(crate::Speaker::of(new).node(placement))
+        )
     };
     let Some(added) = bundle.iter().find(|c| c.id == constraint) else {
         unreachable!("the edit wrote constraint {constraint} into the bundle")
@@ -8702,6 +9294,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = || doc.spoken(*node);
+            // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
+            let spliced = |slot: crate::OperandSlot| match (members, slot) {
+                (
+                    crate::Bodies::Spelled(entries),
+                    crate::OperandSlot::Member(i) | crate::OperandSlot::Cut(i),
+                ) => entries.get(i).is_some_and(crate::Spell::is_splice),
+                _ => false,
+            };
             let lower =
                 |new: &mut Doc<P>, slot: crate::OperandSlot, member: &crate::BodyRead<Formula>| {
                     lower_operand(
@@ -8709,17 +9309,27 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         &spoken,
                         SlotId::Operand(slot),
                         &member.read,
-                        member.kind(slot),
+                        if spliced(slot) {
+                            crate::SlotKind::Is(VarKind::Bodies)
+                        } else {
+                            member.kind(slot)
+                        },
                     )
                 };
             let mut rewritten = current.clone();
+            let seats = match &rewritten {
+                Node::Subtract { .. } => crate::operand::Seats::CUTS,
+                _ => crate::operand::Seats::MEMBERS,
+            };
             match &mut rewritten {
                 Node::Union { members: list, .. }
                 | Node::Intersect { members: list, .. }
-                | Node::Assemble { members: list, .. } => {
-                    let reads = members.try_map(|slot, member| lower(new, slot, member))?;
+                | Node::Assemble { members: list, .. }
+                | Node::Subtract { tool: list, .. } => {
+                    let reads =
+                        members.try_map_in(seats, |slot, member| lower(new, slot, member))?;
                     let mut indices = Vec::new();
-                    for (seat, member) in members.rows() {
+                    for (seat, member) in members.rows_in(seats) {
                         let mut at = Vec::new();
                         for (k, formula) in member.rows() {
                             at.push(lower_index(
@@ -8753,6 +9363,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .enumerate()
                         .map(|(i, section)| {
                             let slot = crate::OperandSlot::Section(i);
+                            let section = section.read();
                             if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),
@@ -8893,11 +9504,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
-            let undrawn = undrawn_kept_pieces(doc, *node, payload, rewritten, &dropped)?;
+            let reshaped = reshaped(doc, *node, payload, rewritten, &dropped)?;
             new.nodes.insert(*node, probe);
             new.mint = mint;
             let fresh = lowering.finish(new)?;
-            *reported = stranded_steps(doc, new, &dropped, &undrawn);
+            *reported = stranded_steps(doc, new, &dropped, reshaped.as_ref());
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -9088,7 +9699,36 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
                 WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
+                    // A binder's first index declared after another index
+                    // joins that index's binder, which yields what it
+                    // yielded (D10 `[repetition]`).
+                    let carried: Vec<VarId> = match (doc.var(id).map(Var::def), &def) {
+                        (Some(VarDef::Index(held)), WrittenDef::Index(written))
+                            if written.after().is_some() =>
+                        {
+                            match &held.seat {
+                                crate::IndexSeat::Binder { yields } => yields.clone(),
+                                crate::IndexSeat::After(_) => Vec::new(),
+                            }
+                        }
+                        _ => Vec::new(),
+                    };
                     new.vars.insert(id, Var::written(def));
+                    if !carried.is_empty()
+                        && let Some(binder) = new.binder_of(id)
+                        && let Some(VarDef::Index(index)) = new.var(binder).map(Var::def)
+                    {
+                        let mut index = index.clone();
+                        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+                            for y in carried {
+                                if !yields.contains(&y) {
+                                    yields.push(y);
+                                }
+                            }
+                        }
+                        new.vars
+                            .insert(binder, Var::written(WrittenDef::Index(index)));
+                    }
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,
@@ -9591,6 +10231,54 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
+        DocEdit::SetYields { binder, yields } => {
+            let unknown = |var: &VarRef| EditError::UnknownVar {
+                var: var.clone(),
+                door: CarryForwardDoor::Yields,
+            };
+            let Some(first) = doc.resolve_var(binder) else {
+                return Err(unknown(binder));
+            };
+            let refused = |fault| EditError::Yields {
+                binder: doc.spoken_var(first),
+                fault,
+            };
+            let Some(index) = doc
+                .var(first)
+                .and_then(|held| held.def().index())
+                .filter(|index| index.after().is_none())
+            else {
+                return Err(refused(YieldsFault::NotABinder));
+            };
+            let mut written = Vec::with_capacity(yields.len());
+            for read in yields {
+                let Some(var) = doc.resolve_var(read) else {
+                    return Err(unknown(read));
+                };
+                written.push(var);
+            }
+            // The yield rules' one home (`Doc::yield_rule`), which every
+            // arm and load ask too ([`yields_door`]).
+            if let Some(rule) =
+                doc.yield_rule(first, &written, &mut crate::repetition::Reach::own(doc))
+            {
+                return Err(refused(yields_fault(doc, rule)));
+            }
+            let index = crate::Index {
+                count: index.count.clone(),
+                seat: crate::IndexSeat::Binder { yields: written },
+            };
+            new.vars
+                .insert(first, Var::written(crate::WrittenDef::Index(index)));
+            EditRecord {
+                minted: None,
+                minted_constraints: Vec::new(),
+                minted_var: None,
+                structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
+            }
+        }
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {
@@ -9950,8 +10638,8 @@ mod tests {
             }))
         };
         let mate = crate::mate::Mate {
-            on: plane(crate::node::RecipeNodeId::new(0, 3)),
-            to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            on: plane(crate::node::RecipeNodeId::new(0, 3)).into(),
+            to: plane(crate::node::RecipeNodeId::new(0, 2)).into(),
             orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
@@ -10046,17 +10734,18 @@ mod tests {
 /// door's seat, the product slot's read, the load door's variable.
 pub(crate) struct PicksNoPiece<S>(pub(crate) S, pub(crate) Option<usize>);
 
-impl<S: core::fmt::Display> core::fmt::Display for PicksNoPiece<S> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} picks no piece: ", self.0)?;
-        match self.1 {
+impl<S: crate::Put> crate::Put for PicksNoPiece<S> {
+    fn put(self, f: &mut Sentence) {
+        crate::Put::put(self.0, f);
+        let _ = f.write_str(" picks no piece: ");
+        let _ = match self.1 {
             Some(at) => write!(
                 f,
                 "step {} of its path names no one operand of the assemble the walk reaches",
                 at + 1
             ),
             None => f.write_str("it reads no placement's copy, or its path is empty"),
-        }
+        };
     }
 }
 
@@ -10080,6 +10769,10 @@ pub enum ProductReadFault {
     /// one; the product's gather does not, so the slot refuses it rather
     /// than gather the family whole.
     Member,
+    /// The body read reads an index, so it is one member at each value
+    /// of it, and a reader outside its binder reads only what the
+    /// binder yields (D10 `[repetition]`).
+    PerMember,
     /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
     /// rule).
     Path {
@@ -10089,8 +10782,8 @@ pub enum ProductReadFault {
     },
 }
 
-impl core::fmt::Display for ProductReadFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ProductReadFault {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Unresolved => f.write_str("it names no live variable"),
             Self::Kind { found } => write!(
@@ -10098,12 +10791,66 @@ impl core::fmt::Display for ProductReadFault {
                 "it reads {} {found}, not a body",
                 crate::sentence::article(&found.to_string())
             ),
-            Self::Space { space } => write!(f, "its body is in {space}, not the world"),
+            Self::Space { space } => {
+                say!(f, "its body is in ", Said(&space, by), ", not the world")
+            }
             Self::Member => f.write_str(
                 "it reads one member of a family, which the product's gather does not read",
             ),
-            Self::Path { at } => write!(f, "{}", PicksNoPiece("it", *at)),
+            Self::PerMember => f.write_str(
+                "it reads a body that reads an index, which is one member at each value; the \
+                 product reads a family its binder yields",
+            ),
+            Self::Path { at } => say!(f, PicksNoPiece("it", *at)),
         }
+    }
+}
+
+/// **A yield rule, in the door's words** ([`YieldsFault`]).
+fn yields_fault<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    rule: crate::repetition::YieldRule,
+) -> YieldsFault {
+    use crate::repetition::YieldRule as R;
+    let spoken = |var| Box::new(doc.spoken_var(var));
+    match rule {
+        R::Nothing => YieldsFault::Nothing,
+        // A yield the door resolved is live; one an edit removed went
+        // with its variable (`Maintenance::YieldRemoved`).
+        R::NotLive(var) | R::Outside(var) => YieldsFault::Outside { var: spoken(var) },
+        R::Index(var) => YieldsFault::Index { var: spoken(var) },
+        R::Twice(var) => YieldsFault::Twice { var: spoken(var) },
+        R::Elsewhere { var, binder } => YieldsFault::Elsewhere {
+            var: spoken(var),
+            binder: spoken(binder),
+        },
+    }
+}
+
+/// **The yield rules on every arm** (D10 `[repetition]`): an edit that
+/// leaves a binder breaking a rule it did not break before refuses
+/// ([`EditError::Yields`]) — a redefinition that leaves a yield reading
+/// none of its binder's indices, say. `doc` is the document the edit
+/// entered and `new` the one it would leave.
+fn yields_door<P: crate::ProfilePayload>(doc: &Doc<P>, new: &Doc<P>) -> Result<(), EditError> {
+    let before = doc.yield_faults();
+    match new
+        .yield_faults()
+        .into_iter()
+        .find(|fault| !before.contains(fault))
+    {
+        None => Ok(()),
+        Some((binder, rule)) => Err(EditError::Yields {
+            binder: new.spoken_var(binder),
+            fault: yields_fault(new, rule),
+        }),
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for ProductReadFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -10116,7 +10863,7 @@ impl core::fmt::Display for ProductReadFault {
 /// the read (it resolves to nothing, to another kind, or picks no
 /// piece); any other refusal (an index formula of a source written in
 /// place) is the lowering's own.
-fn product_read<P: crate::ProfilePayload>(
+fn product_read<P: Clone + crate::ProfilePayload>(
     doc: &mut Doc<P>,
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
@@ -10131,15 +10878,29 @@ fn product_read<P: crate::ProfilePayload>(
     ) {
         return Err(refused(ProductReadFault::Unresolved));
     }
-    let body = crate::SlotKind::Is(VarKind::Body);
-    let var = lower_read(
-        doc,
-        &|| SpokenNode::absent(RecipeNodeId::WORLD),
-        SlotId::Operand(crate::OperandSlot::Source),
-        read,
-        body,
-        Reader::of(body),
-    )
+    // The product reads one body, or a family a binder yields whole.
+    let lower = |doc: &mut Doc<P>, kind: VarKind| {
+        let body = crate::SlotKind::Is(kind);
+        lower_read(
+            doc,
+            &|| SpokenNode::absent(RecipeNodeId::WORLD),
+            SlotId::Operand(crate::OperandSlot::Source),
+            read,
+            body,
+            Reader::of(body),
+        )
+    };
+    let mut trial = doc.clone();
+    let var = match lower(&mut trial, VarKind::Body) {
+        Err(EditError::SlotVarKind {
+            found: VarKind::Bodies,
+            ..
+        }) => lower(doc, VarKind::Bodies),
+        written => {
+            *doc = trial;
+            written
+        }
+    }
     .map_err(|error| match error {
         EditError::UnresolvedInput { .. }
         | EditError::DefinesNothing { .. }
@@ -10159,17 +10920,26 @@ fn product_read<P: crate::ProfilePayload>(
 }
 
 /// **What is wrong with the slot reading `var`**: a live variable of
-/// another kind than `Body`, or a body outside the world. `None` for a
-/// slot that reads a body in the world, and for one whose variable or
-/// space is gone, which is a stranded reader
+/// another kind than `Body`, a body that reads an index and that no
+/// binder yields (one member at each value, read only inside its
+/// binder: D10 `[repetition]`'s containment), or a body outside the
+/// world. `None` for a slot that reads a body in the world, and for one
+/// whose variable or space is gone, which is a stranded reader
 /// ([`crate::ProductError::StrandedProduct`]).
-pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
+///
+/// The one home of the slot's rules: `SetProduct`'s door, every other
+/// arm (an edit that leaves the slot on a k-reader refuses) and load
+/// all ask it.
+pub(crate) fn product_fault<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     var: VarId,
 ) -> Option<ProductReadFault> {
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    if doc.yielding(var).is_none() && !doc.var_reach(var).is_none() {
+        return Some(ProductReadFault::PerMember);
     }
     if doc.through_sources(var).is_indexed() {
         return Some(ProductReadFault::Member);

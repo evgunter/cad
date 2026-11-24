@@ -26,7 +26,7 @@ use geom_core::Tol;
 /// candidates its box queries hand on before any choice turns: the
 /// slab's wall is still classified against `a`, but on a path the
 /// other run did not take, so no flip is recorded and the row
-/// diagnoses to the group-size rung. Engine-behavior tests
+/// diagnoses to the parting rung, naming the query. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
@@ -90,7 +90,7 @@ where
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), tr.into()]),
         },
     );
     let (doc, k, pat) = crate::fixture::row(doc, u, ("k", 2), editor_core::TargetAxis::Y, 5.0);
@@ -157,7 +157,7 @@ where
             var: editor_core::VarRef::Id(k),
             def: editor_core::VarDecl::Index {
                 count: editor_core::Formula::count(1),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },

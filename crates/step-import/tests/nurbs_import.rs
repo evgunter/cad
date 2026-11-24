@@ -5,8 +5,8 @@
 //! `SOLID_FIXTURES` at this unit); this suite carries the rows that
 //! are NURBS-specific:
 //!
-//! - the **surface_sig pin** at body level (spec item 2's trap): the
-//!   four distinct walls must land on four distinct surface keys;
+//! - the **distinct-records pin** at body level: the four distinct
+//!   walls must land on four distinct surface keys;
 //! - the **rational arm** (spec item 5, Arm B): a natively built
 //!   `arc_loft` (three walls non-rational, one RATIONAL) exports and
 //!   then REFUSES at import with exactly the tier-3 verdict its native
@@ -500,15 +500,14 @@ fn arc_loft_natively_computes_its_rational_volume() {
     }
 }
 
-/// **Spec §2 row 5 — the surface_sig pin at body level.** The
-/// committed loft_prism's four walls are four DISTINCT
-/// `B_SPLINE_SURFACE_WITH_KNOTS` records; with the caps that is 6
-/// distinct surface keys. The pre-M7-3 `surface_sig` Nurbs arm
-/// (`vec![5u64]`) would have collapsed all four walls onto ONE shared
-/// key (3 keys total) — a body that assembles, but with every wall
+/// **The distinct-records pin at body level.** The committed
+/// loft_prism's four walls are four DISTINCT
+/// `B_SPLINE_SURFACE_WITH_KNOTS` entities, so four records; with the
+/// caps that is 6 distinct surface keys. A reader that keyed records on
+/// anything coarser than the entity (a kind tag) would collapse the
+/// walls onto one key — a body that assembles, but with every wall
 /// claiming the same surface: the silent-wrong-body class this pin
-/// exists to keep dead. (The unit pin on `surface_sig` itself lives
-/// in `adopt.rs`'s test module.)
+/// exists to keep dead.
 #[test]
 fn loft_prism_walls_get_distinct_surface_keys() {
     let (body, _) = import_body("loft_prism");

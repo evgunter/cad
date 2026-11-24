@@ -299,6 +299,15 @@ pub(crate) fn push_committed(
         for polyline in &profile.loops {
             push_loop(lane, &profile.plane, polyline);
         }
+        // A datum's z axis stands off its plane, so it is no loop on it.
+        if profile.datum {
+            let frame = profile.plane.frame();
+            let origin = frame.origin();
+            lane.leg(
+                origin,
+                origin + frame.w().get() * (2.0 * sketch::DATUM_HALF),
+            );
+        }
     }
     committed.undrawn.len()
 }
@@ -615,14 +624,14 @@ mod composed {
         };
         // One tool is open at a time, so the placement editor's active
         // row's two held faces, the mirror's or the split's plane and
-        // the clearance tool's face seats share these two slots.
+        // the assertion tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
         let plane = tools
             .mirror()
-            .and_then(crate::combine::MirrorTool::plane)
+            .and_then(crate::combine::MirrorTool::face)
             .or_else(|| tools.split().and_then(crate::combine::SplitTool::face));
-        let [a, b] = match (mate, plane, tools.clearance()) {
+        let [a, b] = match (mate, plane, tools.assertion()) {
             (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(plane), _) => [Some(plane), None],
             (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
@@ -831,10 +840,10 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 /// the buttons a mouse can report, side buttons included.
 ///
 /// **A side button gets `None` because there is nothing for it to
-/// be.** [`input::InputMap`]'s four bindings are filled by the three
-/// main buttons; no preset, preferences key or API call can name a
-/// fifth; and the bindings follow mainstream CAD (`input`'s module
-/// docs), which has no side-button gesture. A variant for one would
+/// be.** [`input::InputMap::bindings`] names buttons from the three
+/// main ones; no preset, preferences key or API call can name a
+/// fourth; and the bindings follow mainstream CAD
+/// ([`input::InputMap::DEFAULT`]), which has no side-button gesture. A variant for one would
 /// be a word of the vocabulary that no sentence could use — and on
 /// the web backend these two are the browser's back and forward.
 /// Binding them is a product decision, and it arrives as a variant on
@@ -897,13 +906,11 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
 /// mentioned, because a part an adapter leaves out is
 /// indistinguishable downstream from a part nobody touched.
 ///
-/// **Two, because [`input::InputMap`] has two to bind**: `alt`, which
-/// turns [`input::InputMap::alt_orbit_button`]'s drag into an orbit
-/// (the trackpad binding), and `shift`, which turns the orbit binding
-/// into a pan. `ctrl`, `command` and `mac_cmd` are not gestures in
-/// this viewport — no binding field, preset or preferences key names
-/// one, and [`ViewportEvent::Drag`] carries a bare `shift` and a bare
-/// `alt` and nothing else, so a ctrl-drag is a plain drag at every
+/// **Two, because [`input::Held`] has two a binding can require**:
+/// `shift` and `alt`. `ctrl`, `command` and `mac_cmd` are not
+/// gestures in this viewport — no binding row, preset or preferences
+/// key names one, and [`ViewportEvent::Drag`] carries a bare `shift`
+/// and a bare `alt` and nothing else, so a ctrl-drag is a plain drag at every
 /// reader downstream. Binding one arrives the way a side button's
 /// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
 /// can carry it, a binding that can name it, and a pattern here that
@@ -1052,9 +1059,9 @@ pub(crate) fn configure_input(ctx: &egui::Context) {
 /// event at all, which every reader downstream cannot tell from a
 /// button nobody pressed.
 ///
-/// **Which click selects is [`input::InputMap::select_button`]'s to
-/// decide**, so a click of any bound button is produced and `pick`
-/// reads the binding. A click carries the cursor position, so one
+/// **Which click selects is [`input::InputMap::bindings`]' to
+/// decide**, so a click of any button of the vocabulary is produced
+/// and `pick` reads the table. A click carries the cursor position, so one
 /// with no position is not an event.
 ///
 /// Drags come before clicks: [`input::fold_events`] applies the camera
@@ -1604,7 +1611,10 @@ mod tests {
         // The end of that frame: the ranking weighs what the frame
         // said against a batch that did nothing, and the winner
         // becomes the line.
-        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        frame::apply(
+            &mut status,
+            frame::frame_status_untargeted(&notices, &[], None),
+        );
         let landed = status.clone().expect("the ranking put the refusal up");
         assert_eq!(
             landed.subject(),
@@ -2323,7 +2333,9 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by)
+                    .sentence()
+                    .to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -2360,7 +2372,7 @@ mod tests {
             said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
-        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
+        let texts: Vec<String> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
             texts,
             [format!(
@@ -2757,16 +2769,15 @@ mod tests {
         }
     }
 
-    /// **`select_button` decides which click selects, and the pane
-    /// produces the click it names.**
+    /// **The table decides which click selects, and the pane produces
+    /// the click it names.**
     ///
-    /// [`InputMap::select_button`] is a binding: any button of the
-    /// vocabulary may hold it, and `InputMap::pick` reads the field
-    /// rather than a fixed button. `InputMap` is `pub` with `pub`
-    /// fields and re-exported from the crate root, so an embedder can
-    /// already write `select_button: Middle` — and before this unit
-    /// that setting selected nothing, silently, because the pane
-    /// produced a click for `Primary` only.
+    /// [`input::Binding::Click`] may name any button of the
+    /// vocabulary, and `InputMap::pick` reads the table rather than a
+    /// fixed button. `InputMap` is `pub` with `pub` fields and
+    /// re-exported from the crate root, so an embedder can bind the
+    /// middle click — which selects only if the pane produces a click
+    /// for every button, not for `Primary` alone.
     ///
     /// **The bound buttons are DERIVED, not listed.** Filtering
     /// [`egui_buttons`] through [`viewer_button`] is every button the
@@ -2784,7 +2795,9 @@ mod tests {
                 continue;
             };
             let map = InputMap {
-                select_button,
+                bindings: Box::leak(Box::new([input::Binding::Click {
+                    button: select_button,
+                }])),
                 ..InputMap::DEFAULT
             };
             assert_eq!(
@@ -4113,15 +4126,15 @@ mod tests {
     /// answering the session, the violated requirement, and the index
     /// the picture is drawn from.
     fn violated_clearance(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId, PickIndex) {
-        use crate::session::ClearedSeat;
+        use crate::session::AssertedSeat;
         use crate::test_support::len;
         use pncad::document::ClearanceBounds;
         let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        let added = session.perform(SessionOp::AddClearance {
-            a: ClearedSeat::Body(blocks[0].into()),
-            b: ClearedSeat::Body(blocks[1].into()),
-            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        let added = session.perform(SessionOp::AddAssertion {
+            a: AssertedSeat::Body(blocks[0].into()),
+            b: AssertedSeat::Body(blocks[1].into()),
+            claim: crate::session::AssertedClaim::Clearance(ClearanceBounds::AtLeast(len(0.02))),
         });
         assert!(added.refusal.is_none(), "{:?}", added.refusal);
         let violated = added.made.expect("the requirement is a node");

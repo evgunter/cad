@@ -758,7 +758,7 @@ pub(super) fn cone_coefficient_excess(
         conic,
         geom::Line {
             origin: apex,
-            dir: axis,
+            dir: geom::stated_direction(axis),
         },
         half_angle,
     );
@@ -1120,6 +1120,13 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     s.range(b.zero(), b.escalate()) / (h.abs() * alpha.tan())
                 };
+                // The section circle is read off the plane's cut of one
+                // nappe, an ellipse only while the plane's tilt stays
+                // under the generators' `π/2 − α` from it; at a half-angle
+                // near `π/2` the scaled tilt can pass that and cut a
+                // hyperbola, which has no mean semi-axis. Capped at nine
+                // tenths of it, so the cut is always an ellipse.
+                let tau = tau.min(0.9 * (core::f64::consts::FRAC_PI_2 - alpha));
                 (
                     surface.clone(),
                     cone_section_circle(&surface, alpha, h, tau),
@@ -1203,23 +1210,23 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     off(&mut s)
                 } * sign(&mut s);
-                let carrier = Curve3::line(world(&surface, g * (h / ca)), world_dir(&surface, g));
+                // `world_dir` is a difference of two placed points, unit
+                // only to their rounding: squared, not stated.
+                let carrier = Curve3::line(
+                    world(&surface, g * (h / ca)),
+                    geom_core::UnitVec3::squared(world_dir(&surface, g)),
+                );
                 (surface, carrier)
             }
         };
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: carrier_frame_35,
-                    ..
-                },
-            ) => {
+            Curve3::Circle(conic_k) => {
                 let (center, n, x) = (
-                    carrier_frame_35.origin(),
-                    carrier_frame_35.axis(),
-                    carrier_frame_35.u_ref(),
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
                 );
                 let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
@@ -1363,7 +1370,7 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     let normal = Vec3::new(ca * phi.cos(), ca * phi.sin(), -sa);
     let line = Curve3::line(
         world(&apex, g * (in_band() / ca) + normal * (0.13 * zero())),
-        world_dir(&apex, g),
+        geom::stated_direction(world_dir(&apex, g)),
     );
     let span = (0.0009067415940370447, 2.4187216369829954);
     let image = chart_pcurve_over(&line, span.0, span.1, &apex, band())
@@ -1409,11 +1416,13 @@ fn a_lane_choices_envelope_refusal_ends_not_yet() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
+    // The chord from `q0` to `q1`, its span in metres.
+    let (chord, chord_len) = geom::Line::chord(world(&wall, q0), world(&wall, q1));
+    let chord = Curve3::Line(chord);
     for (scalar, got) in
         ["f64", "Interval"]
             .into_iter()
-            .zip(minted_and_certified(&chord, (0.0, 1.0), &wall))
+            .zip(minted_and_certified(&chord, (0.0, chord_len), &wall))
     {
         assert!(
             got.as_ref().err().is_some_and(|e| {
@@ -1447,8 +1456,10 @@ fn a_stored_rows_envelope_refusal_keeps_its_term() {
     let a = (1.0 - 0.6 * zero()).acos();
     let (sa, ca) = a.sin_cos();
     let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
-    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
-    let span = (0.0, 1.0);
+    // The chord from `q0` to `q1`, its span in metres.
+    let (chord, chord_len) = geom::Line::chord(world(&wall, q0), world(&wall, q1));
+    let chord = Curve3::Line(chord);
+    let span = (0.0, chord_len);
     for (scalar, got) in ["f64", "Interval"]
         .into_iter()
         .zip(minted_and_certified(&chord, span, &wall))
@@ -1512,21 +1523,19 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_34,
-                ..
-            },
-        ) => {
+        Curve3::Circle(conic_k) => {
             let (centre, n, x) = (
-                carrier_frame_34.origin(),
-                carrier_frame_34.axis(),
-                carrier_frame_34.u_ref(),
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
             );
             let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))
         }
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(o + turn(origin - o), turn(dir)),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(
+            o + turn(origin - o),
+            geom::stated_direction(turn(dir.get())),
+        ),
         _ => unreachable!("the rows' carriers are circles and lines"),
     }
 }
@@ -1548,7 +1557,10 @@ fn a_foreign_stored_row_never_ends_not_yet() {
     let cone = cone(1.1);
     let (sa, ca) = 1.1_f64.sin_cos();
     let g = Vec3::new(sa * 0.7_f64.cos(), sa * 0.7_f64.sin(), ca);
-    let ruling = Curve3::line(world(&cone, g * (in_band() / ca)), world_dir(&cone, g));
+    let ruling = Curve3::line(
+        world(&cone, g * (in_band() / ca)),
+        geom::stated_direction(world_dir(&cone, g)),
+    );
     let tau = cone_tilt_for(&cone, 1.1, 2.0, 0.4 * zero());
     let rows = [
         (
@@ -1681,7 +1693,7 @@ fn torus_coefficients_excess(
         conic,
         geom::Line {
             origin: at,
-            dir: axis,
+            dir: geom::stated_direction(axis),
         },
         big,
         small,
@@ -2028,7 +2040,7 @@ pub(super) fn other_charts_within(
                 conic,
                 geom::Line {
                     origin: at,
-                    dir: axis,
+                    dir: geom::stated_direction(axis),
                 },
                 r,
             )

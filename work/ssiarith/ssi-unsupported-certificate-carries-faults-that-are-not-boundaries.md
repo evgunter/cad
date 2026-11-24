@@ -46,3 +46,16 @@ boundaries should keep `UnsupportedCertificate` and its not-yet ending.
 This is a type change, so it stayed out of the endings PR.
 
 - 2026-11-02 — moved from SSIMARCH to SSIARITH by `git mv` when SSIMARCH merged into SSIARITH, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SSIMARCH had fallen far under it).
+
+
+## 2026-11-21 — `analytic_limbs`' two strings went (SECTCONE)
+
+`sectcone/one-limb-two-reader` moved `analytic_limbs`' limb 2 onto the
+edge certificate's reader. Its two kernel-data strings above are gone;
+its refusals are now the reader's, mapped by `ssi::certify`'s
+`offset_refusal`: an escalation to `CertificateEscalated` on
+`HullSup`, a carrier with no net to `CarrierEnclosure`, a lever's
+sector refusal to `UnsupportedCertificate` naming the channel, and
+every other one, the composite's own refusals of the kernel's data
+included, to one `UnsupportedCertificate` string. The last is still
+this row's class. The cone and torus raise sites are gone: both read.

@@ -417,13 +417,13 @@ fn the_traced_wall_reads_the_radius_atom_at_sym() {
             vertices(&ev, node)
                 .into_iter()
                 .map(|p| p[axis])
-                .max_by(|a, b| a.value.hi().total_cmp(&b.value.hi()))
+                .max_by(|a, b| a.value().hi().total_cmp(&b.value().hi()))
                 .expect("vertices")
         };
         let wall = highest(scene.boss, 1);
         let rim = highest(scene.cylinder, 0);
         (
-            wall.value,
+            wall.value(),
             geom_core::sym::report::render_of(wall.node()).expect("the wall's form"),
             geom_core::sym::report::render_of(rim.node()).expect("the rim's form"),
         )
@@ -608,7 +608,7 @@ fn the_union_records_the_constructed_tangency_proven_by_its_heading() {
     let (doc, union) = fixture::insert(
         scene.doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![scene.cylinder.into(), scene.boss.into()]),
+            members: editor_core::Bodies::spelled(vec![scene.cylinder.into(), scene.boss.into()]),
         },
     );
     let ev = eval(&doc);
@@ -786,7 +786,7 @@ fn a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim() {
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::output(sphere, 0).into(),
                 Operand::output(cone, 0).into(),
             ]),
@@ -1324,6 +1324,47 @@ fn an_arc_about_a_centre_runs_onto_the_trace() {
         .expect("vertices");
     near(corner[0], 0.125, "the arc's end x");
     near(corner[1], (0.25_f64 - 1.0 / 64.0).sqrt(), "the arc's end y");
+}
+
+/// **An arc whose pen stands on its centre refuses at the frame it
+/// cannot name**: about `(2, 0)` from `(2, 0)` it has no radius, so its
+/// seam names no direction, and the trace refuses typed at the arc's step
+/// ([`topo::boolean::trace::TraceFault::Frame`], the seam's axis `V`), in
+/// one sentence and one recourse, where an undecided square used to read
+/// a frame of poison.
+#[test]
+fn an_arc_from_its_own_centre_refuses_at_its_frame() {
+    use topo::boolean::trace::TraceFault;
+    let (doc, cylinder) = cylinder(RADIUS, None);
+    let ev = eval(&doc);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let steps = vec![
+        ProgramStep::At(len2([2.0, 0.0])),
+        ProgramStep::ArcTo(editor_core::ProgramArcData::Center {
+            c: len2([2.0, 0.0]),
+            winding: profile::ArcSweep::Ccw,
+            target: ProgramTarget::OnTrace {
+                face: 0,
+                crossing: TraceCrossing::first(TracePassage::Enter),
+            },
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ];
+    let (doc, profile) = drawn_on(doc, cylinder, &editor_core::Frame::IDENTITY, wall, steps);
+    let refusal = trace_refusal(&eval(&doc), profile);
+    assert!(
+        matches!(
+            &refusal.fault,
+            TraceStepFault::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                ..
+            }))
+        ),
+        "{refusal}"
+    );
+    let said = refusal.fault.to_string();
+    assert_eq!(said.matches("Recourse").count(), 1, "one recourse: {said}");
+    assert!(said.contains("pen stands on its centre"), "{said}");
 }
 
 /// **A line runs onto a planar face's trace**: the cylinder's top cap,

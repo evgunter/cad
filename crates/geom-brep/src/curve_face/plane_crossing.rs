@@ -4,10 +4,9 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate};
 
-use crate::curve_pair::{Place, Span};
+use crate::curve_pair::Span;
 use crate::edge_crossing::CrossingDecision;
 
 /// Which lane finds where a carrier's span crosses a plane
@@ -188,190 +187,6 @@ fn conic_plane_meet<T: Decide>(
         .collect()))
 }
 
-/// Whether a span has ends ([`span_plane_meet`]): an edge's or a bounded
-/// leg's, or a whole turn's, whose first and last parameters are one
-/// point of its interior.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpanEnds {
-    /// Both ends are ends.
-    Ended,
-    /// A whole turn of a periodic carrier, read over `[t0, t1]` with no
-    /// end.
-    Endless,
-}
-
-/// A root of a span against a plane ([`span_plane_meet`]).
-#[derive(Clone, Copy, Debug)]
-pub struct SpanRoot<T> {
-    /// The carrier's parameter, within half a turn of the span's middle
-    /// on a periodic carrier.
-    pub t: T,
-    /// Where it lies against the span's ends, read as
-    /// [`plane_crossing_lane`] reads it ([`span_place`]).
-    pub place: RootPlace,
-}
-
-/// Where a root lies against its span's ends ([`SpanRoot::place`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum RootPlace {
-    /// Inside the span, clear of both ends.
-    Inside,
-    /// Within the band of an end.
-    AtEnd,
-    /// In band of an end: the caller decides whether the root matters
-    /// before it refuses on it (a root of an edge past a leg's own end
-    /// is no meeting of the two).
-    Undecided(Indeterminate),
-}
-
-/// What a span meets of a plane ([`span_plane_meet`]).
-#[derive(Debug)]
-pub enum SpanPlaneMeet<T> {
-    /// The pose read the span lying in the plane ([`super::pose::Pose::Lies`]):
-    /// `offset` is its signed distance from it (a conic's centre's, a
-    /// line's at the span's middle), in the zero band. A span parallel
-    /// to the plane off it is no root ([`SpanPlaneMeet::Roots`], empty).
-    Parallel {
-        /// The carrier's signed distance from the plane.
-        offset: T,
-    },
-    /// The plane grazes the carrier at a point of the span: one double
-    /// root, no crossing.
-    Touch,
-    /// The roots on the span (possibly none), each with where it lies
-    /// against the span's ends; unordered.
-    Roots(Vec<SpanRoot<T>>),
-}
-
-/// **Where a span crosses a plane, ends included**: the door's lane
-/// ([`plane_crossing_lane`]) read for a caller that places what it finds
-/// itself. It shares the lane's carrier half (the belly graze, the
-/// parallel gate and the phase) and its span read ([`span_place`]), and
-/// differs from it in four ways:
-///
-/// - a root within the band of an end of an [`SpanEnds::Ended`] span is
-///   reported [`RootPlace::AtEnd`], where the lane drops it (its callers'
-///   vertex sweep owns it), and one in band of an end is reported
-///   [`RootPlace::Undecided`], where the lane refuses the whole span;
-/// - an [`SpanEnds::Endless`] span reads every root of the whole turn,
-///   none at an end, each named within half a turn of the span's middle;
-/// - a line is read too, by the pose's own plane × line rungs
-///   (`super::pose`'s `plane_line`: lying, apart, or its one root read
-///   against the span as a conic's is, at the line's speed);
-/// - a graze is [`SpanPlaneMeet::Touch`]: the pose answers a touch only
-///   where it reaches the span, and `Apart` past it.
-///
-/// Both carriers' classes are the pose's (`super::pose()`), read once.
-///
-/// # Errors
-///
-/// The rung that escalated ([`ConicRootFault`]); `Ok(None)` for a carrier
-/// with no closed form (the lane's [`PlaneCrossingLane::Unlaned`]).
-pub fn span_plane_meet<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-    ends: SpanEnds,
-    plane_origin: geom_core::Point3<T>,
-    plane_normal: geom_core::Vec3<T>,
-    band: Band,
-) -> Result<Option<SpanPlaneMeet<T>>, ConicRootFault> {
-    use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
-    let refused = |refusal: PoseRefusal| match refusal {
-        PoseRefusal::InBand {
-            rung: PoseRung::PlaneParallel | PoseRung::AxisParallel,
-            diag,
-        } => ConicRootFault::PlaneParallel(diag),
-        PoseRefusal::InBand { diag, .. } => ConicRootFault::BellyGraze(diag),
-        other => unreachable!("the plane arm refuses in band only: {other:?}"),
-    };
-    // A whole turn has no ends: its seam is interior, and the pose places
-    // nothing against it.
-    let span = match ends {
-        SpanEnds::Ended => Span::new(carrier, (t0, t1)),
-        SpanEnds::Endless => Span::new(carrier, (t0, t1)).endless(),
-    };
-    let placed = |t: T| match ends {
-        SpanEnds::Endless => Some(RootPlace::Inside),
-        SpanEnds::Ended => span_place(&span, t, band),
-    };
-    let found = match (carrier.conic(), carrier) {
-        (Some(conic), _) => {
-            let roots =
-                match super::pose::plane_conic(&span, &conic, (plane_origin, plane_normal), band)
-                    .map_err(refused)?
-                {
-                    Pose::Lies => {
-                        let (d0, _, _) =
-                            crate::curve_pair::pose::height(&conic, plane_origin, plane_normal);
-                        return Ok(Some(SpanPlaneMeet::Parallel { offset: d0 }));
-                    }
-                    Pose::Apart => return Ok(Some(SpanPlaneMeet::Roots(Vec::new()))),
-                    // The pose answers a touch only where it reaches the span
-                    // (its `kappa`): past the span and clear of both ends, it
-                    // is `Apart`.
-                    Pose::Tangent(_) => return Ok(Some(SpanPlaneMeet::Touch)),
-                    Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots })) => roots,
-                    Pose::Isolated(_) | Pose::Through(_) => {
-                        unreachable!("a conic's plane arm answers no other form")
-                    }
-                };
-            near_span(roots.map(Some), (t0, t1))
-                .filter_map(|t| placed(t).map(|place| SpanRoot { t, place }))
-                .collect()
-        }
-        (None, &geom::Curve3::Line(line)) => {
-            match super::pose::plane_line(line, (t0, t1), (plane_origin, plane_normal), band)
-                .map_err(refused)?
-            {
-                Pose::Lies => {
-                    let offset = geom::plane_offset(
-                        plane_origin,
-                        plane_normal,
-                        line.origin + line.dir * geom::mid_param(t0, t1),
-                    );
-                    return Ok(Some(SpanPlaneMeet::Parallel { offset }));
-                }
-                Pose::Apart => Vec::new(),
-                Pose::Isolated(super::pose::Form(Formed::PlaneLine { root })) => placed(root)
-                    .map(|place| SpanRoot { t: root, place })
-                    .into_iter()
-                    .collect(),
-                Pose::Isolated(_) | Pose::Tangent(_) | Pose::Through(_) => {
-                    unreachable!("a line's plane arm answers no other form")
-                }
-            }
-        }
-        (None, _) => return Ok(None),
-    };
-    Ok(Some(SpanPlaneMeet::Roots(found)))
-}
-
-/// **The carrier's roots named on the span**: each within half a turn
-/// of its middle, by `Period::near`'s span argument, so a root at either
-/// end of a closed edge's full-period span reads alike against both
-/// ends. The rename keeps an enclosure at its input's width everywhere,
-/// the middle's antipode included.
-fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl Iterator<Item = T> {
-    let mid = geom::mid_param(t0, t1);
-    candidates
-        .into_iter()
-        .flatten()
-        .map(move |c| Period::angle().near(c, mid))
-}
-
-/// **A parameter of a span's carrier against the span's ends**: the
-/// span's own reading ([`Span::place_param`]), the point's chord to an
-/// end's point deciding the end and the parameter's side the rest, as a
-/// root's place ([`RootPlace`]), or `None` past an end.
-pub fn span_place<T: Decide>(span: &Span<'_, T>, t: T, band: Band) -> Option<RootPlace> {
-    match span.place_param(t, band) {
-        Ok(Place::Inside) => Some(RootPlace::Inside),
-        Ok(Place::End(_)) => Some(RootPlace::AtEnd),
-        Ok(Place::Past) => None,
-        Err(diag) => Some(RootPlace::Undecided(diag)),
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -386,6 +201,7 @@ mod tests {
     use geom_core::{Band, Point3, Vec3};
 
     use super::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
+    use crate::curve_pair::Span;
 
     /// **A crossing at a slow end is the span's end.** An ellipse stored
     /// swapped — `major = 0.01` along `u_ref`, `minor = 10` — runs at
@@ -652,7 +468,10 @@ mod tests {
     fn each_carrier_kind_lands_on_its_own_lane() {
         let plane = plane_y(0.5);
         for (carrier, want) in [
-            (Curve3::line(Point3::origin(), Vec3::unit_y()), "line"),
+            (
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y()),
+                "line",
+            ),
             (circle(), "conic"),
             (
                 Curve3::Ellipse(geom::Ellipse::new(
@@ -747,15 +566,22 @@ mod tests {
         }
     }
 
-    /// **The span reading reports a root at an end, where the lane drops
-    /// it.** The upper unit semicircle against the plane `y = 0` meets it
-    /// at both ends: the lane hands both to its callers' vertex sweep (no
-    /// roots); [`super::span_plane_meet`] reports each `at_end`. Read
-    /// endless, the whole turn's two roots are interior, the one at the
-    /// turn's start included.
+    /// The plane through `o` of normal `n`, as a surface.
+    fn plane_at((o, n): (Point3<f64>, Vec3<f64>)) -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            frame: geom::Frame::new(o, n, n.orthonormal_basis().0),
+        }
+    }
+
+    /// **The crossing reading reports a root at an end, where the lane
+    /// drops it.** The upper unit semicircle against the plane `y = 0`
+    /// meets it at both ends: the lane hands both to its callers' vertex
+    /// sweep (no roots); [`crate::curve_face::cross()`] reports each at
+    /// its end. Read endless, the whole turn's two roots are interior, the
+    /// one at the turn's start included.
     #[test]
-    fn a_span_reading_reports_its_end_roots_and_an_endless_turn_has_none() {
-        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
+    fn a_crossing_reports_its_end_roots_and_an_endless_turn_has_none() {
+        use crate::curve_face::{OnSpan, Pose, cross};
         use core::f64::consts::PI;
         let c = circle();
         let (o, n) = plane_y(0.0);
@@ -765,113 +591,143 @@ mod tests {
                 .is_empty(),
             "the lane drops roots at the span's ends"
         );
-        let Ok(Some(SpanPlaneMeet::Roots(ended))) =
-            span_plane_meet(&c, (0.0, PI), SpanEnds::Ended, o, n, band())
-        else {
-            panic!("ended: expected roots")
-        };
-        assert_eq!(ended.len(), 2, "ended: both end roots reported: {ended:?}");
+        let ended = cross(&Span::new(&c, (0.0, PI)), &plane_at((o, n)), band()).unwrap();
         assert!(
-            ended.iter().all(|r| r.place == super::RootPlace::AtEnd),
-            "ended: each at an end: {ended:?}"
+            ended.meetings.len() == 2
+                && ended
+                    .meetings
+                    .iter()
+                    .all(|m| matches!(m.on_span, OnSpan::End(_))),
+            "ended: both end roots reported, each at an end: {ended:?}"
         );
-        let Ok(Some(SpanPlaneMeet::Roots(endless))) =
-            span_plane_meet(&c, (0.0, 2.0 * PI), SpanEnds::Endless, o, n, band())
-        else {
-            panic!("endless: expected roots")
-        };
-        let mut at: Vec<f64> = endless.iter().map(|r| r.t).collect();
-        at.sort_by(f64::total_cmp);
+        let endless = cross(
+            &Span::new(&c, (0.0, 2.0 * PI)).endless(),
+            &plane_at((o, n)),
+            band(),
+        )
+        .unwrap();
+        let at: Vec<f64> = endless
+            .meetings
+            .iter()
+            .filter_map(|m| match m.on_span {
+                OnSpan::Inside { t } => Some(t),
+                OnSpan::End(_) => None,
+            })
+            .collect();
         assert!(
-            endless.iter().all(|r| r.place == super::RootPlace::Inside)
-                && at.len() == 2
-                && ((at[0] - PI).abs() < 1e-12)
-                && (at[1].abs() < 1e-12 || (at[1] - 2.0 * PI).abs() < 1e-12),
+            at.len() == 2
+                && endless.meetings.len() == 2
+                && at.iter().any(|t| (t - PI).abs() < 1e-12)
+                && at
+                    .iter()
+                    .any(|t| t.abs() < 1e-12 || (t - 2.0 * PI).abs() < 1e-12),
             "endless: the turn's roots at 0 and π, none at an end: {endless:?}"
         );
-        let (o, n) = plane_y(1.0);
+        let touch = cross(&Span::new(&c, (0.0, PI)), &plane_at(plane_y(1.0)), band()).unwrap();
         assert!(
-            matches!(
-                span_plane_meet(&c, (0.0, PI), SpanEnds::Ended, o, n, band()),
-                Ok(Some(SpanPlaneMeet::Touch))
-            ),
-            "a graze inside the span touches"
+            matches!(touch.pose, Pose::Tangent(_)),
+            "a graze inside the span touches: {touch:?}"
         );
     }
 
     /// **A line's root is read in closed form**: the unit line along `x`
     /// over `[0, 1]` against `x = 0.3` crosses inside, against `x = 1`
     /// at its end, against `x = 2` nowhere; a plane containing its
-    /// direction off it is no root (the pose's `Apart`), and one containing
-    /// the line is parallel, at the line's offset (its `Lies`).
+    /// direction off it is `Apart`, and one containing the line within the
+    /// band `Lies`.
     #[test]
     fn a_line_crosses_a_plane_at_its_affine_root() {
-        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        use crate::curve_face::{OnSpan, Pose, cross};
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
+        let span = Span::new(&line, (0.0, 1.0));
         let at = |x: f64| {
-            span_plane_meet(
-                &line,
-                (0.0, 1.0),
-                SpanEnds::Ended,
-                Point3::new(x, 0.0, 0.0),
-                Vec3::unit_x(),
+            cross(
+                &span,
+                &plane_at((Point3::new(x, 0.0, 0.0), Vec3::unit_x())),
                 band(),
             )
+            .unwrap()
         };
-        let Ok(Some(SpanPlaneMeet::Roots(inside))) = at(0.3) else {
-            panic!("inside: expected roots")
-        };
+        let inside = at(0.3).meetings;
         assert!(
             inside.len() == 1
-                && (inside[0].t - 0.3).abs() < 1e-15
-                && inside[0].place == super::RootPlace::Inside,
+                && matches!(inside[0].on_span, OnSpan::Inside { t } if (t - 0.3).abs() < 1e-15),
             "inside: {inside:?}"
         );
-        let Ok(Some(SpanPlaneMeet::Roots(end))) = at(1.0) else {
-            panic!("end: expected roots")
-        };
+        let end = at(1.0).meetings;
         assert!(
-            end.len() == 1 && end[0].place == super::RootPlace::AtEnd,
+            end.len() == 1 && matches!(end[0].on_span, OnSpan::End(_)),
             "at the end: {end:?}"
         );
-        let Ok(Some(SpanPlaneMeet::Roots(past))) = at(2.0) else {
-            panic!("past: expected roots")
-        };
+        let past = at(2.0).meetings;
         assert!(past.is_empty(), "past the span: {past:?}");
         let parallel = |y: f64| {
-            span_plane_meet(
-                &line,
-                (0.0, 1.0),
-                SpanEnds::Ended,
-                Point3::new(0.0, y, 0.0),
-                Vec3::unit_y(),
+            cross(
+                &span,
+                &plane_at((Point3::new(0.0, y, 0.0), Vec3::unit_y())),
                 band(),
             )
+            .unwrap()
+            .pose
         };
         let off = parallel(0.25);
         assert!(
-            matches!(off, Ok(Some(SpanPlaneMeet::Roots(ref r))) if r.is_empty()),
+            matches!(off, Pose::Apart),
             "parallel off the plane: {off:?}"
         );
         let on = parallel(0.25 * band().zero());
+        assert!(matches!(on, Pose::Lies), "in the plane: {on:?}");
+    }
+
+    /// **A line clear of a plane is apart whatever its drift reads.** A
+    /// line a unit off the plane, tilted so its drift over the run lies in
+    /// the band's gap: the drift rung cannot call it parallel or not, but
+    /// the offset at the middle less half the drift stands past the band,
+    /// so the pose is `Apart`, never an escalation. Within the band of the
+    /// plane, the same drift escalates on the axis-parallel rung.
+    #[test]
+    fn a_line_clear_of_a_plane_is_apart_whatever_its_drift_reads() {
+        use crate::curve_face::{CrossWhy, Pose, PoseRefusal, PoseRung, cross};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let drift = 0.5 * (band.zero() + band.escalate());
+        let line = |z: f64| {
+            Curve3::line(
+                Point3::new(0.0, 0.0, z),
+                geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, drift)),
+            )
+        };
+        let plane = plane_at((Point3::origin(), Vec3::unit_z()));
+        let clear = line(1.0);
+        let got = cross(&Span::new(&clear, (0.0, 1.0)), &plane, band);
         assert!(
-            matches!(on, Ok(Some(SpanPlaneMeet::Parallel { offset })) if (offset + 0.25 * band().zero()).abs() < 1e-20),
-            "in the plane, at its offset: {on:?}"
+            matches!(&got, Ok(read) if matches!(read.pose, Pose::Apart)),
+            "clear of the plane: {got:?}"
+        );
+        let near = line(0.0);
+        let got = cross(&Span::new(&near, (0.0, 1.0)), &plane, band);
+        assert!(
+            matches!(
+                &got,
+                Err(refusal) if matches!(
+                    refusal.windows[0].why,
+                    CrossWhy::Pose(PoseRefusal::InBand { rung: PoseRung::AxisParallel, .. })
+                )
+            ),
+            "within the band of the plane: {got:?}"
         );
     }
 
-    /// **A graze just off the span's end touches** (review of PR 6609,
-    /// M1): a plane cutting the unit circle `z/2` deep, its true roots
-    /// `δ = acos(1 − z/2)` either side of its extremum, the extremum `δ/2`
-    /// before `t₀ = 0.3`, crosses the circle once inside `[0.3, 2.0]`.
-    /// The belly reads it a graze and
-    /// keeps only the extremum, which lies off the span; the door still
-    /// answers a touch, never a miss. Clear of the span by twice the
-    /// touch's reach at the band's escalation (the pose's arc at `Kε`,
-    /// past which every span point is past the band) it misses.
+    /// **A graze just off the span's end is not a miss** (review of PR
+    /// 6609, M1): a plane cutting the unit circle `z/2` deep, its true
+    /// roots `δ = acos(1 − z/2)` either side of its extremum, the extremum
+    /// `δ/2` before `t₀ = 0.3`, crosses the circle once inside
+    /// `[0.3, 2.0]`. The belly reads it a graze and keeps only the
+    /// extremum, which lies off the span; its reach at the band's
+    /// escalation covers part of the span, which is a window, never a
+    /// miss. Clear of the span by twice that reach it misses.
     #[test]
-    fn a_graze_whose_roots_reach_the_span_touches() {
-        use super::{SpanEnds, SpanPlaneMeet, span_plane_meet};
+    fn a_graze_whose_roots_reach_the_span_is_not_a_miss() {
+        use crate::curve_face::{Pose, cross};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let z = band.zero();
         // The true roots' distance from the extremum: `1 − cos δ = z/2`.
@@ -885,34 +741,30 @@ mod tests {
         let meet = |theta: f64| {
             let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
             let on = Point3::origin() + n * (1.0 - 0.5 * z);
-            span_plane_meet(&circle, (0.3, 2.0), SpanEnds::Ended, on, n, band)
-                .unwrap()
-                .unwrap()
+            cross(&Span::new(&circle, (0.3, 2.0)), &plane_at((on, n)), band)
         };
+        let near = meet(0.3 - 0.5 * root);
         assert!(
-            matches!(meet(0.3 - 0.5 * root), SpanPlaneMeet::Touch),
-            "{:?}",
-            meet(0.3 - 0.5 * root)
+            matches!(&near, Err(refusal) if !refusal.windows.is_empty()),
+            "{near:?}"
         );
         let reach = core::f64::consts::FRAC_PI_2 * (2.0 * (band.escalate() + 0.5 * z)).sqrt();
+        let clear = meet(0.3 - 2.0 * reach);
         assert!(
-            matches!(meet(0.3 - 2.0 * reach), SpanPlaneMeet::Roots(ref r) if r.is_empty()),
-            "{:?}",
-            meet(0.3 - 2.0 * reach)
+            matches!(&clear, Ok(read) if matches!(read.pose, Pose::Apart)),
+            "{clear:?}"
         );
         // A whole turn has no ends: one starting just past the touch, its
         // seam within the band of it, reads the touch as interior.
         for gap in [3e-9, 5e-9] {
-            let whole = span_plane_meet(
-                &circle,
-                (0.4 + gap, 0.4 + gap + core::f64::consts::TAU),
-                SpanEnds::Endless,
-                Point3::origin() + Vec3::new(0.4f64.cos(), 0.4f64.sin(), 0.0) * (1.0 - 0.5 * z),
-                Vec3::new(0.4f64.cos(), 0.4f64.sin(), 0.0),
+            let n = Vec3::new(0.4f64.cos(), 0.4f64.sin(), 0.0);
+            let whole = cross(
+                &Span::new(&circle, (0.4 + gap, 0.4 + gap + core::f64::consts::TAU)).endless(),
+                &plane_at((Point3::origin() + n * (1.0 - 0.5 * z), n)),
                 band,
             );
             assert!(
-                matches!(whole, Ok(Some(SpanPlaneMeet::Touch))),
+                matches!(&whole, Ok(read) if matches!(read.pose, Pose::Tangent(_)) && read.meetings.len() == 1),
                 "a whole turn from {gap:e} past the touch: {whole:?}"
             );
         }

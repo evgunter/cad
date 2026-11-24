@@ -68,7 +68,7 @@ At ε `10⁻¹²`:
 At ε `10⁻⁶` a split is a split from `10⁻⁵`, and no body the unit tried
 reaches the refusal.
 
-Pinned: `split_rulings::a_run_anchored_on_a_needle_triangle_refuses_unresolved`.
+Pinned until unit 4c: `split_rulings::a_run_anchored_on_a_needle_triangle_refuses_unresolved` (below).
 
 ## How near the allowance the meshing faces come
 
@@ -98,3 +98,24 @@ Neither is built.
   the ruling in the development makes the added triangles as high as the
   fan allows, and is a choice read from developed coordinates where
   today's is read from the polygon's order.
+
+## Its pinned bodies are walked (2026-11-17, unit 4c, `tesslane/ruled-density`)
+
+Both pinned cones, and the 2° cone of height 100, are cylinder or cone
+faces with a split side and no other trim, which the chart lane now walks
+(`tessellate::Lane::Walked`) in its chart rather than its development: they mesh
+(`split_rulings::a_split_beside_a_large_cones_rim_end_meshes`, which
+replaces this row's pin). The class stays open where a run still forms: a
+cone face with a ring or a trim carrier, such as the cone cut by an oblique
+plane (`split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`),
+and no row yet pins a needle there.
+
+## A needle on the cut family (2026-11-18, unit 4c, `tesslane/ruled-density`)
+
+A row now pins a needle there:
+`split_rulings::a_run_anchored_by_the_apex_on_a_needle_refuses_unresolved`.
+The face is a full-turn cone of half-angle 2°, cut near its rim with its
+apex kept (`split_rulings::cut_apex_cone`), and its first ruling is split
+a hair beside the section end. The face is not walked. It refuses
+`UnresolvedWinding` at the default ε with a gap of 10⁻⁸ at δ 0.01, and
+at 10⁻¹² with a gap of 10⁻¹⁰ at every δ from 10 to 0.01.

@@ -455,3 +455,125 @@ fn a_wall_paths_lean_is_levered_within_its_arriving_pieces_chord_and_turn() {
         "a product net with both factors varying"
     );
 }
+
+/// **An iso piece's arm is its extent from below, not its chord.** The
+/// unit circle as a rational quadratic, over `[0.02, 0.98]` of its
+/// domain: the piece runs nearly the whole turn, so its ends stand about
+/// a quarter apart while its points stand 2 apart. The arm reads the
+/// diameter, and no more than it. Over the whole domain its ends meet,
+/// and the arm still reads the diameter: the piece has a length, so a
+/// path arriving along it is asked (`split_ring_path_wall_arrival`).
+#[test]
+fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let ring = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let circle = geom::NurbsCurve3::new(
+        kv(
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
+            2,
+        ),
+        ring.iter().map(|&(x, y)| Point3::new(x, y, 0.0)).collect(),
+        (0..ring.len())
+            .map(|i| if i % 2 == 0 { 1.0 } else { s })
+            .collect(),
+    )
+    .unwrap();
+    for (span, forward) in [
+        ((0.02, 0.98), true),
+        ((0.02, 0.98), false),
+        ((0.0, 1.0), true),
+    ] {
+        let piece = super::spline_wall::IsoPiece {
+            curve: Arc::new(circle.clone()),
+            span,
+            forward,
+        };
+        let (start, stop) = piece.ends();
+        let arm = piece.travel().0.length();
+        assert!(
+            start.distance(stop) < 0.5,
+            "the piece's ends stand {} apart",
+            start.distance(stop)
+        );
+        assert!(
+            (1.9..=2.0 + 1e-12).contains(&arm),
+            "{span:?}, forward {forward}: the arm reads the turn's diameter from below, got {arm}"
+        );
+    }
+}
+
+/// **At a dual a wall's paths are the `f64` ones**: a wall and ends
+/// whose every coordinate carries a tangent decide a foot on the wall on
+/// the chart without its tangent, so they are offered the paths the same
+/// wall and ends are offered at `f64`, arriving the same way, bit for
+/// bit, or refuse the same refusal. The ends are moved off the wall from
+/// on it, through the band, to well clear. Red where the view keeps the
+/// tangent in what it decides or folds it into the value.
+#[test]
+fn at_a_dual_the_walls_paths_are_the_f64_ones_across_the_band() {
+    use geom_core::Dual64;
+    let chart = wall();
+    let plain = SplineWall::of(&geom::Surface::Nurbs(Arc::new(chart.clone()))).unwrap();
+    let dual = SplineWall::of(&geom::Surface::Nurbs(Arc::new(
+        chart.map_scalar(Dual64::variable),
+    )))
+    .unwrap();
+    let band = band();
+    let (mut offered, mut none) = (0, 0);
+    for lift in [
+        0.0,
+        0.3 * band.zero(),
+        0.5 * (band.zero() + band.escalate()),
+        3.0 * band.escalate(),
+        1e-3,
+    ] {
+        for ((ua, va), (ub, vb)) in [((0.1, 0.12), (0.9, 0.85)), ((0.45, 0.55), (0.6, 0.4))] {
+            let off = geom_core::Vec3::new(0.0, lift, 0.0);
+            let (a, b) = (chart.eval(ua, va) + off, chart.eval(ub, vb) + off);
+            let at_f64 = plain.paths((a, b), band);
+            let at_dual = dual.paths((a.map(Dual64::variable), b.map(Dual64::variable)), band);
+            assert_eq!(
+                at_f64.is_ok(),
+                at_dual.is_ok(),
+                "lift {lift}: both read or both refuse"
+            );
+            match (&at_f64, &at_dual) {
+                (Ok(f), Ok(d)) => {
+                    assert_eq!(f.len(), d.len(), "lift {lift}: the paths offered");
+                    if f.is_empty() {
+                        none += 1;
+                    } else {
+                        offered += 1;
+                    }
+                    for (f, d) in f.iter().zip(d) {
+                        let (f, d) = (f.arrival, d.arrival);
+                        for (x, y) in [(f.x, d.x), (f.y, d.y), (f.z, d.z)] {
+                            assert_eq!(x.to_bits(), y.value.to_bits(), "lift {lift}: arrival");
+                        }
+                    }
+                }
+                (Err(f), Err(d)) => {
+                    assert_eq!(
+                        format!("{f:?}"),
+                        format!("{d:?}"),
+                        "lift {lift}: the refusal"
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(offered > 0 && none > 0, "offered {offered}, none {none}");
+}

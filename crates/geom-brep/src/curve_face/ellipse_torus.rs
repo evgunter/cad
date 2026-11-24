@@ -92,7 +92,7 @@ const TORUS_ROOT_SLACK: &str = "ellipse_torus_root_slack";
 /// meters reads ON the surface.
 pub(super) fn torus_walk<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    torus: (geom_core::Point3<T>, geom_core::UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     floor: T,
@@ -113,7 +113,7 @@ pub(super) fn torus_walk<T: Decide>(
 /// this module's rows, which show the meter is what decides).
 fn torus_walk_metered<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
+    torus: (geom_core::Point3<T>, geom_core::UnitVec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     floor: T,
@@ -292,7 +292,7 @@ mod tests {
                     &conic,
                     geom::Line {
                         origin: center,
-                        dir: axis,
+                        dir: geom::stated_direction(axis),
                     },
                     major_radius,
                     minor_radius,
@@ -604,7 +604,7 @@ mod torus_rows {
             let conic = e.conic().unwrap();
             let torus = (
                 Point3::from_array(self.hub),
-                Vec3::from_array(self.t_axis).normalize(),
+                geom_core::UnitVec3::squared(Vec3::from_array(self.t_axis)),
                 self.radii[0],
                 self.radii[1],
             );
@@ -1064,12 +1064,7 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse(
-                            ellipse @ geom::Ellipse {
-                                frame: carrier_frame_18,
-                                ..
-                            },
-                        ),
+                        geom::Curve3::Ellipse(ellipse),
                         geom::Surface::Torus {
                             frame,
                             major_radius,
@@ -1081,9 +1076,9 @@ mod torus_rows {
                         unreachable!("the pose is an ellipse and a torus")
                     };
                     let (center, axis, u_ref) = (
-                        carrier_frame_18.origin(),
-                        carrier_frame_18.axis(),
-                        carrier_frame_18.u_ref(),
+                        ellipse.frame().origin(),
+                        ellipse.frame().axis(),
+                        ellipse.frame().u_ref(),
                     );
                     let (hub, t_axis) = (frame.origin(), frame.axis());
                     let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
@@ -1103,7 +1098,7 @@ mod torus_rows {
                                 &conic,
                                 geom::Line {
                                     origin: hub,
-                                    dir: t_axis,
+                                    dir: geom::stated_direction(t_axis),
                                 },
                                 *major_radius,
                                 *minor_radius,

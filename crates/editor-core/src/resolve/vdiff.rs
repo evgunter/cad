@@ -43,7 +43,8 @@
 //! ([`geom_core::k_stats::mark_candidates`], [`crate::eval::NodeValue::marks`]),
 //! and the walk reads a choice's candidates beside the choices: two runs
 //! whose queries handed on other candidates part there, before any
-//! turn, and name no flip.
+//! turn, and name no flip: the reading names the query and the step
+//! instead ([`Parting::Mark`]).
 //!
 //! Three pruning tests written at their call sites mark their outcome
 //! the same way ([`geom_core::k_stats::mark_outcome`]): the section
@@ -85,7 +86,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::k_stats::{Mark, MarkItem, Role, Verdict};
+use geom_core::k_stats::{Mark, MarkItem, Role, Site, Verdict};
 use geom_core::{Decide, Sign};
 
 use crate::eval::{Evaluation, KeyHasher, NodeStanding};
@@ -147,7 +148,7 @@ pub struct Path<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     Choice(&'static str, Sign),
-    Candidate(&'static str, MarkItem),
+    Candidate(Site, MarkItem),
 }
 
 impl Path<'_> {
@@ -181,10 +182,40 @@ pub enum FirstTurn {
     /// The first difference is one choice decided with the other sign:
     /// the flip.
     Turned(VerdictFlip),
-    /// The paths part at something that is no turn of a sign: another
-    /// predicate, a candidate a pruning test handed on or did not, or one
-    /// path ending first. The log shows where; no flip is named.
-    Parted,
+    /// The paths part at something that is no turn of a sign
+    /// ([`Parting`]). No flip is named.
+    Parted(Parting),
+}
+
+/// **Where two runs' paths part without a turn**, each at its `step`:
+/// the index, from zero, of the first difference along the steps both
+/// runs walked alike (their choices and their choices' candidates, in
+/// the order each met them), which is the same index in both runs
+/// because every step before it is equal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Parting {
+    /// One pruning query handed on different candidates, or one marked
+    /// test answered otherwise: both runs' steps there are marks of the
+    /// one `site`, with different items. The log proves the parting
+    /// and not a turn.
+    Mark {
+        /// The query or test, at the one call that asked it.
+        site: Site,
+        /// The step it parted at.
+        step: usize,
+    },
+    /// The two steps differ otherwise: two predicates, a choice against
+    /// a mark, or marks of two different sites. Something the log does
+    /// not state steered the runs apart.
+    Step {
+        /// The step they parted at.
+        step: usize,
+    },
+    /// One path ends at `step` and the other walks on.
+    Ended {
+        /// The shorter path's length.
+        step: usize,
+    },
 }
 
 impl FirstTurn {
@@ -193,7 +224,19 @@ impl FirstTurn {
     pub fn flip(self) -> Option<VerdictFlip> {
         match self {
             Self::Turned(flip) => Some(flip),
-            Self::Agree | Self::Parted => None,
+            Self::Agree | Self::Parted(_) => None,
+        }
+    }
+
+    /// The query and the step, where the paths part at a mark
+    /// ([`Parting::Mark`]).
+    #[must_use]
+    pub fn mark(self) -> Option<(Site, usize)> {
+        match self {
+            Self::Parted(Parting::Mark { site, step }) => Some((site, step)),
+            Self::Agree
+            | Self::Turned(_)
+            | Self::Parted(Parting::Step { .. } | Parting::Ended { .. }) => None,
         }
     }
 }
@@ -202,21 +245,28 @@ impl FirstTurn {
 /// step the two take differently, read along their choices and their
 /// choices' candidates in the order each run met them. It is a flip
 /// where it is the same predicate decided with the other sign, and a
-/// parting otherwise ([`FirstTurn`]). Checks are not read.
+/// parting otherwise ([`FirstTurn`], [`Parting`]). Checks are not read.
 #[must_use]
 pub fn first_turn(old: Path<'_>, new: Path<'_>) -> FirstTurn {
     let (old, new) = (old.steps(), new.steps());
-    match old.iter().zip(&new).find(|(a, b)| a != b) {
-        Some((&Step::Choice(predicate, from), &Step::Choice(other, to))) if predicate == other => {
-            FirstTurn::Turned(VerdictFlip {
-                predicate,
-                from,
-                to,
-            })
-        }
-        Some(_) => FirstTurn::Parted,
+    match old.iter().zip(&new).position(|(a, b)| a != b) {
+        Some(step) => match (old[step], new[step]) {
+            (Step::Choice(predicate, from), Step::Choice(other, to)) if predicate == other => {
+                FirstTurn::Turned(VerdictFlip {
+                    predicate,
+                    from,
+                    to,
+                })
+            }
+            (Step::Candidate(site, _), Step::Candidate(other, _)) if site == other => {
+                FirstTurn::Parted(Parting::Mark { site, step })
+            }
+            _ => FirstTurn::Parted(Parting::Step { step }),
+        },
         None if old.len() == new.len() => FirstTurn::Agree,
-        None => FirstTurn::Parted,
+        None => FirstTurn::Parted(Parting::Ended {
+            step: old.len().min(new.len()),
+        }),
     }
 }
 
@@ -282,7 +332,7 @@ impl FlipSet {
 }
 
 /// A node value's [`Path`].
-fn path<T: topo::AtRestPolicy + Decide>(value: &crate::eval::NodeValue<T>) -> Path<'_> {
+pub(super) fn path<T: topo::AtRestPolicy + Decide>(value: &crate::eval::NodeValue<T>) -> Path<'_> {
     Path {
         verdicts: &value.verdicts,
         marks: &value.marks,
@@ -331,13 +381,11 @@ fn sign_ix(s: Sign) -> usize {
 /// ([`FirstTurn::Parted`]); a mixed diff that finds a flip found one on
 /// one path.
 ///
-/// **It keeps only the turns.** A node whose paths part at a mark or at
-/// another predicate ([`FirstTurn::Parted`]) records no flip here, the
-/// same as one whose paths agree: the resolver's lanes and the drive's
-/// evidence read flips, and whether to name the parting site itself (the
-/// query and the candidate where two runs parted) as a diagnosis is a
-/// question raised to Ev on PR 7114 and not yet ruled. Until it is, a
-/// reader that needs the parting calls [`first_turn`].
+/// **It keeps only the turns.** A node whose paths part
+/// ([`FirstTurn::Parted`]) records no flip here, the same as one whose
+/// paths agree: the resolver's lanes and the drive's evidence read
+/// flips. A reader that needs the parting calls [`first_turn`], as the
+/// resolver's parting rung does (N5, `Diagnosis::Parted`).
 pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Decide>(
     old: &Evaluation<T>,
     new: &Evaluation<U>,

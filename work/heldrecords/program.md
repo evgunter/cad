@@ -2,7 +2,7 @@
 id: heldrecords
 kind: program
 title: HELDRECORDS — a finished body holds its contact records, and every door gates what it returns at tier 3′
-status: ready
+status: active
 opened: 2026-10-28
 group: kernel/boolean/split
 prefix: heldrecords/

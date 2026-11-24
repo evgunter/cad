@@ -791,7 +791,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     match PathNoCornerReason::<f64>::CarriersTangent {
         PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
         PathNoCornerReason::TurnWithinTolerance {
-            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            turn:
+                LeveredTurn {
+                    lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+                    ..
+                },
             ..
         } => {}
     }
@@ -1126,8 +1130,8 @@ fn the_polygon_door_authors_through_the_lattice() {
     // CORNER. A raw vertex table would have accepted this and left it
     // for validate.
     match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
-        Err(PathError::JunctionTangent { .. }) => {}
-        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+        Err(PathError::JunctionTurnWithinTolerance { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTurnWithinTolerance: {other:?}"),
     }
 }
 
@@ -1528,6 +1532,10 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+            named::<&f64>(moved_by);
+            "collapsed_side_made_one"
+        }
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
@@ -2312,7 +2320,7 @@ fn product_is(
             let (next, at) = insert(
                 doc,
                 Node::Assemble {
-                    members: Bodies::Spelled(
+                    members: Bodies::spelled(
                         several
                             .iter()
                             .map(|&copy| BodyRead::plain(Operand::Node(copy)))
@@ -2766,7 +2774,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     let (doc, downstream) = insert(
         doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
+            members: pncad::document::Bodies::spelled(vec![cut.into(), first_box.into()]),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2897,7 +2905,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, solid) = insert(
         doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
+            members: pncad::document::Bodies::spelled(vec![plate.into(), tab.into()]),
         },
     );
     let (doc, copy) = place(doc, solid);
@@ -3363,7 +3371,7 @@ fn workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_thr
             message: "the canonical form would not serialize".to_owned(),
         }),
     }
-    .resolve_failure(Scan::AtOpen);
+    .resolve_failure(Scan::AtOpen, doc_ref.id);
     rows.push((
         "Resolve/Pin",
         PartFault::Unresolved {
@@ -3959,6 +3967,102 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     }
 }
 
+/// **A part whose file refuses to load names the part's nodes in the
+/// part's document**: the store's refusal is a sentence, and the
+/// extrude it names is a mention stamped with the part's id, both in the
+/// seam's refusal and in the instance's failure that carries it, never
+/// with the assembly's.
+#[test]
+fn a_parts_load_refusal_mentions_the_parts_nodes_in_the_parts_document() {
+    use pncad::document::{Node, NodeErrorKind, NodeResult, PartFault, PartResolver};
+    let dir = WsDir::new("load-refusal-mentions");
+    let part = pncad::document::ProfileDoc::empty(
+        pncad::document::DocumentId::derive("load-refusal-part"),
+        Tol::witness(),
+    );
+    let (part, profile) = insert(part, square(2.0));
+    let extrude = |profile: pncad::document::RecipeNodeId| Node::Extrude {
+        profile: profile.into(),
+        distance: len(1.5),
+    };
+    let (part, body) = insert(part, extrude(profile));
+    let (part, other) = insert(part, extrude(profile));
+    let (part, copy) = place(part, body);
+    let part = product_is(part, &[copy]);
+    let text = pncad::document::save(&part, Tol::witness()).expect("the part saves");
+    // The body's extrude reads the other extrude's body as its profile.
+    let read = |var: pncad::document::VarId| format!("\"profile\": \"{}\"", var.0);
+    let at = text
+        .find(&format!("\"{}\": {{", body.0))
+        .expect("the file holds the body's node");
+    let from = read(part.output(profile, 0).expect("the profile's output"));
+    let slot = at
+        + text[at..]
+            .find(&from)
+            .expect("the extrude reads its profile");
+    let broken = format!(
+        "{}{}{}",
+        &text[..slot],
+        read(part.output(other, 0).expect("the other extrude's body")),
+        &text[slot + from.len()..]
+    );
+    dir.write("part.pncad", &broken);
+    let doc_ref = pncad::document::DocRef {
+        id: part.id(),
+        pin: pncad::document::content_pin(&part, Tol::witness()).expect("the pin computes"),
+    };
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan reads the header");
+    let mentions_the_body = |said: &pncad::document::Sentence| {
+        said.mentions()
+            .any(|m| m.node().map(|n| n.id()) == Some(body) && m.document() == Some(part.id()))
+    };
+
+    let failure = PartResolver::resolve(&ws, &doc_ref, Tol::witness())
+        .expect_err("the part's file does not load");
+    assert!(
+        mentions_the_body(&failure.message),
+        "the store names the extrude in the part: {:?}",
+        failure.message
+    );
+
+    let (asm, instance) = insert(
+        pncad::document::ProfileDoc::empty(
+            pncad::document::DocumentId::derive("load-refusal-asm"),
+            Tol::witness(),
+        ),
+        asm2a_instance(doc_ref, pncad::document::InterfaceRecord::default()),
+    );
+    let ev = asm2a_eval(&asm, &ws);
+    let Some(NodeResult::Failed(e)) = ev.result(instance) else {
+        panic!("the instance refuses: {:?}", ev.result(instance));
+    };
+    let NodeErrorKind::Part {
+        fault: fault @ PartFault::Unresolved { message, .. },
+        ..
+    } = &e.kind
+    else {
+        panic!("the part did not resolve: {:?}", e.kind);
+    };
+    assert_eq!(
+        *message, failure.message,
+        "the fault carries the store's sentence"
+    );
+    let said = e.kind_spoken(&asm);
+    assert!(
+        mentions_the_body(&said),
+        "the instance's failure keeps the part's extrude as a mention: {said:?}"
+    );
+    assert!(
+        said.mentions()
+            .all(|m| m.document() != Some(asm.id()) || m.node().map(|n| n.id()) == Some(instance)),
+        "no node of the part is stamped with the assembly's id: {said:?}"
+    );
+    assert!(
+        said.to_string().contains(&failure.message.to_string()),
+        "and reads as the store's words: {fault}"
+    );
+}
+
 /// Row 1 (D9 across two fresh processes) — the assembly's product
 /// volume bits are a function of the recipe alone, not of the process.
 #[test]
@@ -4073,8 +4177,8 @@ fn asm_r2a_mated_assembly(
         doc,
         ids[1],
         Mate {
-            on: plane(ids[1]),
-            to: plane(ids[0]),
+            on: plane(ids[1]).into(),
+            to: plane(ids[0]).into(),
             orient: pncad::document::Orientation::IDENTITY,
         },
         values,
@@ -4994,7 +5098,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5117,23 +5221,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-///
-///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
-///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
-///   `RangeSide`, `certified_range`). It is the on-demand answer to
-///   "how far can this field move before the build stops being this
-///   build" — the proof the sampling probe stands in for — and the
-///   Python door for it is FILED and not built, which is the whole of
-///   why these are here rather than in `crate::analysis`. The row is
-///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
-///   family is part of what it schedules; a promise made only in this
-///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain
 ///   and log a document mints its node and profile step ids from,
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5147,11 +5240,9 @@ const NOT_CARRIED: [&str; 101] = [
     "BindingViolation",
     "BranchCertification",
     "BranchMarginEvidence",
-    "CertifiedRange",
     "ClearanceSeat",
     "ContentKey",
     "Coset",
-    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -5177,12 +5268,9 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdicts",
     "ParamValue",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
-    "RangeField",
-    "RangeRefusal",
-    "RangeSeed",
-    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -5208,7 +5296,6 @@ const NOT_CARRIED: [&str; 101] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
-    "certified_range",
     "derivation_nodes",
     "derivation_reads",
     "diff_summaries",
@@ -7152,7 +7239,7 @@ fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
-        match d_shape(1.0, tol) {
+        match d_shape(1.0, tol).map_err(|e| e.refusal().clone()) {
             Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
                 assert_eq!(read.gate().predicate(), "path_arc_landing");
             }
@@ -7701,7 +7788,7 @@ fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
     fn caught(r: &ClearanceRefusal) -> String {
         match r {
             ClearanceRefusal::Engine { refusal, .. } => match refusal {
-                EngineRefusal::Budget(b) => budget(b),
+                EngineRefusal::Budget { stop: b, .. } => budget(b),
                 EngineRefusal::Uncertified {
                     shared: c, arm: a, ..
                 } => {
@@ -7756,6 +7843,14 @@ fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
     else {
         panic!("a refused verdict reads as refused");
     };
+    assert!(
+        sentence
+            .mentions()
+            .any(|mention| mention.node().map(|n| n.id()) == Some(solid)
+                && mention.document() == Some(doc.id())),
+        "the side is a mention in the document: {sentence:?}"
+    );
+    let sentence = sentence.to_string();
     assert!(
         sentence.contains("\"plate\""),
         "the side is said by its label: {sentence}"
@@ -7842,7 +7937,9 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
         None,
     )
     .expect("a length pitch");
-    let (doc, _row) = insert(doc, row);
+    let (doc, row) = insert(doc, row);
+    let binder = doc.var_named("k").expect("the row's index");
+    let doc = applied(&doc, pncad::pattern::yields_edit(binder, &doc.outputs(row))).doc;
     let lowered = Stop {
         member_budget: 2,
         ..Stop::default()

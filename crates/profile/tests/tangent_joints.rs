@@ -442,14 +442,19 @@ fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
         .expect("the arrival side runs back along it")
         .to(Point2::new(1.0, 0.0), Tol::witness())
         .expect_err("doubled-back corner must refuse")
+        .refusal()
+        .clone()
     {
         PathError::NoCornerForFillet {
             reason:
                 profile::path::PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn,
-                    align,
-                    lever,
-                    lever_of: profile::path::TurnLever::AnchorSeparation,
+                    turn:
+                        profile::LeveredTurn {
+                            sin_turn,
+                            align,
+                            lever,
+                            lever_of: profile::path::TurnLever::AnchorSeparation,
+                        },
                     corner,
                 },
             radius,
@@ -493,14 +498,17 @@ fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
     let PathError::NoCornerForFillet {
         reason:
             profile::path::PathNoCornerReason::TurnWithinTolerance {
-                sin_turn,
-                align,
-                lever,
-                lever_of,
+                turn:
+                    profile::LeveredTurn {
+                        sin_turn,
+                        align,
+                        lever,
+                        lever_of,
+                    },
                 ..
             },
         ..
-    } = &err
+    } = err.refusal()
     else {
         panic!("expected TurnWithinTolerance, got {err:?}")
     };
