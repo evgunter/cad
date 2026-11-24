@@ -97,3 +97,10 @@ read `Tangent("section_torus_square_wall_fold_half")` at `top` between
 `1.4·10⁻⁹` and `7.2·10⁻⁹`. Two consecutive random draws failing says
 the class is dense at `CAD_FUZZ_EFFORT=1`, so any PR that edits
 `section_cert.rs` meets it.
+
+Another, on lane `sectcone`'s PR 7725 (`CAD_FUZZ_SEED=0x19cd8a1893d734c4`,
+`CAD_FUZZ_EFFORT=1`, CI run 45497745772, 2026-11-24): one strip crossing
+at a tube circle's top, `R ≈ 0.0373`, `r ≈ 0.0353`, tilt 0, read
+`Tangent("section_torus_square_wall_fold_half")` at `top ≈ 5.3·10⁻¹⁰`.
+That PR changes only how the certificate maps a cone's `ConeAtTheBand`,
+which this arm never raises.
