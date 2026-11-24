@@ -407,7 +407,7 @@ pub enum GatherError {
         /// Its position among the members.
         member: usize,
         /// The graft's refusal.
-        error: BooleanError,
+        error: Box<BooleanError>,
     },
     /// At a dual, tier 2 refused the aggregate.
     Aggregate(crate::NotFinished),
@@ -456,9 +456,9 @@ pub fn gather_finished<F: crate::FinishedBody>(
     if images.is_empty() {
         return Err(GatherError::Graft {
             member: 0,
-            error: BooleanError::JoinDesync {
+            error: Box::new(BooleanError::JoinDesync {
                 what: "a gather of no body",
-            },
+            }),
         });
     }
     let mut aggregate = crate::Body::new();
@@ -466,8 +466,12 @@ pub fn gather_finished<F: crate::FinishedBody>(
         .iter()
         .enumerate()
         .map(|(member, image)| {
-            crate::graft_disjoint_all_keyed(&mut aggregate, image)
-                .map_err(|error| GatherError::Graft { member, error })
+            crate::graft_disjoint_all_keyed(&mut aggregate, image).map_err(|error| {
+                GatherError::Graft {
+                    member,
+                    error: Box::new(error),
+                }
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let parts: Vec<&F> = images.iter().map(|image| &**image).collect();

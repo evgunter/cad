@@ -300,7 +300,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let fused = match fused {
         crate::eval::Gathered::Finished(body) => Arc::new(body),
         crate::eval::Gathered::Grafted(fused) => Arc::new(
-            T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
+            T::finish(*fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
         ),
     };
     let pieces = Arc::new(Pieces { by: id, pieces });

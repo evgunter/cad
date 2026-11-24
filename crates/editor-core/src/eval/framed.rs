@@ -556,7 +556,7 @@ pub(crate) enum Gathered<T: topo::AtRestPolicy> {
     Finished(T::Finished),
     /// Some member was a leaf the switch keeps unfinished at the box
     /// scalars: grafted as data ([`Framed::graft_into`]).
-    Grafted(Body<T>),
+    Grafted(Box<Body<T>>),
 }
 
 impl<T: topo::AtRestPolicy> core::ops::Deref for Gathered<T> {
@@ -611,7 +611,7 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
                     Self::graft_into(frame, &mut fused, member, tol).map_err(|e| (at, e))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            return Ok((Gathered::Grafted(fused), keys));
+            return Ok((Gathered::Grafted(Box::new(fused)), keys));
         }
         let finished = members
             .iter()
@@ -635,9 +635,7 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
             topo::boolean::GatherError::Moved { member, findings } => {
                 (member, GraftIn::Moved(findings))
             }
-            topo::boolean::GatherError::Graft { member, error } => {
-                (member, GraftIn::Graft(Box::new(error)))
-            }
+            topo::boolean::GatherError::Graft { member, error } => (member, GraftIn::Graft(error)),
             topo::boolean::GatherError::Aggregate(findings) => (0, GraftIn::Moved(findings)),
         })?;
         Ok((Gathered::Finished(body), keys))

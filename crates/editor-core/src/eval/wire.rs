@@ -5353,7 +5353,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         super::Gathered::Finished(body) => super::Framed::in_frame(Arc::new(body), frame),
         super::Gathered::Grafted(fused) => super::Framed::in_frame_leaf(
             Arc::new(
-                T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
+                T::leaf(*fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
             ),
             frame,
         ),

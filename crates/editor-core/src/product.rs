@@ -1377,7 +1377,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         .collect();
     let aggregate = match aggregate {
         crate::eval::Gathered::Finished(body) => body,
-        crate::eval::Gathered::Grafted(aggregate) => T::finish(aggregate, tol)
+        crate::eval::Gathered::Grafted(aggregate) => T::finish(*aggregate, tol)
             .map_err(|findings| ProductError::ProductInvalid { findings })?,
     };
 
