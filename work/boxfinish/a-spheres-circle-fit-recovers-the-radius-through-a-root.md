@@ -4,6 +4,8 @@ kind: issue
 title: A sphere face's props_sphere_circle_fit reads its rim's radius through a root, so a sphere of boxed radius refuses at the walk's own scalar
 status: open
 opened: 2026-11-22
+priority: P2
+cost: M
 ---
 
 
