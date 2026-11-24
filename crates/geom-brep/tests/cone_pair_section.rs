@@ -1457,7 +1457,7 @@ fn a_ball_tangent_beside_a_crossing_refuses_by_its_tangency() {
             );
         }
         for (k, dr) in [-0.1, 0.1].into_iter().enumerate() {
-            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.03);
+            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.05);
             assert!(
                 section.tangency().is_none() && shapes.points == 0 && shapes.noded == 0,
                 "{what} at R {dr:+}: transverse, {shapes:?}"

@@ -31,3 +31,8 @@ sweep), not the march's. The search's must-answer rule expects a
 classification at this margin. Decide which side is wrong: the apex
 margin's lever (`kc_apexes_apart` reads `Margin::of`, with no lever at an
 80 m scale), or the search's must-answer distance for a coaxial pair.
+
+A second seed reproduces the class, on PR 7457's CI run of `5c97fce38f`:
+`CAD_FUZZ_SEED=0x7e0e64c77639b551 CAD_FUZZ_EFFORT=1`, a coaxial partner
+whose apex stands 4.4e-10 from the cone's at a scale near 75 m (α 0.3325,
+α₂ 0.6417), `Intractable`.
