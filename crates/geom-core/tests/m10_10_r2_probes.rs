@@ -55,7 +55,7 @@ fn how_f64(build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
         let m = build();
         (
             geom_core::k_stats::decide("r2_probe", Margin::of(m), band()),
-            m.value,
+            m.value(),
         )
     });
     let label = match out {
