@@ -3170,9 +3170,10 @@ impl Clone for FacePoses {
 
 impl core::fmt::Debug for FacePoses {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { of, builds } = self;
         f.debug_struct("FacePoses")
-            .field("built", &self.of.get().map(Vec::len))
-            .field("builds", &self.builds.get())
+            .field("built", &of.get().map(Vec::len))
+            .field("builds", &builds.get())
             .finish()
     }
 }
