@@ -1293,7 +1293,6 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         let crate::live::BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
-        let ek = edge.key();
         let Some(curve) = edge.certified() else {
             return false;
         };
@@ -1307,7 +1306,7 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         }
         on_rim += 1;
         if !matches!(
-            crate::edge_wedge(body, ek, band),
+            crate::edge_wedge(body, edge.key(), band),
             Some(geom_brep::WedgeVerdict::Crease {
                 convexity: geom_brep::Convexity::Convex,
                 ..
@@ -1398,7 +1397,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         RIM_PHASES,
     );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_core::k_stats::Role::Check) {
+    match geom_brep::rim_routing_wedge(&walk, reach, band) {
         V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
         V::End { end, .. } => Ok(RimRouting::Cusp(end)),
