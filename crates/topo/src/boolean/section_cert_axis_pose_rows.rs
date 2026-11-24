@@ -378,11 +378,16 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         );
         // Two cones are the section value's, which reads no axis pose: it
         // classifies the pair over the reach either way, each witness on
-        // both carriers.
+        // both carriers; with the apex at the pivot the parallels cross the
+        // reach, and with it `0.5` m off they stand outside it.
         let Section::Components { parts, .. } = &s else {
             panic!("cones, apex {rise} off the pivot: {s:?}")
         };
-        assert!(!parts.is_empty(), "cones, apex {rise} off the pivot: {s:?}");
+        assert_eq!(
+            parts.is_empty(),
+            rise > 0.0,
+            "cones, apex {rise} off the pivot: {s:?}"
+        );
         for w in parts.iter().filter_map(|c| c.witness) {
             for surf in [&first, &apexes] {
                 let r = geom_brep::implicit_residual(surf, w);
