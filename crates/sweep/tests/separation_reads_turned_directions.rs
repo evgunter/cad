@@ -306,7 +306,9 @@ fn a_solid_inside_anothers_material_is_denied_at_every_turn() {
 /// [`a_solid_inside_anothers_material_is_denied_at_every_turn`] beside
 /// that rod at `x = 5`; the second copy, moved by `(−4.2, 0.5, 0)`,
 /// stands its rod at `x = 0.8` in the first copy's wall, every face pair
-/// apart. Red where the placement door reads only the boundaries.
+/// apart; and the same two copies listed the other way round. Red where
+/// the placement door reads only the boundaries, or reads containment
+/// only one way.
 #[test]
 fn a_placed_copy_in_anothers_material_is_denied() {
     let proto = two_solids(
@@ -316,10 +318,16 @@ fn a_placed_copy_in_anothers_material_is_denied() {
         &RigidMotion::identity(),
     );
     for base in [RigidMotion::identity(), quarter_z()] {
-        let mj = base.compose(moved(-4.2, 0.5, 0.0)).unwrap();
+        let moved_copy = base.compose(moved(-4.2, 0.5, 0.0)).unwrap();
         assert!(
-            !placed_apart_from(&proto, base, mj),
-            "denied from base {base:?}"
+            !placed_apart_from(&proto, base, moved_copy),
+            "the second copy's rod in the first's wall, from base {base:?}: denied"
+        );
+        // The first copy's rod in the second's wall: read only through the
+        // motion back from the second copy's frame.
+        assert!(
+            !placed_apart_from(&proto, moved_copy, base),
+            "the first copy's rod in the second's wall, from base {base:?}: denied"
         );
     }
 }

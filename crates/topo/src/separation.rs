@@ -44,7 +44,12 @@
 //!    of each shell of each side is decided `Out` of the other side's
 //!    material ([`crate::point_in_solid_faces`]). With the boundaries
 //!    disjoint, each shell lies wholly in or wholly out of the other
-//!    side (it is connected and misses that side's boundary). So the
+//!    side (it is connected and misses that side's boundary).
+//!    Connectedness is what [`crate::validate`] enforces at rest
+//!    (`ShellDisconnected`); both doors take a bare body, so each checks
+//!    every shell's connectedness itself when it is built
+//!    (`validate::shell_connected`, one walk of the shell's faces), and
+//!    a shell that is not one component certifies nothing. So the
 //!    intersection of the two materials has no boundary point, and,
 //!    being compact, is empty. A point on the boundary, a point in the
 //!    material, or a placement the door refuses denies; it never
@@ -171,8 +176,10 @@ fn read_apart<T: Decide>(x: (&Body<T>, FaceKey), y: (&Body<T>, FaceKey), band: B
 }
 
 /// One boundary point of each of `shells`: the first vertex of the first
-/// of its faces that has one. `None` where a shell has none, which the
-/// caller reads as "may meet".
+/// of its faces that has one. `None` where a shell has none, or is not
+/// one component across its edges ([`crate::validate::shell_connected`]),
+/// which the caller reads as "may meet": the containment argument holds
+/// a shell's one point for the whole shell (module docs).
 fn shell_points<T: Decide>(
     body: &Body<T>,
     shells: impl IntoIterator<Item = ShellKey>,
@@ -180,6 +187,9 @@ fn shell_points<T: Decide>(
     shells
         .into_iter()
         .map(|shell| {
+            if !crate::validate::shell_connected(body, shell) {
+                return None;
+            }
             body.get_shell(shell)?.faces.iter().find_map(|&f| {
                 body.proven_face(f)
                     .boundary()
@@ -199,21 +209,30 @@ fn shell_points<T: Decide>(
 }
 
 /// Whether every one of `points` lies definitely outside the material
-/// `sel` selects of `body` ([`point_in_solid_faces`]). A point on the
-/// boundary, in the material, or one the door refuses, answers no.
+/// `sel` selects of `body`: `outside_hull` holds of it, a box test the
+/// caller reads off the hull of that material's boundary boxes (the
+/// material lies in the hull of its boundary), or it is placed
+/// ([`point_in_solid_faces`]) and a point on the boundary, in the
+/// material, or one the door refuses, answers no.
 fn all_out<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
+    outside_hull: impl Fn(Point3<T>) -> bool,
     points: impl IntoIterator<Item = Point3<T>>,
-    band: Band,
-    tol: Tol,
+    (band, tol): (Band, Tol),
 ) -> bool {
     points.into_iter().all(|p| {
-        matches!(
-            point_in_solid_faces(body, sel, p, band, tol),
-            Ok(SolidContainment::Out)
-        )
+        outside_hull(p)
+            || matches!(
+                point_in_solid_faces(body, sel, p, band, tol),
+                Ok(SolidContainment::Out)
+            )
     })
+}
+
+/// Whether `p`'s box misses `hull`.
+fn misses<T: Bounds>(hull: &Aabb, p: Point3<T>) -> bool {
+    Aabb::from_points([p]).is_some_and(|at| !hull.overlaps(&at))
 }
 
 /// The prototype's separation certificate machinery: its padded face
@@ -379,9 +398,9 @@ impl<'b, T: Decide + Bounds + AtRestPolicy> Separation<'b, T> {
             all_out(
                 self.proto,
                 material,
+                |p| misses(&self.hull, p),
                 points.iter().map(|&p| m.transform_point(p)),
-                self.band,
-                self.tol,
+                (self.band, self.tol),
             )
         })
     }
@@ -695,7 +714,13 @@ impl<'b, T: Decide + Bounds + AtRestPolicy> SolidSeparation<'b, T> {
                 .as_ref()
                 .zip(m.material.as_ref())
                 .is_some_and(|(points, material)| {
-                    all_out(body, material, points.iter().copied(), self.band, self.tol)
+                    all_out(
+                        body,
+                        material,
+                        |p| misses(&m.hull, p),
+                        points.iter().copied(),
+                        (self.band, self.tol),
+                    )
                 })
         };
         if meets || !out_of(x, y) || !out_of(y, x) {
