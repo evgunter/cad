@@ -46,3 +46,11 @@ Round-1 replies (all three in by 09:35 UTC; raw on `boxfinish/briefs` `probe/bri
 - All three name the same fallback (the gate on choices and standings; a parting bisects; nothing in the drive panics) and the same first measurement (the build's record is complete and scalar-independent).
 
 **Reconciled after one round: agreed.** Put to Ev as `[ev]` PR 7700 (`boxfinish/ev-leaf-certifies-on-the-build`) at 09:44 UTC with E6's two bullets as the diff and the three round-1 `For Ev` sections verbatim, labelled A, B, C. Row 7700 (three-designer table, the recommendation half) is on that branch. Tokens per label (first report / total) and the mapping are filled in once Ev decides.
+
+## The measurement contradicts the reconciled recommendation (11:05 UTC); PR 7700 on hold
+
+M13 (`probe/M13-REPORT.md` on `boxfinish/probe-build-record` at `447298e0b`): the record exists and is scalar-independent (0 differences in 10,872 builds of equal standing), and it separates no known flip: every one of today's 661 `FlipCrossing` leaves holds the witness's record, 660 of them a turned choice, the planted-flip fixture among them. The test all three set for the record ("leaves either side of known flips differ in it") fails. A comment and a hold in the title went on PR 7700 at 11:06; Ev had not answered.
+
+## Round 2 (dispatched 12:08 UTC)
+
+All three shown M13's report and `probe/briefs/fork-parted-path/round-2.md` (what was found; five questions: is certifying every known flip the right outcome or the sign of a wrong record; what a certificate claims and to whom; what `FlipCrossing` is for when no decided leaf builds another record; the fallback; what is measured or built first).
