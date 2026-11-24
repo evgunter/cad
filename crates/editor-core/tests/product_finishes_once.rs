@@ -104,7 +104,7 @@ fn a_gather_over_mapped_sources_finishes_once() {
 fn the_gather_finishes_the_aggregate_once() {
     let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let what = "editor-core/src/product.rs (code view)";
-    let finishes = required_matches(&code, what, "T::finish(aggregate");
+    let finishes = required_matches(&code, what, "T::finish(*aggregate");
     assert_eq!(finishes.len(), 1, "{what}: one finish, of the aggregate");
     for gate in [
         "T::finish(",
