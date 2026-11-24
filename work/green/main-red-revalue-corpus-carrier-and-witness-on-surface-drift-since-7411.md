@@ -2,10 +2,12 @@
 id: main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411
 kind: issue
 title: Main red: ten revalue_corpus rows fail since PR 7411 (germ/plane-pose-far-frame): the re-valued DAG drifts from Sym's build on carrier_on_surface_{1,2} and witness_on_surface_{1,2}
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7678
 ---
 
 
@@ -46,3 +48,21 @@ bits wherever the two readings differ in the last places: every
 DAG records an op that re-values the way `T` reads it, or the
 instrument treats the node as `T`'s. Choosing between those is GERM's
 design call (or SYM's, for the op set).
+## Closed onto SYM (2026-11-23, GREEN U19, PR 7678)
+
+**Bisect confirmed on CI** (probe run 45312428995): every row is green on
+`1883da3` and red on `3547fe5`, at the default ε. On main `a433ff83d6`
+all ten are red at default, 1e-6 and 1e-12 (probe run 45308109008).
+`m10_p_lift::at_sym_a_fixed_box_is_the_build` is red for the same
+reason.
+
+**The instrument is right, and no expectation was changed.**
+`Sym::difference_dot`, which `geom::plane_offset` reads since 7411, takes
+its value from `f64`'s `Dot2` and its node from the plain formula. A
+re-valued node is therefore not the computation of the value it stands
+for. `Sym::harmonic_belly` (PR 7553) has the same shape. Fixing it is a
+node-shape choice in SYM's ground. It is filed with the options as
+`work/sym/a-sym-posed-reading-carries-a-value-its-node-does-not-compute.md`
+(P1, `design: true`), and that row carries this one's evidence. The rows
+are left red: a `pinned_red` stop on the drift assertion would silence
+every later check in each row.

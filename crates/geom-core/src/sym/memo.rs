@@ -5,7 +5,7 @@
 //!
 //! A node's id is the content hash of `(op, payload, children ids)`
 //! (D9) — a hash of SYNTAX: a `Lit`'s bits, a `Param`'s symbol, an
-//! `Opaque`'s sequence number, an atom's arguments' digests. And the
+//! `Opaque`'s minted name, an atom's arguments' digests. And the
 //! PLAIN walk reads no value: every atom is opaque, rule A0 is the only
 //! rule, and no bracket, no registry and no enclosure reaches it. So a
 //! node's plain form is a function of its id, the session's
@@ -17,20 +17,19 @@
 //! node inside one leaf (which is what `Session::forms` is); this memo
 //! applies it across the leaves of one drive.
 //!
-//! **The opaque sequence governs the HIT RATE, not soundness.** An
-//! `Opaque` node's payload is the sequence number the leaf minted it at
-//! (`OPAQUE_SEQ`), which is the one part of an id that is not a hash of
-//! anything the expression says. What follows if two leaves hand one
-//! sequence number to two different reals is NOT an unsound answer: a
-//! plain form is a syntactic normal form of a syntactic id, so a `Zero`
-//! it reaches is an identity in whatever unknowns the syntax names —
-//! `opaque(3) − opaque(3)` is zero whichever real either leaf bound —
-//! and that holds leaf by leaf. What a leaf-varying sequence costs is
-//! MISSES: the second leaf builds different ids and finds nothing here.
-//! Demonstrated by execution rather than argued —
-//! `geom-core`'s `sym_drive_memo` plants a leaf-varying mint and shows
-//! every decision unmoved (R2), and `editor-core`'s
-//! `m10_sym_drive_memo_interval` reports each leaf's `Opaque` set.
+//! **An opaque value's name is syntax too.** An `Opaque` node's id
+//! hashes the name it was minted under (`mint`: its scope and its
+//! ordinal there), which is the one part of an id that is not a hash of
+//! anything the expression says. Two leaves may bind one name to two
+//! different reals, and the answer is still sound: a plain form is a
+//! syntactic normal form of a syntactic id, so a `Zero` it reaches is
+//! an identity in whatever unknowns the syntax names — the difference
+//! of one name with itself is zero whichever real either leaf bound —
+//! and that holds leaf by leaf. A node's mints have the same names in
+//! every leaf, so the forms over them are hits. `geom-core`'s
+//! `sym_drive_memo` plants a leaf-varying mint and shows every decision
+//! unmoved (R2), and `editor-core`'s `m10_sym_drive_memo_interval`
+//! reports each leaf's `Opaque` set.
 //!
 //! The drive-wide hash-collision assumption is the per-leaf one widened:
 //! two distinct expressions colliding on a 128-bit content hash would be

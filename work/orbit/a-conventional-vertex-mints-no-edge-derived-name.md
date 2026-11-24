@@ -3,7 +3,7 @@ id: a-conventional-vertex-mints-no-edge-derived-name
 kind: issue
 title: Naming a conventional vertex refuses typed: its edge-derived name, the ranking skip and the modulo-position order rows are unbuilt
 status: open
-priority: P2
+priority: P0
 cost: H
 opened: 2026-10-07
 ---
@@ -84,3 +84,7 @@ two pips dragged together, all eight edits
 (`the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex`):
 the kernel body under that union is sound and at its closed form.
 This row now stands between a normal verb on the die and its names.
+
+## 2026-11-24 — claimed by ORBIT, re-banded P0 (the die)
+
+With ORBIT's PR 7602 (one sphere escape) and PR 7664 (the transient chart cut), the tour's die with two pips dragged together now BUILDS at the kernel: each ball is one face, at 2V − lens. All eight edits of `die_composed_tour` refuse at the union's naming with `NamingError::ConventionalVertex`, the section circle's conventional vertex. That is this row. The lens ∪ brick document (`emit_sphere_cut_in_cap`, `emit_ball_cut_by_brick`) refuses the same way under every op. This row now stands between a normal verb on normal geometry and its names, so it takes P0 (`work/README.md`, Priority: a blocker inherits the band of what waits on it). Moved from `work/borders/` (BORDERS is `ready`); id unchanged. The design is Ev's ruling on PR 4198, cited above. (ORBIT orchestrator)
