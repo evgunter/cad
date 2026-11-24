@@ -12,7 +12,10 @@
 //! The pair-contact classification ([`pair_contacts`]) is the closed-form
 //! simplicity core: line/line, line/arc, arc/arc, all exact. Its outcome
 //! vocabulary: a **crossing** (transversal interior contact), a
-//! **touch** (isolated contact at a segment endpoint), a **tangency**
+//! **touch** (isolated contact at a segment endpoint, found by reading
+//! the endpoint against the other segment), a **shared vertex** (an
+//! adjacent line pair's stored common vertex, a contact by
+//! construction and read by nothing), a **tangency**
 //! (isolated interior contact without crossing — semantically
 //! indeterminate for simplicity, escalated by the caller), an
 //! **overlap** (shared sub-locus of positive length on a common
@@ -744,8 +747,8 @@ fn check_direction<T: Decide>(
 ) -> Result<(), SegIssue<T>> {
     // The one reading, and what "unit" means here: a miss within the
     // band bounds both the turn and the stretch, (|d| − 1)·ℓ ≤ miss by
-    // the triangle inequality, which is check 1's `Length` measure for a
-    // unit datum at arm ℓ (`geom::convention::frame_margins`).
+    // the triangle inequality: the direction is a unit to within ε at
+    // arm ℓ.
     let miss = (o + d * len).distance(p);
     let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
         .map_err(SegIssue::escalated)?;
@@ -1002,7 +1005,7 @@ impl ArcRead {
 /// door's read-back ([`read_back_arc`]).
 fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
     // Unsourced lever: the chord `|b − a|`, a length of the consumed segment, but `profile`
-    // has no extent home (`geom_brep` is not its dependency) to read it through.
+    // has no 2D point door (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
     Margin::levered(bow * T::from_f64(0.5), geom_core::Lever::unsourced(len))
 }
 
@@ -1451,7 +1454,8 @@ pub(crate) fn junction_reverses<T: Decide>(
         decide(
             Gate::PathJunctionSide,
             // Unsourced lever: the leg's arm ([`Seg::arm`]: a line's length, an arc's lesser of
-            // radius and chord), a length of the consumed leg with no extent home in `profile`.
+            // radius and chord), a length of the consumed leg with no 2D door
+            // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
             Margin::levered(arriving.dot(departing), geom_core::Lever::unsourced(arm)),
             band
         )?,
@@ -1576,8 +1580,8 @@ pub(crate) fn junction_turn<T: Decide>(
         decide_reported(
             gate,
             // Unsourced lever: the shorter leg's arm ([`Seg::arm`]: a line's length, an arc's
-            // lesser of radius and chord), a length of the consumed legs with no extent home in
-            // `profile`.
+            // lesser of radius and chord), a length of the consumed legs with no 2D door
+            // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
             Margin::levered(read, geom_core::Lever::unsourced(arm)),
             band,
         )?,
@@ -1709,8 +1713,15 @@ pub(crate) fn reach<T: Real>(p: Point2<T>) -> T {
 /// The kind of an isolated contact between two segments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CKind {
-    /// Contact at a segment endpoint (of at least one of the two).
+    /// Contact at a segment endpoint (of at least one of the two),
+    /// found by a reading: an end on the other's carrier and in its span,
+    /// or a candidate on both carriers at an end of either span. An
+    /// adjacent pair's shared vertex is one wherever it is read rather
+    /// than recognised (the curved arms).
     Touch,
+    /// An adjacent pair's shared stored vertex ([`SharedEnds`]): an end
+    /// of both, the adjacency's own contact by construction.
+    SharedVertex,
     /// Transversal contact interior to both segments.
     Crossing,
     /// Tangential carrier contact interior to both segments (touching
@@ -1740,13 +1751,13 @@ pub(crate) enum PairOutcome<T: Real> {
 /// Classifies every contact between two segments — the simplicity core.
 /// Dispatches on carrier kinds; all closed form. Errors are in-band /
 /// poisoned classifications, propagated for the caller to wrap (D4 ¶3).
-/// `shared` is a stored vertex the pair shares, an end of each (an
-/// adjacent pair, `validate::judge_pair`); only two lines read it, where
-/// their sides escalate ([`line_line`]).
+/// `shared` names the stored vertex the pair shares, an end of each (an
+/// adjacent pair, `validate::judge_pair`); only two lines read it
+/// ([`line_line`]).
 pub(crate) fn pair_contacts<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
-    shared: Option<Point2<T>>,
+    shared: Option<SharedEnds>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     match (&s1.kind, &s2.kind) {
@@ -1754,6 +1765,66 @@ pub(crate) fn pair_contacts<T: Decide>(
         (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
         (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, s1, g1, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => arc_arc(s1, g1, s2, g2, band),
+    }
+}
+
+/// Which ends of a pair are the one stored vertex an adjacent pair
+/// shares: the loop stores each vertex once, and both segments' ends at
+/// it are that point.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SharedEnds {
+    /// The first segment's end is the second's start.
+    EndToStart,
+    /// The first segment's start is the second's end.
+    StartToEnd,
+}
+
+impl SharedEnds {
+    /// The shared vertex, read off the first segment.
+    pub(crate) fn point<T: Real>(self, s1: &Seg<T>) -> Point2<T> {
+        match self {
+            Self::EndToStart => s1.b,
+            Self::StartToEnd => s1.a,
+        }
+    }
+
+    /// Whether `end` is the shared vertex.
+    fn holds(self, end: PairEnd) -> bool {
+        matches!(
+            (self, end),
+            (Self::EndToStart, PairEnd::FirstEnd | PairEnd::SecondStart)
+                | (Self::StartToEnd, PairEnd::FirstStart | PairEnd::SecondEnd)
+        )
+    }
+}
+
+/// One of a pair's four ends, which [`line_line`] reads against the
+/// other segment's carrier.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PairEnd {
+    FirstStart,
+    FirstEnd,
+    SecondStart,
+    SecondEnd,
+}
+
+impl PairEnd {
+    /// The end's stored point.
+    fn point<T: Real>(self, s1: &Seg<T>, s2: &Seg<T>) -> Point2<T> {
+        match self {
+            Self::FirstStart => s1.a,
+            Self::FirstEnd => s1.b,
+            Self::SecondStart => s2.a,
+            Self::SecondEnd => s2.b,
+        }
+    }
+
+    /// The segment whose carrier the end is read against: the other one.
+    fn host<'s, T: Real>(self, s1: &'s Seg<T>, s2: &'s Seg<T>) -> &'s Seg<T> {
+        match self {
+            Self::FirstStart | Self::FirstEnd => s2,
+            Self::SecondStart | Self::SecondEnd => s1,
+        }
     }
 }
 
@@ -1844,10 +1915,13 @@ fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, ba
 /// ways. An overlap where even its lower bound is definitely positive;
 /// disjoint where even its upper bound is definitely negative; a touch,
 /// at the overlap's middle, where both read zero; and the bounds'
-/// straddle otherwise.
+/// straddle otherwise. Where the pair shares a vertex (`shared`, its
+/// point) that vertex is in both spans, so a touch both bounds read zero
+/// is that vertex, and it is returned as it is stored.
 fn collinear_overlap<T: Decide>(
     host: &Seg<T>,
     other: &Seg<T>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
@@ -1866,9 +1940,15 @@ fn collinear_overlap<T: Decide>(
     )?;
     Ok(match (lower.sign, upper.sign) {
         (Sign::Negative, Sign::Negative) => PairOutcome::Contacts(Vec::new()),
-        (Sign::Zero, Sign::Zero) => PairOutcome::Contacts(vec![Contact {
-            point: host.a + host.unit * along.mid(),
-            kind: CKind::Touch,
+        (Sign::Zero, Sign::Zero) => PairOutcome::Contacts(vec![match shared {
+            Some(point) => Contact {
+                point,
+                kind: CKind::SharedVertex,
+            },
+            None => Contact {
+                point: host.a + host.unit * along.mid(),
+                kind: CKind::Touch,
+            },
         }]),
         _ => {
             return Err(crate::gate::straddle(
@@ -1907,18 +1987,33 @@ fn collinear_overlap<T: Decide>(
 /// - Only then does an in-band side escalate. Strictly opposite sides
 ///   both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
 ///   configurations resolved by `line_span`.
+///
+/// The `shared` vertex is an end of both segments, so it is on the
+/// other's carrier and within its span: its two sides are Zero and its
+/// touch holds, none of them read. Read, they would recompute the
+/// vertex's offset and arc length from the chord it ends, which over a
+/// box carries the box on both factors and straddles the band.
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
-    shared: Option<Point2<T>>,
+    shared: Option<SharedEnds>,
     band: Band,
 ) -> Result<PairOutcome<T>, Escalation> {
     if shared.is_none() && gaps_apart(s1, s2, band) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
-    let on_1 = [side(s1, s2.a), side(s1, s2.b)];
-    let on_2 = [side(s2, s1.a), side(s2, s1.b)];
+    use PairEnd::{FirstEnd, FirstStart, SecondEnd, SecondStart};
+    let is_shared = |end: PairEnd| shared.is_some_and(|ends| ends.holds(end));
+    let side = |end: PairEnd| {
+        if is_shared(end) {
+            Ok(Sign::Zero)
+        } else {
+            chord_side(end.host(s1, s2), end.point(s1, s2), band).map(|(sign, _)| sign)
+        }
+    };
+    let shared_point = shared.map(|ends| ends.point(s1));
+    let on_1 = [side(SecondStart), side(SecondEnd)];
+    let on_2 = [side(FirstStart), side(FirstEnd)];
     let separated = |pair: &[Result<Sign, Escalation>; 2]| {
         matches!(
             pair,
@@ -1934,10 +2029,10 @@ fn line_line<T: Decide>(
     let collinear =
         |pair: &[Result<Sign, Escalation>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     if collinear(&on_1) {
-        return collinear_overlap(s1, s2, band);
+        return collinear_overlap(s1, s2, shared_point, band);
     }
     if collinear(&on_2) {
-        return collinear_overlap(s2, s1, band);
+        return collinear_overlap(s2, s1, shared_point, band);
     }
     let sides = (|| Ok([on_1[0]?, on_1[1]?, on_2[0]?, on_2[1]?]))();
     let [o_c, o_d, o_a, o_b] = match sides {
@@ -1945,12 +2040,12 @@ fn line_line<T: Decide>(
         // An in-band side of an adjacent pair whose overlap along `s1`
         // is within the band: its only contact is the shared vertex.
         Err(_)
-            if let Some(v) = shared
+            if let Some(point) = shared_point
                 && touches_only_near_the_shared_end(s1, s2, band) =>
         {
             return Ok(PairOutcome::Contacts(vec![Contact {
-                point: v,
-                kind: CKind::Touch,
+                point,
+                kind: CKind::SharedVertex,
             }]));
         }
         Err(source) => return Err(source),
@@ -1978,15 +2073,21 @@ fn line_line<T: Decide>(
         // Non-collinear with some endpoint on a carrier: the carriers
         // meet exactly once, at that endpoint, read by [`touches`]' rule
         // from the side read above.
-        for (host, o, q) in [
-            (s1, o_c, s2.a),
-            (s1, o_d, s2.b),
-            (s2, o_a, s1.a),
-            (s2, o_b, s1.b),
+        for (end, o) in [
+            (SecondStart, o_c),
+            (SecondEnd, o_d),
+            (FirstStart, o_a),
+            (FirstEnd, o_b),
         ] {
-            if touches_from(host, q, Ok(o), band)? {
+            let point = end.point(s1, s2);
+            if is_shared(end) {
                 contacts.push(Contact {
-                    point: q,
+                    point,
+                    kind: CKind::SharedVertex,
+                });
+            } else if touches_from(end.host(s1, s2), point, Ok(o), band)? {
+                contacts.push(Contact {
+                    point,
                     kind: CKind::Touch,
                 });
             }
@@ -2417,7 +2518,9 @@ fn arc_arc<T: Decide>(
                                 Ok(Sign::Zero | Sign::Negative) => tangent()?,
                                 Err(undecided) => {
                                     let interior = |found: &[Contact<T>]| {
-                                        found.iter().any(|c| !matches!(c.kind, CKind::Touch))
+                                        found.iter().any(|c| {
+                                            matches!(c.kind, CKind::Crossing | CKind::Tangency)
+                                        })
                                     };
                                     // No certificate is asked here: an arc
                                     // clear of the other's circle keeps every
@@ -2957,7 +3060,7 @@ mod pair_contact_tests {
                 continue;
             }
             let old = sign(decide(Gate::CollinearOverlap, Margin::of(margin), band));
-            let new = match collinear_overlap(&s1, &s2, band) {
+            let new = match collinear_overlap(&s1, &s2, None, band) {
                 Ok(PairOutcome::Overlap) => Ok(Sign::Positive),
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => Ok(Sign::Negative),
                 Ok(PairOutcome::Contacts(_)) => Ok(Sign::Zero),
@@ -3084,7 +3187,7 @@ mod pair_contact_tests {
             let along = |q: [i128; 2]| (q[0] - p0[0]) * a + (q[1] - p0[1]) * b;
             let (t0, t1, end) = (along(q0), along(q1), along(p1));
             let r = (t0.max(t1).min(end) - t0.min(t1).max(0)) as f64 * grid / c as f64;
-            let read = match collinear_overlap(&s1, &s2, band) {
+            let read = match collinear_overlap(&s1, &s2, None, band) {
                 Ok(PairOutcome::Overlap) => "overlap",
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => "disjoint",
                 Ok(PairOutcome::Contacts(_)) => "touch",
@@ -3130,7 +3233,7 @@ mod pair_contact_tests {
             (211658.07383996708, -22502.229717807786),
             band,
         );
-        match collinear_overlap(&s1, &s2, band) {
+        match collinear_overlap(&s1, &s2, None, band) {
             Err(e) => assert_eq!(e.source().predicate, Some("collinear_overlap")),
             Ok(PairOutcome::Overlap) => panic!("read an overlap"),
             Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
@@ -3275,8 +3378,11 @@ mod pair_contact_tests {
                 e.source().predicate
             ),
         }
-        for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
-            for shared in [None, Some(pt(v))] {
+        for (host, other, ends) in [
+            (&leaving, &arriving, SharedEnds::StartToEnd),
+            (&arriving, &leaving, SharedEnds::EndToStart),
+        ] {
+            for shared in [None, Some(ends)] {
                 match pair_contacts(host, other, shared, band) {
                     Err(e) => assert_eq!(
                         e.source().predicate,
@@ -3341,11 +3447,14 @@ mod pair_contact_tests {
             let (Ok(prev), Ok(next)) = (build(prev), build(next)) else {
                 continue;
             };
-            for (host, other) in [(&prev, &next), (&next, &prev)] {
+            for (host, other, ends) in [
+                (&prev, &next, SharedEnds::EndToStart),
+                (&next, &prev, SharedEnds::StartToEnd),
+            ] {
                 if pair_contacts(host, other, None, band).is_ok() {
                     continue;
                 }
-                if pair_contacts(host, other, Some(prev.b), band).is_err() {
+                if pair_contacts(host, other, Some(ends), band).is_err() {
                     continue;
                 }
                 rescued += 1;

@@ -145,8 +145,7 @@ pub(super) fn held_open<T: Decide>(
 ) -> bool {
     let mut open = false;
     for he in halves {
-        let (edge, data) = edge_record(body, he);
-        open |= body.edge_curve_linked(edge, data).null_scaffold().is_some();
+        open |= edge_record(body, he).curve().null_scaffold().is_some();
     }
     open
 }
@@ -758,7 +757,7 @@ impl<T: Decide> Lift<T> {
             let row = body.pcurve(half_edge);
             if row.is_none()
                 && !(scaffolding == Scaffolding::Skipped
-                    && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
+                    && crate::null::is_placeholder(body, edge_record(body, half_edge).key()))
             {
                 return Err(LiftGap { half_edge });
             }

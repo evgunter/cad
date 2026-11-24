@@ -343,8 +343,8 @@ fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
     );
     s.doc = doc;
     Mate {
-        on: fixture::plane(s.bottom(s.other)),
-        to: fixture::flip(top),
+        on: fixture::plane(s.bottom(s.other)).into(),
+        to: fixture::flip(top).into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -659,7 +659,7 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         panic!("expected WitnessDoesNotBuild, got {refusal:?}");
     };
     assert!(
-        cause.contains("no part resolver"),
+        cause.to_string().contains("no part resolver"),
         "the driver's evaluation has no resolver, so no instance resolves: {cause}"
     );
 }

@@ -313,16 +313,19 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 }
 
 /// **The turn of a point read off the pivot counts.** A cone whose apex
-/// is the pivot, on the torus axis, against a torus whose centre stands
-/// `0.5` m up the axis from it. (A torus pair reads its turn over a
-/// torus's ball, where `sin²` of a tilt in the band times a station
-/// inside the ball is far below it.) It has no offset, and
-/// the swing is `0.425` bands; the arm's coaxial reading reads the height
-/// at the centre or the apex, which the turn moves by `0.9` bands more,
-/// so each refuses on the offset; so does a second cone whose apex stands
-/// `0.5` m off the pivot along its axis. The same pose with the read point
-/// at the pivot is served: two parallels apart from the cone, the coaxial
-/// cones' two parallels.
+/// stands `0.5` m along its own axis off the pivot, against a cone whose
+/// apex is a metre down the first axis: it has no offset, and the swing
+/// is `0.425` bands; the arm's coaxial reading reads the height at the
+/// apex, which the turn moves by `0.9` bands more, so it refuses on the
+/// offset. With the apex at the pivot it is served: the coaxial cones'
+/// two parallels. A cone at the pivot against a torus a little way up
+/// its axis is the section value's pose, read over the torus's own ball
+/// as every torus pair is. That lever is far longer than this row's
+/// fixture reach, so the tilt that reads in the band here reads well
+/// past it there: the pose is the general one, marched, and the march
+/// finds the cone apart from the torus at either height. (The pose's
+/// own in-band tilt and offset rows are geom-brep's
+/// `cone_torus_pose::a_tilt_and_an_offset_in_the_band_read_the_axis_pose`.)
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);
@@ -341,15 +344,11 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        if refuses {
-            offset_row(&s);
-        } else {
-            assert_eq!(
-                shape(&s).0,
-                0,
-                "cone at the pivot's height: apart, got {s:?}"
-            );
-        }
+        assert_eq!(
+            shape(&s).0,
+            0,
+            "the torus {rise} m up the cone's axis: apart, got {s:?}"
+        );
         // A second cone whose apex stands `0.5` m along its own axis from
         // the pivot, against a cone whose apex is a metre down the first
         // axis: refused coaxial, the pair goes to the ruling charts.

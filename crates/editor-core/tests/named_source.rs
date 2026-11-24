@@ -220,7 +220,7 @@ fn a_redefinition_through_its_own_copy_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -386,7 +386,7 @@ fn a_cycle_through_a_source_of_a_source_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -481,10 +481,11 @@ fn a_family_source_cannot_be_redefined_onto_one_body() {
 
 /// **A body source redefined onto a family is held to its readers**:
 /// `bracket = B`, `c = place(bracket)`, a shell of `c`; `bracket = row`
-/// makes `c` a family, which the shell's seat admits, so the door writes a
-/// document the load takes.
+/// would hand the placement a family its binder yields, and a placement's
+/// source takes one body (D10 `[repetition]`), so the door refuses by kind
+/// and the document stays one the load takes.
 #[test]
-fn a_body_source_redefined_onto_a_family_writes_what_loads() {
+fn a_body_source_redefined_onto_a_family_is_refused_at_its_placement() {
     let doc = ProfileDoc::empty_derived("named-source-family-onto", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -503,11 +504,21 @@ fn a_body_source_redefined_onto_a_family_writes_what_loads() {
         },
     );
     let bracket = doc.var_named("bracket").expect("bracket");
-    // A shell reads a family as a family of shells, so the door admits the
-    // redefinition, and what it writes saves and loads.
-    let doc = redefine(&doc, bracket, VarDecl::source(Operand::Node(row))).expect("admitted");
+    let refused = redefine(&doc, bracket, VarDecl::source(Operand::Node(row)))
+        .map(|_| ())
+        .expect_err("a family at a placement's source is refused");
+    assert!(
+        matches!(
+            refused,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            }
+        ),
+        "refused by kind at the placement: {refused:?}"
+    );
     let text = editor_core::save(&doc, Tol::witness()).expect("saves");
-    editor_core::load(&text, Tol::witness()).expect("what the door writes loads");
+    editor_core::load(&text, Tol::witness()).expect("the document as it stands loads");
 }
 
 /// **The reader count, reading (a)** (VR2): a lone placement whose mate
@@ -575,7 +586,7 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c1).into(),
                 Operand::Node(dd).into(),
             ]),
@@ -612,11 +623,12 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
     );
 }
 
-/// **A source written in place at a family's own indices is the family
-/// read whole** (`mint_source`): `place(source(row[k]))`, `k` the index the
-/// row is over, mints the same plain source as `place(row)`.
+/// **A source written in place at a family's own indices is stored as
+/// written** (`mint_source`, REFERENCES DM3): `place(source(row[k]))`, `k`
+/// the index the row's binder mints, reads one member at each value of
+/// `k`; the plain read would be the family whole.
 #[test]
-fn a_source_at_the_familys_own_indices_reads_it_whole() {
+fn a_source_at_the_familys_own_indices_is_stored_as_written() {
     let doc = ProfileDoc::empty_derived("named-source-own-index", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, k, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -629,11 +641,16 @@ fn a_source_at_the_familys_own_indices_reads_it_whole() {
         ))),
     );
     let source = doc.copied_read(copy).expect("a source");
+    let at = doc
+        .source(source)
+        .map(|body| body.at.clone())
+        .expect("the source reads the row");
     assert_eq!(
-        doc.source(source).cloned(),
-        Some(editor_core::BodyRead::plain(out(&doc, row))),
-        "the family read whole"
+        doc.source(source).map(|body| body.read),
+        Some(out(&doc, row)),
+        "the source reads the row"
     );
+    assert_eq!(at.len(), 1, "at one index, as written: {at:?}");
 }
 
 /// **The takeover door refuses what is no source**, in its own words.
@@ -713,4 +730,102 @@ fn the_product_slot_refuses_one_member_of_a_family() {
         _ => false,
     };
     assert!(held, "redefined under the slot: {:?}", got.map(|_| ()));
+}
+
+/// **What reads a body is the inverse of what each reader reads**: two
+/// copies of `B`, one through `spare = bracket`, `bracket = B`, and a
+/// third placed into `B`'s own space. `Doc::read_by(B)` lists the two
+/// copies at the source seat and the third at the space seat, each
+/// reading `B` in `Doc::operand_reads`; `Doc::placements_of(B)` is the
+/// two copies, and `Doc::placements_of_var` finds the one through
+/// `spare` from either source it passes through.
+///
+/// *Breaks if* a space seat stops reaching its definer, a read down a
+/// chain of sources stops reaching the body, or the two directions
+/// disagree.
+#[test]
+fn read_by_inverts_operand_reads_at_source_and_space_seats() {
+    let doc = ProfileDoc::empty_derived("read-by-inverts", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let doc = declared(doc, "bracket", VarDecl::source(Operand::Node(b)));
+    let doc = declared(
+        doc,
+        "spare",
+        VarDecl::source(Operand::Name(VarName::from_static("bracket"))),
+    );
+    let (doc, first) = insert(doc, placed(Operand::Node(b)));
+    let (doc, through) = insert(doc, placed(Operand::Name(VarName::from_static("spare"))));
+    let own = doc.space_of(out(&doc, b)).expect("B is in its own space");
+    let (doc, standing) = insert(
+        doc,
+        Node::place(
+            editor_core::BodyRead::plain(Operand::Node(first)),
+            Operand::Var(own),
+            editor_core::stand().bundle(),
+        ),
+    );
+    assert_eq!(
+        doc.read_by(b),
+        [
+            (first, OperandSlot::Source),
+            (through, OperandSlot::Source),
+            (standing, OperandSlot::Space),
+        ],
+        "both copies, and the placement standing in B's space"
+    );
+    for (reader, seat) in doc.read_by(b) {
+        assert!(
+            doc.operand_reads(reader)
+                .iter()
+                .any(|read| read.seat == seat && read.reaches.contains(&b)),
+            "{reader:?} reads B at {seat:?} in its own operand reads"
+        );
+    }
+    assert_eq!(doc.placements_of(b), [first, through], "the copies of B");
+    assert_eq!(doc.placements_of(first), [standing], "a copy of the copy");
+    for name in ["spare", "bracket"] {
+        let var = doc.var_named(name).expect("declared");
+        assert_eq!(
+            doc.placements_of_var(var),
+            [through],
+            "the copy reading spare reads {name}"
+        );
+    }
+    assert_eq!(
+        doc.placements_of_var(out(&doc, b)),
+        [first, through],
+        "B's body, directly and down both sources"
+    );
+}
+
+/// **A copy of a member of a named family source is a copy of the body
+/// the family reads, by both placement queries**: `xs = Row`, `m =
+/// xs[1]`, `Place(m)`. The copy reads Row's member, so it is among Row's
+/// copies whether asked by the node or by its body.
+///
+/// *Breaks if* the variable walk stops at the family source `xs` and
+/// misses the body below it, or the two queries part.
+#[test]
+fn a_copy_of_a_named_familys_member_copies_the_body_the_family_reads() {
+    let doc = ProfileDoc::empty_derived("member-of-a-named-family", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 3), editor_core::TargetAxis::X, 2.0);
+    let doc = declared(doc, "xs", VarDecl::source(Operand::Node(row)));
+    let doc = declared(
+        doc,
+        "m",
+        VarDecl::source(editor_core::BodyRead::indexed(
+            Operand::Name(VarName::from_static("xs")),
+            vec![editor_core::Formula::count(1)],
+        )),
+    );
+    let (doc, copy) = insert(doc, placed(Operand::Name(VarName::from_static("m"))));
+    assert_eq!(doc.placements_of(row), [copy], "a copy of Row's member");
+    assert_eq!(
+        doc.placements_of_var(out(&doc, row)),
+        doc.placements_of(row),
+        "asked by Row's body, the same answer"
+    );
+    let xs = doc.var_named("xs").expect("declared");
+    assert_eq!(doc.placements_of_var(xs), [copy], "and a copy of xs");
 }

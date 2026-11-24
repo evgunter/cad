@@ -26,9 +26,9 @@ These rows, raised through `MateFault` (`crates/editor-core/src/mate.rs`), in th
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  11 feature-tree rows.
+  its feature-tree rows.
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
-  12 status-line rows.
+  its status-line rows.
 
 Families: `Edit/MateRefused`, `Mate`. (`Edit/MaintenanceRefused` and
 its eleven forwarded rows left the list with the arm, which EDIT's

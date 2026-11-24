@@ -1637,6 +1637,47 @@ impl<T: Real> Pcurve<T> {
 }
 
 impl<T: SpanLocate> Pcurve<T> {
+    /// **This image read on a parameter `k` times its carrier's**:
+    /// `q(s) = p(s/k)`, for a line carrier whose image direction a map
+    /// squared and whose parameter it stretched by `k`
+    /// (`topo::transform`'s stretch). Exact where the image is affine in
+    /// its parameter, which every image a line carries is:
+    ///
+    /// - a [`Pcurve::Harmonic`] channel with no period (a constant
+    ///   angle, or a free channel with no `cos`/`sin` term) has its rate
+    ///   divided by `k`;
+    /// - a [`Pcurve::IsoLine`] has its rate divided by `k`; the line it
+    ///   holds and its origin along it are chart values, kept.
+    ///
+    /// `None` for every other image (one with a period, an arc's, a
+    /// spiric's, a focal section's, a projected or a 2-D NURBS image):
+    /// no line carries one, and a map that met one would refuse it
+    /// rather than drift it off its parameter.
+    #[must_use]
+    pub fn stretched(&self, k: T) -> Option<Self> {
+        let zero = |x: T| x.structure_bracket() == Some((0.0, 0.0));
+        let channel = |c: &Channel<T>| match *c {
+            Channel::Angle { phase, winding: 0 } => Some(Channel::Angle { phase, winding: 0 }),
+            Channel::Angle { .. } => None,
+            Channel::Free { c, a, b, l } if zero(a) && zero(b) => {
+                Some(Channel::Free { c, a, b, l: l / k })
+            }
+            Channel::Free { .. } => None,
+        };
+        match self {
+            Pcurve::Harmonic { u, v } => Some(Pcurve::Harmonic {
+                u: channel(u)?,
+                v: channel(v)?,
+            }),
+            Pcurve::IsoLine { line, at0, rate } => Some(Pcurve::IsoLine {
+                line: *line,
+                at0: *at0,
+                rate: *rate / k,
+            }),
+            _ => None,
+        }
+    }
+
     /// The chart point at the **carrier parameter** `t` (module docs:
     /// the parameter is not re-mapped). Fixed evaluation order (D9);
     /// total.
@@ -2109,10 +2150,12 @@ pub enum EnvelopeTerm {
     /// reads the first; a free (length) channel carries no placement
     /// term.
     FidelityV,
-    /// The chart's frame is not orthonormal: its distance from its
-    /// Gram–Schmidt twin over the stored image, levered by the radius
-    /// and by the image's actual axial reach (the lemma's premise,
-    /// metered rather than assumed).
+    /// The chart's frame rounding: its stored axes' distance from their
+    /// Gram–Schmidt twin, bounded from their distance to the rotation
+    /// they hold ([`geom::Frame::rounding`]), over the stored
+    /// image, levered by the radius and by the image's actual axial reach
+    /// (the lemma's premise, metered rather than assumed). Zero at an
+    /// enclosure scalar, whose frame encloses that rotation.
     Frame,
     /// A projected image's carrier against the chart: the chart's
     /// implicit form composed along the carrier, in metres.
@@ -3236,17 +3279,18 @@ pub enum EnvelopeStatement {
     /// **The frame.** Every arm above is a lemma about an orthonormal
     /// frame (`axis` and `u_ref` unit, `u_ref ⊥ axis`), as every meter
     /// in this lane is ([`chart_stretch_sup`]'s arms, `azimuth_lever`).
-    /// Nothing at rest makes the stored chart's frame one: the cone
-    /// carries no frame margins, and where
-    /// `Surface::representability_margins` does carry them it meters
-    /// them at the radius, while an axis's defect moves a point by the
-    /// defect times its HEIGHT. So check 4 applies the lemma, and
+    /// The stored chart's frame is a [`geom::Frame`], held as the claim
+    /// that it is one; at a point scalar its stored axes stand off the
+    /// rotation they hold by their rounding ([`geom::Frame::rounding`]),
+    /// zero at an enclosure scalar, and an axis's defect moves a point
+    /// by the defect times its HEIGHT. So check 4 applies the lemma, and
     /// derives `P_d`, on the chart's Gram–Schmidt twin `Ŝ` (`n̂ =
     /// axis/‖axis‖`, `ê₁` the normalised part of `u_ref` normal to it,
     /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
     /// stored image's chart box. The two maps share every scalar, so
-    /// the radial direction differs by at most `‖u_ref − ê₁‖ + ‖v_ref −
-    /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
+    /// the radial direction differs by at most `√(‖u_ref − ê₁‖² +
+    /// ‖v_ref − ê₂‖²)` and the axis by `‖axis − n̂‖`, both bounded from
+    /// [`geom::Frame::rounding`] (`frame_defect`), each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
     /// image's own `sup |v|`. On the sphere and the torus's tube the
@@ -5004,6 +5048,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // structural refusal whose full text lives at the SSI door, and
         // the kernel's defect here, since this door ran no march.
         E::Escalated { .. }
+        | E::DegenerateCone { .. }
         | E::ChartRow { .. }
         | E::RefinementExhausted { .. }
         | E::TubeStraddles { .. }
@@ -5301,6 +5346,26 @@ impl<T: Real> ChartImage<T> {
             Self::Image { pcurve, .. } | Self::Stated { pcurve, .. } => pcurve,
             Self::Certified(cache) => cache.pcurve,
         }
+    }
+}
+
+impl<T: SpanLocate> PcurveCache<T> {
+    /// **This row on a carrier whose parameter a map stretched by `k`**
+    /// ([`Pcurve::stretched`]): its image read on the new parameter and
+    /// its span scaled by `k`, so the row and its edge share one span. Its
+    /// certificate states distances, which the map keeps, and is carried;
+    /// its support, read at the old parameter, is dropped, so a door
+    /// asking its checks derives them. `None` where the image cannot be
+    /// read on a stretched parameter.
+    #[must_use]
+    pub fn stretched(&self, k: T) -> Option<Self> {
+        Some(Self {
+            pcurve: self.pcurve.stretched(k)?,
+            param_start: self.param_start * k,
+            param_end: self.param_end * k,
+            certificate: self.certificate,
+            support: None,
+        })
     }
 }
 
@@ -5910,13 +5975,17 @@ fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
 
 /// The carrier in the certified basis. Total for the analytic kinds;
 /// `Nurbs` carriers are refused at the lane check.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
     match carrier {
         &Curve3::Line(geom::Line { origin, dir }) => Some(Harmonic3 {
             c: origin,
             a: Vec3::zero(),
             b: Vec3::zero(),
-            l: dir,
+            l: dir.get(),
         }),
         Curve3::Circle(_) | Curve3::Ellipse(_) => carrier.conic().map(|k| {
             let (a, b) = k.semi_axis_vectors();
@@ -6849,47 +6918,57 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 /// `sup |S(u, v) − Ŝ(u, v)|` over an image whose `|v|` stays within
 /// `v_reach`, `Ŝ` the chart's orthonormal twin ([`orthonormal_chart`]).
 /// Both maps share the chart's scalars and differ only in their frame:
-/// the radial direction moves by at most `‖u_ref − ê₁‖ + ‖v_ref − ê₂‖`
-/// at any azimuth (`ρ(u) − ρ̂(u)` is that pair's difference under
-/// `cos u`, `sin u`), and the axis by `‖axis − n̂‖`. Each is levered by
+/// the radial direction moves by at most
+/// `√(‖u_ref − ê₁‖² + ‖v_ref − ê₂‖²)` at any azimuth (`ρ(u) − ρ̂(u)` is
+/// that pair's difference under the unit pair `cos u`, `sin u`), and the
+/// axis by `‖axis − n̂‖`. Each is levered by
 /// what multiplies it in the chart's own map: the radius, or the
 /// slant `v` on a cylinder's axis and a cone's two channels — the
 /// actual axial reach, not the radius.
 ///
-/// The distances are bounded in the frame's own invariants, never by
-/// differencing the normalised vectors (whose enclosures widen by the
-/// radius times a few ulps at the interval scalar — the wide-arc
-/// widening check 4 was restated to remove). With `A = axis·axis`,
-/// `U = u_ref·u_ref` and `θ = |axis·u_ref|/√A = |n̂·u_ref|`, and since
-/// `|x − 1| ≤ |x² − 1|` for `x ≥ 0`:
+/// The two distances follow from the frame's own rounding
+/// ([`geom::Frame::rounding`]): `d_w` and `d_u`, the stored axis's and
+/// seam's distances from `R`, the polar factor of the stored axes. That
+/// is zero at an enclosure scalar, whose frame encloses the rotation it
+/// holds (fork 274 decision 1, the frame held as the claim it is, never
+/// read back off its brackets). At a point scalar it is measured with
+/// its rounding charged. The twin is Gram–Schmidt's, not `R`, and its
+/// distances are bounded by `R`'s:
+/// - `‖axis − n̂‖ = |‖axis‖ − 1| ≤ ‖axis − Rẑ‖ = d_w`, `Rẑ` being unit;
+/// - `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`. `ê₁` is the unit vector square to `n̂`
+///   nearest `u_ref`, so it is no farther than `x`, `Rx̂` turned by the
+///   least rotation taking `Rẑ` onto `n̂`. That rotation moves a unit
+///   vector by at most the chord `‖n̂ − Rẑ‖ ≤ ‖n̂ − axis‖ + d_w ≤ 2·d_w`.
 ///
-/// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
-/// - `‖u_ref − ê₁‖ ≤ ‖u_ref − u⊥‖ + ‖u⊥ − ê₁‖ ≤ θ + |U − θ² − 1| ≤
-///   θ + |U − 1| + θ²`, `u⊥ = u_ref − n̂·θ` its part normal to `n̂`;
-/// - `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+/// The seam's third reading follows from them:
+/// `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`,
+/// `U = u_ref·u_ref`.
 ///
 /// On a literal unit frame every one is the zero form.
 fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
-    let defect = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let (a2, u2) = (axis.dot(axis), u_ref.dot(u_ref));
-        let one = T::one();
-        let d_axis = (a2 - one).abs();
-        let tilt = axis.dot(u_ref).abs() / a2.sqrt();
-        let d_u = tilt + (u2 - one).abs() + tilt.powi(2);
-        (d_axis, d_u + d_u + d_axis * u2.sqrt())
+    // `‖axis − n̂‖ ≤ d_w` and `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`, from the polar
+    // distances ([`geom::Frame::rounding`]): zero at an enclosure scalar,
+    // measured at a point scalar.
+    // The radial direction's miss is `cos u·Δu + sin u·Δv`, at most
+    // `√(|Δu|² + |Δv|²)` (Cauchy–Schwarz on the unit pair `(cos u, sin u)`),
+    // `Δv` bounded by `‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+    let defect = |frame: &geom::Frame<T>| {
+        let (d_w, d_seam) = frame.rounding();
+        let (d_axis, d_u) = (d_w, d_seam + d_w + d_w);
+        let u2 = frame.u_ref().dot(frame.u_ref());
+        let d_v = d_u + d_axis * u2.sqrt();
+        (d_axis, harmonic_sup_scalar(d_u, d_v))
     };
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&frame);
             d_radial * radius + d_axis * v_reach
         }
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
             let (s_a, c_a) = half_angle.sin_cos();
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&frame);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
         }
         // `r·(cos v·Δrad + sin v·Δaxis)`: `(cos v, sin v)` is a unit
@@ -6899,8 +6978,7 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             radius,
             ..
         } => {
-            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&carrier_frame);
             let defect = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
             let defect = mutants::frame(d_radial, d_axis).unwrap_or(defect);
@@ -6918,11 +6996,10 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             minor_radius,
             ..
         } => {
-            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
             // the sphere's, `r` levering the two defects at their norm,
             // and the spine's `|R|`, signed on a spindle sheet.
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&carrier_frame);
             let tube = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
             let tube = mutants::frame(d_radial, d_axis).unwrap_or(tube);
@@ -6960,9 +7037,8 @@ pub enum Ruling<T: Real> {
 /// class arms, props' boundary parse and the boolean share: the line's
 /// greatest distance from `ruling` over the edge's span `[t0, t1]`, in
 /// metres. A distance from a line is convex along a line, so the greatest
-/// is at an end of the span and the reading is exact. It is the line's
-/// and not its parametrisation's speed: a line with `dir` scaled and its
-/// span scaled back reads the same.
+/// is at an end of the span and the reading is exact. The line's
+/// direction is a `UnitVec3`, so its parameter is metres along it.
 ///
 /// The ruling is anchored where the closed form that a Zero reading
 /// selects places its image: on a cylinder, the ruling through the line's
@@ -6995,13 +7071,13 @@ pub fn ruling_miss<T: Real>(
             } else {
                 reach
             };
-            Margin::metered(reach, InfSpeed::new(dir.cross(axis).norm()))
+            Margin::metered(reach, InfSpeed::new(dir.get().cross(axis).norm()))
         }
         Ruling::Generator { apex, g } => {
-            let off = |t: T| (origin + dir * t - apex).cross(g).norm();
+            let off = |t: T| (origin + dir.get() * t - apex).cross(g).norm();
             #[cfg(test)]
             if mutants::ruling_unplaced() {
-                return Margin::of(off(T::zero()) + dir.cross(g).norm() * (t1 - t0).abs());
+                return Margin::of(off(T::zero()) + dir.get().cross(g).norm() * (t1 - t0).abs());
             }
             Margin::of(off(t0).max(off(t1)))
         }
@@ -7732,7 +7808,7 @@ fn fidelity<T: Decide>(
 /// **A focal-section image's structure**, decided in band, the one
 /// spelling of it for every door that reads one: its sense `±1` and its
 /// tube rate `±1` on a torus (`tube` its minor radius), each a residue
-/// metered at its channel's rate; `|β| < 1`, levered at the azimuth's.
+/// metered at its channel's rate; `|β| < 1`, read by its sign alone.
 /// Returns the azimuth's arm, metres per radian over the image's box,
 /// with the two unit signs it decided.
 pub(super) fn focal_section_identity<T: Decide>(
@@ -7777,16 +7853,14 @@ pub(super) fn focal_section_identity<T: Decide>(
             ));
         }
     }
+    // `1 − |β|` is the least modulus of the true-anomaly map's `atan2`
+    // argument `(β·sin E, 1 − β·cos E)`, a point on the circle of radius
+    // `|β|` about `(1, 0)`: the map is cut-free exactly where it is
+    // positive, whatever its size, so its sign alone is read.
     match decide(
         "pcurve_focal_section_beta",
-        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
-        // headroom, a coefficient that is no parameter span, and the
-        // azimuth arm is a rate (metres per radian), not an extent.
-        Margin::levered(
-            T::one() - image.beta.abs(),
-            geom_core::Lever::unsourced(arm),
-        ),
-        band,
+        Margin::sign_of(T::one() - image.beta.abs()),
+        Band::enclosure_sign(),
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
     {
@@ -9288,6 +9362,10 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// and the margin the band admits is paid as that term's sup bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn run_iso_arc_checks<T: Decide>(
     line: ChartLine<T>,
     g0: T,
@@ -9320,11 +9398,7 @@ fn run_iso_arc_checks<T: Decide>(
                    rational-quadratic reparameterization",
         });
     };
-    let (center, axis, u_ref) = (
-        circle.frame().origin(),
-        circle.frame().axis(),
-        circle.frame().u_ref(),
-    );
+    let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
     let radius = circle.radius();
 
     // ---- Check 2: the parameter interval, metered into metres. ----
@@ -10027,7 +10101,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - v0) / rate;
-            hull = hull.max((*cp - (origin + dir * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
@@ -11471,6 +11545,10 @@ fn class_gate<T: Decide>(
 /// [`derive_class`], noting in `zero` each Zero its class stands on
 /// ([`IsoReading::zero`]): the class gates it decides Zero and the
 /// incidence test's margin.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn derive_class_zero<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -11672,7 +11750,7 @@ fn derive_class_zero<T: Decide>(
                     // the line by its distance from the generator.
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
-                    let (h0, hs) = (w.dot(axis), dir.dot(axis));
+                    let (h0, hs) = (w.dot(axis), dir.get().dot(axis));
                     // Read off the origin, the nappe names the same image
                     // from any origin on the line: `radial · sign h` is one
                     // direction at every point of a ruling through the
@@ -11695,11 +11773,11 @@ fn derive_class_zero<T: Decide>(
                                     Decided {
                                         sign: Sign::Positive,
                                         ..
-                                    } => (radial(dir), Nappe::Pos, false),
+                                    } => (radial(dir.get()), Nappe::Pos, false),
                                     Decided {
                                         sign: Sign::Negative,
                                         ..
-                                    } => (radial(dir), Nappe::Neg, false),
+                                    } => (radial(dir.get()), Nappe::Neg, false),
                                     // The apex plane meets the cone at
                                     // its radius `h·tan α = 0`: the apex
                                     // alone.
@@ -11770,7 +11848,7 @@ fn derive_class_zero<T: Decide>(
                                 c: w.dot(g),
                                 a: T::zero(),
                                 b: T::zero(),
-                                l: dir.dot(g),
+                                l: dir.get().dot(g),
                             },
                         },
                         Derivation::ConeRuling {
@@ -11896,11 +11974,8 @@ fn derive_class_zero<T: Decide>(
                     ))
                 }
                 Curve3::Ellipse(conic_k) => {
-                    let (center, e_axis, seam) = (
-                        conic_k.frame().origin(),
-                        conic_k.frame().axis(),
-                        conic_k.frame().u_ref(),
-                    );
+                    let (center, e_axis, seam) =
+                        (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
@@ -13041,6 +13116,10 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// in the sliver band; and [`PcurveCertifyError::Escalated`]
 /// ([`PcurveCheck::ChartClass`]) when a tangent's sign is not decided,
 /// the class not shown (the comment at `decided_sense`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -13059,13 +13138,16 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
-    let (c, n) = (circle.frame().origin(), circle.frame().axis());
+    let (c, n) = (circle.frame().origin(), circle.axis());
     let (center, axis, u_ref) = (
         torus_frame.origin(),
-        torus_frame.axis(),
+        torus_frame.axis_unit(),
         torus_frame.u_ref(),
     );
     let radius = circle.radius();
+    // The circle's plane and its tangent turn about the circle: the
+    // tilt and the sense parts are levered at its curvature arm.
+    let arm = crate::circle_curvature_arm(&circle);
     let w = c - center;
     let w_r = geom::Line {
         origin: center,
@@ -13074,17 +13156,14 @@ fn torus_oblique_circle<T: Decide>(
     .offset(c);
     let gates = [
         ("pcurve_torus_villarceau_offset", Margin::of(w_r.norm() - r)),
-        ("pcurve_torus_villarceau_equator", Margin::of(w.dot(axis))),
+        (
+            "pcurve_torus_villarceau_equator",
+            Margin::of(w.dot(axis.get())),
+        ),
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
-            // Unsourced lever: the torus's major radius `R`; the tilt's
-            // honest extent is the Villarceau circle's own radius, gated
-            // equal to `R` only within the band, so it would move bits.
-            Margin::levered(
-                n.cross(axis).norm() - r / big,
-                geom_core::Lever::unsourced(big),
-            ),
+            Margin::levered(n.cross(axis.get()).norm() - r / big, arm),
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
@@ -13092,11 +13171,19 @@ fn torus_oblique_circle<T: Decide>(
     // rule: a gate decided apart answers past an earlier in-band one.
     // What reaches these gates through `chart_pcurve`, as measured:
     // - On `R = 2`, `r = 0.7`, a circle's first-order departure from the
-    //   torus at the 64 incidence samples has a one-dimensional null space
+    //   torus at the 65 incidence samples has a one-dimensional null space
     //   (a turn about the axis, which moves no gate), and the least
-    //   departure that puts any one gate at `m` is `0.995·m` to `1.04·m`
-    //   at its farthest sample: a gate in band or past it is read about as
-    //   far off the torus by the incidence test, which decides first.
+    //   departure that puts any one gate at `m` is `m` for the offset,
+    //   equator and radius, `0.9985·m` for the plane and `0.9966·m` for
+    //   the tilt at its farthest sample: a gate past the band is read about
+    //   as far off the torus by the incidence test, which decides first.
+    //   Only in that sliver at the band's zero does a gate decide, and
+    //   there the tilt chooses the lane: in band, the general lane
+    //   (`pcurve_villarceau::a_tilt_just_past_the_band_takes_the_general_lane`).
+    //   Both lanes' images of such a circle refuse in band when certified
+    //   (the closed form on its map residual, the general lane on its
+    //   incidence term), so there the choice names the refusal and decides
+    //   no outcome.
     // - Near a horn torus the plane gate is cheaper. On `R = 2`,
     //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
     //   along its own normal by `3e-9` to `1e-8` escalates here on
@@ -13126,9 +13213,9 @@ fn torus_oblique_circle<T: Decide>(
     }
     let d = w_r.normalize();
     let tangent = n.cross(d);
-    // The tangent's two parts, levered at `R`, are `R·sin θ` (`r` on a
-    // Villarceau circle) and `R·cos θ` (`√(R² − r²)`), `θ` the plane's
-    // tilt. The router reaches here by two routes:
+    // The tangent's two parts, levered at the circle's radius (`R`, by
+    // `_radius`), are `R·sin θ` (`r` on a Villarceau circle) and
+    // `R·cos θ` (`√(R² − r²)`), `θ` the plane's tilt. The router reaches here by two routes:
     // - Both class gates apart. `pcurve_torus_chart_axial` read the
     //   tube-rate part's own number, `R·sin θ`, apart.
     //   `pcurve_torus_chart_meridian` read `(a × b)·e / r = (R/r)·R·cos θ`
@@ -13158,35 +13245,23 @@ fn torus_oblique_circle<T: Decide>(
     let reread = |cause| incidence::class_escalated(shown, cause);
     let decided_sense = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
-        // Unsourced lever: `R·part` is the carrier's speed along `along`
-        // (metres per radian), a rate with no span to meter, at the
-        // torus's major radius rather than the circle's own.
-        geom_core::k_stats::decide_positive(
-            name,
-            Margin::levered(part.abs(), geom_core::Lever::unsourced(big)),
-            band,
-        )
-        .map_err(reread)?;
-        // Unsourced lever: as the magnitude's above. A part whose
-        // magnitude decided positive decides a side, so the gate's
-        // rejection of Zero is never reached.
-        geom_core::k_stats::decide_nonzero(
-            name,
-            Margin::levered(part, geom_core::Lever::unsourced(big)),
-            band,
-        )
-        .map(geom_core::NonzeroSign::unit)
-        .map_err(reread)
+        geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), arm), band)
+            .map_err(reread)?;
+        // A part whose magnitude decided positive decides a side, so the
+        // gate's rejection of Zero is never reached.
+        geom_core::k_stats::decide_nonzero(name, Margin::levered(part, arm), band)
+            .map(geom_core::NonzeroSign::unit)
+            .map_err(reread)
     };
-    let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
-    let sense = decided_sense("pcurve_chart_orientation", axis.cross(d))?;
+    let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis.get())?;
+    let sense = decided_sense("pcurve_chart_orientation", axis.get().cross(d))?;
     let Some(form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: a circle has its harmonic form")
     };
     // Read through `Azimuth::principal`, so a direction of no length (an
     // undefined `t0`) reads `0` here as everywhere.
     let t0 = Azimuth::of(d.dot(form.b), d.dot(form.a)).principal(band);
-    let cv = axis.cross(u_ref);
+    let cv = axis.get().cross(u_ref);
     // The tube angle, `vl·(t − t0)` from the carrier's own parameter, is
     // an angle of the chart like the azimuth: placed in the window at the
     // span's midpoint, levered at the tube's radius.
@@ -13245,7 +13320,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             crate::implicit::cone_elevation(
                 geom::Line {
                     origin: apex,
-                    dir: frame.axis(),
+                    dir: frame.axis_unit(),
                 },
                 half_angle,
                 None,
@@ -13465,6 +13540,10 @@ mod incidence {
     /// Returned as the moved carrier, the moved chart, the slack, and
     /// the shift the moved carrier's parameter is read less (`mid` for a
     /// line, zero otherwise).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn anchored<T: geom_core::Real>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
@@ -13478,7 +13557,7 @@ mod incidence {
         let k = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let [ox, oy, oz] = exact_vec(origin - geom_core::Point3::origin());
-                let [dx, dy, dz] = exact_vec(dir);
+                let [dx, dy, dz] = exact_vec(dir.get());
                 let m = Rounded::exact(mid);
                 [ox + dx * m, oy + dy * m, oz + dz * m]
             }
@@ -13574,7 +13653,7 @@ mod incidence {
     /// A point as the anchored read takes it: a line through it, whose
     /// origin is the frame's anchor and whose direction nothing reads.
     pub(super) fn point_probe<T: geom_core::Real>(point: geom_core::Point3<T>) -> Curve3<T> {
-        Curve3::line(point, geom_core::Vec3::new(T::one(), T::zero(), T::zero()))
+        Curve3::line(point, geom_core::UnitVec3::exact_x())
     }
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
@@ -13808,11 +13887,13 @@ fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// ([`SpiricImage::Cap`]'s docs).
 ///
 /// **Torus wall.** Two decisions ([`SpiricImage::Wall`]'s derivation).
-/// `sense = σ`, the cosine of the chart axis against the carrier's
-/// levered at the chart's major radius (`pcurve_spiric_chart_axis`):
-/// `+1` when they agree, `−1` when they oppose, and Zero refuses — a
-/// torus whose axis is perpendicular to the carrier's holds no oval of
-/// it ([`spiric_off_own_chart`]). `torus`, which of the two tori
+/// `sense = σ`, the sign of the cosine of the chart axis against the
+/// carrier's (`pcurve_spiric_chart_axis`): `+1` when they agree, `−1`
+/// when they oppose. The incidence test has read the whole oval on the
+/// chart by then, and a torus that holds the oval has its axis parallel
+/// to the carrier's, so the cosine is `±1` and only its sign is read; an
+/// exact zero refuses — a torus whose axis is perpendicular to the
+/// carrier's holds no oval of it ([`spiric_off_own_chart`]). `torus`, which of the two tori
 /// holding the oval the chart is: [`WallTorus::Own`] when its centre is
 /// the carrier's (`pcurve_spiric_mint_center`), else
 /// [`WallTorus::Mirror`] — check 1 then gates the centre against
@@ -13879,22 +13960,25 @@ fn spiric_chart_pcurve<T: Decide>(
                 pa: chart(axis * minor_radius),
             }))
         }
-        Surface::Torus {
-            frame,
-            major_radius: chart_major,
-            ..
-        } => {
+        Surface::Torus { frame, .. } => {
             let (chart_center, chart_axis, chart_u) = (frame.origin(), frame.axis(), frame.u_ref());
             let cv = chart_axis.cross(chart_u);
             // Both readings place the oval on one of the tori that hold
             // it, so their far or Zero arm is the chart's incidence, never
-            // a lane choice. The axis reading's sign is all that can
-            // place it: a reading Zero or in the sliver puts the axes
-            // within `K·ε/R` of perpendicular, far from the parallel ones
-            // every torus holding the oval has, so it is definitely off
-            // (no margin to quote). A poisoned read says only that. The centre's reading in the sliver is
-            // the chart's distance from the own torus, an incidence
-            // reading ([`PcurveCheck::ChartIncidence`]).
+            // a lane choice. The incidence test above read the oval's
+            // whole turn on this ring torus (a spiric's placement is never
+            // the edge's alone), so the chart holds the oval and its axis
+            // is the carrier's or the opposite one: the cosine is `±1`, a
+            // sense with no length, read for its sign alone. An exact zero
+            // is a perpendicular axis, which holds no oval (no margin to
+            // quote); an enclosure that holds zero or a poisoned read shows
+            // nothing about the axes. An oval small enough (its minor
+            // radius just past `Kε`) can lie within the band of a large
+            // torus whose axis is not its own; the centre gate below and
+            // check 1 then refuse it, so that corner ends as a refusal, never
+            // as a wrong image. The centre's reading in the sliver is the
+            // chart's distance from the own torus, an incidence reading
+            // ([`PcurveCheck::ChartIncidence`]).
             let perpendicular = || {
                 spiric_off_own_chart(
                     "the chart torus's axis is perpendicular to the carrier's, and a spiric \
@@ -13904,33 +13988,20 @@ fn spiric_chart_pcurve<T: Decide>(
             };
             let sigma = decide(
                 "pcurve_spiric_chart_axis",
-                // A COSINE of unit vectors: dimensionless, so it is
-                // metered by multiplying the chart's own lever arm
-                // (`Margin::levered`, whose docs name this exact case)
-                // — not `over_lever`, which divides a measure by a
-                // lever and belongs to an oriented area over a radius.
-                // Unsourced lever: the chart torus's major radius; the
-                // honest extent (the oval's span, or the torus's ball
-                // `R + r`) has different bits.
-                Margin::levered(
-                    chart_axis.dot(axis),
-                    geom_core::Lever::unsourced(chart_major),
-                ),
-                band,
+                Margin::sign_of(chart_axis.dot(axis)),
+                Band::enclosure_sign(),
             )
             .map_err(|cause| {
-                if cause.margin.is_invalid() {
-                    // A poisoned read shows nothing about the axes: no
-                    // claim that they are perpendicular, and no lever
-                    // makes it readable (the defect ending).
-                    spiric_off_own_chart(
-                        "the chart torus's axis could not be read against the carrier's (its \
-                         reading was poisoned)",
-                    )
-                    .refusal(surface, carrier)
+                // No claim that the axes are perpendicular, and no lever
+                // makes the read decide (the defect ending).
+                spiric_off_own_chart(if cause.margin.is_invalid() {
+                    "the chart torus's axis could not be read against the carrier's (its \
+                     reading was poisoned)"
                 } else {
-                    perpendicular()
-                }
+                    "the chart torus's axis could not be read against the carrier's (its \
+                     enclosure holds zero)"
+                })
+                .refusal(surface, carrier)
             })?
             .nonzero()
             .ok_or_else(perpendicular)?
@@ -14698,7 +14769,7 @@ mod tests {
     fn meridian_line_on_cylinder_is_the_u_const_line() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
             panic!("the closed-form lane stores harmonic images")
@@ -14720,7 +14791,7 @@ mod tests {
     fn a_seam_edge_carries_two_different_branches_of_one_surface() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let wrapped = base.shift_branch(1, Period::new(TAU));
         let wrapped_for_shift = wrapped.clone();
@@ -14843,7 +14914,7 @@ mod tests {
         use geom_core::Interval;
         let f = Interval::from_f64;
         let rim = Curve3::circle(Point3::origin(), Vec3::unit_z(), 0.5, Vec3::unit_x());
-        let seam = Curve3::line(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z());
+        let seam = Curve3::line(Point3::new(0.5, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         for (name, carrier, derived) in [("rim", rim, 1), ("seam", seam, 0)] {
             let Pcurve::Harmonic {
                 u: Channel::Angle { phase, winding },
@@ -15421,7 +15492,8 @@ mod tests {
                 half_angle: 0.5,
             }
             .map_scalar(&at);
-            let line = Curve3::line(Point3::origin(), Vec3::unit_x()).map_scalar(&at);
+            let line =
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()).map_scalar(&at);
             let half = 0.1 * band().zero();
             chart_pcurve_over(&line, at(-half), at(half), &cone, band())
                 .expect_err("the apex plane meets the cone only at the apex")
@@ -15483,7 +15555,7 @@ mod tests {
             (
                 "a line in the cone's apex plane",
                 "the line's points are not on the chart",
-                Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_y()),
+                Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_y()),
                 &cone,
             ),
             (
@@ -15511,7 +15583,7 @@ mod tests {
             (
                 "a line through the sphere's centre",
                 "the line's points are not on the chart",
-                Curve3::line(Point3::origin(), Vec3::unit_x()),
+                Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
                 &sphere,
             ),
             (
@@ -16056,7 +16128,10 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line(geom::Line { origin, dir })
+        Curve3::Line(geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -16454,7 +16529,10 @@ mod fitted_lane_tests {
     }
 
     fn line(lift: f64) -> Curve3<f64> {
-        Curve3::line(Point3::new(0.0, 0.5, lift), Vec3::new(1.0, 0.0, 0.0))
+        Curve3::line(
+            Point3::new(0.0, 0.5, lift),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        )
     }
 
     /// **A line carrier enters as its exact net, against the chart
@@ -16577,7 +16655,7 @@ mod iso_family {
         let line = |tilt: f64| {
             Curve3::line(
                 Point3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, tilt, 1.0).normalize(),
+                geom_core::UnitVec3::squared(Vec3::new(0.0, tilt, 1.0)),
             )
         };
         let rim = Curve3::circle(
@@ -16704,8 +16782,8 @@ mod off_chart_class_rows {
     /// - a unit circle on a plane tilted mid-band off the axis of a unit
     ///   cylinder, centred 2 m out (the orientation reading in band);
     /// - a spiric met with a torus whose axis is mid-band off perpendicular
-    ///   to its own (`pcurve_spiric_chart_axis` in band), an incidence
-    ///   reading.
+    ///   to its own, which the incidence test reads off before its axis is
+    ///   read.
     #[test]
     fn a_carrier_off_its_chart_never_ends_as_a_class_reading() {
         fn ends<T: geom_core::Decide>(carrier: &Curve3<T>, surface: &Surface<T>) -> String {
@@ -16719,7 +16797,12 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir });
+        let line = |origin: Point3<f64>| {
+            Curve3::Line(geom::Line {
+                origin,
+                dir: geom::stated_direction(dir),
+            })
+        };
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =
@@ -17929,7 +18012,7 @@ mod row_support_rows {
     fn line(y: f64) -> Curve3<f64> {
         Curve3::Line(geom::Line {
             origin: Point3::new(1.0, y, 0.0),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         })
     }
 
@@ -18080,5 +18163,71 @@ mod row_support_rows {
             (clamped.lo(), clamped.hi()) == (plain.lo(), plain.hi()) && !plain.same_value(clamped),
             "one enclosure, two decorations: {clamped:?} against {plain:?}"
         );
+    }
+}
+
+/// A chart image read on a stretched parameter ([`Pcurve::stretched`]).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod stretched_rows {
+    use super::{Channel, Pcurve};
+
+    /// **An affine image reads the same point at the stretched
+    /// parameter, and a periodic one refuses**: an iso line and a
+    /// harmonic image with a constant angle and a linear free channel,
+    /// stretched by `k = 1 + 20ε`, read at `k·t` the point they read at
+    /// `t`, to rounding; a free channel with a `cos` term and a winding
+    /// angle answer `None`. Red under the stretch multiplying the rate
+    /// by `k` (the points move by `2·k·t·ε`-scale), and under it keeping
+    /// a periodic image.
+    #[test]
+    fn an_affine_image_reads_its_point_at_the_stretched_parameter() {
+        let k = 1.0 + 20.0 * f64::EPSILON;
+        let iso = Pcurve::IsoLine {
+            line: super::ChartLine::column(0.3),
+            at0: -1.2,
+            rate: -0.6,
+        };
+        let harmonic = Pcurve::Harmonic {
+            u: Channel::fixed_angle(0.7),
+            v: Channel::Free {
+                c: 2.0,
+                a: 0.0,
+                b: 0.0,
+                l: 1.5,
+            },
+        };
+        for image in [iso, harmonic] {
+            let moved = image.stretched(k).unwrap();
+            for t in [0.0, 1.0, 37.5, 400.0] {
+                let (p, q) = (image.eval(t), moved.eval(k * t));
+                let off = (p.x - q.x).abs().max((p.y - q.y).abs());
+                assert!(off <= 4.0 * f64::EPSILON * (1.0 + t), "at {t}: {off:e}");
+            }
+            let wrong = image.eval(400.0 * k);
+            let read = moved.eval(400.0 * k);
+            assert!(
+                (wrong.y - read.y).abs() > 1e3 * f64::EPSILON,
+                "the stretch moves what the old image reads at the new parameter"
+            );
+        }
+        let periodic = Pcurve::Harmonic {
+            u: Channel::Angle {
+                phase: 0.0,
+                winding: 1,
+            },
+            v: Channel::constant(0.5),
+        };
+        assert!(periodic.stretched(k).is_none(), "a winding angle");
+        let conic = Pcurve::Harmonic {
+            u: Channel::fixed_angle(0.0),
+            v: Channel::Free {
+                c: 0.0,
+                a: 1.0,
+                b: 0.0,
+                l: 0.0,
+            },
+        };
+        assert!(conic.stretched(k).is_none(), "a cos term");
     }
 }

@@ -580,13 +580,14 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
 
 /// **A corrupt body never finishes, and the raw door panics on it only
 /// where it always did**: a two-ball union with one entity removed at a
-/// time (a face, a loop, an edge or a half-edge). No removal passes
+/// time (a face, a loop, an edge, a half-edge or a vertex). No removal passes
 /// `AtRestBody::validate`, so the typed door never reads one. Read
 /// through the raw door, the seam pass refuses what it cannot follow
-/// `MassPropsError::Corrupt`, and six removals panic in the walk's own
+/// `MassPropsError::Corrupt`, and seven removals panic in the walk's own
 /// face resolution (`live.rs`, a shell's or a face's record naming a
 /// removed key) before any seam is read — as they did before the seam
-/// pass — so the row admits those six and no other.
+/// pass — so the row admits those seven and no other. Each edge's curve
+/// removed in turn refuses `MassPropsError::Corrupt`, never a panic.
 #[test]
 fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     use topo::EntityId;
@@ -609,6 +610,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     }
     ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
     ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    ids.extend(b.vertices().map(|(k, _)| EntityId::Vertex(k)));
     let loops: Vec<String> = ids
         .iter()
         .filter(|id| matches!(id, EntityId::Loop(_)))
@@ -641,6 +643,9 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         "Face(FaceKey(6v5))",
         "Loop(LoopKey(1v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
+        // The start vertex of that same half-edge: the shell's reference
+        // point reads it before any seam, as it reads the half-edge.
+        "Vertex(VertexKey(8v1))",
     ];
     let new: Vec<_> = panicked
         .iter()
@@ -657,6 +662,29 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
                 "a removed loop refuses Corrupt, never panics: {l}"
             );
         }
+    }
+    // A removed curve: every edge naming it still stands, so the raw
+    // door's walk resolves the edge and refuses its curve typed.
+    let curves: Vec<_> = b.edges().map(|(_, e)| e.curve).collect();
+    for curve in curves {
+        let c = b.with_curve_removed_for_tests(curve).unwrap();
+        assert!(
+            topo::finish(c.clone(), tol).is_err(),
+            "{curve:?}: the body with it removed finishes"
+        );
+        let door = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(
+                &c,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+        }));
+        assert!(
+            matches!(door, Ok(Err(topo::MassPropsError::Corrupt { .. }))),
+            "{curve:?}: a removed curve refuses Corrupt at the raw door, never panics: {:?}",
+            door.as_ref().map(|r| r.as_ref().map(|_| ()))
+        );
     }
 }
 

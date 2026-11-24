@@ -51,23 +51,23 @@ fn f_geom(
 fn oracle_roots(ray: geom::Line<f64>, torus: geom::Line<f64>, rr: f64, r: f64) -> (Vec<f64>, f64) {
     let geom::Line { origin: q, dir: d } = ray;
     let geom::Line { origin: c, dir: a } = torus;
-    let b = (q - c).dot(d);
+    let b = (q - c).dot(d.get());
     let ext = rr + r;
     let (lo, hi) = (-b - ext * 1.5, -b + ext * 1.5);
     let n = 400_000usize;
     let mut roots = Vec::new();
     let mut prev_t = lo;
-    let mut prev = f_geom(q, d, c, a, rr, r, lo);
+    let mut prev = f_geom(q, d.get(), c, a.get(), rr, r, lo);
     for i in 1..=n {
         let t = lo + (hi - lo) * (i as f64) / (n as f64);
-        let cur = f_geom(q, d, c, a, rr, r, t);
+        let cur = f_geom(q, d.get(), c, a.get(), rr, r, t);
         if (prev < 0.0 && cur > 0.0) || (prev > 0.0 && cur < 0.0) {
             // bisect
             let (mut x0, mut x1) = (prev_t, t);
             let f0 = prev;
             for _ in 0..200 {
                 let mid = 0.5 * (x0 + x1);
-                let fm = f_geom(q, d, c, a, rr, r, mid);
+                let fm = f_geom(q, d.get(), c, a.get(), rr, r, mid);
                 if (fm < 0.0) == (f0 < 0.0) {
                     x0 = mid;
                 } else {
@@ -93,7 +93,7 @@ fn oracle_roots(ray: geom::Line<f64>, torus: geom::Line<f64>, rr: f64, r: f64) -
 fn torus_axis() -> geom::Line<f64> {
     geom::Line {
         origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, 1.0, 0.0),
+        dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
     }
 }
 
@@ -153,8 +153,25 @@ impl Tally {
         let axis = torus_axis();
         let d = dir.normalize();
         self.checked += 1;
-        let got = line_torus_roots(geom::Line { origin: o, dir: d }, axis, rr, r, band());
-        let (oracle, gap) = oracle_roots(geom::Line { origin: o, dir: d }, axis, rr, r);
+        let got = line_torus_roots(
+            geom::Line {
+                origin: o,
+                dir: geom::stated_direction(d),
+            },
+            axis,
+            rr,
+            r,
+            band(),
+        );
+        let (oracle, gap) = oracle_roots(
+            geom::Line {
+                origin: o,
+                dir: geom::stated_direction(d),
+            },
+            axis,
+            rr,
+            r,
+        );
         match got {
             Ok(QuarticRoots::Certified(found)) => {
                 let (count, ts) = (found.count(), found.roots());
@@ -366,9 +383,12 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
     match line_torus_roots(
         geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: d,
+            dir: geom::stated_direction(d),
         },
-        geom::Line { origin: c, dir: a },
+        geom::Line {
+            origin: c,
+            dir: geom::stated_direction(a),
+        },
         rr,
         r,
         band(),
@@ -415,7 +435,7 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     let f64_roots = match line_torus_roots(
         geom::Line {
             origin: Point3::from_array(o),
-            dir: Vec3::from_array(d),
+            dir: geom::stated_direction(Vec3::from_array(d)),
         },
         axis,
         1.0,
@@ -442,11 +462,11 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     match line_torus_roots(
         geom::Line {
             origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-            dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+            dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
         },
         geom::Line {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+            dir: geom_core::UnitVec3::exact_y(),
         },
         iv(1.0),
         iv(0.9),
@@ -497,11 +517,11 @@ fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
     match line_torus_roots(
         geom::Line {
             origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-            dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+            dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
         },
         geom::Line {
             origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+            dir: geom_core::UnitVec3::exact_y(),
         },
         iv(1.0),
         iv(0.9),
@@ -606,7 +626,7 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             let (truth, _) = oracle_roots(
                 geom::Line {
                     origin: Point3::from_array(o),
-                    dir: Vec3::from_array(d),
+                    dir: geom::stated_direction(Vec3::from_array(d)),
                 },
                 axis,
                 1.0,
@@ -621,7 +641,7 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             match line_torus_roots(
                 geom::Line {
                     origin: Point3::from_array(o),
-                    dir: Vec3::from_array(d),
+                    dir: geom::stated_direction(Vec3::from_array(d)),
                 },
                 axis,
                 1.0,
@@ -645,11 +665,11 @@ fn r1_the_q_zero_surface_certifies_on_both_sides() {
             match line_torus_roots(
                 geom::Line {
                     origin: Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
-                    dir: Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+                    dir: geom_core::UnitVec3::checked(Vec3::new(d[0], d[1], d[2])).map_scalar(iv),
                 },
                 geom::Line {
                     origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    dir: Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 iv(1.0),
                 iv(0.9),

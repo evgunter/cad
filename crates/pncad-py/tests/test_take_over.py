@@ -56,10 +56,12 @@ class TestATakeoverMovesTheCopysNames(unittest.TestCase):
             if abs(ev.face_frame(self.plate, f).origin[2].meters - 0.2) < 1e-12
         ]
         self.assertEqual(len(top), 1, "one face at the top")
-        self.sketched = self.doc.sketch_on_face(self.plate, top[0], pad(), 0.1 * m)
+        pad_on_top = self.doc.draw_on_face(self.plate, top[0], pad())
+        boss = self.doc.insert(Node.extrude(pad_on_top, 0.1 * m))
+        self.union = self.doc.insert(Node.union([self.plate, boss]))
 
     def test_each_face_of_the_copy_moves_to_the_unions_name(self):
-        moved = self.doc.take_over([self.copy], self.sketched.union)
+        moved = self.doc.take_over([self.copy], self.union)
         faces = {old: new for (copy, old, new) in moved if old in self.faces}
         self.assertTrue(all(copy == self.copy for (copy, _, _) in moved), moved)
         self.assertEqual(sorted(faces), sorted(self.faces), "every face moved")
@@ -72,7 +74,7 @@ class TestATakeoverMovesTheCopysNames(unittest.TestCase):
 
     def test_a_copy_list_with_nothing_in_it_takes_nothing_over(self):
         before = self.doc.node_count
-        self.assertEqual(self.doc.take_over([], self.sketched.union), [])
+        self.assertEqual(self.doc.take_over([], self.union), [])
         self.assertEqual(self.doc.node_count, before)
 
 

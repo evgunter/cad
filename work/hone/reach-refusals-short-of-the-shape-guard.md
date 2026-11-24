@@ -24,7 +24,7 @@ These rows, raised through the split stages (`crates/topo/src/splitting/`) and t
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  24 feature-tree rows.
+  its feature-tree rows.
 
 Families: `Boolean`, `Split`.
 

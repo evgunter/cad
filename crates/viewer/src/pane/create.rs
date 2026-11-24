@@ -158,15 +158,10 @@ pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
         .collect()
 }
 
-/// **Pick `i` of the boolean tool as its panel line calls it**: a
-/// member by its place in the list, a subtraction's seat by its role.
+/// **Pick `i` of the boolean tool as its panel line calls it**
+/// ([`BooleanTool::pick_called`]).
 fn boolean_pick_called(tool: &BooleanTool, i: usize) -> String {
-    match tool.operation() {
-        BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
-            .name()
-            .to_owned(),
-        BooleanOp::Union | BooleanOp::Intersect => format!("{} {}", Seat::Member.name(), i + 1),
-    }
+    tool.pick_called(i)
 }
 
 /// **The boolean tool's picks reading a family**, each called as its
@@ -408,6 +403,35 @@ pub(crate) const EXTRUDE: &str = "Extrude";
 /// The button that inserts an empty profile.
 pub(crate) const NEW_PROFILE: &str = "New profile";
 
+crate::vocab::vocabulary! {
+    /// **The buttons that insert a datum** (D10 `[placement.datums]`),
+    /// in the row's order, each the kind of the placement editor's first
+    /// mate row ([`NewDatum::kind`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum NewDatum {
+        /// A datum whose editor opens on a plane row.
+        Plane = "New plane",
+        /// A datum whose editor opens on an axis row.
+        Axis = "New axis",
+        /// A datum whose editor opens on a frame row.
+        Frame = "New frame",
+    }
+
+    /// Every button, with its label.
+    pub(crate) const ALL;
+}
+
+impl NewDatum {
+    /// The kind of the mate row the datum's editor opens with.
+    pub(crate) fn kind(self) -> pncad::document::VarKind {
+        match self {
+            Self::Plane => pncad::document::VarKind::Plane,
+            Self::Axis => pncad::document::VarKind::Axis,
+            Self::Frame => pncad::document::VarKind::Frame,
+        }
+    }
+}
+
 /// What the revolve button says, before the selected profile's name.
 pub(crate) const REVOLVE: &str = "Revolve";
 
@@ -445,10 +469,12 @@ const SPLIT_PICKS: &str = "pick a face: its body is split along its plane — pi
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a proposed label counts by.
 /// `creation_nouns` (below) holds the profile's, the extrude's, the
-/// revolve's and the part chooser's to the node their op mints.
+/// revolve's, the datum's and the part chooser's to the node their op
+/// mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const REVOLVE_NOUN: &str = "Revolve";
+const DATUM_NOUN: &str = "Datum";
 
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
@@ -670,6 +696,7 @@ impl ViewerBehavior<'_> {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.new_profile_ui(ui);
             self.profile_on_face_ui(ui);
+            self.new_datum_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -771,9 +798,22 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Mate.says(&match tool.door() {
                 None => "pick a body to place it, or a copy to edit its placement".to_owned(),
+                Some(door)
+                    if self
+                        .session
+                        .committed_doc()
+                        .node(door.placement)
+                        .is_some_and(pncad::document::Node::is_datum) =>
+                {
+                    format!(
+                        "editing the datum {}: pick what it meets, {}, or a datum",
+                        crate::tree::spelled(&self.session.committed_doc().spoken(door.placement)),
+                        crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
+                    )
+                }
                 Some(door) => format!(
                     "editing the placement {}: pick on the copy, then on what it meets, each {}",
-                    self.session.committed_doc().spoken(door.placement),
+                    crate::tree::spelled(&self.session.committed_doc().spoken(door.placement)),
                     crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
                 ),
             }),
@@ -903,7 +943,11 @@ impl ViewerBehavior<'_> {
                 && ui
                     .button(format!(
                         "strike the {reading} that read {}",
-                        doc.spoken_space(old)
+                        pncad::document::Said(
+                            &doc.spoken_space(old),
+                            pncad::document::Speaker::TAG
+                        )
+                        .sentence()
                     ))
                     .clicked()
             {
@@ -1065,7 +1109,8 @@ impl ViewerBehavior<'_> {
                 crate::widgets::message_toned(
                     ui,
                     ToolKind::Mate.says(&format_args!(
-                        "placing {read} again shares its source: name it"
+                        "placing {read} again shares its source: name it",
+                        read = crate::tree::spelled_var(&read)
                     )),
                     &self.theme,
                     Tone::Actionable,
@@ -1111,7 +1156,10 @@ impl ViewerBehavior<'_> {
                 let mut chosen = None;
                 ui.horizontal_wrapped(|ui| {
                     for &source in sources {
-                        if ui.button(doc.spoken_var(source).to_string()).clicked() {
+                        if ui
+                            .button(crate::tree::spelled_var(&doc.spoken_var(source)))
+                            .clicked()
+                        {
                             chosen = Some(source);
                         }
                     }
@@ -1143,19 +1191,22 @@ impl ViewerBehavior<'_> {
             return;
         };
         let body = doc.through_sources(source).read;
-        let through = match doc.var_name(source) {
-            Some(name) => format!(" through {name}"),
-            None => String::new(),
-        };
+        let files = self.session.part_files();
+        let copied = doc.operation_of(body).map_or_else(
+            || crate::relations::Related::plain(crate::relations::DELETED),
+            |node| crate::relations::Related::node(doc, node, files),
+        );
+        let through = crate::relations::Related::named(doc, source);
         let button = self
             .session
             .repoint_button(source, self.session.selection().node());
-        ui.horizontal(|ui| {
-            let copied = doc.operation_of(body).map_or_else(
-                || doc.spoken_var(body).to_string(),
-                |node| doc.spoken(node).to_string(),
-            );
-            ui.label(format!("copy of: {copied}{through}"));
+        ui.horizontal_wrapped(|ui| {
+            ui.label("copy of:");
+            crate::pane::properties::related_entry(ui, doc, &copied, self.ops);
+            if let Some(through) = &through {
+                ui.label(crate::pane::properties::THROUGH);
+                crate::pane::properties::related_entry(ui, doc, through, self.ops);
+            }
             crate::widgets::repoint_button(ui, button, self.ops);
         });
     }
@@ -1180,12 +1231,19 @@ impl ViewerBehavior<'_> {
             crate::widgets::message_toned(
                 ui,
                 ToolKind::Mate.says(&format_args!(
-                    "{what} is in {read}; this placement is into {into}"
+                    "{what} is in {read}; this placement is into {into}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
                 )),
                 &self.theme,
                 Tone::Actionable,
             );
-            if ui.button(format!("Into {read}")).clicked() {
+            if ui
+                .button(format!(
+                    "Into {read}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
+                ))
+                .clicked()
+            {
                 edited.retarget_into(space);
             }
         });
@@ -1273,6 +1331,47 @@ impl ViewerBehavior<'_> {
         if ui.button(NEW_PROFILE).clicked() {
             self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { loops: Vec::new() });
         }
+    }
+
+    /// **New plane, New axis, New frame**: three buttons, each inserting
+    /// a datum ([`SessionOp::AddDatum`]) at its space's origin, and
+    /// opening the placement editor on it with one mate row of its kind
+    /// (create, then edit; the kind is the tool's,
+    /// [`crate::tools::Tools::awaiting_datum`]). Each is a frame; a plane
+    /// or an axis is read off it through its role.
+    ///
+    /// The space is the one the selected body is drawn in
+    /// ([`crate::world::datum_space`]): its own where it is drawn itself,
+    /// the copy's where it is drawn only through one — where a face
+    /// picked on it in the viewport is — or the world with nothing
+    /// selected; the hover says which. A selection that names no one
+    /// space withholds the buttons and says why.
+    pub(crate) fn new_datum_ui(&mut self, ui: &mut egui::Ui) {
+        let doc = self.session.committed_doc();
+        let space = match self.session.selection().seat_node() {
+            None => Ok(pncad::document::VarId::WORLD),
+            Some(node) => crate::world::datum_space(doc, node),
+        };
+        let into = space.as_ref().map(|&space| {
+            format!(
+                "a datum in {}",
+                pncad::document::Said(&doc.spoken_space(space), pncad::document::Speaker::of(doc))
+                    .sentence()
+            )
+        });
+        ui.horizontal(|ui| {
+            for (datum, label) in NewDatum::ALL {
+                let button = ui.add_enabled(space.is_ok(), egui::Button::new(label));
+                let button = match &into {
+                    Ok(into) => button.on_hover_text(into.as_str()),
+                    Err(fault) => button.on_disabled_hover_text(fault.to_string()),
+                };
+                if let (true, Ok(space)) = (button.clicked(), &space) {
+                    self.tools.awaiting_datum(datum.kind());
+                    self.push_labelled(DATUM_NOUN, SessionOp::AddDatum { space: *space });
+                }
+            }
+        });
     }
 
     /// **The profile-on-a-face form** ([`SessionOp::DrawOnFace`]): the
@@ -1419,12 +1518,14 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.separator();
-        let named = Speaker::of(self.session.doc())
-            .or_held(self.session.selection_said())
-            .node(profile)
-            .to_string();
+        let named = pncad::document::sentence!(
+            Speaker::of(self.session.doc())
+                .or_held(self.session.selection_said())
+                .node(profile)
+        )
+        .to_string();
         let notation = *self.notation;
-        let unit = WrittenLength::in_unit(1.0, notation.length).meters();
+        let in_unit = |metres: f64| notation.length.def().quotient(metres);
         let axis_x = if self.session.busy() {
             Err(NoAxis::Evaluating)
         } else {
@@ -1433,7 +1534,7 @@ impl ViewerBehavior<'_> {
                 .and_then(|evaluation| evaluation.value(profile))
                 .ok_or(NoAxis::NoValue)
                 .and_then(profile_x_extent)
-                .and_then(|(lo, hi)| revolve_axis_x(lo / unit, hi / unit))
+                .and_then(|(lo, hi)| revolve_axis_x(in_unit(lo), in_unit(hi)))
         };
         let mut pushed: Option<(&'static str, SessionOp)> = None;
         let mut refused: Option<(FormKind, DimensionError)> = None;
@@ -1604,7 +1705,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        let waiting = split.map(|split| (0, split.to_string()));
+        let waiting = split.map(|split| (0, crate::tree::spelled(&split)));
         if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
             for notice in self
                 .tools
@@ -1739,7 +1840,7 @@ impl ViewerBehavior<'_> {
         ui.weak(match (target, self.session.landed_pair()) {
             (Some(target), Some((landed, _))) => format!(
                 "{count} edges picked on {}",
-                Said(&target, Speaker::of(landed))
+                Said(&target, Speaker::of(landed)).sentence()
             ),
             (Some(target), None) => format!("{count} edges picked on {target}"),
             (None, _) => open_pick(EdgeRole::Blended.name()),
@@ -2607,7 +2708,7 @@ mod creation_nouns {
     };
     use pncad::geom_core::Tol;
 
-    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
+    use super::{DATUM_NOUN, EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
@@ -2642,6 +2743,10 @@ mod creation_nouns {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
         assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
+        let datum = SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+        };
+        assert_eq!(minted_noun(&mut session, datum), DATUM_NOUN);
     }
 
     /// The part chooser's noun is the kind of the node `AddInstance`
@@ -2738,7 +2843,7 @@ mod sketch_face_said {
             "the landed run lost the block"
         );
         let by = crate::frame::landed_speaker(session.landed_pair());
-        let last = format!("the end cap of Extrude \"plinth\" ({t})");
+        let last = format!("the end cap of \"plinth\" ({t})");
         assert_eq!(
             [&drafts.on_face, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
@@ -2746,10 +2851,12 @@ mod sketch_face_said {
             "each latch says its face's node by its last label"
         );
         assert_eq!(
-            Speaker::of(landed)
-                .or_held(session.selection_said())
-                .node(block)
-                .to_string(),
+            pncad::document::sentence!(
+                Speaker::of(landed)
+                    .or_held(session.selection_said())
+                    .node(block)
+            )
+            .to_string(),
             format!("node {t}"),
             "the selection moved on, so its snapshot does not name the block"
         );
@@ -2824,7 +2931,7 @@ mod tools_respeak {
             landed.node(block).is_none(),
             "the landed run lost the block"
         );
-        (session, tools, format!("Extrude \"plinth\" ({t})"))
+        (session, tools, format!("\"plinth\" ({t})"))
     }
 
     /// The tool's drops, as the survival step reports them.
@@ -2870,7 +2977,7 @@ mod tools_respeak {
                 .map(|notice| match notice {
                     ToolNotice::Seated { event, .. } => {
                         let crate::seats::SeatEvent::PickLost { node, .. } = event;
-                        node.to_string()
+                        crate::tree::spelled(&node)
                     }
                     other => panic!("a seated tool's drop, not {other:?}"),
                 })
@@ -2975,7 +3082,7 @@ mod tools_respeak {
             said.first().map(String::as_str),
             Some(
                 format!(
-                    "mate tool: the mate 1 to pick (the end cap of Extrude \"plinth\" ({t})) no \
+                    "mate tool: the mate 1 to pick (the end cap of \"plinth\" ({t})) no \
                      longer resolves; the tool dropped it"
                 )
                 .as_str()

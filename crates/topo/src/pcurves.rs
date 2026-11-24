@@ -482,6 +482,9 @@ mod lift_rows;
 mod joint_point_rows;
 
 #[cfg(test)]
+mod sheet_apex_rows;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss;
 

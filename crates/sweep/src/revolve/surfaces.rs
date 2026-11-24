@@ -6,7 +6,8 @@
 //! them differently.
 //!
 //! Every revolution surface takes the call's **shared azimuthal
-//! frame** ([`AxisFrame::azimuth`]) — `axis = +a₃`, `u_ref = u₃`,
+//! frame** about the authored axis ([`AxisFrame::chart`]) — `axis` the
+//! authored heading placed, `u_ref = u₃` towards the profile,
 //! re-anchored on the placed axis line via [`AxisFrame::foot3`] and
 //! never re-squared — so identical-by-construction surfaces are bitwise
 //! identical and every seam sits on the angle-0 meridian (module docs).
@@ -27,21 +28,21 @@ pub(super) fn wall_surface<T: Real>(
 ) -> Surface<T> {
     match *kind {
         WallKind::Plane { .. } => Surface::Plane {
-            frame: frame.azimuth.with_origin(frame.world(seg.a)),
+            frame: frame.chart().with_origin(frame.world(seg.a)),
         },
         WallKind::Cylinder { radius } => Surface::Cylinder {
-            frame: frame.azimuth.with_origin(frame.foot3(seg.a)),
+            frame: frame.chart().with_origin(frame.foot3(seg.a)),
             radius,
         },
         WallKind::Cone {
             apex_sk,
             half_angle,
         } => Surface::Cone {
-            frame: frame.azimuth.with_origin(frame.foot3(apex_sk)),
+            frame: frame.chart().with_origin(frame.foot3(apex_sk)),
             half_angle,
         },
         WallKind::Sphere { center_sk, radius } => Surface::Sphere {
-            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
+            frame: frame.chart().with_origin(frame.foot3(center_sk)),
             radius,
         },
         WallKind::Torus {
@@ -49,7 +50,7 @@ pub(super) fn wall_surface<T: Real>(
             major,
             minor,
         } => Surface::Torus {
-            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
+            frame: frame.chart().with_origin(frame.foot3(center_sk)),
             major_radius: major,
             minor_radius: minor,
         },
@@ -58,7 +59,7 @@ pub(super) fn wall_surface<T: Real>(
             major,
             minor,
         } => Surface::Spindle {
-            frame: frame.azimuth.with_origin(frame.foot3(center_sk)),
+            frame: frame.chart().with_origin(frame.foot3(center_sk)),
             major_radius: major,
             minor_radius: minor,
         },

@@ -338,8 +338,14 @@ fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
 fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
     let (c, s) = (0.5f64, 3f64.sqrt() / 2.0);
     let len = 2.0;
-    let slanted = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(c, s, 0.0));
-    let along_v = Curve3::line(Point3::new(0.3, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let slanted = Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(c, s, 0.0)),
+    );
+    let along_v = Curve3::line(
+        Point3::new(0.3, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+    );
     let lin = || {
         NurbsCurve2::new(
             KnotVector::clamped(vec![0.0, 0.0, len, len], 1).unwrap(),

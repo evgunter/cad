@@ -1,37 +1,24 @@
 //! **A spiric edge of a planar loop, read on its own carrier** — the
-//! boundary reading and the ray crossing count the in-plane walk
-//! ([`super::containment`]) runs beside its conic row.
+//! boundary reading the in-plane walk ([`super::containment`]) runs
+//! beside its conic row, and its ray crossing count.
 //!
-//! The oval has no closed-form ray intersection the walk could certify
-//! cheaply (the ray meets the torus's section in the roots of a
-//! quartic), so both readings subdivide the arc's parameter window into
-//! pieces and certify each piece from two bounds over the piece's own
-//! window, read off the carrier's data ([`geom::spiric_rate_bounds`]):
-//! its speed `|P′| ≤ S` and its acceleration `|P″| ≤ A`. A piece of
-//! half-width `h` about `v_m` lies in the ball of radius `S·h` about
-//! `P(v_m)`.
+//! The oval has no closed-form foot the walk could certify cheaply, so
+//! the boundary reading subdivides the arc's parameter window into
+//! pieces and certifies each piece from a bound over the piece's own
+//! window, read off the carrier's data ([`geom::spiric_window_rate_bounds`]):
+//! its speed `|P′| ≤ S`. A piece of half-width `h` about `v_m` lies in
+//! the ball of radius `S·h` about `P(v_m)`. The halving and the reading
+//! over the pieces are [`super::pieced_arc`]'s.
 //!
-//! **Monotone across a line.** Along a line of unit normal `n`, the
-//! offset `s(v) = (P(v) − q)·n` has `|s″| ≤ A`. On a piece `[v_a, v_b]`
-//! of width `2h`, the mean of `s′` is the chord's slope
-//! `(s(v_b) − s(v_a))/2h`, and `s′(v)` differs from it by
-//! `(1/2h)·|∫(s′(v) − s′(u))du| ≤ (A/2h)·∫|v − u|du ≤ (A/2h)·(2h)²/2 = A·h`
-//! (the integral is largest at an end). So `s′` keeps the chord's sign
-//! across the piece wherever `|s(v_b) − s(v_a)| > 2·A·h²`.
-//!
-//! The halving and the two readings over the pieces are
-//! [`super::pieced_arc`]'s.
+//! A ray in the loop's plane meets the oval where the oval crosses the
+//! ray's square plane, which the spiric × plane door reads exactly (the
+//! line where that plane meets the oval's is the ray's own), so the
+//! count is a conic arc's ([`super::containment::arc_crossings`]).
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed};
+use geom_core::{Band, Decide, Indeterminate, Point3, SupSpeed, Vec3};
 
-use crate::splitting::pieced_arc::{PieceBall, PiecedArc, Ray};
-use crate::validate::{decide, definitely_positive as positive};
-
-/// The rows of a ray's crossing of a spiric arc — the walk's alone.
-const CROSS_REACH: &str = "point_in_arc_loop_reach";
-const CROSS_SIDE: &str = "point_in_arc_loop_spiric_side";
-const CROSS_TURN: &str = "point_in_arc_loop_spiric_turn";
-const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
+use crate::geometry::SurfaceKey;
+use crate::splitting::pieced_arc::{PieceBall, PiecedArc};
 
 /// A spiric oval: [`geom::Curve3::Spiric`]'s data, named so that a
 /// [`SpiricArc`] can only be built from one.
@@ -61,12 +48,10 @@ pub(crate) struct Piece<T: geom_core::Real> {
     depth: u32,
 }
 
-/// A piece's half-width `h`, its ball `(P(v_m), S·h)`, and `A`.
+/// A piece's ball `(P(v_m), S·h)`, `h` its half-width.
 struct Bounds<T: geom_core::Real> {
-    h: T,
     center: Point3<T>,
     reach: T,
-    accel: T,
 }
 
 impl<T: Decide> SpiricArc<T> {
@@ -75,8 +60,8 @@ impl<T: Decide> SpiricArc<T> {
         Self { oval, span }
     }
 
-    /// The point at carrier parameter `v`.
-    fn point(&self, v: T) -> Point3<T> {
+    /// The oval's carrier.
+    fn carrier(&self) -> geom::Curve3<T> {
         let o = self.oval;
         geom::Curve3::Spiric {
             frame: o.frame,
@@ -84,7 +69,11 @@ impl<T: Decide> SpiricArc<T> {
             minor_radius: o.minor,
             offset: o.offset,
         }
-        .eval(v)
+    }
+
+    /// The point at carrier parameter `v`.
+    fn point(&self, v: T) -> Point3<T> {
+        self.carrier().eval(v)
     }
 
     /// A piece's bounds over its own window: `cos v` and `sin v` each
@@ -95,13 +84,40 @@ impl<T: Decide> SpiricArc<T> {
         let o = self.oval;
         let h = (p.vb - p.va).abs() * T::from_f64(0.5);
         let vm = geom::mid_param(p.va, p.vb);
-        let (speed, accel) = geom::spiric_window_rate_bounds((o.major, o.minor, o.offset), vm, h);
+        let (speed, _) = geom::spiric_window_rate_bounds((o.major, o.minor, o.offset), vm, h);
         Bounds {
-            h,
             center: self.point(vm),
             reach: geom_core::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
-            accel,
         }
+    }
+
+    /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**, an
+    /// edge of a loop of unit normal `normal` whose face's record is
+    /// `face`: the arc across the ray's square plane
+    /// ([`super::containment::arc_crossings`]). `None` grazes the ray;
+    /// `on_carrier` says the boundary pass put `q` on the oval and off
+    /// the arc.
+    ///
+    /// # Errors
+    ///
+    /// An in-band margin, which sets the ray aside.
+    pub(in crate::splitting) fn crossings(
+        &self,
+        face: SurfaceKey,
+        on_carrier: bool,
+        normal: Vec3<T>,
+        (q, d): (Point3<T>, Vec3<T>),
+        band: Band,
+    ) -> Result<Option<usize>, Indeterminate> {
+        super::containment::arc_crossings(
+            face,
+            (&self.carrier(), self.span),
+            on_carrier,
+            normal,
+            q,
+            d,
+            band,
+        )
     }
 }
 
@@ -159,52 +175,6 @@ impl<T: Decide> PiecedArc<T> for SpiricArc<T> {
             reach: b.reach,
             on: b.center,
         }
-    }
-
-    /// Settled when the piece's ball definitely misses the ray, or when
-    /// `s(v) = (P(v) − q)·side` is definitely monotone on it (the module
-    /// docs) with both ends' `s` definitely signed: same signs, no
-    /// crossing; opposite, exactly one, counted when the ball is
-    /// definitely ahead of `q` along `d` and not when it is definitely
-    /// behind.
-    fn cross(&self, p: &Piece<T>, Ray { q, d, side }: Ray<T>, band: Band) -> Option<usize> {
-        let b = self.bounds(p);
-        let w = b.center - q;
-        let (along, off) = (w.dot(d), w.dot(side));
-        // The in-plane distance from the ball's centre to the ray.
-        let nearest = (off.powi(2) + along.min(T::zero()).powi(2)).sqrt();
-        if positive(CROSS_REACH, nearest - b.reach, band) {
-            return Some(0);
-        }
-        let (sa, sb) = ((p.pa - q).dot(side), (p.pb - q).dot(side));
-        let ends = (
-            decide(CROSS_SIDE, Margin::of(sa), band),
-            decide(CROSS_SIDE, Margin::of(sb), band),
-        );
-        let monotone = positive(
-            CROSS_TURN,
-            (sb - sa).abs() - T::from_f64(2.0) * b.accel * b.h.powi(2),
-            band,
-        );
-        let (
-            true,
-            Ok(a @ (Sign::Positive | Sign::Negative)),
-            Ok(z @ (Sign::Positive | Sign::Negative)),
-        ) = (monotone, ends.0, ends.1)
-        else {
-            return None;
-        };
-        if a == z {
-            return Some(0);
-        }
-        if positive(CROSS_ADVANCE, along - b.reach, band) {
-            return Some(1);
-        }
-        matches!(
-            decide(CROSS_ADVANCE, Margin::of(along + b.reach), band),
-            Ok(Sign::Negative)
-        )
-        .then_some(0)
     }
 }
 
@@ -278,7 +248,7 @@ mod tests {
         let (dy, dz) = (angle.cos(), angle.sin());
         let point = |(y, z): (f64, f64)| Point3::new(f(0.8), f(y), f(z));
         let d = Vec3::new(f(0.0), f(dy), f(dz));
-        let side = Vec3::new(f(1.0), f(0.0), f(0.0)).cross(d);
+        let normal = Vec3::new(f(1.0), f(0.0), f(0.0));
         let (mut asked, mut inside) = (0, 0);
         for i in 0..=24 {
             for j in 0..=24 {
@@ -306,8 +276,8 @@ mod tests {
                     let (hy, hz) = (a.0 + s * (b.0 - a.0), a.1 + s * (b.1 - a.1));
                     usize::from((hy - q.0) * dy + (hz - q.1) * dz > 0.0)
                 };
-                let got = k.crossings(point(q), d, side, band);
-                let Some(count) = got else {
+                let got = k.crossings(SurfaceKey::default(), false, normal, (point(q), d), band);
+                let Ok(Some(count)) = got else {
                     panic!("{lane} {q:?}: the ray was abandoned");
                 };
                 assert_eq!(
@@ -363,8 +333,13 @@ mod tests {
             pb: k.point(vb),
             depth: 0,
         };
-        let b = k.bounds(&p);
-        let speed = b.reach / b.h;
+        let h = 0.5 * (vb - va).abs();
+        let speed = k.bounds(&p).reach / h;
+        let (_, accel) = geom::spiric_window_rate_bounds(
+            (k.oval.major, k.oval.minor, k.oval.offset),
+            geom::mid_param(va, vb),
+            h,
+        );
         let c = geom::Curve3::Spiric {
             frame: k.oval.frame,
             major_radius: k.oval.major,
@@ -375,14 +350,13 @@ mod tests {
         for i in 0..=samples {
             let v = va + (vb - va) * f64::from(i) / f64::from(samples);
             s = s.max(c.deriv(v).norm() / speed);
-            a = a.max(c.deriv2(v).norm() / b.accel);
+            a = a.max(c.deriv2(v).norm() / accel);
         }
         (s, a)
     }
 
     /// **Each bound is nearly tight where it binds**, so a bound any
-    /// much smaller would let a piece's ball miss its own arc, or a
-    /// piece that is not monotone pass as one. The speed bound is exact
+    /// much smaller would let a piece's ball miss its own arc. The speed bound is exact
     /// on a cut through the axis (`o = 0`, where `f = ρ` and `|P′| = r`),
     /// over the whole period and over a piece. The acceleration bound
     /// binds hardest on a thin ring cut near tangency (`R = 1, r = 0.01,
@@ -421,21 +395,48 @@ mod tests {
     /// off the arc `v ∈ [−3, 3]`. The whole oval's speed bound is up to
     /// `10⁴` times its typical speed there; each piece's own window keeps
     /// the reading to the pieces by the pinch, and it answers `Off`, and
-    /// a ray from there is counted.
+    /// a ray from there is counted. A cut within the band of the pinch,
+    /// which the mint refuses, refuses the ray typed on the regime's
+    /// margin.
     #[test]
     fn a_near_tangent_cut_reads_and_crosses_a_far_point() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for frac in [0.99, 0.9999, 0.999_999, 0.999_999_99] {
-            let o = 0.75 * frac;
+        let gaps = [0.99, 0.9999, 0.999_999, 0.999_999_99]
+            .map(|frac| 0.75 * (1.0 - frac))
+            .into_iter()
+            .chain([5e-10, 1e-11, 1e-13]);
+        for gap in gaps {
+            let (o, frac) = (0.75 - gap, gap);
             let k = SpiricArc::new(oval(1.0, 0.25, o), (-3.0, 3.0));
             let mid_y = 0.5 * (k.point(0.0).y + k.point(core::f64::consts::PI).y);
             let q = Point3::new(o, mid_y, 0.0);
-            assert_eq!(k.contact(q, ROWS, band), Ok(ArcHit::Off), "frac {frac}");
+            assert_eq!(k.contact(q, ROWS, band), Ok(ArcHit::Off), "gap {frac}");
             let d = Vec3::new(0.0, 0.3_f64.cos(), 0.3_f64.sin());
-            let side = Vec3::new(1.0, 0.0, 0.0).cross(d);
+            let normal = Vec3::new(1.0, 0.0, 0.0);
             // One crossing: the ray leaves the oval's interior through
-            // the arc (the gap `v ∈ [3, 2π − 3]` lies behind it).
-            assert_eq!(k.crossings(q, d, side, band), Some(1), "frac {frac}");
+            // the arc (the gap `v ∈ [3, 2π − 3]` lies behind it). A cut
+            // the mint refuses, within the band of the pinch, reads its
+            // regime in band or past the inner equator: the ray is set
+            // aside on the regime's margin, typed, never a fault.
+            let got = k.crossings(SurfaceKey::default(), false, normal, (q, d), band);
+            let minted = geom::Curve3::spiric(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                1.0,
+                0.25,
+                o,
+                band,
+            )
+            .is_ok();
+            if minted {
+                assert!(matches!(got, Ok(Some(1))), "gap {frac}: {got:?}");
+            } else {
+                assert!(
+                    matches!(got, Err(d) if d.predicate == Some("curve_face_pose_spiric_two_ovals")),
+                    "gap {frac}: {got:?}"
+                );
+            }
         }
     }
 

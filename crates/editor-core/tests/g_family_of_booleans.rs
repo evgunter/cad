@@ -81,18 +81,21 @@ pub(crate) fn cut_row(
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = fixture::row(doc, b, ("k", 3), TargetAxis::X, 0.75);
     let (doc, tool) = tool(doc, b, row);
+    let from = fixture::member_here(&doc, Operand::Node(row));
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
-            from: BodyRead::plain(Operand::Node(row)),
-            tool,
+            from,
+            tool: tool.into(),
         },
     );
+    // The cut is the binder's yield: `{k in row: row[k] − tool}`.
+    let doc = fixture::yielded(doc, cut);
     (doc, row, cut)
 }
 
 /// Every seat that reads a family whole, over `family`: a union of it
-/// as its argument, a union spelling it as one read, an intersect and
+/// as its argument, a union splicing it, `[…family]`, an intersect and
 /// an assemble.
 fn whole_seats(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let whole = || Bodies::Family(BodyRead::plain(Operand::Node(family)));
@@ -100,7 +103,9 @@ fn whole_seats(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, [RecipeNod
     let (doc, spelled) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Node(family))]),
+            members: Bodies::Spelled(vec![editor_core::Spell::All(BodyRead::plain(
+                Operand::Node(family),
+            ))]),
         },
     );
     let (doc, intersect) = insert(doc, Node::Intersect { members: whole() });
@@ -126,7 +131,7 @@ fn a_family_of_boolean_results_reads_whole_and_by_index() {
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(union)),
-            tool: BodyRead::indexed(cut, vec![Formula::count(1)]),
+            tool: BodyRead::indexed(cut, vec![Formula::count(1)]).into(),
         },
     );
     let ev = run(&doc);
@@ -180,21 +185,21 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
         doc,
         Node::Subtract {
             from: indexed(0),
-            tool: indexed(2),
+            tool: indexed(2).into(),
         },
     );
     let (doc, less_empty) = insert(
         doc,
         Node::Subtract {
             from: indexed(2),
-            tool: indexed(1),
+            tool: indexed(1).into(),
         },
     );
     let (doc, empty_less) = insert(
         doc,
         Node::Subtract {
             from: indexed(1),
-            tool: indexed(0),
+            tool: indexed(0).into(),
         },
     );
     let ev = run(&doc);
@@ -277,7 +282,7 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
 fn a_family_with_an_empty_member_is_its_bodies_at_the_product_and_the_interrogators() {
     let (doc, _, cut) =
         cut_row(|doc, _, row| (doc, BodyRead::indexed(row, vec![Formula::count(1)])));
-    let (doc, _) = fixture::place(doc, cut);
+    let (doc, _) = fixture::place_each(doc, cut);
     let ev = run(&doc);
     let value = ev.value(cut).expect("the cut evaluated");
     assert_eq!(
@@ -360,20 +365,22 @@ fn product_with_an_empty_member(empty: usize) -> (usize, usize, Vec<topo::Valida
     let (doc, pq) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![p.into(), q.into()]),
+            members: Bodies::spelled(vec![p.into(), q.into()]),
         },
     );
     let (doc, _, row) = fixture::row(doc, pq, ("k", 3), TargetAxis::X, 0.75);
     let x0 = 0.75 * empty as f64 - 0.05;
     let (doc, tool) = block_on(doc, pq, (x0, x0 + 0.6), (-0.1, 1.1), -0.1, 1.2);
+    let from = fixture::member_here(&doc, Operand::Node(row));
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
-            from: BodyRead::plain(Operand::Node(row)),
-            tool: BodyRead::plain(Operand::Node(tool)),
+            from,
+            tool: BodyRead::plain(Operand::Node(tool)).into(),
         },
     );
-    let (doc, _) = fixture::place(doc, cut);
+    let doc = fixture::yielded(doc, cut);
+    let (doc, _) = fixture::place_each(doc, cut);
     let ev = run(&doc);
     let places: Vec<bool> = match ev.value(cut).map(|v| &v.payload) {
         Some(ValuePayload::Instances(b)) => b.iter().map(Option::is_some).collect(),
@@ -427,8 +434,11 @@ fn an_empty_member_shifts_no_carry_at_the_product() {
 /// from an empty result's.
 #[test]
 fn a_family_every_member_of_which_is_empty_gathers_as_an_empty_result_does() {
-    let (doc, _, cut) = cut_row(|doc, _, row| (doc, BodyRead::plain(Operand::Node(row))));
-    let (doc, _) = fixture::place(doc, cut);
+    let (doc, _, cut) = cut_row(|doc, _, row| {
+        let tool = fixture::member_here(&doc, Operand::Node(row));
+        (doc, tool)
+    });
+    let (doc, _) = fixture::place_each(doc, cut);
     let ev = run(&doc);
     let value = ev.value(cut).expect("the cut evaluated");
     assert!(
@@ -457,7 +467,7 @@ fn a_family_every_member_of_which_is_empty_gathers_as_an_empty_result_does() {
         empty_doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(b)),
-            tool: BodyRead::plain(Operand::Node(b)),
+            tool: BodyRead::plain(Operand::Node(b)).into(),
         },
     );
     let (empty_doc, _) = fixture::place(empty_doc, less);

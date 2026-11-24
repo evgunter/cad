@@ -909,6 +909,85 @@ fn a_circle_through_the_pole_has_no_azimuth_bound() {
     assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
 }
 
+/// A pole-ended image on the unit sphere's chart of the conic `a·cos t +
+/// b·sin t + centre` over `(t0, t1)`, leaving the pole at `t0`.
+fn pole_ended(centre: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>, (t0, t1): (f64, f64)) -> Pcurve<f64> {
+    let ends = SingularEnds {
+        start: true,
+        end: false,
+    };
+    Pcurve::Projected(Box::new(ProjectedImage {
+        chart: ProjectedChart::Sphere,
+        carrier: FramedCarrier::Conic {
+            centre,
+            a,
+            b,
+            origin: t0,
+            span: t1 - t0,
+        },
+        breaks: KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        azimuth: vec![Quarter(0)],
+        tube: vec![],
+        u_off: 0.0,
+        v_off: 0.0,
+        v_sign: 1.0,
+        pole: PoleEnd::stated(ends, (t0, t1)),
+    }))
+}
+
+/// **A pole-ended image's azimuth bound is its rate's supremum, on either
+/// turn of the reduced radial, and a meridian's refuses.** The circle
+/// cut from the unit sphere by the plane of normal `(s, 0, c)` through
+/// the pole has radial coefficients `(s·c, 0)` and `(0, ±s)`, so
+/// `σ_max² / (2·|det M|) = s² / (2·s²·c) = 1/(2c)`, attained where the
+/// reduced radial is shortest, which a whole turn from the pole passes.
+/// Both senses of the circle (`det M` of either sign) bound the sampled
+/// azimuth rate from above and meet it to within the sampling step (red
+/// if the bound loosens, or under-reads either sign). A meridian's radial
+/// part is a segment: `det M = 0`, and the bound refuses rather than
+/// answering one.
+#[test]
+fn a_pole_ended_images_azimuth_bound_is_attained_for_either_sign() {
+    let (s, c) = 0.6f64.sin_cos();
+    let span = (PI, 3.0 * PI);
+    for (what, sense) in [("det M > 0", 1.0), ("det M < 0", -1.0)] {
+        let image = pole_ended(
+            Vec3::new(s * c, 0.0, c * c),
+            Vec3::new(s * c, 0.0, -s * s),
+            Vec3::new(0.0, sense * s, 0.0),
+            span,
+        );
+        let (bound, v_bound) = image
+            .speed_bound(span.0, span.1)
+            .unwrap_or_else(|e| panic!("{what}: a pole-ended circle is bounded, got {e:?}"));
+        assert!(
+            (bound - 0.5 / c).abs() <= 1e-12,
+            "{what}: the bound {bound:.17e} is not 1/(2c) = {:.17e}",
+            0.5 / c
+        );
+        let (ratio, _) = dominates(
+            what,
+            sampled(&image, span, 20_000, (true, false)),
+            (bound, v_bound),
+        );
+        assert!(
+            ratio >= 1.0 - 1e-4,
+            "{what}: the azimuth reaches {ratio} of its bound; the bound is attained"
+        );
+    }
+    let meridian = pole_ended(
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        (0.0, 1.0),
+    );
+    assert_eq!(
+        meridian.speed_bound(0.0, 1.0),
+        Err(NoSpeedBound::ThroughSingularSet),
+        "a meridian's det M is zero: its azimuth has no bound"
+    );
+}
+
 /// A spiric wall image of `(R, r, d)`.
 fn wall(major: f64, minor: f64, offset: f64) -> Pcurve<f64> {
     Pcurve::Spiric {

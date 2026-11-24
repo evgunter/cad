@@ -362,14 +362,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         };
         for &he in halves {
             let hd = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge);
-            let edge = linked(
-                &self.edges,
-                hd.edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            let claim = edge.claim(he).unwrap_or_else(|| {
+            let edge = self.linked_edge(hd.edge, EntityId::HalfEdge(he), "edge");
+            let claim = edge.record().claim(he).unwrap_or_else(|| {
                 unreachable!(
                     "{}'s edge {} does not claim it in either slot: on a tier-1-valid body \
                      an edge claims the two half-edges that name it",
@@ -377,7 +371,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     EntityId::Edge(hd.edge)
                 )
             });
-            let curve = self.edge_curve_linked(hd.edge, edge).certified();
+            let curve = edge.certified();
             walked.push((
                 self.winding_point(hd.start, EntityId::HalfEdge(he), "start"),
                 curve.map(|c| ((c.carrier(), c.params()), claim.plus)),

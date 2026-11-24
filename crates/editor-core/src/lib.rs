@@ -16,6 +16,7 @@
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
 //! instantiation at the profile crate's public description type.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod analysis;
 pub mod appearance;
 pub mod checks;
@@ -57,19 +58,16 @@ pub mod placement;
 pub mod pose;
 pub mod product;
 pub mod program;
-/// The certified locally-valid range of ONE field — the on-demand
-/// query whose answer is meant to REPLACE the sampling probe's
-/// reading, in a consumer nothing in this tree has built yet
-/// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/pydoor/certified-range-has-no-python-door`). The certificate IS
-/// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
-/// be the sampler it exists to improve on.
+/// The certified locally-valid range of ONE field: a resumable search
+/// that proves, by replaying intervals under [`mod@drive`]'s leaf
+/// protocol, how far the field can move with the document the same
+/// build. A query that fell back to `f64` would be a sampler.
 pub mod range;
 mod ratio;
 pub mod refactor;
 pub mod refusal;
 pub mod repetition;
-pub use repetition::{MemberCountFault, MemberEnv, Reached};
+pub use repetition::{Binders, MemberCountFault, MemberEnv, Reached};
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
 /// leaf-mass histogram, and the one content-key cache. Every report
@@ -110,11 +108,13 @@ pub use appearance::{
     AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
+pub use checks::CarriedAssertion;
 pub use checks::at_rest::{
     AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
-    PinnedDoc, Route, Unlocalized,
+    PinnedDoc, Route, RouteHop, Unlocalized,
 };
+pub use checks::quieting::{OpposedPair, Quieting, QuietingRef};
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
     ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity, Subject,
@@ -127,7 +127,7 @@ pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
-    Unused, VarName,
+    OperandRead, ReadIndex, Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -137,9 +137,9 @@ pub use drive::{
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
-    OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
-    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
-    measure, nearest_to_face, sketch_on_face, slot_admits,
+    OnFace, ProductReadFault, Recorded, Recording, SlotValue, SourceFault, Took, YieldsFault,
+    apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face, measure,
+    nearest_to_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -152,10 +152,13 @@ pub use eval::{
 };
 pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
-pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
+pub use sentence::{
+    Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+};
 pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
-    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, Lines, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said,
+    held_by, node_kind_noun, node_text, spoken_by, spoken_within, var_text,
 };
 
 pub use expr::{
@@ -204,7 +207,7 @@ pub use node::{
     LoftSection, Node, OutputPort, PortKind, RecipeNodeId, SectionId, SectionIdFault, SitedFace,
     SitedRef, SlotId, StationMove, StepArg, StepId, TubeWindow, VectorSlot,
 };
-pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind, Spell};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError};
@@ -226,7 +229,9 @@ pub use program::{
     resolve_written_loops,
 };
 pub use range::{
-    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
+    Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
+    certified_range,
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,
@@ -258,8 +263,8 @@ pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, pen_fault, trace_marks,
 };
 pub use var::{
-    FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
-    VarKind, VarRef, WrittenDef,
+    FreshEntry, Index, IndexSeat, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl,
+    VarDef, VarId, VarKind, VarRef, WrittenDef,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

@@ -274,7 +274,7 @@ mod tests {
         // Chosen so the escape is an `Ok`, not a refusal with the
         // wrong sentence: the start projects to a finite `HUGE` and
         // the end to `+∞`, and `+∞ > HUGE` is `Greater`.
-        let carrier = Curve3::line(Point3::new(0.0, 0.0, -HUGE), Vec3::new(0.0, 0.0, 1.0));
+        let carrier = Curve3::line(Point3::new(0.0, 0.0, -HUGE), geom_core::UnitVec3::exact_z());
         let p_start = Point3::new(0.0, 0.0, 0.0);
         let p_end = Point3::new(0.0, 0.0, HUGE);
         match endpoint_params(9, &carrier, p_start, p_end, false) {

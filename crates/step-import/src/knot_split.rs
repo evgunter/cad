@@ -617,11 +617,16 @@ fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3
 /// length.
 fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     let chord = b - a;
-    let t = geom::Line {
-        origin: a,
-        dir: chord,
-    }
-    .param_within(p, (0.0, 1.0));
+    // The foot's fraction of the chord, `Line::param_within` over `(0, 1)`
+    // spelled out: the chord is read as itself, not squared, and held to
+    // the span by `max`/`min` as that reading holds it (a NaN to `0`).
+    #[allow(
+        clippy::manual_clamp,
+        reason = "max/min holds a NaN fraction to 0, as param_within does"
+    )]
+    let t = ((p - a).dot(chord) / chord.norm_squared())
+        .max(0.0)
+        .min(1.0);
     if !t.is_finite() {
         return f64::NAN;
     }
@@ -1401,9 +1406,9 @@ mod tests {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
-                    carrier: Curve3::line(a, b - a),
+                    carrier: Curve3::Line(geom::Line::chord(a, b).0),
                     t0: 0.0,
-                    t1: 1.0,
+                    t1: (b - a).norm(),
                     reversed: false,
                     curve: None,
                 };
@@ -1454,7 +1459,11 @@ mod tests {
                 .unwrap(),
             ))
         };
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, b - a);
+        // A side is its chord, its span in metres; an iso column spans
+        // its own `(0, 1)`.
+        let line = |a: Point3<f64>, b: Point3<f64>| {
+            (Curve3::Line(geom::Line::chord(a, b).0), (b - a).norm())
+        };
         let mut solid = solid(0.25);
         solid.surfaces = crate::entities::records_of([(40, Surface::Nurbs(Arc::new(s)))]);
         solid.vertices.clear();
@@ -1466,11 +1475,11 @@ mod tests {
                 [(x0, 0.0), (x1, 0.0), (x1, 1.0), (x0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
             let carriers = [
                 line(corners[0], corners[1]),
-                iso(x1, false),
+                (iso(x1, false), 1.0),
                 line(corners[2], corners[3]),
-                iso(x0, true),
+                (iso(x0, true), 1.0),
             ];
-            for (i, carrier) in (0..4u64).zip(carriers) {
+            for (i, (carrier, t1)) in (0..4u64).zip(carriers) {
                 solid.vertices.insert(v + i, corners[i as usize]);
                 solid.edges.insert(
                     e + i,
@@ -1479,7 +1488,7 @@ mod tests {
                         end: v + (i + 1) % 4,
                         carrier,
                         t0: 0.0,
-                        t1: 1.0,
+                        t1,
                         reversed: false,
                         curve: None,
                     },
@@ -1572,9 +1581,9 @@ mod tests {
                             EdgeSpec {
                                 start: v,
                                 end,
-                                carrier: Curve3::line(a, b - a),
+                                carrier: Curve3::Line(geom::Line::chord(a, b).0),
                                 t0: 0.0,
-                                t1: 1.0,
+                                t1: (b - a).norm(),
                                 reversed: false,
                                 curve: None,
                             },
@@ -1666,9 +1675,9 @@ mod tests {
                     EdgeSpec {
                         start: v,
                         end,
-                        carrier: Curve3::line(a, b - a),
+                        carrier: Curve3::Line(geom::Line::chord(a, b).0),
                         t0: 0.0,
-                        t1: 1.0,
+                        t1: (b - a).norm(),
                         reversed: false,
                         curve: None,
                     },
@@ -2205,7 +2214,9 @@ mod tests {
                 solid.vertices[&(300 + k)],
                 solid.vertices[&(300 + (k + 1) % n)],
             );
-            solid.edges.get_mut(&(200 + k)).unwrap().carrier = Curve3::line(a, b - a);
+            let edge = solid.edges.get_mut(&(200 + k)).unwrap();
+            edge.carrier = Curve3::Line(geom::Line::chord(a, b).0);
+            edge.t1 = (b - a).norm();
         }
         let worn = solid.faces[0].record;
         solid.surfaces.get_mut(&worn).unwrap().surface = Surface::Nurbs(Arc::new(s));
@@ -2556,10 +2567,11 @@ mod tests {
                     }
                     let spl = build(hi);
                     let max_x = max_x(&spl);
-                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), Vec3::new(0.0, -0.6, 0.0));
+                    let back =
+                        Curve3::line(Point3::new(0.3, 0.8, 0.0), -geom_core::UnitVec3::exact_y());
                     let s = face(
                         chart([0.0, 0.5, 1.0]),
-                        vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],
+                        vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 0.6)],
                     );
                     let got = crossing_knots(&s, 0, false, EPS_IN);
                     if max_x - 0.5 > EPS_IN && got != vec![0.5] {

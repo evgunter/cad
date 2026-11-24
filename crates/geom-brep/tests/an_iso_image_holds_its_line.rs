@@ -12,7 +12,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::{ChartAxis, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, Period};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
+use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real};
 use std::sync::Arc;
 
 /// `x` as a point bracket, or `None` where it is wider.
@@ -116,7 +116,7 @@ fn unit_chart<T: Real>() -> Surface<T> {
 fn row_carrier<T: Real>() -> Curve3<T> {
     Curve3::line(
         Point3::new(T::zero(), T::zero(), T::zero()),
-        Vec3::new(T::one(), T::zero(), T::zero()),
+        geom_core::UnitVec3::exact_x(),
     )
 }
 
@@ -268,9 +268,9 @@ fn a_map_that_leaves_its_charts_domain_in_band_is_gated() {
         let whole = (T::zero(), T::one());
         let line = |along_u: bool| -> Curve3<T> {
             let dir = if along_u {
-                Vec3::new(T::one(), T::zero(), T::zero())
+                geom_core::UnitVec3::exact_x()
             } else {
-                Vec3::new(T::zero(), T::one(), T::zero())
+                geom_core::UnitVec3::exact_y()
             };
             Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir)
         };
