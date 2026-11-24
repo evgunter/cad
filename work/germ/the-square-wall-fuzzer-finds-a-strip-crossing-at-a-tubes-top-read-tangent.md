@@ -75,3 +75,11 @@ Another, seed `0x6007c6a9f3e13c4d` (ORBIT's `orbit/torus-touch-build`,
 2026-11-23, at the default eps; the square-wall arm is untouched there):
 one mismatch of the same shape, `R 1.210, r 0.846`, `top` 2.98e-9, read
 `Tangent("section_torus_square_wall_fold_half")`.
+
+Another seed, from CI's slow set on lane `orbit-tilt`'s PR 7617
+(`CAD_FUZZ_SEED=0x71703484f672850c`, `CAD_FUZZ_EFFORT=1`, CI run
+45347387574, 2026-11-24): two mismatches of the same shape, both read
+`Tangent("section_torus_square_wall_fold_half")`. The first is at
+`R 13.60, r 11.48`, tilt 0, `top` 3.79e-9. The second is at
+`R 0.0239, r 0.0201`, tilt 4.7e-12, `top` 1.57e-9. The PR leaves the
+square-wall arm untouched, and the run is not replayed here.
