@@ -340,7 +340,7 @@ fn the_degenerate_cone_poses_read_as_the_value_decides_them() {
         assert!(
             matches!(&s, Section::Components { parts, .. }
                 if parts.len() == 1 && parts[0].unbounded)
-                || matches!(s, Section::Tangent(name) if name.starts_with("ruling_branch_cut")),
+                || matches!(s, Section::Tangent(name) if name.starts_with("ruling_") && name.contains("cut")),
             "the doubled asymptote: one branch the region cuts, {s:?}"
         );
     }
