@@ -204,7 +204,8 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
                     );
                     assert_eq!(
                         reading(
-                            (cylinder.eval(q.x, q.y) - (line.origin + line.dir.get() * lit(t))).norm()
+                            (cylinder.eval(q.x, q.y) - (line.origin + line.dir.get() * lit(t)))
+                                .norm()
                         ),
                         PROVEN_ZERO,
                         "along {name} at {t}: the image maps onto the line"
