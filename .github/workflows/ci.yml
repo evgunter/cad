@@ -264,7 +264,10 @@ jobs:
           python3 scripts/slow_set.py --selftest
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
-        run: python3 scripts/check-fast-set-times.py --selftest
+        run: |
+          python3 scripts/check-fast-set-times.py --selftest
+          python3 scripts/fast_set_alone.py --selftest
+          python3 scripts/fast-set-drift.py --selftest
       - name: change filter self-test
         if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest
@@ -416,7 +419,7 @@ jobs:
         uses: ./.github/actions/install-nextest
         with:
           version: ${{ env.NEXTEST_VERSION }}
-      - name: the tests this diff adds (the default-eps step holds them to the 0.5 s bar)
+      - name: the tests this diff adds or edits (the default-eps step holds them to the 0.25 s bar)
         env:
           BASE: ${{ needs.filter.outputs.base }}
         run: |
@@ -448,19 +451,34 @@ jobs:
             echo "::error::the build wrote $built integration binaries and the opt-level-0 wrapper logged $seen"
             exit 1
           fi
-      - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
+      - name: test (default eps; a fast-set test costing 0.25 s alone if added or edited, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
+          SCOPE: ${{ matrix.scope }}
         run: |
           rc=0
           cargo nextest run --profile ci ${{ matrix.scope }} \
             ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
-          # Before nextest-failures.py, which deletes the junit report.
+          # Before nextest-failures.py, which deletes the junit report. It
+          # re-runs alone, on these binaries, each test this pass reads over
+          # its bar, puts the report back, and keeps a copy for the upload.
           slow=0
-          scripts/check-fast-set-times.py "default eps" "$rc" "$RUNNER_TEMP/new-tests.txt" || slow=$?
+          scripts/check-fast-set-times.py "default eps" "$rc" "$RUNNER_TEMP/new-tests.txt" "$SCOPE" \
+            --save "$RUNNER_TEMP/fast-set-times" || slow=$?
           scripts/nextest-failures.py "default eps" "$rc"
           [ "$rc" != 0 ] || rc=$slow
           exit $rc
+      # The parallel pass's per-test times, for the scheduled drift check
+      # (.github/workflows/fast-set-drift.yml), which reads the last 72 h of them.
+      - name: upload the default-eps junit report (the fast-set drift check reads it)
+        if: '!cancelled() && github.event_name == ''pull_request'''
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-set-times-${{ matrix.shard }}
+          path: ${{ runner.temp }}/fast-set-times/
+          retention-days: 4
+          if-no-files-found: ignore
+          overwrite: true
       - name: test (eps 1e-6, 1e-12 — the eps-sensitive crates and test files this diff touches)
         if: '!cancelled() && needs.filter.outputs.eps_extra != '''''
         env:

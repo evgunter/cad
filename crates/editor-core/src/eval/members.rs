@@ -365,6 +365,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
                 witness: None,
                 pass_two: op_env.lane.pass_two,
             },
+            mints: op_env.mints,
         };
         let over = overlay(results, &bound);
         let prior_member = prior_members.and_then(|m| m.at(&narrow));
@@ -411,12 +412,22 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
     h.write_u64((key.0 >> 64) as u64);
     h.write_tag(tag::member::AT);
     h.write_u64(at.len() as u64);
-    for &(index, value) in at {
-        h.write_u64(u64::from(index.0.ordinal()));
-        h.write_u64(index.0.digest());
-        h.write_u64(value as u64);
+    for word in at_words(at) {
+        h.write_u64(word);
     }
     h.finish()
+}
+
+/// A member's place as words: each index's id and its value, in chain
+/// order. What a member's content key and its mint scope both feed.
+pub(super) fn at_words(at: &[(VarId, i64)]) -> impl Iterator<Item = u64> + '_ {
+    at.iter().flat_map(|&(index, value)| {
+        [
+            u64::from(index.0.ordinal()),
+            index.0.digest(),
+            value.cast_unsigned(),
+        ]
+    })
 }
 
 /// **The family's value**: a family of bodies as their `Instances`,
@@ -568,6 +579,7 @@ mod tests {
                 witness: None,
                 pass_two: crate::eval::PassTwo::SkippedAtF64,
             },
+            mints: geom_core::sym::MintScope::current(),
         };
         let evaluated = Cell::new(0usize);
         let id = RecipeNodeId::new(0, test_utils::refusal::tagged(1));

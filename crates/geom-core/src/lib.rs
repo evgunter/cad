@@ -91,7 +91,8 @@ pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, Expression, NoExpression, NoLane,
     ProvedZero, Real, StoredHarmonic, TangentTransport, Uncertified, Witness, fold_signed_zero,
-    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2, width,
+    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2,
+    radius_gap, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

@@ -197,14 +197,13 @@ fn overlap_reads_wall_pieces_of_one_cylinder_by_their_spans() {
     );
 }
 
-/// **Every op of a slab and two balls a re-chart turns reads every
-/// holding**: the balls' sphere faces are turned about their centres
-/// before the op runs (`topo::BooleanNaming::recharted`), so each
-/// finished face and each lost region of a turned face is read against
-/// the input shell's faces its region meets, a subtract's turned faces
-/// in the sense the result holds them.
+/// **Every op of a slab and two balls it cuts in reads every holding**:
+/// each ball pokes through the slab's top with no edge crossing, so its
+/// sphere face is cut along a meridian before the op re-enters, and
+/// closed again by the output stage ([`closes_a_cut`]), and each finished face and each
+/// lost region of a cut piece reads back to the ball's face.
 #[test]
-fn every_op_over_re_charted_balls_reads_every_holding() {
+fn every_op_over_cut_in_balls_reads_every_holding() {
     let t = tol();
     let ball = |x: f64, y: f64| {
         finished(
@@ -220,7 +219,7 @@ fn every_op_over_re_charted_balls_reads_every_holding() {
         .body
         .clone();
     let slab = finished("the slab", crate::common::operands::slab::<f64>(), t);
-    let mut turned = 0;
+    let mut cut = 0;
     for op in [
         topo::BooleanOp::Subtract,
         topo::BooleanOp::Union,
@@ -236,7 +235,7 @@ fn every_op_over_re_charted_balls_reads_every_holding() {
         ) else {
             panic!("{op:?}: the op builds");
         };
-        turned += usize::from(!out.naming.recharted[1].is_empty());
+        cut += usize::from(closes_a_cut(&out, 1));
         let rows = out
             .holdings
             .faces()
@@ -250,5 +249,25 @@ fn every_op_over_re_charted_balls_reads_every_holding() {
             );
         }
     }
-    assert_eq!(turned, 3, "every op turns the balls' shells");
+    assert_eq!(cut, 3, "every op cuts the balls' faces in");
+}
+
+/// Whether the op closed a chart cut on a sphere face of operand `side`
+/// (0 for A, 1 for B): the output stage deletes a cut's piece between
+/// two pieces of the face it divided with one of them, a substitution
+/// row from that piece onto the face that keeps it.
+fn closes_a_cut(out: &topo::BooleanBody<f64>, side: usize) -> bool {
+    let grafted: Vec<topo::FaceKey> = out.naming.graft_faces.iter().map(|&(_, r)| r).collect();
+    out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
+        let (topo::Cell::Face(_), topo::Cell::Face(kept)) = (dead, kept) else {
+            return false;
+        };
+        let on_sphere = out.body.get_face(kept).is_some_and(|f| {
+            matches!(
+                out.body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        });
+        on_sphere && grafted.contains(&kept) == (side == 1)
+    })
 }

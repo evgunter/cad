@@ -245,8 +245,8 @@ pub use nary::{
 pub use ops::refused_face_kind;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
-    PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
-    subtract, union,
+    PlacedBooleanError, SettleError, Settler, boolean_op_with, boolean_placed, intersect, subtract,
+    union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -2797,15 +2797,15 @@ pub enum AlongFace {
 /// this rung; the disposition table cites this paragraph as its home).
 /// A Rust caller can already name and match it — `pncad` re-exports
 /// `topo` whole — and the refusal's sentence names the loops, while the
-/// recourse it states is the same for all three (cut the torus with a
-/// plane the frame serves). Carrying it would add the CUR3 property row
-/// and a Python word with no reader that acts on the difference.
+/// recourse it states is the same for all three (turn the plane clearly
+/// off the torus's axis, where the section value marches every class, or
+/// onto its square or parallel). Carrying it would add the CUR3 property
+/// row and a Python word with no reader that acts on the difference.
 ///
 /// **The falsifier is a caller whose recourse depends on which loops a
-/// slanted plane cuts**: the day the general rung serves one class (the
-/// loops round the axis have a proved frame), a caller must tell it from
-/// the others to know whether the cut builds. Then carry it and delete
-/// this paragraph and the disposition row with it.
+/// slanted plane cuts**: the day one class refuses where another builds,
+/// a caller must tell them apart to know whether the cut builds. Then
+/// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpiricLoops {
     /// Two loops, each winding once round the torus's axis.
@@ -3947,7 +3947,7 @@ pub enum BooleanError {
     /// blocker left is a JOIN lane, not `revert`:
     ///
     /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
-    ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
+    ///   (exact C5 Circle) plus the extent-certified fallback cut-in.
     /// - **Torus**: not gated up front — its pairs meet the same typed
     ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
     ///   no-crossings section pass, the join catch-all below, and this
@@ -4073,29 +4073,6 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **A decision on a re-charted sphere's cell is not stated by the
-    /// input cells that cell reads back as.** The containment re-cut
-    /// turns a closed sphere shell about its centre
-    /// (`ops::apply_recuts`), so each cell of the turned shell reads back
-    /// as the set of the input shell's faces, which wear that sphere. A
-    /// point decided on such a cell (a meeting, a vertex on a carrier) is
-    /// the meeting of those faces and the row's other cells, where a row
-    /// holds that many; any other decision, of carriers or of shapes,
-    /// holds of them only where the shell is one face and the cell that
-    /// face. Otherwise it is refused here rather than published against
-    /// faces it was not decided on.
-    ///
-    /// A limit: a decision stated of its faces not built (row 2).
-    RechartedRowUnstated {
-        /// The operand whose sphere shell was re-charted.
-        operand: Operand,
-        /// What was decided on the turned cell.
-        relation: crate::Relation,
-        /// The input shell's faces the turned cell reads back as, sorted.
-        faces: Vec<FaceKey>,
-        /// Why they do not state it.
-        what: &'static str,
-    },
     /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: their spheres touch within the tolerance, the
@@ -4104,10 +4081,10 @@ pub enum BooleanError {
     /// share lies off every edge, so the join's carried lane
     /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
-    /// faces (its R-loop), are not refused: each sphere is re-cut so an
-    /// edge of it reaches the circle (a closed ball re-charted with its
-    /// pole on the centre line, any other face cut along a meridian
-    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// faces (its R-loop), are not refused: the face holding the circle
+    /// on each sphere is cut along its chart's meridian through the
+    /// circle, so an edge of it reaches the circle
+    /// (`ops::sphere_extent_scan`), and a crossing
     /// whose circle the certificate cannot place refuses with the
     /// certificate's own reason
     /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
@@ -4198,11 +4175,15 @@ pub enum BooleanError {
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
-    /// it, nor parallel to it short of its inner equator. The C5 table
-    /// routes that section to its general rung, which is unbuilt, and no
-    /// carrier holds the curve, so the pair is refused at its frame.
-    /// `loops` is the section certificate's own classification of the
-    /// section, and `section` the table's refusal.
+    /// it, nor parallel to it short of its inner equator, on a pair the
+    /// operation's section table holds no section of. The C5 table routes
+    /// that section to its general rung, which the section value marches
+    /// ([`geom_brep::PlaneTorusPose`]); the value reads the pose over the
+    /// torus's ball and the join's frame at the face's reach, so where
+    /// the value read the closed form's pose the table holds nothing and
+    /// the frame refuses the pair: two readings of one pose straddling
+    /// the band about a tilt. `loops` is the section certificate's own
+    /// classification of the section, and `section` the table's refusal.
     ///
     /// A limit: a section not built (row 2).
     GermSectionSpiric {
@@ -4624,7 +4605,8 @@ pub enum BooleanError {
     /// slit or zero-area ring, whose two edges the zip glued into one
     /// edge of that face with a free end, a strut, and deleting a strut
     /// from a curved face is not built (`slit::close_struts`,
-    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// `crate::strut`'s `StrutRefusal::Curved`), or of a chart cut's
+    /// piece with a free end (`slit::close_cuts`). Of a strut with both
     /// ends free, the lone ring's bridge is a line chord, which lies in
     /// no curved face; the strut deleted with one free end by `kev`
     /// mints nothing and is refused with it. A construction gap, with
@@ -4830,8 +4812,6 @@ pub enum BooleanErrorKind {
     NurbsExtentUnsupported,
     /// [`BooleanError::FallbackExtentUnsupported`].
     FallbackExtentUnsupported,
-    /// [`BooleanError::RechartedRowUnstated`].
-    RechartedRowUnstated,
     /// [`BooleanError::SpheresMeet`].
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
@@ -5209,7 +5189,6 @@ impl BooleanError {
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
-            Self::RechartedRowUnstated { .. } => BooleanErrorKind::RechartedRowUnstated,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermSectionUnbuilt { .. } => BooleanErrorKind::GermSectionUnbuilt,
@@ -5358,7 +5337,6 @@ impl BooleanError {
             | Self::CurvedPairUnsupported { .. }
             | Self::NurbsExtentUnsupported { .. }
             | Self::FallbackExtentUnsupported { .. }
-            | Self::RechartedRowUnstated { .. }
             | Self::SpheresMeet { .. }
             | Self::GermFrameUnsupported { .. }
             | Self::GermSectionUnbuilt { .. }
@@ -5463,8 +5441,6 @@ pub enum CarveStep {
     /// The kept first operand's component, which the second's is
     /// grafted into.
     Combine,
-    /// A sphere face's re-cut: its shell turned, the rest kept.
-    Recut(Operand),
     /// Operands whose boundaries do not cross: each one's kept shells.
     Fallback,
 }
@@ -5478,10 +5454,6 @@ impl CarveStep {
                 operand_word(operand)
             ),
             Self::Combine => "while the kept parts were put together".to_owned(),
-            Self::Recut(operand) => format!(
-                "while a sphere face of the {} solid was cut again",
-                operand_word(operand)
-            ),
             Self::Fallback => {
                 "while the kept shells of solids that do not cross were taken".to_owned()
             }
@@ -5864,19 +5836,6 @@ impl BooleanError {
                  cylinders or spheres",
                 operand_word(*operand),
             ),
-            Self::RechartedRowUnstated {
-                operand,
-                relation,
-                what,
-                ..
-            } => write!(
-                f,
-                "the Boolean turned a sphere of the {} operand about its centre to find where \
-                 it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({}) on that sphere's own faces: {what}",
-                operand_word(*operand),
-                relation.noun(),
-            ),
             // No operand is named: the raise sites pass the operand being
             // scanned, which is not always the one whose face the refusal cites.
             Self::FallbackExtentUnsupported { what, .. } => write!(
@@ -5929,14 +5888,16 @@ impl BooleanError {
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
-                "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). {}",
+                "a flat face of one part cuts a torus face of the other ({}) at a slant so \
+                 near square or parallel to the torus's axis that the cut reads slanted \
+                 where the faces meet but square or parallel over the torus, and is not \
+                 traced. Recourse: turn the flat face clearly off square and parallel to \
+                 the axis, or exactly onto one",
                 match loops {
                     SpiricLoops::AroundAxis => "two loops round the axis",
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
-                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
@@ -10423,12 +10384,6 @@ mod tests {
                 face,
                 what: "an uncertifiable pose",
             },
-            BooleanError::RechartedRowUnstated {
-                operand: Operand::B,
-                relation: crate::Relation::SameOpposite,
-                faces: vec![face],
-                what: "only a point decided there is stated by the faces that hold it",
-            },
             BooleanError::SpheresMeet {
                 operand: Operand::A,
                 face,
@@ -10631,7 +10586,6 @@ mod tests {
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
-                BooleanErrorKind::RechartedRowUnstated => "RechartedRowUnstated",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionUnbuilt => "GermSectionUnbuilt",
