@@ -726,3 +726,95 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
         );
     }
 }
+
+/// REVIEW PROBE: the sector sliver's neighbours. `len` is the sliver's
+/// run from its tip edge, `dip_eps` how far apart its faces stand at the
+/// far end in ε, `tip` the tip edge's length.
+#[test]
+fn rv_probe_the_sector_slivers_neighbours() {
+    let tol = Tol::witness();
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    for (what, len, dip_eps, tip) in [
+        ("as pinned: 10 m, 500 eps", 10.0, 500.0, 1e-3),
+        ("100 mm at the same angle: 5 eps at the far end", 0.1, 5.0, 1e-3),
+        ("100 mm, 500 eps at the far end", 0.1, 500.0, 1e-3),
+        ("10 m, 2 eps at the far end", 10.0, 2.0, 1e-3),
+        ("10 m, 12 eps at the far end", 10.0, 12.0, 1e-3),
+        ("10 m, 30 eps at the far end", 10.0, 30.0, 1e-3),
+        ("narrow: 1 mm run, 10 m tip, 500 eps", 1e-3, 500.0, 10.0),
+        ("narrow: 1 mm run, 10 m tip, 12 eps", 1e-3, 12.0, 10.0),
+    ] {
+        let dip = dip_eps * tol.eps();
+        let e = [[len, 0.1 * len, -dip], [0.2 * tip, tip, 0.0], [0.0, 0.0, 1e-3]];
+        let corner = Vec3::new(5.0, 5.0, 0.0);
+        let point = move |u, v, w| at(e, u, v, w) + corner;
+        let got = std::panic::catch_unwind(|| {
+            let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+            let r = intersect(&block, &wedge, tol);
+            let meet = match r {
+                Ok(r) => match r.body() {
+                    Some(b) => b.body.clone().into_body(),
+                    None => return "the ∩ holds no body".to_owned(),
+                },
+                Err(e) => {
+                    return format!(
+                        "the ∩ refuses: {}",
+                        e.render(geom_brep::recourse::Reading::Build)
+                    );
+                }
+            };
+            let geometric = match topo::geometric(&meet, tol) {
+                Ok(g) => g,
+                Err(findings) => {
+                    return format!("tier 3 refuses the ∩: {findings:?}")
+                        .chars()
+                        .take(700)
+                        .collect();
+                }
+            };
+            let classes: Vec<_> = meet
+                .edges()
+                .map(|(k, _)| geometric.facts().class(k))
+                .collect();
+            let mut runs: Vec<f64> = Vec::new();
+            for (edge, _) in meet.edges() {
+                for face in topo::edge_faces(&meet, edge) {
+                    if let Some(run) = geometric.facts().edge_run(face, edge) {
+                        runs.push(run.length());
+                    }
+                }
+            }
+            runs.sort_by(f64::total_cmp);
+            let report = topo::clearance::embedded(
+                &geometric,
+                meet.faces().map(|(k, _)| k).collect(),
+                Band::linear(tol).unwrap(),
+                topo::clearance::Budgets {
+                    max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+                    max_cell_pairs: 65_536,
+                },
+            );
+            let r = report.receipt;
+            format!(
+                "verdict {:?} receipt {:?} classes {classes:?} least runs {:?}",
+                report.verdict,
+                (r.candidates, r.discharged, r.violated, r.within, r.refused, r.splits, r.certified),
+                &runs[..runs.len().min(6)]
+            )
+            .chars()
+            .take(1500)
+            .collect()
+        });
+        println!(
+            "[rv] {what}: {}",
+            got.unwrap_or_else(|p| format!(
+                "panicked: {}",
+                p.downcast_ref::<String>().cloned().unwrap_or_default()
+            ))
+        );
+    }
+}

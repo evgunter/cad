@@ -1670,3 +1670,12 @@ pub use validate::{
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
+
+/// REVIEW MUTANT SWITCH (probe branch only): whether the environment's
+/// `RV_MUT` names `tag`.
+#[doc(hidden)]
+#[must_use]
+pub fn rv_mut(tag: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("RV_MUT").unwrap_or_default()) == tag
+}

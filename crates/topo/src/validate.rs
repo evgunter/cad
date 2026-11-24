@@ -10836,7 +10836,11 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         Ok(Self {
             body,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
-            facts: std::sync::Arc::clone(&self.facts),
+            facts: if crate::rv_mut("facts_dropped_on_move") {
+                std::sync::Arc::new(crate::Tier3Facts::default())
+            } else {
+                std::sync::Arc::clone(&self.facts)
+            },
             held: self.held.clone(),
         })
     }

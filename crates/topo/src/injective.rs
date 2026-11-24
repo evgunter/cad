@@ -8121,6 +8121,7 @@ fn departure(
     if let Some(&(edge, _)) = classes
         .iter()
         .find(|(_, class)| matches!(class, Some(crate::EdgeClass::End(_))))
+        .filter(|_| !crate::rv_mut("end_as_crease"))
     {
         return Outcome::Refuse(EngineRefusal::Uncertified {
             a: x.face,
@@ -8136,7 +8137,8 @@ fn departure(
     // one face: the face is its own carrier.
     let creased = classes
         .iter()
-        .all(|(_, class)| matches!(class, None | Some(crate::EdgeClass::Crease(_))));
+        .all(|(_, class)| matches!(class, None | Some(crate::EdgeClass::Crease(_))))
+        || crate::rv_mut("seam_as_crease");
     if two && creased {
         for (sep, other) in [(x, &py), (y, &px)] {
             let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other) else {
@@ -8148,7 +8150,7 @@ fn departure(
             };
             let holds = match read {
                 Departs::Clear(_) => true,
-                Departs::At(_, rate) => parts([rate], psi.lipschitz(), extent, band),
+                Departs::At(_, rate) => parts([rate], rv_lip(&psi), extent, band),
             };
             if !holds {
                 continue;
@@ -8158,7 +8160,8 @@ fn departure(
             // meets the edge at a vertex alone, or not at all, stands on
             // whichever side the face has turned to by there.
             if let [(edge, Some(crate::EdgeClass::Crease(turn)))] = classes.as_slice()
-                && p.zero.along(*edge)
+                && (p.zero.along(*edge) || crate::rv_mut("turn_every_cell"))
+                && !crate::rv_mut("turn_off")
                 && let Some(read_turn) = turn_read(&psi, sep, read.side())
                 && read_turn != *turn
             {
@@ -8193,7 +8196,11 @@ fn departure(
             // other on its far side.
             (Departs::Clear(_), _) | (_, Departs::Clear(_)) => true,
             (Departs::At(_, ra), Departs::At(_, rb)) => {
-                parts([ra, rb], psi.lipschitz(), extent, band)
+                if crate::rv_mut("one_sine") {
+                    parts([ra], rv_lip(&psi), extent, band)
+                } else {
+                    parts([ra, rb], rv_lip(&psi), extent, band)
+                }
             }
         },
         _ => false,
@@ -8313,7 +8320,11 @@ fn departure(
 fn extent_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     let both = |read: &dyn Fn(&Facts) -> Option<Lever<Interval>>| {
         let of = |p: &Piece<'_>| read(p.boundary.facts.as_ref()?);
-        Some(of(x)?.min(of(y)?))
+        if crate::rv_mut("greater_run") {
+            Some(of(x)?.max(of(y)?))
+        } else {
+            Some(of(x)?.min(of(y)?))
+        }
     };
     let runs: Option<Vec<Lever<Interval>>> = if near.edges.is_empty() {
         near.vertices
@@ -8329,7 +8340,20 @@ fn extent_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval
             })
             .collect()
     };
-    runs?.into_iter().reduce(Lever::min)
+    let got = runs?.into_iter().reduce(Lever::min);
+    if crate::rv_mut("const_run") {
+        return got.map(|_| Lever::of_consumed_extent(at(1.0)));
+    }
+    got
+}
+
+/// REVIEW MUTANT SWITCH: the separator's worth, or one where the ratio is dropped.
+fn rv_lip(psi: &Psi) -> Option<Interval> {
+    if crate::rv_mut("no_ratio") {
+        Some(at(1.0))
+    } else {
+        psi.lipschitz()
+    }
 }
 
 /// `edge`'s class as tier 3 kept it on `x`'s face; `None` where it read
@@ -21997,6 +22021,117 @@ mod margin_reach_rows {
 
     fn floor() -> Surface<Interval> {
         folded(0.0)
+    }
+
+    /// REVIEW PROBE: the flat strip of the ruling (1e-7 wide at a sine of
+    /// 5e-5, 5e-12 from its plate everywhere across the shared edge),
+    /// with one more vertex of the strip's boundary a metre off the
+    /// edge's line, in the strip's plane, beyond the edge's end (an ear).
+    #[test]
+    fn rv_probe_an_eared_strip_in_band() {
+        let (width, sine) = (1e-7_f64, 5e-5_f64);
+        let phi = sine.asin();
+        let o = [0.0; 3];
+        let class = crate::EdgeClass::Crease(geom_brep::Convexity::Concave);
+        let x = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[(1, o), (2, [1.0, 0.0, 0.0]), (3, [1.0, 1.0, 0.0]), (4, [0.0, 1.0, 0.0])],
+        )
+        .with_class(key(1), class);
+        let strip = |ear: bool| {
+            let mut v = vec![
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (5, [1.0, width * phi.cos(), width * phi.sin()]),
+                (6, [0.0, width * phi.cos(), width * phi.sin()]),
+            ];
+            if ear {
+                v.push((7, [5.0, phi.cos(), phi.sin()]));
+            }
+            boundary(vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])], &v).with_class(key(1), class)
+        };
+        let (sx, sy) = (floor(), folded(phi));
+        let here = Local { edges: vec![0], vertices: Vec::new() };
+        let near = Near { edges: vec![(0, 0)], vertices: Vec::new() };
+        let cells = [((0.4, 0.6), (0.0, 0.1)), ((0.4, 0.6), (0.0, width))];
+        for ear in [false, true] {
+            let y = strip(ear);
+            let extent = extent_of(
+                &piece(1, &sx, &x, &here, cells[0]),
+                &piece(2, &sy, &y, &here, cells[1]),
+                &near,
+            );
+            let got = certify_pair(
+                &piece(1, &sx, &x, &here, cells[0]),
+                &piece(2, &sy, &y, &here, cells[1]),
+                &near,
+                band(),
+            );
+            println!(
+                "[rv] eared={ear} extent={:?} outcome={}",
+                extent.map(|e| e.length()),
+                match got {
+                    Outcome::Certified { .. } => "Certified",
+                    Outcome::Split { .. } => "Split",
+                    _ => "other",
+                }
+            );
+        }
+    }
+
+    /// REVIEW PROBE: a strip narrower than the band at a wide wedge, read
+    /// by the carrier arm alone and by the plane through the edge.
+    #[test]
+    fn rv_probe_a_wide_wedge_under_the_two_arms() {
+        use crate::EdgeClass as C;
+        for (phi, times) in [(1.5707963, 0.8), (2.6, 0.6), (2.6, 0.8), (0.3, 0.8), (1.5707963, 1.2)] {
+            let phi: f64 = phi;
+            let w = times * band().escalate();
+            let o = [0.0; 3];
+            for (class, folded_near) in [
+                (Some(C::Crease(geom_brep::Convexity::Concave)), true),
+                (Some(C::Crease(geom_brep::Convexity::Concave)), false),
+                (Some(C::Seam), true),
+                (None, true),
+                (None, false),
+            ] {
+                let classed = |b: Boundary| match class {
+                    Some(class) => b.with_class(key(1), class),
+                    None => b,
+                };
+                let x = classed(boundary(
+                    vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+                    &[(1, o), (2, [1.0, 0.0, 0.0]), (3, [1.0, 1.0, 0.0]), (4, [0.0, 1.0, 0.0])],
+                ));
+                let y = classed(boundary(
+                    vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+                    &[
+                        (1, o),
+                        (2, [1.0, 0.0, 0.0]),
+                        (5, [1.0, w * phi.cos(), w * phi.sin()]),
+                        (6, [0.0, w * phi.cos(), w * phi.sin()]),
+                    ],
+                ));
+                let (sx, sy) = (floor(), folded(phi));
+                let here = Local { edges: vec![0], vertices: Vec::new() };
+                let away = Local::default();
+                let near = Near { edges: vec![(0, 0)], vertices: Vec::new() };
+                let got = certify_pair(
+                    &piece(1, &sx, &x, &here, ((0.4, 0.6), (0.0, 0.1))),
+                    &piece(2, &sy, &y, if folded_near { &here } else { &away }, ((0.4, 0.6), (0.0, w))),
+                    &near,
+                    band(),
+                );
+                println!(
+                    "[rv] phi={phi} width={times}*escalate class={class:?} folded_near={folded_near}: {}",
+                    match got {
+                        Outcome::Certified { .. } => "Certified".to_owned(),
+                        Outcome::Split { .. } => "Split".to_owned(),
+                        other => format!("{other:?}"),
+                    }
+                );
+            }
+        }
     }
 
     /// **The extent does not count a strip's run along its edge.** Two

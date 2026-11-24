@@ -6931,3 +6931,82 @@ fn two_thin_slabs_through_each_other_cross() {
         );
     }
 }
+
+/// REVIEW PROBE: which facts the uneven plate's mirrors are asked on.
+#[test]
+fn rv_probe_which_facts_the_mirrored_plate_is_asked_on() {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
+    use geom_core::Vec3;
+    let body = prism::<f64>(&rect(1.0, 0.6, [0.3, 0.26, 0.34, 0.28]), 0.0, 0.5);
+    let body = rounded("the uneven plate", &body, &every_edge(&body), 0.1).expect("f64 fillets");
+    for (what, point, n) in [
+        ("x = 0", Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        ("generic", Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81)),
+    ] {
+        let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
+        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        let real = topo::geometric(&mirrored, tol());
+        let on_real = real
+            .as_ref()
+            .ok()
+            .map(|of| door_on(of, mirrored.faces().map(|(k, _)| k).collect()));
+        let on_fixture = door_on(
+            &topo::Geometric::fixture(&mirrored),
+            mirrored.faces().map(|(k, _)| k).collect(),
+        );
+        println!(
+            "[rv] the uneven plate mirrored across {what}: tier 3 {} ; on real facts {on_real:?} ; on fixture facts {on_fixture}",
+            match &real {
+                Ok(_) => "passes".to_owned(),
+                Err(f) => format!("refuses ({} findings): {}", f.len(), format!("{:?}", f[0]).chars().take(300).collect::<String>()),
+            }
+        );
+    }
+    // The unmirrored plate, on real and on fixture facts.
+    let real = door_on(&geometric(&body), body.faces().map(|(k, _)| k).collect());
+    let fixture = door_on(
+        &topo::Geometric::fixture(&body),
+        body.faces().map(|(k, _)| k).collect(),
+    );
+    println!("[rv] the uneven plate as built: real {real} ; fixture {fixture}");
+}
+
+/// REVIEW PROBE: what the mirrored off-grid drum refuses across at
+/// `Interval`: the shared edge's curve, its class and the two faces.
+#[test]
+fn rv_probe_what_the_mirrored_drum_refuses_across() {
+    use topo::clearance::{Embedding, EngineRefusal, SharedCell};
+    let body = in_pose(stepped_drum_off_the_grid::<Interval>(), "mirrored");
+    let of = body.geometric();
+    let report = embedding_of_finished(&body);
+    println!("[rv] drum mirrored at Interval: receipt {:?}", report.receipt);
+    if let Embedding::Refused(EngineRefusal::Uncertified { a, b, shared: SharedCell::Edge(e), arm }) =
+        report.verdict
+    {
+        let curve = body
+            .get_edge(e)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .map(|c| format!("{c:?}").chars().take(160).collect::<String>());
+        let surf = |f| {
+            body.get_face(f)
+                .and_then(|face| body.get_surface(face.surface))
+                .map(|s| format!("{s:?}").chars().take(60).collect::<String>())
+        };
+        println!(
+            "[rv] refused across {e:?} arm {arm:?} class {:?} curve {curve:?} faces {:?} / {:?} runs {:?} {:?}",
+            of.facts().class(e),
+            surf(a),
+            surf(b),
+            of.facts().edge_run(a, e).map(|r| r.length()),
+            of.facts().edge_run(b, e).map(|r| r.length()),
+        );
+    } else {
+        println!("[rv] verdict {:?}", report.verdict);
+    }
+    // The classes tier 3 kept on the drum, counted.
+    let mut counts = std::collections::BTreeMap::new();
+    for (e, _) in body.edges() {
+        *counts.entry(format!("{:?}", of.facts().class(e))).or_insert(0) += 1;
+    }
+    println!("[rv] the drum's classes: {counts:?}");
+}
