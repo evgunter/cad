@@ -420,6 +420,11 @@ pub use editor_core::{
 // that operation; a release build carries no counter at all.
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
+// The evaluator's witness beside it, debug-only too: how many families
+// of halves this thread has gathered, read as a difference across the
+// evaluation that owes one gather per node.
+#[cfg(debug_assertions)]
+pub use editor_core::halves_gathered_on_this_thread;
 
 // Instantiated parts. `Frame` is the rigid motion a placement solves
 // to;

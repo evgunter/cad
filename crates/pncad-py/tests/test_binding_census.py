@@ -3273,6 +3273,9 @@ NOT_BOUND = {
     # produces carries it; cargo's own release defaults are what strip
     # it. Either way it is not a Python door.
     "gathers_on_this_thread": INTERIOR,
+    # The evaluator's debug witness beside it: how many families of
+    # split halves this thread gathered, read by the Rust rows alone.
+    "halves_gathered_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
     # reason is not "no binding was written" — `wire_sweep` refuses
