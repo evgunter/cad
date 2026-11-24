@@ -77,10 +77,10 @@ pub use linalg::{
 pub use line2::{Line2, LineMeet};
 pub use param::{bracket_mid, mid_param};
 pub use predicate::{
-    Allowance, Band, BandError, BandField, BandWidth, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING,
-    DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading,
-    FileCoincidence, Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed,
-    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
+    Allowance, Band, BandError, BandField, BandWidth, COINCIDENCE_RECOURSE, Culprit,
+    DAMAGED_FILE_ENDING, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind,
+    ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload, IndeterminateUnder,
+    InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE,
     KERNEL_OR_FILE_DEFECT_ENDING, Lever, MOVE_RECOURSE, Margin, MarginDiag, MarginKind,
     MarginTerms, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, NonzeroSign,
     RANGE_ENDING, RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass,

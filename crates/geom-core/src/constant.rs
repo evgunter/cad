@@ -164,7 +164,7 @@ macro_rules! count_wide {
     )*};
 }
 count_lossless!(u8, u16, u32, i8, i16, i32);
-count_wide!(u64, i64, usize, isize);
+count_wide!(u64, i64, u128, i128, usize, isize);
 
 /// [`Real::lit`]'s body, the one step from a [`Lit`] to a scalar.
 pub(crate) fn lit<T: Real>(c: Lit) -> T {
@@ -200,7 +200,10 @@ mod tests {
         let i = Interval::lit(lit!(0.1));
         assert_eq!((crate::Bounds::lo(i), crate::Bounds::hi(i)), (0.1, 0.1));
         assert_eq!(f64::lit(SHARES[1]), 0.75);
-        assert_eq!(lit!(3.0).times(lit!(f64::EPSILON)).get(), 3.0 * f64::EPSILON);
+        assert_eq!(
+            lit!(3.0).times(lit!(f64::EPSILON)).get(),
+            3.0 * f64::EPSILON
+        );
         assert_eq!(lit!(1.0).neg().get(), -1.0);
     }
 

@@ -318,7 +318,7 @@ impl Certification for Interval {
     }
 
     fn point(x: f64) -> Self {
-        <Self as Real>::from_f64(x)
+        <Interval as Real>::from_f64(x)
     }
 
     fn zero() -> Self {

@@ -3833,6 +3833,37 @@ mod tests {
     use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
 
+    /// The band door at each scalar: the width at `f64`, its point at an
+    /// interval, one literal at `Sym` and no tangent at a dual; and a
+    /// combination has the bits the `f64` expression has.
+    #[test]
+    fn a_band_width_is_a_point_a_literal_and_no_tangent() {
+        use crate::{Bounds, Dual64, Interval, Real, Sym, lit};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pad = band.escalate_width() + band.zero_width().times(lit!(2.0));
+        let want = band.escalate() + 2.0 * band.zero();
+        assert_eq!(pad.get().to_bits(), want.to_bits());
+        assert_eq!(pad.at::<f64>().to_bits(), want.to_bits());
+        let room = band.escalate_width() - band.zero_width();
+        assert_eq!(
+            room.get().to_bits(),
+            (band.escalate() - band.zero()).to_bits()
+        );
+        let over = band.escalate_width().over(lit!(3.0));
+        assert_eq!(over.get().to_bits(), (band.escalate() / 3.0).to_bits());
+        assert_eq!(
+            BandWidth::of_eps(Tol::witness()).get(),
+            Tol::witness().eps()
+        );
+        let i = pad.at::<Interval>();
+        assert_eq!((Bounds::lo(i), Bounds::hi(i)), (want, want));
+        let d = pad.at::<Dual64>();
+        assert_eq!((d.value, d.deriv), (want, 0.0));
+        let s = pad.at::<Sym<f64>>();
+        assert_eq!(s.node(), <Sym<f64> as Real>::from_f64(want).node());
+        assert_ne!(s.node(), <Sym<f64> as Real>::from_computed(want).node());
+    }
+
     /// **The larger of two misses reads the larger quantity**: each end
     /// the larger of the two readings' ends at that end, so `[2, 10]` and
     /// `[5, 6]` read `[5, 10]` — wholly past `4`, as the `[5, 6]` miss is,

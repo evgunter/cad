@@ -160,8 +160,8 @@ pub fn reach<T: Real>(hi: SupSpeed<T>, (a, b): (T, T)) -> T {
 /// clears a piece in there, so cutting finer only multiplies pieces;
 /// an eighth of it keeps the piece that holds the touch within
 /// `escalate/128` of the other.
-pub fn tangency_floor<T: Real>(rho: T, escalate: f64) -> T {
-    (rho * T::from_f64(escalate)).sqrt() / T::from_f64(8.0)
+pub fn tangency_floor<T: Real>(rho: T, escalate: crate::BandWidth) -> T {
+    (rho * escalate.at::<T>()).sqrt() / T::from_f64(8.0)
 }
 
 #[cfg(test)]

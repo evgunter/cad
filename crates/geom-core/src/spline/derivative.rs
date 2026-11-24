@@ -199,8 +199,7 @@ pub const QUOTIENT_MAX_DEGREE: usize = super::pieces::BINOMIAL_EXACT_MAX;
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
 #[must_use]
 pub fn span_derivative_scale<T: Real>(p: usize, lo: T, hi: T) -> T {
-    #[allow(clippy::cast_precision_loss)]
-    let p = T::from_f64(p as f64);
+    let p = T::count(p);
     p / (hi - lo)
 }
 

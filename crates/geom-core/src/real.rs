@@ -469,7 +469,7 @@ pub trait Real:
     /// [`crate::BandWidth::at`], an authored value through the
     /// document's parameter door. This is the step those doors and a
     /// scalar's own impl take; which other calls still stand, and the
-    /// work item each is owed to, is `scripts/gates/from-f64-sites.sh`.
+    /// work item each is owed to, is `scripts/gates/from-f64-allowlist.sh`.
     ///
     /// At [`crate::Sym`] it is an exact rational, so a value the kernel
     /// COMPUTED and re-entered here is a different function of the
@@ -2576,8 +2576,7 @@ const LESS_SIN_LAST_TERM: u16 = 10;
 pub(crate) fn less_sin_series<T: Real>(x: T, tail: T) -> T {
     let q = x.powi(2);
     let nested = (1..=LESS_SIN_LAST_TERM).rev().fold(tail, |inner, k| {
-        let ratio = f64::from((2 * k + 2) * (2 * k + 3));
-        T::one() - q / T::from_f64(ratio) * inner
+        T::one() - q / T::count((2 * k + 2) * (2 * k + 3)) * inner
     });
     x * q / T::from_f64(6.0) * nested
 }
