@@ -34,3 +34,7 @@ The statement of the problem (identical for both) is `probe/briefs/designer-side
 Both: the three items are one defect; neither arm of the advance item's fork is taken; the symbolic tier valuing constant forms is not recommended for this; the volume reading is a different question and off the deletion's path. Both corrected the brief: SIDETIES merged into HONEJOIN on 2026-11-20, and the reader's file is `crates/topo/src/solid_contain.rs`.
 
 **Disagreement:** what is read over the box (a member, or a fixed line against the family) and what carries it to every member (the embedding certificate, or each reading enclosing every member). Round 1 follows.
+
+## Round 1 (dispatched 12:52 UTC to both; statement `probe/briefs/fork-side-reading/round-1.md` at `5ca902bf3cb`)
+
+Each was shown the other's whole first report and asked: its recommendation now and what moved it; whether each reason given against its first answer is answered; whether the two answers are rivals or layers; what the measurement in flight would have to show to change its recommendation; and what the reader's callers outside the finish are owed. A measurement (M14) was sent to the probe lane at the same time and named in the statement without numbers: whether tier 3′'s embedding question passes over the measured boxes, and each ray's reach with its aim and direction collapsed to the middle of their enclosures by hand.
