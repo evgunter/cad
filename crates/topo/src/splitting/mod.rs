@@ -76,6 +76,7 @@ pub mod rules;
 mod section;
 mod section_cones;
 mod section_loops;
+pub use section_loops::UnplacedHole;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
@@ -123,12 +124,16 @@ impl<T: Real> SplitPlane<T> {
     /// the plane's own frame ([`geom::cover::BoxAxes::aimed`], the frame
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
+        // The normal is the witness the caller minted, and the seam its
+        // own orthonormal basis's first row: the frame they state
+        // ([`geom_core::RigidMotion::squared`]), its stated-point read at an
+        // enclosure scalar kept, with nothing left to decide.
         geom::Surface::Plane {
-            frame: geom::Frame::new(
+            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared(
                 self.origin,
                 self.normal.get(),
                 geom::cover::BoxAxes::aimed(self.normal).rows()[1],
-            ),
+            )),
         }
     }
 

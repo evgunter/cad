@@ -827,6 +827,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             stepped.bundle(),
         ),
     );
+    let doc = crate::fixture::yielded(doc, family);
     let (doc, pattern) = crate::fixture::insert(
         doc,
         Node::place(

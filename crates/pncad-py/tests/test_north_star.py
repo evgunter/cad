@@ -305,6 +305,7 @@ class TestHeatsinkFins(unittest.TestCase):
                 VarName("k"), fin, doc.space(fin), [("x", Formula.length_in(0.3125, m))]
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(row)]))
         fins = doc.insert(Node.union(row), label="fins")
         return doc, row, fins
 
@@ -4023,7 +4024,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
-                "set_var_value", "update_reference",
+                "set_var_value", "set_yields", "update_reference",
             ],
         )
 
@@ -4436,10 +4437,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         A subtract's operand reads one body, and the door refuses a
         read that is either of two: a split named alone is either of
         its two halves. A row is not that: its members are a family
-        (D10 `[repetition]`), and a reader of the family is evaluated
-        once per member, so the subtract over it is a family too. One
-        member, `row[i]`, is one body at any seat, and the row's union
-        is the family fused into one."""
+        (D10 `[repetition]`), and a subtract of `row[k]` inside the
+        row's binder is evaluated once per member, so it yields a family
+        too. One member, `row[i]`, is one body at any seat, and the
+        row's union is the family fused into one."""
         doc = Doc()
         box = slab(doc, (0, 1), (0, 1), (0, 1))
         other = slab(doc, (2, 3), (0, 1), (0, 1), on=box)
@@ -4453,12 +4454,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         family = doc.insert(
             Node.linear_pattern(VarName("k"), box, doc.space(box), [("x", Formula.length_in(4, m))])
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(family)]))
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
         grouped = doc.insert(Node.union(family))
         self.assertEqual(evaluate(doc).value(grouped).kind, "boolean")
 
-        # The subtract over the row is evaluated once per member...
-        cut = doc.insert(Node.subtract(family, other))
+        # The subtract of each member, `{k: row[k] - other}`, is
+        # evaluated once per member and yielded beside the row...
+        k = doc.var(VarName("k"))
+        cut = doc.insert(Node.subtract(family[k], other))
+        doc.apply(DocEdit.set_yields(k, [doc.output(family), doc.output(cut)]))
         value = evaluate(doc).value(cut)
         self.assertEqual([at for at, _ in value.members()], [[0], [1], [2]])
 

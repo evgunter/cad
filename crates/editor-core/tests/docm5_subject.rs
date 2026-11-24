@@ -672,7 +672,7 @@ fn failing_placement(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, placement) = crate::fixture::place(doc, fused);

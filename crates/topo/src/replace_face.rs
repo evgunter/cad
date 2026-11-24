@@ -1242,6 +1242,10 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn transport_curve<T: Decide>(
     old: &Surface<T>,
     nappe: Nappe,
@@ -1445,6 +1449,10 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
 /// offset's own map.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
@@ -2494,6 +2502,10 @@ fn group_cone_v_window<T: Decide>(
 
 /// The `v`-range of one carrier on a cone chart (see
 /// [`group_cone_v_window`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -2517,11 +2529,7 @@ fn cone_v_range<T: Decide>(
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
         Curve3::Circle(circle) => {
-            let (center, ca, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis.get()) * radius).powi(2)
@@ -2532,11 +2540,7 @@ fn cone_v_range<T: Decide>(
             (c - amp, c + amp)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, ca, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2)
@@ -2590,30 +2594,89 @@ fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Ve
     out
 }
 
-/// The chart row an `IsoLine` image runs along over its edge's `span`:
-/// the axis it holds fixed, the parameter it holds it at, and its span
-/// along the row. `None` for a line that fixes neither parameter
-/// exactly — a slanted line is no row — or both, a point, and for any
-/// other image.
+/// The chart row an `IsoLine` image of `edge` on the chart `chart` runs
+/// along: the axis it holds fixed, the value it holds it at, and its
+/// span along the row over the edge's interval `(t0, t1)`. `None` for
+/// any other image.
 ///
-/// The held parameter is the map's ([`geom_brep::Pcurve::held_line`],
-/// held to `IsoLine`s), the one check 4 decided the row by; the span
-/// along it is the image's ends ([`geom_brep::Pcurve::span_ends`]). So a
-/// stated end that sits off the held row inside the band picks no other
-/// row than the map does.
+/// The held line is the image's structure ([`geom_brep::Pcurve::held_line`],
+/// held to `IsoLine`s). The span's two ends are read by [`iso_row_span`]
+/// from the lift of the loop the edge's half-edge on `chart` is a member
+/// of, the first of its two half-edges that sits on `chart`.
+///
+/// **No lift**: where the edge has no half-edge on a face of `chart`, or
+/// that face's loop has no lift to read ([`crate::pcurves::Lift::read`]
+/// refuses: a member stores no image, or no element on the joint into
+/// it), both ends are the image's own values. That is not a missing row
+/// read as a present one: the row read is the DESCRIPTION's image, which
+/// is at hand, and only the exactness of its ends is the lift's to add.
+/// A body mid-offset, whose rows a caller has not minted, reads its
+/// extracted row's span through the map, as every image whose ends no
+/// mint stated did before an image stored none.
 fn iso_image_row<T: Decide>(
+    body: &Body<T>,
+    edge: &crate::entity::Edge,
+    chart: SurfaceKey,
     image: &geom_brep::Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
 ) -> Option<(geom_brep::ChartAxis, T, (T, T))> {
-    if !matches!(image, geom_brep::Pcurve::IsoLine { .. }) {
+    let geom_brep::Pcurve::IsoLine { line, .. } = *image else {
         return None;
-    }
-    let line = image.held_line().ok()?;
-    let [a, b] = image.span_ends(span);
-    Some(match line.axis {
-        geom_brep::ChartAxis::U => (line.axis, line.value, (a.y, b.y)),
-        geom_brep::ChartAxis::V => (line.axis, line.value, (a.x, b.x)),
-    })
+    };
+    let corners = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .find_map(|he| {
+            let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+            let face = proven(&body.loops, half.parent_loop, EntityId::Loop).face;
+            let record = proven(&body.faces, face, EntityId::Face);
+            if record.surface != chart {
+                return None;
+            }
+            // No lift to read: the ends are the image's own (above).
+            let lift = crate::pcurves::Lift::read(body, half.parent_loop).ok()?;
+            let row = lift.rows().iter().position(|row| row.half_edge == he)?;
+            let periods = crate::pcurves::ChartPeriods::stated(body.proven_face(face).surface());
+            Some(lift.stored_corners(row, periods))
+        })
+        .unwrap_or([None, None]);
+    Some((
+        line.axis,
+        line.value,
+        iso_row_span(line, image, (t0, t1), corners),
+    ))
+}
+
+/// **The span of an iso image along its line over `(t0, t1)`**, given
+/// the corners its row's lift reads at the edge's two ends
+/// ([`crate::pcurves::Lift::stored_corners`]).
+///
+/// - **A corner** (the row meets a row across it: a rectangle's side
+///   between two sides): the neighbour's stored held value, on the
+///   image's own branch. A row that runs a chart's whole side spans its
+///   domain exactly at every scalar, however far the lift moved it. The
+///   span becomes the new edge's parameters on the extracted row, whose
+///   domain is the chart's, so an end a rounding past the domain would
+///   be a parameter off its carrier.
+/// - **No corner** at an end: the image's own value there, through its
+///   map. That is every end that is not a rectangle's corner: a cut
+///   between two images on one line; a neighbour that is no iso image (a
+///   trimmed side meeting a general curve in UV, a harmonic image), or
+///   an iso image along the same line; an open run's end and the closure
+///   joint of a loop that winds a period; and either row on the twin
+///   sheet. Such an end is an interior point of the row or of its
+///   domain's side, and its rounding moves the new edge's end along its
+///   own carrier, inside the domain unless the image's map already ran
+///   past it, which the image's certificate gates (check 4's domain
+///   reach).
+fn iso_row_span<T: Decide>(
+    line: geom_brep::ChartLine<T>,
+    image: &geom_brep::Pcurve<T>,
+    (t0, t1): (T, T),
+    corners: [Option<T>; 2],
+) -> (T, T) {
+    let [a, b] = [(corners[0], t0), (corners[1], t1)]
+        .map(|(corner, t)| corner.unwrap_or_else(|| line.along(image.eval(t))));
+    (a, b)
 }
 
 /// One boundary edge's re-derivation: the description re-stated against
@@ -2709,7 +2772,7 @@ fn plan_edge<'s, T: Decide>(
         // The image's own line, read as a row only where it holds a
         // parameter EXACTLY fixed: an exact test can only refuse more
         // than a margined one, so it needs no band.
-        let row = iso_image_row(&c.pcurve, curve.edge_span());
+        let row = iso_image_row(body, edge_data.record(), old_key, &c.pcurve, (t0, t1));
         // The hold is read on the OLD chart and the row extracted from
         // the new fit at the same `at`: the fit lives on the old
         // chart's own parameter rectangle, ends exact
@@ -2756,22 +2819,14 @@ fn plan_edge<'s, T: Decide>(
             let carrier = Curve3::Nurbs(Arc::new(row));
             let ends = Some((carrier.eval(s0), carrier.eval(s1)));
             // The image is `(fixed, along·t)` or `(along·t, fixed)`: the
-            // row's own parameter, run back on a reflected carrier. It
-            // states no ends: its map reads them exactly at every scalar
-            // (`0 + (±1)·s` is `±s`, `fixed + 0·s` is `fixed`).
-            let (p0, pl) = match axis {
-                geom_brep::ChartAxis::U => (
-                    geom_core::Point2::new(fixed, T::zero()),
-                    geom_core::Vec2::new(T::zero(), along),
-                ),
-                geom_brep::ChartAxis::V => (
-                    geom_core::Point2::new(T::zero(), fixed),
-                    geom_core::Vec2::new(along, T::zero()),
-                ),
-            };
+            // row's own parameter, run back on a reflected carrier.
             let description = EdgeDescriptionSpec::Chart {
                 surface: old_key,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, ends: None }),
+                image: Some(geom_brep::Pcurve::IsoLine {
+                    line: geom_brep::ChartLine { axis, value: fixed },
+                    at0: T::zero(),
+                    rate: along,
+                }),
                 wrap: c.wrap,
                 declared: None,
             };
@@ -3531,30 +3586,9 @@ fn derive_edge<'w, 's, T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
-        Pcurve::IsoLine { p0, pl, ends } => {
-            let shifted = |p: geom_core::Point2<T>| geom_core::Point2::new(p.x, p.y + shift);
-            Pcurve::IsoLine {
-                p0: shifted(p0),
-                pl,
-                ends: ends.map(|e| e.map(shifted)),
-            }
+        Pcurve::Harmonic { .. } | Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            pcurve.translate(T::zero(), shift)
         }
-        Pcurve::IsoArc {
-            p0,
-            pd,
-            t0,
-            angle,
-            ref breaks,
-            ref ends,
-        } => Pcurve::IsoArc {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pd,
-            t0,
-            angle,
-            breaks: breaks.clone(),
-            ends: ends.clone(),
-        },
         // Both spiric images are affine in the chart's SECOND channel
         // — the cap's `v` coordinate is its constant term's, the
         // wall's is `v0` — so the shift lands on one field exactly, as
@@ -4061,13 +4095,6 @@ fn plan_reanchors<T: Decide>(
                 t0 = t_new;
             } else {
                 t1 = t_new;
-            }
-            if let EdgeDescriptionSpec::Chart {
-                image: Some(ref mut image),
-                ..
-            } = description
-            {
-                *image = image.with_end_at(!is_start, t_new);
             }
         }
         // **The witness follows the parameter range.** An intrinsic
@@ -4872,13 +4899,6 @@ fn read_ends<T: Decide>(
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
-    if let EdgeDescriptionSpec::Chart {
-        image: Some(ref mut image),
-        ..
-    } = plan.spec.description
-    {
-        *image = image.over_span((t0, t1));
-    }
     // A sketch record beside the edge ends where the edge now does.
     let restate = |m, point, is_start| {
         move_mapped_endpoint(m, point, is_start).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
@@ -6226,7 +6246,7 @@ mod from_computed_rows {
         let eps = band().zero();
         let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
             let end = corner(short(p)).unwrap().unwrap();
-            assert_eq!(end.value, 1.0, "a gap within ε takes the end");
+            assert_eq!(end.value(), 1.0, "a gap within ε takes the end");
             Vec::new()
         });
         assert_eq!(
@@ -6416,5 +6436,177 @@ mod corner_rows {
             Point3::new(0.0, 1.0, 0.0),
         ];
         assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
+    }
+}
+
+/// **An extracted row's span is its lift's corners** ([`iso_row_span`],
+/// [`iso_image_row`]'s reading): on a chart whose `u` domain is
+/// `[0.4, 1.7]`, a whole-side row's span is `(0.4, 1.7)` as points at
+/// both scalars, lifted a period or not, where its own map's ends round
+/// or have width; an end with no corner is the map's value.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+mod iso_row_span_rows {
+    use super::iso_row_span;
+    use crate::joint::{Deck, Winding};
+    use crate::pcurves::{ChartPeriods, Lift, LiftedRow};
+    use geom::Surface;
+    use geom_brep::Pcurve;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Bounds as _, Decide, Interval, Point3, Real};
+
+    /// The bilinear patch over `[lo, hi] × [0, 1]`.
+    fn patch<T: Decide>(lo: f64, hi: f64) -> Surface<T> {
+        let ku = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .map(|(x, y)| Point3::new(x, y, 0.0))
+            .to_vec();
+        let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap();
+        Surface::Nurbs(std::sync::Arc::new(net.map_scalar(T::from_f64)))
+    }
+
+    /// A span neither of whose ends is zero or a literal.
+    fn span<T: Real>() -> (T, T) {
+        (
+            T::from_f64(0.1) + T::from_f64(0.2),
+            T::from_f64(1.2) + T::one(),
+        )
+    }
+
+    fn row<T: Decide>(v: f64, (u0, u1): (f64, f64)) -> LiftedRow<T> {
+        let f = T::from_f64;
+        LiftedRow::stated_for_tests(Pcurve::iso_row(f(v), (f(u0), f(u1)), span()), span(), true)
+    }
+
+    fn column<T: Decide>(u: f64, (v0, v1): (f64, f64)) -> LiftedRow<T> {
+        let f = T::from_f64;
+        LiftedRow::stated_for_tests(
+            Pcurve::iso_column(f(u), (f(v0), f(v1)), span()),
+            span(),
+            true,
+        )
+    }
+
+    fn closed() -> Option<Winding> {
+        Some(Winding {
+            deck: Deck::IDENTITY,
+        })
+    }
+
+    /// The span [`super::iso_image_row`] reads for row `i` of `lift`,
+    /// whose stored image is `stored`, as two brackets. A macro: the body
+    /// reads brackets of a deciding scalar, and names no compound bound
+    /// to do it.
+    macro_rules! read {
+        ($lift:expr, $i:expr, $stored:expr, $periods:expr) => {{
+            let line = $stored.held_line().unwrap().line;
+            let (a, b) = iso_row_span(line, $stored, span(), $lift.stored_corners($i, $periods));
+            [(a.lo(), a.hi()), (b.lo(), b.hi())]
+        }};
+    }
+
+    /// Red under `iso_row_span` reading the image's own ends where the
+    /// lift reads a corner (the span is then the map's values: with width
+    /// at `Interval`),
+    /// and under `Lift::stored_corners` un-moving the neighbour's moved
+    /// value (the lifted row's far end is `1.7000000000000002`).
+    #[test]
+    fn a_whole_side_rows_span_is_its_domain_and_a_cut_is_the_maps_value() {
+        macro_rules! at {
+            ($t:ty, $scalar:expr, $map_has_width:expr) => {{
+                let scalar: &str = $scalar;
+                let (lo, hi) = (0.4, 1.7);
+                let surface = patch::<$t>(lo, hi);
+                let periods = ChartPeriods::stated(&surface);
+                let whole = [(lo, lo), (hi, hi)];
+                // The image's own ends, through its map: what the corner
+                // replaces. At `Interval` enclosures with width, never the
+                // domain's ends as points (at `f64` they may round onto
+                // them, on this span they do).
+                let bottom = row::<$t>(0.0, (lo, hi));
+                let stored = bottom.pcurve.clone();
+                let (t0, t1) = span::<$t>();
+                let own = [stored.eval(t0).x, stored.eval(t1).x].map(|x| (x.lo(), x.hi()));
+                if $map_has_width {
+                    assert_eq!(
+                        own.map(|(lo, hi)| lo < hi),
+                        [true, true],
+                        "{scalar}: the map's own ends over a computed span have width: {own:?}"
+                    );
+                }
+                // Unmoved.
+                let plain = Lift::stated_for_tests(
+                    vec![
+                        bottom.clone(),
+                        column::<$t>(hi, (0.0, 1.0)),
+                        row::<$t>(1.0, (hi, lo)),
+                        column::<$t>(lo, (1.0, 0.0)),
+                    ],
+                    closed(),
+                );
+                assert_eq!(
+                    read!(&plain, 0, &stored, periods),
+                    whole,
+                    "{scalar}: a whole-side row spans its domain"
+                );
+                // Lifted one period, between the seam's column moved once
+                // and moved twice.
+                let moved = |r: LiftedRow<$t>, k: i32| {
+                    let deck = Deck {
+                        u: k,
+                        v: 0,
+                        twin: false,
+                    };
+                    let image = deck.apply(&r.pcurve, &surface, periods).unwrap();
+                    let mut out = r.moved_for_tests(deck);
+                    out.pcurve = image;
+                    out
+                };
+                let lifted = Lift::stated_for_tests(
+                    vec![
+                        moved(bottom.clone(), 1),
+                        moved(column::<$t>(lo, (0.0, 1.0)), 2),
+                        moved(row::<$t>(1.0, (hi, lo)), 1),
+                        moved(column::<$t>(lo, (1.0, 0.0)), 1),
+                    ],
+                    closed(),
+                );
+                assert_eq!(
+                    read!(&lifted, 0, &stored, periods),
+                    whole,
+                    "{scalar}: lifted one period, the row still spans its stored domain"
+                );
+                // A cut: the first piece's far end is its own map's value.
+                let mid = t0 + (t1 - t0) / <$t>::from_f64(2.0);
+                let cut = Lift::stated_for_tests(
+                    vec![
+                        bottom.clone().piece_for_tests((t0, mid)),
+                        bottom.piece_for_tests((mid, t1)),
+                        column::<$t>(hi, (0.0, 1.0)),
+                        row::<$t>(1.0, (hi, lo)),
+                        column::<$t>(lo, (1.0, 0.0)),
+                    ],
+                    closed(),
+                );
+                let line = stored.held_line().unwrap().line;
+                let (a, b) = iso_row_span(line, &stored, (t0, mid), cut.stored_corners(0, periods));
+                let at_cut = stored.eval(mid).x;
+                assert_eq!(
+                    [(a.lo(), a.hi()), (b.lo(), b.hi())],
+                    [whole[0], (at_cut.lo(), at_cut.hi())],
+                    "{scalar}: a piece's corner is exact and its cut is the map's value"
+                );
+                // No lift at all: both ends through the map.
+                let (a, b) = iso_row_span(line, &stored, (t0, t1), [None, None]);
+                assert_eq!(
+                    [(a.lo(), a.hi()), (b.lo(), b.hi())],
+                    own,
+                    "{scalar}: with no corner read, the image's own values"
+                );
+            }};
+        }
+        at!(f64, "f64", false);
+        at!(Interval, "Interval", true);
     }
 }

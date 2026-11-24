@@ -7500,6 +7500,25 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
+/// **How far a face reaches along `aim`**: bounds on `x·â` over the
+/// face, its cover read along the aim, with a sphere face's pole-side
+/// cut ([`crate::cover::face_cover_toward`]). `None` for a face with no
+/// cover.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+pub(crate) fn face_reach_toward<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    aim: geom_core::UnitVec3<T>,
+) -> Option<(T, T)> {
+    crate::cover::face_cover_toward(body, f, band, aim)
+        .ok()
+        .map(|cover| cover.range_along(aim.get()))
+}
+
 /// The touch lane's recourse for a designed contact it cannot read yet.
 macro_rules! designed_contact {
     () => {
@@ -7935,7 +7954,8 @@ enum Recorded {
 
 mod curved;
 pub(crate) use curved::{EdgeSpan, edge_span};
-mod depth_gap;
+pub(crate) mod depth_gap;
+pub(crate) use depth_gap::pair_directions;
 #[cfg(test)]
 mod depth_gap_fuzz;
 mod in_plane;
@@ -9976,9 +9996,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
 }
 
-/// A face's world reach ([`face_reach`]): its low and high corners.
-type WorldReach<T> = (Point3<T>, Point3<T>);
-
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
 /// between the two faces' anchors, either face's own normal where it
@@ -10000,15 +10017,14 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// gap does.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
-    (fa, ra): (FaceKey, WorldReach<T>),
-    (fb, rb): (FaceKey, WorldReach<T>),
+    (fa, fb): (FaceKey, FaceKey),
     proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
     use crate::separating::{Item, apart_by, planar_axis};
-    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
+    let mut axes: Vec<_> = [fa, fb]
         .into_iter()
-        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
+        .filter_map(|f| planar_axis(body, f, band))
         .collect();
     axes.extend(proposed);
     apart_by(
@@ -10553,19 +10569,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     depth_gap::face_read(body, a.face, band)
                         .zip(depth_gap::face_read(body, b.face, band))
                 };
-                let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
-                    let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, band));
-                    dirs
-                });
+                let proposed = reads
+                    .as_ref()
+                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::proposed(ra, rb, band));
                 if !cleared
-                    && !backstop_apart(
-                        body,
-                        (a.face, (alo, ahi)),
-                        (b.face, (blo, bhi)),
-                        proposed.clone(),
-                        band,
-                    )
+                    && !backstop_apart(body, (a.face, b.face), proposed.clone(), band)
                     && !reads.as_ref().is_some_and(|(ra, rb)| {
                         depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
                     })
@@ -23342,13 +23350,13 @@ mod corner_cause_rows {
     #[test]
     fn each_corner_cause_is_named_apart() {
         let face = FaceKey::default();
-        let apex = VertexFace::Apex(ConeApex {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::UnitVec3::exact_z(),
-            half_angle: 0.5_f64,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        });
+        let apex = VertexFace::Apex(ConeApex::stated(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::UnitVec3::exact_z(),
+            0.5_f64,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        ));
         assert!(
             matches!(
                 vertex_normal(apex),

@@ -27,7 +27,7 @@ use geom_brep::{
     interior_iso_u,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Point2, Point3, Real, Vec2};
+use geom_core::{Bounds, Decide, Point3, Real};
 use std::sync::Arc;
 
 /// The weight net: polynomial, constant along `u` (case (a)), constant
@@ -120,13 +120,9 @@ fn certify_line<T: Decide>(
     p0: (f64, f64),
     pl: (f64, f64),
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let f = T::from_f64;
     PcurveCache::certify(
-        Pcurve::IsoLine {
-            p0: Point2::new(f(p0.0), f(p0.1)),
-            pl: Vec2::new(f(pl.0), f(pl.1)),
-            ends: None,
-        },
+        Pcurve::iso_line_for_tests([p0.0, p0.1], [pl.0, pl.1])
+            .expect("the probes state rows and columns"),
         T::zero(),
         T::one(),
         &Curve3::Nurbs(Arc::new(lift_curve::<T>(carrier))),
@@ -435,17 +431,15 @@ fn r1_c2_shared_space_interval() {
 
 // ------------------------------------------------------------------ C3
 
-/// Soundness of the envelope against a dense residual on both routes:
-/// a `u_start` inside the boundary band with the boundary row as
-/// carrier, and a DRIFTING seam (`pl.x ≠ 0`) with the inserted row as
-/// carrier — the interior route's drift-only slack is what keeps the
-/// second sound. Wherever the door certifies, `envelope ≥ residual`
-/// up to the residual's own rounding: it is the distance of two `f64`
-/// evaluations, each rounded at the coordinates' magnitude, and the
-/// boundary route's slack `δ·sup ‖S_u‖` meets it with nothing to spare,
-/// because the stretch bound reads the chart's derivative at its
-/// boundary exactly. The smallest drift certifies at every ε, so the
-/// term is exercised.
+/// Soundness of the envelope against a dense residual: a `u_start`
+/// inside the boundary band with the boundary row as carrier, and the
+/// boundary row claimed beyond the band. Wherever the door certifies,
+/// `envelope ≥ residual` up to the residual's own rounding: it is the
+/// distance of two `f64` evaluations, each rounded at the coordinates'
+/// magnitude, and the boundary route's slack `δ·sup ‖S_u‖` meets it with
+/// nothing to spare, because the stretch bound reads the chart's
+/// derivative at its boundary exactly. (A seam whose held channel drifts
+/// is unwritable: an iso image holds its line as structure.)
 fn c3_body<T: Decide + Bounds>(lane: &str) {
     let s = cubic_chart(Net::CaseA, 1.0);
     let (v0, v1) = s.knots_v_f64_interim().domain();
@@ -467,32 +461,6 @@ fn c3_body<T: Decide + Bounds>(lane: &str) {
             );
         }
     }
-    let row = inserted_row(&s, 0.5);
-    let mut certified = 0;
-    for eta in [1e-12, 1e-9, 1e-7, 1e-5] {
-        let (p0, pl) = ((0.5, v0), (eta, v1 - v0));
-        let res = dense_residual(&s, &row, p0, pl);
-        match certify_line::<T>(&s, &row, p0, pl) {
-            Ok(c) => {
-                certified += 1;
-                let env = c.certificate().envelope.hi();
-                assert!(
-                    env >= res,
-                    "{lane}: UNSOUND envelope {env:e} < residual {res:e} at drift {eta:e}"
-                );
-                assert!(
-                    c.certificate().statement == EnvelopeStatement::MapResidualIsoHull && env > 0.0,
-                    "{lane}: the drift is paid by the interior route's slack: {env:e}"
-                );
-            }
-            Err(e) => assert!(
-                eta > 1e-12,
-                "{lane}: the smallest drift certifies at every ε: {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            ),
-        }
-    }
-    assert!(certified >= 1, "{lane}: the drift slack was exercised");
     // The interior route with a WRONG carrier (the boundary row claimed
     // beyond the band): certified or not, never unsound.
     for delta in [1e-6, 1e-5, 1e-3] {
@@ -541,9 +509,9 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
             let row = interior_iso_u(&s, u).unwrap();
             let f = T::from_f64;
             let pc = Pcurve::IsoLine {
-                p0: Point2::new(f(u), f(v0)),
-                pl: Vec2::new(T::zero(), f(v1 - v0)),
-                ends: None,
+                line: geom_brep::ChartLine::column(f(u)),
+                at0: f(v0),
+                rate: f(v1 - v0),
             };
             let r = PcurveCache::certify(
                 pc,

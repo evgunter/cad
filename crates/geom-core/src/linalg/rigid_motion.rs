@@ -338,6 +338,18 @@ pub enum OrthoAxis {
     V,
 }
 
+/// **Which axis of a frame [`RigidMotion::reflected_by`] reverses**, so
+/// that its image under an improper map is right-handed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Negated {
+    /// The first axis.
+    U,
+    /// The second axis.
+    V,
+    /// The third axis.
+    W,
+}
+
 /// **Why an authored pair is no frame** — the direction door's refusal,
 /// plus which of the two axes it was about.
 ///
@@ -1422,6 +1434,29 @@ impl<T: Real> RigidMotion<T> {
         )
     }
 
+    /// **This frame's image under an improper isometry `map`, kept
+    /// right-handed by reversing its `negated` axis**: its origin through
+    /// `map` and each axis through `map`'s linear part, the `negated` one
+    /// reversed. An improper map turns a right-handed triple left-handed,
+    /// so reversing one image column is what makes the image a frame, and
+    /// which one is the reader's convention (a plane's normal is its
+    /// outward side, [`Negated::W`]; a conic keeps its axis and parameter
+    /// and reverses its `v`, [`Negated::V`]). Nothing is decided. The image
+    /// is measured as [`RigidMotion::carried_by`]'s is: its bits kept within
+    /// its rounding, squared about its `w` past it, and poison past any
+    /// rounding, so a `map` that is not an improper isometry poisons it.
+    #[must_use]
+    pub fn reflected_by(self, map: &Affine3<T>, negated: Negated) -> Self {
+        let l = map.linear;
+        let sign = |axis: Negated, c: Vec3<T>| if axis == negated { -c } else { c };
+        Self::measured_frame(
+            map.transform_point(self.origin),
+            sign(Negated::U, l * self.u.get()),
+            sign(Negated::V, l * self.v.get()),
+            sign(Negated::W, l * self.w.get()),
+        )
+    }
+
     /// **This frame turned about its own `w` onto the direction of `d`**,
     /// a vector of its own `uv` plane: `d` normalized once
     /// ([`Vec2::normalize`]) to `(c, s)`, then `u` becomes this frame
@@ -1465,6 +1500,73 @@ impl<T: Real> RigidMotion<T> {
 }
 
 impl<T: Real> RigidMotion<T> {
+    /// **How far this motion's stored axes may be from the rotation they
+    /// hold**: `(axis, seam)`, bounds on `‖w − Rẑ‖` and `‖u − Rx̂‖`, `R` the
+    /// **polar factor** of the stored columns `M = [u v w]`: the one
+    /// rotation a frame means at every scalar, the one the enclosure lane
+    /// reads ([`Real::enclose_rotation`]). A reader that levers a frame
+    /// charges these rather than reading the frame's convention off its
+    /// entries (fork 274 decision 1).
+    ///
+    /// **Zero at an enclosure scalar** ([`crate::Witness::Exact`]): every
+    /// mint there encloses a rotation for each point of its inputs' box.
+    /// Read across from `f64` it is the enclosure of the polar factor
+    /// ([`Real::enclose_rotation`]); minted at the scalar it is a formula
+    /// that yields a rotation in exact arithmetic ([`RigidMotion::squared`],
+    /// a turn, an aim, a least turn); and composed, inverted or permuted
+    /// it is a product, transpose or signed permutation of such. No
+    /// production door mints one from raw entries
+    /// ([`RigidMotion::check_rigid`] is `f64` only, and the doors that
+    /// admit stated entries are test builds only).
+    ///
+    /// **Measured at a point scalar**, since composition adds rounding at
+    /// every turn and no constant bounds it, from the Gram defect
+    /// `G = MᵀM − I`, all six of its entries read exactly
+    /// ([`exact_sum_of_products`]). `M = R(I + G)^½`, so
+    /// `(M − R)eⱼ = R·S·eⱼ` with `S = (I + G)^½ − I = G·h(G)`,
+    /// `h(λ) = 1/(1 + √(1 + λ))`. Every eigenvalue of `G` is at least `−1`
+    /// (`I + G` is a Gram matrix) and at most `‖G‖` in size, so
+    /// `‖h(G)‖ ≤ 1/(1 + √(1 − ‖G‖))`, read as `1` where `‖G‖ ≥ 1`, and
+    ///
+    /// `‖(M − R)eⱼ‖ ≤ ‖G·eⱼ‖ / (1 + √(1 − ‖G‖))`,
+    ///
+    /// `‖G‖` bounded by the lesser of its largest row sum and its
+    /// Frobenius norm. Near rigid that is `‖G·eⱼ‖/2` to first order, the
+    /// distance itself. The bound is finite at any stored entries: a zero
+    /// or doubled axis reads at least its true distance, `1`. The few
+    /// operations after the exact entries, on non-negative terms, are
+    /// charged as a short chain ([`crate::rounding_charge`]). An
+    /// axis-aligned frame reads exactly zero.
+    ///
+    /// `R` is a rotation, not a reflection, because a stored frame is
+    /// right-handed by its mint (`v = w × u`), and `‖G‖ < 1` keeps `M`
+    /// off singular.
+    #[must_use]
+    pub fn rounding(self) -> (T, T) {
+        if T::WITNESS == crate::real::Witness::Exact {
+            return (T::zero(), T::zero());
+        }
+        let (u, v, w) = (self.u.get(), self.v.get(), self.w.get());
+        let (one, zero) = (T::one(), T::zero());
+        let gram = |x: Vec3<T>, y: Vec3<T>, k: T| {
+            exact_sum_of_products(&[(x.x, y.x), (x.y, y.y), (x.z, y.z)], k)
+        };
+        let (guu, gvv, gww) = (gram(u, u, -one), gram(v, v, -one), gram(w, w, -one));
+        let (guv, guw, gvw) = (gram(u, v, zero), gram(u, w, zero), gram(v, w, zero));
+        let column = |a: T, b: T, c: T| (a.powi(2) + b.powi(2) + c.powi(2)).sqrt();
+        let (on_u, on_v, on_w) = (
+            column(guu, guv, guw),
+            column(guv, gvv, gvw),
+            column(guw, gvw, gww),
+        );
+        let rows = (guu + guv + guw).max(guv + gvv + gvw).max(guw + gvw + gww);
+        let frobenius = (on_u.powi(2) + on_v.powi(2) + on_w.powi(2)).sqrt();
+        let norm = rows.min(frobenius);
+        let lever = one + (one - norm).max(zero).sqrt();
+        let off = |x: T| x + crate::rounding_charge(x);
+        (off(on_w / lever), off(on_u / lever))
+    }
+
     /// **This frame at another scalar**, one of the two reads the module
     /// docs' "Crossing scalars" names. `f` is a lift: it reads each
     /// entry's value at the target scalar (an embedding such as
@@ -1545,6 +1647,66 @@ impl<T: Real> RigidMotion<T> {
             }
         }
     }
+}
+
+/// **`|Σ xᵢ·yᵢ + k|`, bounded above**, read exactly apart from a
+/// double-double accumulation, at a point scalar whose value channel is
+/// binary64 ([`RigidMotion::rounding`]'s one reader): each product split
+/// error-free by Dekker's two-product (Veltkamp's split by `2²⁷ + 1`, no
+/// fused multiply), each sum by Knuth's two-sum, the pair `(hi, lo)`
+/// kept. What is charged on top is what rounds:
+///
+/// - `lo`'s six additions, each off by `u` of a partial sum no larger than
+///   `L`, the sum of the error terms' magnitudes: `8u·L` covers them;
+/// - the pair's final collapse to one number, `u` of its value;
+/// - a product under the split's floor `τ = 10⁻²⁹⁰`, above the `2⁻⁹⁶⁹`
+///   past which its error term can underflow: the tent
+///   `max(0, min(t, τ, 2τ − t))` of the rounded product's size `t`, so
+///   `t` below `τ`, and zero from `2τ`, where the split is exact. A
+///   product that rounds to zero is charged nothing: it is off by under
+///   `2⁻¹⁰⁷⁴`, below any distance a frame's reader levers.
+///
+/// So where every product and sum is exact (an axis-aligned frame) the
+/// bound is the value itself, and zero on a unit axis.
+///
+/// The kit is spelled here at `T` because [`crate::exact::two_sum`] and
+/// [`crate::exact::two_product`] are `f64` only (the product by fused
+/// multiply-add, which `Real` does not offer). At a dual or symbolic
+/// scalar over `f64` every step runs on the value channel as plain `f64`
+/// arithmetic, so its value is the `f64` read bit for bit.
+fn exact_sum_of_products<T: Real>(terms: &[(T, T); 3], k: T) -> T {
+    let split = |x: T| {
+        let c = T::from_f64(134_217_729.0) * x;
+        let hi = c - (c - x);
+        (hi, x - hi)
+    };
+    let two_product = |x: T, y: T| {
+        let p = x * y;
+        let ((xh, xl), (yh, yl)) = (split(x), split(y));
+        (p, ((xh * yh - p) + xh * yl + xl * yh) + xl * yl)
+    };
+    let two_sum = |x: T, y: T| {
+        let s = x + y;
+        let yy = s - x;
+        (s, (x - (s - yy)) + (y - yy))
+    };
+    let tau = T::from_f64(1e-290);
+    let tent = |t: T| t.min(tau).min(tau + tau - t).max(T::zero());
+    let (mut hi, mut lo) = (k, T::zero());
+    let (mut low, mut floor) = (T::zero(), T::zero());
+    for &(x, y) in terms {
+        let (p, e) = two_product(x, y);
+        floor = floor + tent(p.abs());
+        let (s, f) = two_sum(hi, p);
+        hi = s;
+        low = low + f.abs() + e.abs();
+        lo = lo + f + e;
+    }
+    let (s, f) = two_sum(hi, lo);
+    let value = s + f;
+    let u = T::from_f64(crate::UNIT_ROUNDOFF);
+    let charge = T::from_f64(8.0) * u * low + u * value.abs() + floor;
+    value.abs() + charge
 }
 
 impl RigidMotion<f64> {
@@ -2237,6 +2399,72 @@ mod tests {
     use crate::tolerance::Tol;
 
     pub(super) const SITE: &str = "rigid_motion_test_axis";
+
+    /// **A frame's image under a reflection is the frame `negated`
+    /// reverses, bit for bit, and right-handed**: a turned frame across a
+    /// tilted mirror keeps each image column `±M·c` exactly (every margin
+    /// within its rounding, [`RigidMotion::measured_frame`]), with the
+    /// `negated` one reversed and `u × v = w` to rounding; a map that is no
+    /// isometry (a stretch with a reversed axis) poisons it.
+    #[test]
+    fn a_reflected_frame_reverses_its_negated_axis_and_stays_right_handed() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let frame = RigidMotion::from_axis_and_reference(
+            Point3::new(0.3, -1.2, 2.0),
+            Vec3::new(0.2, 0.9, -0.4),
+            Vec3::new(1.0, 0.1, 0.3),
+            SITE,
+            band,
+        )
+        .unwrap();
+        let normal = UnitVec3::new(Vec3::new(0.6, -0.3, 0.74), SITE, band).unwrap();
+        let mirror =
+            crate::linalg::frame::mirror_across_unit_plane(Point3::new(1.0, 0.5, -0.2), normal);
+        let l = mirror.linear;
+        for negated in [Negated::U, Negated::V, Negated::W] {
+            let image = frame.reflected_by(&mirror, negated);
+            let column = |axis: Negated, c: UnitVec3<f64>| {
+                if axis == negated {
+                    -(l * c.get())
+                } else {
+                    l * c.get()
+                }
+            };
+            assert_eq!(
+                format!("{:?}", image.u.get()),
+                format!("{:?}", column(Negated::U, frame.u)),
+                "{negated:?}: u"
+            );
+            assert_eq!(
+                format!("{:?}", image.v.get()),
+                format!("{:?}", column(Negated::V, frame.v)),
+                "{negated:?}: v"
+            );
+            assert_eq!(
+                format!("{:?}", image.w.get()),
+                format!("{:?}", column(Negated::W, frame.w)),
+                "{negated:?}: w"
+            );
+            assert_eq!(
+                format!("{:?}", image.origin),
+                format!("{:?}", mirror.transform_point(frame.origin)),
+                "{negated:?}"
+            );
+            let turning = image.u.get().cross(image.v.get()).dot(image.w.get());
+            assert!(
+                (turning - 1.0).abs() < 1e-12,
+                "{negated:?}: right-handed, {turning}"
+            );
+        }
+        let stretch = Affine3::from_parts(
+            Mat3::from_cols(Vec3::new(-2.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::zero(),
+        );
+        assert!(
+            frame.reflected_by(&stretch, Negated::U).u.get().x.is_nan(),
+            "a stretch is no isometry: poison"
+        );
+    }
 
     /// **No read carries a frame into `Dual` or `Sym`**: across witness
     /// kinds `map_scalar` reads only to `Interval`, and a target that
@@ -4636,5 +4864,153 @@ mod least_turn_spelling_probe {
                 }
             }
         }
+    }
+
+    /// **An axis-aligned frame's rounding is exactly zero at `f64`**: its
+    /// products and sums are exact, so [`RigidMotion::rounding`] charges
+    /// nothing on top. A blanket charge on the double-double's terms would
+    /// read `10⁻³²` here, and it did move the thread-count golden's
+    /// `tilted_cut_upper` pads.
+    #[test]
+    fn an_axis_aligned_frames_rounding_is_zero() {
+        let id = RigidMotion::<f64>::identity();
+        let frames = [
+            id,
+            id.quarter_turned(),
+            id.quarter_turned().quarter_turned(),
+            id.half_turned(),
+            id.reversed(),
+            id.quarter_turned().reversed(),
+            id.quarter_turned().inverse().unwrap(),
+        ];
+        for (i, f) in frames.into_iter().enumerate() {
+            assert_eq!(f.rounding(), (0.0, 0.0), "frame {i}: {f:?}");
+        }
+    }
+
+    /// A frame with the stored entries `(u, v, w)` taken as they are, for
+    /// rows that probe the measure off rigid.
+    fn stored(u: Vec3<f64>, v: Vec3<f64>, w: Vec3<f64>) -> RigidMotion<f64> {
+        RigidMotion {
+            origin: crate::Point3::origin(),
+            u: UnitVec3::by_construction(u),
+            v: UnitVec3::by_construction(v),
+            w: UnitVec3::by_construction(w),
+        }
+    }
+
+    /// **The measure never reads under a frame's polar distance, off rigid
+    /// by any amount the series oracle reaches**: 6000 random rotations,
+    /// each stored entry moved by up to `s` for `s` from `10⁻¹⁶` to
+    /// `10⁻⁷`. Each frame's `(axis, seam)` is at least its exact distance
+    /// from its polar factor ([`crate::test_support::polar_distance`],
+    /// read independently of the bound), and their median ratio is at
+    /// most `1.5`.
+    #[test]
+    fn a_frames_rounding_never_reads_under_its_polar_distance() {
+        use super::tests::{SITE, band};
+        let mut seed = 0x51_7cc1_b727_220a_u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut ratios = Vec::new();
+        for scale in [1e-16, 1e-14, 1e-12, 1e-10, 1e-8, 1e-7] {
+            for i in 0..1000 {
+                let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let axis = UnitVec3::new(axis, SITE, band()).unwrap();
+                let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
+                let mut moved = |c: UnitVec3<f64>| {
+                    let c = c.get();
+                    let mut jog = || (next() - 0.5) * 2.0 * scale;
+                    Vec3::new(c.x + jog(), c.y + jog(), c.z + jog())
+                };
+                let f = stored(moved(turn.u), moved(turn.v), moved(turn.w));
+                let (d_axis, d_seam) = f.rounding();
+                let (t_axis, t_seam) = crate::test_support::polar_distance(&f);
+                let under = |bound: f64, truth: f64| bound < truth * (1.0 - 8.0 * f64::EPSILON);
+                assert!(
+                    !under(d_axis, t_axis) && !under(d_seam, t_seam),
+                    "scale {scale:e}, frame {i}: rounding ({d_axis:e}, {d_seam:e}) under the \
+                     polar distance ({t_axis:e}, {t_seam:e})"
+                );
+                for (d, t) in [(d_axis, t_axis), (d_seam, t_seam)] {
+                    if t > 0.0 {
+                        ratios.push(d / t);
+                    }
+                }
+            }
+        }
+        ratios.sort_by(f64::total_cmp);
+        let median = ratios[ratios.len() / 2];
+        println!(
+            "rounding over polar distance: median {median:.3}, worst {:.3}",
+            ratios[ratios.len() - 1]
+        );
+        assert!(
+            median <= 1.5,
+            "the measure is tight: median ratio {median:.3}"
+        );
+    }
+
+    /// **A degenerate frame reads a finite bound at least its distance**:
+    /// a zero axis, and a doubled one square to its seam, are each `1`
+    /// from the polar factor's unit axis, and the measure reads at least
+    /// that, never NaN.
+    #[test]
+    fn a_degenerate_frames_rounding_is_finite_and_covers_it() {
+        let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        let zero = Vec3::new(0.0, 0.0, 0.0);
+        for (what, f) in [
+            ("zero axis", stored(x, y, zero)),
+            ("doubled axis", stored(x, y, z * 2.0)),
+        ] {
+            let (d_axis, d_seam) = f.rounding();
+            assert!(
+                d_axis.is_finite() && d_seam.is_finite(),
+                "{what}: ({d_axis}, {d_seam}) is finite"
+            );
+            assert!(
+                d_axis >= 1.0,
+                "{what}: the axis is 1 from its rotation's, read {d_axis}"
+            );
+        }
+    }
+
+    /// **At a dual or symbolic scalar over `f64` the measure runs on the
+    /// value channel**: the Veltkamp split and the two-sums read the same
+    /// `f64` arithmetic there, so the value of the rounding is the `f64`
+    /// rounding bit for bit, on a composed frame whose defect is not
+    /// zero. A form that simplified `c − (c − x)` to `x` in its value
+    /// would read the split's `hi` as `x` and the error terms as zero.
+    #[test]
+    fn the_measure_at_a_dual_or_symbolic_scalar_is_the_f64_measure() {
+        use super::tests::{SITE, band};
+        let axis = UnitVec3::new(Vec3::new(0.3, -0.5, 0.8), SITE, band()).unwrap();
+        let turn = RigidMotion::rotation(axis, 1.234).unwrap();
+        let mut f = turn;
+        for _ in 0..8 {
+            f = turn.compose(f).unwrap();
+        }
+        let at_f64 = f.rounding();
+        assert!(
+            at_f64.0 > 0.0 || at_f64.1 > 0.0,
+            "a defect to measure: {at_f64:?}"
+        );
+        let sym = f.map_scalar(crate::sym::Sym::<f64>::from_f64).rounding();
+        let dual = f.map_scalar(crate::dual::Dual::<f64>::from_f64).rounding();
+        let bits = |p: (f64, f64)| (p.0.to_bits(), p.1.to_bits());
+        assert_eq!(
+            bits((sym.0.value(), sym.1.value())),
+            bits(at_f64),
+            "Sym<f64>"
+        );
+        assert_eq!(
+            bits((dual.0.value, dual.1.value)),
+            bits(at_f64),
+            "Dual<f64>"
+        );
     }
 }

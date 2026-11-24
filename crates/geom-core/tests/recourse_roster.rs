@@ -84,7 +84,6 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     ("k_stats.rs: decide_across: names", FORWARDS),
-    ("k_stats.rs: decide_across_reported: far", FORWARDS),
     ("k_stats.rs: decide_across_reported: floor", FORWARDS),
     ("k_stats.rs: decide_magnitude: name", FORWARDS),
     ("k_stats.rs: decide_passing: name", FORWARDS),

@@ -276,26 +276,25 @@ pub(super) enum SphereParts<T: Real> {
 }
 
 /// **Where a sphere tangent to the tube circle `T_σ` the pinch names
-/// touches the torus, if at one point**: `(x, y)` in `Π`.
+/// touches the torus, if at an extreme** of the distance from its
+/// centre.
 ///
 /// The section is the level `ρ` of `f = |x − cs|` on the torus. With
-/// `cs` off the axis (`s > 0`), `f`'s critical points are the four
-/// points of `T₊` and `T₋` on their normals through `cs`: on `T_σ`, its
-/// nearest point to `cs` at `|d_σ − r|` and its farthest at `d_σ + r`.
-/// The sphere is tangent at whichever of the two stands nearer `ρ`. That
-/// point is a touch when its value is `f`'s strict minimum or maximum
-/// over the torus, clear of the other three by a decided margin: in
-/// every pose the band admits, `{f ≤ ρ}` (or `{f ≥ ρ}`) is then one disc
-/// about it or empty, on which the carriers stand within the band of
-/// each other. It must also stand on the tube's outer half, where the
-/// torus is elliptic. A centre on the core (`d_σ = 0`) has every point of
-/// `T_σ` on a normal through it: no one point, and the offset decides
-/// that before anything divides by it.
+/// `cs` off the axis (`s > 0`) and off the core, `f`'s critical points
+/// are the four points of `T₊` and `T₋` on their normals through `cs`:
+/// on `T_σ`, its nearest point to `cs` at `|d_σ − r|` and its farthest
+/// at `d_σ + r`. Those are the forced ones: the nearest point of `T₊` the
+/// minimum, the farthest of `T₋` the maximum, the other two saddles. The
+/// sphere is tangent at whichever of `T_σ`'s two stands nearer `ρ`, and
+/// it is a touch at the minimum or the maximum; a tangency at a saddle is
+/// not. A centre on the core (`d_σ = 0`) has every point of `T_σ` on a
+/// normal through it, a meridian circle of minima that is no locus a
+/// touch reads, and the offset decides that before anything divides by
+/// it.
 ///
-/// Which of the two is a choice, not a decision: `ρ` stands within the
-/// band of one of them and they are `2·min(d_σ, r)` apart, so wherever
-/// the choice is in doubt the other stands within the band too and the
-/// extreme margin refuses.
+/// Which of the two is decided on `ρ`'s side of their midpoint
+/// `max(d_σ, r)`, from which each stands `min(d_σ, r)`, past the band
+/// once the offset is decided.
 pub(super) fn sphere_touch<T: Decide>(
     tan: Pinch,
     [big_r, r]: [T; 2],
@@ -304,33 +303,32 @@ pub(super) fn sphere_touch<T: Decide>(
     band: Band,
 ) -> Option<Point3<T>> {
     let [d_near, d_far] = m.d;
-    let (sigma, d, d_other) = if tan.index == 0 {
-        (T::one(), d_near, d_far)
-    } else {
-        (-T::one(), d_far, d_near)
+    let (sigma, d) = match tan.name {
+        SPHERE_NEAR => (T::one(), d_near),
+        SPHERE_FAR => (-T::one(), d_far),
+        _ => return None,
     };
-    let positive_as = |name, v: T| sign_as(name, Margin::of(v), band) == Some(Sign::Positive);
-    if !positive_as("section_torus_sphere_touch_offset", d) {
+    if sign_as("section_torus_sphere_touch_offset", Margin::of(d), band) != Some(Sign::Positive) {
         return None;
     }
-    // The midpoint of T_σ's two values is max(d_σ, r); `kappa` is +1 at
-    // the nearest point, −1 at the farthest.
-    let split = rho - d.max(r);
-    let (nearest, farthest) = ((d - r).abs(), d + r);
-    let kappa = split.select_le_zero(T::one(), -T::one());
-    let value = split.select_le_zero(nearest, farthest);
-    let [o1, o2, o3] = [
-        split.select_le_zero(farthest, nearest),
-        (d_other - r).abs(),
-        d_other + r,
-    ]
-    .map(|v| kappa * (v - value));
-    // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0).
+    let nearest = match sign_as(
+        "section_torus_sphere_touch_side",
+        Margin::of(rho - d.max(r)),
+        band,
+    )? {
+        Sign::Negative => true,
+        Sign::Positive => false,
+        Sign::Zero => return None,
+    };
+    // The nearest point of `T₋` and the farthest of `T₊` are the saddles.
+    if nearest != (tan.name == SPHERE_NEAR) {
+        return None;
+    }
+    // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0): toward the centre
+    // for the nearest.
+    let kappa = if nearest { T::one() } else { -T::one() };
     let (ux, uy) = ((m.s - sigma * big_r) / d, m.ca / d);
-    let (x, y) = (sigma * big_r + kappa * r * ux, kappa * r * uy);
-    (positive_as("section_torus_sphere_touch_extreme", o1.min(o2).min(o3))
-        && positive_as("section_torus_sphere_touch_elliptic", sigma * x - big_r))
-    .then(|| m.at(x, y))
+    Some(m.at(sigma * big_r + kappa * r * ux, kappa * r * uy))
 }
 
 // ---------------------------------------------------------------------
@@ -340,9 +338,10 @@ pub(super) fn sphere_touch<T: Decide>(
 /// The parallel wall's side of the torus axis: its circle holds the axis.
 const WALL_ROUND_AXIS: &str = "section_torus_offset_wall_round_axis";
 
-/// The parallel wall's touch row: its nearest ruling on the torus's
-/// outer equator.
-pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
+/// The parallel wall's touch rows: its nearest ruling on the torus's
+/// outer equator, and its farthest on the inner.
+const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
+const WALL_FAR_INNER: &str = "section_torus_offset_wall_far_inner";
 
 /// **Torus × a cylinder whose axis is parallel to the torus's**, at
 /// offset `e` in the direction `toward`, each row read across the
@@ -375,7 +374,7 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
                 hi - rho_min,
             ),
             (
-                "section_torus_offset_wall_far_inner",
+                WALL_FAR_INNER,
                 "section_torus_offset_wall_far_inner_floor",
                 rho_max - lo,
             ),
@@ -428,20 +427,71 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     )
 }
 
-/// **The parallel wall's touch**: its nearest ruling on the outer
-/// equator, the rest of the wall beyond it. That is the extreme of the
+/// **The parallel wall's touch**, where its nearest ruling stands on the
+/// torus's outer equator or its farthest on the inner: an extreme of the
 /// distance from the wall's axis over the torus (its minimum beside the
-/// torus, its maximum about it), at an elliptic point, clear of the next
-/// critical value by `2r` beside the torus and by `min(2r, 2e)` about
-/// it, both decided upstream: `r` by the ring guard, `e` by the pose's
-/// `Positive` offset floor, the one pose that reaches this arm.
-pub(super) fn parallel_cylinder_touch<T: Real>(
+/// torus or in the hole, its maximum about it). The axis must miss the
+/// tube (`|e − R| > r`, decided across the `slack` the pose admitted):
+/// through it, the distance has two more critical points where it pierces
+/// the tube. The nearest ruling on the inner equator and the farthest on
+/// the outer stand at saddles, and are no touch.
+///
+/// The point is read off the wall's own axis `wall`, not off the parallel
+/// reading, whose offset and direction stand at the pivot and drop the
+/// tilt the pose admitted: the core point `C` toward where `wall` crosses
+/// the torus's equatorial plane, and the point of the tube circle about
+/// `C` on its normal through `wall` (nearest it at a minimum, farthest at
+/// the maximum), which is critical across the tube exactly and around the
+/// axis to first order in the tilt: its distance from the deepest point is
+/// second order in a tilt the band bounds by its zero over the lever, below
+/// the rounding of every in-band pose.
+pub(super) fn parallel_cylinder_touch<T: Decide>(
     tan: Pinch,
-    c: Point3<T>,
-    (e, toward): (T, Vec3<T>),
-    rc: T,
+    (axis, [big_r, r]): (geom::Line<T>, [T; 2]),
+    (e, slack): (T, T),
+    (wall, rc): (geom::Line<T>, T),
+    band: Band,
 ) -> Option<Point3<T>> {
-    (tan.undecided.is_none() && tan.name == WALL_NEAR_OUTER).then(|| c + toward * (e - rc))
+    if tan.undecided.is_some() || !(tan.name == WALL_NEAR_OUTER || tan.name == WALL_FAR_INNER) {
+        return None;
+    }
+    let off_tube = signs_across(
+        [(
+            "section_torus_offset_wall_axis_off_tube",
+            "section_torus_offset_wall_axis_off_tube_floor",
+            (e - big_r).abs() - r,
+        )],
+        slack,
+        band,
+    );
+    if !matches!(off_tube, Ok([true])) {
+        return None;
+    }
+    let geom::Line { origin: c, dir: a } = axis;
+    let (a, d) = (a.get(), wall.dir.get());
+    let crossing = wall.origin + d * ((c - wall.origin).dot(a) / d.dot(a));
+    let (perp, e_wall) = super::square_part(crossing - c, a);
+    let toward = perp / e_wall;
+    // Beside the torus or in the hole the touch is the minimum, on the
+    // core point toward the wall; about it, the maximum, opposite.
+    let about = tan.name == WALL_NEAR_OUTER
+        && sign_as(
+            "section_torus_offset_wall_touch_side",
+            Margin::of(rc - e_wall),
+            band,
+        )? == Sign::Positive;
+    let core = if about {
+        c - toward * big_r
+    } else {
+        c + toward * big_r
+    };
+    let foot = wall.origin + d * ((core - wall.origin).dot(d) / d.dot(d));
+    let to_wall = (foot - core) / (foot - core).norm();
+    Some(if about {
+        core - to_wall * r
+    } else {
+        core + to_wall * r
+    })
 }
 
 // ---------------------------------------------------------------------

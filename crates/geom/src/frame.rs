@@ -14,8 +14,9 @@
 //! squared with no decision ([`Frame::new`], [`RigidMotion::squared`]).
 //! [`Frame::moved`] is its image under a motion. At another scalar it
 //! is carried within one witness kind and re-minted across kinds
-//! ([`Frame::map_scalar`]). An improper map has no reading here: its
-//! image is a per-kind rule (a conic's axis, a plane's outward normal),
+//! ([`Frame::map_scalar`]). Under an improper map its image is
+//! [`Frame::reflected`], one axis reversed to keep it right-handed; which
+//! one is a per-kind rule (a conic's axis, a plane's outward normal),
 //! stated where the map is applied.
 
 use geom_core::{Point3, Real, RigidMotion, UnitVec3, Vec3};
@@ -230,6 +231,15 @@ impl<T: Real> Frame<T> {
         self.with_origin(self.origin() + by)
     }
 
+    /// **The image under an improper isometry `map`**, kept right-handed
+    /// by reversing its `negated` axis ([`RigidMotion::reflected_by`]):
+    /// which one is the carrier kind's rule for its image (module docs),
+    /// stated where the map is applied.
+    #[must_use]
+    pub fn reflected(&self, map: &geom_core::Affine3<T>, negated: geom_core::Negated) -> Self {
+        Self::of_motion(&self.motion.reflected_by(map, negated))
+    }
+
     /// **The image under a rigid motion**: the origin moved, every axis
     /// turned by the motion's linear part ([`RigidMotion::carried_by`]).
     #[must_use]
@@ -256,6 +266,19 @@ impl<T: Real> Frame<T> {
         T: geom_core::spline::SpanLocate,
     {
         Some(Frame::of_motion(&self.motion.point_value()?))
+    }
+
+    /// **How far this frame's stored axes may be from the rotation they
+    /// hold**, at this scalar: `(axis, seam)`, bounds on `‖axis − Rẑ‖` and
+    /// `‖u_ref − Rx̂‖`. `R` is the polar factor of the stored axes, the
+    /// rotation a frame means at every scalar
+    /// ([`RigidMotion::rounding`], whose doc carries the argument: zero
+    /// at an enclosure scalar, measured at a point scalar). A reader that
+    /// levers a frame charges these in place of reading the frame's
+    /// convention off its entries (fork 274 decision 1).
+    #[must_use]
+    pub fn rounding(&self) -> (T, T) {
+        self.motion.rounding()
     }
 
     /// **The basis squared** ([`SquareFrame`]): the axis over its length
@@ -386,5 +409,178 @@ mod tests {
             (placed.v_ref() - m.v().get()).norm() < 1e-15,
             "the frame a motion places derives the motion's own v"
         );
+    }
+    /// **A frame's `f64` rounding covers its distance from its polar factor
+    /// at every depth of composition, and is tight** ([`Frame::rounding`]):
+    /// 16 chains of random turns composed to depth 64. Each frame's
+    /// measured `(axis, seam)` is at least its exact distance from the
+    /// polar factor of its stored axes
+    /// ([`geom_core::test_support::polar_distance`], read independently of
+    /// the bound), and the median ratio of the two is at most `1.5`.
+    /// Composition adds rounding at every step, so no constant bounds it;
+    /// the measure follows it. Red, below, where the invariants are read
+    /// in plain `f64` with no charge, as `frame_defect` read them on main;
+    /// red, above, where the distance is read as `|A − 1|` and not halved.
+    #[test]
+    fn a_frames_rounding_covers_its_defect_through_a_chain_of_turns() {
+        let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            #[allow(clippy::cast_precision_loss)]
+            let x = (seed >> 11) as f64 / (1u64 << 53) as f64;
+            x
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mut worst = (0.0f64, 0.0f64);
+        let mut ratios: Vec<(f64, f64)> = Vec::new();
+        // The oracle's own error: a few ulps of its size.
+        let under = |bound: f64, truth: f64| bound < truth * (1.0 - 8.0 * f64::EPSILON);
+        for chain in 0..16 {
+            let mut frame = tilted();
+            for depth in 0..64 {
+                let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5);
+                let axis = UnitVec3::new(axis, "test_chain_axis", band).unwrap();
+                let turn = RigidMotion::rotation(axis, 6.0 * next()).unwrap();
+                frame = frame.moved(&turn);
+                let (d_axis, d_seam) = frame.rounding();
+                let (t_axis, t_seam) = geom_core::test_support::polar_distance(&frame.motion());
+                worst = (worst.0.max(t_axis), worst.1.max(t_seam));
+                if t_axis > 0.0 {
+                    ratios.push((d_axis / t_axis, f64::NAN));
+                }
+                if t_seam > 0.0 {
+                    ratios.push((f64::NAN, d_seam / t_seam));
+                }
+                assert!(
+                    !under(d_axis, t_axis) && !under(d_seam, t_seam),
+                    "chain {chain}, depth {depth}: rounding ({d_axis:e}, {d_seam:e}) under the \
+                     polar distance ({t_axis:e}, {t_seam:e})"
+                );
+            }
+        }
+        assert!(
+            worst.0 > 0.0 || worst.1 > 0.0,
+            "the chains carry a defect to cover"
+        );
+        let median = |mut v: Vec<f64>| {
+            v.retain(|x| x.is_finite());
+            v.sort_by(f64::total_cmp);
+            v[v.len() / 2]
+        };
+        let (axis, seam) = (
+            median(ratios.iter().map(|r| r.0).collect()),
+            median(ratios.iter().map(|r| r.1).collect()),
+        );
+        println!("rounding over polar distance: axis median {axis:.3}, seam median {seam:.3}");
+        assert!(
+            axis <= 1.5 && seam <= 1.5,
+            "the measure is tight: median ratios ({axis:.3}, {seam:.3}) past 1.5"
+        );
+    }
+
+    /// **Whether an enclosure frame can hold a rotation**: each axis's
+    /// squared length can be `1` and each pair's dot product `0` over the
+    /// box, every range read exactly off the brackets' ends (each product
+    /// an exact [`geom_core::exact::Expansion`], the least and greatest of
+    /// a bracket product chosen among its four end products by their
+    /// values, which a tie within `10⁻³⁰` cannot turn). A necessary
+    /// condition: a box holding a rotation passes it, and a box of points
+    /// that are a rotation's `f64` rounding fails it. It does not catch a
+    /// widened box: a wider box still holds the rotation, so widening is
+    /// a question of width, not of soundness, and not this check's.
+    fn can_hold_a_rotation(f: &Frame<geom_core::Interval>) -> bool {
+        use geom_core::Bounds;
+        use geom_core::exact::Expansion;
+        let ends = |x: geom_core::Interval| (x.lo(), x.hi());
+        let value = |e: &Expansion| e.components().iter().sum::<f64>();
+        // The exact least and greatest of `x·y` over the two brackets.
+        let range = |x: (f64, f64), y: (f64, f64)| {
+            let mut cands = [
+                Expansion::product(x.0, y.0),
+                Expansion::product(x.0, y.1),
+                Expansion::product(x.1, y.0),
+                Expansion::product(x.1, y.1),
+            ];
+            cands.sort_by(|a, b| value(a).total_cmp(&value(b)));
+            let [lo, _, _, hi] = cands;
+            (lo, hi)
+        };
+        let square = |x: (f64, f64)| {
+            let (lo, hi) = range(x, x);
+            if x.0 <= 0.0 && x.1 >= 0.0 {
+                (Expansion::product(0.0, 0.0), hi)
+            } else {
+                (lo, hi)
+            }
+        };
+        let spans = |terms: [(Expansion, Expansion); 3], target: f64| {
+            let (mut lo, mut hi) = (
+                Expansion::product(-target, 1.0),
+                Expansion::product(-target, 1.0),
+            );
+            for (l, h) in terms {
+                lo.add_expansion(&l);
+                hi.add_expansion(&h);
+            }
+            value(&lo) <= 0.0 && value(&hi) >= 0.0
+        };
+        let axes = [f.axis(), f.u_ref(), f.v_ref()];
+        let col = |v: Vec3<geom_core::Interval>| [ends(v.x), ends(v.y), ends(v.z)];
+        let unit = axes.iter().all(|&v| {
+            let c = col(v);
+            spans([square(c[0]), square(c[1]), square(c[2])], 1.0)
+        });
+        let square_pairs = [(0, 1), (0, 2), (1, 2)].iter().all(|&(i, j)| {
+            let (a, b) = (col(axes[i]), col(axes[j]));
+            spans(
+                [range(a[0], b[0]), range(a[1], b[1]), range(a[2], b[2])],
+                0.0,
+            )
+        });
+        unit && square_pairs
+    }
+
+    /// **At an enclosure scalar every mint can hold the rotation it
+    /// stands for** ([`Frame::rounding`] is zero there by that argument):
+    /// for each mint path the enclosure passes [`can_hold_a_rotation`],
+    /// read exactly with no pad. The paths: the polar read of an `f64`
+    /// frame (`map_scalar`), a stated frame squared (`Frame::new`), a turn
+    /// by a boxed angle, a composition, an inverse, the turn helpers and a
+    /// reversal. Red where the polar read is replaced by the stated
+    /// entries as points, which a frame rounded at `f64` is not.
+    #[test]
+    fn every_enclosure_mint_encloses_the_rotation_it_stands_for() {
+        use geom_core::{Interval, Real};
+        let box_ = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let holds = |name: &str, i: &Frame<Interval>| {
+            assert!(
+                can_hold_a_rotation(i),
+                "{name}: the enclosure holds no rotation: {i:?}"
+            );
+        };
+        let f = tilted();
+        holds("polar read", &f.map_scalar(Interval::from_f64));
+        let o = Point3::origin().map(Interval::from_f64);
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
+        let boxed = Frame::new(
+            o,
+            Vec3::new(box_(2.0, 2.0), box_(2.0, 2.0), box_(0.52, 0.54)),
+            lift(Vec3::new(1.0, -2.0, 2.0)),
+        );
+        holds("stated and squared", &boxed);
+        let turn = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), box_(0.5, 0.52)).unwrap();
+        let base = Frame::new(
+            o,
+            lift(Vec3::new(2.0, 2.0, 0.52)),
+            lift(Vec3::new(1.0, -2.0, 2.0)),
+        );
+        holds("a boxed turn", &Frame::of_motion(&turn));
+        holds("composed", &base.moved(&turn));
+        holds("inverted", &Frame::of_motion(&turn.inverse().unwrap()));
+        holds("quarter turned", &base.quarter_turned());
+        holds("half turned", &base.half_turned());
+        holds("reversed", &base.reversed());
     }
 }

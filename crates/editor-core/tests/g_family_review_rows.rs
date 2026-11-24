@@ -147,7 +147,7 @@ fn the_fast_path_builds_what_the_slow_path_builds() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![
+                members: Bodies::spelled(vec![
                     BodyRead::plain(Operand::Node(a)),
                     BodyRead::plain(Operand::Node(b)),
                     BodyRead::plain(Operand::Node(c)),
@@ -179,7 +179,7 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
     let (doc, asm) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(aw)),
                 BodyRead::plain(Operand::Node(bw)),
             ]),
@@ -214,13 +214,20 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
     let rt = fixture::body_read(&doc, tool.into());
     let node = fixture::place_node(&doc, BodyRead::plain(rt), placed.bundle());
     let (doc, tools) = insert(doc, node);
+    // One cut per member: the tool read at `k`, so the cut is a family.
+    let tool = match doc.var_named("k") {
+        Some(k) => BodyRead::indexed(tools, vec![Formula::var(k, editor_core::Dimension::Count)]),
+        None => BodyRead::plain(Operand::Node(tools)),
+    };
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(asm)),
-            tool: BodyRead::plain(Operand::Node(tools)),
+            tool: tool.into(),
         },
     );
+    // Each member's cut is the binder's yield, `{k: asm − tools}`.
+    let doc = fixture::yielded(doc, cut);
     if product_plain {
         finish(doc, Operand::Node(cut), cut)
     } else {
@@ -304,8 +311,9 @@ fn a_count_below_zero_refuses_typed() {
     assert_eq!(members, Some(0), "{:?}", ev.result(row));
 }
 
-/// **One node reading one family twice**: plainly at `from` (a reader of
-/// the same index: the member) and by an indexed read at `tool` (whole).
+/// **One node reading one family twice**: at its own key at `from`
+/// (`row[k]` inside the row's binder: the member) and by an indexed read
+/// at `tool` (`row[1]`), the cut yielded beside the row.
 /// Rows of three blocks 1 wide, pitch 0.75 (each overlaps its neighbour);
 /// `F[k] − F[1]`: member 0 keeps the 0.75 below member 1, member 1 is
 /// empty, and member 2 keeps the 0.75 above it.
@@ -314,13 +322,15 @@ fn one_node_reads_a_family_plainly_at_one_seat_and_indexed_at_another() {
     let doc = ProfileDoc::empty_derived("r1-twice", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = fixture::row(doc, b, ("k", 3), TargetAxis::X, 0.75);
+    let from = fixture::member_here(&doc, Operand::Node(row));
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
-            from: BodyRead::plain(Operand::Node(row)),
-            tool: BodyRead::indexed(row, vec![Formula::count(1)]),
+            from,
+            tool: BodyRead::indexed(row, vec![Formula::count(1)]).into(),
         },
     );
+    let doc = fixture::yielded(doc, cut);
     let ev = run(&doc);
     let value = ev
         .value(cut)
@@ -382,7 +392,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
         insert(
             doc,
             Node::Assemble {
-                members: Bodies::Spelled(vec![
+                members: Bodies::spelled(vec![
                     BodyRead::plain(Operand::Node(big)),
                     BodyRead::plain(Operand::Node(small)),
                 ]),
@@ -400,7 +410,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
     let (slow_doc, slow) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(lumps)),
                 BodyRead::plain(Operand::Node(lumps2)),
             ]),
@@ -467,7 +477,7 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
             distance: fixture::len(0.25),
         },
     );
-    let (doc, lid) = fixture::family_of(
+    let (doc, lid) = fixture::copy_of(
         doc,
         slab,
         vec![(Coord::slide(TargetAxis::Z), fixture::len(0.3))],
@@ -484,12 +494,15 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let (doc, sq) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
-                BodyRead::indexed(tall, vec![Formula::var(k, Dimension::Count)]),
+            // Inside the binder the copy is the member itself.
+            members: Bodies::spelled(vec![
+                BodyRead::plain(Operand::Node(tall)),
                 BodyRead::plain(Operand::Node(lid)),
             ]),
         },
     );
+    // Each member's `⊔` is the binder's yield, `{k: tall ⊔ lid}`.
+    let doc = fixture::yielded(doc, sq);
     (doc, tall, sq)
 }
 
@@ -547,6 +560,7 @@ fn a_count_edit_serves_the_first_members_from_the_memo() {
             distance: depth,
         },
     );
+    let doc = fixture::yielded(doc, tall);
     let first = fixture::run(&doc, &Default::default());
     let grown = fixture::recount(doc, k, Formula::count(6));
     let after = fixture::run_with_prior(&grown, &first);

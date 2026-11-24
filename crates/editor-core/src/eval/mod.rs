@@ -111,6 +111,10 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// The options this run's value bits read beyond the document and
     /// the tolerance ([`RunLane`]): what a dual bound to it compares.
     pub(crate) lane: RunLane,
+    /// The candidate generation its booleans ran
+    /// ([`EvalOptions::boolean_sweep`]), which no key hashes: what a run
+    /// holds its prior to ([`PriorRefusal::Options`]).
+    pub(crate) boolean_sweep: topo::SweepStrategy,
     /// **The run refused before building anything** ([`Self::refused_whole`]):
     /// every node carries one refusal the run raised up front — a
     /// tolerance conflict, a parameter box or a seed its scalar cannot
@@ -118,19 +122,18 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// to bind. Such a run reports [`EvalOutcome::Completed`], so this
     /// is the one place that says it is no build.
     pub(crate) whole_refusal: bool,
-    /// **A prior of another document, refused** (DI3): `Some` when
-    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
-    /// is not this document's, in which case the run had NO memo —
-    /// every node recomputed and [`Evaluation::reused`] is zero. The
-    /// payload is the same [`Mispaired`] the two erroring doors carry,
-    /// because the question is the same one.
+    /// **The prior this run was handed and took nothing from**
+    /// ([`PriorRefusal`]): one of another document (DI3), or one that ran
+    /// under other options than this run's, among those an op reads and
+    /// no key hashes. The run then had NO memo: every node recomputed,
+    /// no part row was carried, and [`Evaluation::reused`] is zero.
     ///
     /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
     /// is completed, canceled or exhausted, so the refusal is recorded on the
     /// value the caller already reads rather than pushed into an
     /// outcome arm that would mean something else. `None` is both "no
-    /// prior" and "a prior of this document".
-    pub prior_refused: Option<Mispaired>,
+    /// prior" and "a prior this run could read".
+    pub prior_refused: Option<PriorRefusal>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the document; Kahn's algorithm, ties to the
     /// lesser id, the node inserted first). Always the FULL order, even when
@@ -405,6 +408,14 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         crate::doc::two_spaces(self.spaces.get(&a).copied(), self.spaces.get(&b).copied())
     }
 
+    /// **The second computing frame this run built its constructions
+    /// in**, by bits ([`EvalOptions::computing_twist`]); `None` for a
+    /// run as built. No key hashes it, so a reader that reuses a body on
+    /// equal keys compares it too.
+    pub(crate) fn computing_frame(&self) -> Option<[u64; 7]> {
+        self.lane.twist
+    }
+
     /// The node's successful value, if it has one — [`Evaluation::usable`]
     /// for a reader to whom every standing is the same answer.
     pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
@@ -468,22 +479,22 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<T, (Option<RecipeNodeId>, String)>
+    ) -> Result<T, (Option<RecipeNodeId>, crate::Sentence)>
     where
         T: Copy,
     {
         self.reading(doc, var).map_err(|refusal| match refusal {
             measure::ObservedRefusal::Measure(standing) => {
                 self.node_error(standing.node()).map_or_else(
-                    || (Some(standing.node()), standing.to_string()),
-                    |e| (Some(e.node), e.kind_spoken(doc).to_string()),
+                    || (Some(standing.node()), standing.spoken(doc)),
+                    |e| (Some(e.node), e.kind_spoken(doc)),
                 )
             }
             measure::ObservedRefusal::Expr(source) => (
                 doc.observed_outputs(var)
                     .first()
                     .and_then(|out| doc.operation_of(*out)),
-                source.to_string(),
+                crate::Sentence::from(source.to_string()),
             ),
         })
     }
@@ -933,8 +944,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     }
 
     /// **This value read whole**: in a member's view of its family, the
-    /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// family; else this. A read of a family whole (a list entry spliced
+    /// in, `…xs`, or an indexed read `xs[i]`) and a selection of one
     /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
@@ -1053,6 +1064,7 @@ impl Evaluation<f64> {
             pin: None,
             tolerance: tolerance_of(tol),
             lane: RunLane::default(),
+            boolean_sweep: topo::SweepStrategy::Realized,
             whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
@@ -1129,16 +1141,12 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// result. The family's one output names each body at its member's
     /// place, and names nothing at an empty one.
     ///
-    /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A member seat (a union's,
-    /// an intersect's or an assemble's) takes every member, and refuses
-    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
-    /// takes one member out of it by its tuple, the empty value at an
-    /// empty member; the product gather takes every body at its place.
-    /// Any other body seat that meets it whole takes ONE body and
-    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
-    /// booleans or one union of them, and the recipe does not guess
-    /// which.
+    /// **Who takes it.** A `Bodies` seat (a union's, an intersect's or
+    /// an assemble's member, a subtract's tool) takes every member, and
+    /// refuses an empty one [`NodeErrorKind::EmptyMember`]; an indexed
+    /// read takes one member out of it by its tuple, the empty value at
+    /// an empty member; a placement copies it whole; the product gather
+    /// takes every body at its place (D10 `[repetition]`).
     Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
@@ -1772,19 +1780,6 @@ pub enum NodeErrorKind {
         /// The empty half.
         half: crate::names::SplitHalf,
     },
-    /// **A read of a split's half where the split's target is a
-    /// family** (D10 `[repetition]`): the split is evaluated once per
-    /// member, so its value is a family of splits and no single half
-    /// stands for the read. The repair is to split one member,
-    /// `xs[i]`, and read that split's half.
-    HalfOfAFamily {
-        /// The read of the half.
-        read: crate::VarId,
-        /// The split whose half was read.
-        input: RecipeNodeId,
-        /// The half read.
-        half: crate::names::SplitHalf,
-    },
     /// An indexed read `xs[i, j]` whose index leaves the family's
     /// range (D10 `[repetition]`): the read is unresolved, typed. A
     /// negative index lands here too — the index is neither wrapped nor
@@ -1804,13 +1799,20 @@ pub enum NodeErrorKind {
         /// The member's refusal.
         source: Box<NodeErrorKind>,
     },
-    /// **Two indices read in one reader, neither within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **The indices of two binders read in one reader** (D10
+    /// `[repetition]`): no binder holds it.
+    TwoBinders {
         /// One index.
         a: crate::VarId,
         /// The other.
         b: crate::VarId,
+    },
+    /// **A binder that yields nothing and holds no assertion** (D10
+    /// `[repetition]`): what reads its indices is refused, since nothing
+    /// outside it could read what it builds.
+    YieldsNothing {
+        /// The binder, by its first index.
+        binder: crate::VarId,
     },
     /// **An index's count did not evaluate** where its reader is
     /// evaluated once per value.
@@ -1969,13 +1971,15 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// **A step of a union's fold refused** (DM4): the step folding
-    /// `member` into the accumulation of the members listed before it,
-    /// with the step's own refusal. The pairwise judgement decides every
-    /// pair of members before the fold in every member order; a refusal
+    /// **A step of a boolean's n-ary fold refused** (DM4) — a union's,
+    /// an intersect's, or a subtract's of two or more tools: the step
+    /// folding `member` into the accumulation of the members listed
+    /// before it, with the step's own refusal. The pairwise judgement
+    /// decides every pair of members before the fold in every member
+    /// order; a refusal
     /// only a fold step raises names the step, so it is never read as a
     /// pair's.
-    UnionFoldStep {
+    FoldStep {
         /// The position, in the node's member list, of the member the
         /// refusing step folds in: members of one family share a read.
         member: u32,
@@ -2469,16 +2473,6 @@ impl crate::spoken::Say for NodeErrorKind {
                     findings.render(geom_brep::recourse::Reading::AtRest)
                 )
             }
-            Self::HalfOfAFamily { read, input, half } => say!(
-                f,
-                format_args!("{read} reads the {} half of ", half.name()),
-                by.node(*input),
-                ", whose target is a family: a split of a family is one split per member, \
-                 and no one half stands for the read. ",
-                crate::sentence::Recourse(crate::sentence!(
-                    "split one member (`xs[i]`) and read that split's half"
-                ))
-            ),
             Self::EmptyHalf { input, half } => say!(
                 f,
                 format_args!(
@@ -2534,20 +2528,26 @@ impl crate::spoken::Say for NodeErrorKind {
                 );
                 say!(f, "the member at ", at, " refused: ", Said(&**source, by))
             }
-            Self::IndicesUnrelated { a, b } => say!(
+            Self::TwoBinders { a, b } => say!(
                 f,
                 "the node reads the indices ",
                 by.read(*a),
-                sentence!(
-                    " and ",
-                    by.read(*b),
-                    format_args!(
-                        ", and neither is within the other, so \
-                 they meet in no reader. {}",
-                        crate::sentence::Recourse(
-                            "declare one within the other, or read one index here"
-                        )
+                " and ",
+                by.read(*b),
+                format_args!(
+                    ", which are of two binders, and a reader repeats inside one binder. {}",
+                    crate::sentence::Recourse(
+                        "bind both indices in one binder, or read what one binder yields"
                     )
+                )
+            ),
+            Self::YieldsNothing { binder } => say!(
+                f,
+                "the node reads the index ",
+                by.read(*binder),
+                format_args!(
+                    ", whose binder yields nothing. {}",
+                    crate::sentence::Recourse("name what the binder yields")
                 )
             ),
             Self::IndexCount { index, source } => {
@@ -2661,7 +2661,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => say!(f, "name emission failed: ", Said(e, by)),
-            Self::UnionFoldStep {
+            Self::FoldStep {
                 member,
                 read,
                 refusal,
@@ -3122,7 +3122,7 @@ pub(crate) mod leaf {
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
     pub(crate) type MeasureRead =
-        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, crate::Sentence)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]
@@ -3177,7 +3177,7 @@ pub(crate) mod leaf {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, cancel, opts, tol);
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
-                        v.value
+                        v.value()
                     })
                 });
                 out
@@ -3303,11 +3303,13 @@ pub struct EvalOptions {
     /// the SAME document in one test run. Results are bit-identical
     /// either way (the tree prunes, predicates decide — the suite pins
     /// it), which is also why the strategy is deliberately NOT part of
-    /// any content key. The one strategy-dependent OBSERVABLE is the
-    /// verdict LOG (`NodeValue::verdicts`): pruning runs strictly
-    /// fewer predicates, so logs are only comparable within one
-    /// strategy (the diff engine always compares production runs).
-    /// Production default: `Realized`.
+    /// any content key. What does depend on the strategy is the verdict
+    /// LOG (`NodeValue::verdicts`): pruning runs strictly fewer
+    /// predicates, so logs are only comparable within one strategy (the
+    /// diff engine always compares production runs), and a pair the
+    /// tree prunes can refuse where the brute-force sweep examines it.
+    /// So a prior that ran the other strategy is no memo for this run
+    /// ([`PriorRefusal::Options`]). Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
     /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
     /// reaches the document it pins. `None` — the default — crosses no
@@ -3349,7 +3351,9 @@ pub struct EvalOptions {
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
     /// for both refuses every node. A part it resolves binds its own
-    /// variables as symbols of its own document.
+    /// variables as symbols of its own document, so a prior that ran
+    /// under the other setting is no memo for this run
+    /// ([`PriorRefusal::Options`]).
     pub symbols: bool,
     /// **Record the document's content pin** ([`Evaluation::pin`]):
     /// the run canonicalizes the document it read once, after the walk.
@@ -3366,6 +3370,8 @@ pub struct EvalOptions {
     /// body stands where it did in its space. Answer-preserving up to the
     /// rounding of the frames, and test-facing as [`Self::parallel`] is:
     /// the row that holds the frame no part of meaning compares both.
+    /// It enters no key, and a prior that ran under another frame is no
+    /// memo for this run ([`PriorRefusal::Options`]).
     /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
     /// **The run's member budget** (D9): the listing steps every family
@@ -3815,15 +3821,15 @@ where
     geom_core::Sym<T>: geom_core::Decide,
 {
     fn quoted(self) -> f64 {
-        self.value.quoted()
+        self.value().quoted()
     }
 
     fn upper(self) -> f64 {
-        self.value.upper()
+        self.value().upper()
     }
 
     fn exactly_zero(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     /// **A box lane's point zero, never a point lane's number**: at
@@ -3833,7 +3839,7 @@ where
     /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
     /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
     fn zero_everywhere(self) -> bool {
-        self.value.exactly_zero()
+        self.value().exactly_zero()
     }
 
     /// A chart's map is set from its frames, `rot(a, θ)·S·O`: a
@@ -4128,6 +4134,69 @@ impl core::fmt::Display for RecordMispairing {
                  run has one, or over one where it has none",
             ),
         }
+    }
+}
+
+/// **Why a run took nothing from the prior it was handed**
+/// ([`Evaluation::prior_refused`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PriorRefusal {
+    /// The prior is an evaluation of another document (DI3).
+    Document(Mispaired),
+    /// The prior ran under another second computing frame
+    /// ([`EvalOptions::computing_twist`]), another boolean candidate
+    /// generation ([`EvalOptions::boolean_sweep`]) or the other setting
+    /// of [`EvalOptions::symbols`]. An op reads each (a construction its
+    /// frame, a boolean its strategy, whose verdict log and refusals
+    /// differ, a part's own run all three) and no key hashes any, so a
+    /// node of the prior with this run's keys need not hold this run's
+    /// value. They are the run's, the same at every node, so the prior
+    /// is refused whole rather than each written into every key.
+    ///
+    /// A caller that wants its prior read hands one made under the same
+    /// three; a run handed another recomputes every node.
+    Options,
+}
+
+impl PriorRefusal {
+    /// Why a run of `doc` at `opts` reads nothing of `prior`, if it
+    /// does not.
+    fn of<T: topo::AtRestPolicy + Decide>(
+        doc: &Doc<ProfileProgram>,
+        prior: &Evaluation<T>,
+        opts: &EvalOptions,
+    ) -> Option<Self> {
+        if let Some(mispaired) = crate::ident::mispaired(doc.id(), prior.document) {
+            return Some(Self::Document(mispaired));
+        }
+        // Every option, by name: one added compiles only once it is
+        // said here whether a key hashes it, this door compares it, or
+        // no value reads it.
+        let EvalOptions {
+            // The run's identity token; no value reads it.
+            epoch: _,
+            // The schedule; results are the serial walk's either way.
+            parallel: _,
+            // Compared: a boolean's log and refusals read it.
+            boolean_sweep,
+            // The store, checked by whoever mounts it (IDENTITY DI2).
+            resolver: _,
+            // Keyed: the box and the seed are in every slot's value.
+            param_box: _,
+            seed: _,
+            // Compared: a part's own run binds its variables by it.
+            symbols,
+            // Read after the walk.
+            pin: _,
+            // Compared, by bits: a construction is built in its frame.
+            computing_twist: _,
+            // Decides how far the run gets, never a value.
+            member_budget: _,
+        } = opts;
+        let twist = RunLane::of(opts).twist;
+        ((prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
+            != (twist, *symbols, *boolean_sweep))
+            .then_some(Self::Options)
     }
 }
 
@@ -4538,18 +4607,27 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
-    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // The memo's own door: a prior is a prior OF a document (DI3), and
     // node ids are minted per document, so an evaluation of another
     // document can collide on them and be mined for hits that are
-    // about other geometry. Refused HERE, once, before the schedule is
-    // even built — which is what makes the per-node lookup below
-    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
-    // reach a foreign node, rather than a check repeated per node.
-    let (prior, prior_refused) =
-        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
-            Some((_, refused)) => (None, Some(refused)),
-            None => (prior, None),
-        };
+    // about other geometry; and it is a prior UNDER the options an op
+    // reads and no key hashes ([`PriorRefusal::Options`]). Refused
+    // HERE, once, before the schedule is even built, which is what
+    // makes the per-node lookup below (`prior.and_then(|p|
+    // p.nodes.get(&id))`) and the part rows carried from the prior
+    // (`parts::PartStore::enter`) reads of a run this one could have
+    // been, rather than a check repeated per node.
+    let (prior, prior_refused) = match prior.and_then(|p| PriorRefusal::of(doc, p, opts)) {
+        Some(refused) => (None, Some(refused)),
+        None => (prior, None),
+    };
+    // The scope this document's nodes mint inside: the caller's, and
+    // for an instantiated document its pin under that, because two
+    // documents' node ids are minted apart and can coincide.
+    let mints = geom_core::sym::MintScope::current();
+    let mints = reached
+        .as_ref()
+        .map_or(mints, |(_, pin)| mints.child(&pin.words()));
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
@@ -4718,7 +4796,7 @@ where
             }
             _ => 0,
         };
-        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+        let listed = match chains.get(&id).and_then(Chained::chain) {
             Some(chain) if !chain.is_empty() => {
                 members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
             }
@@ -4760,6 +4838,7 @@ where
             witness: witness.as_ref(),
             pass_two,
         },
+        mints,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -4886,6 +4965,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: false,
         prior_refused,
         order,
@@ -4904,17 +4984,62 @@ where
     }
 }
 
+/// **What evaluation makes of a node's reach** ([`chains_of`]): the
+/// indices it reaches, as [`crate::repetition::Reach`] reads them, or
+/// the binder it stands in yielding nothing, which the evaluation
+/// refuses and the reach itself never says.
+#[derive(Debug, Clone)]
+enum Chained {
+    /// The reach as read.
+    Reached(crate::repetition::Reached),
+    /// The node stands in the binder, by its first index, which yields
+    /// nothing and holds no assertion.
+    YieldsNothing(crate::VarId),
+}
+
+impl Chained {
+    /// The chain, `None` where the node is refused.
+    fn chain(&self) -> Option<&[crate::VarId]> {
+        match self {
+            Self::Reached(reached) => reached.chain(),
+            Self::YieldsNothing(_) => None,
+        }
+    }
+}
+
 /// **Which indices each node of `order` reaches**, read off `doc`'s
 /// recipe: what a node is evaluated once per member of ([`members`]).
-fn chains_of(
-    doc: &Doc<ProfileProgram>,
-    order: &[RecipeNodeId],
-) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+fn chains_of(doc: &Doc<ProfileProgram>, order: &[RecipeNodeId]) -> BTreeMap<RecipeNodeId, Chained> {
     if !doc.declares_index() {
         return BTreeMap::new();
     }
     let mut reach = crate::repetition::Reach::new(doc);
-    order.iter().map(|&id| (id, reach.node(id))).collect()
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> =
+        order.iter().map(|&id| (id, reach.node(id))).collect();
+    // A binder that yields nothing refuses what it holds, unless it
+    // holds an assertion: an assertion is its own yield, a family of
+    // verdicts.
+    let binder_of = |reached: &crate::repetition::Reached| {
+        reached
+            .chain()
+            .and_then(|chain| chain.first())
+            .and_then(|&index| reach.binders().seat(index))
+            .map(|(binder, _)| binder)
+    };
+    let asserting: std::collections::BTreeSet<crate::VarId> = chains
+        .iter()
+        .filter(|(id, _)| matches!(doc.node(**id), Some(crate::Node::Assertion(_))))
+        .filter_map(|(_, reached)| binder_of(reached))
+        .collect();
+    chains
+        .iter()
+        .map(|(&id, reached)| match binder_of(reached) {
+            Some(binder) if doc.yields(binder).is_empty() && !asserting.contains(&binder) => {
+                (id, Chained::YieldsNothing(binder))
+            }
+            _ => (id, Chained::Reached(reached.clone())),
+        })
+        .collect()
 }
 
 /// **A part document's own listing steps**: its families', in its
@@ -4933,7 +5058,7 @@ fn own_steps(
     for id in &order {
         if let Some(chain) = chains
             .get(id)
-            .and_then(crate::repetition::Reached::chain)
+            .and_then(Chained::chain)
             .filter(|chain| !chain.is_empty())
         {
             match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
@@ -5025,7 +5150,7 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -5050,7 +5175,7 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::ParamBoxError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -5073,7 +5198,7 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::SeedError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -5094,7 +5219,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
@@ -5123,6 +5248,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: true,
         prior_refused,
         order,
@@ -5226,7 +5352,7 @@ fn eval_any<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
-    chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
+    chains: &BTreeMap<RecipeNodeId, Chained>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
@@ -5240,6 +5366,10 @@ where
     // prior value is reused only where this run reads the very part row
     // the prior carried: a row rebuilt here may be other content under
     // the same pin ([`parts::Reached::carried_from`]).
+    // The node's scope, open over everything done on its behalf: a
+    // family's listing and its value as well as each member's step,
+    // which opens the member's own inside it.
+    let _mints = node_mints(op_env.mints, id, &[]).enter();
     let prior = prior
         .filter(|p| {
             parts::instantiated(doc, id)
@@ -5247,15 +5377,23 @@ where
         })
         .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
-                kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
+                kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
         },
-        Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+        Some(Chained::YieldsNothing(binder)) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::YieldsNothing { binder: *binder },
+                escalations: Arc::new(Vec::new()),
+            }),
+            reused: false,
+        },
+        Some(Chained::Reached(crate::repetition::Reached::Chain(chain))) if !chain.is_empty() => {
             members::eval_family(
                 doc,
                 env,
@@ -5326,6 +5464,31 @@ fn bookkeep<T: topo::AtRestPolicy + Decide>(
     }
 }
 
+/// **The mint scope of one node's evaluation**
+/// ([`geom_core::sym::mint`]): inside the evaluation's scope, the node's
+/// id and the member it is evaluated as. One node is one scope in every
+/// replay of its document, so the k-th value it mints with no
+/// expression in a session has one name in all of them; two members of
+/// a family are two scopes, because a member can be served from a prior
+/// while its siblings run, and their names must not depend on which.
+///
+/// The name is the node's ID, which content keys leave out
+/// ([`NamingKey`]): a key that feeds such a value, a measured value
+/// read into a later node's slot, hashes the id of the node that minted
+/// it. Whole-value reuse already asks the naming key, which embeds
+/// every upstream id, so no hit is lost that it would not refuse.
+fn node_mints(
+    inside: geom_core::sym::MintScope,
+    id: RecipeNodeId,
+    at: &[(crate::VarId, i64)],
+) -> geom_core::sym::MintScope {
+    let words: Vec<u64> = [u64::from(id.0.ordinal()), id.0.digest()]
+        .into_iter()
+        .chain(members::at_words(at))
+        .collect();
+    inside.child(&words)
+}
+
 /// Evaluates one node against the results so far: poison propagation,
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
@@ -5357,6 +5520,10 @@ where
     // nodes open and close their own frames ABOVE this one, so theirs
     // land on their own nodes and this frame receives only this node's.
     let bracket = geom_core::k_stats::Bracket::open();
+    // A value with no expression minted on this node's behalf, in its
+    // slots or its op, is named by the node, the member and its place
+    // in their walk.
+    let _mints = node_mints(op_env.mints, id, at).enter();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
     let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
@@ -5385,7 +5552,7 @@ where
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
     }
-    let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
+    let mut stands: BTreeMap<RecipeNodeId, &NodeValue<T>> = BTreeMap::new();
     for input in doc.upstream_of(id, node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
@@ -5393,7 +5560,7 @@ where
             node: input,
         }) {
             Ok(v) => {
-                keys.insert(input, (v.content_key, v.naming_key));
+                stands.insert(input, v);
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
@@ -5408,43 +5575,6 @@ where
             }
         }
     }
-    // What the keys read of upstream: one entry per READ, in field
-    // order, as the operation it reads and the port (D10; DR-59's
-    // class: two outputs of one operation are two inputs, and a key
-    // that saw only the operation would serve one half's body for the
-    // other); a selection's read is its body's. Every operation here
-    // has its result (above). A placement's constraint side reading its
-    // own copy is no upstream read (`Doc::upstream_of`'s one exemption,
-    // the same predicate): the node's own key is what is being formed,
-    // and the side's selection names still key it.
-    let reads: Vec<(RecipeNodeId, u8)> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
-        .flat_map(|(_, var)| doc.read_ports(var))
-        .collect();
-    let key_of = |at: &RecipeNodeId| {
-        *keys
-            .get(at)
-            .unwrap_or_else(|| unreachable!("every operation a node reads is in its upstream"))
-    };
-    let upstream_keys: Vec<UpstreamRead<ContentKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).0,
-        })
-        .collect();
-    let upstream_naming: Vec<UpstreamRead<NamingKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).1,
-        })
-        .collect();
-
     // Slot evaluation — the (node, slot) context door (PR 1's banked
     // NonFiniteResult obligation lands here). TWICE, through the one
     // door: at the evaluation scalar, which is what the op runs on,
@@ -5631,6 +5761,14 @@ where
         _ => wire::OpInput::Other(node),
     };
 
+    // What the keys read of upstream: one entry per READ, in field
+    // order, as the operation it reads and the port (D10; DR-59's
+    // class: two outputs of one operation are two inputs, and a key
+    // that saw only the operation would serve one half's body for the
+    // other), each with the value the read sees of it
+    // ([`wire::SeenRead`]), whose keys are the ones hashed. Every
+    // operation here has its result (above).
+    let reads = wire::seen_reads(id, node, doc, &stands, &slot_values, env);
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
@@ -5642,12 +5780,25 @@ where
         pose_words.as_deref(),
         input.resolved_program(),
         input.lane_program(),
-        &upstream_keys,
+        &reads,
         doc.witness(id),
         tol,
     );
     let content_key = members::member_key(content_key, at);
-    let naming_key = naming_key(content_key, &upstream_naming);
+    let naming_key = naming_key(content_key, &reads);
+    // A clearance's verdict stands at the point of the `f64` rebuild its
+    // verifier read wherever it cites a pair ([`wire::Witnessing`]), and
+    // that point is the run's box's, which the lane's keys do not hash:
+    // two boxes of a variable no seat reads key alike. So a prior
+    // verdict that cites a point is this run's only where the point is;
+    // one that cites none reads nothing of the rebuild's point, and is
+    // served across boxes.
+    let prior = prior.filter(|v| match (&input, clearance_point(v)) {
+        (wire::OpInput::Clearance { .. }, Some(point)) => {
+            op_env.lane.witness.is_some_and(|w| w.param == *point)
+        }
+        _ => true,
+    });
 
     // Memo (spec D4 + #95 disposition 2): a content-key match
     // certifies the GEOMETRY; whole-value reuse additionally requires
@@ -5673,12 +5824,11 @@ where
         // exactly what the precompute decides from, so D9 makes the two
         // sequences equal, at every scalar.
         // The reused value IS the record, so the fresh frame is
-        // finished and dropped rather than spliced in, and the prefix
-        // identity is asserted in every profile: one compare of a few
-        // dozen verdicts per hit, beside a precompute that just
-        // replayed and validated the profile.
+        // finished and dropped rather than spliced in. The prefix
+        // identity is a kernel bug's re-derivation: no input reaches it
+        // while the keys fix what the precompute decides from.
         let fresh = bracket.finish();
-        assert!(
+        debug_assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations)
                 && v.marks.starts_with(&fresh.marks),
@@ -5826,6 +5976,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
+            /// v25: a read's upstream key is the key of the value the
+            /// read sees (`wire::seen_reads`): the member its index
+            /// picks, or the family where it takes it whole, where it
+            /// was the value standing in the reader's results; and a
+            /// clearance writes, after each read's port, whether the
+            /// read picks a member and that member's place.
             /// v24: an extrude's depth is signed, so a negative depth's
             /// stream is a pocket's tool where it was a refusal. v23: a
             /// slide beside a mate whose direction is oblique in
@@ -5870,7 +6026,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 24,
+            VERSION = 25,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -6265,12 +6421,12 @@ fn content_key<'d, T>(
     pose_words: Option<&[wire::pose::PoseWord<T>]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    upstream_keys: &[UpstreamRead<ContentKey>],
+    reads: &[wire::SeenRead<'_, T>],
     witness: Option<&crate::witness::WitnessDatum>,
     tol: Tol,
 ) -> ContentKey
 where
-    T: Decide + ContentBits,
+    T: Decide + ContentBits + topo::AtRestPolicy,
 {
     use crate::node::Node;
     let mut h = KeyHasher::new();
@@ -6592,10 +6748,16 @@ where
             constraints,
         } => feed_bundle(&mut h, defs, constraints),
         Node::World | Node::Space => {}
-        // The operands and the members are input edges.
-        Node::Subtract { from: _, tool: _ } => {}
-        Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
-            h.write_tag(match members {
+        // The operands and the members are input edges; a list's shape
+        // is not.
+        Node::Subtract {
+            from: _,
+            tool: list,
+        }
+        | Node::Union { members: list }
+        | Node::Intersect { members: list }
+        | Node::Assemble { members: list } => {
+            h.write_tag(match list {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
             });
@@ -6893,15 +7055,28 @@ where
     // Upstream identity, by CONTENT (never by id — ids are stable
     // labels, content keys are the Merkle links): each read as its
     // operation's key and the port it reads.
-    h.write_u64(upstream_keys.len() as u64);
-    for read in upstream_keys {
-        h.write_key(read.key);
+    // A clearance reports each seat by its member's place among its
+    // family's bodies (`wire::member_place`), which the member's own key
+    // does not fix: it moves with the members before it. No other node
+    // reads a place, so no other writes one.
+    let places = matches!(
+        node,
+        Node::Assertion(crate::measure::Claim::Clearance { .. })
+    );
+    h.write_u64(reads.len() as u64);
+    for read in reads {
+        h.write_key(read.value.content_key);
         feed_port(&mut h, read.port);
+        if places {
+            match read.place {
+                None => h.write_tag(tag::presence::ABSENT),
+                Some(place) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(u64::from(place));
+                }
+            }
+        }
     }
-    // The recorded witness datum. Its presence is a word of its own so
-    // `None` cannot alias a `Some` with empty bytes; a cleared witness
-    // and a never-recorded one are both `None` and key alike, which is
-    // right — neither is an input.
     match witness {
         None => h.write_tag(tag::presence::ABSENT),
         Some(w) => {
@@ -6915,16 +7090,6 @@ where
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
 /// the variable read, the port read, and that operation's key.
-#[derive(Clone, Copy)]
-struct UpstreamRead<K> {
-    at: RecipeNodeId,
-    port: u8,
-    key: K,
-}
-
-/// A read's port, as the keys feed it: a presence tag, then the port.
-/// The tag stays in the byte stream so the keys of every stored
-/// document stay what they are.
 fn feed_port(h: &mut KeyHasher, port: u8) {
     h.write_tag(tag::presence::PRESENT);
     h.write_u64(u64::from(port));
@@ -6934,18 +7099,37 @@ fn feed_port(h: &mut KeyHasher, port: u8) {
 /// [`NamingKey`]): the node's own content key plus every read's
 /// (operation id, port, naming key), in read order — ids INCLUDED,
 /// which is exactly what the content key omits by design (D8).
-fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> NamingKey {
+fn naming_key<T: topo::AtRestPolicy + Decide>(
+    content: ContentKey,
+    reads: &[wire::SeenRead<'_, T>],
+) -> NamingKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
-    h.write_u64(upstream.len() as u64);
-    for read in upstream {
+    h.write_u64(reads.len() as u64);
+    for read in reads {
+        h.write_id(read.read.0);
         h.write_id(read.at.0);
         feed_port(&mut h, read.port);
-        h.write_u64(read.key.0 as u64);
-        h.write_u64((read.key.0 >> 64) as u64);
+        let key = read.value.naming_key.0;
+        h.write_u64(key as u64);
+        h.write_u64((key >> 64) as u64);
     }
     NamingKey(h.finish().0)
+}
+
+/// **The point a clearance's verdict stands at**, where `value` is a
+/// clearance's and its verdict cites a pair the `f64` rebuild verified
+/// ([`crate::clearance::ClearanceVerdict::point`]).
+fn clearance_point<T: topo::AtRestPolicy + Decide>(
+    value: &NodeValue<T>,
+) -> Option<&crate::clearance::ParamWitness> {
+    match &value.payload {
+        ValuePayload::Assertion(crate::measure::AssertionVerdict::Clearance(report)) => {
+            report.verdict().point()
+        }
+        _ => None,
+    }
 }
 
 /// The content-key tag of an authoring verb — the ONE place a verb's
@@ -7345,10 +7529,8 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
 fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     h.write_u64((doc_ref.id.0 >> 64) as u64);
     h.write_u64(doc_ref.id.0 as u64);
-    for chunk in doc_ref.pin.0.chunks(8) {
-        let mut byte8 = [0u8; 8];
-        byte8[..chunk.len()].copy_from_slice(chunk);
-        h.write_u64(u64::from_be_bytes(byte8));
+    for word in doc_ref.pin.words() {
+        h.write_u64(word);
     }
 }
 

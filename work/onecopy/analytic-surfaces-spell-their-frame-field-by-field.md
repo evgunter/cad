@@ -124,3 +124,5 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `topo/src/sector_face.rs`: `resolve`
 - `topo/src/transform.rs`: `map_mapped_curve`
 - `topo/src/vertex_section.rs`: `read_kind`
+
+- 2026-11-24 (sectcone, PR 7637): `topo/src/boolean/section_cert/ruling.rs` in the list above is deleted.

@@ -251,6 +251,10 @@ impl<T: Real> Curve3<T> {
     /// certificate's support compare reads it with
     /// [`geom_core::Real::same_value`].
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
         let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
@@ -1169,6 +1173,10 @@ impl<T: Real> Curve3<T> {
     /// spiric's torus's (centre, axis and seam). `None` for a line and a
     /// spline.
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn frame(&self) -> Option<Frame<T>> {
         match *self {
             Self::Circle(c) => Some(c.frame()),
@@ -1199,6 +1207,10 @@ impl<T: Real> Curve3<T> {
     /// that takes a kind past the walk's width is caught later, by the
     /// build that first instantiates the walk (`AnalyticData::new`'s
     /// bound), which `cargo check` does not reach.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn data(&self) -> CurveData<'_, T> {
         use crate::AnalyticData;
         use crate::DatumValue::{Direction, Point, Scalar};
@@ -1281,12 +1293,8 @@ impl<T: Real> Curve3<T> {
     /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
     ///   and [`Curve3::spiric`] decides them;
-    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
-    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
-    ///   carrier's largest radius (the circle's `radius`, the larger
-    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
-    ///   frame margins, for the same reason: a circle whose `axis` is
-    ///   `2·ẑ` evaluates an ellipse;
+    /// - **no frame margin**: a conic's or a spiric's frame is a
+    ///   [`crate::Frame`], rigid by its type, as on the surface door;
     /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
     ///   any length, and a spline's datum is its net.
     ///
@@ -1294,36 +1302,20 @@ impl<T: Real> Curve3<T> {
     /// quantities are computed at `T` and returned, a margin of a
     /// poisoned datum is poison, and the variants are destructured
     /// without `..` so a field a variant gains is a compile error here.
-    pub fn representability_margins(
-        &self,
-        band: Band,
-    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
-        use crate::convention::{frame_margins, lower};
-        let frame = |axis, u_ref, arm| {
-            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
-        };
+    pub fn representability_margins(&self) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        use crate::convention::lower;
         match self {
-            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
-                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius()))
-                .collect(),
-            Curve3::Ellipse(e) => [
+            Curve3::Circle(c) => vec![lower(CurveDatum::Radius, c.radius())],
+            Curve3::Ellipse(e) => vec![
                 lower(CurveDatum::SemiU, e.semi_u()),
                 lower(CurveDatum::SemiV, e.semi_v()),
-            ]
-            .into_iter()
-            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
-            .collect(),
+            ],
             Curve3::Spiric {
-                frame: carrier_frame,
-                major_radius,
+                frame: _,
+                major_radius: _,
                 minor_radius,
                 offset: _,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
-                    .collect()
-            }
+            } => vec![lower(CurveDatum::MinorRadius, *minor_radius)],
             Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
                 Vec::new()
             }
@@ -2692,13 +2684,9 @@ mod tests {
             );
             assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
             if bits(
-                geom_core::RigidMotion::squared_about(
-                    e.frame().origin(),
-                    e.frame().axis_unit(),
-                    base,
-                )
-                .u()
-                .get(),
+                geom_core::RigidMotion::squared_about(e.frame().origin(), e.axis_unit(), base)
+                    .u()
+                    .get(),
             ) != bits(base)
             {
                 parted_squared += 1;

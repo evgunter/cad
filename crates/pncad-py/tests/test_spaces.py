@@ -36,7 +36,7 @@ class Spaces(unittest.TestCase):
         doc, a, b, copy = self.boxes()
         cut = doc.insert(Node.subtract(a, copy))
         fused = doc.insert(Node.union([a, copy]))
-        self.assert_two_spaces(doc, DocEdit.set_param(cut, "cut", b))
+        self.assert_two_spaces(doc, DocEdit.set_members(cut, [b]))
         self.assert_two_spaces(doc, DocEdit.set_members(fused, [a, b]))
 
 

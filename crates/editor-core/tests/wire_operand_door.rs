@@ -173,11 +173,22 @@ fn wired() -> (
         doc,
         &mut rows,
         "placeable_operand over a profile (Place)",
-        Owes::EditDoor(VarKind::Profile, SlotKind::Placeable),
+        Owes::EditDoor(VarKind::Profile, SlotKind::Is(VarKind::Body)),
         crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
             profile,
         ))),
         profile,
+    );
+    doc = add(
+        doc,
+        &mut rows,
+        "a fillet's selection over a body (Fillet of a body)",
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Edges)),
+        Node::Fillet {
+            radius: len(0.1),
+            selection: editor_core::Operand::from(body),
+        },
+        body,
     );
     doc = add(
         doc,
@@ -370,7 +381,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
         phrases.is_empty() && families.is_empty(),
         "no row reaches an operand door"
     );
-    assert_eq!(doors.len(), 10, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 11, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

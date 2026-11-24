@@ -48,7 +48,7 @@ fn cone_block_union_refusal() -> String {
     let cone = r.in_world(cone, &editor_core::Frame::IDENTITY);
     let block = r.in_world(block, &editor_core::Frame::translation([0.0, 0.0, -0.25]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![cone.into(), block.into()]),
+        members: editor_core::Bodies::spelled(vec![cone.into(), block.into()]),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
@@ -244,6 +244,27 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "JunctionEndUnread (no lane)",
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: topo::JunctionEndGap::NoLane {
+                    curve: geom::CurveKind::Ellipse,
+                    surface: SurfaceKind::Torus,
+                },
+            },
+        ),
+        (
+            "JunctionEndUnread (no window)",
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: topo::JunctionEndGap::Window,
+            },
+        ),
+        (
             "CurvedSectorSideUnsupported",
             BooleanError::CurvedSectorSideUnsupported {
                 verdict: geom_brep::recourse::Refused::Negative {
@@ -406,15 +427,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 what: "the sphere's section circle runs near the plane face's boundary — \
                        whole-circle membership cannot be certified from the enclosures, \
                        and no crossing layer saw an event",
-            },
-        ),
-        (
-            "RechartedRowUnstated",
-            BooleanError::RechartedRowUnstated {
-                operand: Operand::B,
-                relation: topo::Relation::SameOpposite,
-                faces: vec![face, face],
-                what: "only a point decided there is stated by the faces that hold it",
             },
         ),
         (
