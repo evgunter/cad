@@ -3577,11 +3577,10 @@ impl<T: Real> Drawing<T> {
 /// `circle` and `circle_split` forms — which the builder and every
 /// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
 /// through; the fields are private to the `path` module. It crosses
-/// scalars only by two doors that keep the points its facts were
-/// verified at: [`ConstructedLoop::value_channel`] (its `f64` value
-/// channel) and [`ConstructedLoop::lift_computed`] (an `f64` loop
-/// entered at another scalar as the computed values it is). It is the loop
-/// [`crate::ConstructedProfile`] is built from, so a table cannot reach
+/// scalars by one door, which keeps the points its facts were verified
+/// at: [`ConstructedLoop::value_channel`] (its `f64` value channel). It
+/// is the loop [`crate::ConstructedProfile`] is built from, so a table
+/// cannot reach
 /// the validation that consumes those facts. It reads as its loop
 /// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
 /// [`ConstructedLoop::into_loop`].
@@ -3636,20 +3635,6 @@ impl<T: geom_core::spline::SpanLocate> ConstructedLoop<T> {
             loop_: self
                 .loop_
                 .map_scalar(geom_core::spline::SpanLocate::value_channel),
-            joints: self.joints.clone(),
-        }
-    }
-}
-
-impl ConstructedLoop<f64> {
-    /// This loop at the scalar `U`, every value entered as the computed
-    /// value it is ([`Real::from_computed`]:
-    /// the same point, an unknown at `Sym`), the constructed joints
-    /// kept, which hold of the points they were verified at.
-    #[must_use]
-    pub fn lift_computed<U: Real>(&self) -> ConstructedLoop<U> {
-        ConstructedLoop {
-            loop_: self.loop_.map_scalar(U::from_computed),
             joints: self.joints.clone(),
         }
     }

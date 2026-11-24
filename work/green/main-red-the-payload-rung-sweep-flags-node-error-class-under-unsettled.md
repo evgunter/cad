@@ -2,10 +2,12 @@
 id: main-red-the-payload-rung-sweep-flags-node-error-class-under-unsettled
 kind: issue
 title: Main red: the payload-rung sweep flags NodeErrorClass under drive's Unsettled, since PR 7458
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7580
 ---
 
 
@@ -33,3 +35,14 @@ BOXFINISH's and SCALAR's ground): carry `NodeErrorClass` on the list
 that carries `Unsettled`, or argue beside `Unsettled` why it is not
 carried, and add the entry to `CROSS_LIST_DISPOSITIONS` in
 `scripts/payload-rung-sweep.py` naming where the argument lives.
+
+## Closed
+
+By PR 7580 (FORMWORDS, merged 2026-11-23 16:43 UTC), which added
+`NodeErrorClass` to `CROSS_LIST_DISPOSITIONS` as `argued`: the evaluation
+vocabulary, spelled once on `document` beside `NodeErrorKind`, the same
+rule as the `Stopped` and `NodeStanding` rows. That matches PR 7458's
+intent (`Unsettled::Failed`'s `class` is "which failure, without its
+payload"). `payload-rung-sweep.py --check` exits 0 on main `bba39ef945`.
+That main's push run never saw the red is deliberate;
+`a-landed-lint-red-is-seen-by-no-run-of-main` holds what it costs.
