@@ -562,7 +562,7 @@ mod quadratic_rows {
                 r.lo(),
                 r.hi()
             );
-            if !(width <= 4.0 * spread) {
+            if width.is_nan() || width > 4.0 * spread {
                 off.push(format!(
                     "root {k} reads {width:e} wide over a spread of {spread:e}"
                 ));
