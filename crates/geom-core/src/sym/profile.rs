@@ -371,14 +371,15 @@ pub struct SymProfile {
     /// **Each session's set of `Opaque` indeterminate ids**, in the
     /// order the sessions ended.
     ///
-    /// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
-    /// (`OPAQUE_SEQ`) — the one part of a node id that is not a hash of
-    /// what the expression says. Two leaves that mint in different
-    /// orders therefore build different ids for the same subexpression,
-    /// and a drive-scoped plain memo MISSES on them. It does not answer
-    /// them wrongly: `sym::memo`'s header carries that argument once
-    /// (a plain form is a syntactic normal form of a syntactic id), and
-    /// this set is the instrument for the HIT RATE, not for soundness.
+    /// An `Opaque` id is the NAME the value was minted under
+    /// (`sym::mint`: its scope and its ordinal there) — the one part of
+    /// a node id that is not a hash of what the expression says. A
+    /// scope that mints in a different order in two leaves builds
+    /// different ids for the same subexpression, and a drive-scoped
+    /// plain memo MISSES on them. It does not answer them wrongly:
+    /// `sym::memo`'s header carries that argument once (a plain form is
+    /// a syntactic normal form of a syntactic id), and this set is the
+    /// instrument for the HIT RATE, not for soundness.
     ///
     /// A drive binds its axes through `axis_named`, never the unnamed
     /// `AxisScalar::axis`, so what fills a set is `Real::from_computed`:

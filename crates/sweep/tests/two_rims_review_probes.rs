@@ -539,16 +539,15 @@ fn cones_sharing_a_carrier_at_different_extents_build() {
     );
 }
 
-/// **A ball segment inside the ball refuses at the sphere scan where the
-/// segment's shell decides.** The segment's cap stands inside the ball
-/// with its rim on the ball's sphere, so the sphere's section circle on
-/// the cap's plane is the cap's own boundary, and the extent scan refuses
-/// it as a circle near the plane face's boundary before the section pass
-/// runs (`work/splitdoor/a-ball-segment-inside-its-ball-refuses-at-the-sphere-scan.md`).
-/// The ops the ball decides build at their closed forms, in both
-/// orders. Red on a wrong body, or where a refusal moves.
+/// **A ball segment inside its ball builds every op, in both orders.**
+/// The segment's cap stands inside the ball with its rim on the ball's
+/// sphere, so the sphere's section circle on the cap's plane is the cap's
+/// own boundary. The extent scan asks the section certificate of the
+/// ball's face against the cap, which reads the circle on an edge the
+/// reduction met, not an escape, and the section pass decides the pair.
+/// Red on a wrong body or a refusal.
 #[test]
-fn a_ball_segment_inside_its_ball_refuses_at_the_sphere_scan_where_the_segment_decides() {
+fn a_ball_segment_inside_its_ball_builds_every_op() {
     use core::f64::consts::PI;
     let seg = |h: f64| PI * (1.0 + h).powi(2) * (2.0 - h) / 3.0;
     let s = (1.0f64 - 0.25).sqrt();
@@ -576,52 +575,28 @@ fn a_ball_segment_inside_its_ball_refuses_at_the_sphere_scan_where_the_segment_d
         tol(),
     );
     let (a, b) = (seg(0.5), 4.0 * PI / 3.0);
-    for (label, x, y, want) in [
-        (
-            "segment vs ball",
-            &below,
-            &ball,
-            [
-                ("A ∪ B", Some(b)),
-                ("A ∩ B", Some(a)),
-                ("A ∖ B", None),
-                ("B ∖ A", Some(b - a)),
-            ],
-        ),
-        (
-            "ball vs segment",
-            &ball,
-            &below,
-            [
-                ("A ∪ B", Some(b)),
-                ("A ∩ B", Some(a)),
-                ("A ∖ B", Some(b - a)),
-                ("B ∖ A", None),
-            ],
-        ),
-    ] {
-        let segment_decides: &[&str] = if label == "segment vs ball" {
-            &["A ∩ B", "A ∖ B"]
-        } else {
-            &["A ∪ B", "B ∖ A"]
-        };
-        for (op, r) in ops(x, y) {
-            let w = want.iter().find(|(o, _)| *o == op).unwrap().1;
-            if segment_decides.contains(&op) {
-                assert!(
-                    matches!(
-                        r,
-                        Err(BooleanError::FallbackExtentUnsupported { what, .. })
-                            if what.contains("near the plane face's boundary")
-                    ),
-                    "{label}, {op}: the sphere scan's refusal: {r:?}"
-                );
-            } else {
-                let g = read(&r);
-                assert!(closed_form(&g, w), "{label}, {op}: want {w:?}, got {g:?}");
-            }
-        }
-    }
+    builds(
+        "segment vs ball",
+        &below,
+        &ball,
+        [
+            ("A ∪ B", Some(b)),
+            ("A ∩ B", Some(a)),
+            ("A ∖ B", None),
+            ("B ∖ A", Some(b - a)),
+        ],
+    );
+    builds(
+        "ball vs segment",
+        &ball,
+        &below,
+        [
+            ("A ∪ B", Some(b)),
+            ("A ∩ B", Some(a)),
+            ("A ∖ B", Some(b - a)),
+            ("B ∖ A", None),
+        ],
+    );
 }
 
 /// **A third operand against a sided result**: the short rod's

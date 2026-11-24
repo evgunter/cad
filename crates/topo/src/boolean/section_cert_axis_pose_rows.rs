@@ -32,7 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::search_kit::band;
-use super::section_cert_rows::{cylinder, p, shape, tangent, torus, unit_cone};
+use super::section_cert_rows::{cylinder, p, shape, tangent, torus};
 use super::*;
 use core::f64::consts::TAU;
 use geom::Surface;
@@ -202,32 +202,18 @@ fn a_narrow_band_straddles_on_the_offset_floor() {
 
 /// The parallel arms' rows, each `K + past` bands from the flip beside
 /// a swing of `0.45` (the tilt reading `0.9` at its lever, which is
-/// twice the swing's), its far row named.
-fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 2] {
+/// twice the swing's), its far row named. A cone against a wall in that
+/// pose is the section value's, which reads no axis pose.
+fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 1] {
     let z = zero();
     let gap = (k() + past) * z;
     let swing = 0.45 * z;
-    let one = |at: Point3<f64>| geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(at, 1.0));
     // A pin of radius 0.2 clear of the donut's outer equator by `gap`,
     // its tilt levered over the donut's ball from the pivot `(e, 0, 0)`.
     let e = 2.7 + gap;
     let pin = cylinder(p(e, 0.0, 0.0), tilted(swing / (e + BALL)), 0.2);
     let torus_pin = super::section_cert_rows::classify(&torus(p(0.0, 0.0, 0.0), 2.0, 0.5), &pin);
-    // A wall of radius 0.2 standing `gap` off the cone's axis.
-    let e = 0.2 + gap;
-    let wall = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);
-    let cone_wall = classify(
-        &unit_cone(),
-        &wall,
-        &one(p(e, 0.0, 0.0)),
-        None,
-        Some(geom_brep::SsiLane::marched()),
-        band(),
-    );
-    [
-        ("section_torus_offset_wall_near_outer", torus_pin),
-        ("section_cone_cylinder_apex", cone_wall),
-    ]
+    [("section_torus_offset_wall_near_outer", torus_pin)]
 }
 
 /// **The parallel rows read on the floor.** `K + 0.35` bands past the
@@ -243,12 +229,36 @@ fn parallel_rows_serve_a_side_on_the_floor() {
             ("section_torus_offset_wall_near_outer", Section::Components { parts, .. }) => {
                 assert!(parts.is_empty(), "{row}: the pin is clear of the tube")
             }
-            ("section_cone_cylinder_apex", Section::Components { parts, .. }) => assert!(
-                parts.len() == 2 && parts.iter().all(|c| !c.essential_f && c.essential_g),
-                "{row}: one loop per nappe, the wall clear of the axis: {parts:?}"
-            ),
             _ => panic!("{row}: served, got {s:?}"),
         }
+    }
+}
+
+/// **A wall standing a band or so off the apex refuses on the value's
+/// sweep.** The parallel rows' cone wall: radius `0.2` about an axis
+/// tilted by the rows' swing, `K + past` bands off the unit cone's axis,
+/// so its wall stands that far off the apex, read over a unit region about
+/// its foot. The retired cone arm read its axis pose and served it at
+/// `K + 0.9`; the section value reads no axis pose, and its ruling sweep
+/// meets the discriminant in the band there at either distance. A
+/// narrowing filed as
+/// `work/sectcone/a-cone-wall-a-band-off-the-apex-refuses-on-the-sweep.md`.
+/// A reading that answers here, or refuses on another row: red.
+#[test]
+fn a_wall_a_band_off_the_apex_refuses_on_the_sweep() {
+    let z = zero();
+    for past in [0.35, 0.9] {
+        let e = 0.2 + (k() + past) * z;
+        let wall = cylinder(p(e, 0.0, 0.0), tilted(0.45 * z), 0.2);
+        let s = classify(
+            &super::section_cert_rows::unit_cone(),
+            &wall,
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(e, 0.0, 0.0), 1.0)),
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        assert_eq!(tangent(&s), "ruling_discriminant", "K + {past}");
     }
 }
 
@@ -313,19 +323,18 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 }
 
 /// **The turn of a point read off the pivot counts.** A cone whose apex
-/// stands `0.5` m along its own axis off the pivot, against a cone whose
-/// apex is a metre down the first axis: it has no offset, and the swing
-/// is `0.425` bands; the arm's coaxial reading reads the height at the
-/// apex, which the turn moves by `0.9` bands more, so it refuses on the
-/// offset. With the apex at the pivot it is served: the coaxial cones'
-/// two parallels. A cone at the pivot against a torus a little way up
-/// its axis is the section value's pose, read over the torus's own ball
-/// as every torus pair is. That lever is far longer than this row's
-/// fixture reach, so the tilt that reads in the band here reads well
-/// past it there: the pose is the general one, marched, and the march
-/// finds the cone apart from the torus at either height. (The pose's
-/// own in-band tilt and offset rows are geom-brep's
+/// is the pivot, against a torus a little way up its axis, is the
+/// section value's pose, read over the torus's own ball as every torus
+/// pair is. That lever is far longer than this row's fixture reach, so
+/// the tilt that reads in the band here reads well past it there: the
+/// pose is the general one, marched, and the march finds the cone apart
+/// from the torus at either height. (The pose's own in-band tilt and
+/// offset rows are geom-brep's
 /// `cone_torus_pose::a_tilt_and_an_offset_in_the_band_read_the_axis_pose`.)
+/// A second cone, whose apex stands `0.5` m off the pivot along its axis
+/// or at it, against a cone across its axis is the section value's too,
+/// which reads no turn: it is classified either way, over a ball of `2`
+/// m about the pivot that the section crosses.
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);
@@ -335,7 +344,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         frame: geom::Frame::new(at, d, Vec3::unit_y()),
         half_angle: core::f64::consts::FRAC_PI_4,
     };
-    for (rise, refuses) in [(0.5, true), (0.0, false)] {
+    for rise in [0.5, 0.0] {
         let s = classify(
             &torus(p(0.0, 0.0, rise), 2.0, 0.5),
             &cone,
@@ -351,28 +360,37 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         );
         // A second cone whose apex stands `0.5` m along its own axis from
         // the pivot, against a cone whose apex is a metre down the first
-        // axis: refused coaxial, the pair goes to the ruling charts.
+        // axis and whose axis is `x`: on `y = 0` they meet near
+        // `(±1/2, 0, −1/2)` (apex at the pivot) or `(±3/4, 0, −1/4)` (apex
+        // `0.5` m up), inside the ball.
         let apexes = Surface::Cone {
             frame: geom::Frame::new(at + d * rise, d, Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
         };
         let first = Surface::Cone {
-            frame: geom::Frame::new(p(0.0, 0.0, -1.0), Vec3::unit_z(), Vec3::unit_x()),
+            frame: geom::Frame::new(p(0.0, 0.0, -1.0), Vec3::unit_x(), Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
         };
         let s = classify(
             &first,
             &apexes,
-            &reach,
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(at, 2.0)),
             None,
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        let coaxial = matches!(
-            &s,
-            Section::Components { parts, .. } if parts.len() == 2
-                && parts.iter().all(|c| c.essential_f && c.essential_g && c.witness.is_none())
-        );
-        assert_eq!(coaxial, !refuses, "cones, apex {rise} off the pivot: {s:?}");
+        // Two cones are the section value's, which reads no axis pose: it
+        // classifies the pair over the ball either way, a non-empty
+        // section with each witness on both carriers.
+        let Section::Components { parts, .. } = &s else {
+            panic!("cones, apex {rise} off the pivot: {s:?}")
+        };
+        assert!(!parts.is_empty(), "cones, apex {rise} off the pivot: {s:?}");
+        for w in parts.iter().filter_map(|c| c.witness) {
+            for surf in [&first, &apexes] {
+                let r = geom_brep::implicit_residual(surf, w);
+                assert!(r.abs() < 1e-9, "the witness {w:?} is {r} off {surf:?}");
+            }
+        }
     }
 }

@@ -6,7 +6,7 @@
 //! `m10_sym_drive_memo_interval`) can only show what a DRIVE produces.
 //! These rows build the leaves themselves, so they can put a leaf in a
 //! state no fixture in the tree reaches — a node minted outside the
-//! session, a leaf-varying opaque sequence, a budget the memo was not
+//! session, a leaf whose mints take other names, a budget the memo was not
 //! made for — and ask what the memo does with it.
 //!
 //! Adopted from both reviews of SYM-7 (R1's `sym7_r1_memo_probes`, R2's
@@ -216,13 +216,14 @@ fn a_leaf_that_records_the_node_hands_a_later_leaf_a_theorem_it_would_have_misse
     );
 }
 
-/// **A leaf-varying opaque sequence moves no decision through the
-/// memo** (R2, adopted): an `Opaque` id names a syntactic unknown, a
+/// **A leaf whose mints take other names moves no decision through
+/// the memo** (R2, adopted): an `Opaque` id names a syntactic unknown, a
 /// plain form is a syntactic normal form of a syntactic id, and a
 /// `Zero` it answers is an identity in whatever unknowns the id's
-/// syntax names — so two leaves that give one sequence number to two
-/// different reals are still each handed a sound form. What a
-/// leaf-varying mint costs is HITS (`sym::memo`'s header).
+/// syntax names — so two leaves that give one name (`sym::mint`: here
+/// the session root's ordinal) to two different reals are still each
+/// handed a sound form. What a leaf-varying mint costs is HITS
+/// (`sym::memo`'s header).
 #[test]
 fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
     let m = memo();
@@ -231,7 +232,7 @@ fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
             if extra {
                 // The stand-in for a value-dependent mint: one more
                 // opaque before the real ones shifts every later
-                // sequence number on this leaf.
+                // ordinal of this leaf's root scope.
                 let _ = Sym::<f64>::opaque(9.0);
             }
             let u = Sym::<f64>::opaque(1.0);
@@ -247,13 +248,13 @@ fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
     let (r2, c2) = leaf(false);
     let (r3, c3) = leaf(true);
     assert_eq!(r0, (false, true, true));
-    assert_eq!(r1, r0, "a shifted opaque sequence changed an answer");
+    assert_eq!(r1, r0, "a shifted ordinal changed an answer");
     assert_eq!(r2, r0);
     assert_eq!(r3, r0);
     for c in [c0, c1, c2, c3] {
         assert_eq!(decisions(c), (2, 1), "{c:?}");
     }
-    println!("memo after four leaves with a leaf-varying opaque sequence: {m:?}");
+    println!("memo after four leaves with leaf-varying mint names: {m:?}");
 }
 
 /// **A budget mismatch is refused at the DOOR** — a `debug_assert!` in

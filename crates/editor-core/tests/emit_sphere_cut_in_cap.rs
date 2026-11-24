@@ -124,7 +124,7 @@ pub(crate) fn world_in_brick(
 
 /// Where the cut survives, the result holds two pieces of one sphere
 /// face across it.
-const CUT_LEFT: &str =
+pub(crate) const CUT_LEFT: &str =
     "work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
 
 /// The document: the lens, the brick, and `op` over them, lens first or

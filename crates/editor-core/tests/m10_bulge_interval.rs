@@ -542,11 +542,15 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_radial_moving", [14, 12]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
-            // and [28, 6] -> [20, 4].
-            ("pcurve_cylinder_chart_incident", [8, 4]),
+            // and [28, 6] -> [20, 4]. A carrier's distance from its own
+            // wall is read through the rationalized gap
+            // (`geom_core::radius_gap`), so the four numeric Zeros of
+            // each incidence predicate are theorems: [8, 4] -> [12, 0]
+            // and [10, 4] -> [14, 0].
+            ("pcurve_cylinder_chart_incident", [12, 0]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_interval_forward", [0, 12]),
-            ("pcurve_line_chart_incident", [10, 4]),
+            ("pcurve_line_chart_incident", [14, 0]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
             // The direction mint reads the sign of its one straight

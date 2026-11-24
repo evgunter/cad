@@ -778,7 +778,6 @@ impl Through {
             edge_classes: _,
             unread_partners: _,
             chart_cuts: _,
-            recharted,
             null_copies: _,
             cone_splits: _,
             edge_joins: _,
@@ -786,15 +785,6 @@ impl Through {
             carved_lineage: _,
             fused_seams: _,
         } = &out.naming;
-        // A sphere shell of the material the cut re-charted holds cells
-        // under keys its re-chart minted, which the read-back has no
-        // lineage for.
-        if !recharted[1].is_empty() {
-            return Err(BooleanError::JoinDesync {
-                what: "a cut by its tool's material re-charted a sphere shell of the material, \
-                       whose turned cells read back to no cell of the tool",
-            });
-        }
         let n = &mut out.naming;
         for (s, _) in &mut n.graft_faces {
             *s = self.face(*s);

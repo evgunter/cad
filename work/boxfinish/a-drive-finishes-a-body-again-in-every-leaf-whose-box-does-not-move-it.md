@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
-blocked_on: [a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression, a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state, a-drive-keeps-no-node-result-from-one-leaf-to-the-next]
+blocked_on: [a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state, a-drive-keeps-no-node-result-from-one-leaf-to-the-next]
 ---
 
 

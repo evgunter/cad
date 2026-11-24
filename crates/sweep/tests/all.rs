@@ -84,6 +84,8 @@ mod a_curved_keel_in_the_plane;
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
+#[path = "a_cut_by_a_seated_tool_cuts_its_ball_in.rs"]
+mod a_cut_by_a_seated_tool_cuts_its_ball_in;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -454,8 +456,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
-#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
-mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
+#[path = "the_nary_door_reads_a_cut_in_accumulation_through_its_pieces.rs"]
+mod the_nary_door_reads_a_cut_in_accumulation_through_its_pieces;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
