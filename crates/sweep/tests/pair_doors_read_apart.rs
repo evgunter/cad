@@ -227,39 +227,62 @@ fn the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them() {
     );
 }
 
-/// **A split between the lumps clears their sphere patches.** The
-/// [`lumps`] split by the plane `x = c`: at `c = 0.5` and `c = 0` the
-/// plane meets neither lump, and each patch reaches no further along `x`
-/// than its rim (`x ≈ ±0.88`), since it holds neither pole. At
-/// `c = 0.92` the plane cuts the `+x` patch, and the split's gate
-/// refuses the sphere. Red where the gate reads a sphere face by its
-/// window alone.
+/// Whether `split` is the split gate's refusal of a sphere face.
+fn refuses_the_sphere<T>(split: &Result<T, topo::SplitError>) -> bool {
+    matches!(
+        split,
+        Err(topo::SplitError::Reduce(
+            topo::SplitReduceError::CurvedBooleanUnsupported {
+                kind: geom::SurfaceKind::Sphere,
+                ..
+            }
+        ))
+    )
+}
+
+/// The plane through `c·n̂`, normal to `n`.
+fn plane_at(c: f64, n: Vec3<f64>) -> topo::SplitPlane<f64> {
+    let n = n.normalize();
+    topo::test_support::split_plane(Point3::origin() + n * c, n, tol())
+}
+
+/// **A split between the lumps clears their sphere patches, and one
+/// through a patch's held pole does not.** The [`lumps`] split by the
+/// plane `x = c`: at `c = 0.5` and `c = 0` the plane meets neither lump,
+/// and each patch reaches no further along `x` than its rim
+/// (`x ≈ ±0.88`), since it holds neither pole. At `c = 0.92` the plane
+/// cuts the `+x` patch, and the split's gate refuses the sphere. The
+/// unit ball poled along `z` is one sphere face bounded by its seam
+/// meridian in `y = 0`, which holds both poles `±n̂` of `n ∝ (0.3, 1, 0)`
+/// inside it. Cut by the planes `n̂·p = ±0.5`, which cross the ball, the
+/// gate refuses the sphere: the seam stays within 0.29 of the centre
+/// along `n̂`, and the face's reach is the whole sphere's at both ends. Red
+/// where the gate reads a sphere face by its window alone, and where it
+/// cuts a face to its boundary at an end whose pole the face holds.
 #[test]
 fn a_split_between_the_lumps_clears_their_sphere_patches() {
     let lumps = lumps();
-    for c in [0.5, 0.0, 0.92] {
-        let plane = topo::test_support::split_plane(
-            Point3::new(c, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            tol(),
+    for c in [0.5, 0.0] {
+        let split = topo::split(&lumps, &plane_at(c, Vec3::unit_x()), tol());
+        assert!(split.is_ok(), "the plane x = {c}: {:?}", split.err());
+    }
+    let split = topo::split(&lumps, &plane_at(0.92, Vec3::unit_x()), tol());
+    assert!(
+        refuses_the_sphere(&split),
+        "the plane x = 0.92 cuts the patch: {:?}",
+        split.err()
+    );
+    let ball = finished(
+        "the ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        tol(),
+    );
+    for c in [-0.5, 0.5] {
+        let split = topo::split(&ball, &plane_at(c, Vec3::new(0.3, 1.0, 0.0)), tol());
+        assert!(
+            refuses_the_sphere(&split),
+            "the plane at {c} cuts the ball, whose face holds the pole: {:?}",
+            split.err()
         );
-        let split = topo::split(&lumps, &plane, tol());
-        if c < 0.9 {
-            assert!(split.is_ok(), "the plane x = {c}: {:?}", split.err());
-        } else {
-            assert!(
-                matches!(
-                    split,
-                    Err(topo::SplitError::Reduce(
-                        topo::SplitReduceError::CurvedBooleanUnsupported {
-                            kind: geom::SurfaceKind::Sphere,
-                            ..
-                        }
-                    ))
-                ),
-                "the plane x = {c} cuts the patch: {:?}",
-                split.err()
-            );
-        }
     }
 }

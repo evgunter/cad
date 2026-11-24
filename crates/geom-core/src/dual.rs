@@ -488,6 +488,12 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// carries no certificate (DL3).
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = crate::real::Uncertified;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
