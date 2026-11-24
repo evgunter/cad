@@ -3213,6 +3213,7 @@ impl FacePoses {
     }
 
     /// How many posed boundaries this face has built in this ask.
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn builds(&self) -> usize {
         self.builds.get()
     }
@@ -7876,7 +7877,7 @@ fn departure(
 /// margin. `None` where a near edge is null scaffolding or a vertex does
 /// not resolve: a reading with no arm decides nothing.
 ///
-/// **This is the reach as [`crate::wedge_reach`] computes it, not the
+/// **This is the reach as [`fn@crate::wedge_reach`] computes it, not the
 /// extent `docs/DESIGN.md` `[topology.tiers]` rules**: the reach is the
 /// farther face's, measured from the edge's middle (a run along the
 /// edge counts), and it is recomputed here per cell pair. The clause
