@@ -84,3 +84,14 @@ and what its tie arm stores), found by BOXFINISH's signed-radius lane.
 - `mate::turn::zero` reads `SolveScalar::zero_everywhere`. At `Sym<f64>` that answers false. At `Sym<Interval>` it answers the box's point zero, `[0, 0]`, which holds over the box the lane claims over. `SolveScalar::exactly_zero` at `Sym` forwards to its value the same way: false at `Sym<f64>`, the box's point zero at `Sym<Interval>`.
 
 The `is_exact_zero` callers listed above (classes 1–3) are unchanged.
+
+**Met again by BOXFINISH's expression-question sweep (2026-11-22),
+none moved by it:** the three `profile` callers, as listed above
+(`lower_to`, `bulge_leg`, `path.rs` `chord_director`).
+`chord_director`'s zero-chord `+x` stand-in is now also the quotient
+the hop's mint is handed (`path::hop_director`), so it is still what a
+zero chord stores at every scalar. One read of the same family that is
+not `is_exact_zero`: `ValidatedProfile::value_channel` picks the `f64`
+witness's spelling of a recorded direction by whether its components
+are single points (`point_value`), a structural read off a number that
+learns no identity and stores the same real either way.
