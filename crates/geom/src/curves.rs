@@ -436,7 +436,29 @@ impl EllipseInvalid {
     pub fn escalated_subject(diag: &Indeterminate) -> &'static str {
         match diag.predicate {
             Some("ellipse_minor_positive") => "whether the curve's minor semi-axis is positive",
+            Some("ellipse_frame") => "whether the ellipse's frame has a basis",
+            Some("spiric_frame") => "whether the spiric's frame has a basis",
             _ => geom_core::UNNAMED_DECISION,
+        }
+    }
+}
+
+impl EllipseInvalid {
+    /// **The undecided margin this refusal carries**: a constructor
+    /// predicate's escalation (`ellipse_minor_positive`), or the frame
+    /// mint's, its normal's or seam's length undecided in band
+    /// (`ellipse_frame`); `None` for a refusal decided. The one read every
+    /// route of a carrier refusal takes, so a frame escalation is a margin
+    /// wherever a size's is.
+    #[must_use]
+    pub const fn escalation(&self) -> Option<Indeterminate> {
+        match self {
+            Self::Escalated(diag)
+            | Self::Frame(OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }) => Some(*diag),
+            _ => None,
         }
     }
 }
@@ -558,6 +580,23 @@ pub enum SpiricInvalid {
     /// The spiric's frame has no decided basis (`spiric_frame`): its axis
     /// has no direction, or its `u_ref` none square to it.
     Frame(OrthonormalizeError),
+}
+
+impl SpiricInvalid {
+    /// **The undecided margin this refusal carries**: a constructor
+    /// predicate's escalation, or the frame mint's (`spiric_frame`); `None`
+    /// for a refusal decided ([`EllipseInvalid::escalation`]).
+    #[must_use]
+    pub const fn escalation(&self) -> Option<Indeterminate> {
+        match self {
+            Self::Escalated(diag)
+            | Self::Frame(OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }) => Some(*diag),
+            _ => None,
+        }
+    }
 }
 
 impl core::fmt::Display for SpiricInvalid {

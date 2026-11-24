@@ -2785,18 +2785,35 @@ pub(in crate::boolean) mod tests {
     #[test]
     fn an_ellipse_carrier_escalation_is_routed_by_door() {
         let b = band();
-        let rows = [(
-            "ellipse_minor_positive",
-            "whether the curve's minor semi-axis is positive",
-        )];
-        for (predicate, subject) in rows {
+        // A size's escalation, and the frame mint's (its normal's or
+        // seam's length undecided in band), take the one route.
+        let size = |diag| geom::EllipseInvalid::Escalated(diag);
+        let frame = |diag| {
+            geom::EllipseInvalid::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Escalated(diag),
+            })
+        };
+        let rows: [(&str, &str, fn(Indeterminate) -> geom::EllipseInvalid); 2] = [
+            (
+                "ellipse_minor_positive",
+                "whether the curve's minor semi-axis is positive",
+                size,
+            ),
+            (
+                "ellipse_frame",
+                "whether the ellipse's frame has a basis",
+                frame,
+            ),
+        ];
+        for (predicate, subject, carrier) in rows {
             let diag = Indeterminate {
                 predicate: Some(predicate),
                 ..diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0))
             };
             let join = || crate::JoinError::Section {
                 face: crate::entity::FaceKey::default(),
-                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                source: geom_brep::SectionError::Carrier(carrier(diag)),
             };
             let split = crate::SplitError::Join(join()).render(geom_brep::recourse::Reading::Build);
             let boolean = BooleanError::from(join()).render(geom_brep::recourse::Reading::Build);

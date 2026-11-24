@@ -926,16 +926,23 @@ impl JoinError {
             }
             // The join keeps the carrier constructor's subject and
             // offers its own door's levers.
+            // A frame's undecided length among them
+            // ([`geom::EllipseInvalid::escalation`]).
             Self::Section {
-                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                source: geom_brep::SectionError::Carrier(e),
                 ..
-            } => write!(
-                f,
-                "{} is undecided for the section through a curved face: {}. Recourse: \
-                 {JOIN_RECOURSE}",
-                geom::EllipseInvalid::escalated_subject(diag),
-                diag.payload()
-            ),
+            } if e.escalation().is_some() => {
+                let Some(diag) = e.escalation() else {
+                    unreachable!("guarded on an escalation")
+                };
+                write!(
+                    f,
+                    "{} is undecided for the section through a curved face: {}. Recourse: \
+                     {JOIN_RECOURSE}",
+                    geom::EllipseInvalid::escalated_subject(&diag),
+                    diag.payload()
+                )
+            }
             Self::Section { source, .. } => {
                 write!(
                     f,
