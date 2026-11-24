@@ -2554,6 +2554,11 @@ struct NodeState {
     /// `over`'s records by address, so that a record reached through
     /// two reads enters once.
     over_held: std::collections::HashSet<*const NodeRecord>,
+    /// The records the scopes opened inside this one read, each once,
+    /// in the order read. They are in this scope's record (`over`) and
+    /// not in its registry: a family's value is built over what its
+    /// members read.
+    over_inside: Vec<Arc<NodeRecord>>,
 }
 
 impl NodeState {
@@ -2730,9 +2735,16 @@ impl NodeGuard {
                 return None;
             }
             let outer = sess.outer.pop()?;
-            let inner = core::mem::replace(&mut sess.node, outer);
+            let mut inner = core::mem::replace(&mut sess.node, outer);
             #[cfg(feature = "sym-profile-testing")]
             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+            // What the scope read, and what the scopes inside it read.
+            let mut over = core::mem::take(&mut inner.over);
+            for read in core::mem::take(&mut inner.over_inside) {
+                if inner.over_held.insert(Arc::as_ptr(&read)) {
+                    over.push(read);
+                }
+            }
             sess.node.absorb(&inner);
             // What a scope opened inside a node's scope registered is
             // on that node's RECORD (a family holds its members', a
@@ -2743,6 +2755,16 @@ impl NodeGuard {
                     .identities
                     .extend(inner.identities.iter().copied());
                 sess.node.brackets.extend(inner.brackets.iter().copied());
+                for read in &over {
+                    if !sess
+                        .node
+                        .over_inside
+                        .iter()
+                        .any(|held| Arc::ptr_eq(held, read))
+                    {
+                        sess.node.over_inside.push(Arc::clone(read));
+                    }
+                }
             }
             let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
             roots.sort_unstable_by_key(|id| id.bits());
@@ -2754,7 +2776,7 @@ impl NodeGuard {
                     ..inner.counts
                 },
                 roots,
-                over: inner.over,
+                over,
             })
         })
     }

@@ -612,7 +612,8 @@ fn a_family_whose_members_register_carries_their_identities() {
 /// **A node reads the records of what its reads see.** Over the family
 /// of three registering cylinders: a placement of member 1 alone reads
 /// that member's identities and no other member's; a union that splices
-/// the family in whole reads every member's.
+/// the family in whole reads every member's. Each reads the profile's
+/// too, which the members were built over, and reads it once.
 ///
 /// Mutant: a scope fed from the results map, where the family's entry
 /// stands for every read of it, hands the member's reader all three
@@ -639,11 +640,19 @@ fn a_reader_of_a_member_reads_that_members_record_and_a_reader_of_the_family_all
         Some(NodeResult::Failed(e)) => e.sym.read(),
         _ => panic!("the reader ran"),
     };
-    assert_eq!(read(one), of[1], "the member's reader reads the member");
+    // What each member was itself built over: the profile's record,
+    // one record however many members read it.
+    let profile = members.members[1].1.sym.read();
+    assert!(profile > 0, "the profile registered");
+    assert_eq!(
+        read(one),
+        profile + of[1],
+        "the member's reader reads the member, and what the member read"
+    );
     assert_eq!(
         read(all),
-        of.iter().sum::<usize>(),
-        "the family's reader reads every member"
+        profile + of.iter().sum::<usize>(),
+        "the family's reader reads every member, and what they read once"
     );
 }
 
