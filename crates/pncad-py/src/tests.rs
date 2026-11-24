@@ -6219,6 +6219,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "trace_step_fault_tag",
         values: &[
             "apex",
+            "circle_frame",
             "escalated",
             "grazing",
             "no_heading",

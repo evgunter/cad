@@ -2,7 +2,8 @@
 id: the-plane-arms-harmonic-amplitude-rounds-at-a-far-centred-conics-reach
 kind: issue
 title: The plane arm reads wrong signs, uncharged, where the conic is stored far from its arc: its harmonic amplitude k.along(n) rounds at u·far and cancels against the now-exact offset
-status: open
+status: closed
+closed: 2026-11-24
 opened: 2026-11-22
 priority: P1
 cost: M
@@ -98,3 +99,7 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **The row is ported:** `splitting::section_loops::far_clear_rows::a_segment_clears_a_far_centred_conic_only_where_it_is_clear`, on a segment in the plane `z = 0` exactly beside a centre-held far ellipse.
   - **Why the plane is exact:** a segment built off the stored plane stands apart from it in 3D at `u·far`, which the in-plane belly cannot judge.
   - **Result:** it reads 0 wrong clears past the zero-band touch placement (CONIC's row), and M3 reds it.
+
+## Closed
+
+2026-11-24, by the GERM orchestrator. Closed by PR 7553 (merge `80a3bf53fe`). The belly is now the conic's own door, `Conic::belly_along` / `belly_across` in `conic.rs`. It is read from the stored placement, with B crossed exactly, through `Real::harmonic_belly`: an exact-expansion numerator behind a double-double filter, within 7u relative to the belly. Against an independent oracle it reads 0 wrong at far 1e4–1e6 in both placements, down from 50/317/406 on the old belly. The arc-held sibling is fixed by the same door. Residuals are filed: CONIC's carrier-walk dropped touch, a lifted frame's Interval belly, and the far-radius cylinder.
