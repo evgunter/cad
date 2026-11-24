@@ -98,8 +98,10 @@ fn route_inventory() {
         // (`ssi::cylinder_torus_ssi`).
         (Cylinder, Torus, Rung::General, true),
         (Cylinder, Nurbs, Rung::General, false),
-        (Cone, Cone, Rung::General, false),
-        (Cone, Sphere, Rung::General, false),
+        // The ℝ³ implicit-pair march from the ruling sweep's witnesses
+        // (`ssi::cone_ruled_ssi`); a node's arcs are classified only.
+        (Cone, Cone, Rung::General, true),
+        (Cone, Sphere, Rung::General, true),
         // The ℝ³ implicit-pair march past the pose's apex and gap
         // (`ssi::cone_torus_ssi`); the coaxial pose stays closed form.
         (Cone, Torus, Rung::General, true),
