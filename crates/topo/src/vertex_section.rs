@@ -53,8 +53,8 @@ use crate::validate::decide_reported;
 /// dihedral between the plane and such a face (metres).
 pub(crate) const VERTEX_SECTION_SIDE: &str = "vertex_section_side";
 
-/// K name: that reading's own rounding, `K` times over, against the
-/// zero band (metres): Zero admits the reading as the input's.
+/// K name: that reading's own rounding against the `ε/K` share of the
+/// band (metres): Zero admits the reading as the input's.
 pub(crate) const VERTEX_SECTION_RESOLUTION: &str = "vertex_section_resolution";
 
 /// K name: that reading moved toward zero by its own rounding, where the
@@ -225,11 +225,10 @@ pub(crate) fn read_sections<T: Decide>(
     let Some(sine) = sine.divisor("vertex_section_sine") else {
         return Ok(on_plane);
     };
-    let reading = Rounded {
-        value: offset.value.value,
-        error: offset.value.error + skew(offset.normal, plane, at),
-    }
-    .quotient(sine);
+    let reading = offset
+        .value
+        .with_charge(skew(offset.normal, plane, at))
+        .quotient(sine);
     if crate::validate::resolved_as(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
             .map_err(VertexRefusal::Section);
@@ -279,7 +278,7 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
     let f = body.proven_face(face);
     match *f.surface() {
         geom::Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             !matches!(
                 crate::face_normal::cone_point(
                     geom::Line {

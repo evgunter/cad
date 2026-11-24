@@ -2,12 +2,14 @@
 id: one-stored-form-waits-on-the-readers-of-a-conics-centre
 kind: unit
 title: Every reader that rebuilds or restates a conic from its centre goes through the conic: the sites, and what each showed when the centre was a derived one
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: H
 refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-points-are-restated-in-centre-form-outside-its-evaluator, a-section-conic-is-anchored-at-a-general-point-of-its-arc]
 branch: oneround/conic-readers
+pr: 7510
+closed: 2026-11-23
 ---
 
 
@@ -185,3 +187,45 @@ what the reading offers is bounded by the README's sentence and by
 what the families need. If two shapes of the interface are both
 viable and the choice binds the general-anchor row, the lane stops and
 asks.
+
+## Corrections from the unit's first PR (7510, 2026-11-23)
+
+Census at the merge base `2b9cd8b24`, taken with the compiler (the
+centre doors marked `#[deprecated]`, uses collected from
+`cargo check --workspace --lib --bins --all-features`), outside
+`conic.rs`: **339 reads on 291 lines in 63 files**, not about 90.
+
+- 137 of them read a direction only (`frame().axis()`, `.u_ref()`,
+  `.v_ref()`) and went to `Conic::axis` / `u_ref` / `v_ref`. About
+  half of those sit on a line that also reads the centre, to rebuild a
+  placement; that line stays listed for its centre read.
+- `crates/topo/src/ruled_region.rs`, `crates/mesh/src/curved.rs` and
+  the production half of `crates/geom-brep/src/extent.rs` read no conic
+  frame on main. The chart-frame family's one site is
+  `torus_region.rs` `on_edge_plane`; the pinch read's family has
+  `mesh/src/sizing.rs` `sphere_face_widest_cos`.
+- `Curve3::param_near` and `step-import`'s `settled_foot` already go
+  through `Conic::azimuth`, which reads an arc-held ellipse from its
+  anchor (PR 7203): that family had nothing to convert.
+- The `Rim` round trip in `crates/topo/src/boolean/mod.rs` (two
+  `Curve3::circle(rim.center, …)` sites) reads a struct another
+  function filled, so no centre door fires there and the gate does not
+  see it; it stays on this row's list of doors by name.
+- `Conic::unit_in_plane` reads the derived centre by default and has
+  three production callers; `Curve3::circle_at` and `Cover::arc` take a
+  conic restated on a caller's frame. All three are doors of the gate.
+
+What the first PR did: the direction readings, the cover and the
+extent, and the gate (`scripts/gates/conic-centre-reads.sh`, with
+`clippy.toml`'s `disallowed-methods`). What it left is on four rows:
+`the-cone-sections-chart-image-and-its-kin-are-stated-from-the-conics-centre`,
+`a-conic-made-from-a-conic-is-rebuilt-from-its-centre-and-frame`,
+`the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre`,
+`a-circles-centre-is-read-as-a-datum-under-the-conic-gate`; and
+`the-arc-held-cover-is-looser-than-the-centre-forms-on-a-long-window`.
+
+## Closed (2026-11-23, PR 7510)
+
+The first part landed as PR 7510 (`oneround/conic-readers`): a conic's direction, extent and cover are read through the conic (`axis`, `axis_unit`, the extent and cover doors), the centre-frame doors are gated, and the gate's census is clippy's own diagnostics (`--force-warn clippy::disallowed_methods`, read by `scripts/conic_centre_census.py --check`) pinned as reads per file in `scripts/gates/conic-centre-reads.counts` (203 reads in 58 files at the merge). Reviewed by a concurrent pair with a delta read each; its record is `docs/model-compare-log/rows/PR-7510.md`.
+
+What the row asked for and this PR did not do is not left here. It is CONIC's slate (`work/conic/`, opened 2026-11-23 from Ev's answer on PR 7523): the certified lane's harmonics about the centre, a conic made from a conic, the cone section's chart image and its kin, a construction whose centre runs off, a circle's centre read as a datum under the gate, the three compare doors, and the rest of that plan's order. The second conic unit this track holds, `an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre` (PR 7543), is stacked on this one. Filed by the unit on CIW: the census holds only the crates a scoped run selects, and the nightly runs none.

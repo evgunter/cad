@@ -26,6 +26,8 @@
 //! that voice ([`ReachRefusal::MalformedBody`]); a bound that reads
 //! back non-finite refuses where it is read.
 
+use crate::Said;
+use crate::say;
 use geom_core::{Band, Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
@@ -72,12 +74,13 @@ pub enum ReachRefusal {
     NoFiniteBound,
 }
 
-impl core::fmt::Display for ReachRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ReachRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PartUnresolved { fault } => write!(
+            Self::PartUnresolved { fault } => say!(
                 f,
-                "is not in hand, so the mate has no extent to lever a verdict over: {fault}"
+                "is not in hand, so the mate has no extent to lever a verdict over: ",
+                Said(&fault, by)
             ),
             Self::FaceUnbounded { kind, .. } => write!(
                 f,
@@ -104,6 +107,13 @@ impl core::fmt::Display for ReachRefusal {
                 geom_core::RANGE_ENDING
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for ReachRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -202,6 +212,10 @@ pub(crate) fn faces_reach_from<T: Decide>(
 /// # Errors
 ///
 /// [`ReachRefusal::NoFiniteBound`] for a segment with no finite cover.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn loops_reach_from<T: Decide>(
     validated: &profile::ValidatedProfile<T>,
     origin: Point3<T>,
@@ -214,11 +228,12 @@ pub(crate) fn loops_reach_from<T: Decide>(
         .iter()
         .flat_map(profile::ValidatedLoop::segments)
     {
-        let cover = match (s.kind, s.directions) {
-            (
-                profile::SegmentKind::Arc { arc, turn },
-                profile::SegmentDirections::Arc { start, .. },
-            ) => {
+        let cover = match s.kind {
+            profile::SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [start, _],
+            } => {
                 let up = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
                 let axis = if turn == geom_core::Sign::Negative {
                     -up
@@ -236,7 +251,7 @@ pub(crate) fn loops_reach_from<T: Decide>(
                     ParamWindow::new(T::zero(), arc.sweep.abs()),
                 )
             }
-            _ => Cover::segment(lift(s.start), lift(s.end)),
+            profile::SegmentKind::Line { .. } => Cover::segment(lift(s.start), lift(s.end)),
         }
         .ok_or(ReachRefusal::NoFiniteBound)?;
         let bound = far_from(&cover, origin);

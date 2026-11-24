@@ -13,7 +13,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, StoredSpan};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
+use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real};
 use std::sync::Arc;
 
 /// `x` as a point bracket, or `None` where it is wider.
@@ -141,7 +141,7 @@ fn a_stated_end_the_carrier_does_not_reach_is_refused() {
         let f = T::from_f64;
         let carrier = Curve3::line(
             Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::one(), T::zero(), T::zero()),
+            geom_core::UnitVec3::exact_x(),
         );
         let span = (T::zero(), f(0.9));
         let certify = |image: Pcurve<T>| {
@@ -195,7 +195,7 @@ fn envelope_over_a_short_edge<T: Decide + Bounds>(
     let delta = 0.5 * crate::shared::tol::eps();
     let carrier = Curve3::line(
         Point3::new(T::zero(), T::zero(), T::zero()),
-        Vec3::new(T::one(), T::zero(), T::zero()),
+        geom_core::UnitVec3::exact_x(),
     );
     let span = (T::zero(), T::from_f64(1.0 - delta));
     let cache = PcurveCache::certify(image(span), span.0, span.1, &carrier, &unit_chart(), band())
@@ -269,7 +269,7 @@ fn row_over<T: Decide + Bounds>(
     let f = T::from_f64;
     let carrier = Curve3::line(
         Point3::new(T::zero(), T::zero(), T::zero()),
-        Vec3::new(T::one(), T::zero(), T::zero()),
+        geom_core::UnitVec3::exact_x(),
     );
     let (t0, t1) = (f(span.0), f(span.1));
     let Pcurve::IsoLine { p0, pl, .. } = Pcurve::iso_row(T::zero(), (t0, t1), (t0, t1)) else {

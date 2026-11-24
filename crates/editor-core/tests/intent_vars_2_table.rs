@@ -359,7 +359,10 @@ fn analysis_is_keyed_by_var_id() {
     };
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(analyzed.params().keys().copied().collect::<Vec<_>>(), both);
-    assert_eq!(analyzed.spoken(w).to_string(), "w");
+    assert_eq!(
+        editor_core::test_support::var_text(&analyzed.spoken(w)),
+        "w"
+    );
     let boxed = ParamBox::of(&analyzed);
     assert_eq!(boxed.axes().keys().copied().collect::<Vec<_>>(), both);
 
@@ -527,7 +530,7 @@ fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     );
     // Equal laws, so equal relative widths: the tie goes to the
     // earlier-declared variable, never to the lower digest.
-    assert_eq!(root.split_axis(&root), Some(w));
+    assert_eq!(root.split_axis(&root, |_| true), Some(w));
     let entries = sensitivities(
         &doc,
         measure,

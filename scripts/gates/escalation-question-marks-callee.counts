@@ -94,7 +94,7 @@ crates/topo/src/boolean/sectors.rs 2
 crates/topo/src/boolean/slit.rs 1
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves/site.rs 1
-# containment: place_off (WHICH, ruled). conic_crossings reads its roots
+# containment: place_off (WHICH, ruled). arc_crossings reads its roots
 # through the co-surface arm once, outside its loop; inside it, a root in
 # band of an arc's end returns its `Undecided` refusal, a `return Err` this
 # matcher does not read: NOT A SEARCH, a crossing count that needs every

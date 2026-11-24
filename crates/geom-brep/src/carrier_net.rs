@@ -113,6 +113,10 @@ fn lift_p<T: CertifiedBounds>(p: Point3<T>) -> Vec3<Interval> {
 /// is framed before it is combined with anything (a spiric's centre and
 /// its offset along `u_ref` separately), so no sum rounds at the world
 /// origin's scale; the axes are formed and then framed.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> Option<Harmonic> {
     let i = Interval::from_certified;
     let pt = |p: Point3<T>| frame.map_or(lift_p(p), |f| f.point(lift_p(p)));
@@ -903,7 +907,7 @@ fn enclosing_net<T: CertifiedBounds>(
         // spare, and an origin and direction framed apart lose what an
         // interval point's channels share (measured: a widened extrude's
         // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
-        let (o, d) = (lift_p(origin), lift_v(dir));
+        let (o, d) = (lift_p(origin), lift_v(dir.get()));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
@@ -1192,7 +1196,13 @@ mod tests {
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
         let center = Point3::new(0.3, -0.2, 0.5);
         let kinds = [
-            ("line", Curve3::line(center, Vec3::new(0.2, 0.7, -0.1))),
+            (
+                "line",
+                Curve3::line(
+                    center,
+                    geom_core::UnitVec3::squared(Vec3::new(0.2, 0.7, -0.1)),
+                ),
+            ),
             ("circle", Curve3::circle(center, axis, 0.8, u_ref)),
             (
                 "ellipse",
@@ -1407,7 +1417,10 @@ mod tests {
         );
         assert_eq!(net.cuts(), &[0.25, 0.5], "its breaks ride as cuts");
 
-        let line = Curve3::line(Point3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = Curve3::line(
+            Point3::new(0.0, 1.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let net = carrier_net(&line, (0.0, 2.0), &[1.0, 3.0, 1.0]).unwrap();
         let (knots, _, coords) = net.operand();
         assert_eq!(knots.degree(), 1, "a line is degree 1");

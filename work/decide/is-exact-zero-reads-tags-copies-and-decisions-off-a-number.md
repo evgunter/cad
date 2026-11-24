@@ -75,3 +75,12 @@ say first what breaks without it. Also for this audit: a bulge leg
 that stores a sign nothing decided (`arc_bulge`, `literal_sign(b)`,
 and what its tie arm stores), found by BOXFINISH's signed-radius lane.
 (BOXFINISH orchestrator)
+
+**The second door, closed (DOCTAIL lane, 2026-11-22)**, by `doctail/the-least-turn-and-aligned-read-exactness-off-the-nominal-at-sym`:
+- `Real::is_exact_zero_in_every_channel` is removed.
+- The least turn's identity shortcut is gone: the Rodrigues arm is `v + k × v + k × (k × v)/(1 + c)`, so a pair that is one direction turns by the identity through `k = 0`.
+- `Chart::charted` reads no identity.
+- `UnitVec3::is_exactly` is `f64`-only; its one caller is the sweep skin's still step, at `f64`. That step still gates a step on bit-equality, which this row's class 3 keeps.
+- `mate::turn::zero` reads `SolveScalar::zero_everywhere`. At `Sym<f64>` that answers false. At `Sym<Interval>` it answers the box's point zero, `[0, 0]`, which holds over the box the lane claims over. `SolveScalar::exactly_zero` at `Sym` forwards to its value the same way: false at `Sym<f64>`, the box's point zero at `Sym<Interval>`.
+
+The `is_exact_zero` callers listed above (classes 1–3) are unchanged.

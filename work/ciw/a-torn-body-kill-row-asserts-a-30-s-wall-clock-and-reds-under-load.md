@@ -2,10 +2,11 @@
 id: a-torn-body-kill-row-asserts-a-30-s-wall-clock-and-reds-under-load
 kind: issue
 title: review_m1_pr4's torn-body kill row asserts a 30 s wall clock, which a loaded box fails
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 Found by review 2 of `restread/ef-pierce-charge` (PR 5421), which ran
@@ -35,3 +36,7 @@ the cost; a wall clock is not a gate.
 Moved from `work/issues/` to `work/tint/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+Deleted the 30 s `elapsed` assertion (and its `Instant`) from `kill_ops_on_torn_bodies_panic_only_naming_a_premise`; the slow-set timing carries the cost.

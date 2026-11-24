@@ -594,7 +594,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
 // edges'), so the wedge reads in the band only where the pair itself
 // nearly turns tangent at the vertex: a vertex near a crossing of the
 // locus. A few-ε arc is not the way in: its own certification refuses
-// it at mint (`Certification` `Escalated { Transversality }`), so no
+// it at mint (`DescriptionUncertified` `Escalated { Transversality }`), so no
 // certified edge beside the vertex is that short
 // (`crates/sweep/tests/join_lever_is_the_joined_edge.rs`).
 const EDGE_JOIN_SITE: Door = Door::Site(
@@ -690,11 +690,11 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     geom_brep::curve_face::line_quadric::line_wall_roots(
         geom::Line {
             origin: Point3::new(0.5, 0.0, 0.0),
-            dir: Vec3::new(drift, 0.0, 1.0),
+            dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
         },
         geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         },
         1.0,
         1.0,
@@ -715,7 +715,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let x = prism.body;
     let (u, v) = (prism.bottom[3], prism.bottom[0]);
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
-    let (edge_key, edge) = x
+    let (edge_key, _) = x
         .edges()
         .find(|&(k, _)| {
             let ends = crate::query::edge_ends(&x, k);
@@ -738,8 +738,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         &x,
         &mut y,
         Operand::A,
-        edge_key,
-        &edge,
+        x.proven_edge(edge_key),
         a,
         c,
         wall,
@@ -781,7 +780,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
         ..Glue::none()
     };
     let declared = GluedPairs::without_struts(&decls, [(xw, yw)].into_iter().collect());
-    let (edge_key, edge) = x
+    let (edge_key, _) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
         .find(|(_, e)| {
@@ -799,8 +798,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
         &x,
         &mut y,
         Operand::A,
-        edge_key,
-        &edge,
+        x.proven_edge(edge_key),
         a,
         c,
         yw,
@@ -1441,7 +1439,10 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
     let extent = (2.0 * sagitta).sqrt();
-    let ruling = geom::Curve3::Line(geom::Line { origin: o, dir: y });
+    let ruling = geom::Curve3::Line(geom::Line {
+        origin: o,
+        dir: geom::stated_direction(y),
+    });
     super::super::ops::seam_must_carry(
         &floor,
         &resting_cylinder(1.0),
@@ -2193,6 +2194,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::JunctionEndUnread
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::VertexPairAtConeApex
@@ -2590,7 +2592,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CutRingWinding",
         1,
     ),
-    ("glue.rs", "tangency", "Coincide::Rim", 1),
+    ("glue.rs", "distinct", "Coincide::Rim", 1),
     ("insert.rs", "beside_order", "Coincide::Sectors", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
@@ -2735,10 +2737,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::TangentLocus",
         1,
     ),
-    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
-    ("mod.rs", "verify_tangency", "LeverArm::TangentLocus", 1),
-    ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
-    ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
+    ("mod.rs", "verify_distinct", "Coincide::Contact", 1),
+    ("mod.rs", "verify_distinct", "LeverArm::TangentLocus", 1),
+    ("mod.rs", "verify_distinct", "Coincide::Rim", 1),
+    ("mod.rs", "verify_distinct", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
@@ -2835,6 +2837,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndOrder",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndSide",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_window",
+        "BooleanDecision::JunctionEndOnRim",
+        1,
+    ),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",
@@ -2973,6 +2993,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "first_order_overlap", "Coincide::Sectors", 1),
+    ("sectors.rs", "junction_bound_side", "Coincide::Rim", 1),
+    ("sectors.rs", "junction_lump", "Coincide::Rim", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -3036,7 +3058,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "read_vertex_on_face",
         "Coincide::TangentSide",
-        1,
+        2,
     ),
     (
         "vtxfac.rs",

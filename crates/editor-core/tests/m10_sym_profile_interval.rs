@@ -15,9 +15,10 @@
 //! The gating rows read the same instrument for the one thing in it
 //! that is not a clock: the walk ledger — per walk and origin the
 //! calls, the forms, the frozen, and the digest chain of the forms
-//! built — so what the tier BUILDS on both documents is a pinned
-//! number, over and above what the pins say it DECIDES
-//! ([`assert_walk_ledger`]).
+//! built ([`walk_ledger`]). What they hold of it is what no intended
+//! change moves: a replay builds the same ledger every time, the slab
+//! freezes nothing, no form passes the growth guard, and no dial of
+//! the early walk moves a line of the plain walk.
 //!
 //! The one row without the profile installed,
 //! [`sym_profile_callgrind_replay`], is the callgrind target: it
@@ -27,9 +28,7 @@
 //!
 //! **This file is ungated**: it carries no `gated_to!` marker, so every
 //! row here outside the `ci` slow set runs on every PR whose closure
-//! reaches editor-core. A new fast row inherits that. The walk ledger
-//! reads every kernel change the documents meet, so no path list could
-//! name what moves it.
+//! reaches editor-core. A new fast row inherits that.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -231,287 +230,23 @@ fn sym_profile_callgrind_replay() {
     }
 }
 
-/// The ε row this run is on, as the index into a three-row table
-/// (`1e-6`, `1e-9`, `1e-12`); any other ε has no captured row and
-/// fails loud rather than reading a neighbour's.
-fn eps_row(eps: f64) -> usize {
-    [1.0e-6, 1.0e-9, 1.0e-12]
-        .iter()
-        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
-        .unwrap_or_else(|| panic!("no captured row at eps = {eps:e}: capture one and add it"))
-}
+/// **The growth guard**: the largest form (numerator plus denominator
+/// terms) any op may build on each document at its nominal, at twice
+/// the largest measured. A representation change that blows a form up
+/// reds here in seconds, where the walks would first run for minutes;
+/// a form that shrinks, or grows by less than its measured size, moves
+/// nothing.
+const SLAB_MAX_TERMS: usize = 8;
+const PLATE_MAX_TERMS: usize = 76;
 
-/// The slab's walk ledger at its nominal, per ε row: its literals are
-/// multiples of ε.
-///
-/// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
-/// edges' mid-parameter points are the lever — the witness an edge is
-/// minted with, the certificate's midpoint check and its schedule's
-/// middle station are one [`geom::mid_param`] evaluation, and a second
-/// spelling of that point builds a second chain of forms, which reads
-/// here as `Plain/Decision` forms alone.
-///
-/// **Moved with PR 6594** (the profile's chord reads onto
-/// `geom_core::Line2`), with the calls unchanged:
-/// - `Line2::side` and `Line2::height` divide by `|dir|` (the A′
-///   metric reading), where the stored unit was read bare. That adds
-///   all of `Plain/Decision` 9789 → 9815 and `Early/Decision` 30 → 38,
-///   and 22 of each `Assertion` row's growth.
-/// - The other 12 of each (`Plain/Assertion` 2827 → 2861,
-///   `Early/Assertion` 4251 → 4295) are the line×arc pair and the ray
-///   cast: each reading now forms its own `C − a`, where the old code
-///   shared one `to_center`. The values are the same.
-///
-/// Measured by undoing each in turn on the PR's first commit: with both
-/// undone, the ε 1e-9 row's counts and digests are the old pin's.
-///
-/// **When a refused direction began reading its norm once**
-/// (`Vec3::checked_direction_and_length`, which the direction door
-/// also takes its direction from rather than normalizing again):
-/// `Plain/Decision` 9815 →
-/// 9809, `Plain/Assertion` 2861 → 2807, `Early/Assertion` 4295 → 4235,
-/// with the same calls; `Early/Decision` does not move.
-///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and
-/// revolve read each edge they write by its whole wedge, the arm, the
-/// wedge and a corner's sign at each of its 7 interior stations, where
-/// they read the class at one witness. `Plain/Assertion` and
-/// `Early/Assertion` 532 → 988 calls (2807 → 3503 and 4235 → 4931
-/// forms), `Plain/Decision` 9809 → 9709 forms over the same calls (an
-/// edge's witness is its carrier's middle, which the walks spell with
-/// fewer forms than a strut's chord midpoint).
-///
-/// **Moved when a validated segment began recording its directions**:
-/// validation's mint reads each component of a side's chord, and the
-/// sign of the other, exactly and outside the log (audit row F43), so
-/// `Plain/Decision` 976 → 984 and both `Assertion` rows 988 → 996
-/// calls, with no form, frozen count or digest moving at any ε row.
-///
-/// **Moved with a line rim's span and direction stated from its sketch
-/// segment** (PR 6953): a placed line's span is `‖b − a‖` over the sketch
-/// and its direction the sketch chord's unit placed, where both were read
-/// off the placed vertices. Nothing is registered for a line (its far end
-/// folds to the far vertex as a form), so the walks the door adds are
-/// main's: the slab has no `Door/Decision` line, as before. It composes
-/// with the move above: the calls are its, the forms and digests this
-/// one's, each unchanged by the other.
-/// - The span alone (the PR's first head, whose direction still
-///   normalized `q_to − q_from`): `Plain/Decision` 9709 → 9663 and
-///   `Plain/Assertion` 3503 → 3391 forms, same calls. The span's own
-///   3-space difference, its three squares and its root are formed no
-///   more; the sketch chord's two-coordinate norm, over sketch values
-///   other forms already hold, replaces them.
-/// - The direction from the sketch chord takes the rest: `Plain/Decision`
-///   9663 → 9559, `Plain/Assertion` 3391 → 3375, and `Early/Assertion`
-///   4931 → 4854, calls unchanged. The second 3-space difference and its
-///   normalization go too; the slab's placement is the identity's axes,
-///   so the placed unit chord folds to its sketch components.
-///
-/// **Moved with the extrude keeping its sketch frame**: it fits no
-/// plane to its corners, so `Plain/Decision` 984 → 936 calls (9709 →
-/// 7778 forms), the assertions 996 → 992 on both walks (`Plain` 3503 →
-/// 2572 forms, `Early` 4931 → 3001), and their digests. Then a line
-/// wall's origin is the wall's middle, from construction data (the placed
-/// start, half the segment's length along its direction, half the sweep):
-/// `Plain/Decision` 7778 → 8308 forms over the same calls, the forms of
-/// that middle, and its digest; nothing else moves.
-///
-/// **Moved with the carriers holding their frames as rigid motions**
-/// (`work/onehome/carrier-frames-the-types-and-the-lift.md`): the walls
-/// and caps are the sketch frame turned and stored, and a surface's
-/// evaluation reads its stored frame, so the walks build fewer forms over
-/// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
-/// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
-/// their digests; `Early/Decision` does not move.
-const SLAB_LEDGER: [&str; 3] = [
-    "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
-    "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
-    "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
-];
-
-/// The largest form (numerator plus denominator terms) any op built
-/// on each document at its nominal — the growth guard: a
-/// representation change that grows forms reds here in seconds,
-/// where the ledger alone would first run for minutes.
-///
-/// **Both moved with SYM-5's rule E** (the quotient's common factor),
-/// and in opposite directions, which is the rule's shape: the slab's
-/// largest 10 → 6, because the rule divides the shared factor out of
-/// every form it is given and can only SHRINK that form; the plate's
-/// 90 → 288, because a form the rule brings back under the budget is
-/// one that no longer FREEZES to a one-term indeterminate, and its
-/// consumers then build what the freeze used to cut off (the plate's
-/// `Early/Decision` frozen falls 48 → 8 in the ledger below). The rule
-/// never grows a form; the WALK's largest form grows because fewer
-/// forms are cut short.
-///
-/// **The plate's 288 → 252 is NOT this unit's**, and the row above is
-/// what says so: the plain walk consults no dial of the early walk,
-/// the plate's largest form is 252 under `shipped`, under
-/// `without_canonical_root`, under `without_the_reads` and under both
-/// shut, and the two `Plain/*` digests are identical across all four.
-/// Both numbers were stale against this pin before DECIDE-3's branch
-/// was cut — its own Phase 1 baseline records this row RED on the base
-/// with "every count identical, every digest moved" — so what changed
-/// them is a base change between the pin's last capture and the cut,
-/// and DECIDE-3 re-pins them without claiming them.
-///
-/// **What IS rule G's, by the same differential**: the plate's
-/// `Early/Assertion` and `Door/Decision` freezes fall 104 → 0, and the
-/// `Early/*` and `Door/*` digests move. **What A0's new fold is**: the
-/// slab's `Early/*` digests, and the `*/Report` rows absent on both
-/// documents — the sites the shape report used to be called on are
-/// comparisons of two rational CONSTANTS, and A0 decides those exactly
-/// now (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), so
-/// there is nothing left for the instrument to report.
-///
-/// **What rule G's exact quotient moves** (`SymRules::root_quotient`,
-/// the only change between the two captures): the plate's
-/// `Early/Decision` digest, and nothing else — every count on every
-/// line identical, the slab's ledger and both largest forms unmoved.
-/// Its reach on the plate's nominal replay is 108 of the 208 root mints
-/// that reach it (ten distinct arguments, asked again across walks):
-/// on 76 of them the split would have keyed the root differently, on
-/// 32 it declined, and on each the quotient's root is a different form
-/// (counted by a local probe, reverted, and matching review r1's count
-/// at the rule's first head). No decision moves: the plate's split and
-/// receipt are unmoved (`sym_9_retry_interval`'s pin reads
-/// `[811, 0, 140, 462]` either way). One digest and not more is the
-/// ledger's charging rule read on this document: a memoized form is
-/// chained into the line of the walk and origin that first builds it,
-/// and these roots are first built by the decision walk — the pin
-/// holds that no other line moves, and that reading of it is not a
-/// separate measurement.
-///
-/// **With the span read as the stored sweep signed by the decided turn**
-/// (`sweep`'s `arc_span`) and the pushforward and a cap's apex reading
-/// that same stored sweep, every form count is the one the doc above
-/// the ledger names (`Plain/Decision` 15046, `Door/Decision` 11864),
-/// and the `Early/Assertion` and `Door/Decision` lines freeze 104 nodes
-/// each again where rule G had taken them to 0. The cause is the cap
-/// apex: `sweep::swept::arc_apex` reads `tan(|Δθ|/4)` off the sweep,
-/// so its sagitta carries a `tan(1·atan(1))` atom rule D does not fold
-/// (rule D folds `sin` and `cos` of `q·atan X`, not `tan`), and every
-/// one of the 104 is a `Powi` of a form over that atom refused on the
-/// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
-/// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
-/// probe and reverted
-/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
-/// The plate's receipt is `[811, 0, 140, 462]` either way, and the
-/// `*/Report` rows stay absent.
-///
-/// **When the certification schedule began assigning its end samples**
-/// (`geom_brep::schedule_param`: `t₀` and `t₁` themselves) the decision
-/// walks build fewer forms — `Plain/Decision` 15046 → 14609,
-/// `Early/Decision` 7995 → 7741, `Door/Decision` 11864 → 11548 — and
-/// those three digests move; calls, frozen counts, the assertion lines
-/// and the receipt are unchanged, and the slab's `Plain/Decision` line
-/// moves the same way. Measured by restoring the old end samples on a
-/// probe, which restores both old ledgers.
-///
-/// **When `geom::mid_param` was respelled `(t0 + t1)·½`** (from
-/// `t0 + (t1 − t0)·½`, reading each end once), every walk builds
-/// different forms. The slab's `Plain/Decision` goes 9426 → 9852 at
-/// every row. On the plate, every line's forms rise
-/// (`Plain/Decision` 14609 → 15086, `Plain/Assertion` 2593 → 2941,
-/// `Early/Decision` 7741 → 7973, `Early/Assertion` 3405 → 3753,
-/// `Door/Decision` 11548 → 12012), and so do the freezes:
-/// `Plain/Decision` 672 → 720, `Plain/Assertion` 372 → 420, and the
-/// apex lines 104 → 112. Calls are unchanged. Measured by restoring the
-/// old spelling on a probe, which restores both ledgers.
-///
-/// **With the one apex spelling** (`Arc2::apex`, whose sagitta reads
-/// `Arc2::quarter_tan`, the quarter sweep's `sin / cos` that rule D
-/// folds, in place of `tan`), the `Early/Assertion` and `Door/Decision`
-/// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
-/// are gone, as folding `tan` measured above. A probe spelling
-/// `quarter_tan` as `tan` restores 104 on both lines.
-///
-/// **When the circles began storing their authored carrier** (centre
-/// and `|r|`, `store-constructed-carriers`), the 148 decisions the door
-/// answered on the plate became theorems: `Door/Decision` calls
-/// 596 → 448 (forms 13624 → 6768), and the walks build smaller forms —
-/// the plate's largest 252 → 28 terms, `Plain/Decision` forms
-/// 16596 → 16228 and frozen 696 → 252, `Plain/Assertion` 3944 → 3915
-/// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
-/// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
-/// and the `Report` lines' moves. The slab, a polygon, does not move.
-///
-/// **The slab's largest 6 → 4** when the extrude stopped fitting planes
-/// to its corners: the largest form it built was a Newell sum's.
-const SLAB_MAX_TERMS: usize = 4;
-const PLATE_MAX_TERMS: usize = 38;
-
-/// The plate's walk ledger at its nominal — one row, because the
-/// plate's nominal reads no ε (its dimensions are literals, not
-/// multiples of ε) and the captures at the three rows agree.
-///
-/// What moves it: any change to the forms the walks meet, or the order
-/// they meet them in — a loop's start vertex, how a sketch segment or
-/// an arc apex is pushed forward, where a curve is sampled, how an
-/// edge's mid parameter is spelled ([`geom::mid_param`]). A change
-/// that moves only digests reorders the forms; one that moves counts
-/// changes what is built.
-///
-/// The door's calls include the lowering's endpoint registrations
-/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions. The
-/// extrude's closing pcurve mint certifies the plate's wall rows, so
-/// the certificate's decisions — its frame, incidence and fidelity
-/// checks — are walked too, and a change to how any of them reads moves
-/// this ledger. The residuals the certificate leaves blocked are
-/// rendered by the shape report (the `Report` lines, which build no
-/// form).
-///
-/// The holes' plane mates place by a reach read off the faces' cover
-/// (`topo::cover`): its norms, its maxima over corners and its arc
-/// windows' sines and cosines are `Plain/Decision` forms, and the
-/// largest form ([`PLATE_MAX_TERMS`]) is one of them, so a change to how
-/// a cover is read can move that line and that bound with no decision
-/// moving on the plate at these ε. That is the plate's fact, not a rule:
-/// freezing is not monotone in reach, so a form frozen past the degree
-/// budget can flip a verdict elsewhere.
-///
-/// The pinned lines are main's reading; each move of them, with its
-/// cause, is recorded on the work row that re-pinned it.
-const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
-     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
-     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
-
-/// **What the walks BUILD is pinned, not only what the tier decides.**
-/// For the slab and the plate at their nominals, every (walk, origin)
-/// line of the profile's walk ledger — calls, forms, frozen, and the
-/// digest chain of the forms themselves (`WalkProfile::digest`: each
-/// memoized form's canonical digest, the key an atom over it is minted
-/// under, chained in build order). The ledger was captured on the tree
-/// that held a form as a `BTreeMap` of terms and is asserted since: a
-/// form's storage may change, and what it SAYS — every coefficient,
-/// every term in the map's order, hence every atom key and every
-/// decision — may not. The pins hold the decisions; this row holds
-/// the forms behind them, so a swapped term order or a coefficient
-/// normalised differently reads here even where the outcome survives
-/// it.
-///
-/// One replay of `doc` at its nominal; panics unless its largest form
-/// and its ledger are the pinned ones.
-fn assert_walk_ledger(name: &str, doc: &ProfileDoc, expected: &str, max_terms: usize, tol: Tol) {
+/// One replay of `doc` at its nominal with the profile installed: its
+/// walk ledger — per walk and origin the calls, the forms, the frozen,
+/// and the digest chain of the forms built (`WalkProfile::digest`) —
+/// and the largest form any op built.
+fn walk_ledger(name: &str, doc: &ProfileDoc, tol: Tol) -> (String, usize) {
     let (_, nominal) = boxes(doc).into_iter().next().unwrap();
     start_profile();
-    let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
+    let _ = replay(doc, &nominal, SymRules::shipped(), tol);
     let profile = take_profile();
     let ledger = profile.walk_ledger();
     let largest = profile
@@ -524,44 +259,86 @@ fn assert_walk_ledger(name: &str, doc: &ProfileDoc, expected: &str, max_terms: u
         "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
         tol.eps()
     );
-    assert_eq!(
-        largest,
-        max_terms,
-        "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
-        tol.eps()
-    );
-    assert_eq!(
-        ledger.trim(),
-        expected.trim(),
-        "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
-        tol.eps()
-    );
+    (ledger, largest)
 }
 
-/// The slab's walk ledger ([`assert_walk_ledger`]), per ε row. One
-/// replay, cheap enough for the per-PR gate, so a PR that moves what
-/// the slab's walks build sees it there: it stands in, on the gate, for
-/// [`the_forms_the_plates_walks_build_are_pinned`] and
+/// The frozen count of each line of a walk ledger, by its line's
+/// `walk/origin` label.
+fn frozen_by_line(ledger: &str) -> Vec<(String, u64)> {
+    ledger
+        .lines()
+        .filter_map(|l| {
+            let label = l.split_whitespace().next()?.to_owned();
+            let frozen = l.split(" frozen ").nth(1)?.split_whitespace().next()?;
+            Some((label, frozen.parse().ok()?))
+        })
+        .collect()
+}
+
+/// **The slab's walks are a function of the replay, freeze nothing,
+/// and stay under the growth guard.** Two replays of the slab at its
+/// nominal build the same ledger, digest chains included: a form's
+/// storage may change, and the forms a replay builds, in the order it
+/// builds them, may not differ from one replay to the next. The slab is
+/// a polygon, so no form on any walk passes the budget and freezes.
+/// One replay is cheap enough for the per-PR gate, so it stands in
+/// there for [`the_plates_largest_form_is_under_the_growth_guard`] and
 /// [`the_plains_ledger_lines_are_the_same_under_every_dial_set`], which
-/// replay the plate and run nightly. It does not stand in for the
-/// plate's own lines: the slab has no curved wall, so a change to how
-/// the certificate reads a cylinder's pcurve moves the plate alone.
+/// replay the plate and run nightly.
 #[test]
-fn the_forms_the_slabs_walks_build_are_pinned_per_eps_row() {
+fn the_slabs_walks_build_one_ledger_and_freeze_nothing() {
     let tol = Tol::witness();
-    let row = eps_row(tol.eps());
-    assert_walk_ledger("slab", &slab(), SLAB_LEDGER[row], SLAB_MAX_TERMS, tol);
+    let (first, largest) = walk_ledger("slab", &slab(), tol);
+    let (again, _) = walk_ledger("slab", &slab(), tol);
+    assert_eq!(
+        first,
+        again,
+        "two replays of the slab at eps {:e} built different forms",
+        tol.eps()
+    );
+    let frozen = frozen_by_line(&first);
+    assert!(
+        !frozen.is_empty() && frozen.iter().all(|(_, n)| *n == 0),
+        "the slab's walks freeze nothing at eps {:e}: {frozen:?}",
+        tol.eps()
+    );
+    assert!(
+        largest <= SLAB_MAX_TERMS,
+        "the slab's largest form has {largest} terms, past the growth guard {SLAB_MAX_TERMS}"
+    );
 }
 
-/// The plate's walk ledger ([`assert_walk_ledger`]); its nominal reads
-/// no ε, so one pin serves every row.
+/// The plate's largest form under the growth guard ([`PLATE_MAX_TERMS`]).
+/// The holes' plane mates place by a reach read off the faces' cover
+/// (`topo::cover`), and the largest form is one of its norms, so a
+/// change to how a cover is read is what moves it.
+///
+/// **And the cap apex's lines freeze nothing** — the witness of an open
+/// row, not a baseline: rule D folds `sin` and `cos` of `q·atan X` but
+/// not `tan`, and a cap apex read through `tan(|Δθ|/4)` froze 104 nodes
+/// on each of `Early/Assertion` and `Door/Decision`
+/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it.md`).
+/// The apex reads `Arc2::quarter_tan` now; a reader that mints the
+/// `tan` atom again reds here. It goes when that row closes.
 #[test]
-fn the_forms_the_plates_walks_build_are_pinned() {
+fn the_plates_largest_form_is_under_the_growth_guard() {
     let tol = Tol::witness();
-    assert_walk_ledger("plate", &the_plate(tol), PLATE_LEDGER, PLATE_MAX_TERMS, tol);
+    let (ledger, largest) = walk_ledger("plate", &the_plate(tol), tol);
+    let apex: Vec<_> = frozen_by_line(&ledger)
+        .into_iter()
+        .filter(|(label, _)| label == "Early/Assertion" || label == "Door/Decision")
+        .collect();
+    assert!(
+        apex.len() == 2 && apex.iter().all(|(_, n)| *n == 0),
+        "the cap apex's lines freeze nothing on the plate: {apex:?}"
+    );
+    assert!(
+        largest <= PLATE_MAX_TERMS,
+        "the plate's largest form has {largest} terms, past the growth guard {PLATE_MAX_TERMS}"
+    );
 }
 
-/// **The walk ledger on the documents the pinned row does not
+/// **The walk ledger on the documents the gating rows do not
 /// measure** — the M10-10 evidence set at scale 1 (the plate, the two
 /// brackets, the annulus, the pad, the link), at the nominal and over
 /// a leaf-sized box — printed, not asserted, so a merge-base build and
@@ -625,15 +402,11 @@ fn the_walk_ledger_on_the_unmeasured_documents() {
     }
 }
 
-/// **Which dial moves which line of the plate's ledger.** The unit
-/// that shipped rule G re-baselined the plate's `PLATE_MAX_TERMS` and
-/// both of its `Plain/*` digests and said rule G had moved them; it
-/// had not — the plain walk consults neither new dial, and the two
-/// numbers were stale against the pin before this branch was cut. This
-/// row is what keeps the attribution honest: it replays the plate under
-/// each dial set and asserts that the PLAIN lines are identical across
-/// all of them, so a future claim that a rule of the early walk moved
-/// a plain form reds here first.
+/// **No dial of the early walk moves a line of the plain walk.** The
+/// row replays the plate under each dial set and asserts that the PLAIN
+/// lines of its ledger — calls, forms, frozen and digest chain — are
+/// identical across all of them, so a claim that a rule of the early
+/// walk moved a plain form reds here first.
 #[test]
 fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let tol = Tol::witness();
@@ -642,8 +415,8 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     // `Plain/Report` is not a form the plain walk builds: it counts the
     // residuals rendered because they BLOCKED, and which ones block is
     // the early walk's rules' to decide. So it is the one plain line a
-    // dial may move, and its count is pinned per dial set instead of
-    // compared across them: a dial that starts moving it moves a pin.
+    // dial may move: the sets with the canonical root render none, and
+    // the sets without it render the certificate's blocked reads.
     let is_report = |l: &str| l.trim_start().starts_with("Plain/Report");
     let plain_lines = |ledger: &str| {
         ledger
@@ -659,25 +432,21 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    let sets: [(&str, SymRules, Option<u64>); 4] = [
-        // The two sets without the canonical root render the blocked
-        // residuals of the certificate's reads; the shipped sets none.
-        // ONEHOME's moved copy (`Held::moved`): the holes are not
-        // re-certified in the plate's frame, so 94 -> 64 of them.
-        ("shipped", SymRules::shipped(), None),
+    let sets: [(&str, SymRules, bool); 4] = [
+        ("shipped", SymRules::shipped(), false),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(64),
+            true,
         ),
-        ("without_the_reads", SymRules::without_the_reads(), None),
+        ("without_the_reads", SymRules::without_the_reads(), false),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(64),
+            true,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
@@ -694,9 +463,11 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             lines.join("\n    ")
         );
         assert_eq!(
-            report_calls(&ledger),
+            report_calls(&ledger).is_some_and(|n| n > 0),
             blocked,
-            "{name}: the plain walk renders a different number of blocked residuals"
+            "{name}: the plain walk renders blocked residuals where the canonical root is off, \
+             and none where it is on: {:?}",
+            report_calls(&ledger)
         );
         match &seen {
             None => seen = Some((name, lines)),

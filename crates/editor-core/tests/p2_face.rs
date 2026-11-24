@@ -212,7 +212,7 @@ fn a_kept_mates_named_target_is_severed_where_its_written_one_crosses() {
         let (p, doc, [base, top, k], m) = face_across(label);
         let o = p.opts();
         let doc = if named {
-            let to = fixture::constraint(&doc, m).to;
+            let to = fixture::constraint(&doc, m).to.read;
             step(
                 doc,
                 DocEdit::RenameVar {
@@ -270,13 +270,14 @@ fn a_named_number_a_kept_mates_target_and_a_cut_node_read_refuses() {
     let (doc, _seat) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let mut rest = fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top)));
     rest.to = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
-        pose: rest.to.clone().into(),
+        pose: rest.to.clone(),
         along: editor_core::pose::RoleRead {
-            read: rest.to.clone(),
+            read: rest.to.read.clone(),
             role: Some(editor_core::pose::PoseRole::Normal),
         },
         by: gap(),
-    }));
+    }))
+    .into();
     let (doc, _) = fixture::constrain_at(doc, k, rest);
     let (doc, profile) = fixture::on_frame(
         doc,
@@ -911,7 +912,7 @@ fn a_selection_of_two_members_of_the_copy_refuses_at_inline() {
     );
     let (part, _k, pattern) = fixture::linear(part, block, [2.0, 0.0, 0.0], 2.0, 3);
     let mut store = PartStore::default();
-    let (part_ref, _) = store.insert_part((part, pattern), Tol::witness());
+    let (part_ref, _) = store.insert_family_part((part, pattern), Tol::witness());
     let o = with_resolver(store.clone());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, inst) = fixture::insert_pinned(doc, fixture::mated_instance(part_ref), &o);

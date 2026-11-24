@@ -137,7 +137,8 @@ fn mass_properties_reports_the_side_refusal_on_the_half_cap() {
     // door (CERT-1's rows admit the pole-crossing arc on purpose).
     let face_a = body.get_face(cap).expect("the half-cap");
     let surface = body.face_surface(cap).expect("its sphere");
-    let (outer, _) = topo::props::loop_edges(&body, face_a.outer).expect("its loop");
+    let (outer, _) = topo::props::loop_edges(body.cycle_loop(face_a.outer).expect("a cycle loop"))
+        .expect("its loop");
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     let fc = geom_brep::props::curved_face(surface, &outer, face_a.sense, band)
         .expect("the half-cap still measures");
@@ -229,7 +230,7 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let cone_face = vec![edge(
         Curve3::line(
             Point3::<f64>::new(0.0, 0.0, 0.0),
-            Vec3::<f64>::new(s2, 0.0, s2),
+            geom::stated_direction(Vec3::<f64>::new(s2, 0.0, s2)),
         ),
         -1.0,
         1.0,
@@ -241,7 +242,7 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let cylinder_face = vec![edge(
         Curve3::line(
             Point3::<f64>::new(1.0, 0.0, 0.0),
-            Vec3::<f64>::new(0.0, 0.0, 1.0),
+            geom::stated_direction(Vec3::<f64>::new(0.0, 0.0, 1.0)),
         ),
         -5.0,
         5.0,

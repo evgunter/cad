@@ -54,13 +54,11 @@ DOORS = {
     'Reach::of_face': EXTENT_HOME,
     'Reach::Measured': EXTENT_HOME,
     'Reach::Face': EXTENT_HOME,
-    'lever_from_within': EXTENT_HOME,
     'lever_from_point_and_plane': EXTENT_HOME,
     'of_crossing_cylinders': EXTENT_HOME,
+    'generator_lever': EXTENT_HOME,
     'hinge_lever': EXTENT_HOME,
     'turn_lever': EXTENT_HOME,
-    'ruled_lever': EXTENT_HOME,
-    'generator_lever': EXTENT_HOME,
 }
 FREE = [d for d in DOORS if '::' not in d]
 TYPES = r'(?:Lever|ExtentBall|Reach)'

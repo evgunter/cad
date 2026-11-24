@@ -2,11 +2,12 @@
 id: a-properties-test-message-calls-the-probe-refusal-ratified
 kind: issue
 title: a properties-pane test's assertion message calls the range probe's refusal the ratified affordance
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
 refs: [ratified-is-asserted-across-viewer-src-and-some-was-never-ratified]
+closed: 2026-11-23
 ---
 
 `crates/viewer/src/pane/properties.rs`,
@@ -22,3 +23,7 @@ string literal, so it was left.
 
 **Fix:** drop *"the ratified"*, e.g. *"and it renders as the
 affordance, from its one home"*. No test outcome changes.
+
+## Closed (2026-11-23)
+
+Nothing left to fix: the code it describes is deleted. Ev's decision on #7340 removes the sampling probe, and OFFER's `certify-affordance-on-the-bounds-panel` makes `range?` the certified search (`editor_core::range`), whose reading is `viewer::session::range`.

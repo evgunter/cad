@@ -2,13 +2,13 @@
 id: offer
 kind: program
 title: OFFER — what the viewer offers a person to do about what it shows, and what it asks of the platform beneath it
-status: active
+status: ready
 opened: 2026-09-22
 group: gui/author
 prefix: offer/
 tag: (OFFER orchestrator)
 ab_band: 10100-10199
-paths: [crates/viewer/src/session.rs, crates/viewer/src/session/delete.rs, crates/viewer/src/bounds.rs, crates/viewer/src/docio.rs, crates/viewer/src/platform.rs, crates/viewer/src/gpu.rs]
+paths: [crates/viewer/src/session.rs, crates/viewer/src/session/delete.rs, crates/viewer/src/docio.rs, crates/viewer/src/platform.rs, crates/viewer/src/gpu.rs]
 keep_out: [opened by CHROME's 2026-09-22 priority-seam cut per work/README.md Track size - CHROME measured 88 budget points against 30 and its P0 and P1 rows alone were 55 - the siblings are CHROME and FORMS and all three share crates/viewer by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, CHROME keeps how a refusal's TEXT is laid out and how long it is (error-and-check-text-overflows-its-region and its residue) - a-refusal-offers-no-action-in-the-viewer is the same failed union's other half and its unit announces itself to CHROME, VSEAM owns what the viewer holds for the document and claims session.rs and docio.rs too, crates/editor-core is shared ground - the decided offer design (Ev on PR 7341) has OFFER carry its kernel half, a finding's typed recourse in checks/at_rest.rs (ATREST) and coincide.rs and checks.rs (COINCIDE), and each such unit announces itself on those programs' logs]
 ---
 

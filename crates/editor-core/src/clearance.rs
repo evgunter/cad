@@ -103,6 +103,9 @@
 //! the path and no re-witnessing: this lane cannot express a document
 //! write, which is a stronger statement than one it does not perform.
 
+use crate::Said;
+use crate::say;
+use crate::sentence;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -703,11 +706,7 @@ impl ClearanceRefusal {
 // It holds ids, said by whichever speaker renders it; an engine
 // refusal's pair is named by the selection each face is of.
 impl crate::spoken::Say for ClearanceRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Engine {
                 refusal,
@@ -715,8 +714,12 @@ impl crate::spoken::Say for ClearanceRefusal {
             } => refusal.say(
                 f,
                 [
-                    &format_args!("body {i} of {}", by.node(*first)),
-                    &format_args!("body {j} of {}", by.node(*second)),
+                    &|f: &mut crate::Sentence| {
+                        say!(f, format_args!("body {i} of "), by.node(*first))
+                    },
+                    &|f: &mut crate::Sentence| {
+                        say!(f, format_args!("body {j} of "), by.node(*second))
+                    },
                 ],
             ),
             Self::Selection(r) => r.say(f, by),
@@ -758,7 +761,7 @@ impl crate::spoken::Say for ClearanceRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for ClearanceRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -848,50 +851,50 @@ pub enum SelectionRefusal {
 
 // It holds ids, said by whichever speaker renders it.
 impl crate::spoken::Say for SelectionRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDidNotBuild(standing) => write!(
+            Self::NodeDidNotBuild(standing) => say!(
                 f,
                 "the selection has no faces to measure a clearance between in this leaf's \
-                 replay: {}",
+                 replay: ",
                 crate::spoken::Said(standing, by)
             ),
             Self::NoSuchBody { node, index } => {
-                write!(
+                say!(
                     f,
-                    "{}'s value carries no body at index {index}",
-                    by.node(*node)
+                    by.node(*node),
+                    format_args!("'s value carries no body at index {index}")
                 )
             }
-            Self::NoBodies { node, payload } => write!(
+            Self::NoBodies { node, payload } => say!(
                 f,
-                "{}'s value {}, so there is no face to measure a clearance between. {}",
                 by.node(*node),
-                crate::sentence::CarriesNoBodies(payload),
-                crate::sentence::Recourse("select a node whose value is a body")
+                format_args!(
+                    "'s value {}, so there is no face to measure a clearance between. {}",
+                    crate::sentence::CarriesNoBodies(payload),
+                    crate::sentence::Recourse("select a node whose value is a body")
+                )
             ),
-            Self::Unresolved { name } => write!(
+            Self::Unresolved { name } => say!(
                 f,
-                "nothing in the selected node's name table answers to {}",
+                "nothing in the selected node's name table answers to ",
                 by.name(name)
             ),
-            Self::NotAFace { name, found } => write!(
+            Self::NotAFace { name, found } => say!(
                 f,
-                "{} denotes {} {}, and a clearance is measured between faces",
                 by.name(name),
-                found.article(),
-                found.noun()
+                format_args!(
+                    " denotes {} {}, and a clearance is measured between faces",
+                    found.article(),
+                    found.noun()
+                )
             ),
             Self::Tied { name, candidates } => {
-                write!(
+                say!(
                     f,
-                    "{} faces answer to {} equally well (",
-                    candidates.len(),
-                    by.name(name)
+                    format_args!("{} faces answer to ", candidates.len()),
+                    by.name(name),
+                    " equally well ("
                 )?;
                 for (n, c) in candidates.iter().enumerate() {
                     let sep = if n == 0 { "" } else { ", " };
@@ -906,33 +909,45 @@ impl crate::spoken::Say for SelectionRefusal {
                     crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
-            Self::OtherBody { name, body } => write!(
+            Self::OtherBody { name, body } => say!(
                 f,
-                "{} denotes a face of body {body}, not of the selected body",
-                by.name(name)
-            ),
-            Self::KeyOfAnotherKind { name, found } => write!(
-                f,
-                "{} names a face, and its row in the name table holds {} {} — the table seated a \
-                 row against its name's kind. {}",
                 by.name(name),
-                found.article(),
-                found.noun(),
-                geom_core::KERNEL_DEFECT_ENDING
+                format_args!(" denotes a face of body {body}, not of the selected body")
             ),
-            Self::AcrossSpaces { a, b } => write!(
+            Self::KeyOfAnotherKind { name, found } => say!(
                 f,
-                "the two selections live in different spaces, {} and {}, and {}. {}",
+                by.name(name),
+                format_args!(
+                    " names a face, and its row in the name table holds {} {} — the table seated a \
+                 row against its name's kind. {}",
+                    found.article(),
+                    found.noun(),
+                    geom_core::KERNEL_DEFECT_ENDING
+                )
+            ),
+            Self::AcrossSpaces { a, b } => say!(
+                f,
+                "the two selections live in different spaces, ",
                 by.space(*a),
-                by.space(*b),
-                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
-                crate::sentence::Recourse(crate::sentence::place_into_one_space("measure within"))
+                sentence!(
+                    " and ",
+                    by.space(*b),
+                    format_args!(
+                        ", and {}. {}",
+                        crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                        crate::sentence::Recourse(crate::sentence::place_into_one_space(
+                            "measure within"
+                        ))
+                    )
+                )
             ),
-            Self::Frame { node, refusal } => write!(
+            Self::Frame { node, refusal } => say!(
                 f,
-                "{}'s body could not be read into the frame the clearance is asked in: {}",
                 by.node(*node),
-                refusal.kind()
+                sentence!(
+                    "'s body could not be read into the frame the clearance is asked in: ",
+                    Said(&refusal.kind(), by)
+                )
             ),
         }
     }
@@ -941,7 +956,7 @@ impl crate::spoken::Say for SelectionRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for SelectionRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -1112,9 +1127,16 @@ impl ClearanceReport {
 
     /// **The human form** (M10-6 §2): the verdict in words, the
     /// witness as numbers rather than as bits, and the measured
-    /// discharge widths that say what the certificate cost.
-    pub fn render(&self) -> String {
+    /// discharge widths that say what the certificate cost. One
+    /// sentence per line; a refusal's nodes are mentioned by tag.
+    pub fn render(&self) -> crate::Lines {
+        self.rendered().lines()
+    }
+
+    /// [`Self::render`]'s lines, as one sentence.
+    fn rendered(&self) -> crate::Sentence {
         use core::fmt::Write as _;
+        let mut said = crate::Sentence::new();
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
@@ -1135,7 +1157,12 @@ impl ClearanceReport {
                 );
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
+                let _ = crate::say!(
+                    &mut said,
+                    format_args!("REFUSED ({}): ", r.name()),
+                    crate::Said(r, crate::Speaker::TAG),
+                    "\n"
+                );
             }
         }
         let r = self.receipt;
@@ -1170,7 +1197,8 @@ impl ClearanceReport {
                 .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
             w.deepest
         );
-        s
+        let _ = crate::say!(&mut said, s);
+        said
     }
 
     /// `verdict`, with the sweep's receipt, widths and region count.
@@ -1203,12 +1231,21 @@ impl ClearanceReport {
 /// census made global and parametric): the selection's boundary is
 /// injective, ERROR-DESIGN's *Self-intersection scope*.
 ///
-/// Every pair of the selection's faces is examined, a face against
-/// itself included. A face on an analytic carrier is injective by its
-/// kind; two cells that share no point of the boundary are certified at
-/// strictly positive distance; two that do are certified by a local
-/// certificate or refuse typed, naming the two faces, the shared cell
-/// and the arm ([`topo::clearance::Sweep::run`]).
+/// `Holds` rests on every pair of the selection's faces, a face
+/// against itself included. A face on an analytic carrier is injective
+/// by its kind; two cells that share no point of the boundary are
+/// certified at strictly positive distance; two that do are certified
+/// by a local certificate or refuse typed, naming the two faces, the
+/// shared cell and the arm ([`topo::clearance::Sweep::run`]).
+///
+/// It ends one of three ways: it proves the boundary clean (`Holds`);
+/// it finds and verifies a place where the boundary meets itself (a
+/// crossing, `Violated`); or it cannot decide a pair of faces
+/// (`Refused`). It ends at the first crossing or refusal it meets, and
+/// that is the leaf's verdict: the pairs after it are not read. A boundary that crosses itself and also holds a place the
+/// engine cannot read is told whichever the walk meets first, which
+/// moves with the body's pose and its faces' order; it is never told
+/// that it holds.
 pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1233,10 +1270,12 @@ pub fn self_intersection(
 /// and the strict bound over one body is the injectivity question.
 /// Between two bodies it is metric.
 ///
-/// The verdict combines the pairs' outcomes in one fixed order: a
-/// definite violation outranks a refusal, which outranks `Holds`. A
-/// finding is a stronger statement than an unknown, and an unknown is
-/// never presented as a pass.
+/// A metric bound's verdict combines the pairs' outcomes in one fixed
+/// order: a definite violation outranks a refusal, which outranks
+/// `Holds`. A finding is a stronger statement than an unknown, and an
+/// unknown is never presented as a pass. The injectivity question ends
+/// at its first finding instead ([`self_intersection`]), so its
+/// violation is one met before any refusal.
 pub fn clearance_at_dials(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1689,33 +1728,44 @@ impl LeafFold {
 
     /// **The human form**: the verdict, then the four mass columns as
     /// percentages with the drive's uncertified share on its own line,
-    /// so no reader takes "holds" for "holds everywhere".
-    pub fn render(&self) -> String {
+    /// so no reader takes "holds" for "holds everywhere". One sentence
+    /// per line, as [`ClearanceReport::render`].
+    pub fn render(&self) -> crate::Lines {
         use core::fmt::Write as _;
-        let mut s = ClearanceReport {
+        let mut lines = ClearanceReport {
             verdict: self.verdict.clone(),
             receipt: self.receipt,
             widths: self.widths,
             decided: self.decided,
         }
-        .render();
+        .rendered();
+        let mut s = String::new();
         let m = &self.mass;
         let _ = writeln!(s, "  over {} certified leaf/leaves:", self.leaves.len());
         let _ = writeln!(
             s,
             "    {} of the measure holds",
-            crate::report::percent(&m.holds)
+            crate::report::percent(&m.holds, crate::Speaker::TAG, 0)
         );
-        let _ = writeln!(s, "    {} violated", crate::report::percent(&m.violated));
+        let _ = writeln!(
+            s,
+            "    {} violated",
+            crate::report::percent(&m.violated, crate::Speaker::TAG, 0)
+        );
         for (class, v) in &m.refused {
-            let _ = writeln!(s, "    {} refused ({class})", crate::report::percent(v));
+            let _ = writeln!(
+                s,
+                "    {} refused ({class})",
+                crate::report::percent(v, crate::Speaker::TAG, 0)
+            );
         }
         let _ = writeln!(
             s,
             "    {} the DRIVE never certified — this certificate says nothing about it",
-            crate::report::percent(&m.uncertified_by_the_drive)
+            crate::report::percent(&m.uncertified_by_the_drive, crate::Speaker::TAG, 0)
         );
-        s
+        let _ = crate::say!(&mut lines, s);
+        lines.lines()
     }
 }
 

@@ -514,7 +514,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
         }
     }
 }
-/// A validated tensor-product NURBS surface (module docs; immutable
+
 /// **The three states a NURBS control net can be in.** This enum's
 /// docs are the one statement of the distinction; every consumer that
 /// tells the states apart matches on [`NurbsSurface::net_state`] and
@@ -557,6 +557,7 @@ pub enum NetState {
     Poisoned,
 }
 
+/// A validated tensor-product NURBS surface (module docs; immutable
 /// after construction — every knot-algebra operation returns a new
 /// surface).
 #[derive(Clone)]
@@ -772,8 +773,7 @@ impl<T: Real> NurbsSurface<T> {
     /// description yet" state — rather than a described surface?
     ///
     /// The discriminator and the reason it is `all` and not
-    /// `any` are the crate docs' totality-and-poison section;
-    /// the surface and curve halves answer it identically.
+    /// `any` are the crate docs' totality-and-poison section.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
     }

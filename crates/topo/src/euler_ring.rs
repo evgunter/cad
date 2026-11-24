@@ -244,11 +244,11 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
-use crate::euler::RechartDoor;
 use crate::euler::{
     BadArgument, Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records,
     RunExtent, require_halves, shared_loop,
 };
+use crate::euler::{EdgeSubject, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::live::{Arg, Live, link, linked, lookup, require_key};
@@ -1509,6 +1509,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1610,6 +1611,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1701,6 +1703,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),
@@ -1801,6 +1804,7 @@ impl<T: Decide> Body<T> {
         // he_plus forward order).
         let certified = self.certify_edge_spec(
             crate::policy_lane::Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(u == w, p_u, p_w),

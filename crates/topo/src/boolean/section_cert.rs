@@ -121,7 +121,8 @@
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
-//!   to it; a cone against a non-coaxial torus; a NURBS or approximated
+//!   to it; a cone whose apex lies on a torus off its axis, a node or a
+//!   touch the march does not end at; a NURBS or approximated
 //!   face paired with anything but a plane or another spline face, and a
 //!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
@@ -153,42 +154,89 @@
 //!
 //! # A touch
 //!
-//! Sphere × plane, sphere × sphere (outside one another, or inside with
-//! their centres decided apart), sphere × cylinder at its nearest ruling
-//! with the girdle decided (the ball clear of the axis), and skew
-//! cylinders outside one another touch at one point `at` when their
-//! reach margin decides `Zero`. So does a torus whose plane, sphere or parallel-axis wall is
-//! tangent to the tube at an elliptic point (the tube's outer half) that
-//! is the strict extreme, over the torus, of the partner's level
-//! function (the plane's height, the distance from the sphere's centre
-//! or the wall's axis), clear of its next critical value by a decided
-//! margin: in every pose the band admits, the torus's side of the
-//! partner near that level is then one disc about `at` or empty. A
-//! tangency at a hyperbolic point, along a whole parallel (a coaxial
-//! partner, a plane normal to the axis, a sphere centred on it), or
-//! where the elliptic or extreme reading is undecided, is a pinch. The
-//! arm does not count the section there. In the exact pose
-//! the carriers share `at` alone. In a pose the decided margin admits
-//! where they cross, they share one loop `γ` about `at`, bounding a
-//! connected region of each carrier inside which they stand within the
-//! margin of each other. The argument needs that region connected, not
-//! small: a plane near the top parallel cuts a long cap. On a pair with no
-//! event, the touch clears when `at` places `Out` of either face. With
-//! no event, `γ ∩ F ∩ G` is empty or `γ ⊂ int F ∩ int G` (L1). In the
-//! second case, a path on `F`'s carrier from `γ` inward to `at` leaves
-//! `F`, or leaves what lies over `G`, at some first point. That point
-//! is on an edge of one face, over the other face, within the margin of
-//! the other carrier: an edge × face contact the sweep records or
-//! refuses (S), so the pair would carry an event. Where the loop is
-//! smaller than `at`'s rounding, the path runs outside it by no more
-//! than that rounding, where the carriers still stand within the band.
+//! A margin decided `Zero` on an arm that reads the carriers meeting at
+//! one point `at` in the exact pose, C1's point touch, is a touch where
+//! the arm also claims its **near band** `W` one piece: the points of
+//! either carrier where the other stands within the decided margin `m`
+//! (the zero band and the slack the arm's reading carries, at most
+//! `2ε`), in every pose the margin admits, form one connected region
+//! holding `at` and every component of the section.
 //!
-//! A pair with an event refuses R-tan at a touch, since the argument
-//! needs the pair's own silence. Any other tangency is a pinch — the
-//! components meet, or one becomes two — and refuses R-tan.
+//! - Sphere × plane, sphere × sphere (outside one another, or inside with
+//!   their centres decided apart), sphere × cylinder at its nearest
+//!   ruling with the girdle decided (the ball clear of the axis), and
+//!   skew cylinders outside one another: `W` is a small disc.
+//! - A torus against a plane, a sphere centred off its core, or a wall
+//!   parallel to its axis whose axis misses the tube, at a point extreme
+//!   of the partner's **level function** over the torus (the plane's
+//!   height, the distance from the sphere's centre or the wall's axis),
+//!   on the tube's outer half or its inner. On these arms the function
+//!   has only the critical points every function on a torus must have,
+//!   one minimum, one maximum and two saddles, and its band about either
+//!   extreme is one disc in every pose the margin admits whatever its
+//!   other critical values do: each component of the band holds a local
+//!   extreme or spans the band, and there are no local extremes but those
+//!   two.
+//!
+//! A tangency at a saddle (C1's crossing touch), along a whole parallel
+//! (a coaxial partner, a plane normal to the axis) or a meridian (a
+//! sphere centred on the core), against a wall through the tube, with a
+//! margin left undecided, or on a marched or general pose refuses R-tan,
+//! as does every other pinch, where components meet or one becomes two.
+//!
+//! **The argument is L1 over `W`.** On a pair with no event, the touch
+//! clears when `at` places `Out` of either face. Were a component `γ` of
+//! the section inside `int F ∩ int G`, the set `P` of the points of `W`
+//! that lie in `F` and over `G` would hold `γ` and not `at`, so, `W`
+//! being connected, `P` would have a relative boundary point in `W`.
+//! There an edge of `F` stands over `G`, or one of `G` over `F`, within
+//! `m` of the other carrier: an edge the sweep records or refuses (S′,
+//! below), and the pair would carry an event. So with no event `P` is
+//! empty. A pair with an event refuses R-tan at a touch, since the
+//! argument needs the pair's own silence.
+//!
+//! **`at` is the actual pose's deepest point**, never one read off the
+//! exact pose a reading idealises: exactly for the plane's foot and the
+//! sphere's nearest or farthest point, read off the partner as it stands;
+//! to first order for the parallel wall's, read off its own axis rather
+//! than the parallel reading's pivot, the residual second order in the
+//! tilt the pose admits (at most the band over the lever), below 1e-18
+//! at ε = 1e-9. In a pose where the carriers cross, the section bounds the cap
+//! of the torus the partner reaches past, which holds `at`, so `P`'s
+//! boundary lies in that cap, where the partner stands inside the torus
+//! solid (a plane's height and a distance from a line the solid does not
+//! reach take their range over the solid on its surface). An edge there
+//! is a straight edge of the partner inside the solid, or a circle (a
+//! torus face's parallel or meridian, a sphere's or a wall's rim), within
+//! `m` of the other carrier. Read off an idealised pose instead, `at` can
+//! stand outside the cap, where the partner's edges stand outside the
+//! solid, which S′ does not cover.
 //!
 //! # Premises, each at its site
 //!
+//! - **S′**, the sweep at a touch: every edge within the touch's margin
+//!   `m ≤ 2ε` of the other carrier, over the other face, on the side "A
+//!   touch" places it, is recorded or refused. S covers the edges that
+//!   meet the other face; a touch reads the ones that come near it. The
+//!   doors the sweep reads such an edge by (`reduce.rs` `wall_crossing`)
+//!   answer a tangency, escalate, or name a root within `2ε` of the
+//!   carrier, and go silent only on a clearance decided past `Kε`: at a
+//!   torus point touch, line × torus inside the solid (a plane's or a
+//!   wall's straight edge), circle × torus on either side, and circle ×
+//!   plane, sphere and wall (a torus face's circles); at the one-point
+//!   touches of a sphere or a wall against a plane, a sphere or a wall,
+//!   line × wall and line × sphere on either side (the reduction's belly
+//!   branch, its miss a discriminant decided as a depth in metres; a
+//!   segment whose ends are decided inside stands past `Kε` throughout,
+//!   the residual being convex along a line) and the circle doors
+//!   (`section_cert_touch_doors_rows`). Line × torus is silent
+//!   within the band outside the solid
+//!   (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`),
+//!   the side a touch at a saddle or along a parallel leans on; and a
+//!   segment inside the solid whose shallowest point stands 4ε–9ε deep
+//!   reads as no event
+//!   (`work/germ/a-segment-just-inside-a-torus-reads-no-event.md`), past
+//!   the `2ε` a point touch needs.
 //! - **S**, sweep completeness. It holds with the conic × plane lane
 //!   (`reduce.rs` `sweep_direction`) examining every root, not only the
 //!   first, and giving a conic that lies in the face's plane the line
@@ -285,8 +333,10 @@
 //!   two-component section is therefore always essential.
 //! - **Torus × coaxial {cylinder, torus}**: parallels, essential on both.
 //!
-//! Every torus pair but the plane and the cone is the section value's
-//! ([`geom_brep::pair_section()`]): its pose decided once, the critical
+//! Every torus pair but the plane is the section value's
+//! ([`geom_brep::pair_section()`]), the coaxial cone's count read here
+//! on the value's pose ([`geom_brep::ConeTorusPose`]) across its slack:
+//! its pose decided once, the critical
 //! gap read before any count, and its components classified by these
 //! arms there, read here by [`of_pair_section`]. The parallel- and
 //! square-axis cylinder, the parallel-axis torus and the sphere below
@@ -393,12 +443,13 @@
 //! blanket gate could only refuse. The conservative refusal they were
 //! known for — a cube standing in a donut's hole — is W0 or W2 here.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs_across, signs_as};
-use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -480,8 +531,8 @@ pub(crate) enum Section<T: Real> {
     /// predicate.
     Unordered(&'static str),
     /// A classification margin decided `Zero` where the carriers touch
-    /// at one point: the section, if the carriers meet at all, lies in
-    /// the touch's ball.
+    /// at one point and the arm claims the near band about it one piece
+    /// (module docs, "A touch").
     Touch(Touch<T>),
     /// No arm for the kind pair or the pose: R-reach.
     Intractable,
@@ -494,17 +545,14 @@ pub(crate) enum Section<T: Real> {
 }
 
 /// **A touch of two carriers**: a margin decided `Zero` on an arm whose
-/// tangent pose meets in one point. The carriers share that point in
-/// the exact pose and, in a pose the decided margin admits where they
-/// cross, one loop about it bounding a connected region of each carrier
-/// where they stand within the margin (not necessarily a small one).
+/// tangent pose meets in one point, the near band about it one piece
+/// (module docs, "A touch").
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Touch<T: Real> {
     /// The margin decided `Zero`.
     pub name: &'static str,
-    /// The touch: inside the loop of a crossing pose, where the carriers
-    /// stand deepest in each other, and on both carriers within the
-    /// margin. Each arm says which point it reads.
+    /// The touch: the actual pose's deepest point, on both carriers
+    /// within the margin. Each arm says which point it reads.
     pub at: Point3<T>,
     /// Whether it is two cones' touch at their common apex, which
     /// [`certify_section_pair`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
@@ -658,19 +706,12 @@ impl<T: Real> From<Pinch> for Section<T> {
     }
 }
 
-/// A [`Touch`] at `at()` when the pinch `p` is one of `names` decided
-/// `Zero`, the one reading under which the carriers share at most one
-/// loop about it, bounding a connected region where they stand within
-/// the margin; R-tan otherwise.
-fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
-    if p.undecided.is_none() && names.contains(&p.name) {
-        Section::Touch(Touch {
-            name: p.name,
-            at: at(),
-            apex: false,
-        })
-    } else {
-        p.into()
+impl<T: Real> Section<T> {
+    /// **A touch**, the one way the arms build one: the margin decided
+    /// `Zero` that names it, its point, and whether it is two cones'
+    /// common apex ([`Touch`]).
+    fn touch(name: &'static str, at: Point3<T>, apex: bool) -> Self {
+        Section::Touch(Touch { name, at, apex })
     }
 }
 
@@ -752,6 +793,10 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
+        // Served, its coaxial pose read here on the value's pose.
+        (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
+            cone_torus(f, g, band, marched)
+        }
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
@@ -761,10 +806,8 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
                 Err(e) => of_pair_section(&Err(e), band, marched),
             }
         }
-        (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
-        (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
-            swapped(torus_pair(g, f, reach, band))
-        }
+        (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
+        (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -851,14 +894,9 @@ pub(super) fn of_listed<
     })
 }
 
-/// The torus arms the section value does not build: `t` is a torus, `p`
-/// a plane or a cone.
-fn torus_pair<T: Decide>(
-    t: &geom::Surface<T>,
-    p: &geom::Surface<T>,
-    reach: &Reach<T>,
-    band: Band,
-) -> Section<T> {
+/// The torus arm the section value does not build: `t` is a torus, `p`
+/// a plane.
+fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band) -> Section<T> {
     let &geom::Surface::Torus {
         frame: carrier_frame,
         major_radius: big_r,
@@ -872,7 +910,7 @@ fn torus_pair<T: Decide>(
     if geom::require_ring_torus(big_r, r, band).is_err() {
         return Section::Intractable;
     }
-    let a = axis.normalize();
+    let a = UnitVec3::squared(axis);
     match *p {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
@@ -880,109 +918,125 @@ fn torus_pair<T: Decide>(
                 geom::Line { origin: c, dir: a },
                 big_r,
                 r,
-                origin,
-                normal.normalize(),
+                (origin, normal.normalize()),
+                || geom_brep::plane_torus_axis_normal(p, t, band),
                 band,
             )
-        }
-        geom::Surface::Cone {
-            frame, half_angle, ..
-        } => {
-            let (apex, d) = (frame.origin(), frame.axis());
-            let d = d.normalize();
-            // `z` is read along the cone's axis from its own apex: the
-            // turn onto the torus axis moves it by the torus centre's
-            // station from the pivot times `1 − cos` (at most `sin²`),
-            // and by the offset's part along the tilted axis.
-            let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose(
-                geom::Line { origin: c, dir: a },
-                geom::Line {
-                    origin: apex,
-                    dir: d,
-                },
-                turn,
-                reach.ball(),
-                band,
-            ) {
-                AxisPose::Coaxial { slack, .. } => {
-                    // In the meridian half-plane about the apex, each
-                    // nappe's generator is a line through it at `α` from
-                    // the axis; the tube circle, centred `(R, z)`, lies in
-                    // `ρ > 0`, which only the nappe's own half of the line
-                    // reaches.
-                    let (s, co) = half_angle.sin_cos();
-                    let z = (c - apex).dot(d);
-                    match signs_across(
-                        [
-                            (
-                                "section_torus_coaxial_cone_near",
-                                "section_torus_coaxial_cone_near_floor",
-                                r - (big_r * co - z * s).abs(),
-                            ),
-                            (
-                                "section_torus_coaxial_cone_far",
-                                "section_torus_coaxial_cone_far_floor",
-                                r - (big_r * co + z * s).abs(),
-                            ),
-                        ],
-                        slack,
-                        band,
-                    ) {
-                        Ok([false, false]) => none(),
-                        Ok(_) => essential_pair(true, true),
-                        Err(tan) => tan.into(),
-                    }
-                }
-                AxisPose::Undecided(diag) => {
-                    Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
-                }
-                AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
-            }
         }
         _ => Section::Intractable,
     }
 }
 
-/// **Torus × plane**, the plane through `p0` with unit normal `n`.
+/// **Cone × torus**, read on the section value's pose
+/// ([`geom_brep::ConeTorusPose`]): the coaxial pose here in closed form,
+/// across the pose's own slack, every other one the section value's.
+fn cone_torus<T: crate::props::AtRestPolicy>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    band: Band,
+    marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
+) -> Section<T> {
+    let pose = match geom_brep::ConeTorusPose::decide(f, g, band) {
+        Some(Ok(pose)) => pose,
+        Some(Err(e)) => return of_pair_section(&Err(e.into()), band, marched),
+        None => unreachable!("`classify_known` routes a cone and a torus here alone"),
+    };
+    let geom_brep::KtStance::Coaxial { slack, .. } = pose.stance() else {
+        return of_pair_section(
+            &geom_brep::pair_section::cone_torus::cone_torus(pose),
+            band,
+            marched,
+        );
+    };
+    let (
+        &geom::Surface::Cone {
+            frame, half_angle, ..
+        },
+        ring,
+    ) = (pose.cone(), pose.ring())
+    else {
+        unreachable!("a cone × torus pose holds its cone as a cone")
+    };
+    let [big_r, r] = ring.radii();
+    // In the meridian half-plane about the apex, each nappe's generator
+    // is a line through it at `α` from the axis; the tube circle, centred
+    // `(R, z)`, lies in `ρ > 0`, which only the nappe's own half of the
+    // line reaches.
+    let (s, co) = half_angle.sin_cos();
+    let z = (ring.center() - frame.origin()).dot(frame.axis().normalize());
+    match signs_across(
+        [
+            (
+                "section_torus_coaxial_cone_near",
+                "section_torus_coaxial_cone_near_floor",
+                r - (big_r * co - z * s).abs(),
+            ),
+            (
+                "section_torus_coaxial_cone_far",
+                "section_torus_coaxial_cone_far_floor",
+                r - (big_r * co + z * s).abs(),
+            ),
+        ],
+        slack,
+        band,
+    ) {
+        Ok([false, false]) => none(),
+        Ok(_) => essential_pair(true, true),
+        Err(tan) => tan.into(),
+    }
+}
+
+/// **Torus × plane**, the plane through `p0` with unit normal `n`;
+/// `axis_normal` is geom-brep's reading of it as normal to the axis
+/// ([`geom_brep::plane_torus_axis_normal`]), read at a tangency only.
 fn torus_plane<T: Decide>(
     axis: geom::Line<T>,
     big_r: T,
     r: T,
-    p0: Point3<T>,
-    n: Vec3<T>,
+    (p0, n): (Point3<T>, Vec3<T>),
+    axis_normal: impl FnOnce()
+        -> Result<Option<geom_brep::PlaneTorusSection<T>>, geom_brep::SectionError>,
     band: Band,
 ) -> Section<T> {
     let geom::Line { origin: c, dir: a } = axis;
     let h = n.dot(p0 - c);
-    let na = n.dot(a);
-    let (s, in_pi) = meridian(c, a, n);
+    let na = n.dot(a.get());
+    let (s, in_pi) = meridian(c, a.get(), n);
     // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
     // centred (σR, 0), radius r, and the plane is the line
     // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
     // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
     let offset = |sigma: T| h - sigma * s * big_r;
     match plane_cut(big_r, r, h, s, band) {
-        // Tangent to T_σ at the foot, an elliptic point when the foot
-        // stands on the tube's outer half: the extreme `σ(sR + r)` of
-        // the height `n·(x − c)`, whose other critical values `±(sR − r)`
-        // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
-        PlaneCut::Pinch(tan) if tan.name == NEAR || tan.name == FAR => {
+        // Tangent to T_σ at the foot, the plane's own deepest point on the
+        // tube circle. Off a plane normal to the axis (geom-brep's reading
+        // decides the tilt definite before `Π`'s direction, `n`'s part
+        // square to the axis over `s`, is read), the height `n·(x − c)`
+        // has the forced critical points alone: `±(sR + r)`, its extremes
+        // on the tube's outer half, and `±(sR − r)`, its saddles on the
+        // inner. So the foot is a touch where `σ·d` is positive, `|d|`
+        // being `r` there; a saddle, a plane normal to the axis (tangent
+        // along a parallel) and an undecided tilt are not.
+        PlaneCut::Pinch(tan)
+            if tan.undecided.is_none() && (tan.name == NEAR || tan.name == FAR) =>
+        {
             let sigma = if tan.name == NEAR {
                 T::one()
             } else {
                 -T::one()
             };
             let d = offset(sigma);
-            if sign_as(
-                "section_torus_plane_touch_elliptic",
-                Margin::of(sigma * d * s),
-                band,
-            ) != Some(Sign::Positive)
-            {
-                return tan.into();
+            let extreme = matches!(axis_normal(), Ok(None))
+                && sign_as(
+                    "section_torus_plane_touch_extreme",
+                    Margin::of(sigma * d),
+                    band,
+                ) == Some(Sign::Positive);
+            if extreme {
+                Section::touch(tan.name, in_pi(sigma * big_r + d * s, d * na), false)
+            } else {
+                tan.into()
             }
-            touch(tan, &[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
         }
         PlaneCut::Pinch(tan) => tan.into(),
         PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
@@ -1058,7 +1112,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (axis.dir.normalize(), n.normalize());
+    let (a, n) = (axis.dir.get().normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
     match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
@@ -1112,7 +1166,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 |_| T::zero(),
                 reach.ball(),
@@ -1129,7 +1183,7 @@ fn cone_pair<T: Decide>(
                     &cone,
                     geom::Line {
                         origin,
-                        dir: d.normalize(),
+                        dir: UnitVec3::squared(d),
                     },
                     rc,
                     reach,
@@ -1149,7 +1203,7 @@ fn cone_pair<T: Decide>(
                 },
                 geom::Line {
                     origin: apex2,
-                    dir: d.normalize(),
+                    dir: UnitVec3::squared(d),
                 },
                 // The apexes' gap is read off `apex2` itself, which the turn
                 // onto the first axis moves along it by its station from the
@@ -1169,16 +1223,18 @@ fn cone_pair<T: Decide>(
                     [(
                         "section_cone_coaxial_apexes",
                         "section_cone_coaxial_apexes_floor",
-                        (apex2 - apex).dot(cone.a).abs(),
+                        (apex2 - apex).dot(cone.a.get()).abs(),
                     )],
                     slack,
                     band,
                 ) {
                     Ok(_) => essential_pair(true, true),
-                    Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
-                        Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
-                        other => other,
-                    },
+                    Err(tan)
+                        if tan.undecided.is_none() && tan.name == "section_cone_coaxial_apexes" =>
+                    {
+                        Section::touch(tan.name, apex, true)
+                    }
+                    Err(tan) => tan.into(),
                 },
                 AxisPose::Parallel { .. } => {
                     let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1200,7 +1256,7 @@ fn cone_pair<T: Decide>(
 /// `(sin α, cos α)`, and the unit seam direction square to the axis.
 struct Cone<T: Real> {
     apex: Point3<T>,
-    a: Vec3<T>,
+    a: UnitVec3<T>,
     alpha: T,
     sc: (T, T),
     u_ref: Vec3<T>,
@@ -1211,7 +1267,10 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
-            a: frame.axis,
+            // The square frame's axis, `a/|a|` (`Frame::square`): a
+            // normalization, so in interval arithmetic it encloses the
+            // unit axis.
+            a: UnitVec3::checked(frame.axis),
             alpha,
             sc: alpha.sin_cos(),
             u_ref: frame.u_ref,
@@ -1222,7 +1281,7 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
     /// `r` (unit, `⊥ a`): `t > 0` along it is the `v > 0` nappe.
     fn generator(&self, r: Vec3<T>) -> Vec3<T> {
         let (s, c) = self.sc;
-        self.a * c + r * s
+        self.a.get() * c + r * s
     }
 
     /// A point's signed distance from the double carrier, in metres.
@@ -1248,7 +1307,11 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
-            dir: ruling::Swing::round([self.a * c, self.u_ref * s, self.a.cross(self.u_ref) * s]),
+            dir: ruling::Swing::round([
+                self.a.get() * c,
+                self.u_ref * s,
+                self.a.get().cross(self.u_ref) * s,
+            ]),
             reach_speed: lever * s,
             lever: lever + lever,
         }
@@ -1309,7 +1372,7 @@ fn cone_cylinder<T: Decide>(
 ) -> Section<T> {
     let geom::Line { origin: o, dir: d } = wall;
     let (_, c) = cone.sc;
-    let (off, dist) = perp_to(cone.apex - o, d);
+    let (off, dist) = perp_to(cone.apex - o, d.get());
     let foot = cone.apex - off;
     let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs_as([("section_cone_cylinder_apex", dist - rc)], band) {
@@ -1318,7 +1381,7 @@ fn cone_cylinder<T: Decide>(
     match sign_as(
         "section_cone_cylinder_aperture",
         Margin::levered(
-            d.dot(cone.a).abs() - c,
+            d.get().dot(cone.a.get()).abs() - c,
             reach.ball().twice_lever_from(cone.apex),
         ),
         band,
@@ -1334,7 +1397,7 @@ fn cone_cylinder<T: Decide>(
     let wall = ruling::Chart {
         base: foot,
         offset: ruling::Swing::round([zero, f1 * rc, f2 * rc]),
-        dir: ruling::Swing::fixed(d),
+        dir: ruling::Swing::fixed(d.get()),
         reach_speed: rc,
         lever: lever + lever,
     };
@@ -1393,7 +1456,8 @@ fn cone_cone<T: Decide>(
         let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
-            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            let m =
+                geom_brep::cone_cone_apex_meeting((one.a.get(), one.sc.1), (a2.get(), two.sc.1));
             match sign_as(RULINGS, Margin::levered(m.disc, lever), band) {
                 Some(Sign::Positive) => lines += 2,
                 Some(Sign::Negative) => {}
@@ -1401,11 +1465,7 @@ fn cone_cone<T: Decide>(
             }
         }
         if lines == 0 {
-            return Section::Touch(Touch {
-                name: COMMON,
-                at: one.apex,
-                apex: true,
-            });
+            return Section::touch(COMMON, one.apex, true);
         }
         let c = Component::closed_form(true, [false, false], None);
         return Section::Components {
@@ -1456,7 +1516,7 @@ fn cone_plane_pair<T: Decide>(
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
-    let w = one.a * one.a.dot(delta) - delta * one.sc.1.powi(2);
+    let w = one.a.get() * one.a.get().dot(delta) - delta * one.sc.1.powi(2);
     let mid = two.apex + delta * T::from_f64(0.5);
     match cone_plane(one, mid, w.normalize(), reach, band) {
         Section::Components { parts, single } => Section::Components {
@@ -1499,7 +1559,7 @@ fn cone_plane<T: Decide>(
 ) -> Section<T> {
     let (s, _) = cone.sc;
     let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
-    let na = n.dot(cone.a);
+    let na = n.dot(cone.a.get());
     match sign_as(
         "section_cone_plane_aperture",
         Margin::levered(na.abs() - s, lever),
@@ -1535,7 +1595,7 @@ fn cone_plane<T: Decide>(
                 Some(Sign::Negative) => -n,
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
-            let (across, width) = perp_to(facing, cone.a);
+            let (across, width) = perp_to(facing, cone.a.get());
             let r = match sign_as(
                 "section_cone_plane_meridian",
                 Margin::levered(width, lever),
@@ -1585,7 +1645,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
-    let (across, offset) = perp_to(delta, cone.a);
+    let (across, offset) = perp_to(delta, cone.a.get());
     let r = match sign_as("section_cone_sphere_axis", Margin::of(offset), band) {
         Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
@@ -1683,7 +1743,8 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a * h));
+    let part =
+        |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a.get() * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,
@@ -1812,11 +1873,7 @@ pub(super) fn of_pair_section<T: Decide>(
     if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {
         return match components.as_slice() {
             [c] if c.shape == ComponentShape::Point => match c.witness {
-                Some(at) => Section::Touch(Touch {
-                    name: zero.decision.name(),
-                    at,
-                    apex: false,
-                }),
+                Some(at) => Section::touch(zero.decision.name(), at, false),
                 None => Section::Tangent(zero.decision.name()),
             },
             _ => Section::Tangent(zero.decision.name()),
@@ -2070,5 +2127,8 @@ mod section_cert_spline_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;
+#[cfg(test)]
+#[path = "section_cert_touch_doors_rows.rs"]
+mod section_cert_touch_doors_rows;
 #[cfg(test)]
 mod square_search;

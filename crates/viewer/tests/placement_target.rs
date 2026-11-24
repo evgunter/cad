@@ -310,7 +310,7 @@ fn a_re_target_admits_and_reports_a_stranded_reader() {
     let (mut session, reader) = with(
         &session,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(c1)),
                 BodyRead::plain(Operand::Node(c2)),
             ]),
@@ -368,9 +368,19 @@ fn held_in_editor(
         "held, naming the copy and the target: {refusal:?}"
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
+    let leads = viewer::recourse::offers(viewer::recourse::Failure::Refused(&refusal)).heard;
+    let [
+        viewer::recourse::Heard::HoldTarget {
+            placement: led,
+            target: held,
+        },
+    ] = &leads[..]
+    else {
+        panic!("the held change leads to the editor: {leads:?}")
+    };
     let mut tools = viewer::tools::Tools::new();
     assert!(
-        tools.held_target(&refusal, session.committed_doc()),
+        tools.hold_target(*led, held.clone(), session.committed_doc()),
         "the editor opens"
     );
     let tool = tools.mate().expect("the placement editor is open").clone();
@@ -554,8 +564,8 @@ fn a_mated_product_copy_outside_the_world_keeps_its_recourse() {
         ),
         "the premise: the product reads a copy outside the world: {fault:?}"
     );
-    let recourse = viewer::frame::product_recourse(fault, session.committed_doc());
-    let [(label, op)] = &recourse[..] else {
+    let recourse = viewer::test_support::product_commits(session.current());
+    let [viewer::recourse::Commit { label, op }] = &recourse[..] else {
         panic!("one recourse: {recourse:?}")
     };
     assert!(label.starts_with("Move "), "{label}");

@@ -202,7 +202,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         if ev2.table_at(cut1).unwrap().lookup(name).is_some()
             || matches!(
                 name.path.first(),
-                Some(RoleSeg::From { read, .. }) if *read == tool_read.read
+                Some(RoleSeg::From { read, .. }) if tool_read.reads().any(|tool| *read == tool.read)
             )
         {
             continue;
@@ -243,7 +243,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let (doc, cutter) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b1.into(), tr.placement.into()]),
+            members: editor_core::Bodies::spelled(vec![b1.into(), tr.placement.into()]),
         },
     );
     let (doc, cut) = insert(
@@ -322,7 +322,7 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
         doc,
         DocEdit::SetMembers {
             node,
-            members: editor_core::Bodies::Spelled(members.into_iter().map(Into::into).collect()),
+            members: editor_core::Bodies::spelled(members.into_iter().map(Into::into).collect()),
         },
     )
     .0
@@ -381,13 +381,13 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, p) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![c1.into(), c2.into()]),
+            members: editor_core::Bodies::spelled(vec![c1.into(), c2.into()]),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![tr.placement.into(), p.into()]),
+            members: editor_core::Bodies::spelled(vec![tr.placement.into(), p.into()]),
         },
     );
     let (doc, cut) = insert(
@@ -465,7 +465,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
+            members: editor_core::Bodies::spelled(vec![b1.into(), b2.into()]),
         },
     );
     let (doc, n) = crate::fixture::slid(doc, x, x, [0.0; 3]);
@@ -510,7 +510,7 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![bar.into(), f1.into()]),
+            members: editor_core::Bodies::spelled(vec![bar.into(), f1.into()]),
         },
     );
     let (doc, tr) = placed(doc, a, u, 0.5);

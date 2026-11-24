@@ -148,7 +148,7 @@ pub(super) fn walk<P: crate::ProfilePayload>(
         // minted the name.
         if matches!(
             doc.node(at),
-            Some(Node::InstantiatePart { .. } | Node::Place { .. })
+            Some(node) if node.makes_a_copy()
         ) {
             return Ok(Walk {
                 member: Member {
