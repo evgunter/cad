@@ -26,3 +26,16 @@ Both delivered 2026-11-24 (A about 02:30Z, B about 02:45Z); neither saw the othe
 | Tokens, first report | 124,245 | 253,477 |
 
 Agreement on the final state: **no** on the lever (far run against near run) and on the promise; **yes** on the rate (the wedge's sine capped at one, not the two rates summed), on the sector sliver (certified), and on the 0.6·K·ε strip at 2.6 rad (refuses).
+
+## Round 2 (2026-11-24, about 02:37Z to 02:45Z)
+
+Dispatched: both designers, by message to the same agents. Shown: each the other's first report in full (a copy at a neutral path, without this file), my reading of where the two stood, the other's three main claims against its own, four points of FACT about the tree to check at `273f765de5` (the fixture's geometry; what a passing edge cell discharges; which pair and path reads a far boundary in a finished body, curved faces included; each lever at the shared edge's ends), and the question whether something lies beneath both positions. Verbatim: `round2/A-r2.md`, `round2/B-r2.md`.
+
+What moved:
+- **A moved to the near run** (B's first answer): lever = the near run of the narrower face; rate = the wedge's sine capped at one; B's promise. The far run stays tier 3's lever for whether the wedge is real. Its reasons: the far run has the question decide check 4's fact a second time; a shift of ε moves the edge sideways by ε over the sine, which only the near run bounds; a passing edge cell is discharged whole and nothing else in the pair reads the far edge (checked in the tree). It adds a rule to state ("passes by more than the band" means every body within ε of this one, with the same topology, is embedded) and a second fork (which door owns "pieces that do not meet" for a face's own boundary against a neighbour: the census, plane cells only, or the question; it leans the question).
+- **B moved in form**: TWO facts read by the question beside a shared cell. Fact 1, the faces are distinct: capped sine × the narrower face's FAR run passes the band (it accepts A's first promise as a real fact of the pair, and the census precedent). Fact 2, nothing else of either boundary lies in the band there: each part of either face's boundary that does not meet what they share stands more than the band from the other face. The near run is "one kept number that gives both at once", or the far run is kept and whole-cell discharge is barred for boundary parts that do not meet the shared cell, read by distance; it names the per-cell distance reading the general form and the kept near run its cheap, incomplete summary.
+- Both checked the same facts and agree on them: the strip is folded over the plate; `clearance.rs`'s `pair` discharges a certified cell whole; a third face that shares nothing with the neighbour is read by distance, on every surface kind; the census's vertex-against-face pass is plane-only.
+
+Position after round 2: agreed on the promise, the rate, the cases' verdicts (1, 2, 4 refuse; 3 certified). Not yet agreed on the reading's form: one lever at the near run (A), or two readings (B: distinctness at the far run, and the boundary parts' clearance), and on whether the wedge's reality is the question's to read at all or tier 3's alone. Positions moved and did not meet: round 3.
+
+Tokens, cumulative as the harness reports: A 158,704; B 293,366.
