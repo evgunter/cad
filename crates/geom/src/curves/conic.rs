@@ -1763,7 +1763,7 @@ mod tests {
     /// itself, or if a turn selects another frame or phase.
     #[test]
     fn a_re_seam_stores_what_a_half_turn_written_out_stores() {
-        use super::{Conic, Ellipse, Held};
+        use super::{Conic, Ellipse};
         use crate::Frame;
         use geom_core::interval::Interval;
         fn seamed<T: Real>(x: &Ellipse<T>, cos: T, sin: T) -> Ellipse<T> {
@@ -2233,9 +2233,9 @@ mod tests {
     ///   at the anchor);
     /// - run back, its point at `−t` is its own at `t`, bit for bit (red
     ///   where the reversal keeps the phase's sine);
-    /// - at `Interval`, its centre is no wider than the original's: the
-    ///   centre is read from the stored anchor, and a re-seam re-sums
-    ///   nothing (red where the anchor is re-summed, which carries the
+    /// - at `Interval`, its centre is as wide as the original's to within
+    ///   a hundredth and a few roundings of the scale: the centre is read
+    ///   from the stored anchor, and a re-seam re-sums nothing (red where the anchor is re-summed, which carries the
     ///   semi-axis into the centre three times).
     #[test]
     fn a_re_seam_moves_parameter_zero_and_never_the_anchor() {
