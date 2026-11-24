@@ -82,3 +82,14 @@ Round-4 replies (all three in by 12:19 UTC; raw on `boxfinish/briefs` `probe/bri
 - **All three now state the same core** (choices and standings equal to the `f64` witness's; a turned choice a named non-empty flip; cells neither gate nor tie; a parting never a flip and named where it ends; a standing change a flip only when proven definite; the lanes' contradiction at one point a kernel defect; "the nominal's form", not "topology") **and each gave its recommendation as a function of M13b.** What is left between them: whether checks are compared too (which needs the same-lane replay, and refuses a drive whole where the box lane cannot decide or tie the nominal) or shape readings taken in a check scope are recorded as choices at their sites; and with it, a parting bisected or terminal.
 
 No round 5 until M13b lands: each report's stated function is applied to its numbers first.
+
+## Round 5 (dispatched 13:08 UTC to all three; statement `probe/briefs/fork-parted-path/round-5.md` at `35e33022c47`)
+
+M13b landed at 13:05 (`probe/M13b-REPORT.md` on `boxfinish/probe-build-record` at `3cd35c15fb0`). Each stated function, applied by the orchestrator as a hypothesis the designers may correct:
+- C's (adopt the same-lane reference if zero or a handful of certifying drives would be refused whole): the count is ZERO, so C's function says adopt.
+- A's and B's (keep a same-lane reference only if a lane pair is a box-only decision that steers what is built): no pair is labelled so (four are one lane logging work the other does not run; one is unlabelled; `pcurve_chart_placement` is none of the three labels), so their functions say the `f64` witness on choices and standings.
+- The functions do not meet, while **the two gates return the same class for every one of the 2,307 decided leaves measured**, and both certify the plate's leaf that today's gate refuses.
+
+Shown to all three: the whole of M13b and M13's addendum; each other's round-4 replies; the orchestrator's reading above; **a correction** (the orchestrator had told all three that the extrude's undecided length is decided outside the funnel; the code reads it through `decide`, and which failing arm the 27,667 leaves are is being measured); and one new fact put as a question: of the 660 named flips, 440 have the witness's form by every reading the instrument takes and differ only in coordinates the enclosures carry.
+
+Asked: the recommendation now; the strongest case the measurement leaves for the other answer; whether a turned choice on a leaf with the witness's form is this question or another; and, if they still differ, the split in two sentences Ev can choose between.
