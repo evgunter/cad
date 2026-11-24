@@ -359,10 +359,12 @@ pub enum PlacedGraftError {
 /// [`crate::HeldKind::move_logs_its_ask`]), then grafted beside what
 /// `dst` holds ([`crate::graft_disjoint_all_keyed`]). The image is the
 /// aggregate's data, so its placement is asked here, by the door that
-/// places it. The aggregate's own finish decides the rest. Every gather
-/// of placed copies into one body in `editor-core` (the `⊔`, a
-/// distribute's assembly, a product) grafts through it; step-import's
-/// instance loop does not yet
+/// places it. The aggregate's own finish decides the rest. A gather of
+/// placed copies into one body in `editor-core` (the `⊔`, a
+/// distribute's assembly, a product) grafts through it where some copy
+/// is not handed over finished, and through [`crate::gather`], which
+/// carries their verdicts, where every copy is; step-import's instance
+/// loop does neither yet
 /// (`work/onehome/step-import-instances-graft-through-the-placed-door.md`).
 ///
 /// # Errors

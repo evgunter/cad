@@ -1,6 +1,10 @@
-//! **The gather finishes the aggregate once, and runs the census once.**
+//! **A gather of sweeps finishes the aggregate once, and runs the census
+//! once.**
 //!
-//! The gather reads its sources and takes none. It computes in its first
+//! While the box scalars' leaf is tier 2, a gather of sweeps reads its
+//! sources and takes none (a gather of finished sources carries their
+//! verdicts instead, `a_gather_carries_its_finished_members.rs`). It
+//! computes in its first
 //! source's frame (`Framed::computing_among`). A source in that
 //! frame is grafted as its value holds it, and one standing under another
 //! is grafted as its image, its data moved into the product's frame and
