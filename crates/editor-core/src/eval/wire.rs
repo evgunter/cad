@@ -1114,7 +1114,7 @@ fn operand_refusal(
 /// # Errors
 ///
 /// [`NodeErrorKind::MissingInput`] for a reference with no value
-/// ([`value_of`]), and [`NodeErrorKind::WrongOperand`] when `read`
+/// ([`value_as`]), and [`NodeErrorKind::WrongOperand`] when `read`
 /// finds the value is not the operand asked for.
 fn operand<'v, T: topo::AtRestPolicy + Decide, R>(
     results: &'v Results<T>,
@@ -3798,7 +3798,7 @@ fn with_replaced<T: topo::AtRestPolicy + Decide>(
     }
     // The values this op can read: every entry that stands, cloned (a
     // value's geometry and tables are shared, not copied). The failed
-    // ones are left out: every read goes through `value_of`, which
+    // ones are left out: every read goes through `value_as`, which
     // answers a failed entry and an absent one alike.
     let mut local: Results<T> = results
         .iter()
