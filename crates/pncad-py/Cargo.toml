@@ -52,6 +52,8 @@ expect_used = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
+# As the workspace: armed per production target by the library root.
+disallowed_methods = "allow"
 
 [features]
 default = []
