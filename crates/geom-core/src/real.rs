@@ -472,16 +472,18 @@ pub trait Real:
     /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
 
-    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
-    /// march point, a bound read off an enclosure): the value is
+    /// Embeds an `f64` that a NUMERICAL routine computed: the value is
     /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
     /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// Which code may call it, and the door every other computed value
-    /// takes instead, is DL5.2 (the crate README, "Reading a bracket
-    /// where nothing certifies").
+    /// Which code may call it is DL5.2 (the crate README, "Reading a
+    /// bracket where nothing certifies"): the solved-value door
+    /// ([`crate::solved::decide_admit`]), a scalar's own impl, and a
+    /// place-taking evaluator's private step. The calls the rule does not
+    /// yet allow are owed, each listed with the work item that retires it
+    /// (`scripts/gates/from-computed-sites.sh`).
     fn from_computed(x: f64) -> Self;
 
     /// **What this scalar reads as in a sentence**: its value, its
