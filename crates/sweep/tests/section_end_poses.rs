@@ -206,11 +206,108 @@ const OPS: [(&str, Op); 3] = [
     ("S", topo::subtract),
 ];
 
+/// What each Boolean pose stops on at main, by ε and order: the
+/// section's coincidence read moot in band, `(ε, pose and order, margin,
+/// predicate)`, in every op.
+const MOOT_AT_THE_SECTION: [(f64, &str, &str, &str); 12] = [
+    (1e-9, "SquareBox t1e-9 ab", "1.0000000272292198e-9", GAP),
+    (1e-9, "SquareBox t1e-9 ba", "1.0000000272292198e-9", GAP),
+    (
+        1e-9,
+        "WallTilt { dd: -5e-8 } t1e-9 ab",
+        "2.0307763945219517e-9",
+        AXIS,
+    ),
+    (
+        1e-9,
+        "WallTilt { dd: -5e-8 } t1e-9 ba",
+        "2.0307763945219517e-9",
+        AXIS,
+    ),
+    (
+        1e-9,
+        "WallTilt { dd: -1e-6 } t1e-9 ab",
+        "2.030775919522071e-9",
+        AXIS,
+    ),
+    (
+        1e-9,
+        "WallTilt { dd: -1e-6 } t1e-9 ba",
+        "2.030775919522071e-9",
+        AXIS,
+    ),
+    (1e-6, "SquareBox t1e-6 ab", "1.0000000000287557e-6", GAP),
+    (1e-6, "SquareBox t1e-6 ba", "1.0000000000287557e-6", GAP),
+    (
+        1e-6,
+        "WallTilt { dd: -5e-5 } t1e-6 ab",
+        "1.0000000000287557e-6",
+        GAP,
+    ),
+    (
+        1e-6,
+        "WallTilt { dd: -5e-5 } t1e-6 ba",
+        "2.0307645242024e-6",
+        AXIS,
+    ),
+    (
+        1e-6,
+        "WallTilt { dd: -0.001 } t1e-6 ab",
+        "1.0000000000287557e-6",
+        GAP,
+    ),
+    (
+        1e-6,
+        "WallTilt { dd: -0.001 } t1e-6 ba",
+        "2.0302896443898143e-6",
+        AXIS,
+    ),
+];
+const GAP: &str = "curve_carrier_gap";
+const AXIS: &str = "pc_axis_plane_parallel";
+
 /// At each ε row, each Boolean pose refuses in every op and order as
 /// [`SectionEndReading::SquareToAxis`] with its question and lever; and
 /// the lever builds: the face square, or clearly off square.
 #[test]
 fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds() {
+    // Pinned red: every pose stops on the section's coincidence, read moot
+    // in band, before the join reads its end
+    // (`work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section`).
+    let eps = Tol::witness().eps();
+    let at = |row: f64| (eps - row).abs() <= row * 1e-6;
+    let band = if at(1e-6) {
+        "zero: 1e-6, escalate: 9.999999999999999e-6"
+    } else {
+        "zero: 1e-9, escalate: 1e-8"
+    };
+    let says: Vec<String> = MOOT_AT_THE_SECTION
+        .iter()
+        .filter(|row| at(row.0))
+        .flat_map(|&(_, tag, margin, predicate)| {
+            OPS.map(|(op, _)| {
+                format!(
+                    "{tag} {op}: got Some(Escalated {{ decision: Coincidence(Section, Moot), \
+                     diag: Indeterminate {{ margin: MarginDiag(Value({margin}, None, \
+                     ZeroWord(0))), terminal_sliver: false, band: Band {{ {band} }}, \
+                     predicate: Some(\"{predicate}\") }} }})"
+                )
+            })
+        })
+        .collect();
+    test_utils::pinned_red::row(
+        eps,
+        &[1e-9, 1e-6],
+        "the section end's Boolean poses",
+        &says.iter().map(String::as_str).collect::<Vec<_>>(),
+        a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds_row,
+    );
+}
+
+/// The row
+/// [`a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds`]
+/// runs, under its pin.
+fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds_row() {
     let tol = Tol::witness();
     let eps = tol.eps();
     if (eps - 1e-12).abs() <= 1e-15 {
