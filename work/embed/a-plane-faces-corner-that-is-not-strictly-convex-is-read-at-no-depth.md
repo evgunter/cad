@@ -636,4 +636,11 @@ What changed, and what is recorded without a change:
   the same verdict, pair and edge on both trees, the count being pairs
   discharged before the first refusal (1,401 to 505), an earlier
   arrival at the same refusal and not a skipped ask.
+- **Measured on the fix pass.** The tour walk, 85 stops, the landing
+  tip `0a1e9944db` against the unit merged with it: no verdict moves,
+  20 receipts move, total splits 281,165 to 280,040. Fourteen mutants
+  (the unit's seven, now six sites, and the reviewers' seven; the exact
+  edits are in the PR's body), each over the 343 tests of the unit set
+  and the suite file on the head merged with `5285a2d569`: every one
+  reddens a row, the ray guard's at the default ε.
 
