@@ -230,7 +230,8 @@ scalars).
 
 ### A size is a type `[sizes]`
 
-A length the kernel stores as a size is a `Length`. A `Length` is
+A length the kernel stores as a size is a `Size` (not the user-facing
+`quantity::Length`). A `Size` is
 finite and strictly positive: it is bounded and not definitely at or
 below zero, so at an `Interval` an enclosure that straddles zero is
 still one. It has one mint, and that mint is fallible: a zero, a
@@ -239,7 +240,7 @@ never panics. Finiteness is decided at the mint and nowhere else.
 `decide` stays a sign verdict, so `decide(+∞)` is `Positive`.
 
 - **A conic's sizes** (a circle's radius, an ellipse's semi-axes) are
-  exact `Length`s, with no band. Whether a computed conic exists is
+  exact `Size`s, with no band. Whether a computed conic exists is
   its producer's pose decision, or is implied by the surface it lies
   on. A second band decision at the mint would be a second place for
   that fact ([one-way.places]). The readers that meter through a
@@ -248,7 +249,7 @@ never panics. Finiteness is decided at the mint and nowhere else.
   band, minted where the surface comes to exist, on the run's
   tolerance and never on a caller's band. A cylinder's or a sphere's
   radius is decided positive, a torus holds a `RingTorus`, and a
-  spindle holds its sheet verdict. A witness hands out `Length`s.
+  spindle holds its sheet verdict. A witness hands out `Size`s.
   The at-rest check's radius half and the section arms' radius guards
   re-decide this fact, and retire.
 - **A cone's half-angle** is an exact type, strictly inside
