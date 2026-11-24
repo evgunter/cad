@@ -366,6 +366,15 @@ pub(super) fn wall_quadratic<T: Decide>(
             .min(span),
     };
     let w = w0p + dp * shift;
+    // PROBE (M12): how the offset is formed.
+    if geom_core::k_stats::probe_tally::m11() {
+        let s = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+        eprintln!(
+            "[m12-wall] scalar={} about={about:?} q={} w0p={} dp={} w0p_dot_dp={} a2={} span={} shift={} w={} w_dot_dp={}",
+            core::any::type_name::<T>().rsplit("::").next().unwrap_or("?"),
+            s(&q), s(&w0p), s(&dp), s(&w0p.dot(dp)), s(&a2), s(&span), s(&shift), s(&w), s(&w.dot(dp)),
+        );
+    }
     Centred::new(
         (w0, d.get(), shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],

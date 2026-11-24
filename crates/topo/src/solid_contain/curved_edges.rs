@@ -319,6 +319,13 @@ fn narrow<T: Decide>(
                     continue;
                 };
                 let faces = [face, fe.across];
+                if geom_core::k_stats::probe_tally::m11() {
+                    let w = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+                    let text = format!("{} {}", w(&m.span.0), w(&m.span.1));
+                    if text.contains("inf") || text.contains("Trv") {
+                        eprintln!("[m12-span] met edge {:?} span=({text}) at={}", m.edge, w(&m.at));
+                    }
+                }
                 for seed in [m.span.0, m.span.1] {
                     match passes(&span, ray, q + d.get() * seed, band) {
                         Passes::Inside(s, gap) => {
@@ -362,6 +369,24 @@ fn passes<T: Decide>(
     // The carrier's closed-form lower bound on the point's distance from
     // it, as its on-carrier reading decides off (a spline's is that
     // reading's own walk): a point far off the carrier asks no foot.
+    // PROBE (M12): the clearance's operands where it reads unbounded.
+    if geom_core::k_stats::probe_tally::m11() {
+        if let Some(lower) = carrier.clearance(seed) {
+            let w = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+            let text = w(&lower);
+            if text.contains("inf") || text.contains("Trv") {
+                let l = ray.line();
+                eprintln!(
+                    "[m12-clear] lower={} seed={} ray_origin={} ray_dir={} carrier={}",
+                    text,
+                    w(&seed),
+                    w(&l.origin),
+                    w(&l.dir),
+                    w(&carrier).chars().take(700).collect::<String>(),
+                );
+            }
+        }
+    }
     let clear = match carrier.clearance(seed) {
         Some(lower) => decide("curve_carrier_clear", Margin::of(lower), band) == Ok(Sign::Positive),
         None => matches!(

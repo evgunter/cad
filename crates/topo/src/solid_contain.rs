@@ -3183,6 +3183,11 @@ fn turned_inside<T: Decide>(
     reach: T,
     ray: TurnRay,
 ) -> Result<bool, RayFault<PointInSolidError>> {
+    // PROBE (M12): the winding's operands.
+    if geom_core::k_stats::probe_tally::m11() {
+        let s = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+        eprintln!("[m12-wind] face={face:?} turn={} reach={}", s(&turn), s(&reach));
+    }
     Ok(geom_core::k_stats::check_unlogged(
         ray.rows.winding(),
         (turn.abs() - T::pi()) * reach,
@@ -3225,7 +3230,16 @@ fn loop_turn<T: Decide>(
     };
     let angle = |a: Point3<T>, b: Point3<T>| {
         let (cross, dot) = planar_cross_dot(normal, a - p, b - p);
-        cross.atan2(dot)
+        let out = cross.atan2(dot);
+        // PROBE (M12): an angle that lost its domain.
+        if geom_core::k_stats::probe_tally::m11() {
+            let s = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+            let text = s(&out);
+            if text.contains("Trv") {
+                eprintln!("[m12-angle] face={face:?} atan2={text} cross={} dot={} a_minus_p={} p={}", s(&cross), s(&dot), s(&(a - p)), s(&p));
+            }
+        }
+        out
     };
     let mut turn = T::zero();
     for e in body.proven_face(face).edges() {
