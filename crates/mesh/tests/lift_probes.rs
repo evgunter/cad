@@ -1831,9 +1831,10 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
 /// strut), and its rows minted: the wall holds one ring,
 /// `LoopBoundary::Empty`, and `topo::validate` passes it.
 /// `Body::face_lift` lifts the wall's outline alone, a lone vertex being
-/// no ring of the region (`FaceView::area_loops`). The mesh's own loop
-/// walk still refuses the face `EmptyLoop`
-/// (`work/tesslane/mesh-walk-refuses-a-face-holding-a-lone-ring.md`).
+/// no ring of the region (`FaceView::area_loops`). The mesh reads past it
+/// through both of its doors and meshes the wall (the walks that still
+/// refuse such a face elsewhere are
+/// `work/tesslane/mesh-walk-refuses-a-face-holding-a-lone-ring.md`'s).
 #[test]
 fn a_ring_that_is_one_vertex_bounds_no_area() {
     let mut body = rod(1.0, -2.0, 4.0);
@@ -1875,14 +1876,29 @@ fn a_ring_that_is_one_vertex_bounds_no_area() {
         lift.rings().is_empty(),
         "a lone vertex is no ring of the lift"
     );
-    match mesh::tessellate(&body, 1e-2, tol()) {
-        Err(mesh::TessellateError::EmptyLoop { face }) => {
-            assert_eq!(face, fk, "the mesh's walk names the wall");
-        }
-        other => panic!(
-            "expected the mesh walk's EmptyLoop, got {:?}",
-            other.map(|m| m.patches.len())
-        ),
+    // The lanes read past the lone vertex (the trimmed lane's walk over
+    // every loop of the face retired with `mesh::join`), and so does the
+    // memo's key: the wall meshes, closed, through either door, to the
+    // same bytes.
+    for delta in [0.1, 1e-2, 1e-3] {
+        let plain = mesh::tessellate(&body, delta, tol())
+            .unwrap_or_else(|e| panic!("δ {delta}: the wall meshes, got {e:?}"));
+        mesh::validate::check_mesh(&plain)
+            .unwrap_or_else(|e| panic!("δ {delta}: a closed manifold, got {e:?}"));
+        let mut memo = mesh::PatchMemo::new();
+        let with = mesh::tessellate_with(&body, delta, tol(), &mut memo)
+            .unwrap_or_else(|e| panic!("δ {delta}: through the memo too, got {e:?}"));
+        assert!(
+            with.mesh.patches == plain.patches
+                && with.mesh.positions.len() == plain.positions.len()
+                && with
+                    .mesh
+                    .positions
+                    .iter()
+                    .zip(&plain.positions)
+                    .all(|(a, b)| a.same_bits(*b)),
+            "δ {delta}: the memo's door meshes the same bytes"
+        );
     }
 }
 

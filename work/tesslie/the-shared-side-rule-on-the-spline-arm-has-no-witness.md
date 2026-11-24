@@ -36,3 +36,7 @@ two triangles per chord, so the failure would be a refusal, not a wrong
 A witness once a door can trim a spline face against a neighbour that
 joins its chain freely (a split or boolean with a spline operand), or a
 row that pins the rule on a hand-built trimmed spline patch.
+
+## 2026-11-23 — the rule is retired (TESSLANE, branch `tesslane/join-split`)
+
+The trimmed lane's shared-side insert, the spline arm's included, retires with `UnclearedSharedSide` (`work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`); a side two faces both make is split in both where the patches join (`mesh::join`), where a spline face's split point is its own surface at the side's chart midpoint. Two witnesses on the spline arm, measured there: `faces_that_bound_no_region::a_lens_of_two_short_arcs_meshes_at_a_coarse_delta`, two spline faces on one sheet that both make one side (split in both, the two points one position: the body bounds no region); and main's spline walls beside a pinned corner (`d9_mesh_goldens`' `pinned_wedge` and `corner_pinned_through_three`, `trimmed::collapsed_rows`' class), where the rule inserted two points per spline face for sides no face across made, which the retirement drops (four triangles fewer a face, `check_mesh` and volume unchanged). This row's question — whether the rule ever fires rightly on the spline arm — has no rule left to ask it of.

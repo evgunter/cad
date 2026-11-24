@@ -551,17 +551,17 @@ fn fnv(h: &mut u64, x: u64) {
 #[test]
 fn the_class_meshes_to_one_digest_at_every_eps() {
     let pinned: [u64; 11] = [
-        0x64da_6acc_06e7_1657,
-        0xae0a_c8ac_6b69_faa2,
-        0x6cd1_df2c_f0c6_0eb9,
-        0x06bc_c7d0_141f_a080,
-        0xd42d_7b0e_e0bd_87e2,
-        0xcfb1_f8f9_0dfb_b012,
-        0x7cae_777e_ef9e_68ce,
-        0x8367_7240_b74f_176b,
-        0xb069_2be6_2b6a_9a55,
+        0x4a35_f95f_f08f_36d8,
+        0xa9ff_f939_5870_71d4,
+        0x8dae_5c35_b89e_6abb,
+        0xc4aa_f59e_712f_29fa,
+        0xa812_21f7_18fc_e776,
+        0x12c1_ce7a_18ff_f50d,
+        0x2c6f_7c0d_2fd5_66bf,
+        0x4e72_791f_c1bb_da04,
+        0x8025_9ad5_84ed_5012,
         0x519c_93fe_1c05_8ee4,
-        0xcb4d_3e8b_8647_42ef,
+        0x3c56_afa7_98dd_e63e,
     ];
     let got: Vec<u64> = the_class()
         .iter()

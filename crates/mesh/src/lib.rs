@@ -93,8 +93,12 @@
 //! fresh one takes, so its mesh is byte-identical to [`fn@tessellate`]'s.
 //! A neighbour enters a face's inputs only as that list says: through
 //! the shared chord points, which the one chord rule in [`chords`] sizes
-//! from both faces, and on the trimmed lane as the identity of the face
-//! across each edge, never as the neighbour's own geometry.
+//! from both faces, never as the neighbour's identity or its geometry. A
+//! patch is a function of its face and δ, and the join adds the split
+//! points: a side two patches both have inside, and a side of a triangle
+//! two faces both lay on only the points they share, is split in each
+//! patch that has it inside where they join (`join`), at the foot on that
+//! face's own surface of the side's straight midpoint.
 
 //! # Structure kept, structure dropped
 //!
@@ -176,9 +180,11 @@
 //! which is the CROSS-FACE half no per-patch census can see. **That makes
 //! the WRAP half of the pole-fan argument mechanical**, on the same
 //! footing as the pole half: the two entries of a wrap edge never share
-//! one interior column. A side used past two triangles per chord carrying
-//! it refuses there, typed, in every profile
-//! ([`TessellateError::OverusedSide`]); a chord segment used fewer times,
+//! one interior column. A side two patches have inside is split there
+//! (`crate::join`), and one still used past two triangles per chord
+//! carrying it is a lane's or the join's own bug and panics, in every
+//! profile; a
+//! chord segment used fewer times,
 //! and the per-patch census, are `#[cfg(debug_assertions)]`, which cargo's release
 //! default would drop — so whether a release build carries more than
 //! the floor is a manifest setting, and the root `Cargo.toml`
@@ -320,6 +326,7 @@ pub mod cert;
 mod chart_table;
 mod chords;
 mod curved;
+mod join;
 // The per-face patch memo behind `tessellate_with`: its key, stated
 // per lane, and its eviction rule. Public for the memo type and the
 // digests a caller keeps alive; the key itself is crate-private.

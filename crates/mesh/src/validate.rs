@@ -323,6 +323,23 @@ pub(crate) fn resolved_normal(tri: [Point3<f64>; 3]) -> Result<Vec3<f64>, Unreso
     }
 }
 
+/// A triangle's centroid, the point its fold is read at.
+pub(crate) fn centroid(tri: [Point3<f64>; 3]) -> Point3<f64> {
+    Point3::new(
+        (tri[0].x + tri[1].x + tri[2].x) / 3.0,
+        (tri[0].y + tri[1].y + tri[2].y) / 3.0,
+        (tri[0].z + tri[1].z + tri[2].z) / 3.0,
+    )
+}
+
+/// **Whether a triangle with `normal` is folded against `outward`**, its
+/// face's outward normal at its [`centroid`]: a zero dot, or a NaN where
+/// either is poison, is a fold. The one reading of a fold every lane and
+/// the join's split make.
+pub(crate) fn wound_against(normal: Vec3<f64>, outward: Vec3<f64>) -> bool {
+    normal.dot(outward).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater)
+}
+
 /// The first of `triangles`, indices into `positions`, whose winding is
 /// not resolved ([`resolved_normal`]), with what it is.
 pub(crate) fn first_unresolved(

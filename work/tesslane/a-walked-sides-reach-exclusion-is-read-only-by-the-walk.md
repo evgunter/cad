@@ -2,10 +2,11 @@
 id: a-walked-sides-reach-exclusion-is-read-only-by-the-walk
 kind: issue
 title: the walk excludes a shared side its neighbour cannot reach (may_make); the CDT arms' one shared-side test does not
-status: open
+status: closed
 opened: 2026-11-22
 priority: P3
 cost: C
+closed: 2026-11-23
 ---
 
 
@@ -69,3 +70,7 @@ where those stand farther from the origin its allowance is larger than
 the one read here (by at most `δ·ALLOWANCE_SHARE`). A side excluded on
 that difference is the census's (`OverusedSide`: a wrong refusal, never a
 wrong `Ok`). No row reaches it. Stated at the site.
+
+## Closed
+
+Moot: the walk's cut and `may_make` retired with the CDT arms' shared-side insert (`work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`, branch `tesslane/join-split`). No lane reads anything about the faces across its edges; a side two faces both make is split where the patches join (`mesh::join`).

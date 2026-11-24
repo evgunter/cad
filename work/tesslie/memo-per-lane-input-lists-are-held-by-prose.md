@@ -42,3 +42,7 @@ so that an input cannot be read without being listed. One option: the
 lanes take their face's inputs through `FaceInputs` (or a view of it)
 rather than through `&Body` and `&ChordPass`. Another: a gate over the
 lanes' reads.
+
+## 2026-11-23 — one list entry retired (TESSLANE, branch `tesslane/join-split`)
+
+The trimmed lane no longer reads the face across an edge, and `memo::EdgeInputs::across` and its fold in the key are gone with the rule that read it; the list in `memo`'s docs says so. `patch_memo::the_trimmed_lane_hits_when_only_the_face_across_an_edge_changes` holds the hit.

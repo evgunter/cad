@@ -430,11 +430,11 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
     (
         "pinned_wedge",
-        [0x12ff_02e0_5d1f_4e27, 0xb6d0_baab_eae4_fad2],
+        [0x6698_efdf_f7af_cdc0, 0x8c4e_63f5_1bb8_b49a],
     ),
     (
         "corner_pinned_through_three",
-        [0x9789_7a1f_84e0_bbe9, 0x656e_bbf8_8ac8_da74],
+        [0xb407_16fb_b8f7_6c75, 0xac62_5795_58e1_3fb5],
     ),
     (
         "swept_elbow",

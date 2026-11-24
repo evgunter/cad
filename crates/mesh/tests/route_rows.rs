@@ -648,15 +648,15 @@ fn an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes() {
 /// two bodies the route walks: a frustum wall turned a full turn (two cone
 /// faces), every line edge split at its middle, at δ 5e-2; the bored ball
 /// of `split_rulings` with its seam split at its middle, at δ 0.1, where
-/// the walk cuts. The walk adds one kind of decision to a run:
+/// the join splits the bore's sides. The walk adds one kind of decision to a run:
 /// **`chart_singularity_at_vertex`**, inside the route, once per singular
 /// point of the face's chart per vertex of its outer loop
 /// (`trimmed::walkable`, `chart_table::at_a_pole`). A cone has one, its
 /// apex, so the frustum's two faces of six vertices each add 12 of the
 /// run's 36 (the other 24 are the trimmed lane's own reads of its
 /// vertices, `trimmed::singular_vertices`); a cylinder has none, so the
-/// bore adds none. Its cuts record nothing: whether a face across can
-/// reach a side (`trimmed::may_make`) reads no band.
+/// bore adds none. The split where the patches join records nothing: it
+/// reads shared ids, the face's chart and its certificate, and no band.
 ///
 /// A memo hit records none of it: the route's decisions are spliced only
 /// where the lane runs. Each body's count, and its whole run's stream, are

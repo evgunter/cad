@@ -303,11 +303,6 @@ impl<'a> AnalyticRow<'a> {
         })
     }
 
-    /// The surface the row charts.
-    pub(crate) fn surface(&self) -> &Surface<f64> {
-        self.surface
-    }
-
     /// **The chart's kind, with what its steps and certificate read**,
     /// from the surface's own data and the face's window.
     pub(crate) fn kind(&self) -> Analytic {
@@ -503,8 +498,8 @@ impl<'a> AnalyticRow<'a> {
     /// boundary circle is near round, so a triangle on its points alone
     /// (an ear, or a side across several chord steps) usually has the
     /// face's interior points in its circumcircle and the CDT does not
-    /// make it, which leaves the trimmed lane's shared-side cure less to
-    /// split.
+    /// make it, which leaves the join fewer sides two faces both make
+    /// (`crate::join`).
     ///
     /// **On a cylinder** the lane lays no row ([`Self::lattice_rows`]), so
     /// it reads this at `nv = 1`: the aspect is the column step over the

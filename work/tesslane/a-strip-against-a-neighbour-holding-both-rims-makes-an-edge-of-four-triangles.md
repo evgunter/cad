@@ -2,10 +2,11 @@
 id: a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles
 kind: issue
 title: a ruled face's strip and a neighbour holding both of its rims make one rim-to-rim chord, an edge of four triangles tessellate returns
-status: open
+status: closed
 opened: 2026-11-17
 priority: P2
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -87,3 +88,7 @@ point between them. The census is what catches it.
 ## 2026-11-22 — band, and where the cure is decided (TESSLANE orchestrator)
 
 Banded P1 when it was a non-manifold `Ok`. It is now a typed refusal of a valid body, on seven cells, all at a δ several times the shell's thickness (a ball of 1.05 with a bore of 1 at δ 0.1 and coarser; a ball of 1.3 meshes at every δ run), so P2: it neither blocks authoring nor entrenches. The cure is not chosen here: the walk's rule would mesh these cells and over-cut others, and which rule the rectangle lane takes is one question with the other lanes', `the-mesh-cures-a-side-two-faces-can-both-make-three-ways` (design).
+
+## Closed
+
+By `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md` (branch `tesslane/join-split`): a side the strip and its neighbour both make is split in both patches where they join (`mesh::join`), and two edges between one vertex pair are never chorded to one segment (`chords::coincident_end_floors`, the bore's seam beside the torus face's). `split_rulings::a_shell_thinner_than_delta_meshes_split_or_unsplit` holds it: the bored ball of 1.05, both signs, unsplit and seam-split, δ 3 to 0.03, every cell a closed manifold by `check_mesh` with a positive signed volume.

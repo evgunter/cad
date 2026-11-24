@@ -124,8 +124,6 @@ test_utils::f6_variants! {
         TrimLoopOrientation,
         FoldedTriangle,
         UnresolvedWinding,
-        UnclearedSharedSide,
-        OverusedSide,
         SphereTrimShape,
         WrapStripTurn,
         LiftedColumnOff,
@@ -356,17 +354,6 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 "1.75e-15",
                 "8 f64 epsilons",
             ],
-        ),
-        (
-            TessellateError::UnclearedSharedSide { face },
-            vec!["boundary chord points", "four"],
-        ),
-        (
-            TessellateError::OverusedSide {
-                faces: vec![face, face],
-                uses: 4,
-            },
-            vec!["4 triangles", "2 faces", "not a closed manifold"],
         ),
         (
             TessellateError::SphereTrimShape {

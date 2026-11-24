@@ -214,6 +214,57 @@ pub fn brick<T: Decide + topo::AtRestPolicy>(
     topo::test_support::brick(x, y, z, tol)
 }
 
+/// **A sliver of a rod**: the unit disc extruded 2 along `z`, met by a
+/// slab turned 0.05 about `y` whose edge sits 0.01 inside the wall at
+/// mid-height. The intersection's cylinder face is about two lattice
+/// cells across, between two section-ellipse arcs whose plane faces have
+/// no interior point, so each joins the points of its arc freely and
+/// the tessellation splits sides of them where the patches join. One home
+/// for `mesh`'s trimmed-lane and join rows and `editor_core`'s pick-memo
+/// row.
+///
+/// # Panics
+///
+/// If a construction door refuses: a statement about the fixture.
+#[must_use]
+pub fn rod_sliver(tol: Tol) -> Body<f64> {
+    let disc = Profile::new(
+        SketchPlane::xy(),
+        vec![
+            profile::circle(Point2::new(0.0, 0.0), 1.0, tol)
+                .expect("a unit circle")
+                .into(),
+        ],
+    )
+    .validate(tol)
+    .expect("a disc");
+    let depth = Extrusion::Distance {
+        depth: 2.0,
+        side: crate::ExtrudeSide::Along,
+    };
+    let rod = finished(
+        "the rod",
+        extrude(&disc, depth, tol)
+            .expect("the rod")
+            .body
+            .into_body(),
+        tol,
+    );
+    let pose = Affine3::translation(Vec3::new(0.99, 0.0, 1.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
+    let slab = finished(
+        "the slab",
+        topo::transform_rigid(
+            &brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol),
+            &geom_core::test_support::rigid(&pose, tol),
+        )
+        .expect("the slab placed"),
+        tol,
+    );
+    let met = topo::intersect(&rod, &slab, tol).expect("the sliver");
+    Body::clone(&met.body().expect("a sliver").body)
+}
+
 /// **Every boolean output is a legal boolean operand** (DESIGN,
 /// "Maximal faces"): asserts that `body` is a finished body and passes
 /// the next boolean's operand gates, by uniting it with a unit brick at

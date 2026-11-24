@@ -53,12 +53,9 @@
 //! chord PARAMETERS (it evaluates pcurves on that
 //! schedule), each half-edge's image where the face's domain places it
 //! (`topo::Body::face_lift`: the loop's lift, and a ring's moved into its
-//! outer loop's sheet), and the face across each edge (the chord pass's
-//! `ChordPass::holders`, which the shared-side rule reads in
-//! `trimmed::faces_across` to tell which two boundary points one
-//! neighbour holds both of) — the last folded as a relabeling numbered by
-//! first appearance along the walk, since a face key is an arena key,
-//! with a seam (an edge the face holds both halves of) folded as none.
+//! outer loop's sheet). No lane reads anything about the faces across its
+//! edges: a side two faces both make is split where the patches join
+//! (`crate::join`), from what the patch itself holds.
 //!
 //! # The entry identity a consumer can cache against
 //!
@@ -136,7 +133,10 @@ impl PatchDigest {
 /// The identity of one memo entry, minted at the insert that created
 /// it and never reused.
 ///
-/// **The invariant.** Two faces reported under one id have the same
+/// **The invariant.** A face is reported under an id only where its
+/// placed corners are its entry's: a patch the join split
+/// (`crate::join`) carries points no entry holds, and is reported under
+/// none. Two faces reported under one id have the same
 /// key bytes — a hit compares the entry's FULL key, so this is decided
 /// on the far side of that comparison, which a digest is not — and
 /// therefore the same PLACED corners, bit for bit: a face's corners
@@ -175,10 +175,11 @@ struct FaceRow {
 /// — and the id of the memo entry its patch came from or became, where
 /// there is one ([`StoredPatchId`]).
 ///
-/// The id is absent exactly where the memo holds no entry for the
-/// face: its lane refused, or it named a shared id outside its own
-/// boundary walk (the key-completeness defect [`PatchMemo::record`]
-/// names).
+/// The id is absent where the memo holds no entry for the face (its
+/// lane refused, or it named a shared id outside its own boundary walk:
+/// the key-completeness defect [`PatchMemo::record`] names), and where
+/// the face has an entry but the join split its patch, so that its
+/// placed corners are not the entry's (`crate::join`).
 ///
 /// **Equality is over the digests alone, and the ids are excluded on
 /// purpose.** A digest is a function of the face's inputs, so two
@@ -224,15 +225,33 @@ impl PatchKeys {
 
     /// The memo entry the face at position `i` was answered from or
     /// stored as — the identity its placed corners are bit-identical
-    /// under ([`StoredPatchId`]).
+    /// under ([`StoredPatchId`]) — and `None` where there is none or the
+    /// join split the face's patch.
     pub fn stored(&self, i: usize) -> Option<StoredPatchId> {
         self.0.get(i).and_then(|row| row.stored)
     }
 
-    /// Every entry id the tessellation used, in face-arena order,
-    /// skipping the faces the memo holds nothing for.
+    /// Every entry id the tessellation reports, in face-arena order,
+    /// skipping the faces it reports none for ([`Self::stored`]).
     pub fn stored_ids(&self) -> impl Iterator<Item = StoredPatchId> + '_ {
         self.0.iter().filter_map(|row| row.stored)
+    }
+
+    /// Names no entry for the face at position `i`: its placed corners are
+    /// not the entry's (the join split it, `crate::join`).
+    ///
+    /// # Panics
+    ///
+    /// Where no face is at `i`: the fold names only faces it placed, so
+    /// one out of range is a bug.
+    pub(crate) fn unstore(&mut self, i: usize) {
+        let Some(row) = self.0.get_mut(i) else {
+            unreachable!(
+                "face {i} of {}: the join names only faces it placed",
+                self.0.len()
+            );
+        };
+        row.stored = None;
     }
 
     pub(crate) fn push(&mut self, digest: PatchDigest, stored: Option<StoredPatchId>) {
@@ -318,7 +337,8 @@ impl PatchMemo {
     }
 
     /// The memo's heap footprint, approximately: every entry's key
-    /// bytes, its identity, its interior points and its triangles. A
+    /// bytes, its identity, its interior points, its triangles and the
+    /// chart corners its splits read (`crate::join::Splits`). A
     /// measurement door, not a budget.
     pub fn bytes(&self) -> usize {
         self.entries
@@ -328,6 +348,7 @@ impl PatchMemo {
                     + core::mem::size_of::<StoredPatchId>()
                     + e.patch.interior.len() * core::mem::size_of::<Point3<f64>>()
                     + e.patch.triangles.len() * core::mem::size_of::<[StoredVertex; 3]>()
+                    + e.patch.splits.bytes()
             })
             .sum()
     }
@@ -587,12 +608,44 @@ pub(crate) enum Placement<'m> {
 }
 
 impl Placement<'_> {
-    /// This face's triangles, as mesh ids, with its interior points
-    /// appended to `positions` — the one allocation either arm makes.
-    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+    /// **Each triangle's corners as shared mesh ids**, `None` for a point
+    /// of the patch's own (`crate::join::census`).
+    pub(crate) fn corners(&self, mut each: impl FnMut([Option<u32>; 3])) {
         match self {
-            Self::Lane(patch) => patch.place(positions),
-            Self::Memo { stored, boundary } => stored.place(&boundary, positions),
+            Self::Lane(patch) => {
+                for t in &patch.triangles {
+                    each(t.map(PatchVertex::shared));
+                }
+            }
+            Self::Memo { stored, boundary } => {
+                for t in &stored.triangles {
+                    each(t.map(|v| match v {
+                        StoredVertex::Boundary(i) => Some(boundary[i as usize]),
+                        StoredVertex::Local(_) => None,
+                    }));
+                }
+            }
+        }
+    }
+
+    /// This face's triangles, as mesh ids, with its interior points
+    /// appended to `positions` — the one allocation either arm makes —
+    /// and, where `split`, its notes for the join's split: moved out of a
+    /// lane's patch, copied out of a memo entry, which keeps its own.
+    pub(crate) fn place(
+        self,
+        positions: &mut Vec<Point3<f64>>,
+        split: bool,
+    ) -> (Vec<[u32; 3]>, Option<crate::join::Splits>) {
+        match self {
+            Self::Lane(mut patch) => {
+                let splits = split.then(|| core::mem::take(&mut patch.splits));
+                (patch.place(positions), splits)
+            }
+            Self::Memo { stored, boundary } => (
+                stored.place(&boundary, positions),
+                split.then(|| stored.splits.clone()),
+            ),
         }
     }
 }
@@ -637,6 +690,9 @@ enum StoredVertex {
 pub(crate) struct StoredPatch {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[StoredVertex; 3]>,
+    /// The patch's splits (`crate::join`): a function of the face, as the
+    /// rest of the patch is.
+    splits: crate::join::Splits,
 }
 
 impl StoredPatch {
@@ -661,6 +717,7 @@ impl StoredPatch {
         Some(Self {
             interior: patch.interior.clone(),
             triangles,
+            splits: patch.splits.clone(),
         })
     }
 
@@ -714,12 +771,6 @@ pub(crate) struct EdgeInputs {
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
     pub(crate) lineage: Option<u32>,
-    /// The face across the edge ([`ChordPass::across`]), as an identity
-    /// numbered by first appearance along the face's walk: `None` where
-    /// the face holds both halves (a seam). The trimmed lane's
-    /// shared-side rule reads it (`trimmed::faces_across`), and the face
-    /// across is an arena key, so it is folded as a relabeling.
-    pub(crate) across: Option<u32>,
 }
 
 /// Everything a face's lane reads — the memo key, as a value. The
@@ -766,8 +817,6 @@ impl FaceInputs {
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
-        // The faces across the edges, relabeled the same way.
-        let mut neighbours: HashMap<FaceKey, u32> = HashMap::new();
         // Each half-edge's image where the trimmed lane reads it: the
         // face's domain (`trimmed::face_domain`), the one value the lane
         // reads, every loop. A moved ring's image is read afresh from its
@@ -783,6 +832,15 @@ impl FaceInputs {
             })
             .unwrap_or_default();
         for (lk, _, _) in face.loops() {
+            // A lone-vertex ring bounds no area (`topo`'s
+            // `FaceView::area_loops`) and no lane reads it, so the key does
+            // not: a hit is answered for the face a fresh run meshes.
+            if matches!(
+                body.get_loop(lk).map(|l| &l.boundary),
+                Some(topo::LoopBoundary::Empty { .. })
+            ) {
+                continue;
+            }
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
@@ -805,11 +863,6 @@ impl FaceInputs {
                 #[allow(clippy::cast_possible_truncation)]
                 let next = roots.len() as u32;
                 let lineage = root.map(|r| *roots.entry(r).or_insert(next));
-                #[allow(clippy::cast_possible_truncation)]
-                let next = neighbours.len() as u32;
-                let across = chords
-                    .across(ek, fk)?
-                    .map(|f| *neighbours.entry(f).or_insert(next));
                 edges.push(EdgeInputs {
                     forward,
                     carrier: curve.carrier().clone(),
@@ -819,7 +872,6 @@ impl FaceInputs {
                     chord_params,
                     pcurve: lifted.remove(&hek),
                     lineage,
-                    across,
                 });
             }
             loops.push(edges);
@@ -938,13 +990,6 @@ impl FaceInputs {
                             Some(p) => {
                                 w.u8(1);
                                 w.pcurve(p);
-                            }
-                        }
-                        match e.across {
-                            None => w.u8(0),
-                            Some(f) => {
-                                w.u8(1);
-                                w.u32(f);
                             }
                         }
                     }
@@ -1363,7 +1408,6 @@ mod tests {
                 ends: None,
             }),
             lineage: Some(ids[0]),
-            across: Some(ids[0]),
         }
     }
 
@@ -1541,17 +1585,49 @@ mod tests {
             |f| f.loops[0][1].lineage = None,
             [false, true, false],
         ),
-        (
-            "the faces across' identity structure",
-            |f| f.loops[0][1].across = f.loops[0][0].across,
-            [false, false, true],
-        ),
-        (
-            "an edge that becomes a seam",
-            |f| f.loops[0][1].across = None,
-            [false, false, true],
-        ),
     ];
+
+    /// **A patch names the entry its placed corners are, and a patch the
+    /// join split names none** (`PatchKeys::unstore`): what a consumer
+    /// caching against the entry (the pick index's tables) reads. The rod
+    /// sliver (`trimmed::tests::a_rod_sliver`), whose cylinder face and the
+    /// plane face across each make sides of one arc, through one memo in
+    /// two pictures (a miss, then hits): every patch reported under an entry
+    /// has that entry's triangles, and every split one, which has two more
+    /// per split, reports none.
+    #[test]
+    fn a_patch_split_where_the_patches_join_names_no_entry() {
+        let body = crate::trimmed::tests::a_rod_sliver();
+        let mut memo = PatchMemo::new();
+        for picture in ["a miss", "hits"] {
+            let t = crate::tessellate_with(&body, 2e-2, Tol::witness(), &mut memo)
+                .unwrap_or_else(|e| panic!("{picture}: meshes, got {e:?}"));
+            let mut split = 0;
+            for (i, p) in t.mesh.patches.iter().enumerate() {
+                let entry = &memo.entries[&t.keys.get(i).expect("a row per face")];
+                let placed = p.triangles.len();
+                if placed == entry.patch.triangles.len() {
+                    assert_eq!(
+                        t.keys.stored(i),
+                        Some(entry.id),
+                        "{picture}: patch {i} as stored"
+                    );
+                } else {
+                    split += 1;
+                    assert_eq!(
+                        t.keys.stored(i),
+                        None,
+                        "{picture}: patch {i}, split, names no entry"
+                    );
+                }
+            }
+            assert!(
+                split >= 2,
+                "{picture}: the join split both faces of the arc, {split}"
+            );
+            memo.end_picture();
+        }
+    }
 
     #[test]
     fn each_input_moves_the_key_of_exactly_the_lanes_that_read_it() {
@@ -1593,6 +1669,7 @@ mod tests {
     fn a_stored_patch_is_placed_against_the_new_boundary_ids() {
         let patch = Patch {
             interior: vec![p(0.5)],
+            splits: crate::join::Splits::default(),
             triangles: vec![
                 [
                     PatchVertex::Shared(10),
@@ -1640,6 +1717,7 @@ mod tests {
             b"a".to_vec(),
             StoredPatch {
                 interior: Vec::new(),
+                splits: crate::join::Splits::default(),
                 triangles: Vec::new(),
             },
         );
@@ -1666,6 +1744,7 @@ mod tests {
                     key: b"b".to_vec(),
                     stored: Some(StoredPatch {
                         interior: Vec::new(),
+                        splits: crate::join::Splits::default(),
                         triangles: Vec::new(),
                     }),
                 },

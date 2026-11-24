@@ -1322,9 +1322,10 @@ pub(crate) mod tests {
     ///
     /// **What it does not exercise.** The zip of a one-chord face to the
     /// apex with both sides split (`ruled_walk::Rows::zip_sides`) and a
-    /// side the walk cuts (`trimmed::walk_face`) are not walked here. Both
-    /// keep every triangle between two rulings one chord apart on each
-    /// row, which is what the theorem reads; their triangles are certified
+    /// side split where the patches join (`crate::join`) are not walked
+    /// here. Both keep every triangle between two rulings one chord apart
+    /// on each row, which is what the theorem reads; their triangles are
+    /// certified
     /// per triangle on bodies by `split_rulings`'
     /// `a_one_chord_face_through_the_apex_with_both_sides_split_meshes` and
     /// `a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`.

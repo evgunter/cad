@@ -418,13 +418,16 @@ fn the_eps_inventory_is_pinned() {
     // more (`cert::FaceVerdict::read`, the one reading of a face's
     // triangles, takes it and hands it to that verdict); `curved.rs`
     // carries it one step to hand it to `read`, and `trimmed.rs` two (its
-    // emit pass's and its walk's, `walk_face`).
-    const PINNED: [(&str, usize, [usize; 4]); 7] = [
+    // emit pass's and its walk's, `walk_face`). `join.rs` carries it to
+    // `read` for the pieces of a side split where the patches join
+    // (`join::split`), which `tessellate.rs` hands it.
+    const PINNED: [(&str, usize, [usize; 4]); 8] = [
         ("cert.rs", 4, [0, 0, 1, 0]),
         ("curved.rs", 7, [0, 0, 0, 0]),
+        ("join.rs", 2, [0, 0, 0, 0]),
         ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
-        ("tessellate.rs", 2, [0, 0, 0, 0]),
+        ("tessellate.rs", 3, [0, 0, 0, 0]),
         ("trimmed.rs", 3, [0, 0, 0, 1]),
         ("walk.rs", 9, [1, 3, 1, 0]),
     ];

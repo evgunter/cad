@@ -29,3 +29,7 @@ admesh pairs facets across an edge greedily, so an edge of four facets is two sa
 ## What closing it takes
 
 Either the gate gains the check it names (a count of edge uses after joining vertices by position, in the script or as a Rust check beside `check_mesh` that welds by position), or its header and the tests' wording say what it checks. The acceptance bodies are few, so the count is cheap.
+
+## A body whose mesh is a sheet counted twice (TESSLANE, 2026-11-23)
+
+`crates/mesh/tests/faces_that_bound_no_region.rs`'s `a_lens_of_two_short_arcs_meshes_at_a_coarse_delta` meshes a body of zero volume: two spline faces on one sheet, bounded by the same two arcs. By vertex id its mesh is a closed manifold, and the row passes. Joined by position, the mesh on main (the shared-side insert in both faces) has 12 triangles in 6 coincident pairs and 7 edges of more than two triangles, at δ 0.1 and 0.02; under the split where the patches join (`mesh::join`) it has 8 triangles in 4 coincident pairs and 4 such edges. Each face's split point is a point of its own surface, and the two surfaces are one, so the two points are one position. A reader that joins by position sees an edge of four triangles either way; this gate is the one place it would be seen.
