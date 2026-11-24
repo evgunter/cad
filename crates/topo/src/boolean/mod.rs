@@ -5934,10 +5934,10 @@ impl BooleanError {
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
                 "a flat face of one part cuts a torus face of the other ({}) at a slant so \
-                 near square to the torus's axis, or so near parallel to it, that the cut \
-                 reads slanted where the faces meet and square or parallel over the whole \
-                 torus, so it is not traced. Recourse: turn the flat face clearly off the \
-                 torus's axis or exactly onto its square or parallel",
+                 near square or parallel to the torus's axis that the cut reads slanted \
+                 where the faces meet but square or parallel over the torus, and is not \
+                 traced. Recourse: turn the flat face clearly off square and parallel to \
+                 the axis, or exactly onto one",
                 match loops {
                     SpiricLoops::AroundAxis => "two loops round the axis",
                     SpiricLoops::AroundTube => "two loops round the tube",
