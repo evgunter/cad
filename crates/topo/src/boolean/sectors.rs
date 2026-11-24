@@ -3176,7 +3176,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis.get()) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis().get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(
@@ -5202,7 +5202,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
+            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex().equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

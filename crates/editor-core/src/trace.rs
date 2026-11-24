@@ -240,6 +240,33 @@ impl core::fmt::Display for TraceStepFault {
                 f.write_str(&refusal.said("the face's", None))?;
                 refusal.convention.sized().lever
             }
+            // An arc's frame: its pen on its centre names no seam, and a
+            // sketch plane with no normal names no axis. An in-band length
+            // is the band's escalation, in its own words.
+            TraceStepFault::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis,
+                error,
+            })) => {
+                use geom_core::{OrthoAxis, UnitVec3Error};
+                if let UnitVec3Error::Escalated(diag) = error {
+                    return write!(f, "{}", TraceFault::Escalated(*diag));
+                }
+                let finite = matches!(error, UnitVec3Error::Degenerate);
+                match (axis, finite) {
+                    (OrthoAxis::V, true) => {
+                        f.write_str("the arc's pen stands on its centre, so it has no radius")?;
+                        "draw the arc from a pen off its centre"
+                    }
+                    (OrthoAxis::V, false) => {
+                        f.write_str("the arc's radius is not a finite length")?;
+                        "draw the arc from a pen a finite distance off its centre"
+                    }
+                    (OrthoAxis::U, _) => {
+                        f.write_str("the arc's sketch plane has no normal direction")?;
+                        "rebuild the frame the sketch is drawn on"
+                    }
+                }
+            }
             TraceStepFault::Carrier(fault) => {
                 write!(f, "{fault}")?;
                 "turn the piece so it crosses the face, or move the frame"

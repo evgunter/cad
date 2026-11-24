@@ -89,8 +89,9 @@ pub enum TraceFault {
     /// A sign the band cannot call: the sliver band.
     Escalated(Indeterminate),
     /// A circle whose stated axis and seam name no frame: an axis, or a
-    /// seam's part square to it, decided zero, in the band, or not a
-    /// finite direction ([`geom_core::RigidMotion::from_axis_and_reference`]).
+    /// seam's part square to it, decided zero or not a finite direction
+    /// ([`geom_core::RigidMotion::from_axis_and_reference`]). A length in
+    /// the band is [`Self::Escalated`].
     Frame(geom_core::OrthonormalizeError),
     /// A root count the door cannot certify: a root door's own
     /// `Unsettled`, past the two this door names itself (a double root
@@ -385,7 +386,9 @@ pub fn ray_crossings_to<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`TraceFault::Frame`] where either names no direction.
+/// [`TraceFault::Frame`] where either is decided to name no direction
+/// (a length decided zero, past the format, or not finite);
+/// [`TraceFault::Escalated`] where a length is in the band.
 fn circle_frame<T: Decide>(
     (center, axis, u_ref): (Point3<T>, Vec3<T>, Vec3<T>),
     band: Band,
@@ -397,7 +400,12 @@ fn circle_frame<T: Decide>(
         "trace_circle_frame",
         band,
     )
-    .map_err(TraceFault::Frame)?;
+    .map_err(|refusal| match refusal.error {
+        // An in-band length is the band's, as every other sign the trace
+        // cannot call is: one spelling of undecided.
+        geom_core::UnitVec3Error::Escalated(diag) => TraceFault::Escalated(diag),
+        _ => TraceFault::Frame(refusal),
+    })?;
     Ok(geom::Frame::of_motion(&geom_core::RigidMotion::squared(
         center, axis, u_ref,
     )))

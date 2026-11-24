@@ -4903,6 +4903,34 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 error: geom_core::UnitVec3Error::Degenerate,
             })),
         ),
+        (
+            "Carrier/Frame/axis",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::U,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/underflowed",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::UnderflowedLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/non-finite",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::NonFiniteLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/escalated",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Escalated(diag()),
+            })),
+        ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];
     faults

@@ -49,7 +49,7 @@ use geom_core::Lever;
 pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Point3<T>) -> T {
     let a = apex.nappe_axis(like);
     let (z, rho) = geom::Line {
-        origin: apex.apex,
+        origin: apex.apex(),
         dir: a,
     }
     .height_and_distance(q);
@@ -87,7 +87,7 @@ pub(super) fn face_side_code<T: Decide>(
         }
         StarFace::Apex(apex) => apex,
     };
-    let q = reach.point(apex.apex, dir);
+    let q = reach.point(apex.apex(), dir);
     let offset = nappe_offset(apex, other.start, q);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let sign = decide("bool_fan_side", Margin::of(offset), band).map_err(escalate)?;
@@ -483,7 +483,7 @@ fn plane_fan<T: Decide>(
     let lines = match crate::chord_join::cone_apex_plane_section(
         fan_body,
         band,
-        (apex.apex, unit),
+        (apex.apex(), unit),
         fan.face,
         vertex,
     ) {

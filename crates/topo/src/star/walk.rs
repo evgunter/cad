@@ -400,7 +400,7 @@ impl<T: Decide> Star<T> {
             (StarFace::Apex(apex), Datum::Plane(_) | Datum::Cone(_)) => {
                 let across = match datum {
                     Datum::Plane(n) => *n,
-                    Datum::Cone(other) => other.axis.get(),
+                    Datum::Cone(other) => other.axis().get(),
                 };
                 let window = apex.azimuth_from(start, end);
                 Ok(
@@ -643,7 +643,7 @@ mod tests {
                 for datum in datums {
                     let across = match datum {
                         Datum::Plane(n) => *n,
-                        Datum::Cone(c) => c.axis.get(),
+                        Datum::Cone(c) => c.axis().get(),
                     };
                     let side: Vec<f64> = along.iter().map(|d| d.dot(across)).collect();
                     let steps: Vec<f64> = side.windows(2).map(|w| w[1] - w[0]).collect();

@@ -131,16 +131,25 @@ impl<T: Decide> VertexFace<T> {
 /// the face leaves its apex along, and the face's `sense` bit.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ConeApex<T: geom_core::Real> {
-    /// The apex.
-    pub apex: Point3<T>,
-    /// The cone's unit axis.
-    pub axis: UnitVec3<T>,
+    /// The cone's frame, as its surface holds it: its origin the apex and
+    /// its axis the cone's ([`Self::apex`], [`Self::axis`]).
+    pub frame: geom::Frame<T>,
     /// The half-angle between a ruling and the axis.
     pub half_angle: T,
     /// The face's `sense` bit.
     pub sense: bool,
-    /// The cone's frame, as its surface holds it: placed at `apex`.
-    pub frame: geom::Frame<T>,
+}
+
+impl<T: geom_core::Real> ConeApex<T> {
+    /// The apex, the frame's origin.
+    pub(crate) fn apex(&self) -> Point3<T> {
+        self.frame.origin()
+    }
+
+    /// The cone's unit axis, the frame's.
+    pub(crate) fn axis(&self) -> UnitVec3<T> {
+        self.frame.axis_unit()
+    }
 }
 
 #[cfg(test)]
@@ -155,11 +164,9 @@ impl<T: geom_core::Real> ConeApex<T> {
         sense: bool,
     ) -> Self {
         Self {
-            apex,
-            axis,
+            frame: geom::Frame::new(apex, axis.get(), u_ref),
             half_angle,
             sense,
-            frame: geom::Frame::new(apex, axis.get(), u_ref),
         }
     }
 }
@@ -179,7 +186,7 @@ impl<T: Decide> ConeApex<T> {
     /// ruling, so this is the normal at every point of it, and the limit
     /// of the face's normal at points approaching the apex along it.
     pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
-        let chart = geom_brep::implicit_gradient(&self.surface(), self.apex + d.normalize());
+        let chart = geom_brep::implicit_gradient(&self.surface(), self.apex() + d.normalize());
         OutwardNormal::from_chart(chart.normalize(), self.sense)
     }
 
@@ -187,7 +194,7 @@ impl<T: Decide> ConeApex<T> {
     /// face leaves the apex along) lies on.
     pub(crate) fn nappe_axis(&self, like: Vec3<T>) -> UnitVec3<T> {
         // The unit axis, its sign chosen: exact.
-        self.axis.turned_toward(like)
+        self.axis().turned_toward(like)
     }
 
     /// The unit ruling along the line through the apex along `d`, on the
@@ -200,7 +207,7 @@ impl<T: Decide> ConeApex<T> {
     /// zero.
     pub(crate) fn onto_nappe_of(&self, d: Vec3<T>, like: Vec3<T>) -> Vec3<T> {
         d.normalize()
-            .turned_toward(self.axis.get() * like.dot(self.axis.get()))
+            .turned_toward(self.axis().get() * like.dot(self.axis().get()))
     }
 
     /// Which way round the axis the face's interior leaves the ruling
@@ -212,7 +219,7 @@ impl<T: Decide> ConeApex<T> {
         self.normal_along(d)
             .vec()
             .cross(d)
-            .dot(self.axis.get().cross(d))
+            .dot(self.axis().get().cross(d))
             .unit_sign()
     }
 
@@ -224,7 +231,7 @@ impl<T: Decide> ConeApex<T> {
         let (f, t) = (from.normalize(), to.normalize());
         (t - f)
             .norm()
-            .copysign(f.cross(t).dot(self.axis.get()) * self.sweep(f))
+            .copysign(f.cross(t).dot(self.axis().get()) * self.sweep(f))
     }
 
     /// The azimuth the face's sweep turns through from the ruling along
@@ -252,8 +259,8 @@ impl<T: Decide> ConeApex<T> {
     /// `e1` along its azimuth, `e2` the way the face's interior leaves it.
     fn sweep_frame(&self, from: Vec3<T>) -> (Vec3<T>, Vec3<T>) {
         let from = from.normalize();
-        let e1 = (from - self.axis.get() * from.dot(self.axis.get())).normalize();
-        (e1, self.axis.get().cross(e1) * self.sweep(from))
+        let e1 = (from - self.axis().get() * from.dot(self.axis().get())).normalize();
+        (e1, self.axis().get().cross(e1) * self.sweep(from))
     }
 
     /// Whether the face's material lies inside its cone: the outward
@@ -443,12 +450,9 @@ pub(crate) fn resolve<T: Decide>(
                 Ok(ConePoint::Apex) => Ok(SectorFace {
                     face,
                     at_vertex: VertexFace::Apex(ConeApex {
-                        apex,
-                        // The frame's axis, re-squared as it was read.
-                        axis: UnitVec3::squared(axis.get()),
+                        frame,
                         half_angle,
                         sense,
-                        frame,
                     }),
                     carrier: SectorCarrier::Cone,
                 }),

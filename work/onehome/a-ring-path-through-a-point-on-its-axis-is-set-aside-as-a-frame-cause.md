@@ -16,11 +16,11 @@ for the rest of the topo mints left (`onehome/mints-topo-rest`), held
 until PR 7631 merges because their consumers live in `chord_join.rs`, which
 7631 rewrites.
 
-- `crates/topo/src/ring_path.rs:542`, `parallel`: `u = (from − centre)
+- `crates/topo/src/ring_path.rs:552`, `parallel`: `u = (from − centre)
   .normalize()` names no direction where `from` is the circle's centre
   (a parallel of no radius, a path through a point on the axis), and one
   caller's axis is itself arithmetic (`ef × axis`).
-- `crates/topo/src/ring_path.rs:1494`, a meridian against a crest: the
+- `crates/topo/src/ring_path.rs:1501`, a meridian against a crest: the
   plane's `w` is the meridian centre's offset from the core line,
   normalized, which names no direction on the core axis.
 

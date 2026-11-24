@@ -250,15 +250,15 @@ impl<T: Real> Isometry<T> {
 ///
 /// `motion` is the map as the rigid motion it is, where it is one: an
 /// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
-/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's. A
-/// reflection, or a map handed only as an affine, maps the frame's three
-/// data and squares them ([`geom::Frame::new`]), the plane's normal as
-/// the axial image.
+/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's.
+/// Under a reflection, where `motion` is `None`, the frame's image is the
+/// reflected frame ([`geom::Frame::reflected`]), the plane's normal as the
+/// axial image.
 /// **A carrier's frame under the map**: under a proper motion the
 /// frame's own image ([`geom::Frame::moved`]); under a reflection its
-/// mapped data squared ([`geom::Frame::new`]), the axis as the axial
-/// image where `axial` (a plane's normal, a conic's axis, so the image
-/// keeps its side and its parameter) and as a plain vector elsewhere.
+/// reflected image ([`geom::Frame::reflected`]), kept right-handed by
+/// reversing its `w` where `axial` (a plane's normal, a conic's axis, so
+/// the image keeps its side and its parameter) and its `v` elsewhere.
 fn map_frame<T: Real>(
     map: &Affine3<T>,
     hand: Hand,

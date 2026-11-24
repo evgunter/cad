@@ -14,8 +14,9 @@
 //! squared with no decision ([`Frame::new`], [`RigidMotion::squared`]).
 //! [`Frame::moved`] is its image under a motion. At another scalar it
 //! is carried within one witness kind and re-minted across kinds
-//! ([`Frame::map_scalar`]). An improper map has no reading here: its
-//! image is a per-kind rule (a conic's axis, a plane's outward normal),
+//! ([`Frame::map_scalar`]). Under an improper map its image is
+//! [`Frame::reflected`], one axis reversed to keep it right-handed; which
+//! one is a per-kind rule (a conic's axis, a plane's outward normal),
 //! stated where the map is applied.
 
 use geom_core::{Point3, Real, RigidMotion, UnitVec3, Vec3};
