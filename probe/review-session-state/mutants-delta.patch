@@ -1,0 +1,285 @@
+diff --git a/crates/editor-core/src/eval/mod.rs b/crates/editor-core/src/eval/mod.rs
+index 8f0f72244..74b424e59 100644
+--- a/crates/editor-core/src/eval/mod.rs
++++ b/crates/editor-core/src/eval/mod.rs
+@@ -5462,6 +5462,11 @@ where
+                     },
+                 )
+             });
++            let record = if geom_core::sym::rss("RSS_FAMILY_EMPTY") {
++                geom_core::sym::NodeRecord::default()
++            } else {
++                record
++            };
+             recorded(family?, record)
+         }
+         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+@@ -5550,7 +5555,8 @@ fn node_mints(
+ /// reused from it would be read as unknowns. Such a prior is not read:
+ /// the evaluation builds as it does with none.
+ fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> bool {
+-    geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
++    geom_core::sym::rss("RSS_PRIOR_ANY")
++        || geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
+ }
+ 
+ /// **The open node scope reads what `reads` see and what else
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index a2c23354b..04fd6ebdd 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -2561,6 +2561,8 @@ struct NodeState {
+     /// not in its registry: a family's value is built over what its
+     /// members read.
+     over_inside: Vec<Arc<NodeRecord>>,
++    /// REVIEW PROBE: whether [`reads`] has been called on this scope.
++    fed: bool,
+ }
+ 
+ impl NodeState {
+@@ -2712,6 +2714,52 @@ fn with_work(mut a: SymCounts, b: SymCounts) -> SymCounts {
+     a
+ }
+ 
++/// REVIEW PROBE: whether the named mutant is switched on in this process.
++#[doc(hidden)]
++pub fn rss(name: &str) -> bool {
++    std::env::var_os(name).is_some()
++}
++
++/// REVIEW PROBE: whether the trace is on (read once).
++fn rss_tracing() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("RSS_ROOT_TRACE").is_some())
++}
++
++/// REVIEW PROBE: appends one line to the file `RSS_ROOT_TRACE` names.
++fn rss_trace(what: &str) {
++    use std::io::Write as _;
++    let Some(path) = std::env::var_os("RSS_ROOT_TRACE") else { return };
++    let bt = std::backtrace::Backtrace::force_capture().to_string();
++    let name = |l: &str| -> Option<String> {
++        let l = l.split_once(": ").map_or(l, |(_, r)| r);
++        (!l.starts_with("at ")).then(|| l.chars().take(80).collect())
++    };
++    let lines: Vec<String> = bt.lines().map(str::trim).filter_map(name).collect();
++    let kernel: Vec<&str> = lines
++        .iter()
++        .map(String::as_str)
++        .filter(|l| l.contains("sweep::") || l.contains("topo::") || l.contains("verbs::") || l.contains("profile::"))
++        .take(3)
++        .collect();
++    let editor: Vec<&str> = lines
++        .iter()
++        .map(String::as_str)
++        .filter(|l| l.contains("editor_core::"))
++        .take(10)
++        .collect();
++    let thread = std::thread::current();
++    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++        let _ = writeln!(
++            f,
++            "{what} | {} | {} | {}",
++            thread.name().unwrap_or("?"),
++            kernel.join(" < "),
++            editor.join(" < ")
++        );
++    }
++}
++
+ /// Closes the node scope [`node_scope`] opened, by any path including a
+ /// panic: the enclosing scope's state is the open one again and has
+ /// absorbed this one's.
+@@ -2738,6 +2786,14 @@ impl NodeGuard {
+             }
+             let outer = sess.outer.pop()?;
+             let mut inner = core::mem::replace(&mut sess.node, outer);
++            if rss("RSS_SHARED_RETRIES") {
++                sess.node.retries = core::mem::take(&mut inner.retries);
++            }
++            if rss("RSS_ROOT_ABSORB") {
++                for &(a, b) in &inner.identities {
++                    let _ = sess.record_identity(a, b);
++                }
++            }
+             #[cfg(feature = "sym-profile-testing")]
+             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+             // What the scope read, and what the scopes inside it read.
+@@ -2799,6 +2855,11 @@ pub fn reads<'a>(records: impl IntoIterator<Item = &'a Arc<NodeRecord>>) {
+     SESSION.with(|s| {
+         let mut slot = s.borrow_mut();
+         let Some(sess) = slot.as_mut() else { return };
++        sess.node.fed = true;
++        let mut records: Vec<&'a Arc<NodeRecord>> = records.into_iter().collect();
++        if rss("RSS_REVERSE_READS") {
++            records.reverse();
++        }
+         for record in records {
+             for read in record.over.iter().chain([record]) {
+                 if read.identities.is_empty() || !sess.node.over_held.insert(Arc::as_ptr(read)) {
+@@ -2825,6 +2886,9 @@ impl Drop for NodeGuard {
+ /// goes where the unit's result goes, so that every decision of a
+ /// replay is on a record some reader of its result receives.
+ pub fn apart<R>(work: impl FnOnce() -> R) -> (R, NodeRecord) {
++    if rss("RSS_NO_APART") {
++        return (work(), NodeRecord::default());
++    }
+     node_scope([], work)
+ }
+ 
+@@ -2839,7 +2903,13 @@ pub(crate) fn node_scope<'a, R>(
+     let opened = SESSION.with(|s| {
+         let mut slot = s.borrow_mut();
+         let sess = slot.as_mut()?;
+-        let outer = core::mem::take(&mut sess.node);
++        let mut outer = core::mem::take(&mut sess.node);
++        if rss("RSS_ROOT_ABSORB") {
++            sess.node.registry = outer.registry.clone();
++        }
++        if rss("RSS_SHARED_RETRIES") {
++            sess.node.retries = core::mem::take(&mut outer.retries);
++        }
+         sess.outer.push(outer);
+         for record in upstream {
+             for &(a, b) in &record.identities {
+@@ -2947,7 +3017,7 @@ impl Session {
+     ) -> Self {
+         // A leaf of a drive starts with the caches an earlier leaf
+         // left (`memo`'s header): entries of the drive's table.
+-        let warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
++        let mut warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
+         let table = memo.as_ref().map_or_else(memo::table_token, |m| m.token());
+         Self {
+             budget,
+@@ -2957,7 +3027,7 @@ impl Session {
+             outer: Vec::new(),
+             nodes: warm.nodes,
+             forms: warm.forms,
+-            forms_early: IdMap::default(),
++            forms_early: core::mem::take(&mut warm.early),
+             params: IndetMap::default(),
+             mints: IndetMap::default(),
+             atoms: warm.atoms,
+@@ -2986,10 +3056,13 @@ impl Session {
+     /// table where another leaf recorded it. `None` for an id minted
+     /// outside every session on this table.
+     fn node_of(&self, id: SymId) -> Option<SymNode> {
+-        self.nodes
+-            .get(&id)
+-            .copied()
+-            .or_else(|| self.memo.as_ref().or(self.nodes_in.as_ref())?.node(id))
++        self.nodes.get(&id).copied().or_else(|| {
++            let found = self.memo.as_ref().or(self.nodes_in.as_ref())?.node(id);
++            if found.is_some() && rss_tracing() {
++                rss_trace(if self.memo.is_some() { "table-node" } else { "ask-table-node" });
++            }
++            found
++        })
+     }
+ 
+     /// The node `id` denotes, following the registry to its end — `id`
+@@ -3243,7 +3316,9 @@ fn with_session_in<R>(
+     struct Installed;
+     impl Drop for Installed {
+         fn drop(&mut self) {
+-            drop(SESSION.with(|s| s.borrow_mut().take()));
++            if !rss("RSS_NO_UNWIND_GUARD") {
++                drop(SESSION.with(|s| s.borrow_mut().take()));
++            }
+         }
+     }
+     let installed = Installed;
+@@ -3269,14 +3344,21 @@ fn with_session_in<R>(
+         && let Some(memo) = s.memo.clone()
+     {
+         s.node.counts.frozen = leaf_need(s, &memo);
+-        for id in s.unknown.keys() {
+-            s.forms.remove(id);
++        if !rss("RSS_POOL_UNKNOWN") {
++            for id in s.unknown.keys() {
++                s.forms.remove(id);
++            }
+         }
+         // The leaf's caches go back to the drive for the next leaf.
+         memo.rest(memo::Warm {
+             nodes: core::mem::take(&mut s.nodes),
+             forms: core::mem::take(&mut s.forms),
+             atoms: core::mem::take(&mut s.atoms),
++            early: if rss("RSS_WARM_EARLY") {
++                core::mem::take(&mut s.forms_early)
++            } else {
++                IdMap::default()
++            },
+         });
+     }
+     let counts = sess.map_or_else(SymCounts::default, |s| s.node.counts);
+@@ -4216,7 +4298,7 @@ fn form_in(
+         // A form built over an unknown is this leaf's reading of it,
+         // not the node's: a leaf that holds the node builds another.
+         // It is not published (`Session::unknown`).
+-        if plain && node.kids().iter().any(|k| sess.unknown.contains_key(k)) {
++        if plain && !rss("RSS_PUBLISH_UNKNOWN") && node.kids().iter().any(|k| sess.unknown.contains_key(k)) {
+             sess.unknown.insert(id, ());
+         } else {
+             note(id, &f, froze);
+@@ -4906,6 +4988,13 @@ fn note_witness(witness: crate::real::Witness) {
+ fn count_decision(proven: bool) {
+     SESSION.with(|s| {
+         if let Some(sess) = s.borrow_mut().as_mut() {
++            if rss_tracing() && sess.memo.is_some() {
++                if sess.outer.is_empty() {
++                    rss_trace("root-decision");
++                } else if !sess.node.fed {
++                    rss_trace("unfed-decision");
++                }
++            }
+             if proven {
+                 sess.node.counts.symbolic += 1;
+             } else {
+diff --git a/crates/geom-core/src/sym/memo.rs b/crates/geom-core/src/sym/memo.rs
+index 73a3f8ee0..a7cd83a08 100644
+--- a/crates/geom-core/src/sym/memo.rs
++++ b/crates/geom-core/src/sym/memo.rs
+@@ -135,6 +135,8 @@ pub(super) struct Warm {
+     pub(super) nodes: IdMap<SymNode>,
+     pub(super) forms: IdMap<Arc<Form>>,
+     pub(super) atoms: IndetMap<AtomInfo>,
++    /// REVIEW PROBE: the early forms, under `RSS_WARM_EARLY`.
++    pub(super) early: IdMap<Arc<Form>>,
+ }
+ 
+ /// What one drive's table came to, for the growth guard and the receipt.
+@@ -247,7 +249,7 @@ impl DriveMemo {
+     /// The caches a leaf starts with: an earlier leaf's, or empty ones
+     /// for the first leaves and for a table that serves nothing.
+     pub(super) fn warm(&self) -> Warm {
+-        if !self.serves_forms {
++        if !self.serves_forms || super::rss("RSS_COLD") {
+             return Warm::default();
+         }
+         self.warm
+@@ -269,7 +271,7 @@ impl DriveMemo {
+ 
+     /// The node `id` names, if a leaf of this drive recorded it.
+     pub(super) fn node(&self, id: SymId) -> Option<SymNode> {
+-        if !self.serves_forms {
++        if !self.serves_forms || super::rss("RSS_NO_TABLE_NODES") {
+             return None;
+         }
+         self.read().nodes.get(&id).copied()
+diff --git a/crates/geom-core/src/sym/trig.rs b/crates/geom-core/src/sym/trig.rs
+index 7995772b1..1f27fba14 100644
+--- a/crates/geom-core/src/sym/trig.rs
++++ b/crates/geom-core/src/sym/trig.rs
+@@ -387,7 +387,10 @@ fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
+     if let Some(held) = sess
+         .trig_closed
+         .get(&key)
+-        .and_then(|held| held.iter().find(|h| h.rules == rules && h.bits == bits))
++        .and_then(|held| {
++            held.iter()
++                .find(|h| super::rss("RSS_TRIG_ARG_ONLY") || (h.rules == rules && h.bits == bits))
++        })
+     {
+         return held.forms.clone();
+     }
