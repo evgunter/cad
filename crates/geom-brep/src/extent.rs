@@ -1510,9 +1510,10 @@ impl<T: SpanLocate> Locus<T> {
     /// A distance `p` stands from the locus, never past the true one.
     fn distance_below(&self, p: Point3<T>) -> T {
         match self {
-            // One point's range about a line or a circle is its distance.
+            // One point's range about a line or a circle is its distance;
+            // a station held as a box is read at its nearest.
             Self::About(around) => {
-                Cover::points(vec![p]).map_or_else(T::zero, |at| at.range_about(around).1)
+                Cover::points(vec![p]).map_or_else(T::zero, |at| at.range_about(around).0)
             }
             Self::Pieces(pieces) => pieces
                 .iter()
@@ -2422,6 +2423,36 @@ mod tests {
         assert!(
             (corner - 16.0025_f64.sqrt()).abs() < 1e-12,
             "from a vertex: {corner}"
+        );
+    }
+
+    /// **A station held as a box is read as an enclosure that holds its
+    /// near side.** A lone station a metre off the `x` axis, held `0.2`
+    /// wide across it: the run from an edge on the axis is the enclosure
+    /// `[0.9, 1.1]`, whose low end a decision levered at it is held
+    /// against, so the run is argued from below. A one-point cover's
+    /// range about the line has that one enclosure at both its ends.
+    /// Red if the run's low end is past the box's near side.
+    #[test]
+    fn a_wide_stations_run_holds_its_near_side() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_f64;
+        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
+        let dir = geom_core::UnitVec3::exact_x();
+        let axis = Curve3::line(origin, dir);
+        let station = Point3::new(iv(0.5), Interval::from_bounds(0.9, 1.1), iv(0.0));
+        let face = BoundaryStations::of_boundary([(&axis, (iv(0.0), iv(1.0)))], [station]);
+        let run = face.run_from_edge(&axis, (iv(0.0), iv(1.0))).length();
+        assert!(
+            run.lo() <= 0.9 + 1e-12 && run.lo() > 0.89 && run.hi() >= 1.1,
+            "the enclosure holds the near side: {run:?}"
+        );
+        let (near, far) = Cover::points(vec![station])
+            .unwrap()
+            .range_about(&Around::Line(Line { origin, dir }));
+        assert!(
+            near.lo() <= 0.9 + 1e-12 && far.lo() <= 0.9 + 1e-12,
+            "both ends of a point's range hold it: {near:?} {far:?}"
         );
     }
 
