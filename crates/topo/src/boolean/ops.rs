@@ -6496,9 +6496,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
                                 let circle = crate::separating::Circle {
-                                    center: foot,
-                                    u_ref,
-                                    v_ref: normal.cross(u_ref),
+                                    frame: frame.with_origin(foot),
                                     radius: rho,
                                 };
                                 if face_boundary_meets(
@@ -7291,6 +7289,16 @@ impl Recharts {
     }
 }
 
+/// **The sphere cut's meridian plane** on its normal `k`, which the
+/// cut decided a direction (`bool_sphere_cut_meridian`), and `h` square
+/// to it: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// whose stated-point read at an enclosure scalar a mint at the scalar
+/// would widen. The decision is the cut's own, so nothing is decided
+/// again here.
+fn meridian_plane<T: Real>(center: Point3<T>, k: Vec3<T>, h: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(center, k, h))
+}
+
 /// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
 /// the meridian half-plane of its sphere's chart that holds the section
 /// circle's centre direction.
@@ -7767,7 +7775,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::circle(cut.center, w, r, u_arc);
         let plane = body.add_surface(geom::Surface::Plane {
-            frame: geom::Frame::new(cut.center, k, h),
+            frame: meridian_plane(cut.center, k, h),
         });
         let created = body.mef(
             crate::euler::MefSite::Chords {
@@ -10872,9 +10880,11 @@ mod torn_hop_rows {
             max_z: 11.0,
         };
         let circle = crate::separating::Item::Circle(crate::separating::Circle {
-            center: Point3::new(10.5, 10.5, 10.5),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            v_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(10.5, 10.5, 10.5),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.5,
         });
         let band = Band::linear(Tol::witness()).unwrap();
