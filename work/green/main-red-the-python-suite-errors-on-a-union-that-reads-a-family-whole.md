@@ -2,10 +2,12 @@
 id: main-red-the-python-suite-errors-on-a-union-that-reads-a-family-whole
 kind: issue
 title: main red: the python suite ends with 18 errors, a union handed a family whole refused as a list of bodies where it takes a body
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: E
+closed: 2026-11-23
+pr: 7671
 ---
 
 
