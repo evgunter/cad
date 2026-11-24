@@ -2,8 +2,7 @@
 id: a-seam-decided-pi-refuses-where-only-its-bend-is-undecided
 kind: issue
 title: The wedge fold refuses a seam whose wedge is decided π because one station's second-order sagitta lands in band: the bend's undecidedness is the description question's, not the seam's
-status: closed
-closed: 2026-11-23
+status: open
 opened: 2026-11-22
 priority: P2
 cost: M
@@ -56,7 +55,7 @@ The paragraph above was written on `heldrecords/elbow-seams`; on
 reached by that pose, the lane recorded instead that no fixture
 reached it. Both stood until the close below.
 
-## 2026-11-23 — Closed by PR 7471 (HELDRECORDS)
+## 2026-11-23 — Narrowed by PR 7471 (HELDRECORDS), not closed
 
 `geom_brep::dihedral::second_order_walk` now reads on past a station
 whose bend is in band, and answers `InBand` only once every station is
@@ -78,3 +77,13 @@ Pinned: `dihedral::bend_rows::a_bend_in_band_at_a_station_leaves_the_seam_under_
 1e-7, whose neutral point sits at a routed rim vertex, glue a junction
 and reach the crossing layer; the 20ε pose glues a junction and refuses
 `Escalated { SeamJet }` on the seam's description.
+
+## 2026-11-24 — Still open (HELDRECORDS)
+
+The routing half is done: a junction glues where a station's bend is in
+band. The union still refuses where it reaches the seam's description:
+the elbow turned 10ε to 100ε about the cap's normal refuses typed
+`Escalated { SeamJet }` (PR 7471's second review, R2), pinned at 20ε in
+`an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction`.
+What is still owed: those poses build end to end, the seam described
+where it rests, or a ruling that the description refusal is the answer.

@@ -1582,6 +1582,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
+        ValidationError::EndNotJetDeterminate { edge },
         ValidationError::NoDihedralArm {
             edge,
             verdict: zero_verdict(0.0),

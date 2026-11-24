@@ -4580,7 +4580,9 @@ fn path_ring_side<T: Decide>(
 /// section the lane would compute from the germ's face pair, which may
 /// be two faces on one carrier, or meet in no conic. Its spec is the
 /// edge's own at rest, of every carrier kind, so the copy carries the
-/// edge's description and never a construction's stand-in: it is run
+/// edge's description and not a construction's stand-in, except beside a
+/// spline, where a line or a circle is minted as the join's scaffold (the
+/// body below): it is run
 /// back where the chord runs against the edge ([`run_back`]), and a
 /// description no chord states is re-stated in the chart of the face it
 /// divides ([`chord_description`]) (a closed edge's copy is
@@ -4648,8 +4650,9 @@ fn along_edge_spec<T: Decide>(
     // Beside a spline (a description naming a spline wall, or a chord
     // dividing a spline face) the mint certifies no pair or chart image
     // the copy could restate: there a line or a circle is still minted as
-    // the join's scaffold, which the describe pass re-states at rest or
-    // tier 3 refuses
+    // the join's scaffold. The describe pass re-states a scaffold only
+    // between a recorded merge skip's faces; anywhere else tier 3 refuses
+    // it (`ScaffoldAtRest`)
     // (`work/heldrecords/a-chord-beside-a-spline-wall-is-minted-on-a-scaffold.md`).
     let own = curve.restated_spec();
     let spline = |k: geom_brep::SurfaceKey| {

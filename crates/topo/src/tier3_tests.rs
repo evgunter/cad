@@ -2574,14 +2574,6 @@ fn wedge_reading_table() {
             },
             M::Tangent,
         ),
-        (
-            V::End {
-                end: WedgeEnd::Cusp,
-                bend: Bend::UnderDetermined,
-                margin,
-            },
-            M::SmoothUnderdetermined,
-        ),
     ];
     for (verdict, mark) in settled {
         assert_eq!(
@@ -2595,6 +2587,19 @@ fn wedge_reading_table() {
             "{verdict:?} on a wrap edge"
         );
     }
+    let uncertified = V::End {
+        end: WedgeEnd::Cusp,
+        bend: Bend::UnderDetermined,
+        margin,
+    };
+    assert_eq!(
+        read(uncertified, false, false),
+        (
+            M::SmoothUnderdetermined,
+            Some(ValidationError::EndNotJetDeterminate { edge })
+        ),
+        "a wedge end not certified jet-determinate refuses"
+    );
     assert!(
         matches!(
             read(crease(Convexity::Convex), false, true),

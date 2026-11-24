@@ -218,10 +218,6 @@ pub fn tangent_certificate_lane<T: Real>(
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
 pub fn tangent_span_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -237,6 +233,10 @@ pub fn tangent_span_bounds<T: Real>(
 /// parameter: no bound reads the span's ends, only how far apart the
 /// samples it stands between are (a closed rim's walk reads its phases
 /// at a step of its own).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn tangent_step_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,

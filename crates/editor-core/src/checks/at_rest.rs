@@ -1711,6 +1711,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::JoinUndecidedAtRest { .. }
         | E::TangentNotIntrinsic { .. }
         | E::LaminaWedge { .. }
+        | E::EndNotJetDeterminate { .. }
         | E::NoDihedralArm { .. }
         | E::LoopRoleInverted { .. }
         | E::CurvedSenseInverted { .. }

@@ -1625,6 +1625,15 @@ pub enum ValidationError {
         /// The edge whose opposed faces osculate.
         edge: EdgeKey,
     },
+    /// Tier 3 (check 4): an edge's opposed faces part at a wedge end (a
+    /// cusp or a slit) whose jets separate at every station, but whose
+    /// separation is not certified bounded away from zero along the edge
+    /// (`geom_brep::Bend::UnderDetermined`): MATE-7 makes a wedge end
+    /// legal only where it is jet-determinate.
+    EndNotJetDeterminate {
+        /// The edge whose wedge end is not certified.
+        edge: EdgeKey,
+    },
     /// Tier 3 (check 4): at an interior sample of an edge, the folded
     /// lever arm the wedge between its faces is metered over was decided
     /// not positive — the faces' extent there, clamped by how tightly
@@ -4851,6 +4860,17 @@ impl ValidationError {
                 geom_brep::DIHEDRAL_ARM_CLAUSE,
                 ended(at.map(|at| geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), at)))
             ),
+            Self::EndNotJetDeterminate { .. } => write!(
+                f,
+                "two faces meet from opposite sides at an edge, curving apart \
+                 at every point checked, but how far they curve apart is not \
+                 certified to stay clear of zero all along the edge, so the \
+                 edge is not a valid cusp or slit. {}",
+                geom_core::move_recourse!(
+                    "so the faces curve apart more clearly along the edge, or \
+                     part at an angle"
+                )
+            ),
             Self::LaminaWedge { .. } => write!(
                 f,
                 "two faces lie flat against each other from opposite sides at an edge, \
@@ -7109,9 +7129,9 @@ fn plus_v_errors<T: Decide>(
 /// Pure, so that every verdict's finding is pinned by calling it,
 /// including the pairing and end disagreements no certified geometry is
 /// known to reach (`wedge_reading_table`). A settled wedge is legal at
-/// rest — the crease, the seam, and the two ends because the fold hands
-/// one out only over a jet-determinate tangency — and the lamina and
-/// every mixed edge refuse. A mixed edge refuses rather than falls
+/// rest — the crease, the seam, and an end whose bend is certified
+/// jet-determinate — and the lamina, an end whose bend is not, and every
+/// mixed edge refuse. A mixed edge refuses rather than falls
 /// silent: silence would validate a wedge end on an edge whose own
 /// stations disagreed.
 pub(crate) fn wedge_reading(
@@ -7150,6 +7170,13 @@ pub(crate) fn wedge_reading(
         // Conformal contact: refused, and no declaration is consulted
         // because none would cure it.
         V::Lamina => Some(ValidationError::LaminaWedge { edge }),
+        // MATE-7: a wedge end is legal only where it is jet-determinate,
+        // and a separation the walk does not certify along the edge is
+        // not.
+        V::End {
+            bend: Bend::UnderDetermined,
+            ..
+        } => Some(ValidationError::EndNotJetDeterminate { edge }),
         V::Crease { .. } | V::Seam { .. } | V::End { .. } => None,
     };
     (mark, finding)

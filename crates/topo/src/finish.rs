@@ -951,7 +951,8 @@ impl ValidationError {
             Self::SliverDihedral { .. }
             | Self::MixedDihedral { .. }
             | Self::NoDihedralArm { .. }
-            | Self::LaminaWedge { .. } => F::Dihedral,
+            | Self::LaminaWedge { .. }
+            | Self::EndNotJetDeterminate { .. } => F::Dihedral,
             Self::JoinableVertexAtRest { .. } | Self::JoinUndecidedAtRest { .. } => F::Join,
             Self::LoopRoleInverted { .. }
             | Self::CurvedSenseInverted { .. }
