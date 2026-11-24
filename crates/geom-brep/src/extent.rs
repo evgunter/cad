@@ -65,7 +65,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::cover::{BoxAxes, Cover, ParamWindow, Site, Uncovered};
+use geom::cover::{Around, BoxAxes, Core, Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
 use geom_core::UnitVec3;
 use geom_core::spline::SpanLocate;
@@ -1298,6 +1298,236 @@ impl<T: Real> Reach<T> {
     }
 }
 
+/// **How far a face runs from what it shares with another**: the
+/// supremum, over the face, of the distance from the shared locus (a
+/// shared edge's whole carrier line or conic; a shared vertex). Two faces
+/// are compared only where both exist, so a reading of how they part is
+/// levered at the lesser of their two runs
+/// (`docs/DESIGN.md` `[topology.tiers]`).
+///
+/// **Every reading here is a lower bound of that supremum, never more**:
+/// a lever past the run reads a pair more definitely than its faces
+/// support. The bounds:
+///
+/// - **the stations** ([`BoundaryStations`]): each is a point of the
+///   face's boundary, so of the face, and its distance from the locus
+///   read from below ([`locus_distance_below`]) is a distance the face
+///   reaches;
+/// - **the spanned curve** ([`centre_line`], [`oval_clearance`]), for a
+///   face whose stations all lie on the shared closed curve.
+///
+/// The door takes the boundary's geometry (each edge's carrier and
+/// span, a lone vertex's point) and places the stations itself, so no
+/// caller hands it a length.
+#[derive(Clone, Debug)]
+pub struct BoundaryStations<T: Real>(Vec<Point3<T>>);
+
+impl<T: SpanLocate> BoundaryStations<T> {
+    /// The stations of a face bounded by `edges` (each its carrier and
+    /// span) and holding the `lone` vertices of its edgeless loops: each
+    /// edge's two ends and its middle ([`Curve3::mid_point`], on the
+    /// curve whatever its kind). An end alone misses a face whose
+    /// vertices all lie on the shared locus: a half-disc's two vertices
+    /// lie on its arc's circle, and its diameter's middle shows the
+    /// radius.
+    pub fn of_boundary<'a>(
+        edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
+        lone: impl IntoIterator<Item = Point3<T>>,
+    ) -> Self
+    where
+        T: 'a,
+    {
+        let mut stations: Vec<Point3<T>> = lone.into_iter().collect();
+        for (carrier, (t0, t1)) in edges {
+            stations.extend([
+                carrier.eval(t0),
+                carrier.mid_point(t0, t1),
+                carrier.eval(t1),
+            ]);
+        }
+        Self(stations)
+    }
+
+    /// The face's run from the edge on `carrier` over `span`, from
+    /// below: the farthest of its stations from the carrier's locus
+    /// ([`locus_distance_below`]). Zero for a face with no station.
+    pub fn run_from_edge(&self, carrier: &Curve3<T>, span: (T, T)) -> Lever<T> {
+        let locus = Locus::of(carrier, span);
+        Lever::of_consumed_extent(
+            self.0
+                .iter()
+                .fold(T::zero(), |far, &p| far.max(locus.distance_below(p))),
+        )
+    }
+
+    /// The face's run from `vertex`: the farthest of its stations from
+    /// it, each distance exact.
+    pub fn run_from_vertex(&self, vertex: Point3<T>) -> Lever<T> {
+        points_lever_from(vertex, self.0.iter().copied())
+    }
+}
+
+/// **The line a closed planar curve with a centre winds once about**:
+/// through the centre of a circle, an ellipse or a spiric oval, square
+/// to its plane; `None` for any other carrier.
+///
+/// The line is through the middle of the curve's points at parameters
+/// `0` and `π`, along its tangent at `0` crossed with the chord between
+/// them. On each of the three kinds those two points are the ends of an
+/// axis of symmetry the tangent at `0` is square to, so the line is
+/// square to the curve's plane through a point inside it (a conic's
+/// centre; on a spiric oval, between its two crossings of its axis of
+/// symmetry).
+///
+/// **What it is for.** A face that meets this line runs from the curve
+/// at least as far as the line stands from it ([`oval_clearance`]):
+/// every point of the line is at least that far from every point of the
+/// curve. That is a lower bound of the face's run from an edge on the
+/// curve, for a face whose stations, all on the curve, read none: a
+/// disc on its rim, a cap, a tilted cut. Whether the face meets the
+/// line is the caller's to show.
+///
+/// The face's run from the edge's middle, which reads a disc at its
+/// diameter, is past the disc's true run, its radius, and so is no bound
+/// from below.
+pub fn centre_line<T: SpanLocate>(carrier: &Curve3<T>) -> Option<Line<T>> {
+    if !is_centred_oval(carrier) {
+        return None;
+    }
+    let (near, far) = (carrier.eval(T::zero()), carrier.eval(T::pi()));
+    Some(Line {
+        origin: near.mid(far),
+        dir: geom_core::UnitVec3::chord(carrier.deriv(T::zero()).cross(far - near)).0,
+    })
+}
+
+/// **How far a closed curve stands from `line`**, from below: the
+/// nearest any cover of its whole turn, in pieces ([`span_pieces`]),
+/// stands to the line. A cover holds its piece, so that is never past
+/// the curve's own distance. `None` for a carrier that is no closed
+/// curve of one turn ([`centre_line`]'s kinds), or where a piece has no
+/// cover.
+pub fn oval_clearance<T: SpanLocate>(carrier: &Curve3<T>, line: Line<T>) -> Option<Lever<T>> {
+    if !is_centred_oval(carrier) {
+        return None;
+    }
+    span_pieces(carrier, (T::zero(), T::tau()))
+        .into_iter()
+        .map(|(_, cover)| Some(cover?.range_about(&Around::Line(line)).0))
+        .reduce(|a, b| Some(a?.min(b?)))?
+        .map(Lever::of_consumed_extent)
+}
+
+/// **Whether a carrier is a closed planar curve its points at `0` and
+/// `π` are the ends of an axis of symmetry of**, with its tangent at `0`
+/// square to that axis, closing over one turn of its parameter: a
+/// circle, an ellipse, a spiric oval. A statement about the kind's
+/// shape, which the kinds are matched for; no region is read here.
+fn is_centred_oval<T: Real>(carrier: &Curve3<T>) -> bool {
+    match carrier {
+        Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
+        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => false,
+    }
+}
+
+/// One piece of a carrier's span, and its cover where it has one
+/// ([`span_pieces`]).
+pub type SpanPiece<T> = ((T, T), Option<Cover<T>>);
+
+/// **A carrier over `span` in `2^` [`LOCUS_HALVINGS`] equal pieces**:
+/// each piece's span and its cover, `None` for a piece with none.
+pub fn span_pieces<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T)) -> Vec<SpanPiece<T>> {
+    let mut spans = vec![span];
+    for _ in 0..LOCUS_HALVINGS {
+        spans = spans
+            .into_iter()
+            .flat_map(|(t0, t1)| {
+                let mid = geom::mid_param(t0, t1);
+                [(t0, mid), (mid, t1)]
+            })
+            .collect();
+    }
+    spans
+        .into_iter()
+        .map(|(t0, t1)| ((t0, t1), carrier.cover_over(ParamWindow::new(t0, t1)).ok()))
+        .collect()
+}
+
+/// How many times a span is halved into pieces ([`span_pieces`]).
+const LOCUS_HALVINGS: u32 = 6;
+
+/// **A shared edge's locus, as a distance from below is read from it**
+/// ([`BoundaryStations::run_from_edge`]). Each station is read as its
+/// own one-point cover about the locus, or against the locus's cover,
+/// so every distance is a cover's reading ([`Cover::range_about`],
+/// [`Cover::distance_range`]) and none is spelled here.
+enum Locus<T: Real> {
+    /// A line or a circle, whole: the station's distance about it,
+    /// exact. A face's run along the line or round the circle is no
+    /// distance from it.
+    About(Around<T>),
+    /// Any other carrier, in `2^` [`LOCUS_HALVINGS`] pieces: the
+    /// nearest any piece's cover stands to the station. A cover holds
+    /// its piece, so that is never past the distance from the curve. A
+    /// piece with no cover reads zero.
+    ///
+    /// An ellipse and a spiric oval are read over their whole turn. A
+    /// spline is read over the edge's own span: there the locus is the
+    /// edge's arc, not the carrier past its ends, so a face's run along
+    /// a spline edge past an end still counts.
+    Pieces(Vec<Option<Cover<T>>>),
+}
+
+impl<T: SpanLocate> Locus<T> {
+    fn of(carrier: &Curve3<T>, span: (T, T)) -> Self {
+        if let Some(line) = carrier.as_line() {
+            return Self::About(Around::Line(line));
+        }
+        if let Some(circle) = carrier.as_circle() {
+            return Self::About(Around::Circle(Core {
+                axis: Line {
+                    origin: circle.frame().origin(),
+                    dir: circle.frame().axis_unit(),
+                },
+                radius: circle.radius(),
+            }));
+        }
+        // An ellipse and a spiric oval close over one turn of their
+        // parameter, and are read whole, as a line and a circle are.
+        let span = if is_centred_oval(carrier) {
+            (T::zero(), T::tau())
+        } else {
+            span
+        };
+        Self::Pieces(
+            span_pieces(carrier, span)
+                .into_iter()
+                .map(|(_, cover)| cover)
+                .collect(),
+        )
+    }
+
+    /// A distance `p` stands from the locus, never past the true one.
+    fn distance_below(&self, p: Point3<T>) -> T {
+        match self {
+            // One point's range about a line or a circle is its distance;
+            // a station held as a box is read at its nearest.
+            Self::About(around) => {
+                Cover::points(vec![p]).map_or_else(T::zero, |at| at.range_about(around).0)
+            }
+            Self::Pieces(pieces) => pieces
+                .iter()
+                .map(|cover| {
+                    cover
+                        .as_ref()
+                        .map_or_else(T::zero, |c| c.distance_range(&Site::Point(p)).0)
+                })
+                .reduce(T::min)
+                .unwrap_or_else(T::zero),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -2142,6 +2372,203 @@ mod tests {
                 );
             }
         }
+    }
+    fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
+        Point3::new(x, y, z)
+    }
+
+    fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+        Vec3::new(x, y, z)
+    }
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    /// A circle of radius `r` about the origin in the `xy` plane.
+    fn circle(r: f64) -> Curve3<f64> {
+        Curve3::circle(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), r, v(1.0, 0.0, 0.0))
+    }
+
+    /// The segment from `a` to `b`, over its length.
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> (Curve3<f64>, (f64, f64)) {
+        let (dir, length) = geom_core::UnitVec3::chord(b - a);
+        (Curve3::line(a, dir), (0.0, length))
+    }
+
+    fn stations(edges: &[(Curve3<f64>, (f64, f64))]) -> BoundaryStations<f64> {
+        BoundaryStations::of_boundary(edges.iter().map(|(c, s)| (c, *s)), [])
+    }
+
+    /// **A face's run from a line edge is across it, not along it.** A
+    /// strip 4 along the `x` axis and 0.05 across: its run from the edge
+    /// on the axis is 0.05, where its farthest station from that edge's
+    /// middle is 2.0006. From its corner it runs the diagonal.
+    #[test]
+    fn a_strips_run_from_its_long_edge_is_its_width() {
+        let corners = [
+            p(0.0, 0.0, 0.0),
+            p(4.0, 0.0, 0.0),
+            p(4.0, 0.05, 0.0),
+            p(0.0, 0.05, 0.0),
+        ];
+        let edges: Vec<_> = (0..4)
+            .map(|k| segment(corners[k], corners[(k + 1) % 4]))
+            .collect();
+        let strip = stations(&edges);
+        let (long, span) = &edges[0];
+        let run = strip.run_from_edge(long, *span).length();
+        assert!((run - 0.05).abs() < 1e-12, "across the edge: {run}");
+        let corner = strip.run_from_vertex(corners[0]).length();
+        assert!(
+            (corner - 16.0025_f64.sqrt()).abs() < 1e-12,
+            "from a vertex: {corner}"
+        );
+    }
+
+    /// **A station held as a box is read as an enclosure that holds its
+    /// near side.** A lone station a metre off the `x` axis, held `0.2`
+    /// wide across it: the run from an edge on the axis is the enclosure
+    /// `[0.9, 1.1]`, whose low end a decision levered at it is held
+    /// against, so the run is argued from below. A one-point cover's
+    /// range about the line has that one enclosure at both its ends.
+    /// Red if the run's low end is past the box's near side.
+    #[test]
+    fn a_wide_stations_run_holds_its_near_side() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_f64;
+        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
+        let dir = geom_core::UnitVec3::exact_x();
+        let axis = Curve3::line(origin, dir);
+        let station = Point3::new(iv(0.5), Interval::from_bounds(0.9, 1.1), iv(0.0));
+        let face = BoundaryStations::of_boundary([(&axis, (iv(0.0), iv(1.0)))], [station]);
+        let run = face.run_from_edge(&axis, (iv(0.0), iv(1.0))).length();
+        assert!(
+            run.lo() <= 0.9 + 1e-12 && run.lo() > 0.89 && run.hi() >= 1.1,
+            "the enclosure holds the near side: {run:?}"
+        );
+        let (near, far) = Cover::points(vec![station])
+            .unwrap()
+            .range_about(&Around::Line(Line { origin, dir }));
+        assert!(
+            near.lo() <= 0.9 + 1e-12 && far.lo() <= 0.9 + 1e-12,
+            "both ends of a point's range hold it: {near:?} {far:?}"
+        );
+    }
+
+    /// **A half-disc's run from its arc is its radius, read at its
+    /// diameter's middle.** Its two vertices lie on the arc's circle, so
+    /// the ends alone read nothing; from its diameter it runs to the
+    /// arc's middle. Red if the stations are the vertices alone, or the
+    /// arc is read from its chord and not from its whole circle (the
+    /// diameter's middle is then the radius from the arc too, but its
+    /// ends are zero either way).
+    #[test]
+    fn a_half_discs_run_from_its_arc_is_read_at_its_diameters_middle() {
+        let arc = (circle(2.0), (0.0, core::f64::consts::PI));
+        let diameter = segment(p(-2.0, 0.0, 0.0), p(2.0, 0.0, 0.0));
+        let half = stations(&[arc.clone(), diameter.clone()]);
+        let from_arc = half.run_from_edge(&arc.0, arc.1).length();
+        assert!((from_arc - 2.0).abs() < 1e-12, "from the arc: {from_arc}");
+        let from_diameter = half.run_from_edge(&diameter.0, diameter.1).length();
+        assert!(
+            (from_diameter - 2.0).abs() < 1e-12,
+            "from the diameter: {from_diameter}"
+        );
+        // A quarter annulus between radii 1 and 2 runs 1 from its outer
+        // arc, however far round that arc's circle its other edges are.
+        let inner = (circle(1.0), (0.0, core::f64::consts::FRAC_PI_2));
+        let outer = (circle(2.0), (0.0, core::f64::consts::FRAC_PI_2));
+        let sides = [
+            segment(p(1.0, 0.0, 0.0), p(2.0, 0.0, 0.0)),
+            segment(p(0.0, 1.0, 0.0), p(0.0, 2.0, 0.0)),
+        ];
+        let annulus = stations(&[
+            inner.clone(),
+            outer.clone(),
+            sides[0].clone(),
+            sides[1].clone(),
+        ]);
+        let across = annulus.run_from_edge(&outer.0, outer.1).length();
+        assert!((across - 1.0).abs() < 1e-12, "a quarter annulus: {across}");
+    }
+
+    /// **A face on one closed curve reads no run from its stations, and
+    /// the curve stands off its own centre line.** A disc's rim reads
+    /// nothing from the disc's stations; its centre line is its axis,
+    /// which it stands its radius from. An ellipse of semi-axes 3 and 1
+    /// stands its lesser semi-axis from its centre line, and is read
+    /// whole as a locus (a station on its other half is on it). A spiric
+    /// oval stands about its minor radius from its. A line and a spline
+    /// have no centre line.
+    #[test]
+    fn a_closed_curve_stands_off_its_centre_line() {
+        use core::f64::consts::{PI, TAU};
+        let rim = [(circle(2.0), (0.0, TAU))];
+        let run = stations(&rim).run_from_edge(&rim[0].0, rim[0].1).length();
+        assert!(run < 1e-12, "a disc's stations lie on its rim: {run}");
+        let clearance = |c: &Curve3<f64>| {
+            oval_clearance(c, centre_line(c).expect("a centre line"))
+                .expect("a clearance")
+                .length()
+        };
+        let near = |got: f64, want: f64, slack: f64, what: &str| {
+            assert!(
+                got <= want + 1e-12 && got >= want - slack,
+                "{what}: {got}, not within {slack} below {want}"
+            );
+        };
+        near(clearance(&circle(2.0)), 2.0, 1e-9, "a circle");
+        let axis = centre_line(&circle(2.0)).unwrap();
+        assert!(
+            axis.distance(p(0.0, 0.0, 7.0)) < 1e-12 && axis.dir.get().z.abs() > 0.0,
+            "a circle's centre line is its axis: {axis:?}"
+        );
+        let ellipse = Curve3::ellipse(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            3.0,
+            1.0,
+            v(1.0, 0.0, 0.0),
+            band(),
+        )
+        .unwrap();
+        near(
+            clearance(&ellipse),
+            1.0,
+            0.05,
+            "an ellipse's lesser semi-axis",
+        );
+        let arcs = [(ellipse.clone(), (0.0, PI)), (ellipse.clone(), (PI, TAU))];
+        let on_it = stations(&arcs)
+            .run_from_edge(&arcs[0].0, arcs[0].1)
+            .length();
+        assert!(
+            on_it < 1e-9,
+            "an ellipse is read whole, so its other half is on it: {on_it}"
+        );
+        let oval = Curve3::spiric(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            v(1.0, 0.0, 0.0),
+            2.0,
+            0.5,
+            0.3,
+            band(),
+        )
+        .unwrap();
+        let got = clearance(&oval);
+        assert!(
+            (0.4..=0.5 + 1e-9).contains(&got),
+            "a spiric oval stands about its minor radius from its centre line: {got}"
+        );
+        let (line, _) = segment(p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
+        assert!(centre_line(&line).is_none(), "a line has no centre line");
+        assert!(
+            oval_clearance(&line, axis).is_none(),
+            "a line is no closed curve"
+        );
+        assert_eq!(span_pieces(&circle(1.0), (0.0, TAU)).len(), 64);
     }
 }
 

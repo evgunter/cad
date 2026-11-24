@@ -620,6 +620,14 @@ pub enum ClearanceRefusal {
         /// The scalar this build ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
+    /// **The body is not valid at rest.** The strict question over one
+    /// body reads what tier 3 decided on it, and tier 3's local battery
+    /// refused it: whether its boundary crosses itself is not asked of a
+    /// body with no verdict. The findings, whole.
+    NotValid {
+        /// What the battery found.
+        findings: topo::NotFinished,
+    },
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
     ToleranceHasNoBand(
@@ -683,6 +691,7 @@ impl ClearanceRefusal {
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
             Self::Stopped(stopped) => format!("{stopped:?}"),
+            Self::NotValid { findings } => format!("{:?}", findings.first()),
         }
     }
 
@@ -699,6 +708,7 @@ impl ClearanceRefusal {
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
             Self::Stopped(_) => "stopped",
+            Self::NotValid { .. } => "not_valid",
         }
     }
 }
@@ -754,6 +764,11 @@ impl crate::spoken::Say for ClearanceRefusal {
                  itself there by declaration and the injectivity question is not asked"
             ),
             Self::Stopped(stopped) => write!(f, "the leaf's replay stopped: {stopped}"),
+            Self::NotValid { findings } => write!(
+                f,
+                "the body is not valid at rest, so whether its boundary crosses itself is not \
+                 asked: {findings}"
+            ),
         }
     }
 }
@@ -1431,6 +1446,27 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // one body can name one face twice, and a face is never at a
         // distance from itself.
         let same_body = a.at == b.at && a.body == b.body;
+        // The strict question over one body reads tier 3's facts on it
+        // (`topo::Geometric`). The leaf here is read as a bare body, so
+        // tier 3's local battery is run over it for them, and both
+        // sides' windows read that one verdict; a body the battery
+        // refuses is not asked.
+        let strict_same = same_body && matches!(query.bound, ClearanceBound::StrictlyPositive);
+        let facts = |bare, body| {
+            engine
+                .reading_unfinished(bare, body, query.tol)
+                .map_err(|findings| {
+                    ClearanceReport::refused(ClearanceRefusal::NotValid { findings })
+                })
+        };
+        let windows_a = if strict_same {
+            match facts(windows_a, body_a.body()) {
+                Ok(w) => w,
+                Err(refused) => return refused,
+            }
+        } else {
+            windows_a
+        };
         if same_body
             && matches!(query.bound, ClearanceBound::StrictlyPositive)
             && let Some((x, y)) = recorded_contact(ev, a, body_a.body(), &faces_a, &faces_b)
@@ -1448,6 +1484,10 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 Which::Second,
                 body_b.motion(),
             ) {
+                Ok(w) if strict_same => match facts(w, body_b.body()) {
+                    Ok(w) => w,
+                    Err(refused) => return refused,
+                },
                 Ok(w) => w,
                 Err(r) => return ClearanceReport::refused(refused(r)),
             }

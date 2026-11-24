@@ -87,3 +87,24 @@ over a cell";
 
 Until then the arm is the reach alone, which is the ruling's word
 ("metered at the reach of the faces it governs").
+
+
+## What the question levers at now (lane `embed/verdict-read`, 2026-11-23)
+
+The finding's first paragraph is no longer what the code reads. `arm_of`
+is gone: the pair's parting is levered at `extent_of`, the lesser of
+the two faces' runs from the shared edge's whole line or circle,
+measured across it, kept by tier 3 with its verdict
+(`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`),
+and what is banded is the two faces' sines summed.
+
+What stays of this row: the question still folds no curvature arm in,
+by Ev's ruling on PR 7456 (the fold "shrinks to zero toward the apex,
+so one number per edge would refuse valid cones"). So beside a face
+whose radius is far below its run, a sine is still signed that check 4
+classes smooth, wherever the NARROWER face's run clears it:
+`margin_reach_rows::the_reach_alone_signs_an_edge_check_4_classes_smooth`
+stands as it was. The curling sliver the ruling was weighed on is no
+longer signed (its own run is `1e-7`):
+`a_curling_sliver_inside_the_band_of_its_plate_refuses`.
+- 2026-11-24 — **From lane `embed/verdict-read` (PR 7666): the row `margin_reach_rows::the_reach_alone_signs_an_edge_check_4_classes_smooth` is retired.** It pinned the question signing, at a stated reach, an edge check 4 classes smooth. The question no longer classes an edge or reads the reach: it holds tier 3's class (a `Seam` there, across which the other face's carrier is barred) and each face's run. What pins the production reading is `the_class_decides_which_separators_run` and `the_carrier_arm_is_barred_across_a_seam`.

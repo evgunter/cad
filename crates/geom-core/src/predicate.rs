@@ -904,6 +904,21 @@ impl<T: crate::real::Real> Lever<T> {
         self.0
     }
 
+    /// **This arm on the `Interval` lane**, its length carried through
+    /// the one certified crossing ([`crate::Interval::from_certified`]):
+    /// the arm a verdict kept at the body's scalar, read by a question
+    /// asked in enclosures. The source is the arm's own and the crossing
+    /// is fixed here, so no caller can state a length of its own through
+    /// it. The enclosure's lower end is then the arm from below, which
+    /// is the end a definite reading levered at it is decided on.
+    #[must_use]
+    pub fn certified(self) -> Lever<crate::Interval>
+    where
+        T: crate::CertifiedBounds,
+    {
+        Lever(crate::Interval::from_certified(self.0))
+    }
+
     /// The larger of two arms: a read of the union of their extents
     /// where both are read from one pivot. Read each from its own point
     /// and the union's reach is across both, which this does not bound.

@@ -1486,6 +1486,8 @@ mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
 pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
+mod rest_facts;
+pub use rest_facts::{EdgeClass, Geometric, Tier3Facts};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1660,6 +1662,7 @@ pub use splitting::{
 };
 pub use transform::{Isometry, TransformError, transform_rigid};
 pub use unresolved::Unresolved;
+pub use validate::geometric;
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,

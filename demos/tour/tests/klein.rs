@@ -302,14 +302,10 @@ mod wall_gap_support {
             4,
             "two outer walls against two inner walls: {apart:?}"
         );
-        let window = |f, which| {
-            Side {
-                body: &body,
-                faces: vec![f],
-            }
-            .windows(which)
-            .expect("a wall has a window")
-        };
+        let geometric = pncad::topo::geometric(&body, tol)
+            .expect("tier 3's local battery passes the body the question is asked of");
+        let window =
+            |f, which| Side::windows_of(&geometric, vec![f], which).expect("a wall has a window");
         let sweep = Sweep {
             bound: ClearanceBound::StrictlyPositive,
             band: Band::linear(tol).expect("the run's tolerance forms a band"),

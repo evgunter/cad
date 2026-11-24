@@ -447,6 +447,26 @@ impl<'b, T: Decide + CertifiedBounds> Side<'b, T> {
             .collect::<Result<_, _>>()?;
         Ok(Windows { of })
     }
+
+    /// **`faces` of a body read into windows that carry tier 3's facts
+    /// on it**: what the strict question over one body subdivides
+    /// ([`embedded`] builds its own this way). Windows read off a bare
+    /// side carry none, and a touching pair of them refuses typed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::windows`].
+    pub fn windows_of(
+        of: &crate::Geometric<'b, T>,
+        faces: Vec<FaceKey>,
+        which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        let side = Self {
+            body: of.body(),
+            faces,
+        };
+        Ok(side.windows(which)?.reading(of.facts()))
+    }
 }
 
 /// **Which side of a clearance question** a face of a refusal is on:
@@ -482,6 +502,32 @@ impl Which {
 #[derive(Debug, Clone)]
 pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
+}
+
+impl<T: CertifiedBounds> Windows<'_, T> {
+    /// These windows with tier 3's facts on each face's boundary
+    /// ([`injective::Facts::of`]), each kept length crossed once, here
+    /// ([`geom_core::Lever::certified`]).
+    ///
+    /// `kept` must be the facts of the body these windows were read off.
+    /// Nothing in the types ties the two; what holds it is that this is
+    /// private and has two callers, each of which reads both from one
+    /// body: [`Side::windows_of`] builds its side from the
+    /// [`crate::Geometric`]'s own body, and the lane's battery
+    /// (`ClearanceLane::battery_of`) runs tier 3 over the body it is
+    /// handed beside the windows. A face the facts do not hold reads no
+    /// run and no class, and a pair on it is not certified.
+    fn reading(mut self, kept: &crate::Tier3Facts<T>) -> Self {
+        for w in &mut self.of {
+            w.boundary.facts = Some(injective::Facts::of(
+                kept,
+                w.face,
+                &w.boundary.edges,
+                &w.boundary.vertices,
+            ));
+        }
+        self
+    }
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -613,6 +659,19 @@ pub enum EngineRefusal {
         /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
+    /// **A sign the question proved across a creased edge is the other
+    /// turn than tier 3's verdict holds there.** The question reads the
+    /// turn from the verdict and decides none, so the two disagreeing is
+    /// a defect in one of the readings, never a property of the body a
+    /// tolerance moves.
+    TurnContradicted {
+        /// The face the pair's first cell is of.
+        a: FaceKey,
+        /// The second's.
+        b: FaceKey,
+        /// The shared edge.
+        edge: EdgeKey,
+    },
     /// A face on a torus not decided a ring (`R > r > 0`), so not
     /// injective by its kind: a half of the convention decided outside it
     /// (a tube not shown thicker than zero, or not shown thinner than its
@@ -701,6 +760,7 @@ impl EngineRefusal {
                 format!("{}={face:?} {vertex:?}", side.name())
             }
             Self::TorusNotRing { face, side, .. } => format!("{}={face:?}", side.name()),
+            Self::TurnContradicted { a, b, edge } => format!("first={a:?} second={b:?} {edge:?}"),
             Self::EmptyScope { side } => side.name().to_owned(),
         }
     }
@@ -719,6 +779,7 @@ impl EngineRefusal {
             Self::Uncertified { .. } => "uncertified",
             Self::CollapsedChart { .. } => "collapsed_chart",
             Self::TorusNotRing { .. } => "torus_not_ring",
+            Self::TurnContradicted { .. } => "turn_contradicted",
         }
     }
 
@@ -824,6 +885,17 @@ impl EngineRefusal {
                      of its points and past it at others, so the box does not decide it; a \
                      narrower box can",
                     separation.0, separation.1
+                )
+            }
+            Self::TurnContradicted { a, b, edge } => {
+                write!(f, "face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " leave their shared edge {edge:?} the other way than the body's own \
+                     validity check read there, which is a defect in one of the two readings"
                 )
             }
             Self::EmptyScope { side } => {
@@ -4987,9 +5059,19 @@ pub struct ClearanceLane<T: geom_core::Certifies> {
     ) -> BoundReport<()>,
     /// [`Candidate::on_face_stations`].
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
+    /// Windows with tier 3's facts crossed onto each face's boundary
+    /// ([`Windows::reading`]).
+    verdict_facts: for<'b> fn(Windows<'b, T>, &crate::Tier3Facts<T>) -> Windows<'b, T>,
+    /// Windows with the facts tier 3's local battery decides on their
+    /// body now ([`crate::geometric`]).
+    battery: for<'b> fn(
+        Windows<'b, T>,
+        &'b Body<T>,
+        geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished>,
 }
 
-impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> ClearanceLane<T> {
     /// The certified engine: the whole inventory of this door, and the
     /// only constructor there is.
     #[must_use]
@@ -4998,7 +5080,23 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
             windows: Self::windows_of,
             bound_sweep: Self::sweep_of,
             face_stations: Self::stations_of,
+            verdict_facts: Self::facts_of,
+            battery: Self::battery_of,
         }
+    }
+
+    fn battery_of<'b>(
+        windows: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
+        crate::geometric(body, tol)
+            .map(|of| windows.reading(of.facts()))
+            .map_err(crate::NotFinished::new)
+    }
+
+    fn facts_of<'b>(windows: Windows<'b, T>, kept: &crate::Tier3Facts<T>) -> Windows<'b, T> {
+        windows.reading(kept)
     }
 
     fn windows_of<'b>(
@@ -5060,6 +5158,21 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
 ///     fn on_face_stations(self, _c: Candidate<'_, '_, f64>) -> (Stations, Stations) {
 ///         unimplemented!()
 ///     }
+///     fn reading<'b>(
+///         self,
+///         _windows: Windows<'b, f64>,
+///         _of: &topo::Geometric<'b, f64>,
+///     ) -> Result<Windows<'b, f64>, topo::NotFinished> {
+///         unimplemented!()
+///     }
+///     fn reading_unfinished<'b>(
+///         self,
+///         _windows: Windows<'b, f64>,
+///         _body: &'b topo::Body<f64>,
+///         _tol: geom_core::Tol,
+///     ) -> Result<Windows<'b, f64>, topo::NotFinished> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
@@ -5094,6 +5207,25 @@ pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + S
 
     /// A candidate's stations on its two faces.
     fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+
+    /// **`bare`, windows read off `of`'s body, carrying tier 3's facts
+    /// on it**: what the strict question over one body subdivides. A
+    /// touching pair of windows that carry none refuses typed.
+    fn reading<'b>(self, bare: Windows<'b, T>, of: &crate::Geometric<'b, T>) -> Windows<'b, T>;
+
+    /// **[`Self::reading`] for a caller that holds `body` bare**: tier
+    /// 3's local battery is run over it now for the facts
+    /// ([`crate::geometric`]).
+    ///
+    /// # Errors
+    ///
+    /// The battery's findings, where it refuses `body`.
+    fn reading_unfinished<'b>(
+        self,
+        bare: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished>;
 }
 
 impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
@@ -5160,6 +5292,19 @@ impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
     fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
         (self.face_stations)(candidate)
     }
+
+    fn reading<'b>(self, bare: Windows<'b, T>, of: &crate::Geometric<'b, T>) -> Windows<'b, T> {
+        (self.verdict_facts)(bare, of.facts())
+    }
+
+    fn reading_unfinished<'b>(
+        self,
+        bare: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
+        (self.battery)(bare, body, tol)
+    }
 }
 
 impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
@@ -5192,6 +5337,23 @@ impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
     }
 
     fn on_face_stations(self, _candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        match self {}
+    }
+
+    fn reading<'b>(
+        self,
+        _windows: Windows<'b, T>,
+        _of: &crate::Geometric<'b, T>,
+    ) -> Windows<'b, T> {
+        match self {}
+    }
+
+    fn reading_unfinished<'b>(
+        self,
+        _windows: Windows<'b, T>,
+        _body: &'b Body<T>,
+        _tol: geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
         match self {}
     }
 }
@@ -5262,14 +5424,26 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
-pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
-    side: &Side<'_, T>,
+///
+/// **`band` beside a verdict decided at a tolerance.** `of`'s facts are
+/// classes, runs and keys: none is a reading against a band, and a body
+/// tier 3 passed at one tolerance holds the same ones at another it
+/// passes at. `band` is the question's own, the one its departures are
+/// held against; a caller that asks at a band other than the verdict's
+/// tolerance's asks a coarser or finer question of the same facts.
+pub fn embedded<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy>(
+    of: &crate::Geometric<'_, T>,
+    faces: Vec<FaceKey>,
     band: Band,
     budgets: Budgets,
 ) -> EmbeddingReport {
     let lane = ClearanceLane::<T>::certified();
-    let windows = match lane.windows(side, Which::First) {
-        Ok(windows) => windows,
+    let side = Side {
+        body: of.body(),
+        faces,
+    };
+    let windows = match lane.windows(&side, Which::First) {
+        Ok(windows) => lane.reading(windows, of),
         Err(refusal) => {
             return EmbeddingReport {
                 verdict: Embedding::Refused(refusal),
@@ -5325,8 +5499,9 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
-    fn holds_the_certified_clearance_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_clearance_lane<
+        T: geom_core::Certifies + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    >() -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.windows,
@@ -5345,6 +5520,27 @@ mod wiring_rows {
             ClearanceLane::<T>::stations_of as fn(_) -> _,
         ) {
             return Err("face_stations is not `Candidate::on_face_stations`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.verdict_facts,
+            ClearanceLane::<T>::facts_of
+                as for<'b> fn(
+                    super::Windows<'b, T>,
+                    &crate::Tier3Facts<T>,
+                ) -> super::Windows<'b, T>,
+        ) {
+            return Err("facts is not `Windows::reading`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.battery,
+            ClearanceLane::<T>::battery_of
+                as for<'b> fn(
+                    super::Windows<'b, T>,
+                    &'b crate::Body<T>,
+                    geom_core::Tol,
+                ) -> Result<super::Windows<'b, T>, crate::NotFinished>,
+        ) {
+            return Err("battery is not `geometric` then `Windows::reading`");
         }
         Ok(())
     }
@@ -5429,12 +5625,10 @@ mod wiring_rows {
         let tol = geom_core::Tol::witness();
         let cube: crate::Body<T> =
             crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let side = super::Side {
-            body: &cube,
-            faces: cube.faces().map(|(k, _)| k).collect(),
-        };
+        let geometric = crate::geometric(&cube, tol).expect("a brick passes tier 3");
         let report = super::embedded(
-            &side,
+            &geometric,
+            cube.faces().map(|(k, _)| k).collect(),
             geom_core::Band::linear(tol).expect("the witness tolerance has a band"),
             super::Budgets {
                 max_cell_depth: super::DEFAULT_MAX_CELL_DEPTH,

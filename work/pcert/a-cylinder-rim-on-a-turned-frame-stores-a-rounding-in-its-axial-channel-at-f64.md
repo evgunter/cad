@@ -171,3 +171,5 @@ another pair (`Uncertified { 3v1, 4v1, Edge(6v1), Departure }`) and at
 Pinned as it reads, its `f64` half:
 `self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`
 (the ring's `f64` refusal).
+
+- 2026-11-24 — **From EMBED (lane `embed/verdict-read`, PR 7666): a sighting, the uneven plate's mirror image.** The rounded plate of `one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror` (`crates/sweep/tests/self_intersection_proves_injectivity.rs`), mirrored by `topo::mirror_body` across `x = 0` and across the plane through `(0.2, −0.1, 0.3)` with normal `(0.3, −0.5, 0.81)`, is refused by tier 3's local battery (`topo::geometric`): 16 findings on the `x = 0` image, the first `EdgeCertification { … Row { … refusal: Image(Some(EnvelopeTerm(FidelityU))) } }`. Until PR 7666 the row asked the embedding question of that body bare and pinned `Embedded` across `x = 0`; the question now reads tier 3's verdict, so the row pins tier 3's refusal. Whether this is this row's cause or a second one is not traced.

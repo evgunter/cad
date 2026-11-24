@@ -339,13 +339,10 @@ fn holds(what: &str, operand: Body<Interval>, t: f64) {
     );
 
     let faces: Vec<FaceKey> = shelled.naming.inner.iter().map(|&(twin, _)| twin).collect();
-    let side = Side {
-        body: &shelled.body,
-        faces,
-    };
-    let windows = side
-        .windows(Which::First)
-        .expect("every cavity face has a window");
+    let geometric = topo::geometric(&shelled.body, tol())
+        .expect("tier 3's local battery passes the body the question is asked of");
+    let windows =
+        Side::windows_of(&geometric, faces, Which::First).expect("every cavity face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: geom_core::Band::linear(tol()).unwrap(),

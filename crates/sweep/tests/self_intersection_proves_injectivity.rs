@@ -227,9 +227,38 @@ fn injective<T: Scalar>(
     faces: Option<Vec<FaceKey>>,
     budget: usize,
 ) -> BoundReport<Witness> {
+    injective_on(&geometric(body), faces, budget)
+}
+
+/// A hand-built sheet tier 3's local battery refuses, with a first
+/// finding whose text holds `finding`, on fixture facts
+/// ([`topo::Geometric::fixture`]: the runs tier 3 would keep, no class,
+/// no pole): construction state that is no body, which is all it can be
+/// asked on. Red the day tier 3 passes it or refuses it another way.
+fn sheet<'b, T: Scalar>(body: &'b Body<T>, finding: &str) -> topo::Geometric<'b, T> {
+    match topo::geometric(body, tol()) {
+        Ok(_) => panic!("tier 3 passes this sheet: ask it on its verdict"),
+        Err(findings) => {
+            let first = format!("{:?}", findings.first());
+            assert!(
+                first.contains(finding),
+                "tier 3 refuses this sheet first with {first}, not {finding}"
+            );
+        }
+    }
+    topo::Geometric::fixture(body)
+}
+
+/// [`injective`] on the facts `of` holds for its body: tier 3's, or a
+/// hand-built body's fixture facts ([`topo::Geometric::fixture`]).
+fn injective_on<T: Scalar>(
+    of: &topo::Geometric<'_, T>,
+    faces: Option<Vec<FaceKey>>,
+    budget: usize,
+) -> BoundReport<Witness> {
+    let body = of.body();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let windows = Side::windows_of(of, faces, Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -597,7 +626,20 @@ fn a_revolved_cone_holds() {
             .body
             .into_body()
     }
-    holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
+    let [float, interval] = holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
+    // The receipts, pinned: no body row's VERDICT moves when a pair's
+    // two sines are not summed (the carrier arm reads a crease's one
+    // sine whole, and a seam's faces are tangent), and these counts do:
+    // read at one sine where two are owed, each scalar discharges more
+    // cells (152 and 160) and certifies a different count (52 and 56).
+    assert_eq!(
+        (
+            (float.receipt.discharged, float.receipt.certified),
+            (interval.receipt.discharged, interval.receipt.certified),
+        ),
+        ((136, 47), (152, 54)),
+        "the cone's receipts"
+    );
 }
 
 /// **The box `2 × 1` at depth `h = 1 ± 1e-2` holds at `Sym<Interval>`**:
@@ -907,14 +949,20 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// `body` with tier 3's facts on it, which the question takes
+/// ([`topo::geometric`]): a body tier 3's local battery refuses is not
+/// asked, and the row that built it fails naming the findings.
+fn geometric<T: Scalar>(body: &Body<T>) -> topo::Geometric<'_, T> {
+    topo::geometric(body, tol()).unwrap_or_else(|findings| {
+        panic!("tier 3's local battery refuses this body, so it is not asked: {findings:?}")
+    })
+}
+
 /// The verdict door over every face of `body`, at the default budgets.
 fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
-    let side = Side {
-        body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
     topo::clearance::embedded(
-        &side,
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
         band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -1008,6 +1056,362 @@ fn two_stepped_rings_through_one_another_cross() {
         assert!(
             matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
             "the two rings cross at {scalar}: {report:?}"
+        );
+    }
+}
+
+/// A cone that owns its apex, cut through its axis: the triangle
+/// `(0, 0), (1.1, 0), (0, 0.9)` revolved half a turn about `y`, at rest.
+/// Its cone face meets each cut plane along a ruling from the apex.
+fn half_cone<T: Scalar>() -> topo::AtRestBody<T> {
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [(0.0, 0.0), (1.1, 0.0), (0.0, 0.9)].map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the half cone is a finished body")
+}
+
+/// The verdict door over every face of a finished body, reading the
+/// facts it carries ([`topo::AtRestBody::geometric`]).
+fn embedding_of_finished<T: Scalar + geom_core::Certifies>(
+    body: &topo::AtRestBody<T>,
+) -> topo::clearance::EmbeddingReport {
+    topo::clearance::embedded(
+        &body.geometric(),
+        body.faces().map(|(k, _)| k).collect(),
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// `body` in a named pose, by the finished body's own move doors, so the
+/// facts it carries are the ones its finish kept and none is read again.
+fn in_named_pose<T: Scalar>(body: topo::AtRestBody<T>, pose: &str) -> topo::AtRestBody<T> {
+    use geom_core::{Affine3, Vec3};
+    use topo::FinishedBody;
+    let axis = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+    let rigid = |m: Affine3<f64>| geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    match pose {
+        "as built" => body,
+        "turned about a generic axis" => body
+            .moved(
+                &rigid(Affine3::rotation_about_axis(Point3::origin(), axis, 0.7)),
+                tol(),
+            )
+            .expect("a turn keeps it finished"),
+        "a hundred units off" => body
+            .moved(
+                &rigid(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+                tol(),
+            )
+            .expect("a placement in the box keeps it finished"),
+        "mirrored" => {
+            let across = topo::Reflection::across(
+                Point3::new(0.1, -0.2, 0.3).map(T::from_f64),
+                axis.map(T::from_f64),
+                tol(),
+            )
+            .unwrap();
+            body.mirrored(&across, tol())
+                .expect("a mirror keeps it finished")
+        }
+        _ => unreachable!("{pose}"),
+    }
+}
+
+/// The poses a body row is read in.
+const FOUR_POSES: [&str; 4] = [
+    "as built",
+    "turned about a generic axis",
+    "mirrored",
+    "a hundred units off",
+];
+
+/// **A stepped ring holds in every pose on the facts it carries.** The
+/// ring's creases, its seams and its narrow faces' runs are tier 3's,
+/// kept at its finish; turned, mirrored and placed a hundred units out
+/// by the finished body's own move doors, it is asked on those facts and
+/// none is read again. At both scalars.
+///
+/// Red if a class or a run is not a fact of the shape up to isometry: a
+/// mirror swaps an edge's two sides and turns its walk about, and a run
+/// read off coordinates would move with a placement.
+#[test]
+fn a_stepped_ring_holds_in_every_pose_on_its_carried_facts() {
+    for pose in FOUR_POSES {
+        for (scalar, report) in [
+            (
+                "f64",
+                embedding_of_finished(&in_named_pose(stepped_ring::<f64>(), pose)),
+            ),
+            (
+                "Interval",
+                embedding_of_finished(&in_named_pose(stepped_ring::<Interval>(), pose)),
+            ),
+        ] {
+            println!("[verdict-read] the stepped ring {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the stepped ring {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// The stepped ring's shape with no coordinate on the dyadic grid: its
+/// inner radius `0.7`, its floor at `0.13`, its step a third up, turned
+/// through `1.3π`.
+fn stepped_ring_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
+    let third = 1.0 / 3.0;
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (0.7, 0.13),
+            (1.9, 0.13),
+            (1.9, 1.13),
+            (1.9 - third, 1.13),
+            (1.9 - third, 0.13 + third),
+            (0.7, 0.13 + third),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(1.3 * core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the ring is a finished body")
+}
+
+/// A stepped drum on its axis, no coordinate on the dyadic grid: radius
+/// `0.7` up to a third above its floor at `0.13`, a third from there to
+/// `1.13`, turned the whole way round. Its caps are discs and its step
+/// an annulus, each bounded by whole circles.
+fn stepped_drum_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
+    let third = 1.0 / 3.0;
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (0.0, 0.13),
+            (0.7, 0.13),
+            (0.7, 0.13 + third),
+            (third, 0.13 + third),
+            (third, 1.13),
+            (0.0, 1.13),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body,
+        tol(),
+    )
+    .expect("the drum is a finished body")
+}
+
+/// **Bodies built off the dyadic grid hold in every pose but one.** The
+/// stepped ring and a stepped drum, built at `0.7`, `0.13` and thirds
+/// so that no stored coordinate is exact, as built, turned, mirrored
+/// and placed a hundred units out, at both scalars. The drum's caps are
+/// discs, which span their rims (a rim crosses a half-plane on the axis
+/// once), and its step is an annulus, which does not; each face's run
+/// is read from enclosures that are nowhere a point.
+///
+/// **The drum mirrored across a generic plane refuses at `Interval`**:
+/// between the two faces of one cylinder wall across their seam, out
+/// of the walk's depth (`Uncertified Departure`, or the depth budget on
+/// that pair: which of the two it reads has moved with the landing
+/// branch), where `f64` holds. It reads so on the branch this one lands on too, cell
+/// for cell, so it is not the facts' reading; pinned at that exit as a
+/// finding
+/// (`work/embed/a-stepped-drum-mirrored-across-a-generic-plane-refuses-departure-at-interval.md`).
+///
+/// Red if a run, a class or a crossing's side is decided by a stored
+/// value agreeing with another rather than by an enclosure, and red the
+/// day the mirrored drum holds: the row then pins it holding.
+#[test]
+fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
+    use topo::clearance::Embedding;
+    for pose in FOUR_POSES {
+        for (what, scalar, report) in [
+            (
+                "ring",
+                "f64",
+                embedding_of_finished(&in_named_pose(stepped_ring_off_the_grid::<f64>(), pose)),
+            ),
+            (
+                "ring",
+                "Interval",
+                embedding_of_finished(&in_named_pose(
+                    stepped_ring_off_the_grid::<Interval>(),
+                    pose,
+                )),
+            ),
+            (
+                "drum",
+                "f64",
+                embedding_of_finished(&in_named_pose(stepped_drum_off_the_grid::<f64>(), pose)),
+            ),
+            (
+                "drum",
+                "Interval",
+                embedding_of_finished(&in_named_pose(
+                    stepped_drum_off_the_grid::<Interval>(),
+                    pose,
+                )),
+            ),
+        ] {
+            println!("[verdict-read] the off-grid {what} {pose} at {scalar}: {report:?}");
+            if (what, pose, scalar) == ("drum", "mirrored", "Interval") {
+                let body = in_named_pose(stepped_drum_off_the_grid::<Interval>(), pose);
+                let class = door_on(&body.geometric(), body.faces().map(|(k, _)| k).collect());
+                println!("[verdict-read] the off-grid drum mirrored at Interval: {class}");
+                assert!(
+                    class == "Uncertified Departure cylinder x cylinder across an edge"
+                        || class.starts_with("Refused Budget { stop: Depth"),
+                    "the off-grid drum mirrored at Interval refuses across a seam: {class}"
+                );
+                continue;
+            }
+            assert!(
+                matches!(report.verdict, Embedding::Embedded),
+                "the off-grid {what} {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// A unit plate with one top edge bevelled: the bevel `width` wide,
+/// falling from the top at the angle `phi`, extruded one unit.
+fn bevelled_plate<T: Scalar>(width: f64, phi: f64) -> Result<Body<T>, String> {
+    let drop = width * phi.tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        lifted::<T>(&[ProfileLoop::polygon(
+            [
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0 - drop),
+                (1.0 - width, 1.0),
+                (0.0, 1.0),
+            ]
+            .map(|(x, y)| Point2::new(x, y)),
+        )]),
+    )
+    .validate(tol())
+    .map_err(|e| format!("the profile: {e:?}"))?;
+    let built = extrude(&profile, to_offset(1.0), tol()).map_err(|e| format!("extrude: {e:?}"))?;
+    sweep::test_support::taken::<T>(built.body, tol())
+        .map(topo::AtRestBody::into_body)
+        .map_err(|e| format!("the finish: {e:?}"))
+}
+
+/// **No body is built whose bevel is inside the band at its own
+/// width, and one past it holds.** The plate's bevel, `1e-4` wide,
+/// falling from the top at an angle whose sine times that width is:
+/// - half the band: the profile door refuses the junction between the
+///   top and the bevel (`PathJunctionTurn`, its turn in band), so the
+///   embedding question is never asked of a finished body whose
+///   narrower face is inside the band at its far side. That is why no
+///   body row's VERDICT moves when the lever is the farther face's run:
+///   the door before the question refuses the bodies that would feel
+///   it;
+/// - three times the band: built, and embedded, its receipt pinned.
+///
+/// Red if such a bevel builds (the first half then pins what the
+/// question reads of it), or if the built one's receipt moves.
+#[test]
+fn a_bevel_inside_the_band_is_not_built_and_one_past_it_holds() {
+    let k = band().escalate();
+    let width = 1e-4;
+    let inside = bevelled_plate::<f64>(width, 0.5 * k / width);
+    assert!(
+        inside
+            .as_ref()
+            .is_err_and(|e| e.contains("PathJunctionTurn")),
+        "a bevel inside the band is refused at the profile door: {:?}",
+        inside.map(|_| "built")
+    );
+    let body = bevelled_plate::<f64>(width, 3.0 * k / width).expect("a bevel past the band");
+    let report = embedding(&body);
+    assert!(
+        matches!(report.verdict, topo::clearance::Embedding::Embedded),
+        "{report:?}"
+    );
+    let r = report.receipt;
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.certified, r.by_kind),
+        (22, 45, 23, 23, 7),
+        "the bevelled plate's receipt: {report:?}"
+    );
+}
+
+/// **A cone that owns its apex, cut through its axis, holds in every
+/// pose.** Tier 3 classes each ruling a convex crease and keeps one
+/// extent for it (the narrower face's run from the ruling's line, 0.70
+/// against the cone's 1.39), which does not shrink toward the apex as
+/// the cone's curvature radius does; the apex is the vertex tier 3
+/// placed it at, by key, and the cells at its collapsed side are read
+/// there. As built, turned, mirrored and a hundred units out, at both
+/// scalars.
+///
+/// Red if a pose refuses while another holds, if the apex is found by
+/// anything but the verdict's key, or if a ruling's extent is read off
+/// the cone's own cell.
+#[test]
+fn a_cone_cut_through_its_axis_holds_at_its_apex_in_every_pose() {
+    for pose in FOUR_POSES {
+        for (scalar, report) in [
+            (
+                "f64",
+                embedding_of_finished(&in_named_pose(half_cone::<f64>(), pose)),
+            ),
+            (
+                "Interval",
+                embedding_of_finished(&in_named_pose(half_cone::<Interval>(), pose)),
+            ),
+        ] {
+            println!("[verdict-read] the half cone {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the half cone {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// **Two half cones through one another cross.** The half cone and a
+/// copy moved `0.2` along `x`, grafted in as a solid of its own: the
+/// copy's cone face and cut planes pass through the first's beside its
+/// rulings and its apex, where the row above reads tier 3's classes and
+/// extents. Nothing a departure reads parts two solids, so the verdict
+/// is a crossing. Red if it is anything else, at either scalar.
+#[test]
+fn two_half_cones_through_one_another_cross() {
+    fn folded<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let cone = half_cone::<T>();
+        let mut folded = cone.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.2, 0.0, 0.0)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&cone, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    for (scalar, report) in [
+        ("f64", embedding(&folded::<f64>())),
+        ("Interval", embedding(&folded::<Interval>())),
+    ] {
+        println!("[verdict-read] two half cones at {scalar}: {report:?}");
+        assert!(
+            matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
+            "the two half cones cross at {scalar}: {report:?}"
         );
     }
 }
@@ -1384,11 +1788,9 @@ fn a_lunes_cap_pushed_through_anothers_reads_violated() {
 #[test]
 fn a_sphere_faces_poses_are_built_once_per_ask() {
     let body = two_arc_lune::<f64>(0.0, Some(0.05));
-    let side = Side {
-        body: &body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let of = geometric(&body);
+    let windows = Side::windows_of(&of, body.faces().map(|(k, _)| k).collect(), Which::First)
+        .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -1461,11 +1863,9 @@ fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
             two_ball_lens(dx),
         );
         let body = two_ball_lens::<Interval>(dx);
-        let side = Side {
-            body: &body,
-            faces: body.faces().map(|(k, _)| k).collect(),
-        };
-        let windows = side.windows(Which::First).expect("every face has a window");
+        let of = geometric(&body);
+        let windows = Side::windows_of(&of, body.faces().map(|(k, _)| k).collect(), Which::First)
+            .expect("every face has a window");
         let sweep = Sweep {
             bound: ClearanceBound::StrictlyPositive,
             band: band(),
@@ -2455,13 +2855,24 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
         topo::mint_pcurves(&mut body, tol()).unwrap();
         (body, wall, flap)
     }
+    // The sheet and its flap are construction state tier 3 refuses, so
+    // the pair is asked on fixture facts: the runs tier 3 would keep,
+    // and no class.
     let (body, wall, flap) = pierced::<f64>();
-    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let report = injective_on(
+        &sheet(&body, "UncertifiableSurface"),
+        Some(vec![wall, flap]),
+        BUDGET,
+    );
     let (twin, tw, tf) = pierced::<Interval>();
     same_class(
         "the seam-crossing wall and its flap",
         &report,
-        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+        &injective_on(
+            &sheet(&twin, "UncertifiableSurface"),
+            Some(vec![tw, tf]),
+            BUDGET,
+        ),
     );
     println!(
         "[selfx] the seam-crossing wall and its flap: {:?} {:?}",
@@ -2911,13 +3322,20 @@ fn a_flap_through_a_wall_at_its_rulings_vertex_never_holds() {
         topo::mint_pcurves(&mut body, tol()).unwrap();
         (body, wall, flap)
     }
+    // The flap on its struts is construction state tier 3 refuses
+    // (scaffold edges at rest), so the pair is asked on fixture facts:
+    // the runs tier 3 would keep, no class.
     let (body, wall, flap) = flapped::<f64>();
-    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let report = injective_on(
+        &sheet(&body, "ScaffoldAtRest"),
+        Some(vec![wall, flap]),
+        BUDGET,
+    );
     let (twin, tw, tf) = flapped::<Interval>();
     same_class(
         "the wall and the flap through it",
         &report,
-        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+        &injective_on(&sheet(&twin, "ScaffoldAtRest"), Some(vec![tw, tf]), BUDGET),
     );
     println!(
         "[clip-vertex] the wall and the flap through it: {:?} {:?}",
@@ -3372,13 +3790,18 @@ fn rod_less_a_tilted_slab<T: Scalar>(z: (f64, f64)) -> topo::AtRestBody<T> {
 #[test]
 fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
     let z = (-3.0, 3.0);
-    for report in holds_at_both(
+    let [float, interval] = holds_at_both(
         "the rod less the tilted slab",
         rod_less_a_tilted_slab(z).into_body(),
         rod_less_a_tilted_slab(z).into_body(),
-    ) {
-        assert_eq!(report.cornered, 14, "the corners are read through");
-    }
+    );
+    // How many certificates read a face through a corner, at each
+    // scalar.
+    assert_eq!(
+        (float.cornered, interval.cornered),
+        (16, 16),
+        "the corners are read through"
+    );
 }
 
 /// **A rod taller than a turn holds too** ([`rod_less_a_tilted_slab`]
@@ -4170,14 +4593,9 @@ fn pair_report<T: Scalar>(
     b: FaceKey,
     budget: usize,
 ) -> BoundReport<()> {
-    let window = |f| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(Which::First)
-        .expect("every face has a window")
-    };
+    let geometric = geometric(body);
+    let window =
+        |f| Side::windows_of(&geometric, vec![f], Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -4499,14 +4917,9 @@ fn wall_against_wall<T: Scalar>(
     walls: [FaceKey; 2],
     bound: ClearanceBound,
 ) -> BoundReport<Witness> {
-    let window = |f, which| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(which)
-        .expect("a wall has a window")
-    };
+    let geometric = geometric(body);
+    let window =
+        |f, which| Side::windows_of(&geometric, vec![f], which).expect("a wall has a window");
     let sweep = Sweep {
         bound,
         band: band(),
@@ -4630,14 +5043,9 @@ fn wall_against_wall_unwitnessed<T: Scalar>(
     bound: ClearanceBound,
     budget: usize,
 ) -> BoundReport<()> {
-    let window = |f, which| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(which)
-        .expect("a wall has a window")
-    };
+    let geometric = geometric(body);
+    let window =
+        |f, which| Side::windows_of(&geometric, vec![f], which).expect("a wall has a window");
     let sweep = Sweep {
         bound,
         band: band(),
@@ -4758,11 +5166,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
     )
     .expect("the half-turn helix sweeps")
     .body;
-    let side = Side {
-        body: &body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let windows = Side::windows_of(
+        &geometric(&body),
+        body.faces().map(|(k, _)| k).collect(),
+        Which::First,
+    )
+    .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -4873,9 +5282,19 @@ fn door_class<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> String {
 
 /// [`door_class`] over `faces` of `body` alone.
 fn door_over<T: Scalar + geom_core::Certifies>(body: &Body<T>, faces: Vec<FaceKey>) -> String {
+    door_on(&geometric(body), faces)
+}
+
+/// [`door_over`] on the facts `of` holds for its body.
+fn door_on<T: Scalar + geom_core::Certifies>(
+    of: &topo::Geometric<'_, T>,
+    faces: Vec<FaceKey>,
+) -> String {
     use topo::clearance::{Embedding, embedded};
+    let body = of.body();
     let report = embedded(
-        &Side { body, faces },
+        of,
+        faces,
         band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -5092,10 +5511,8 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
             }
             asked += 1;
             let verdict = embedded(
-                &Side {
-                    body: &*body,
-                    faces: vec![a, b],
-                },
+                &geometric(&body),
+                vec![a, b],
                 band(),
                 Budgets {
                     max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -5154,22 +5571,22 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
     }
 }
 
-/// **One plate in every pose.** A rounded plate of four different
+/// **One plate in every rigid pose.** A rounded plate of four different
 /// corner radii (so its mirror image is not itself), every edge
 /// filleted, at `f64`: as built, turned about a generic axis, a hundred
-/// units out, 990 units out on each axis (the session box's wall is at
-/// 1000; at ε = 1e-12 that move does not finish, at `shared_row_touch`,
-/// and only that refusal is passed over), and
-/// mirrored across `x = 0`, all `Embedded`.
+/// units out and 990 units out on each axis (the session box's wall is
+/// at 1000; at ε = 1e-12 that move does not finish, at
+/// `shared_row_touch`, and only that refusal is passed over), all
+/// `Embedded`.
 ///
-/// **Mirrored across a generic plane it is not**: it reads `Uncertified
-/// Departure cylinder x plane across an edge`, pinned at that exit as a
-/// finding, likely the cause of
-/// `work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`
-/// (the mirror re-mints the rows on a turned frame) and untraced. The
-/// mirror's result is asked as a body and not put through the at-rest
-/// finish, which refuses its re-minted rows on a generic plane. The
-/// probe is the re-review's.
+/// **Its mirror image is not asked.** `topo::mirror_body` re-mints the
+/// rows on the mirrored frame, and tier 3's local battery refuses them
+/// (an edge's certification, its image's `FidelityU` envelope term),
+/// across `x = 0` and across a generic plane alike, as the at-rest
+/// finish does. The embedding question reads tier 3's verdict, so a
+/// body with none is pinned at tier 3's refusal and not at an
+/// embedding. The cause is PCERT's
+/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`).
 #[test]
 fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
@@ -5217,22 +5634,34 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
         }
         Err(e) => panic!("the uneven plate 990 units out does not finish: {e:?}"),
     }
-    let mirrored = |point, n| {
+    // The plate's mirror image is not asked: tier 3's local battery
+    // refuses its re-minted rows, across `x = 0` as across a generic
+    // plane, and a body tier 3 refuses has no verdict for the question
+    // to read. Pinned as tier 3 reads it, by its first finding.
+    for (what, point, n) in [
+        (
+            "x = 0",
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "a generic plane",
+            Point3::new(0.2, -0.1, 0.3),
+            Vec3::new(0.3, -0.5, 0.81),
+        ),
+    ] {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
         let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
-        door_class::<f64>(&mirrored)
-    };
-    assert_eq!(
-        mirrored(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
-        "Embedded",
-        "mirrored across x = 0"
-    );
-    let generic = mirrored(Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81));
-    println!("[tangent] the uneven plate mirrored across a generic plane: {generic}");
-    assert!(
-        generic.starts_with("Uncertified Departure cylinder x plane across an edge"),
-        "mirrored across a generic plane: {generic}"
-    );
+        let first = match topo::geometric(&mirrored, tol()) {
+            Ok(_) => panic!("mirrored across {what}: tier 3 passes it; ask it"),
+            Err(findings) => format!("{:?}", findings.first()),
+        };
+        println!("[tangent] the uneven plate mirrored across {what}: tier 3 refuses, {first}");
+        assert!(
+            first.contains("EdgeCertification") && first.contains("FidelityU"),
+            "mirrored across {what}: {first}"
+        );
+    }
 }
 
 /// **A copy pushed through a tangent joint crosses**: the inset corner
@@ -5511,12 +5940,9 @@ fn door<T: Scalar + geom_core::Certifies>(
     max_cell_depth: u32,
     max_cell_pairs: usize,
 ) -> topo::clearance::EmbeddingReport {
-    let side = Side {
-        body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
     let report = topo::clearance::embedded(
-        &side,
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
         band(),
         Budgets {
             max_cell_depth,
@@ -5592,7 +6018,8 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             faces.reverse();
         }
         let report = topo::clearance::embedded(
-            &Side { body, faces },
+            &geometric(body),
+            faces,
             band(),
             Budgets {
                 max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -5908,15 +6335,17 @@ fn notched_rod<T: Scalar>() -> topo::AtRestBody<T> {
 
 /// The verdict door's answer over every face of `body`.
 fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
-    let side = Side {
-        body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
         max_cell_pairs: BUDGET,
     };
-    topo::clearance::embedded(&side, band(), budgets).verdict
+    topo::clearance::embedded(
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
+        band(),
+        budgets,
+    )
+    .verdict
 }
 
 /// `body` moved by each of `poses` in turn and finished, or `None` where
@@ -6896,15 +7325,17 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
 fn embedded_verdict<T: Scalar + geom_core::Certifies>(
     body: &Body<T>,
 ) -> topo::clearance::Embedding {
-    let side = Side {
-        body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
         max_cell_pairs: BUDGET,
     };
-    topo::clearance::embedded(&side, band(), budgets).verdict
+    topo::clearance::embedded(
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
+        band(),
+        budgets,
+    )
+    .verdict
 }
 
 /// An embedding verdict's class: `Embedded`, `Crosses`, or the
