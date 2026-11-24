@@ -181,3 +181,29 @@ fn a_partial_cone_refuses_only_inside_its_ball() {
         through.err()
     );
 }
+
+/// **A trimmable cone face's roots are read over the run that reaches
+/// its ball about the apex**: on the cone face of half-angle π/4 up to
+/// its rim at `z = 2` (the ball's radius `2√2`), a ray along `x` at
+/// `y = 0.3`, `z = 1.9` meets the cone about `2.7` from the apex, inside
+/// the ball, and both roots are read. Red against the ball read at half
+/// its radius, whose run stops short of them.
+#[test]
+fn a_trimmable_cones_roots_are_read_over_its_balls_run() {
+    let (body, face) =
+        crate::test_support_fixtures::cone_cap(core::f64::consts::FRAC_PI_4, 2.0, Tol::witness());
+    let charts = SolidFaces::of_body(&body).expect("its faces").charts;
+    let geos = [(
+        face,
+        face_geo(&body, face, &charts, band()).expect("the face's geometry"),
+    )];
+    assert!(
+        matches!(geos[0].1, FaceGeo::Cone { .. }),
+        "a trimmable cone face"
+    );
+    let ray = geom::Ray::new(Point3::new(-5.0, 0.3, 1.9), UnitVec3::exact_x());
+    let (roots, missed) =
+        carrier_roots(&geos, &ray, 10.0, band(), SCHEDULE_ROWS).expect("the roots decide");
+    assert!(missed.is_empty(), "the ray meets the cone");
+    assert_eq!(roots.len(), 2, "both roots are read");
+}
