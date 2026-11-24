@@ -4,7 +4,7 @@ kind: issue
 title: The aimed face's advance is zero only through its first edge's incidence, which the walk does not hold
 status: open
 opened: 2026-11-22
-priority: P2
+priority: P1
 cost: M
 design: true
 ---

@@ -4,7 +4,7 @@ kind: issue
 title: A wall's aim hangs a fixed step under its moving top edge, so its ray reads only a box a tenth of the height wide
 status: open
 opened: 2026-11-15
-priority: P2
+priority: P1
 cost: M
 ---
 
