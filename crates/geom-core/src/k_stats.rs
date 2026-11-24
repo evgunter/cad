@@ -500,6 +500,20 @@ pub mod probe_tally {
         *V.get_or_init(|| std::env::var("BOXFINISH_SKIP_DISC").is_ok_and(|v| v == "1"))
     }
     pub const DISC: &str = "curve_face_pose_disc";
+    /// PROBE (M11): whether `name` is one the M11 trace and skip cover:
+    /// `BOXFINISH_M11_NAMES` (comma list), by default the pose-disc alone.
+    pub fn m11_name(name: &str) -> bool {
+        static V: OnceLock<Vec<String>> = OnceLock::new();
+        V.get_or_init(|| {
+            std::env::var("BOXFINISH_M11_NAMES")
+                .unwrap_or_else(|_| DISC.to_owned())
+                .split(',')
+                .map(str::to_owned)
+                .collect()
+        })
+        .iter()
+        .any(|n| n == name)
+    }
     /// PROBE (M11): resident memory, kB.
     pub fn rss_kb() -> u64 {
         std::fs::read_to_string("/proc/self/statm")
@@ -866,7 +880,7 @@ fn classify_quoting<T: Decide, A: MarginTerms>(
         let entered = std::time::Instant::now();
         (entered, format!("{margin:?} {band:?}"))
     });
-    let m11 = (probe_tally::m11() && name == probe_tally::DISC).then(|| {
+    let m11 = (probe_tally::m11() && probe_tally::m11_name(name)).then(|| {
         probe_tally::walk_reset();
         (format!("{margin:?}"), std::time::Instant::now())
     });
@@ -879,7 +893,7 @@ fn classify_quoting<T: Decide, A: MarginTerms>(
         let w = probe_tally::walk_take();
         let text = probe_tally::strip_nodes(&text);
         eprintln!(
-            "[m11-disc] scalar={} outcome={} ms={:.2} forms={} largest_terms={} made_ms={:.1} refused_nodes={} ring={} decision_ladders={} margin={}",
+            "[m11-disc] name={name} scalar={} outcome={} ms={:.2} forms={} largest_terms={} made_ms={:.1} refused_nodes={} ring={} decision_ladders={} margin={}",
             core::any::type_name::<T>().rsplit("::").next().unwrap_or("?"),
             match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "Indeterminate".to_owned() },
             t.elapsed().as_secs_f64() * 1e3,

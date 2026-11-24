@@ -4663,7 +4663,7 @@ fn discharge_in(id: SymId, path: Path) -> Option<(Rung, u8)> {
 /// PROBE (M11): one line per stage of a pose-disc decision's ladder.
 fn m11_stage(stage: &str, t: std::time::Instant, form: Option<&Form>, note: &str) {
     if crate::k_stats::probe_tally::m11()
-        && crate::k_stats::current_predicate() == crate::k_stats::probe_tally::DISC
+        && crate::k_stats::probe_tally::m11_name(crate::k_stats::current_predicate())
     {
         eprintln!(
             "[m11-ladder] stage={stage} ms={:.2} {} {note}",
@@ -5604,7 +5604,7 @@ impl<T: Decide> Sym<T> {
         // PROBE (M11): an indeterminate pose-disc asks the tier nothing.
         if crate::k_stats::probe_tally::skip_disc()
             && numeric.is_err()
-            && crate::k_stats::current_predicate() == crate::k_stats::probe_tally::DISC
+            && crate::k_stats::probe_tally::m11_name(crate::k_stats::current_predicate())
         {
             count_decision(false);
             return numeric;
