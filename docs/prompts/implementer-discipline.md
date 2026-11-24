@@ -262,10 +262,10 @@ for a one-shot comparison artefact once its comparison has been taken.
 **No silent skips.** A bare `return` at some ε reports green having asserted
 nothing; use `test_utils::loud_skip_marker!` so the absence shows in the log.
 
-**A mutant that did not compile did not die.** A mutant table says, for each
-mutant, that the mutated tree BUILT and which tests went red, by name; a
-runner that counts a failed command as a kill reports a full disk, a killed
-build or a typo in the edit as a caught mutant. Diff the tree clean against
+**A mutant is caught only when its tree built and a named test went red.** A
+mutant table says both for each mutant; a runner that counts a failed command
+as a kill reports a full disk, a killed build or a typo in the edit as a
+caught mutant. Diff the tree clean against
 the head when the run ends: a driver killed mid-run leaves its edit behind.
 Prune stale build directories before a chain of mutant builds, not during it,
 and run one release build at a time: each mutant build is kept until pruned,
