@@ -52,6 +52,7 @@ expect_used = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
+disallowed_methods = "allow"
 
 [features]
 default = []
