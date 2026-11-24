@@ -2,7 +2,7 @@
 id: spline-incidence-is-reached-from-incidence-readers-open-to-a-dual
 kind: issue
 title: spline_incidence.rs is certification arithmetic reached from point_incident and incident_as at T: Decide, which a dual instantiates
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: M
@@ -27,3 +27,7 @@ Then `spline_incidence.rs` is bounded and listed.
 ## What is left, as of the fix pass on PR 7190 (2026-11-20)
 
 Unchanged by the fix pass: `incidence::incident_as` and `incidence::point_incident` are `T: Decide` and call the subdivision with no lane, so this is the same shape as `the-certification-files-hold-body-data-beside-certification`'s (a): certification arithmetic a dual runs outside any lane. Unmeasured, as there: whether a dual test binary instantiates `spline_incidence_as` today (it needs a dual edge on a spline chart, and the dual corpus's bodies were not read for one).
+
+## Dispatch, 2026-11-24
+
+Dispatched as a unit on branch `scalar/spline-incidence-is-reached-from-incidence-readers-open-to-a-dual`. Letter **M**; tier **SINGLE, FULL review**: the change is a bound on certification arithmetic plus a move of where a dual is refused, which reads as right or wrong only by following who matches on the verdict, so the review carries claims to falsify alongside the style lane. The implementer measures first whether any dual reaches the spline arm today, and stops with the question if DL5.1–DL5.3 do not settle what a dual's edge on a spline chart reads.
