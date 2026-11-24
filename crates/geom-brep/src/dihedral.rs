@@ -4612,8 +4612,9 @@ mod bend_rows {
     }
 
     /// **A bend in band at a station is an undecided bend, not an
-    /// undecided seam**: the arc's middle station sits `3·10⁻⁸` past a
-    /// neutral point, where the sagitta lands in the band. Facing one way,
+    /// undecided seam**: the arc's middle station sits `off` past a
+    /// neutral point, where `κ_rel ≈ −off/3` and the sagitta over the
+    /// unit arm is `off/6`, set to the band's geometric mean. Facing one way,
     /// the routing's fold reads the π seam, its bend under-determined,
     /// while every reader of the description (the must-carry rule, the
     /// whole-edge fold) refuses typed on the bend; facing each other, the
@@ -4622,7 +4623,8 @@ mod bend_rows {
     #[test]
     fn a_bend_in_band_at_a_station_leaves_the_seam_under_determined() {
         let rim = rim();
-        let off = 3e-8;
+        let b = band();
+        let off = 6.0 * (b.zero() * b.escalate()).sqrt();
         let (t0, t1) = (off, PI + off);
         let mid = interior_stations(&rim, t0, t1)
             .find(|&(i, _)| i == crate::CERT_SAMPLES / 2)
