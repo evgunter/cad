@@ -19,3 +19,17 @@ The statement of the problem (identical for both) is `probe/briefs/designer-the-
 |---|---|---|
 | A | Fable 5.2 (`claude-fable-5-2`) | session_013QoYWTzB9rBLberBxrJ5dT |
 | B | Opus 5.5 (`claude-opus-5-5`) | session_013QoYWXFZDL2yMboFxQ7x7a |
+
+## First reports (recorded as delivered, before any reconciliation; both in by 09:25 UTC, raw on `boxfinish/briefs` `probe/briefs/fork-the-climb/` at `e14ae2f4cb5`)
+
+| | A | B |
+|---|---|---|
+| Answer | Give "no" a proof of its own, from the value side: where the box reading shows no definite sign at an exact-witness symbolic scalar, read the margin's expression once more at one named off-centre point of the leaf's box in outward-rounded intervals. A definite sign there proves the margin is no identity; the tier is asked nothing and the decision stays undecided. Otherwise the ladder climbs as today. A graph that reaches a value with no expression declines. | Before the tier builds any form, enclose the margin's graph with each parameter at one fixed off-centre point of the leaf's box (and each value with no expression at one point of its own). An enclosure that excludes 0 proves no rung can answer; the decision stays undecided with no climb. Otherwise the ladder runs as today. |
+| One line of argument | The tier cannot produce a "no": a residual form that is not the zero polynomial proves nothing, so the cost is unbounded by construction; the missing part is a refuter, not a cheaper ladder. | The ladder cannot say "no" at all; a zero form is zero at every point of the box, so one certified nonzero point refutes it. |
+| Confidence | likely (the argument sure; that the point reading refutes these four margins unmeasured) | likely |
+| Rejected the framing | In part: the ask has no "no" to cost. | In part: the same. |
+| Proposed changing ratified text | Yes: one sentence added to E12's "The two channels are checked where an answer is returned". | Yes: one sentence added to E12's "identity test, on demand" bullet. |
+
+**Agreed at first report on the recommended final state** (a point refutation ahead of the ladder; no verdict changes; nothing negative kept per drive; the structural question untouched; measure first). They differ in two details an implementer's measurement settles: what a value with no expression does at the point (A: the reading declines; B: any one point of its own value is admissible, pending a check of how the form treats it), and which E12 bullet carries the sentence. No reconciliation round is needed.
+
+Served models at first report: not yet read from the sessions.
