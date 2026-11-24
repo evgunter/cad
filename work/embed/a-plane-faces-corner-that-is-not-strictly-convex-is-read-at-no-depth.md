@@ -430,7 +430,7 @@ where the line is a shared edge.
 
 ## Built: the two pieces (embed/corner-pieces, 2026-11-23)
 
-Built on `origin/embed/wave3-land`, last merged at `8d34076a9e`, the landing branch,
+Built on `origin/embed/wave3-land`, last merged at `7f85375799`, the landing branch,
 which holds PR 7329's margin (`embed/remeter` `7667c455e`) and PR
 7318's separator. It needs both.
 
@@ -564,3 +564,20 @@ removed survives at the default ε and reddens
 default band a spike thin enough to be in the band is too thin for the
 ray's direction to be certified, and the division that places the cell
 refuses first.
+
+**Beside `embed/strip`** (PR 7334, merged under the unit at
+`7f85375799`). `present_plane` chooses its reader by the edges the cell
+holds: one edge is strip's `along`; two edges with a common vertex are
+the pieces, whatever the corner's angle; three edges are a strip's end,
+read by strip's convex `corner` with its cap, which is now always given
+one (the uncapped branch was the lean gate and quadrant this unit
+replaces). A thin face at a two-line vertex is the pieces' while the
+cell holds only the two edges and strip's once it holds the end's third
+edge. Strip's random coverage row
+(`a_presented_end_holds_the_faces_part_at_random`) now asks that each
+face point lie in some piece and passes over two-edge cells too;
+`a_poisoned_line_direction_is_refused_by_every_reader`'s sound control
+is two pieces. The endpoint census's entry for `injective.rs` is 215
+reads, 102 asking (the landing tip's 211 / 98 and the pieces' five,
+less the uncapped corner's one). The census through the gate, the cost
+and the tour walk above were taken before this merge and not re-taken.
