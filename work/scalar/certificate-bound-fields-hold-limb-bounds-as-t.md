@@ -4,6 +4,8 @@ kind: issue
 title: SSI and edge certificates hold limb 2 and limb 3 bounds in T fields, so their decisions lift the bound
 status: open
 opened: 2026-11-20
+priority: P2
+cost: M
 ---
 
 Found building `a-bound-to-decide-against-never-becomes-a-t` (DL5.2, `crates/geom-core/README.md`).
