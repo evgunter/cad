@@ -1957,6 +1957,33 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
     );
 }
 
+/// **A piece with a weight not positive has no box**
+/// ([`super::Piece::bbox`]): the control box holds a rational piece only
+/// where every weight is positive, and the point out of homogeneous form
+/// reads a point for a negative weight clear of its bound, so the box
+/// asks the sign itself. A segment whose second weight is `−1`, exact,
+/// and one whose second weight is `0`, have no box; the same segment at
+/// weight `1` has one.
+#[test]
+fn a_piece_with_a_weight_not_positive_has_no_box() {
+    use super::Piece;
+    let at = |w: f64| Piece {
+        net: vec![
+            [
+                Rounded::exact(0.0),
+                Rounded::exact(0.0),
+                Rounded::exact(1.0),
+            ],
+            [Rounded::exact(w), Rounded::exact(w), Rounded::exact(w)],
+        ],
+    };
+    for w in [-1.0, 0.0] {
+        let b = at(w).bbox();
+        assert!(b.is_none(), "a weight {w} gives the box {b:?}");
+    }
+    assert!(at(1.0).bbox().is_some(), "a positive weight has a box");
+}
+
 /// **A piece whose rounding bound is NaN has no box**
 /// ([`super::Piece::bbox`]): a NaN bound refuses, and is not dropped by
 /// the per-channel fold to leave the box unwidened.

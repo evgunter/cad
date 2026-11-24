@@ -676,9 +676,16 @@ impl Piece {
         if mutant("spline-trim-u-unwidened") {
             worst[0] = 0.0;
         }
+        // Each side moved out by its bound, rounded outward.
+        let side = |(lo, hi): (f64, f64), e: f64| {
+            (
+                Rounded::exact(lo).with_charge(e).outward_ends().0,
+                Rounded::exact(hi).with_charge(e).outward_ends().1,
+            )
+        };
         Some(Rect {
-            u: (r.u.0 - worst[0], r.u.1 + worst[0]),
-            v: (r.v.0 - worst[1], r.v.1 + worst[1]),
+            u: side(r.u, worst[0]),
+            v: side(r.v, worst[1]),
         })
     }
 
@@ -1271,9 +1278,14 @@ pub(crate) fn image_pieces<T: Decide>(
                 // bracket, its enclosure's middle and half-width.
                 let reach = |h: &mut Node, at: geom_core::Point2<T>| {
                     for (c, x) in [at.x, at.y].into_iter().enumerate() {
+                        // The end's distance from the run's end point, both
+                        // read in `f64` with their roundings, scaled back
+                        // into homogeneous form.
                         let x = Tracked::exact(x).at_middle();
-                        let off = (x.value - h[c].value / h[2].value).abs() + x.error;
-                        h[c] = h[c].with_charge(h[2].value.abs() * off);
+                        let q = Rounded::exact(h[c].value).div_exact(h[2].value);
+                        let off = Rounded::exact((x - q).magnitude());
+                        let w = Rounded::exact(h[2].value.abs());
+                        h[c] = h[c].with_charge((off * w).magnitude());
                     }
                 };
                 reach(run.first_mut()?.net.first_mut()?, image.eval(t0));

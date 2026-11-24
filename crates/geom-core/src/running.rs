@@ -975,6 +975,64 @@ mod tests {
         );
     }
 
+    /// **`at_middle` is off every member of its bracket by at most its
+    /// bound** ([`Tracked::at_middle`]): enclosures one and three ulps
+    /// wide, whose middles round (to even) onto a grid point off the true
+    /// middle, so an end lies a whole ulp, or two, from the middle read.
+    /// Each end, a member, lies within the bound, read exactly.
+    #[test]
+    fn at_middle_holds_every_member_of_its_bracket() {
+        use crate::Interval;
+        use crate::exact::Expansion;
+        for (lo, hi) in [
+            (1.0, 1.0 + f64::EPSILON),
+            (1.0, 1.0 + 3.0 * f64::EPSILON),
+            (1e3, 1e3 + 3.0 * (1e3f64.next_up() - 1e3)),
+        ] {
+            let r = Tracked::exact(Interval::from_bounds(lo, hi)).at_middle();
+            for member in [lo, hi] {
+                let mut gap = Expansion::product(member, 1.0);
+                gap.add(-r.value);
+                let gap: f64 = gap.components().iter().sum::<f64>().abs();
+                assert!(
+                    gap <= r.error,
+                    "[{lo}, {hi}] reads {r:?}; its member {member} is {gap:e} off"
+                );
+            }
+        }
+    }
+
+    /// **A step's bound is first order** ([`Rounded::step`]'s doc): `x = 0
+    /// ± 1e-6`, `y = 0` exact, `t = 1 ± 3u` (a ratio that rounded onto the
+    /// power of two `1`, [`Rounded::ratio`]'s charge). Every first-order
+    /// share vanishes, so the bound reads zero, while `x' + (y − x')·t'` at
+    /// `x' = 1e-6`, `t' = 1 + 3u` is `−3u·1e-6`: the product of two bounds
+    /// the module drops. A second-order term added to the step turns this
+    /// row red, and its doc with it.
+    #[test]
+    fn a_steps_bound_reads_zero_where_every_first_order_share_vanishes() {
+        let x = Rounded::exact(0.0).with_charge(1e-6);
+        let s = x.step(Rounded::exact(0.0), Rounded::ratio(1.0));
+        assert_eq!(s.error, 0.0, "the first-order bound vanishes");
+        assert!(
+            3.0 * UNIT_ROUNDOFF * 1e-6 > s.error,
+            "the error it does not charge is second order"
+        );
+    }
+
+    /// **An underflow is charged nowhere** ([`Rounded::step`]'s doc): a
+    /// product by the normal power of two `½` that lands in the
+    /// subnormals, `y = 2⁻¹⁰²² + 2⁻¹⁰⁷⁴`, is not exact, and the bound
+    /// reads zero.
+    #[test]
+    fn a_power_of_two_step_into_the_subnormals_is_not_charged() {
+        let y = f64::MIN_POSITIVE + f64::from_bits(1);
+        let s = Rounded::exact(0.0).step(Rounded::exact(y), Rounded::exact(0.5));
+        // A product by ½ is exact exactly where doubling it back returns `y`.
+        assert_ne!(s.value * 2.0, y, "the product rounded");
+        assert_eq!(s.error, 0.0, "and the bound reads zero");
+    }
+
     /// **A point out of homogeneous form holds its drift**
     /// ([`dehomogenized`]): homogeneous points whose coordinates are of
     /// `1e-3` to `1e6`, some all but cancelling, and whose weight is a
