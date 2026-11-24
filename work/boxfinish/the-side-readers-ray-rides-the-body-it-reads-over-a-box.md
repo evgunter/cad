@@ -78,10 +78,13 @@ adds a sentence to DESIGN `[topology.tiers]` and so would go to Ev.
 
 ## Done when
 
-- The door's unit slab of depth `1 ± 0.25` and the tilted brick
-  (`side_reader_boxed_brick_rows::tilted_cap_rows`) read their side by
-  rays at `Sym<Interval>` and at plain `Interval`, every read the
-  members' side at members across the box.
+- At `Sym<Interval>` the door's unit slab reads its side by rays at
+  `1 ± 0.45` and the tilted bricks
+  (`side_reader_boxed_brick_rows::tilted_cap_rows`) at widths the
+  riding ray does not reach, every read the members' side at members
+  across the box. The widths are measured, not set here: M14's hand
+  collapse (below) is the floor, and each stop above it is held to a
+  real cause.
 - Each ray reads up to the width at which a member's crossings truly
   change and no further (a wall's ray aimed 0.19 under a top edge that
   moves 0.25 does not read for every member, correctly), with a row
@@ -94,4 +97,41 @@ adds a sentence to DESIGN `[topology.tiers]` and so would go to Ev.
   as the box); the wall row's becomes "the body reads at ± 0.25"; the
   tilted row's stands with its turn read along the ray.
 - A family that turns inside out within its box is refused, not read.
+(BOXFINISH orchestrator)
+
+## M14 (the probe lane, 2026-11-24)
+
+`probe/M14-REPORT.md` on `boxfinish/probe-side-reading` at
+`9de1e63216`. The ray's aim and direction collapsed by hand to the
+middle of their enclosures and nothing else changed, at
+`Sym<Interval>`, widths ± 0.05, 0.1, 0.25, 0.45.
+
+- **Sound:** no boxed reading in any run is the wrong side, per aim or
+  per reader (100 `f64` members checked).
+- **It reads further:** the slab's top cap 0.25 to 0.45, its walls
+  0.05 to 0.1; a tilted brick's own answer from 0.05 to 0.1 (to 0.25
+  on the gentler tilt with the turn read along the ray). Per aim it
+  trades the edge-gap stop for an advance or a winding stop one or two
+  widths later.
+- **Reading the turn along the ray is not uniformly a gain by
+  itself:** the lined brick's bottom cap drops from 0.45 to 0.25, and
+  one wall of the steeper tilt loses a width. The collapse leaves the
+  advance and the other readings as they are, so this is a floor and a
+  warning, not the design's reach.
+- **Plain `Interval` builds none of these bodies** at any width (the
+  extrude and the fixture's strut refuse at an edge's endpoint
+  certification, enclosure `[0, 2w]`), so no side reading is reached
+  there. The "Done when" above no longer asks for it.
+- **Tier 3′'s embedding census by itself** passes the axis-aligned
+  bodies at every width where edges carry stated lines, and is
+  undecided on a tilted cap from ± 0.05
+  (`the-embedding-census-is-undecided-on-a-tilted-moving-cap`). So a
+  tilted body's finish does not pass over a box whatever the side
+  reader does, and the one-member layer has nothing to offer there.
+- **The second layer's condition** (embedding certifies where no fixed
+  ray reads) is met by one fixture at one width under the hand
+  collapse (the brick with no edge lines at ± 0.25, stopped on an
+  advance of `[-15.8, 3.46]`), which is the reading the unit's point 2
+  re-poses. It is re-asked on the built unit, not decided on the
+  collapse.
 (BOXFINISH orchestrator)
