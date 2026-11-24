@@ -36,7 +36,7 @@ Second half, BY-INSPECTION, likely:
 
 **MINOR-1. `Patch::split` still drops `t`'s rounding for a ratio that rounds to the half.** DEMONSTRATED (red row), sure. Pre-existing, but this diff rewrites the code and comment and asserts the opposite.
 
-- `crates/topo/src/spline_trim.rs:304-310 (the test at 307)` takes `Tracked::exact(st)` whenever `s == 0.5`. The new comment says "The exact half is a halving's; any other fraction is a ratio of the window's differences".
+- `crates/topo/src/spline_trim.rs:304-310` (the test is at 307) takes `Tracked::exact(st)` whenever `s == 0.5`. The new comment says "The exact half is a halving's; any other fraction is a ratio of the window's differences".
 - But `Patch::restricted` (`spline_trim.rs:370,374`) passes `(w0 − r0)/(r1 − r0)`. That ratio rounds to exactly `0.5` for ordinary knots while the true ratio is off it, for example `(0.58 − 0.06)/(1.1 − 0.06)`. A random search found 120k such triples, the true ratio up to `0.99u` from the half.
 - This is precisely the mutant the PR calls "pow2 also exempts t", committed at a caller. The PR's new row `a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift` pins the invariant at the door. The site's sibling was not swept (style Q4).
 - Probe `spline_region::rows::review_probes::review_a_restriction_at_a_ratio_rounded_to_the_half_holds_its_drift`, on my branch: a bilinear chart on `u ∈ [−0.0289…, 4.0108…]`, restricted at `w0 = 1.99098…`.
@@ -185,7 +185,7 @@ Each mutant was planted in a pristine frozen-head worktree and run against the `
 | step: power of two also exempts `t` | 1: `a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift` |
 | step: difference term dropped | 2: `a_steps_bound_holds_its_drift_against_exact_arithmetic`, `…_each_owed` |
 | step: bound halved | 12: geom-core ×5, geom-brep cut-drift, knotted and quarter, topo cut, pieces, far-trim and wide-interval |
-| quotient: weight's bound left out | 4: geom-core ×2, geom-brep `a_cells_cut_has_no_bound_…`, topo knotted |
+| quotient: weight's bound left out | 4: geom-core ×2, geom-brep `a_cells_cut_has_no_bound_…`, a knotted cut-drift row |
 | divisor guard dropped, room unclamped (the PR's) | 5: geom-core ×3, both site refusal rows |
 | divisor guard dropped, room still clamped at 0 | 3: geom-core only. The sites read the clamped room's quotient as `inf` and refuse anyway, so this mutant is equivalent at the sites |
 | `ratio` uncharged | 3: `a_ratios_own_rounding_is_owed`, the pow2 row, `a_tracked_value_charges_where_the_scalar_measures` |
