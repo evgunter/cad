@@ -346,7 +346,8 @@ fn run_once(
         request.tol,
     ));
     // The kernel refused what we primed with: the held run is of
-    // another document, so drop it rather than offer it again. Read
+    // another document (the seam's options are one set, so it is never
+    // refused for those), so drop it rather than offer it again. Read
     // before the store below, which overwrites it on a completed run
     // anyway — the drop is what a CANCELED run needs, since that path
     // leaves `prior` untouched.

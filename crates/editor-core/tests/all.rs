@@ -71,6 +71,8 @@ mod a_dual_is_bound_to_its_build_of_record;
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "a_pipes_end_loops_revolve_into_an_elbow.rs"]
 mod a_pipes_end_loops_revolve_into_an_elbow;
+#[path = "a_symbolic_nodes_key_is_its_expression_and_its_number.rs"]
+mod a_symbolic_nodes_key_is_its_expression_and_its_number;
 #[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
 mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
@@ -948,6 +950,10 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "member_read_key.rs"]
+mod member_read_key;
+#[path = "member_read_shapes.rs"]
+mod member_read_shapes;
 #[path = "review_binders_a.rs"]
 mod review_binders_a;
 #[path = "review_datum_b.rs"]

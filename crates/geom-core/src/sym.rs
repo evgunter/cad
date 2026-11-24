@@ -680,8 +680,8 @@
 //! build — the argument this section already makes for two occurrences
 //! of a node inside one leaf, applied across leaves. `DriveMemo`'s own
 //! header carries the argument whole, the one premise that is not a
-//! content hash (an `Opaque` id is a per-leaf SEQUENCE number, pinned
-//! by execution), and the lock discipline.
+//! content hash (an `Opaque` id is the name it was minted under,
+//! [`mint`]), and the lock discipline.
 //!
 //! Distinct expressions colliding on a 128-bit content hash would be a
 //! soundness break; this is the standard hash-consing assumption and it
@@ -1012,7 +1012,7 @@
 //! session's DAG cannot manufacture a theorem that a fully-recorded replay
 //! would not also reach.
 
-use core::cell::{Cell, RefCell};
+use core::cell::RefCell;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -1047,8 +1047,16 @@ mod manifest;
 /// outlives a leaf, and the argument that lets it.
 #[path = "sym/memo.rs"]
 pub mod memo;
+/// The name a value with no expression is minted under: the scope open
+/// on the minting thread and the value's ordinal there.
+#[path = "sym/mint.rs"]
+pub mod mint;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The structural question: whether an expression is zero as a function
+/// of the document's variables, asked of the expression.
+#[path = "sym/question.rs"]
+mod question;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -1087,6 +1095,7 @@ mod turn;
 
 use form::{Form, Poly, powi_form, within};
 pub use memo::{DriveMemo, MemoSize};
+pub use mint::{MintGuard, MintScope};
 use rational::Rat;
 
 // ---------------------------------------------------------------- ids
@@ -1191,9 +1200,10 @@ impl ParamSymbol {
 enum SymOp {
     Param,
     /// **One untracked real**, minted by [`Sym::opaque`]: a value whose
-    /// expression this session did not build, carrying a per-session
-    /// sequence number in its payload so that each such value is its
-    /// OWN unknown. Never keyed by the value's bits — two intervals
+    /// expression this session did not build, carrying the name it was
+    /// minted under ([`mint`]: its scope and its ordinal there) so that
+    /// each such value is its OWN unknown. Never keyed by the value's
+    /// bits — two intervals
     /// that happen to be equal are still two different reals, and
     /// keying by bits would re-introduce the false theorem this op
     /// exists to prevent.
@@ -1352,6 +1362,24 @@ impl SymNode {
     /// padding.
     fn kids(&self) -> &[SymId] {
         &self.kids[..self.op.arity()]
+    }
+
+    /// An opaque value's node: its ordinal in the payload and its mint
+    /// scope's name in the first child slot. The slot holds no node:
+    /// the op's arity is zero, so [`Self::kids`], which is what a walk
+    /// of a node's children reads, is empty, and a reader of the raw
+    /// slots reads them by an op that has children.
+    fn opaque(scope: u128, ordinal: u64) -> Self {
+        SymNode {
+            op: SymOp::Opaque,
+            payload: ordinal,
+            kids: [SymId(scope), SymId::UNRECORDED, SymId::UNRECORDED],
+        }
+    }
+
+    /// The indeterminate an [`SymOp::Opaque`] node is.
+    fn opaque_indet(&self) -> u128 {
+        indet_opaque(self.kids[0].0, self.payload)
     }
 
     fn id(&self) -> SymId {
@@ -2425,6 +2453,10 @@ struct Session {
     /// by [`Sym::param_over`] and read by the decision read
     /// ([`signed`]) alone.
     params: IndetMap<(f64, f64)>,
+    /// The count each closed mint scope stopped at, by the scope's
+    /// name, so a scope opened again in this session mints on from
+    /// there and no name is minted twice ([`mint`]).
+    mints: IndetMap<u64>,
     /// **The witness kind of the scalar this session decides at**
     /// ([`crate::Witness`]), noted by the first decision and the same at
     /// every later one. The decision read takes an arm only at an EXACT
@@ -2655,6 +2687,7 @@ impl Session {
             forms_early: IdMap::default(),
             forms_door: IdMap::default(),
             params: IndetMap::default(),
+            mints: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
             witness: None,
@@ -2793,35 +2826,6 @@ pub use crate::real::SymRegistration;
 thread_local! {
     /// The installed session, if any (module docs: no session, no tier).
     static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
-
-    /// **How many opaque values this leaf replay has minted** — the
-    /// payload [`Sym::opaque`] stamps into its node, so that each
-    /// untracked real is its own indeterminate.
-    ///
-    /// D9, argued here rather than assumed. A sequence number is only
-    /// deterministic if the order that advances it is; this one is
-    /// advanced by the ORDER A LEAF MINTS ITS OPAQUE VALUES, which is
-    /// the order the evaluation service walks that leaf's recipe — a
-    /// fixed, single-threaded walk per leaf, the same one whose node
-    /// ids D9 already rests on. [`with_session`] resets it around every
-    /// replay, so a leaf's sequence starts at 0 no matter which leaf
-    /// ran before it or on which rayon worker, and two replays of the
-    /// same leaf mint the same ids. The counter never crosses a leaf
-    /// boundary, which is the property that makes it safe: it is
-    /// per-replay state living beside a per-replay table.
-    static OPAQUE_SEQ: Cell<u64> = const { Cell::new(0) };
-}
-
-/// Restores [`OPAQUE_SEQ`] when a [`with_session`] call leaves, by any
-/// path including a panic — the counter is per-replay state, so a
-/// session that unwound without restoring it would hand the next leaf a
-/// sequence starting mid-count and break the D9 claim on `opaque`'s ids.
-struct OpaqueSeqGuard(u64);
-
-impl Drop for OpaqueSeqGuard {
-    fn drop(&mut self) {
-        OPAQUE_SEQ.set(self.0);
-    }
 }
 
 /// Runs `f` with a fresh symbolic session installed on this thread,
@@ -2947,17 +2951,17 @@ fn with_session_in<R>(
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
     let nested = session_installed();
-    // The opaque sequence is per-replay state, restored on the way out
-    // so a nested or sequential call cannot inherit a partial count
-    // (`OPAQUE_SEQ`'s docs carry the D9 argument).
-    let _restore = OpaqueSeqGuard(OPAQUE_SEQ.replace(0));
     // A nested call in a release build runs with the OUTER session,
     // which is sound — ids are content hashes and the table is keyed by
-    // them — and only muddles whose receipt the decisions land in.
+    // them — and only muddles whose receipt the decisions land in. It
+    // keeps the outer session's mint scope too: a root scope reopened
+    // at zero would mint the outer session's names again.
     debug_assert!(!nested, "symbolic sessions do not nest");
     if nested {
         return (f(), SymCounts::default());
     }
+    // The session's root mint scope, counting from zero (`mint`).
+    let _root = mint::SessionRoot::open();
     SESSION.with(|s| {
         *s.borrow_mut() = Some(Session::new(budget, rules, retry, memo));
     });
@@ -3123,9 +3127,9 @@ pub fn session_counts() -> Option<SymCounts> {
 ///   siblings on the caller's thread — the one thing D9 forbids
 ///   outright.
 /// - **The receipt is written in place.** `count_decision` mutates
-///   the installed session's [`SymCounts`], and [`Sym::opaque`] advances the per-replay
-///   `OPAQUE_SEQ` counter — a sequence whose determinism rests on the
-///   minting ORDER being a fixed single-threaded walk. Neither is a
+///   the installed session's [`SymCounts`], and [`Sym::opaque`] advances
+///   the count of the mint scope open on its thread ([`mint`]), which a
+///   session keeps while the scope is closed. Neither is a
 ///   value handed back, so neither can be spliced. (Node ids are NOT in
 ///   this list: `intern` is a content hash of the node, so the DAG a
 ///   replay builds is the same whatever order it is built in.)
@@ -3236,13 +3240,14 @@ fn intern(node: SymNode) -> SymId {
 /// cancels while nothing reads a value of π anywhere.
 const INDET_PI: u128 = 0x5049_5f49_4e44_4554_5f5f_5f5f_5f5f_5f5f;
 
-/// The indeterminate ONE OPAQUE VALUE enters the form as, keyed by its
-/// per-replay sequence number — a different key per call, which is what
-/// makes two untracked reals two unknowns rather than one.
-fn indet_opaque(seq: u64) -> u128 {
+/// The indeterminate ONE OPAQUE VALUE enters the form as, keyed by the
+/// name it was minted under ([`mint`]): its scope and its ordinal
+/// there, which no other mint a form can meet shares.
+fn indet_opaque(scope: u128, ordinal: u64) -> u128 {
     Hash128::new()
         .word(0x4f50_4151_5545_5f5f)
-        .word(seq)
+        .wide(scope)
+        .word(ordinal)
         .finish()
 }
 
@@ -3434,9 +3439,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // A limb identity's free parameter: one indeterminate, with no
         // bracket (`SymOp::Free`'s docs).
         SymOp::Free => Some(Form::poly(Poly::indet(INDET_FREE))),
-        // One untracked real: its OWN indeterminate, keyed by the
-        // sequence number the node carries (`SymOp::Opaque`'s docs).
-        SymOp::Opaque => Some(Form::poly(Poly::indet(indet_opaque(node.payload)))),
+        // One untracked real: its OWN indeterminate, keyed by the name
+        // the node carries (`SymOp::Opaque`'s docs).
+        SymOp::Opaque => Some(Form::poly(Poly::indet(node.opaque_indet()))),
         SymOp::Lit => {
             Rat::of_f64(f64::from_bits(node.payload)).map(|c| Form::poly(Poly::constant(c)))
         }
@@ -4497,7 +4502,7 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
             .nodes
             .values()
             .filter(|n| n.op == SymOp::Opaque)
-            .map(|n| indet_opaque(n.payload))
+            .map(SymNode::opaque_indet)
             .collect();
         if opaque.is_empty() {
             return Some(false);
@@ -4777,19 +4782,20 @@ impl<T> Sym<T> {
     /// still two separate reals, and keying by bits would say they are
     /// one.
     ///
-    /// The sequence that separates them is [`OPAQUE_SEQ`], whose docs
-    /// carry the D9 argument for why a counter here is still
-    /// schedule-independent.
+    /// What separates them is the name each is minted under: the mint
+    /// scope open on this thread and the value's ordinal there.
+    /// [`mint`] argues why no two values a form can meet share one, and
+    /// why the name is the same under every schedule and in every
+    /// replay (D9).
     #[must_use]
     pub fn opaque(value: T) -> Self {
-        let seq = OPAQUE_SEQ.with(|c| {
-            let n = c.get();
-            c.set(n.wrapping_add(1));
-            n
-        });
+        let (scope, ordinal) = mint::take();
         #[cfg(feature = "sym-profile-testing")]
-        profile::record_opaque(indet_opaque(seq));
-        Self::nullary(value, SymOp::Opaque, seq)
+        profile::record_opaque(indet_opaque(scope, ordinal));
+        Self {
+            value,
+            node: intern(SymNode::opaque(scope, ordinal)),
+        }
     }
 
     /// A value bound as the document PARAMETER `symbol` — the one door
@@ -4976,8 +4982,7 @@ impl<T: Real> Sym<T> {
     /// per-leaf session, like the node table; a leaf's registrations
     /// are made by the same fixed single-threaded walk of its recipe
     /// that mints its nodes, so the record is identical across repeats
-    /// and across the rayon schedule, exactly as [`OPAQUE_SEQ`]'s
-    /// argument runs.
+    /// and across the rayon schedule.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
@@ -5112,6 +5117,13 @@ impl<T: Real> Real for Sym<T> {
     /// The lane scalar's: the tier changes how a margin decides, not
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
+    /// The node, whatever the lane scalar: the tier reads no value.
+    type Expression = SymId;
+
+    fn expression(self) -> Option<SymId> {
+        Some(self.node)
+    }
 
     /// The symbolic scalar over its numeric channel's value: the
     /// identity over the unknowns is what a decision at it reads, so it
@@ -6702,6 +6714,53 @@ mod tests {
             "proven"
         } else {
             "numeric"
+        }
+    }
+
+    /// **The structural question does not read the registry**
+    /// ([`crate::Expression::proves_zero`]): two values a constructor
+    /// registered equal decide Zero through the session's door, and the
+    /// question, asked of their difference, proves nothing. An answer
+    /// taken from the installed session's ladder is red here.
+    #[test]
+    fn the_structural_question_does_not_read_the_registry() {
+        use crate::real::Expression;
+        with_session(budget(), || {
+            let (n, r) = (p("n", 1.0), p("r", 1.0));
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
+            let residual = n - r;
+            let decided = residual.sign_within(band()).unwrap();
+            assert!(decided.margin.proven(), "the door proves the pair");
+            assert!(
+                residual
+                    .expression()
+                    .and_then(Expression::proves_zero)
+                    .is_none()
+            );
+        });
+    }
+
+    /// **The kept-atom shapes close without the ladder at the question's
+    /// budget**: the two identities the retry ladder was measured on
+    /// (rule G shut, rule A shut) are proved by an ask with the ladder
+    /// and by one without it. At 64 terms the form each retry would keep
+    /// as an atom is already frozen into one.
+    #[test]
+    fn the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget() {
+        for build in [
+            closes_only_with_rule_g_off as fn() -> Sym<f64>,
+            closes_only_with_rule_a_off,
+        ] {
+            let answers = with_session(budget(), || {
+                let id = build().node();
+                [SymRetry::kept_atom(), SymRetry::none()]
+                    .map(|retry| question::asked(id, question::BUDGET, retry))
+            })
+            .0;
+            assert_eq!(answers, [true, true]);
         }
     }
 
