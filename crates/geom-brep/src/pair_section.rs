@@ -128,7 +128,9 @@ pub use cones::{ConeDecision, ConeRead, ConeRuledPose, ConeStance};
 pub use conic_pairs::{PlaneCylinderPose, PlaneSpherePose, SphereSpherePose};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
-pub use plane_torus::{PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance};
+pub use plane_torus::{
+    PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance, plane_torus_closed_form,
+};
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
@@ -1497,13 +1499,8 @@ pub fn pair_section<T: Decide>(
             Some(pose) => cone_torus::cone_torus(pose?).map(SectionRead::Built),
             None => wrong("a cone and a torus"),
         },
-        // An axis-aligned plane is the closed form's, read where it was
-        // before.
         Arm::PlaneTorus => match PlaneTorusPose::decide(a, b, band) {
-            Some(Ok(pose)) if matches!(pose.stance(), PtStance::Closed) => {
-                Ok(SectionRead::Elsewhere(route(ka, kb)))
-            }
-            Some(pose) => plane_torus::plane_torus(pose?).map(SectionRead::Built),
+            Some(pose) => pose?.read(),
             None => wrong("a plane and a torus"),
         },
         Arm::CylinderCylinder => {

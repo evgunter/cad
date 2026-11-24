@@ -21,6 +21,11 @@
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
+//! A plane×torus pair the value reads closed (its pose's closed form,
+//! [`geom_brep::PlaneTorusPose::closed_form`]) holds its pose instead of
+//! a section, which the join's frame takes ([`SectionTable::plane_torus`]),
+//! so the frame reads the pose as the value did.
+//!
 //! It also holds each plane×cone surface pair whose faces' boxes meet,
 //! read once at the glue door at the surface pair's reach (taken over
 //! every met face pair on it, `join::surface_pair_reach`), not one
@@ -195,6 +200,7 @@ pub(crate) struct SectionTable<T: crate::props::AtRestPolicy> {
     /// sweep-only door's empty one (`Default`).
     at_a_door: bool,
     plane_cone: BTreeMap<PairKey, PlaneCone<T>>,
+    plane_torus: BTreeMap<PairKey, geom_brep::PlaneTorusPose<T>>,
 }
 
 /// A plane×cone pair's reading at the glue door: its section as the
@@ -219,6 +225,7 @@ impl<T: crate::props::AtRestPolicy> Default for SectionTable<T> {
             feet: RefCell::new(BTreeMap::new()),
             at_a_door: false,
             plane_cone: BTreeMap::new(),
+            plane_torus: BTreeMap::new(),
         }
     }
 }
@@ -242,10 +249,24 @@ impl<T: crate::props::AtRestPolicy> SectionReader<T> {
         let band = self.band;
         let region = self.table.region_for(sa, sb);
         let lane = self.table.lane;
-        match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
+        let key = PairKey { a: ka, b: kb };
+        if self.table.plane_torus.contains_key(&key) {
+            return None;
+        }
+        match self.table.pairs.entry(key) {
             Entry::Occupied(held) => Some(held.into_mut().read(lane)),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::pair_section(sa, sb, region, lane, band) {
+                let read = match geom_brep::PlaneTorusPose::decide(sa, sb, band) {
+                    Some(Ok(pose)) if matches!(pose.stance(), geom_brep::PtStance::Closed) => {
+                        self.table.plane_torus.insert(key, pose);
+                        return None;
+                    }
+                    Some(pose) => pose
+                        .map_err(SectionError::from)
+                        .and_then(|pose| pose.read()),
+                    None => geom_brep::pair_section(sa, sb, region, lane, band),
+                };
+                let read = match read {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
@@ -494,6 +515,19 @@ impl<T: crate::props::AtRestPolicy> SectionTable<T> {
         b: (&Body<T>, FaceKey),
     ) -> Option<&PlaneCone<T>> {
         self.plane_cone.get(&Self::key(a, b))
+    }
+
+    /// **The plane×torus pose held for A's face `fa` against B's `fb`**,
+    /// where the section value read it closed and so holds no section
+    /// of it: the one answer to whether the pose is the closed form's,
+    /// which the join's frame reads ([`geom_brep::PlaneTorusPose::closed_form`]).
+    /// `None` where the table holds no closed pose of the pair.
+    pub(super) fn plane_torus(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<&geom_brep::PlaneTorusPose<T>> {
+        self.plane_torus.get(&Self::key(a, b))
     }
 
     /// A table holding the one plane×cone reading `reading` for A's face

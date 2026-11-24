@@ -263,8 +263,8 @@ pub use pair_section::{
     SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
     TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
     TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose,
-    coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    coaxial_tangent_circle, line_tilt, pair_section, plane_torus_closed_form, spline_pair_section,
+    square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
