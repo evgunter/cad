@@ -573,15 +573,20 @@ ends) has no identity of its own (`crates/topo/README.md`, maximal edges): its
 position is the kernel's convention, so no member, position or fold step it
 was met at may stand in its name. It is named for its edge alone,
 `ConventionalVertex(edge)` under the edge's node, which every emitter writes
-once its edges are named and before its totality check
-(`emit::name_conventional_vertices`); vertices on two edges sharing one tied
-name tie. Nothing cites it: a piece's `Ends` skip it, so a closed piece's name
-reads none of its vertex. A reference to its name, and a pick at it, resolve
-to the edge (`names::resolves_as`). A construction's own rim self-loop vertex,
-`MeridianVertex` at the seam, is that construction's and keeps its name. So a
-table names alike in every member order, up to which point of each closed edge
-holds its vertex, and an order row compares a conventional vertex by its
-edge, not its point.
+once its edges are named, through the one door that then runs its
+totality check (`emit::finish`); a vertex the emission tied leaves the tie,
+and vertices on two edges sharing one tied name tie. Nothing cites it: a piece's `Ends` skip it, so a closed piece's name
+reads none of its vertex, and no member- or operand-vertex reading takes it.
+So a later cut through its point reads the edge's interior: the vertex it
+leaves there is named as the crossing a cut a hair away leaves, and the
+totality check refuses any vertex that carries a conventional vertex's name
+and is none. A reference to its name, and a pick at it, resolve to the edge
+(`names::resolves_as`), and no listing or selector hands the name out
+(`names::binds`). A construction's own rim self-loop vertex, `MeridianVertex`
+at the seam, is that construction's and keeps its name. A table names alike
+in every member order, up to which point of each closed edge holds its
+vertex, so an order row compares a conventional vertex by its edge, not its
+point.
 
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses

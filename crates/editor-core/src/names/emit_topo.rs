@@ -2811,20 +2811,27 @@ fn name_boolean_vertices<T: Decide>(
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
     // An operand vertex's upstream name, if that operand's table names
-    // it. A key the table does not name (a vertex the reduction minted)
-    // yields nothing; a table that names a key and then fails to resolve
-    // it is corrupt, and says so. An operand's conventional vertex yields
-    // nothing either: it has no identity of its own, so a result vertex
-    // at its point is named as a point of its edge's interior, as one a
-    // hair away would be.
-    let named_in = |side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
-        let (op, k) = side.of(a, b);
-        let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
-        if name.is_none() || super::emit::is_named_conventional(op.body, k, name) {
-            return Ok(None);
-        }
-        upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
-    };
+    // it, for result vertex `v`. A key the table does not name (a vertex
+    // the reduction minted) yields nothing; a table that names a key and
+    // then fails to resolve it is corrupt, and says so. An operand's
+    // conventional vertex yields nothing at a result vertex that is no
+    // longer one: it has no identity of its own, so the vertex a cut
+    // leaves at its point is named as a point of its edge's interior, as
+    // one a hair away would be. Where the result vertex is still one, its
+    // edge names it (`emit::finish`).
+    let named_in_at =
+        |v: VertexKey, side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
+            let (op, k) = side.of(a, b);
+            let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
+            let cut_through = || {
+                super::emit::is_named_conventional(op.body, k, name)
+                    && !topo::is_conventional_vertex(body, v)
+            };
+            if name.is_none() || cut_through() {
+                return Ok(None);
+            }
+            upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
+        };
     // The vertex named as operand vertex `side`, its upstream `u`.
     let identity_of = |side: OpSide<VertexKey>, u: Upstream| {
         let parent = side.map(EntityKey::Vertex).parent();
@@ -2870,6 +2877,7 @@ fn name_boolean_vertices<T: Decide>(
             order.push(operand_key(naming, inv_vertices, fused.origin(k)).0);
         }
         order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
+        let named_in = |side| named_in_at(v, side);
         for side in order {
             if let Some(u) = named_in(side)? {
                 identity = Some(identity_of(side, u));

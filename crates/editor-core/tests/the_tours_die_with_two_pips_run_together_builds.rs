@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use editor_core::{DocEdit, FreeValue, FreeVar, Node, NodeResult, RoleSeg};
+use editor_core::{DocEdit, FreeValue, FreeVar, Node, NodeErrorKind, NodeResult, RoleSeg};
 use geom_core::Tol;
 
 /// Each moved variable, as the document speaks it, with its nominal,
@@ -105,10 +105,12 @@ fn each_pip_moved_into_its_neighbour_builds_its_union_and_meets_a_fillets_door()
             .copied()
             .find(|&n| matches!(doc.node(n), Some(Node::Union { .. })))
             .expect("the pips' union");
-        assert!(
-            matches!(ev.nodes.get(&union), Some(NodeResult::Ok(_))),
-            "{spoken} = {to}: the pips' union builds and names"
-        );
+        if let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) {
+            panic!(
+                "{spoken} = {to}: the pips' union builds and names: {}",
+                e.kind
+            );
+        }
         let t = crate::fixture::table(&ev, union);
         let circles: Vec<_> = t
             .iter()
@@ -145,23 +147,37 @@ fn each_pip_moved_into_its_neighbour_builds_its_union_and_meets_a_fillets_door()
             .order
             .iter()
             .filter_map(|n| match ev.nodes.get(n) {
-                Some(NodeResult::Failed(e)) => Some((*n, e.kind.to_string())),
+                Some(NodeResult::Failed(e)) => Some((*n, &e.kind)),
                 _ => None,
             })
             .collect();
-        let [(node, said)] = failed.as_slice() else {
+        let [(node, kind)] = failed.as_slice() else {
             panic!("{spoken} = {to}: one fillet refuses, not {failed:#?}");
         };
+        let said = kind.to_string();
         assert!(
             matches!(doc.node(*node), Some(Node::Fillet { .. })),
             "{spoken} = {to}: a fillet refuses: {said}"
         );
-        let door = if to > 0.7 {
-            "the fillet op refused: a ring or edge lies in the part of a face the blend cuts away"
+        if to > 0.7 {
+            assert!(
+                said.starts_with(
+                    "the fillet op refused: a ring or edge lies in the part of a face the blend \
+                     cuts away"
+                ),
+                "{spoken} = {to}: the box-edge fillet's clearance: {said}"
+            );
         } else {
-            "a selected name failed to resolve: the seam edge of "
-        };
-        assert!(said.starts_with(door), "{spoken} = {to}: {said}");
+            assert!(
+                matches!(
+                    kind,
+                    NodeErrorKind::SelectResolve { error, .. }
+                        if matches!(**error, editor_core::ResolveError::Vanished { .. })
+                ),
+                "{spoken} = {to}: the pip-rim fillet's selection names a rim the cut \
+                 divided, which vanished (N5): {said}"
+            );
+        }
     }
 }
 
