@@ -193,7 +193,6 @@ pub(crate) mod source_walk;
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
 pub mod instance;
-pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod joint;

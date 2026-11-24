@@ -4,6 +4,8 @@
 //! table's pose question (`geom_brep::route_pose`) reads that answer
 //! rather than asking again at the consumer's reach.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::{PlaneTorusPose, PtStance, Reach, SectionRead, route_pose};
