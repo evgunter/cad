@@ -120,7 +120,7 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
     assert_eq!(got, census, "census");
     let counts = euler_counts(body);
     assert_eq!(
-        (counts.r, counts.s, counts.genus()),
+        (counts.r, counts.s, counts.h()),
         (0, 1, Ok(0)),
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );

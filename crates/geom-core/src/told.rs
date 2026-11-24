@@ -6,10 +6,8 @@
 //! (a value, an enclosure, or unreadable), the [`Dimension`] and the
 //! role, and it writes the number and the unit word. It has no
 //! arithmetic and no ordering, and a computed number does not come
-//! back out of it: its `Debug` writes what it tells in metres and
-//! radians, and two are equal when that canonical telling is the same
-//! in the same role. Equality is not of every notation: two that round
-//! to one spelling in radians can read apart in degrees.
+//! back out of it. Two are equal when their role, dimension and reading
+//! are, and its `Debug` shows the reading exactly.
 //!
 //! # Whose notation
 //!
@@ -20,33 +18,26 @@
 //! its text is written once and reads in any notation
 //! ([`Tell::told_in`]).
 //!
-//! Every rule below holds **in the unit rendered**. The number written
-//! is a number of that unit, and what it "reads back as" is what
-//! typing it in that unit gives: the decimal read as a float and
-//! multiplied by the unit's factor, the text door's one multiply.
-//! A length's tolerance cap is a length, so it is the same distance in
-//! every unit and a different decimal step in each.
-//!
-//! Where a unit cannot say a quantity under its rule, the quantity is
-//! told in the canonical unit, whose word says so: a given number no
-//! number of that unit types back to, an offered bound no spelling in
-//! that unit lands inside the window of, a pair no spelling in that
-//! unit separates, a value the unit's factor carries out of the
-//! format. The canonical unit can always say it.
+//! Every rule below holds **in the unit rendered**, and every unit says
+//! every quantity. The number written is a decimal of that unit, and
+//! what it "reads back as" is what typing it in that unit gives: the
+//! decimal times the unit's exact factor, rounded once
+//! ([`UnitDef::canonical`]). A length's tolerance cap is a length, so it
+//! is the same distance in every unit and a different decimal step in
+//! each.
 //!
 //! The tolerance is set in metres, so a quantity that names it
 //! ([`Told::of_the_tolerance`]) is told in metres in every notation.
 //!
 //! # What is spelled
 //!
-//! Every spelling is the float a decimal of some number of significant
-//! digits reads back as, written the way [`Readable`] writes that
-//! float. The role picks the digits:
+//! Every spelling is a decimal of the unit of some number of
+//! significant figures, written as [`quantity::Decimal`] writes one. The
+//! role picks the figures:
 //!
-//! - **given**: the float itself, so the shortest digits that read back;
-//! - **computed**: the float rounded to the *grid*, trailing zeros
-//!   dropped;
-//! - **offered**: the float rounded on the grid toward the side that
+//! - **given**: the shortest decimal that reads back as the float;
+//! - **computed**: the exact number of the unit rounded to the *grid*;
+//! - **offered**: that number rounded on the grid toward the side that
 //!   works when typed, and never past a far edge the builder states;
 //! - **compared** ([`Told::beside`]): both numbers at the first
 //!   precision, from the grid up, at which they read in their true
@@ -92,26 +83,22 @@ use core::cmp::Ordering;
 use core::fmt;
 use std::sync::Arc;
 
-use quantity::{Notation, UnitDef, UnitQuantity};
+use quantity::{Decimal, InUnit, Notation, ROUND_TRIP_FIGURES, Rounding, UnitDef, UnitQuantity};
 
+use crate::Real;
 use crate::tolerance::DEFAULT_EPS;
-use crate::{Readable, Real, fold_signed_zero};
-
-/// The most significant digits a spelling carries: a decimal of this
-/// many names one `f64`.
-const ROUND_TRIP_DIGITS: usize = 17;
 
 /// The significant figures of the grid where no length governs.
-const GRID_FIGURES: i32 = 4;
+const GRID_FIGURES: i64 = 4;
 
 /// The decade of a length's absolute grid step, a tenth of
 /// [`DEFAULT_EPS`]: `10^LENGTH_GRID_DECADE` metres.
-const LENGTH_GRID_DECADE: i32 = -10;
+const LENGTH_GRID_DECADE: i64 = -10;
 
 /// The most characters one told number is written in, its sign
-/// included and its unit word aside: seventeen significant digits, a
-/// point, and `e-308`. A surface that boxes one number sizes the box
-/// by this; an enclosure is two numbers.
+/// included and its unit word aside: seventeen significant figures, a
+/// point, and `e-324`. A surface that boxes one number sizes the box by
+/// this; an enclosure is two numbers.
 pub const WIDEST_NUMBER: usize = 24;
 
 /// What a scalar reads as: its value, its enclosure, or nothing.
@@ -121,7 +108,7 @@ pub const WIDEST_NUMBER: usize = 24;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Reading(Read);
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Read {
     /// One number; never NaN.
     Value(f64),
@@ -131,18 +118,17 @@ enum Read {
     Unreadable,
 }
 
-/// The shape of the reading, without its numbers.
-impl fmt::Debug for Read {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Value(_) => "Value(..)",
-            Self::Enclosure { .. } => "Enclosure(..)",
-            Self::Unreadable => "Unreadable",
-        })
-    }
-}
-
 impl Reading {
+    /// The reading's ends: a value twice, an enclosure's two, `None`
+    /// where nothing was measured.
+    pub(crate) fn ends(&self) -> Option<(f64, f64)> {
+        match self.0 {
+            Read::Value(v) => Some((v, v)),
+            Read::Enclosure { lo, hi } => Some((lo, hi)),
+            Read::Unreadable => None,
+        }
+    }
+
     /// A scalar that is one number. NaN is unreadable.
     #[must_use]
     pub fn value(x: f64) -> Self {
@@ -217,17 +203,6 @@ fn write_unit_word(unit: UnitDef, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     }
 }
 
-/// The number of `unit` that `canonical` is, where the unit has one.
-fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    unit.number_of(canonical)
-}
-
-/// The canonical value a number typed in `unit` is: the text door's one
-/// multiply.
-fn typed(number: f64, unit: UnitDef) -> f64 {
-    number * unit.factor()
-}
-
 /// The side of its bound an offered number is spelled on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Side {
@@ -247,7 +222,7 @@ impl Side {
 }
 
 /// What is held, by role.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Held {
     Given(Read),
     Computed(Read),
@@ -262,55 +237,88 @@ enum Held {
     },
 }
 
-/// What is spelled: one float, or the two ends of an enclosure.
-#[derive(Clone, Copy, PartialEq)]
-enum Spelled {
-    One(f64),
-    Ends(f64, f64),
+/// One number as a unit spells it: a decimal of the unit, or an
+/// infinity, which reads `inf` in every unit.
+#[derive(Clone, Debug, PartialEq)]
+enum Number {
+    Decimal(Decimal),
+    Infinite { negative: bool },
 }
 
-impl Spelled {
-    /// The extent as `(least, greatest)`, by distance from zero where
-    /// `magnitudes`.
-    fn extent(self, magnitudes: bool) -> (f64, f64) {
-        let (lo, hi) = match self {
-            Self::One(y) => (y, y),
-            Self::Ends(lo, hi) => (lo, hi),
-        };
-        if !magnitudes {
-            (lo, hi)
-        } else if lo <= 0.0 && hi >= 0.0 {
-            (0.0, lo.abs().max(hi.abs()))
-        } else {
-            (lo.abs().min(hi.abs()), lo.abs().max(hi.abs()))
+impl Number {
+    /// The float this reads back as in `unit`.
+    fn read_back(&self, unit: UnitDef) -> f64 {
+        match self {
+            Self::Decimal(decimal) => unit.canonical(decimal),
+            Self::Infinite { negative: true } => f64::NEG_INFINITY,
+            Self::Infinite { negative: false } => f64::INFINITY,
         }
     }
 
-    /// How this stands to `other`: before it, after it, or the same
-    /// single number. `None` where they overlap without being one
-    /// number, which has no order.
-    fn order(self, other: Self, magnitudes: bool) -> Option<Ordering> {
-        let ((a_lo, a_hi), (b_lo, b_hi)) = (self.extent(magnitudes), other.extent(magnitudes));
-        if a_hi < b_lo {
-            Some(Ordering::Less)
-        } else if a_lo > b_hi {
-            Some(Ordering::Greater)
-        } else if a_lo == a_hi && b_lo == b_hi {
-            Some(Ordering::Equal)
-        } else {
-            None
+    /// The number as a sentence writes it: a zero of either sign as `0`.
+    fn write(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Decimal(decimal) if decimal.is_zero() => f.write_str("0"),
+            Self::Decimal(decimal) => fmt::Display::fmt(decimal, f),
+            Self::Infinite { negative: true } => f.write_str("-inf"),
+            Self::Infinite { negative: false } => f.write_str("inf"),
         }
+    }
+}
+
+/// What is spelled: one number, or the two ends of an enclosure.
+#[derive(Clone, Debug, PartialEq)]
+enum Spelled {
+    One(Number),
+    Ends(Number, Number),
+}
+
+impl Spelled {
+    /// The floats this reads back as in `unit`, as `(lo, hi)`.
+    fn read_back(&self, unit: UnitDef) -> (f64, f64) {
+        match self {
+            Self::One(y) => (y.read_back(unit), y.read_back(unit)),
+            Self::Ends(lo, hi) => (lo.read_back(unit), hi.read_back(unit)),
+        }
+    }
+}
+
+/// The extent `(lo, hi)` as `(least, greatest)`, by distance from zero
+/// where `magnitudes`.
+fn extent((lo, hi): (f64, f64), magnitudes: bool) -> (f64, f64) {
+    if !magnitudes {
+        (lo, hi)
+    } else if lo <= 0.0 && hi >= 0.0 {
+        (0.0, lo.abs().max(hi.abs()))
+    } else {
+        (lo.abs().min(hi.abs()), lo.abs().max(hi.abs()))
+    }
+}
+
+/// How the extent `a` stands to `b`: before it, after it, or the same
+/// single number. `None` where they overlap without being one number,
+/// which has no order.
+fn order(a: (f64, f64), b: (f64, f64), magnitudes: bool) -> Option<Ordering> {
+    let ((a_lo, a_hi), (b_lo, b_hi)) = (extent(a, magnitudes), extent(b, magnitudes));
+    if a_hi < b_lo {
+        Some(Ordering::Less)
+    } else if a_lo > b_hi {
+        Some(Ordering::Greater)
+    } else if a_lo == a_hi && b_lo == b_hi {
+        Some(Ordering::Equal)
+    } else {
+        None
     }
 }
 
 /// What a [`Told`] holds.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Quantity {
     held: Held,
     dimension: Dimension,
     /// Told in the canonical unit in every notation
     /// ([`Told::of_the_tolerance`]).
-    canonical_only: bool,
+    names_the_tolerance: bool,
 }
 
 impl Quantity {
@@ -329,163 +337,116 @@ impl Quantity {
         Self {
             held: Held::Offered { bound, side, edge },
             dimension,
-            canonical_only: false,
+            names_the_tolerance: false,
         }
     }
 
     /// The unit this is told in under `notation`.
     const fn unit(&self, notation: Notation) -> UnitDef {
-        if self.canonical_only {
+        if self.names_the_tolerance {
             self.dimension.unit(Notation::CANONICAL)
         } else {
             self.dimension.unit(notation)
         }
     }
 
-    /// What is held, as the floats it was built from.
-    fn exact(&self) -> Option<Spelled> {
+    /// The floats held, as `(lo, hi)`; `None` for a reading that does
+    /// not read.
+    fn held_extent(&self) -> Option<(f64, f64)> {
         match self.held {
             Held::Given(read) | Held::Computed(read) => match read {
-                Read::Value(x) => Some(Spelled::One(x)),
-                Read::Enclosure { lo, hi } => Some(Spelled::Ends(lo, hi)),
+                Read::Value(x) => Some((x, x)),
+                Read::Enclosure { lo, hi } => Some((lo, hi)),
                 Read::Unreadable => None,
             },
-            Held::Offered { bound, .. } => bound.map(Spelled::One),
+            Held::Offered { bound, .. } => bound.map(|x| (x, x)),
         }
     }
 
-    /// What is spelled in `unit` at `extra` digits past the grid, as
-    /// numbers of that unit. `None` for a reading that does not read,
-    /// and where `unit` cannot say this under its role's rule (the
-    /// module docs); the canonical unit says every reading that reads.
+    /// What is spelled in `unit` at `extra` figures past the grid;
+    /// `None` for a reading that does not read.
     fn spelled_in(&self, unit: UnitDef, extra: usize) -> Option<Spelled> {
-        let digits = |x: f64, q: f64| grid_digits(x, q, unit, self.dimension) + extra;
-        let given = |x: f64| {
-            if x == 0.0 || !x.is_finite() {
-                Some(x)
-            } else {
-                unit.authored(x)
-            }
-        };
-        let outward = |x: f64, side: Side| {
-            let q = written(x, unit)?;
-            toward(x, q, unit, digits(x, q), side)
-        };
+        self.spelled_at(&self.floats(unit), unit, extra)
+    }
+
+    /// The floats held as exact numbers of `unit` with their grids, for
+    /// the roles that round: a value or an enclosure's two ends.
+    fn floats(&self, unit: UnitDef) -> [Option<Float>; 2] {
+        let float = |x: f64| Some(Float::of(x, unit, self.dimension));
         match self.held {
-            Held::Given(Read::Value(x)) => given(x).map(Spelled::One),
-            Held::Given(Read::Enclosure { lo, hi }) => Some(Spelled::Ends(given(lo)?, given(hi)?)),
-            Held::Computed(Read::Value(x)) => {
-                let q = written(x, unit)?;
-                Some(Spelled::One(nearest(q, digits(x, q))))
-            }
-            Held::Computed(Read::Enclosure { lo, hi }) => Some(Spelled::Ends(
-                outward(lo, Side::AtMost)?,
-                outward(hi, Side::AtLeast)?,
-            )),
-            Held::Given(Read::Unreadable) | Held::Computed(Read::Unreadable) => None,
-            Held::Offered { bound, side, edge } => {
-                let x = bound?;
-                let q = written(x, unit)?;
-                (digits(x, q).min(ROUND_TRIP_DIGITS)..=ROUND_TRIP_DIGITS)
-                    .filter_map(|digits| toward(x, q, unit, digits, side))
-                    .find(|&y| {
-                        let typed = typed(y, unit);
-                        edge.is_none_or(|edge| !side.holds(typed, edge) || typed == edge)
-                    })
-                    .map(Spelled::One)
-            }
+            Held::Computed(Read::Value(x)) => [float(x), None],
+            Held::Computed(Read::Enclosure { lo, hi }) => [float(lo), float(hi)],
+            Held::Offered { bound: Some(x), .. } => [float(x), None],
+            Held::Given(_)
+            | Held::Computed(Read::Unreadable)
+            | Held::Offered { bound: None, .. } => [None, None],
         }
     }
 
-    /// What is spelled in the canonical unit; `None` for a reading that
-    /// does not read.
-    fn spelled(&self, extra: usize) -> Option<Spelled> {
-        self.spelled_in(self.dimension.unit(Notation::CANONICAL), extra)
-    }
-
-    /// The unit this is told in under `notation` and what is spelled
-    /// in it: the notation's unit where that says it, the canonical
-    /// one where it does not.
-    fn said(&self, notation: Notation, extra: usize) -> (UnitDef, Option<Spelled>) {
-        let unit = self.unit(notation);
-        match self.spelled_in(unit, extra) {
-            Some(spelled) => (unit, Some(spelled)),
-            None if self.exact().is_none() => (unit, None),
-            None => (
-                self.dimension.unit(Notation::CANONICAL),
-                self.spelled(extra),
-            ),
-        }
+    /// [`Quantity::spelled_in`] from floats already built.
+    fn spelled_at(
+        &self,
+        floats: &[Option<Float>; 2],
+        unit: UnitDef,
+        extra: usize,
+    ) -> Option<Spelled> {
+        let [first, second] = floats;
+        Some(match self.held {
+            Held::Given(Read::Value(x)) => Spelled::One(given(x, unit)),
+            Held::Given(Read::Enclosure { lo, hi }) => {
+                Spelled::Ends(given(lo, unit), given(hi, unit))
+            }
+            Held::Given(Read::Unreadable) | Held::Computed(Read::Unreadable) => return None,
+            Held::Computed(Read::Value(_)) => {
+                let x = first.as_ref()?;
+                Spelled::One(x.nearest(x.figures(extra)))
+            }
+            Held::Computed(Read::Enclosure { .. }) => {
+                let (lo, hi) = (first.as_ref()?, second.as_ref()?);
+                Spelled::Ends(
+                    lo.toward(lo.figures(extra), Side::AtMost),
+                    hi.toward(hi.figures(extra), Side::AtLeast),
+                )
+            }
+            Held::Offered { side, edge, .. } => {
+                let x = first.as_ref()?;
+                let within = |y: &Number| {
+                    let typed = y.read_back(unit);
+                    edge.is_none_or(|edge| !side.holds(typed, edge) || typed == edge)
+                };
+                // At round-trip figures the offer is the bound itself,
+                // which is inside its window.
+                let Some(offer) = (x.figures(extra)..=ROUND_TRIP_FIGURES)
+                    .map(|figures| x.toward(figures, side))
+                    .find(within)
+                else {
+                    unreachable!("an offer at round-trip figures is its own bound")
+                };
+                Spelled::One(offer)
+            }
+        })
     }
 
     fn write(&self, f: &mut fmt::Formatter<'_>, notation: Notation, extra: usize) -> fmt::Result {
-        let (unit, spelled) = self.said(notation, extra);
-        write_spelled(spelled, f)?;
+        let unit = self.unit(notation);
+        write_spelled(self.spelled_in(unit, extra).as_ref(), f)?;
         write_unit_word(unit, f)
-    }
-
-    /// The role as a word.
-    const fn role(&self) -> &'static str {
-        match self.held {
-            Held::Given(_) => "given",
-            Held::Computed(_) => "computed",
-            Held::Offered {
-                side: Side::AtLeast,
-                ..
-            } => "at least",
-            Held::Offered {
-                side: Side::AtMost, ..
-            } => "at most",
-        }
-    }
-}
-
-/// The role and what is told, never the float held.
-impl fmt::Debug for Quantity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} \"", self.role())?;
-        self.write(f, Notation::CANONICAL, 0)?;
-        f.write_str("\"")
     }
 }
 
 /// What is spelled as a sentence writes it: one number, the two ends
 /// of an enclosure, or `NaN` for a reading that does not read.
-fn write_spelled(spelled: Option<Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn write_spelled(spelled: Option<&Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match spelled {
-        Some(Spelled::One(y)) => write_float(y, f),
+        Some(Spelled::One(y)) => y.write(f),
         Some(Spelled::Ends(lo, hi)) => {
             f.write_str("[")?;
-            write_float(lo, f)?;
+            lo.write(f)?;
             f.write_str(", ")?;
-            write_float(hi, f)?;
+            hi.write(f)?;
             f.write_str("]")
         }
         None => f.write_str("NaN"),
-    }
-}
-
-/// Two are equal when their canonical telling is the same in the same
-/// role: the same spelling in metres or radians, and both or neither
-/// naming the tolerance. Two computed numbers that round to one
-/// canonical spelling are equal, though another notation's grid may
-/// tell them apart.
-impl PartialEq for Quantity {
-    fn eq(&self, other: &Self) -> bool {
-        let bits = |spelled: Option<Spelled>| {
-            spelled.map(|spelled| {
-                let (lo, hi) = spelled.extent(false);
-                (
-                    matches!(spelled, Spelled::One(_)),
-                    fold_signed_zero(lo).to_bits(),
-                    fold_signed_zero(hi).to_bits(),
-                )
-            })
-        };
-        self.dimension == other.dimension
-            && self.canonical_only == other.canonical_only
-            && self.role() == other.role()
-            && bits(self.spelled(0)) == bits(other.spelled(0))
     }
 }
 
@@ -580,20 +541,36 @@ impl Told {
     /// notation (the crate README, "A number told to a person").
     #[must_use]
     pub fn of_the_tolerance(mut self) -> Self {
-        self.0.canonical_only = true;
+        self.0.names_the_tolerance = true;
         self
     }
 
     /// **A position in a plane's chart**, `(x, y)`: each coordinate a
     /// length told as this one is, as a sentence that locates
     /// something writes it.
+    ///
+    /// # Panics
+    ///
+    /// Where the two are of two dimensions, or one names the tolerance
+    /// and the other does not: they are then not one position, and the
+    /// builder that paired them has a bug.
     #[must_use]
     pub fn position(x: &Self, y: &Self) -> Position {
+        assert!(
+            x.0.dimension == y.0.dimension && x.0.names_the_tolerance == y.0.names_the_tolerance,
+            "a position's coordinates are told in one unit"
+        );
         Position { x: *x.0, y: *y.0 }
     }
 
     /// The pair `(self, other)` as a sentence that states their order
     /// tells them.
+    ///
+    /// # Panics
+    ///
+    /// Where the two are of two dimensions: no sentence states the
+    /// order of a length and an angle, and the builder that paired them
+    /// has a bug.
     #[must_use]
     pub fn beside(&self, other: &Self) -> Compared {
         Compared::new(*self.0, *other.0, false)
@@ -603,6 +580,10 @@ impl Told {
     /// two **sizes** (a signed lever "shorter than" a length): each is
     /// told with its sign, at the first precision at which their
     /// distances from zero read in their true order.
+    ///
+    /// # Panics
+    ///
+    /// As [`Told::beside`].
     #[must_use]
     pub fn beside_by_magnitude(&self, other: &Self) -> Compared {
         Compared::new(*self.0, *other.0, true)
@@ -617,7 +598,7 @@ impl Told {
         Self::quantity(Quantity {
             held: Held::Given(reading.0),
             dimension,
-            canonical_only: false,
+            names_the_tolerance: false,
         })
     }
 
@@ -626,7 +607,7 @@ impl Told {
         Self::quantity(Quantity {
             held: Held::Computed(reading.0),
             dimension,
-            canonical_only: false,
+            names_the_tolerance: false,
         })
     }
 
@@ -640,32 +621,28 @@ impl Told {
         Self::quantity(Quantity::offered(reading, dimension, Side::AtMost, edge))
     }
 
-    /// The float this number is spelled as, where it is one number.
+    /// The float this number's canonical spelling reads back as, where
+    /// it is one number.
     pub(crate) fn spelled(&self) -> Option<f64> {
-        match self.0.spelled(0)? {
-            Spelled::One(y) => Some(y),
+        let unit = self.0.dimension.unit(Notation::CANONICAL);
+        match self.0.spelled_in(unit, 0)? {
+            Spelled::One(y) => Some(y.read_back(unit)),
             Spelled::Ends(..) => None,
         }
     }
 
     /// The number alone as it is told in `notation`, for a surface
-    /// that writes the unit itself beside it. `None` where the
-    /// notation's unit cannot say this quantity: it would be told in
-    /// the canonical unit, and a number beside another unit's name is
-    /// a different value. The canonical notation always answers.
+    /// that writes the unit itself beside it.
     #[must_use]
-    pub fn number_in(&self, notation: Notation) -> Option<impl fmt::Display + use<>> {
+    pub fn number_in(&self, notation: Notation) -> impl fmt::Display + use<> {
         let quantity = *self.0;
-        let unit = quantity.unit(notation);
-        let spelled = quantity.spelled_in(unit, 0);
-        (spelled.is_some() || quantity.exact().is_none())
-            .then(|| fmt::from_fn(move |f| write_spelled(spelled, f)))
+        let spelled = quantity.spelled_in(quantity.unit(notation), 0);
+        fmt::from_fn(move |f| write_spelled(spelled.as_ref(), f))
     }
 
     /// The number in the canonical unit, without its unit word.
     pub(crate) fn number(&self) -> impl fmt::Display {
-        let quantity = *self.0;
-        fmt::from_fn(move |f| write_spelled(quantity.spelled(0), f))
+        self.number_in(Notation::CANONICAL)
     }
 }
 
@@ -677,9 +654,7 @@ impl Told {
     /// where it does not read.
     #[must_use]
     pub fn pinned_ends(&self) -> (f64, f64) {
-        self.0
-            .exact()
-            .map_or((f64::NAN, f64::NAN), |held| held.extent(false))
+        self.0.held_extent().unwrap_or((f64::NAN, f64::NAN))
     }
 
     /// The far edge an offered bound was built with
@@ -754,20 +729,27 @@ impl Tell for String {
     }
 }
 
+/// What a [`Sentence`] keeps: a sentence that tells and dumps.
+trait Kept: Tell + fmt::Debug + Send + Sync {}
+
+impl<S: Tell + fmt::Debug + Send + Sync> Kept for S {}
+
 /// **A sentence kept to be told later**: what a value that outlives
 /// the refusal it reports holds in place of the refusal's text, so the
 /// notation is still the reader's to choose when it is shown. A
 /// `String` taken from a refusal's `Display` has already chosen metres.
 ///
-/// Its `Debug` and `Display` are the canonical text, and two are equal
-/// when their canonical texts are.
+/// Its `Display` is the canonical text, and its `Debug` is the kept
+/// sentence's own. It has no equality: what it keeps is any sentence,
+/// and two sentences are equal by what they hold, which a kept one
+/// cannot be asked.
 #[derive(Clone)]
-pub struct Sentence(Arc<dyn Tell + Send + Sync>);
+pub struct Sentence(Arc<dyn Kept>);
 
 impl Sentence {
     /// `said`, kept.
     #[must_use]
-    pub fn new(said: impl Tell + Send + Sync + 'static) -> Self {
+    pub fn new(said: impl Tell + fmt::Debug + Send + Sync + 'static) -> Self {
         Self(Arc::new(said))
     }
 }
@@ -798,13 +780,7 @@ impl fmt::Display for Sentence {
 
 impl fmt::Debug for Sentence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.to_string())
-    }
-}
-
-impl PartialEq for Sentence {
-    fn eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
+        fmt::Debug::fmt(&*self.0, f)
     }
 }
 
@@ -822,8 +798,8 @@ impl fmt::Display for Told {
 }
 
 /// **A position in a plane's chart** ([`Told::position`]): `(x, y)`,
-/// both coordinates in one unit. In metres the pair carries no unit
-/// word; in any other unit the word follows the pair.
+/// both coordinates in one unit. In the canonical unit the pair carries
+/// no unit word; in any other unit the word follows the pair.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Position {
     x: Quantity,
@@ -832,22 +808,13 @@ pub struct Position {
 
 impl Tell for Position {
     fn tell(&self, notation: Notation, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let canonical = |q: &Quantity| q.dimension.unit(Notation::CANONICAL);
-        let (unit, x) = self.x.said(notation, 0);
-        let (y_unit, y) = self.y.said(notation, 0);
-        // One unit for the pair, or the canonical one for both.
-        let together = unit == y_unit && unit != canonical(&self.x);
-        let (x, y) = if together {
-            (x, y)
-        } else {
-            (self.x.spelled(0), self.y.spelled(0))
-        };
+        let unit = self.x.unit(notation);
         f.write_str("(")?;
-        write_spelled(x, f)?;
+        write_spelled(self.x.spelled_in(unit, 0).as_ref(), f)?;
         f.write_str(", ")?;
-        write_spelled(y, f)?;
+        write_spelled(self.y.spelled_in(unit, 0).as_ref(), f)?;
         f.write_str(")")?;
-        if together {
+        if unit != self.x.dimension.unit(Notation::CANONICAL) {
             write_unit_word(unit, f)?;
         }
         Ok(())
@@ -863,13 +830,9 @@ impl fmt::Display for Position {
 /// **Two numbers whose order the sentence states**, or a reading beside
 /// its own threshold ([`Told::beside`]): each is told at the first
 /// precision, from its own grid up, at which the two read in their true
-/// order, in every role and in the unit they are told in. Two numbers
+/// order, in every role and in the unit each is told in. Two numbers
 /// that differ never read alike, and two enclosures that do not meet
 /// read apart and in order.
-///
-/// The two are told in one unit: the notation's where both are of one
-/// dimension and some precision in that unit reads them in order, the
-/// canonical one otherwise.
 ///
 /// A pair with no order is told as each member is alone, and the form
 /// claims nothing of it: two enclosures that overlap, an enclosure that
@@ -882,17 +845,12 @@ pub struct Compared {
     magnitudes: bool,
 }
 
-/// How a pair is written.
-enum PairForm {
-    /// Both in their units of this notation, at this many digits past
-    /// each member's grid.
-    Together(Notation, usize),
-    /// Each as it is told alone.
-    Alone,
-}
-
 impl Compared {
     fn new(first: Quantity, second: Quantity, magnitudes: bool) -> Self {
+        assert_eq!(
+            first.dimension, second.dimension,
+            "a compared pair is of one dimension"
+        );
         Self {
             first,
             second,
@@ -900,31 +858,53 @@ impl Compared {
         }
     }
 
-    fn form(&self, notation: Notation) -> PairForm {
+    /// The figures past each member's grid at which the pair is told in
+    /// `notation`: the first at which the two read in their true order,
+    /// and none where they have no order.
+    fn extra(&self, notation: Notation) -> usize {
         let (first, second) = (&self.first, &self.second);
-        let order = |a: Option<Spelled>, b: Option<Spelled>| a?.order(b?, self.magnitudes);
-        let Some(held) = order(first.exact(), second.exact()) else {
-            return PairForm::Alone;
+        let held = first
+            .held_extent()
+            .zip(second.held_extent())
+            .and_then(|(a, b)| order(a, b, self.magnitudes));
+        let Some(held) = held else {
+            return 0;
         };
-        let reads_in_order_at = |notation: Notation| {
-            (0..=ROUND_TRIP_DIGITS).find(|&extra| {
-                order(
-                    first.spelled_in(first.unit(notation), extra),
-                    second.spelled_in(second.unit(notation), extra),
-                ) == Some(held)
-            })
+        let (first_unit, second_unit) = (first.unit(notation), second.unit(notation));
+        let (first_floats, second_floats) = (first.floats(first_unit), second.floats(second_unit));
+        let reads = |extra: usize| {
+            let a = first
+                .spelled_at(&first_floats, first_unit, extra)?
+                .read_back(first_unit);
+            let b = second
+                .spelled_at(&second_floats, second_unit, extra)?
+                .read_back(second_unit);
+            order(a, b, self.magnitudes)
         };
-        let one_unit =
-            first.dimension == second.dimension && first.unit(notation) == second.unit(notation);
-        one_unit
-            .then(|| reads_in_order_at(notation))
-            .flatten()
-            .map(|extra| PairForm::Together(notation, extra))
-            .or_else(|| {
-                reads_in_order_at(Notation::CANONICAL)
-                    .map(|extra| PairForm::Together(Notation::CANONICAL, extra))
-            })
-            .unwrap_or(PairForm::Together(Notation::CANONICAL, 0))
+        let found = (0..=ROUND_TRIP_FIGURES).find(|&extra| reads(extra) == Some(held));
+        // At round-trip figures each member reads back as what it holds.
+        let Some(extra) = found else {
+            unreachable!("a pair at round-trip figures reads back as it is held")
+        };
+        extra
+    }
+
+    /// [`Compared::extra`], found once for the two members of one pair
+    /// told in one notation: a sentence tells its first member and then
+    /// its second, and the second reads what the first found.
+    fn extra_once(&self, notation: Notation) -> usize {
+        thread_local! {
+            static LAST: core::cell::Cell<Option<(Compared, Notation, usize)>> =
+                const { core::cell::Cell::new(None) };
+        }
+        LAST.with(|last| match last.get() {
+            Some((pair, at, extra)) if pair == *self && at == notation => extra,
+            _ => {
+                let extra = self.extra(notation);
+                last.set(Some((*self, notation, extra)));
+                extra
+            }
+        })
     }
 
     /// The first number and its unit word.
@@ -960,14 +940,7 @@ impl Tell for Member {
         } else {
             &self.pair.first
         };
-        match self.pair.form(notation) {
-            PairForm::Together(notation, extra) => {
-                let unit = member.unit(notation);
-                write_spelled(member.spelled_in(unit, extra), f)?;
-                write_unit_word(unit, f)
-            }
-            PairForm::Alone => member.write(f, notation, 0),
-        }
+        member.write(f, notation, self.pair.extra_once(notation))
     }
 }
 
@@ -977,173 +950,143 @@ impl fmt::Display for Member {
     }
 }
 
-/// One float as a sentence spells it: [`Readable`]'s notation, a zero
-/// of either sign as `0`.
-fn write_float(y: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    fmt::Display::fmt(&Readable(fold_signed_zero(y)), f)
+/// One float a quantity holds, as an exact number of the unit it is
+/// told in, with the figures of its grid there (the module docs) and
+/// the figures at which a decimal of the unit steps no finer than the
+/// floats at it, past which a digit spells the float's own rounding:
+/// there it is told as received. Neither is more than
+/// [`ROUND_TRIP_FIGURES`]. Built once for a quantity told at several
+/// precisions.
+///
+/// A length's grid step is the largest power of ten of the unit that is
+/// no more than a tenth of the default tolerance, or where the floats
+/// at `x` are sparser than that, the first power of ten at or above the
+/// gap to the next float; at the top of the format, where there is no
+/// next float, the step is the number's own decade, so it reads at four
+/// figures.
+#[derive(Clone, Debug)]
+struct Float {
+    x: f64,
+    unit: UnitDef,
+    /// `None` for a zero or a value that is not finite.
+    number: Option<InUnit>,
+    grid: usize,
+    own: usize,
 }
 
-/// The decimal exponent of a finite nonzero `x`, and whether `x` is
-/// that power of ten.
-fn decade_of(x: f64) -> (i32, bool) {
-    let spelled = format!("{x:e}");
-    let Some((mantissa, Ok(exponent))) = spelled
-        .rsplit_once('e')
-        .map(|(mantissa, exponent)| (mantissa, exponent.parse()))
-    else {
-        unreachable!("the exponent form of a finite float, {spelled}, ends in a decimal exponent")
-    };
-    (exponent, mantissa.trim_start_matches('-') == "1")
-}
-
-/// The decimal exponent of a finite nonzero `x`.
-fn decade(x: f64) -> i32 {
-    decade_of(x).0
-}
-
-/// The first power of ten at or above a finite positive `x`, as its
-/// exponent.
-fn decade_at_or_above(x: f64) -> i32 {
-    let (decade, exact) = decade_of(x);
-    decade + i32::from(!exact)
-}
-
-/// The decade of a length's grid step in `unit` at the canonical `x`,
-/// whose number of that unit is `q`: the largest power of ten of the
-/// unit that is no more than a tenth of the default tolerance, or
-/// where the floats at `x` are sparser than that, the first power of
-/// ten at or above the gap to the next float.
-fn length_step_decade(x: f64, q: f64, unit: UnitDef) -> i32 {
-    let gap = (x.abs().next_up() - x.abs()) / unit.factor();
-    if !gap.is_finite() || gap == 0.0 {
-        // The ends of the format: no decimal step is finer than it.
-        return decade(q);
-    }
-    // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
-    // k = LENGTH_GRID_DECADE less the first decade at or above the
-    // factor, read off the factor's shortest decimal (0.0254, not the
-    // float beside it).
-    let cap = LENGTH_GRID_DECADE - decade_at_or_above(unit.factor());
-    cap.max(decade_at_or_above(gap))
-}
-
-/// The significant digits of the grid in `unit` at the canonical `x`,
-/// whose number of that unit is `q` (the module docs).
-fn grid_digits(x: f64, q: f64, unit: UnitDef, dimension: Dimension) -> usize {
-    let figures = match dimension {
-        Dimension::Length if q != 0.0 && q.is_finite() => {
-            GRID_FIGURES.max(decade(q) - length_step_decade(x, q, unit) + 1)
+impl Float {
+    fn of(x: f64, unit: UnitDef, dimension: Dimension) -> Self {
+        if x == 0.0 || !x.is_finite() {
+            return Self {
+                x,
+                unit,
+                number: None,
+                grid: GRID_FIGURES as usize,
+                own: ROUND_TRIP_FIGURES,
+            };
         }
-        Dimension::Length | Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
-    };
-    usize::try_from(figures)
-        .unwrap_or(ROUND_TRIP_DIGITS)
-        .min(ROUND_TRIP_DIGITS)
-}
-
-/// A decimal of `digits` significant digits: `±mantissa × 10^exponent`.
-#[derive(Clone, Copy)]
-struct Decimal {
-    negative: bool,
-    mantissa: u64,
-    exponent: i32,
-}
-
-impl Decimal {
-    /// `x` rounded to nearest at `digits` significant digits, exactly
-    /// (std's formatter rounds the exact binary value).
-    fn nearest(x: f64, digits: usize) -> Option<Self> {
-        let places = digits.checked_sub(1)?;
-        let spelled = format!("{:.places$e}", x.abs());
-        let (mantissa, exponent) = spelled.split_once('e')?;
-        let mantissa: String = mantissa.chars().filter(char::is_ascii_digit).collect();
-        Some(Self {
-            negative: x.is_sign_negative(),
-            mantissa: mantissa.parse().ok()?,
-            exponent: exponent.parse::<i32>().ok()? - i32::try_from(places).ok()?,
-        })
-    }
-
-    /// The adjacent decimal of as many digits, away from zero or toward
-    /// it: one unit of the last digit over, and below a power of ten
-    /// one unit of the digit after it, where the decimals are ten times
-    /// as dense.
-    fn stepped(self, away_from_zero: bool) -> Option<Self> {
-        if away_from_zero {
-            let mantissa = self.mantissa.checked_add(1)?;
-            return Some(Self { mantissa, ..self });
-        }
-        let leads_its_decade = (0..=19).any(|k| 10u64.checked_pow(k) == Some(self.mantissa));
-        let (mantissa, exponent) = if leads_its_decade && self.mantissa > 1 {
-            (
-                self.mantissa.checked_mul(10)?,
-                self.exponent.checked_sub(1)?,
-            )
-        } else {
-            (self.mantissa, self.exponent)
+        let number = unit.in_unit(x);
+        let decade = number.decade().0;
+        let (gap, top) = match x.abs().next_up() - x.abs() {
+            up if up.is_finite() => (up, false),
+            _ => (x.abs() - x.abs().next_down(), true),
         };
-        Some(Self {
-            mantissa: mantissa.checked_sub(1)?,
-            exponent,
-            ..self
-        })
+        let (gap_decade, exact) = unit.decade(gap);
+        // 10^k of the unit is at most 10^LENGTH_GRID_DECADE metres from
+        // k = LENGTH_GRID_DECADE plus the decade of a metre in the unit.
+        let cap = LENGTH_GRID_DECADE + unit.decade(1.0).0;
+        let step = if top {
+            decade
+        } else {
+            cap.max(gap_decade + i64::from(!exact))
+        };
+        let grid = match dimension {
+            Dimension::Length => GRID_FIGURES.max(decade - step + 1),
+            Dimension::Angle | Dimension::Dimensionless => GRID_FIGURES,
+        };
+        let clamp = |figures: i64| {
+            usize::try_from(figures.max(1))
+                .unwrap_or(ROUND_TRIP_FIGURES)
+                .min(ROUND_TRIP_FIGURES)
+        };
+        Self {
+            x,
+            unit,
+            number: Some(number),
+            grid: clamp(grid),
+            own: clamp(decade - gap_decade + 1),
+        }
     }
 
-    /// The float this decimal reads back as, where that is finite: a
-    /// decimal past the largest float reads back as no number.
-    fn read_back(self) -> Option<f64> {
-        let sign = if self.negative { "-" } else { "" };
-        format!("{sign}{}e{}", self.mantissa, self.exponent)
-            .parse()
-            .ok()
-            .filter(|y: &f64| y.is_finite())
+    /// The figures at `extra` past the grid: round-trip figures where
+    /// that reaches what the floats carry.
+    fn figures(&self, extra: usize) -> usize {
+        if self.grid + extra >= self.own {
+            ROUND_TRIP_FIGURES
+        } else {
+            self.grid + extra
+        }
     }
-}
 
-/// `x` rounded to nearest at `digits` significant digits, read back.
-/// A zero, a non-finite value and a count at which a decimal names one
-/// float are `x` itself; a rounding past the largest float is the grid
-/// point below it.
-fn nearest(x: f64, digits: usize) -> f64 {
-    if x == 0.0 || !x.is_finite() || digits >= ROUND_TRIP_DIGITS {
-        return x;
+    /// The decimal at `figures`, where the float is a nonzero number.
+    fn decimal(&self, figures: usize, rounding: Rounding) -> Option<Decimal> {
+        Some(self.number.as_ref()?.decimal(figures, rounding))
     }
-    Decimal::nearest(x, digits)
-        .and_then(|near| {
-            near.read_back()
-                .or_else(|| near.stepped(false)?.read_back())
-        })
-        .unwrap_or(x)
-}
 
-/// The number of `unit` nearest `q` at `digits` significant digits
-/// that types back on `side` of the canonical `x`, where `q` is `x`'s
-/// number of that unit: the nearest decimal where that already types
-/// back on the side, one unit of its last digit over where it does
-/// not. Where neither does (digits finer than the floats at `q`, or a
-/// step past the largest float), the float at or next to `q` that
-/// does; `None` where none within two floats does.
-fn toward(x: f64, q: f64, unit: UnitDef, digits: usize, side: Side) -> Option<f64> {
-    if x == 0.0 || !x.is_finite() {
-        return Some(q);
+    /// Rounded to nearest at `figures`; at round-trip figures, or for a
+    /// zero or a value that is not finite, as received. A rounding past
+    /// the largest float is the grid point toward zero from it.
+    fn nearest(&self, figures: usize) -> Number {
+        let near = (figures < ROUND_TRIP_FIGURES)
+            .then(|| self.decimal(figures, Rounding::Nearest))
+            .flatten();
+        let Some(near) = near else {
+            return given(self.x, self.unit);
+        };
+        if self.unit.canonical(&near).is_finite() {
+            return Number::Decimal(near);
+        }
+        let toward_zero = if self.x < 0.0 {
+            Rounding::Up
+        } else {
+            Rounding::Down
+        };
+        self.decimal(figures, toward_zero)
+            .map_or_else(|| given(self.x, self.unit), Number::Decimal)
     }
-    let on_side = |y: &f64| y.is_finite() && side.holds(typed(*y, unit), x);
-    let near = (digits < ROUND_TRIP_DIGITS)
-        .then(|| Decimal::nearest(q, digits))
-        .flatten();
-    let on_the_grid = near.and_then(|near| {
-        let away_from_zero = (side == Side::AtLeast) != near.negative;
-        [Some(near), near.stepped(away_from_zero)]
+
+    /// At `figures`, typing back on `side` of the float: the nearest
+    /// decimal where that already does, and the one rounded toward the
+    /// side where it does not. At round-trip figures, for a zero or a
+    /// value that is not finite, or where the rounding toward the side
+    /// types back past the largest float, as received.
+    fn toward(&self, figures: usize, side: Side) -> Number {
+        if figures >= ROUND_TRIP_FIGURES {
+            return given(self.x, self.unit);
+        }
+        let directed = match side {
+            Side::AtLeast => Rounding::Up,
+            Side::AtMost => Rounding::Down,
+        };
+        [Rounding::Nearest, directed]
             .into_iter()
-            .flatten()
-            .filter_map(Decimal::read_back)
-            .find(on_side)
-    });
-    let step = |y: f64| match side {
-        Side::AtLeast => y.next_up(),
-        Side::AtMost => y.next_down(),
-    };
-    on_the_grid.or_else(|| [q, step(q), step(step(q))].into_iter().find(on_side))
+            .filter_map(|rounding| self.decimal(figures, rounding))
+            .find(|y| {
+                let typed = self.unit.canonical(y);
+                typed.is_finite() && side.holds(typed, self.x)
+            })
+            .map_or_else(|| given(self.x, self.unit), Number::Decimal)
+    }
+}
+
+/// `x` in `unit` exactly as received: the shortest decimal that reads
+/// back as it.
+fn given(x: f64, unit: UnitDef) -> Number {
+    if x.is_finite() {
+        Number::Decimal(unit.shortest(x))
+    } else {
+        Number::Infinite { negative: x < 0.0 }
+    }
 }
 
 // The grid's absolute step is a tenth of the default tolerance.
@@ -1154,7 +1097,7 @@ const _: () = assert!(DEFAULT_EPS == 1e-9 && LENGTH_GRID_DECADE == -10);
 mod tests {
     use super::{Dimension, Tell, Told, WIDEST_NUMBER};
     use crate::{Dual, Interval, Readable, Real};
-    use quantity::{CM, DEG, IN, M, MM, Notation, PI, RAD, UnitDef};
+    use quantity::{CM, DEG, Decimal, IN, M, MM, Notation, PI, RAD, UnitDef};
 
     const DIMENSIONS: [Dimension; 3] = [
         Dimension::Length,
@@ -1452,7 +1395,7 @@ mod tests {
     /// that are equal read alike.
     #[test]
     fn compared_numbers_read_in_their_true_order() {
-        for x in magnitudes(128).into_iter().step_by(16) {
+        for x in magnitudes(128).into_iter().step_by(48) {
             let others = [x.next_up(), x * (1.0 - 1e-12), x * 1.0004, -x, x];
             for y in others.into_iter().filter(|y| y.is_finite()) {
                 for dimension in DIMENSIONS {
@@ -1665,32 +1608,43 @@ mod tests {
         }
     }
 
-    /// `Debug` writes what is told and equality compares it: neither
-    /// hands back the float a computed number was built from.
+    /// Two told quantities are equal when their role, dimension and
+    /// reading are, and `Debug` shows the reading exactly; two that read
+    /// alike are compared by their telling.
     #[test]
-    fn debug_and_equality_are_of_what_is_told() {
+    fn equality_and_debug_are_of_what_is_held() {
         let noisy = Told::computed(&(0.1 + 0.2), Dimension::Length);
-        assert_eq!(format!("{noisy:?}"), "Told(computed \"0.3 m\")");
-        assert_eq!(noisy, Told::computed(&0.3, Dimension::Length));
-        assert_ne!(noisy, Told::given(&0.3, Dimension::Length), "another role");
-        assert_ne!(
-            noisy,
-            Told::computed(&0.3, Dimension::Angle),
-            "another unit"
+        assert!(
+            format!("{noisy:?}").contains("Value(0.30000000000000004)"),
+            "{noisy:?}"
         );
-        assert_ne!(noisy, Told::computed(&0.3001, Dimension::Length));
+        assert_eq!(noisy, Told::computed(&(0.1 + 0.2), Dimension::Length));
+        let plain = Told::computed(&0.3, Dimension::Length);
+        assert_ne!(noisy, plain, "another reading");
         assert_eq!(
-            format!("{:?}", Told::at_most(&0.300_04, Dimension::Angle)),
-            "Told(at most \"0.3 rad\")"
+            noisy.told_in(Notation::CANONICAL).to_string(),
+            plain.told_in(Notation::CANONICAL).to_string(),
+            "which reads alike"
         );
-        let pair = noisy.beside(&Told::computed(&0.300_000_000_04, Dimension::Length));
-        assert!(
-            !format!("{pair:?}").contains("0.30000000000000004"),
-            "{pair:?}"
+        assert_ne!(plain, Told::given(&0.3, Dimension::Length), "another role");
+        assert_ne!(
+            plain,
+            Told::computed(&0.3, Dimension::Angle),
+            "another dimension"
+        );
+        assert_ne!(
+            plain,
+            Told::computed(&0.3, Dimension::Length).of_the_tolerance(),
+            "a number that names the tolerance has another role"
+        );
+        assert_ne!(
+            Told::at_least(&0.3, Dimension::Length),
+            Told::at_least_within(&0.3, &0.4, Dimension::Length),
+            "another window"
         );
         assert!(
-            !format!("{:?}", (0.1_f64 + 0.2).told_reading()).contains("0.3"),
-            "a reading's Debug is its shape"
+            format!("{:?}", (0.1_f64 + 0.2).told_reading()).contains("0.30000000000000004"),
+            "a reading's Debug is its number"
         );
     }
 
@@ -1796,9 +1750,9 @@ mod tests {
         },
     ];
 
-    /// What a told text says: its numbers (one, or an enclosure's two)
+    /// What a told text says: its decimals (one, or an enclosure's two)
     /// and the unit its word names.
-    fn said(told: &str) -> (Vec<f64>, UnitDef) {
+    fn said(told: &str) -> (Vec<Decimal>, UnitDef) {
         let (numbers, symbol) = match told.strip_prefix('[') {
             Some(rest) => {
                 let (ends, word) = rest.split_once(']').unwrap();
@@ -1813,18 +1767,21 @@ mod tests {
             .unwrap_or_else(|| panic!("{told:?} names no unit of the table"));
         let numbers = numbers
             .into_iter()
-            .map(|n| n.parse().unwrap_or_else(|e| panic!("{told:?}: {e}")))
+            .map(|n| Decimal::parse(n).unwrap_or_else(|| panic!("{told:?}: {n} is no decimal")))
             .collect();
         (numbers, unit)
     }
 
-    /// What typing a told text back gives, canonical: each number read
-    /// as a float and multiplied by its unit's factor, the text door's
-    /// arithmetic (one correctly rounded multiply) and none of this
-    /// module's.
+    /// The float nearest a decimal, as a number of its unit.
+    fn float(number: &Decimal) -> f64 {
+        number.to_string().parse().unwrap()
+    }
+
+    /// What typing a told text back gives, canonical: each decimal
+    /// through its unit's one door, the text door's arithmetic.
     fn typed_back(told: &str) -> Vec<f64> {
         let (numbers, unit) = said(told);
-        numbers.into_iter().map(|n| n * unit.factor()).collect()
+        numbers.iter().map(|n| unit.canonical(n)).collect()
     }
 
     /// The largest power of ten of a length unit that is no more than
@@ -1837,7 +1794,7 @@ mod tests {
             "in" => 1e-9,
             other => panic!("{other} is not a length unit"),
         };
-        let metres = step * unit.factor();
+        let metres = unit.canonical(&Decimal::of_float(step).unwrap());
         assert!(metres <= 1e-10 * (1.0 + 1e-12) && metres * 10.0 > 1e-10);
         step
     }
@@ -1929,13 +1886,16 @@ mod tests {
             "25 mm"
         );
         assert_eq!(in_(&Told::given(&0.0254, Dimension::Length), in_pi), "1 in");
-        // 300.04 typed in millimetres is the float above 0.30004 m, so
-        // the offer is the grid point below it; 12.5 types back on
-        // the side that works.
-        assert!(300.04 * MM.factor() > 0.300_04);
+        // 300.04 typed in millimetres is the float nearest 0.30004 m,
+        // so the offer is the bound's own decimal.
+        assert_eq!((300.04 * MM).meters(), 0.300_04);
         assert_eq!(
             in_(&Told::at_most(&0.300_04, Dimension::Length), mm_deg),
-            "300.0399999 mm"
+            "300.04 mm"
+        );
+        assert_eq!(
+            in_(&Told::at_most(&0.000_13, Dimension::Length), mm_deg),
+            "0.13 mm"
         );
         assert_eq!(
             in_(&Told::at_most(&0.012_5, Dimension::Length), mm_deg),
@@ -1978,12 +1938,14 @@ mod tests {
                     tolerance.to_string(),
                     "{x:e}"
                 );
-                // Beside a length it keeps the pair in metres.
+                // Beside a length it alone is in metres.
                 let pair = length.beside(&tolerance);
-                assert_eq!(
+                let (first, second) = (
                     pair.first().told_in(notation).to_string(),
-                    pair.first().to_string()
+                    pair.second().told_in(notation).to_string(),
                 );
+                assert_eq!(said(&first).1, notation.length.def(), "{first}");
+                assert_eq!(said(&second).1, M.def(), "{second}");
             }
         }
         let tolerance = Told::at_most(&2e-10, Dimension::Length).of_the_tolerance();
@@ -1991,55 +1953,38 @@ mod tests {
         assert_ne!(tolerance, Told::at_most(&2e-10, Dimension::Length));
     }
 
-    /// Equality is of canonical text; a notation can tell two equal
-    /// quantities apart.
+    /// A round metre bound offered in millimetres is its own decimal
+    /// there: the decimal of the unit types back as the float nearest
+    /// it (`work/scalar/an-offer-in-a-decimal-unit-reads-a-run-of-nines.md`).
     #[test]
-    fn equal_told_quantities_may_read_apart_in_another_notation() {
-        let (a, b) = (
-            Told::computed(&1.000_02, Dimension::Angle),
-            Told::computed(&1.000_48, Dimension::Angle),
-        );
-        assert_eq!(a, b);
-        assert_ne!(
-            a.told_in(NOTATIONS[1]).to_string(),
-            b.told_in(NOTATIONS[1]).to_string()
-        );
+    fn a_round_metre_offer_in_millimetres_reads_its_own_decimal() {
+        for k in 1..=2_000_u32 {
+            let written = format!("{}e-5", k * 31 + 7);
+            let b: f64 = written.parse().unwrap();
+            let millimetres = MM.def().shortest(b);
+            for told in [
+                Told::at_most(&b, Dimension::Length),
+                Told::at_least(&b, Dimension::Length),
+            ] {
+                let text = told.told_in(NOTATIONS[1]).to_string();
+                assert_eq!(text, format!("{millimetres} mm"), "{written} m");
+            }
+        }
     }
 
-    /// How often a round metre bound reads with a run of nines in
-    /// millimetres: the bound's own number types back one float past
-    /// it, so the offer is the grid point before
-    /// (`work/scalar/an-offer-in-a-decimal-unit-reads-a-run-of-nines.md`).
+    /// The number alone is the told number without its word, in every
+    /// unit.
     #[test]
-    fn a_round_metre_offer_in_millimetres_reads_its_neighbour_below_a_fifth_of_the_time() {
-        let n = (1..=20_000_u32)
-            .filter(|k| {
-                let b: f64 = format!("{}e-5", k * 3 + 7).parse().unwrap();
-                Told::at_most(&b, Dimension::Length)
-                    .told_in(NOTATIONS[1])
-                    .to_string()
-                    .contains("9999")
-            })
-            .count();
-        assert!((3_500..4_500).contains(&n), "{n}");
-    }
-
-    /// The number alone is the told number without its word, and is
-    /// withheld where the word would have been another unit's.
-    #[test]
-    fn the_number_alone_is_withheld_where_the_unit_cannot_say_it() {
-        let number = |told: &Told, notation| told.number_in(notation).map(|n| n.to_string());
+    fn the_number_alone_is_the_told_number_without_its_word() {
+        let number = |told: &Told, notation| told.number_in(notation).to_string();
         let length = Told::computed(&0.025, Dimension::Length);
-        assert_eq!(number(&length, NOTATIONS[1]).as_deref(), Some("25"));
-        assert_eq!(
-            number(&length, Notation::CANONICAL).as_deref(),
-            Some("0.025")
-        );
+        assert_eq!(number(&length, NOTATIONS[1]), "25");
+        assert_eq!(number(&length, Notation::CANONICAL), "0.025");
         let huge = Told::computed(&1e306, Dimension::Length);
-        assert_eq!(number(&huge, NOTATIONS[1]), None);
-        assert_eq!(number(&huge, Notation::CANONICAL).as_deref(), Some("1e306"));
+        assert_eq!(number(&huge, NOTATIONS[1]), "1e309");
+        assert_eq!(number(&huge, Notation::CANONICAL), "1e306");
         let unreadable = Told::computed(&f64::NAN, Dimension::Length);
-        assert_eq!(number(&unreadable, NOTATIONS[1]).as_deref(), Some("NaN"));
+        assert_eq!(number(&unreadable, NOTATIONS[1]), "NaN");
     }
 
     /// A kept sentence is told in the notation of whoever reads it,
@@ -2049,8 +1994,11 @@ mod tests {
         let kept = super::Sentence::new(Told::computed(&0.25, Dimension::Length));
         assert_eq!(kept.to_string(), "0.25 m");
         assert_eq!(kept.told_in(NOTATIONS[1]).to_string(), "250 mm");
-        assert_eq!(format!("{kept:?}"), "\"0.25 m\"");
-        assert_eq!(kept, super::Sentence::from("0.25 m"));
+        assert_eq!(
+            format!("{kept:?}"),
+            format!("{:?}", Told::computed(&0.25, Dimension::Length)),
+            "its dump is the kept sentence's"
+        );
         assert_eq!(
             super::Sentence::from("no number")
                 .told_in(NOTATIONS[1])
@@ -2060,40 +2008,19 @@ mod tests {
     }
 
     /// A given number typed back in the unit it is told in is the
-    /// number received, to the bit; it is told in the canonical unit
-    /// only where no number of the notation's unit types back to it.
+    /// number received, to the bit, in the notation's own unit.
     #[test]
     fn a_given_number_types_back_exactly_in_every_notation() {
-        let mut fell_back = 0_usize;
         for x in magnitudes(32) {
             for notation in NOTATIONS {
                 for dimension in DIMENSIONS {
                     let text = Told::given(&x, dimension).told_in(notation).to_string();
                     let (_, unit) = said(&text);
                     assert_eq!(typed_back(&text)[0].to_bits(), x.to_bits(), "{x:e}: {text}");
-                    let asked = dimension.unit(notation);
-                    if unit != asked {
-                        fell_back += 1;
-                        assert_eq!(unit, dimension.unit(Notation::CANONICAL), "{text}");
-                        let q = x / asked.factor();
-                        let near = core::iter::successors(Some(q), |y| Some(y.next_up()))
-                            .take(5)
-                            .chain(
-                                core::iter::successors(Some(q), |y| Some(y.next_down())).take(5),
-                            );
-                        for y in near {
-                            assert_ne!(
-                                (y * asked.factor()).to_bits(),
-                                x.to_bits(),
-                                "{y:e} {} types back to {x:e}, told as {text}",
-                                asked.symbol()
-                            );
-                        }
-                    }
+                    assert_eq!(unit, dimension.unit(notation), "{text}");
                 }
             }
         }
-        assert!(fell_back > 0, "the sweep met no number a unit cannot type");
         // A number authored in a unit reads as it was authored.
         for (authored, unit, notation) in [
             (12.7, MM, NOTATIONS[1]),
@@ -2102,14 +2029,14 @@ mod tests {
             (2.54, CM, NOTATIONS[3]),
             (7.0, M, NOTATIONS[0]),
         ] {
-            let told = Told::given(&(authored * unit.factor()), Dimension::Length);
+            let told = Told::given(&(authored * unit).meters(), Dimension::Length);
             assert_eq!(
                 told.told_in(notation).to_string(),
                 format!("{authored} {}", unit.symbol())
             );
         }
         for (authored, unit, notation) in [(45.0, DEG, NOTATIONS[1]), (0.25, PI, NOTATIONS[2])] {
-            let told = Told::given(&(authored * unit.factor()), Dimension::Angle);
+            let told = Told::given(&(authored * unit).radians(), Dimension::Angle);
             assert_eq!(
                 told.told_in(notation).to_string(),
                 format!("{authored} {}", unit.symbol())
@@ -2132,10 +2059,12 @@ mod tests {
                     assert!(typed_back(&down)[0] <= x, "at most {x:e} reads {down}");
                     for text in [&up, &down] {
                         let (numbers, unit) = said(text);
-                        let q = x / unit.factor();
-                        let reach = step(q, 4) + 2.0 * spacing(x) / unit.factor();
+                        let Some(q) = unit.number_of(x).filter(|q| q.is_finite()) else {
+                            continue;
+                        };
+                        let reach = step(q, 4) + 2.0 * spacing(q);
                         assert!(
-                            (numbers[0] - q).abs() <= reach,
+                            (float(&numbers[0]) - q).abs() <= reach || typed_back(text)[0] == x,
                             "{x:e} is offered as {text}"
                         );
                     }
@@ -2180,23 +2109,30 @@ mod tests {
                     "{x:e} reads {text}"
                 );
                 let number = number(&text);
+                let past_the_grid = |q: Option<f64>| q.is_none_or(|q| q.abs() > LAST_GRID_POINT);
                 assert!(
                     figures(&text) <= 4
                         || last_digit_step(number) >= tolerance_step(unit) * (1.0 - 1e-9)
-                        || x.abs() > LAST_GRID_POINT * unit.factor(),
+                        || past_the_grid(unit.number_of(x)),
                     "{x:e} reads {text}, finer than a tenth of the tolerance"
                 );
                 let text = Told::computed(&x, Dimension::Angle)
                     .told_in(notation)
                     .to_string();
                 let (numbers, unit) = said(&text);
-                let q = x / unit.factor();
-                let past_the_grid = q.abs() > LAST_GRID_POINT;
-                assert!(past_the_grid || figures(&text) <= 4, "{x:e} reads {text}");
+                let q = unit.number_of(x);
                 assert!(
-                    (numbers[0] - q).abs() <= step(q, 4) * if past_the_grid { 1.0 } else { 0.5 },
+                    past_the_grid(q) || figures(&text) <= 4,
                     "{x:e} reads {text}"
                 );
+                if let Some(q) = q.filter(|q| q.is_finite()) {
+                    let reach = if past_the_grid(Some(q)) { 1.0 } else { 0.5 };
+                    assert!(
+                        (float(&numbers[0]) - q).abs() <= step(q, 4) * reach
+                            || typed_back(&text)[0] == x,
+                        "{x:e} reads {text}"
+                    );
+                }
             }
         }
     }
@@ -2222,10 +2158,25 @@ mod tests {
                         let ends = typed_back(&text);
                         assert!(ends[0] <= lo, "[{lo:e}, {hi:e}] reads {text}");
                         assert!(ends[1] >= hi, "[{lo:e}, {hi:e}] reads {text}");
-                        let (q_lo, q_hi) = (lo / unit.factor(), hi / unit.factor());
-                        let slack = |x: f64| 2.0 * spacing(x) / unit.factor();
-                        assert!(q_lo - numbers[0] <= step(q_lo, 4) + slack(lo), "{text}");
-                        assert!(numbers[1] - q_hi <= step(q_hi, 4) + slack(hi), "{text}");
+                        let (Some(q_lo), Some(q_hi)) = (unit.number_of(lo), unit.number_of(hi))
+                        else {
+                            continue;
+                        };
+                        if !(q_lo.is_finite() && q_hi.is_finite()) {
+                            continue;
+                        }
+                        let slack = |q: f64| 2.0 * spacing(q);
+                        let (told_lo, told_hi) = (float(&numbers[0]), float(&numbers[1]));
+                        // Within a step of the grid, or where the floats are
+                        // sparser than the grid, the end as received.
+                        assert!(
+                            q_lo - told_lo <= step(q_lo, 4) + slack(q_lo) || ends[0] == lo,
+                            "{text}"
+                        );
+                        assert!(
+                            told_hi - q_hi <= step(q_hi, 4) + slack(q_hi) || ends[1] == hi,
+                            "{text}"
+                        );
                     }
                 }
             }
@@ -2238,7 +2189,6 @@ mod tests {
     fn compared_numbers_read_in_their_true_order_in_every_notation() {
         type Mk = fn(&f64, Dimension) -> Told;
         let roles: [Mk; 4] = [Told::given, Told::computed, Told::at_least, Told::at_most];
-        let mut in_the_notation = 0_usize;
         for x in magnitudes(128).into_iter().step_by(48) {
             for y in [x.next_up(), x * 1.000_04, x * (1.0 - 1e-12), -x, 0.0, x] {
                 if !y.is_finite() {
@@ -2251,11 +2201,11 @@ mod tests {
                                 let pair = a(&x, dimension).beside(&b(&y, dimension));
                                 let first = pair.first().told_in(notation).to_string();
                                 let second = pair.second().told_in(notation).to_string();
-                                let ((p, unit), (q, other)) = (said(&first), said(&second));
+                                let ((_, unit), (_, other)) = (said(&first), said(&second));
                                 assert_eq!(unit, other, "{first} beside {second}");
-                                in_the_notation += usize::from(unit == dimension.unit(notation));
+                                assert_eq!(unit, dimension.unit(notation), "{first}");
                                 assert_eq!(
-                                    p[0].partial_cmp(&q[0]),
+                                    typed_back(&first)[0].partial_cmp(&typed_back(&second)[0]),
                                     x.partial_cmp(&y),
                                     "{x:e} beside {y:e} reads {first} and {second}"
                                 );
@@ -2265,10 +2215,6 @@ mod tests {
                 }
             }
         }
-        assert!(
-            in_the_notation > 1_000,
-            "{in_the_notation} pairs read in their notation"
-        );
         let by_size = Told::computed(&-1.000_01e-9, Dimension::Length)
             .beside_by_magnitude(&Told::computed(&1.000_04e-9, Dimension::Length));
         assert_eq!(
@@ -2281,34 +2227,109 @@ mod tests {
         );
     }
 
-    /// A value a unit's factor carries out of the format is told in
-    /// the canonical unit, as a pair and a position are when either
-    /// member is.
+    /// A value whose number of a unit is past the format of a float is
+    /// told in that unit all the same, alone, in a pair and in a
+    /// position.
     #[test]
-    fn a_value_a_unit_cannot_hold_is_told_in_the_canonical_unit() {
+    fn a_unit_says_a_value_its_number_has_no_float_for() {
         let (mm_deg, in_pi) = (NOTATIONS[1], NOTATIONS[2]);
         let huge = Told::computed(&1e306, Dimension::Length);
-        assert_eq!(huge.told_in(mm_deg).to_string(), "1e306 m");
+        assert_eq!(huge.told_in(mm_deg).to_string(), "1e309 mm");
         assert_eq!(
             Told::at_least(&1e306, Dimension::Length)
                 .told_in(mm_deg)
                 .to_string(),
-            "1e306 m"
+            "1e309 mm"
         );
-        let least = Told::computed(&f64::from_bits(1), Dimension::Angle);
-        assert_eq!(least.told_in(in_pi).to_string(), "5e-324 rad");
+        let least = f64::from_bits(1);
+        let text = Told::computed(&least, Dimension::Angle)
+            .told_in(in_pi)
+            .to_string();
+        assert_eq!(typed_back(&text), [least], "{text}");
+        assert!(text.ends_with(" pi rad"), "{text}");
         let small = Told::computed(&0.25, Dimension::Length);
         let pair = small.beside(&huge);
-        assert_eq!(pair.first().told_in(mm_deg).to_string(), "0.25 m");
-        assert_eq!(pair.second().told_in(mm_deg).to_string(), "1e306 m");
+        assert_eq!(pair.first().told_in(mm_deg).to_string(), "250 mm");
+        assert_eq!(pair.second().told_in(mm_deg).to_string(), "1e309 mm");
         assert_eq!(
             Told::position(&small, &huge).told_in(mm_deg).to_string(),
-            "(0.25, 1e306)"
+            "(250, 1e309) mm"
         );
-        // Two dimensions have no one unit.
-        let mixed = small.beside(&Told::computed(&1.0, Dimension::Angle));
-        assert_eq!(mixed.first().told_in(mm_deg).to_string(), "0.25 m");
-        assert_eq!(mixed.second().told_in(mm_deg).to_string(), "1 rad");
+    }
+
+    /// A pair of two dimensions is a builder's bug, and panics where the
+    /// pair is made, which is where a sentence tells it.
+    #[test]
+    #[should_panic = "a compared pair is of one dimension"]
+    fn a_pair_of_two_dimensions_panics() {
+        let _ = Told::computed(&0.25, Dimension::Length)
+            .beside(&Told::computed(&1.0, Dimension::Angle));
+    }
+
+    /// So is a position whose coordinates are of two dimensions.
+    #[test]
+    #[should_panic = "a position's coordinates are told in one unit"]
+    fn a_position_of_two_dimensions_panics() {
+        let _ = Told::position(
+            &Told::computed(&0.25, Dimension::Length),
+            &Told::computed(&1.0, Dimension::Angle),
+        );
+    }
+
+    /// The gate's sample of the every-notation sweeps (which are in the
+    /// slow set): a handful of values in two notations that are not
+    /// the canonical one, in every role, and a pair of each pairing of
+    /// roles. A given number types back as itself, an offer on its
+    /// side, an enclosure around its ends, and a pair in its true
+    /// order, each in the notation's own unit.
+    #[test]
+    fn a_handful_of_quantities_reads_true_in_two_notations() {
+        type Mk = fn(&f64, Dimension) -> Told;
+        let roles: [Mk; 4] = [Told::given, Told::computed, Told::at_least, Told::at_most];
+        let values = [0.300_04, -1.0 / 3.0, 1e-7, 2.5e6, f64::from_bits(1), 1e306];
+        for notation in [NOTATIONS[1], NOTATIONS[2]] {
+            for dimension in [Dimension::Length, Dimension::Angle] {
+                let unit = dimension.unit(notation);
+                let in_unit = |text: &str| {
+                    assert_eq!(said(text).1, unit, "{text}");
+                    typed_back(text)
+                };
+                for &x in &values {
+                    let told = |make: Mk| make(&x, dimension).told_in(notation).to_string();
+                    assert_eq!(
+                        in_unit(&told(Told::given))[0].to_bits(),
+                        x.to_bits(),
+                        "{x:e}"
+                    );
+                    assert!(in_unit(&told(Told::at_least))[0] >= x, "{x:e}");
+                    assert!(in_unit(&told(Told::at_most))[0] <= x, "{x:e}");
+                    // An enclosure a thousandth wide, or a float where
+                    // that is narrower.
+                    let far = (x + x.abs() * 1e-3).max(x.next_up());
+                    let wide = Interval::from_bounds(x, far);
+                    let ends = in_unit(
+                        &Told::computed(&wide, dimension)
+                            .told_in(notation)
+                            .to_string(),
+                    );
+                    assert!(ends[0] <= x && ends[1] >= far, "{x:e}");
+                    for y in [x.next_up(), x * 1.000_04, -x] {
+                        for a in roles {
+                            for b in roles {
+                                let pair = a(&x, dimension).beside(&b(&y, dimension));
+                                let first = in_unit(&pair.first().told_in(notation).to_string());
+                                let second = in_unit(&pair.second().told_in(notation).to_string());
+                                assert_eq!(
+                                    first[0].partial_cmp(&second[0]),
+                                    x.partial_cmp(&y),
+                                    "{x:e} beside {y:e}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// No told number is wider than [`WIDEST_NUMBER`], in any role or

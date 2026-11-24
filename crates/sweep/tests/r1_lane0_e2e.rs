@@ -47,7 +47,7 @@ fn the_f64_seam_answers_every_public_door() {
         &[1e-6],
         "the f64 seam",
         &[
-            "RechartFalsifies { door: SetFaceSurfacesDescribing, edge: EdgeKey(10v1), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
+            "DescriptionUncertified { edge: Keyed(EdgeKey(10v1)), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
             "predicate: Some(\"ssi_tube_one_arc\")",
         ],
         the_f64_seam_answers_every_public_door_row,
@@ -130,8 +130,7 @@ fn the_f64_seam_answers_every_public_door_row() {
         matches!(
             e,
             Some(topo::ReplaceFaceError::Op {
-                error: topo::EulerOpError::RechartFalsifies {
-                    door: topo::RechartDoor::SetFaceSurfacesDescribing,
+                error: topo::EulerOpError::DescriptionUncertified {
                     error: geom_brep::CertifyError::PlaneNurbs(
                         geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
                             rungs: 20,

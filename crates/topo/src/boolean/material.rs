@@ -231,13 +231,15 @@ impl Through {
             // own), input 1 the joining member, whose records cite the
             // tool's.
             let of_backing = |b: Backing| -> Result<Vec<u32>, BooleanError> {
-                match (b, &acc_records) {
-                    (Backing::Carried { input: 1, record }, _)
-                    | (Backing::Carried { input: 0, record }, None) => Ok(vec![record]),
-                    (Backing::Carried { input: 0, record }, Some(acc)) => {
+                let Backing::Carried { input, record } = b else {
+                    return Err(unread());
+                };
+                match (Operand::of_input(input), &acc_records) {
+                    (Some(Operand::B), _) | (Some(Operand::A), None) => Ok(vec![record]),
+                    (Some(Operand::A), Some(acc)) => {
                         acc.get(record as usize).cloned().ok_or_else(unread)
                     }
-                    _ => Err(unread()),
+                    (None, _) => Err(unread()),
                 }
             };
             let mut next = Vec::with_capacity(step.body.contacts.len());
@@ -776,7 +778,6 @@ impl Through {
             edge_classes: _,
             unread_partners: _,
             chart_cuts: _,
-            recharted,
             null_copies: _,
             cone_splits: _,
             edge_joins: _,
@@ -784,15 +785,6 @@ impl Through {
             carved_lineage: _,
             fused_seams: _,
         } = &out.naming;
-        // A sphere shell of the material the cut re-charted holds cells
-        // under keys its re-chart minted, which the read-back has no
-        // lineage for.
-        if !recharted[1].is_empty() {
-            return Err(BooleanError::JoinDesync {
-                what: "a cut by its tool's material re-charted a sphere shell of the material, \
-                       whose turned cells read back to no cell of the tool",
-            });
-        }
         let n = &mut out.naming;
         for (s, _) in &mut n.graft_faces {
             *s = self.face(*s);
@@ -908,14 +900,21 @@ impl Through {
         let records = &self.records;
         out.contacts = core::mem::take(&mut out.contacts).try_recited(
             |backing| match backing {
-                Backing::Carried { input: 1, record } => records
-                    .get(record as usize)
-                    .map(|tool| {
-                        tool.iter()
-                            .map(|&record| Backing::Carried { input: 1, record })
-                            .collect()
-                    })
-                    .ok_or_else(unread),
+                Backing::Carried { input, record }
+                    if Operand::of_input(input) == Some(Operand::B) =>
+                {
+                    records
+                        .get(record as usize)
+                        .map(|tool| {
+                            tool.iter()
+                                .map(|&record| Backing::Carried {
+                                    input: Operand::B.input(),
+                                    record,
+                                })
+                                .collect()
+                        })
+                        .ok_or_else(unread)
+                }
                 other => Ok(vec![other]),
             },
             |_| unread(),

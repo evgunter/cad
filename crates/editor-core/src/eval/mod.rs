@@ -21,7 +21,7 @@
 
 mod anchor;
 mod carry;
-mod class;
+pub(crate) mod class;
 mod counters;
 mod framed;
 pub mod measure;
@@ -29,6 +29,8 @@ pub mod members;
 mod memo;
 pub(crate) mod parts;
 
+use crate::say;
+use crate::sentence;
 pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
@@ -109,6 +111,10 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// The options this run's value bits read beyond the document and
     /// the tolerance ([`RunLane`]): what a dual bound to it compares.
     pub(crate) lane: RunLane,
+    /// The candidate generation its booleans ran
+    /// ([`EvalOptions::boolean_sweep`]), which no key hashes: what a run
+    /// holds its prior to ([`PriorRefusal::Options`]).
+    pub(crate) boolean_sweep: topo::SweepStrategy,
     /// **The run refused before building anything** ([`Self::refused_whole`]):
     /// every node carries one refusal the run raised up front — a
     /// tolerance conflict, a parameter box or a seed its scalar cannot
@@ -116,19 +122,18 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// to bind. Such a run reports [`EvalOutcome::Completed`], so this
     /// is the one place that says it is no build.
     pub(crate) whole_refusal: bool,
-    /// **A prior of another document, refused** (DI3): `Some` when
-    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
-    /// is not this document's, in which case the run had NO memo —
-    /// every node recomputed and [`Evaluation::reused`] is zero. The
-    /// payload is the same [`Mispaired`] the two erroring doors carry,
-    /// because the question is the same one.
+    /// **The prior this run was handed and took nothing from**
+    /// ([`PriorRefusal`]): one of another document (DI3), or one that ran
+    /// under other options than this run's, among those an op reads and
+    /// no key hashes. The run then had NO memo: every node recomputed,
+    /// no part row was carried, and [`Evaluation::reused`] is zero.
     ///
     /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
     /// is completed, canceled or exhausted, so the refusal is recorded on the
     /// value the caller already reads rather than pushed into an
     /// outcome arm that would mean something else. `None` is both "no
-    /// prior" and "a prior of this document".
-    pub prior_refused: Option<Mispaired>,
+    /// prior" and "a prior this run could read".
+    pub prior_refused: Option<PriorRefusal>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the document; Kahn's algorithm, ties to the
     /// lesser id, the node inserted first). Always the FULL order, even when
@@ -176,6 +181,18 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
     /// The parts this run entered and evaluated, carried for the run
     /// that names it as its prior.
+    /// **What each part run this evaluation made left in the symbolic
+    /// session** ([`geom_core::sym::NodeRecord`]), in the order run: a
+    /// part is built once in a replay however many nodes instantiate
+    /// it, so its decisions are counted here, once, and not on a node.
+    /// A replay's receipt is its nodes' records, these, and its
+    /// product's ([`crate::product::Product::sym`]).
+    pub parts_sym: Vec<Arc<geom_core::sym::NodeRecord>>,
+    /// Which symbolic expression table this evaluation's values were
+    /// built under ([`geom_core::sym::table`]); `None` outside a
+    /// symbolic session. A prior is read only under the table it was
+    /// built under ([`PriorRefusal::Table`]).
+    sym_table: Option<u64>,
     parts: parts::Carried<T>,
     /// The resolver this run crossed the document seam with: what a
     /// replay of the same document at another scalar resolves its parts
@@ -403,6 +420,14 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         crate::doc::two_spaces(self.spaces.get(&a).copied(), self.spaces.get(&b).copied())
     }
 
+    /// **The second computing frame this run built its constructions
+    /// in**, by bits ([`EvalOptions::computing_twist`]); `None` for a
+    /// run as built. No key hashes it, so a reader that reuses a body on
+    /// equal keys compares it too.
+    pub(crate) fn computing_frame(&self) -> Option<[u64; 7]> {
+        self.lane.twist
+    }
+
     /// The node's successful value, if it has one — [`Evaluation::usable`]
     /// for a reader to whom every standing is the same answer.
     pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
@@ -466,14 +491,14 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<T, (Option<RecipeNodeId>, String)>
+    ) -> Result<T, (Option<RecipeNodeId>, crate::Sentence)>
     where
         T: Copy,
     {
         self.reading(doc, var).map_err(|refusal| match refusal {
             measure::ObservedRefusal::Measure(standing) => {
                 self.node_error(standing.node()).map_or_else(
-                    || (Some(standing.node()), standing.to_string()),
+                    || (Some(standing.node()), standing.spoken(doc)),
                     |e| (Some(e.node), e.kind_spoken(doc)),
                 )
             }
@@ -481,7 +506,7 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
                 doc.observed_outputs(var)
                     .first()
                     .and_then(|out| doc.operation_of(*out)),
-                source.to_string(),
+                crate::Sentence::from(source.to_string()),
             ),
         })
     }
@@ -593,62 +618,61 @@ impl NodeStanding {
 pub(crate) struct SubjectStanding(&'static str, NodeStanding);
 
 impl crate::spoken::Say for SubjectStanding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
-        write!(f, "{} {}", self.0, crate::spoken::Said(&self.1, by))
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
+        say!(
+            f,
+            format_args!("{} ", self.0),
+            crate::spoken::Said(&self.1, by)
+        )
     }
 }
 
 impl core::fmt::Display for SubjectStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
 impl crate::spoken::Say for NodeStanding {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::sentence::Recourse;
         match *self {
-            Self::NotEvaluated { node } => write!(
+            Self::NotEvaluated { node } => say!(
                 f,
-                "{} has no result in this evaluation: the run stopped before it reached \
+                by.node(node),
+                format_args!(
+                    " has no result in this evaluation: the run stopped before it reached \
                  the node, canceled or out of its member budget. {}",
-                by.node(node),
-                Recourse(format_args!(
-                    "re-evaluate the document to completion; where it ran out, {}",
-                    crate::sentence::RAISE_THE_MEMBER_BUDGET
-                ))
+                    Recourse(format_args!(
+                        "re-evaluate the document to completion; where it ran out, {}",
+                        crate::sentence::RAISE_THE_MEMBER_BUDGET
+                    ))
+                )
             ),
-            Self::NotInDocument { node } => write!(
+            Self::NotInDocument { node } => say!(
                 f,
-                "{} is not a node of the document this evaluation ran over. {}",
                 by.node(node),
-                Recourse(
-                    "ask about one of that document's nodes, or evaluate the document the \
+                format_args!(
+                    " is not a node of the document this evaluation ran over. {}",
+                    Recourse(
+                        "ask about one of that document's nodes, or evaluate the document the \
                      node is in"
+                    )
                 )
             ),
-            Self::Failed { node } => write!(
+            Self::Failed { node } => say!(
                 f,
-                "{} failed, so it has no value — fix the node's own failure",
-                by.node(node)
+                by.node(node),
+                " failed, so it has no value — fix the node's own failure"
             ),
-            Self::Poisoned { node, through } => {
-                let through = by.node(through);
-                write!(
-                    f,
-                    "{} is poisoned by the failure at {through}, so it has no value — the \
-                     repair is upstream, at {through}",
-                    by.node(node)
-                )
-            }
+            Self::Poisoned { node, through } => say!(
+                f,
+                by.node(node),
+                " is poisoned by the failure at ",
+                by.node(through),
+                ", so it has no value — the repair is upstream, at ",
+                by.node(through)
+            ),
         }
     }
 }
@@ -656,7 +680,7 @@ impl crate::spoken::Say for NodeStanding {
 /// The standing where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -666,7 +690,7 @@ impl NodeStanding {
     /// standing is answered by an evaluation and carried inside values
     /// the evaluation memo reuses, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -939,8 +963,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     }
 
     /// **This value read whole**: in a member's view of its family, the
-    /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// family; else this. A read of a family whole (a list entry spliced
+    /// in, `…xs`, or an indexed read `xs[i]`) and a selection of one
     /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
@@ -1061,6 +1085,7 @@ impl Evaluation<f64> {
             pin: None,
             tolerance: tolerance_of(tol),
             lane: RunLane::default(),
+            boolean_sweep: topo::SweepStrategy::Realized,
             whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
@@ -1074,6 +1099,8 @@ impl Evaluation<f64> {
             reads: Arc::new(reads),
             sourced: Arc::default(),
             spaces: Arc::default(),
+            parts_sym: Vec::new(),
+            sym_table: geom_core::sym::table(),
             parts: parts::Carried::none(),
             resolver: None,
         }
@@ -1137,16 +1164,12 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// result. The family's one output names each body at its member's
     /// place, and names nothing at an empty one.
     ///
-    /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A member seat (a union's,
-    /// an intersect's or an assemble's) takes every member, and refuses
-    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
-    /// takes one member out of it by its tuple, the empty value at an
-    /// empty member; the product gather takes every body at its place.
-    /// Any other body seat that meets it whole takes ONE body and
-    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
-    /// booleans or one union of them, and the recipe does not guess
-    /// which.
+    /// **Who takes it.** A `Bodies` seat (a union's, an intersect's or
+    /// an assemble's member, a subtract's tool) takes every member, and
+    /// refuses an empty one [`NodeErrorKind::EmptyMember`]; an indexed
+    /// read takes one member out of it by its tuple, the empty value at
+    /// an empty member; a placement copies it whole; the product gather
+    /// takes every body at its place (D10 `[repetition]`).
     Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
@@ -1164,6 +1187,10 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
+    /// A [`crate::Node::Datum`]'s frame, in its target's coordinates: the
+    /// target's axes moved by the motion its bundle solved to
+    /// ([`NodeValue::motion`]). Not body-denoting.
+    Datum(geom_core::RigidMotion<T>),
     /// **A family of anything but bodies** (D10 `[repetition]`):
     /// profiles, measures, splits, assertions, a family of families. Its
     /// members are the value's ([`NodeValue::members`]); it has no
@@ -1208,6 +1235,9 @@ macro_rules! family_word {
     (family) => {
         "family"
     };
+    (datum) => {
+        "datum"
+    };
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
@@ -1224,6 +1254,7 @@ pub(crate) mod family {
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
     pub(crate) const FAMILY: &str = family_word!(family);
+    pub(crate) const DATUM: &str = family_word!(datum);
 }
 // OPERAND-VOCABULARY END
 
@@ -1328,6 +1359,7 @@ impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
             Self::Measure { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
             Self::Family => family::FAMILY,
+            Self::Datum(_) => family::DATUM,
         }
     }
 }
@@ -1462,7 +1494,7 @@ impl NodeRefusal {
     /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
     /// tree draws.
     #[must_use]
-    pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> String {
+    pub fn line_at(&self, node: RecipeNodeId, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
         failed_line(node, self.get(), by)
     }
 }
@@ -1471,10 +1503,14 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
-fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
-    format!(
-        "{} failed: {}",
+fn failed_line(
+    node: RecipeNodeId,
+    kind: &NodeErrorKind,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
+    sentence!(
         by.node(node),
+        " failed: ",
         crate::spoken::Said(kind, by.about(node))
     )
 }
@@ -1789,13 +1825,20 @@ pub enum NodeErrorKind {
         /// The member's refusal.
         source: Box<NodeErrorKind>,
     },
-    /// **Two indices read in one reader, neither within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **The indices of two binders read in one reader** (D10
+    /// `[repetition]`): no binder holds it.
+    TwoBinders {
         /// One index.
         a: crate::VarId,
         /// The other.
         b: crate::VarId,
+    },
+    /// **A binder that yields nothing and holds no assertion** (D10
+    /// `[repetition]`): what reads its indices is refused, since nothing
+    /// outside it could read what it builds.
+    YieldsNothing {
+        /// The binder, by its first index.
+        binder: crate::VarId,
     },
     /// **An index's count did not evaluate** where its reader is
     /// evaluated once per value.
@@ -1954,13 +1997,15 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// **A step of a union's fold refused** (DM4): the step folding
-    /// `member` into the accumulation of the members listed before it,
-    /// with the step's own refusal. The pairwise judgement decides every
-    /// pair of members before the fold in every member order; a refusal
+    /// **A step of a boolean's n-ary fold refused** (DM4) — a union's,
+    /// an intersect's, or a subtract's of two or more tools: the step
+    /// folding `member` into the accumulation of the members listed
+    /// before it, with the step's own refusal. The pairwise judgement
+    /// decides every pair of members before the fold in every member
+    /// order; a refusal
     /// only a fold step raises names the step, so it is never read as a
     /// pair's.
-    UnionFoldStep {
+    FoldStep {
         /// The position, in the node's member list, of the member the
         /// refusing step folds in: members of one family share a read.
         member: u32,
@@ -2150,7 +2195,7 @@ impl NodeErrorKind {
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
-// and then FORWARDS its payload's own `Display` — the kernel refusal
+// and then FORWARDS its payload's own sentence — the kernel refusal
 // still rides the variant unaltered (D2) for callers who match, but
 // this string is the only channel a caller who cannot match has, and
 // the bindings' `kind` tag carries the discriminant alone. An arm that
@@ -2160,7 +2205,9 @@ impl NodeErrorKind {
 // Owning a recourse the payload cannot spell buys an arm PROSE, never
 // the right to drop the payload.
 //
-// Every payload-holding arm forwards its payload's own `Display` —
+// Every payload-holding arm forwards its payload's own sentence (its
+// `Say` written as a piece, or the `Display` of a payload that names no
+// node) —
 // `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
 // `PlacementRuleFault` (D54's four) all carry one, and
 // `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
@@ -2180,11 +2227,7 @@ impl NodeErrorKind {
 // as its pin fixes them, so it says them itself ([`PartFault::held`]).
 impl crate::spoken::Say for NodeErrorKind {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         use crate::spoken::Said;
         match self {
             Self::Expr { slot, source } => {
@@ -2219,31 +2262,44 @@ impl crate::spoken::Say for NodeErrorKind {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
             Self::Trace(refusal) => write!(f, "the profile's trace refused at {refusal}"),
-            Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
-            Self::SpaceMismatch { a, b } => write!(
+            Self::Mate(fault) => say!(f, "the mate solve refused: ", Said(&**fault, by)),
+            Self::SpaceMismatch { a, b } => say!(
                 f,
-                "this reads {} and {}, and {}. {}",
+                "this reads ",
                 by.space(*a),
-                by.space(*b),
-                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
-                crate::sentence::Recourse(crate::sentence::place_into_one_space("read only"))
+                sentence!(
+                    " and ",
+                    by.space(*b),
+                    format_args!(
+                        ", and {}. {}",
+                        crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                        crate::sentence::Recourse(crate::sentence::place_into_one_space(
+                            "read only"
+                        ))
+                    )
+                )
             ),
             Self::CrossingUnverified {
                 instance,
                 outer,
                 name,
-            } => write!(
+            } => say!(
                 f,
-                "{}'s seam declaration crosses at {} on the remainder and claims {} in \
-                 the part, which this version of the part does not name. {}",
                 by.node_as(*instance, "instance"),
+                "'s seam declaration crosses at ",
                 by.name(outer),
-                // The part's own nodes and steps are another document's
-                // ids, so its name is said by tag.
-                crate::spoken::Speaker::TAG.name(name),
-                crate::sentence::Recourse(
-                    "update the reference to a version of the part that names it"
-                ),
+                sentence!(
+                    " on the remainder and claims ", // The part's own nodes and steps are another document's
+                    // ids, so its name is said by tag.
+                    crate::spoken::Speaker::TAG.name(name),
+                    format_args!(
+                        " in \
+                 the part, which this version of the part does not name. {}",
+                        crate::sentence::Recourse(
+                            "update the reference to a version of the part that names it"
+                        )
+                    )
+                )
             ),
             // Every node is read at the build that ran it.
             Self::Extrude(e) => write!(
@@ -2291,10 +2347,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 verb,
                 error,
                 edge: Some(edge),
-            } => write!(
+            } => say!(
                 f,
-                "the {verb} op refused at {edge}: {}",
-                error.render(geom_brep::recourse::Reading::Build)
+                format_args!("the {verb} op refused at "),
+                by.name(edge),
+                format_args!(": {}", error.render(geom_brep::recourse::Reading::Build))
             ),
             Self::Blend {
                 verb,
@@ -2331,7 +2388,7 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
-                write!(f, "{} names no live node", by.node_as(*input, "input"))
+                say!(f, by.node_as(*input, "input"), " names no live node")
             }
             Self::UnresolvedRead { slot, var } => write!(
                 f,
@@ -2345,14 +2402,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 reference,
                 error,
             } => match by.selection_reference(*slot, *var, *reference, error.name()) {
-                Some(at) => write!(
+                Some(at) => say!(
                     f,
-                    "{}",
                     crate::spoken::Said(&crate::resolve::AboutReference(error, at), by)
                 ),
-                None => write!(
+                None => say!(
                     f,
-                    "a selected name failed to resolve: {}",
+                    "a selected name failed to resolve: ",
                     crate::spoken::Said(error.as_ref(), by)
                 ),
             },
@@ -2364,8 +2420,8 @@ impl crate::spoken::Say for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
-            Self::ParamBox { source } => write!(f, "{source}"),
-            Self::Seed { source } => write!(f, "{source}"),
+            Self::ParamBox { source } => say!(f, Said(&source, by)),
+            Self::Seed { source } => say!(f, Said(&source, by)),
             Self::RecordRefused => f.write_str(
                 "the build of record built no value at this node; where it refused the node, \
                  its refusal is the record's own, at the same node. Recourse: answer the \
@@ -2380,30 +2436,36 @@ impl crate::spoken::Say for NodeErrorKind {
                 input,
                 expected,
                 found,
-            } => write!(
+            } => say!(
                 f,
-                "{} carries kind {found}; the operand needs kind {expected}",
-                by.node_as(*input, "input")
+                by.node_as(*input, "input"),
+                format_args!(" carries kind {found}; the operand needs kind {expected}")
             ),
-            Self::EmptyOperand { input } => write!(
+            Self::EmptyOperand { input } => say!(
                 f,
-                "{} is the empty value — the body ops take real bodies",
-                by.node_as(*input, "input")
+                by.node_as(*input, "input"),
+                " is the empty value — the body ops take real bodies"
             ),
             Self::EmptyMember { input, at } => {
-                let at: Vec<String> = at
-                    .iter()
-                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
-                    .collect();
-                write!(
+                let at = crate::Sentence::joined(
+                    at.iter().map(|&(index, value)| {
+                        sentence!(by.read(index), format_args!(" = {value}"))
+                    }),
+                    ", ",
+                );
+                say!(
                     f,
-                    "the member of {} at {} is the empty value — the body ops take real \
-                     bodies. {}",
+                    "the member of ",
                     by.node_as(*input, "input"),
-                    at.join(", "),
-                    crate::sentence::Recourse(
-                        "read the members that are bodies by index, or change the member's \
+                    " at ",
+                    at,
+                    format_args!(
+                        " is the empty value — the body ops take real \
+                     bodies. {}",
+                        crate::sentence::Recourse(
+                            "read the members that are bodies by index, or change the member's \
                          operands so it keeps material"
+                        )
                     )
                 )
             }
@@ -2420,11 +2482,15 @@ impl crate::spoken::Say for NodeErrorKind {
             } => {
                 let input = by.node_as(*input, "input");
                 match into {
-                    None => write!(f, "{input} does not finish where this operation takes it: ")?,
-                    Some(into) => write!(
+                    None => say!(f, input, " does not finish where this operation takes it: ")?,
+                    Some(into) => say!(
                         f,
-                        "{input}, read into {}'s frame, does not finish there: ",
-                        by.node(*into)
+                        input,
+                        sentence!(
+                            ", read into ",
+                            by.node(*into),
+                            "'s frame, does not finish there: "
+                        )
                     )?,
                 }
                 write!(
@@ -2433,14 +2499,17 @@ impl crate::spoken::Say for NodeErrorKind {
                     findings.render(geom_brep::recourse::Reading::AtRest)
                 )
             }
-            Self::EmptyHalf { input, half } => write!(
+            Self::EmptyHalf { input, half } => say!(
                 f,
-                "the split's {} half ({}) holds no material",
-                match half {
-                    crate::names::SplitHalf::Above => "above",
-                    crate::names::SplitHalf::Below => "below",
-                },
-                by.node(*input)
+                format_args!(
+                    "the split's {} half (",
+                    match half {
+                        crate::names::SplitHalf::Above => "above",
+                        crate::names::SplitHalf::Below => "below",
+                    }
+                ),
+                by.node(*input),
+                ") holds no material"
             ),
             Self::NoSuchPiece { pick, at } => write!(
                 f,
@@ -2466,53 +2535,73 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             Self::MemberOutOfRange { input, at } => {
                 let at: Vec<String> = at.iter().map(i64::to_string).collect();
-                write!(
+                say!(
                     f,
-                    "{} has no member at [{}], which is outside its indices' range. {}",
                     by.node(*input),
-                    at.join(", "),
-                    crate::sentence::Recourse("read a member each index's count holds")
+                    format_args!(
+                        " has no member at [{}], which is outside its indices' range. {}",
+                        at.join(", "),
+                        crate::sentence::Recourse("read a member each index's count holds")
+                    )
                 )
             }
             Self::MemberRefused { at, source } => {
-                let at: Vec<String> = at
-                    .iter()
-                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
-                    .collect();
-                write!(
-                    f,
-                    "the member at {} refused: {}",
-                    at.join(", "),
-                    Said(&**source, by)
-                )
+                let at = crate::Sentence::joined(
+                    at.iter().map(|&(index, value)| {
+                        sentence!(by.read(index), format_args!(" = {value}"))
+                    }),
+                    ", ",
+                );
+                say!(f, "the member at ", at, " refused: ", Said(&**source, by))
             }
-            Self::IndicesUnrelated { a, b } => write!(
+            Self::TwoBinders { a, b } => say!(
                 f,
-                "the node reads the indices {} and {}, and neither is within the other, so \
-                 they meet in no reader. {}",
+                "the node reads the indices ",
                 by.read(*a),
+                " and ",
                 by.read(*b),
-                crate::sentence::Recourse("declare one within the other, or read one index here")
+                format_args!(
+                    ", which are of two binders, and a reader repeats inside one binder. {}",
+                    crate::sentence::Recourse(
+                        "bind both indices in one binder, or read what one binder yields"
+                    )
+                )
+            ),
+            Self::YieldsNothing { binder } => say!(
+                f,
+                "the node reads the index ",
+                by.read(*binder),
+                format_args!(
+                    ", whose binder yields nothing. {}",
+                    crate::sentence::Recourse("name what the binder yields")
+                )
             ),
             Self::IndexCount { index, source } => {
-                write!(
+                say!(
                     f,
-                    "the count of index {} did not evaluate: {source}",
-                    by.read(*index)
+                    "the count of index ",
+                    by.read(*index),
+                    format_args!(" did not evaluate: {source}")
                 )
             }
-            Self::IndexCountOutOfRange { index, count } if *count < 0 => write!(
+            Self::IndexCountOutOfRange { index, count } if *count < 0 => say!(
                 f,
-                "the count of index {} evaluated to {count}, below zero. Recourse: make it \
-                 evaluate to zero or more",
+                "the count of index ",
                 by.read(*index),
+                format_args!(
+                    " evaluated to {count}, below zero. Recourse: make it \
+                 evaluate to zero or more"
+                )
             ),
-            Self::IndexCountOutOfRange { index, count } => write!(
+            Self::IndexCountOutOfRange { index, count } => say!(
                 f,
-                "the count of index {} evaluated to {count}, and a member index is a 32-bit \
-                 value, so no count past {} can name its members. Recourse: lower the count",
+                "the count of index ",
                 by.read(*index),
-                crate::MemberCountFault::ADMITS.end()
+                format_args!(
+                    " evaluated to {count}, and a member index is a 32-bit \
+                 value, so no count past {} can name its members. Recourse: lower the count",
+                    crate::MemberCountFault::ADMITS.end()
+                )
             ),
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
@@ -2569,7 +2658,7 @@ impl crate::spoken::Say for NodeErrorKind {
                  geometry whose carrier has one",
                 crate::sentence::article(&pose.to_string())
             ),
-            Self::PoseDegenerate { construction } => write!(f, "{construction}"),
+            Self::PoseDegenerate { construction } => say!(f, Said(&construction, by)),
             Self::PoseScalar { var: _, source } => {
                 write!(f, "a scalar the pose reads did not evaluate: {source}")
             }
@@ -2597,15 +2686,16 @@ impl crate::spoken::Say for NodeErrorKind {
             // #380: the payload is editor-core's OWN diagnostic, not a
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
-            Self::Naming(e) => write!(f, "name emission failed: {}", Said(e, by)),
-            Self::UnionFoldStep {
+            Self::Naming(e) => say!(f, "name emission failed: ", Said(e, by)),
+            Self::FoldStep {
                 member,
                 read,
                 refusal,
-            } => write!(
+            } => say!(
                 f,
-                "the fold refused at the step that folds in member {member} ({}): {}",
+                format_args!("the fold refused at the step that folds in member {member} ("),
                 by.read(*read),
+                "): ",
                 Said(refusal.as_ref(), by)
             ),
             Self::Shell(e) => write!(
@@ -2624,7 +2714,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 var: _,
                 error,
             } => {
-                write!(f, "the measure's {slot} could not be read back: {error}")
+                say!(
+                    f,
+                    format_args!("the measure's {slot} could not be read back: "),
+                    Said(&error, by)
+                )
             }
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2658,7 +2752,7 @@ impl crate::spoken::Say for NodeErrorKind {
             }
             // The reference is data, not prose: the typed arm keeps it,
             // and a surface names the part by what it knows it as.
-            Self::Part { fault, .. } => write!(f, "instantiating the part: {fault}"),
+            Self::Part { fault, .. } => say!(f, "instantiating the part: ", Said(&fault, by)),
         }
     }
 }
@@ -2666,7 +2760,7 @@ impl crate::spoken::Say for NodeErrorKind {
 /// The kind where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -2752,7 +2846,7 @@ impl CarriedLevel<'_> {
     /// them, never from `here`: ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
-    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> String {
+    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> crate::Sentence {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
             CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
@@ -2763,7 +2857,7 @@ impl CarriedLevel<'_> {
     /// The level where no document is at hand: a node of the outermost
     /// document by its tag, a part's as its fault holds it.
     #[must_use]
-    pub fn line(&self) -> String {
+    pub fn line(&self) -> crate::Sentence {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::TAG,
             CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
@@ -2840,7 +2934,7 @@ impl NodeError {
         &self,
         doc: &Doc<P>,
         evaluation: &dyn crate::NameTables,
-    ) -> String {
+    ) -> crate::Sentence {
         failed_line(
             self.node,
             &self.kind,
@@ -2855,9 +2949,8 @@ impl NodeError {
     /// in place of the kind's documentless `Display`, which writes a
     /// reader `#<ordinal>:<hex>`.
     #[must_use]
-    pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
-            .to_string()
+    pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Sentence {
+        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node)).sentence()
     }
 }
 
@@ -2865,11 +2958,11 @@ impl NodeError {
 /// by its tag, then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&failed_line(
-            self.node,
-            &self.kind,
-            crate::spoken::Speaker::TAG,
-        ))
+        write!(
+            f,
+            "{}",
+            failed_line(self.node, &self.kind, crate::spoken::Speaker::TAG)
+        )
     }
 }
 
@@ -3003,14 +3096,13 @@ pub(crate) mod leaf {
 
     /// A shared memo prior over the nominal box, for the numeric lane.
     ///
-    /// **The symbolic lane has none, deliberately.** A `Sym` value carries
-    /// a DAG node id, its hash-consing table is per session and thread-local
-    /// (`geom_core::sym::with_session`), and a memo built in one session and
-    /// served into another hands the second session ids it has no nodes for.
-    /// The forms would freeze rather than cancel — sound, but it would
-    /// silently switch the tier off for exactly the subgraph the prior was
-    /// built to save. A per-leaf session with no prior costs evaluation time
-    /// and claims nothing false.
+    /// **The symbolic lane has none.** A `Sym` value names nodes of
+    /// the expression table it was built under
+    /// (`geom_core::sym::table`): a prior built under the same drive's
+    /// table would be read, and one built under another is not
+    /// (`PriorRefusal::Table`). No caller hands a symbolic leaf a
+    /// prior of its own drive yet; a leaf with none costs evaluation
+    /// time and claims nothing false.
     pub(crate) enum LeafPrior {
         /// No prior — every leaf evaluates standalone.
         None,
@@ -3055,7 +3147,7 @@ pub(crate) mod leaf {
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
     pub(crate) type MeasureRead =
-        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, crate::Sentence)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]
@@ -3236,11 +3328,13 @@ pub struct EvalOptions {
     /// the SAME document in one test run. Results are bit-identical
     /// either way (the tree prunes, predicates decide — the suite pins
     /// it), which is also why the strategy is deliberately NOT part of
-    /// any content key. The one strategy-dependent OBSERVABLE is the
-    /// verdict LOG (`NodeValue::verdicts`): pruning runs strictly
-    /// fewer predicates, so logs are only comparable within one
-    /// strategy (the diff engine always compares production runs).
-    /// Production default: `Realized`.
+    /// any content key. What does depend on the strategy is the verdict
+    /// LOG (`NodeValue::verdicts`): pruning runs strictly fewer
+    /// predicates, so logs are only comparable within one strategy (the
+    /// diff engine always compares production runs), and a pair the
+    /// tree prunes can refuse where the brute-force sweep examines it.
+    /// So a prior that ran the other strategy is no memo for this run
+    /// ([`PriorRefusal::Options`]). Production default: `Realized`.
     pub boolean_sweep: topo::SweepStrategy,
     /// The document seam (ASM-2A D-3): how an `InstantiatePart` node
     /// reaches the document it pins. `None` — the default — crosses no
@@ -3282,7 +3376,9 @@ pub struct EvalOptions {
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
     /// for both refuses every node. A part it resolves binds its own
-    /// variables as symbols of its own document.
+    /// variables as symbols of its own document, so a prior that ran
+    /// under the other setting is no memo for this run
+    /// ([`PriorRefusal::Options`]).
     pub symbols: bool,
     /// **Record the document's content pin** ([`Evaluation::pin`]):
     /// the run canonicalizes the document it read once, after the walk.
@@ -3299,6 +3395,8 @@ pub struct EvalOptions {
     /// body stands where it did in its space. Answer-preserving up to the
     /// rounding of the frames, and test-facing as [`Self::parallel`] is:
     /// the row that holds the frame no part of meaning compares both.
+    /// It enters no key, and a prior that ran under another frame is no
+    /// memo for this run ([`PriorRefusal::Options`]).
     /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
     /// **The run's member budget** (D9): the listing steps every family
@@ -3682,6 +3780,13 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
+    /// The point enclosure `[0, 0]`, as `exactly_zero` reads it: an
+    /// enclosure's midpoint rounds to zero for `[−5e−324, 0]`, which is no
+    /// zero everywhere it stands for.
+    fn zero_everywhere(self) -> bool {
+        self.exactly_zero()
+    }
+
     fn solve_atan2(y: Self, x: Self) -> Self {
         crate::mate::solve::box_atan2(y, x)
     }
@@ -3713,6 +3818,12 @@ where
         self.value.exactly_zero()
     }
 
+    /// The value and the derivative both zero everywhere: a value zero
+    /// only at the seed's point is no zero of the function.
+    fn zero_everywhere(self) -> bool {
+        self.value.zero_everywhere() && self.deriv.zero_everywhere()
+    }
+
     fn solve_atan2(y: Self, x: Self) -> Self {
         let angle = geom_core::Real::atan2(y, x);
         Self {
@@ -3727,7 +3838,9 @@ where
 /// therefore `Real::atan2` (`libm`'s at `f64`), not the platform one the
 /// `f64` and dual lanes keep, and may differ from the `f64` lane's by an
 /// ulp: `Sym` mints its value and its recorded node together inside
-/// `geom-core`, which has no door to set one beside the other.
+/// `geom-core`, which has no door to set one beside the other. A chart's
+/// spin is set from its frames, as on the interval lane, so a chart's map
+/// differs from the `f64` lane's by its rounding.
 impl<T: crate::mate::SolveScalar> crate::mate::SolveScalar for geom_core::Sym<T>
 where
     geom_core::Sym<T>: geom_core::Decide,
@@ -3744,8 +3857,26 @@ where
         self.value().exactly_zero()
     }
 
+    /// **A box lane's point zero, never a point lane's number**: at
+    /// `Sym<Interval>` the enclosure `[0, 0]`, which holds over the whole
+    /// box the lane claims over; at `Sym<f64>` never, since the replay's
+    /// claim ranges over every value of the symbols and the number is the
+    /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
+    /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
+    fn zero_everywhere(self) -> bool {
+        self.value().exactly_zero()
+    }
+
+    /// A chart's map is set from its frames, `rot(a, θ)·S·O`: a
+    /// polynomial in the chart's inputs, with no `atan2` of the folded
+    /// map and no renormalized axes for the tier to see through. It is
+    /// the measured spelling's map over the reals because `S` is the least
+    /// turn as a function of its directions: neither the least turn nor
+    /// the chart's aligned axis reads an exact value off the nominal at
+    /// `Sym` (`SolveScalar::zero_everywhere`), so `S` carries every
+    /// variable the face's normal does.
     fn spins_by_frames() -> bool {
-        T::spins_by_frames()
+        true
     }
 
     fn solve_atan2(y: Self, x: Self) -> Self {
@@ -3787,7 +3918,7 @@ pub fn bound_pose<T: EvalScalar>(
     read: impl Into<crate::pose::RoleRead<crate::VarId>>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
+    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &probe_env(doc, ev), tol)
 }
 
 /// **The faces `program` traces, read against an evaluation** as its
@@ -3837,12 +3968,25 @@ fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
     decided: Option<&wire::trace::DrawnFrame<T>>,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
-    // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // member reads mint their indices as counts `ev` never bound, and
-    // whose values (a face's chart's spin and slides) are definitions it
-    // never bound. They are bound in the run's order: each count as the
-    // document holds it (`edit::written_count`), then the definitions
-    // over them (`Doc::bind_definitions`).
+    let env = probe_env(doc, ev);
+    Ok(
+        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
+            .map_or_else(Vec::new, |d| d.faces),
+    )
+}
+
+/// **`ev`'s environment, with what a probe lowered into `doc` reads
+/// bound**: `doc` may be `ev`'s document with a probe lowered into it
+/// (a draft's bundle, a profile's program), whose member reads mint
+/// their indices as counts `ev` never bound, and whose values (a face's
+/// chart's spin and slides, a mate's typed offset) are definitions it
+/// never bound. They are bound in the run's order: each count as the
+/// document holds it (`edit::written_count`), then the definitions over
+/// them (`Doc::bind_definitions`). `ev`'s own where nothing is unbound.
+fn probe_env<'e, T: EvalScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &'e Evaluation<T>,
+) -> std::borrow::Cow<'e, crate::expr::VarEnv<T>> {
     let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
@@ -3854,29 +3998,37 @@ fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
             Some(crate::var::VarDef::Defined(_))
         )
     });
-    let counts: Vec<(crate::VarId, i64)> = unbound
+    let counts: Vec<(crate::VarId, crate::expr::ParamValue<T>)> = unbound
         .into_iter()
-        .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
+        .filter_map(|var| {
+            // A free variable the probe minted (a typed offset) at its
+            // nominal, as the run binds every free one (`Doc::var_env`).
+            let value = match doc.free(var) {
+                Some(&crate::doc::FreeVar::Continuous { dim, value, .. }) => {
+                    crate::expr::ParamValue::Continuous {
+                        dim,
+                        value: T::from_f64(value),
+                    }
+                }
+                Some(&crate::doc::FreeVar::Count { value }) => {
+                    crate::expr::ParamValue::Count(value)
+                }
+                None => crate::expr::ParamValue::Count(crate::edit::written_count(doc, var)?),
+            };
+            Some((var, value))
+        })
         .collect();
-    let env = match (defined, counts.is_empty()) {
+    match (defined, counts.is_empty()) {
         (false, true) => std::borrow::Cow::Borrowed(&ev.env),
         _ => {
             let mut env = ev.env.clone();
-            env.bindings.extend(
-                counts
-                    .into_iter()
-                    .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
-            );
+            env.bindings.extend(counts);
             if defined {
                 doc.bind_definitions(&mut env);
             }
             std::borrow::Cow::Owned(env)
         }
-    };
-    Ok(
-        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
-            .map_or_else(Vec::new, |d| d.faces),
-    )
+    }
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
@@ -4007,6 +4159,79 @@ impl core::fmt::Display for RecordMispairing {
                  run has one, or over one where it has none",
             ),
         }
+    }
+}
+
+/// **Why a run took nothing from the prior it was handed**
+/// ([`Evaluation::prior_refused`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PriorRefusal {
+    /// The prior is an evaluation of another document (DI3).
+    Document(Mispaired),
+    /// The prior ran under another second computing frame
+    /// ([`EvalOptions::computing_twist`]), another boolean candidate
+    /// generation ([`EvalOptions::boolean_sweep`]) or the other setting
+    /// of [`EvalOptions::symbols`]. An op reads each (a construction its
+    /// frame, a boolean its strategy, whose verdict log and refusals
+    /// differ, a part's own run all three) and no key hashes any, so a
+    /// node of the prior with this run's keys need not hold this run's
+    /// value. They are the run's, the same at every node, so the prior
+    /// is refused whole rather than each written into every key.
+    ///
+    /// A caller that wants its prior read hands one made under the same
+    /// three; a run handed another recomputes every node.
+    Options,
+    /// The prior was built under another expression table than the one
+    /// this run's symbolic session is on, or under none
+    /// ([`Evaluation::sym_table`]): its values name nodes this table
+    /// does not hold, and a result reused from it would be read as
+    /// unknowns. Another leaf of the same drive is another session on
+    /// the same table, and its prior is read.
+    Table,
+}
+
+impl PriorRefusal {
+    /// Why a run of `doc` at `opts` reads nothing of `prior`, if it
+    /// does not.
+    fn of<T: topo::AtRestPolicy + Decide>(
+        doc: &Doc<ProfileProgram>,
+        prior: &Evaluation<T>,
+        opts: &EvalOptions,
+    ) -> Option<Self> {
+        if let Some(mispaired) = crate::ident::mispaired(doc.id(), prior.document) {
+            return Some(Self::Document(mispaired));
+        }
+        // Every option, by name: one added compiles only once it is
+        // said here whether a key hashes it, this door compares it, or
+        // no value reads it.
+        let EvalOptions {
+            // The run's identity token; no value reads it.
+            epoch: _,
+            // The schedule; results are the serial walk's either way.
+            parallel: _,
+            // Compared: a boolean's log and refusals read it.
+            boolean_sweep,
+            // The store, checked by whoever mounts it (IDENTITY DI2).
+            resolver: _,
+            // Keyed: the box and the seed are in every slot's value.
+            param_box: _,
+            seed: _,
+            // Compared: a part's own run binds its variables by it.
+            symbols,
+            // Read after the walk.
+            pin: _,
+            // Compared, by bits: a construction is built in its frame.
+            computing_twist: _,
+            // Decides how far the run gets, never a value.
+            member_budget: _,
+        } = opts;
+        let twist = RunLane::of(opts).twist;
+        if (prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
+            != (twist, *symbols, *boolean_sweep)
+        {
+            return Some(Self::Options);
+        }
+        (!prior_under_this_table(prior)).then_some(Self::Table)
     }
 }
 
@@ -4418,33 +4643,27 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
-    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // The memo's own door: a prior is a prior OF a document (DI3), and
     // node ids are minted per document, so an evaluation of another
     // document can collide on them and be mined for hits that are
-    // about other geometry. Refused HERE, once, before the schedule is
-    // even built — which is what makes the per-node lookup below
-    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
-    // reach a foreign node, rather than a check repeated per node.
-    let (prior, prior_refused) =
-        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
-            Some((_, refused)) => (None, Some(refused)),
-            None => (prior, None),
-        };
+    // about other geometry; and it is a prior UNDER the options an op
+    // reads and no key hashes ([`PriorRefusal::Options`]). Refused
+    // HERE, once, before the schedule is even built, which is what
+    // makes the per-node lookup below (`prior.and_then(|p|
+    // p.nodes.get(&id))`) and the part rows carried from the prior
+    // (`parts::PartStore::enter`) reads of a run this one could have
+    // been, rather than a check repeated per node.
+    let (prior, prior_refused) = match prior.and_then(|p| PriorRefusal::of(doc, p, opts)) {
+        Some(refused) => (None, Some(refused)),
+        None => (prior, None),
+    };
     // The scope this document's nodes mint inside: the caller's, and
     // for an instantiated document its pin under that, because two
     // documents' node ids are minted apart and can coincide.
     let mints = geom_core::sym::MintScope::current();
-    let mints = match &reached {
-        Some((_, pin)) => {
-            let words: Vec<u64> = pin
-                .0
-                .chunks(8)
-                .map(|bytes| bytes.iter().fold(0, |word, &b| (word << 8) | u64::from(b)))
-                .collect();
-            mints.child(&words)
-        }
-        None => mints,
-    };
+    let mints = reached
+        .as_ref()
+        .map_or(mints, |(_, pin)| mints.child(&pin.words()));
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
@@ -4613,7 +4832,7 @@ where
             }
             _ => 0,
         };
-        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+        let listed = match chains.get(&id).and_then(Chained::chain) {
             Some(chain) if !chain.is_empty() => {
                 members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
             }
@@ -4637,6 +4856,7 @@ where
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
+            built: Vec::new(),
         },
         (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
@@ -4783,6 +5003,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: false,
         prior_refused,
         order,
@@ -4796,22 +5017,69 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: entry.built,
+        sym_table: geom_core::sym::table(),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
 }
 
+/// **What evaluation makes of a node's reach** ([`chains_of`]): the
+/// indices it reaches, as [`crate::repetition::Reach`] reads them, or
+/// the binder it stands in yielding nothing, which the evaluation
+/// refuses and the reach itself never says.
+#[derive(Debug, Clone)]
+enum Chained {
+    /// The reach as read.
+    Reached(crate::repetition::Reached),
+    /// The node stands in the binder, by its first index, which yields
+    /// nothing and holds no assertion.
+    YieldsNothing(crate::VarId),
+}
+
+impl Chained {
+    /// The chain, `None` where the node is refused.
+    fn chain(&self) -> Option<&[crate::VarId]> {
+        match self {
+            Self::Reached(reached) => reached.chain(),
+            Self::YieldsNothing(_) => None,
+        }
+    }
+}
+
 /// **Which indices each node of `order` reaches**, read off `doc`'s
 /// recipe: what a node is evaluated once per member of ([`members`]).
-fn chains_of(
-    doc: &Doc<ProfileProgram>,
-    order: &[RecipeNodeId],
-) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+fn chains_of(doc: &Doc<ProfileProgram>, order: &[RecipeNodeId]) -> BTreeMap<RecipeNodeId, Chained> {
     if !doc.declares_index() {
         return BTreeMap::new();
     }
     let mut reach = crate::repetition::Reach::new(doc);
-    order.iter().map(|&id| (id, reach.node(id))).collect()
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> =
+        order.iter().map(|&id| (id, reach.node(id))).collect();
+    // A binder that yields nothing refuses what it holds, unless it
+    // holds an assertion: an assertion is its own yield, a family of
+    // verdicts.
+    let binder_of = |reached: &crate::repetition::Reached| {
+        reached
+            .chain()
+            .and_then(|chain| chain.first())
+            .and_then(|&index| reach.binders().seat(index))
+            .map(|(binder, _)| binder)
+    };
+    let asserting: std::collections::BTreeSet<crate::VarId> = chains
+        .iter()
+        .filter(|(id, _)| matches!(doc.node(**id), Some(crate::Node::Assertion(_))))
+        .filter_map(|(_, reached)| binder_of(reached))
+        .collect();
+    chains
+        .iter()
+        .map(|(&id, reached)| match binder_of(reached) {
+            Some(binder) if doc.yields(binder).is_empty() && !asserting.contains(&binder) => {
+                (id, Chained::YieldsNothing(binder))
+            }
+            _ => (id, Chained::Reached(reached.clone())),
+        })
+        .collect()
 }
 
 /// **A part document's own listing steps**: its families', in its
@@ -4830,7 +5098,7 @@ fn own_steps(
     for id in &order {
         if let Some(chain) = chains
             .get(id)
-            .and_then(crate::repetition::Reached::chain)
+            .and_then(Chained::chain)
             .filter(|chain| !chain.is_empty())
         {
             match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
@@ -4922,7 +5190,7 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -4947,7 +5215,7 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::ParamBoxError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4970,7 +5238,7 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     source: crate::analysis::SeedError,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4991,7 +5259,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
-    prior_refused: Option<Mispaired>,
+    prior_refused: Option<PriorRefusal>,
     tol: Tol,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
@@ -5021,6 +5289,7 @@ where
         pin: None,
         tolerance: tolerance_of(tol),
         lane: RunLane::of(opts),
+        boolean_sweep: opts.boolean_sweep,
         whole_refusal: true,
         prior_refused,
         order,
@@ -5034,6 +5303,8 @@ where
         reads: Arc::new(doc.output_ports()),
         sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
+        parts_sym: Vec::new(),
+        sym_table: geom_core::sym::table(),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
     }
@@ -5124,7 +5395,7 @@ fn eval_any<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
-    chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
+    chains: &BTreeMap<RecipeNodeId, Chained>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
@@ -5138,6 +5409,10 @@ where
     // prior value is reused only where this run reads the very part row
     // the prior carried: a row rebuilt here may be other content under
     // the same pin ([`parts::Reached::carried_from`]).
+    // The node's scope, open over everything done on its behalf: a
+    // family's listing and its value as well as each member's step,
+    // which opens the member's own inside it.
+    let _mints = node_mints(op_env.mints, id, &[]).enter();
     let prior = prior
         .filter(|p| {
             parts::instantiated(doc, id)
@@ -5145,32 +5420,49 @@ where
         })
         .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
-                kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
+                kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
                 sym: Arc::default(),
             }),
             reused: false,
         },
-        Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
-            members::eval_family(
-                doc,
-                env,
-                id,
-                chain,
-                results,
-                prior,
-                cancel,
-                op_env,
-                |env, results, prior, op_env, at| {
-                    let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
-                    #[cfg(debug_assertions)]
-                    own_bodies(id, &member);
-                    member
-                },
-            )?
+        Some(Chained::YieldsNothing(binder)) => NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::YieldsNothing { binder: *binder },
+                escalations: Arc::new(Vec::new()),
+                sym: Arc::default(),
+            }),
+            reused: false,
+        },
+        Some(Chained::Reached(crate::repetition::Reached::Chain(chain))) if !chain.is_empty() => {
+            // The family is a scope of its own, named by the node, and
+            // its members' scopes open inside it: the family's record
+            // holds what every member registered and decided, and what
+            // the schedule decided between them, so a node that reads
+            // the family whole receives all of it.
+            let (family, record) = node_mints(op_env.mints, id, &[]).node([], || {
+                members::eval_family(
+                    doc,
+                    env,
+                    id,
+                    chain,
+                    results,
+                    prior,
+                    cancel,
+                    op_env,
+                    |env, results, prior, op_env, at| {
+                        let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
+                        #[cfg(debug_assertions)]
+                        own_bodies(id, &member);
+                        member
+                    },
+                )
+            });
+            recorded(family?, record)
         }
         _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
     };
@@ -5229,59 +5521,67 @@ fn bookkeep<T: topo::AtRestPolicy + Decide>(
 /// ([`geom_core::sym::mint`]): inside the evaluation's scope, the node's
 /// id and the member it is evaluated as. One node is one scope in every
 /// replay of its document, so the k-th value it mints with no
-/// expression has one name in all of them; two members of a family are
-/// two scopes, because one replay holds both.
+/// expression in a session has one name in all of them; two members of
+/// a family are two scopes, because a member can be served from a prior
+/// while its siblings run, and their names must not depend on which.
+///
+/// The name is the node's ID, which content keys leave out
+/// ([`NamingKey`]): a key that feeds such a value, a measured value
+/// read into a later node's slot, hashes the id of the node that minted
+/// it. Whole-value reuse already asks the naming key, which embeds
+/// every upstream id, so no hit is lost that it would not refuse.
 fn node_mints(
     inside: geom_core::sym::MintScope,
     id: RecipeNodeId,
     at: &[(crate::VarId, i64)],
 ) -> geom_core::sym::MintScope {
-    let word = |id: crate::MintId| [u64::from(id.ordinal()), id.digest()];
-    let words: Vec<u64> = word(id.0)
+    let words: Vec<u64> = [u64::from(id.0.ordinal()), id.0.digest()]
         .into_iter()
-        .chain(
-            at.iter()
-                .flat_map(|&(var, index)| word(var.0).into_iter().chain([index.cast_unsigned()])),
-        )
+        .chain(members::at_words(at))
         .collect();
     inside.child(&words)
 }
 
-/// **What the nodes upstream of `id` left in the symbolic session**
-/// ([`NodeValue::sym`]): every node `id` reads, directly or through
-/// another, that registered an identity, in node-id order. A node's
-/// scope is opened over these and over no other node's
-/// ([`geom_core::sym::MintScope::node`]).
-fn upstream_records<T: topo::AtRestPolicy + Decide>(
-    doc: &Doc<ProfileProgram>,
-    id: RecipeNodeId,
-    results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-) -> Vec<Arc<geom_core::sym::NodeRecord>> {
+/// **Whether `prior`'s values mean here what they meant where they were
+/// built**: inside a symbolic session, only a prior built under the
+/// same expression table (another leaf of the same drive is another
+/// session and the same table). A value built under another table, or
+/// under none, names nodes this table does not hold, and a result
+/// reused from it would be read as unknowns. Such a prior is not read:
+/// the evaluation builds as it does with none.
+fn prior_under_this_table<T: topo::AtRestPolicy + Decide>(prior: &Evaluation<T>) -> bool {
+    geom_core::sym::table().is_none_or(|table| prior.sym_table == Some(table))
+}
+
+/// **The open node scope reads what `reads` see and what else
+/// `stands`** ([`geom_core::sym::reads`]): the record of each value a
+/// read sees ([`wire::SeenRead`]: the entry that stands, the family
+/// whole, or the member its index picks), in field order, then the
+/// record of each upstream operation no read is of (a measured value an
+/// assertion reads), in node-id order. Each record brings the records
+/// it was itself built over, so what reaches a node through another is
+/// what that other's value read.
+///
+/// Called once the reads are known, which is after the node's slots are
+/// evaluated: slot evaluation decides nothing.
+fn read_records<T: topo::AtRestPolicy + Decide>(
+    reads: &[wire::SeenRead<'_, T>],
+    stands: &BTreeMap<RecipeNodeId, &NodeValue<T>>,
+) {
     // No session, no record: every scalar but a symbolic one, and a
     // symbolic one outside a replay.
     if !geom_core::sym::session_installed() {
-        return Vec::new();
+        return;
     }
-    let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
-    let mut stack = vec![id];
-    while let Some(at) = stack.pop() {
-        let Some(node) = doc.node(at) else { continue };
-        for input in doc.upstream_of(at, node) {
-            if seen.insert(input) {
-                stack.push(input);
-            }
-        }
-    }
-    seen.into_iter()
-        .filter_map(|input| {
-            usable_in(results, input, || NodeStanding::NotInDocument {
-                node: input,
-            })
-            .ok()
-        })
-        .filter(|v| v.sym.registrations() > 0)
-        .map(|v| Arc::clone(&v.sym))
-        .collect()
+    let read: std::collections::BTreeSet<RecipeNodeId> = reads.iter().map(|r| r.at).collect();
+    geom_core::sym::reads(
+        reads.iter().map(|r| &r.value.sym).chain(
+            stands
+                .iter()
+                .filter(|(at, _)| !read.contains(at))
+                .map(|(_, value)| &value.sym),
+        ),
+    );
 }
 
 /// Evaluates one node against the results so far ([`eval_node_in`]),
@@ -5304,12 +5604,33 @@ fn eval_node<T>(
 where
     T: EvalScalar,
 {
-    let upstream = upstream_records(doc, id, results);
-    let (mut step, record) = node_mints(op_env.mints, id, at)
-        .node(upstream.iter().map(|r| &**r), || {
-            eval_node_in(doc, env, id, results, prior, op_env, at, tol)
-        });
-    // A reused value keeps the record of the run that built it.
+    // A node that instantiates a part reads the part's row: the
+    // identities the part's run registered are among what it reads,
+    // and ride its own record to whatever reads it. The part's counts
+    // stay the part's (`Evaluation::parts_sym`).
+    let part = geom_core::sym::session_installed()
+        .then(|| parts::instantiated(doc, id))
+        .flatten()
+        .and_then(|doc_ref| op_env.parts.get(&doc_ref, tol).ok())
+        .map(|row| Arc::new(row.sym.identities_alone()))
+        .filter(|record| record.registrations() > 0);
+    let (step, record) = node_mints(op_env.mints, id, at).node(part.as_deref(), || {
+        eval_node_in(doc, env, id, results, prior, op_env, at, tol)
+    });
+    let record = match &part {
+        Some(part) => geom_core::sym::NodeRecord::gather([&**part, &record]),
+        None => record,
+    };
+    recorded(step, record)
+}
+
+/// `step` with what its scope left in the symbolic session written on
+/// the result it made. A reused value keeps the record of the run that
+/// built it.
+fn recorded<T: topo::AtRestPolicy + Decide>(
+    mut step: NodeStep<T>,
+    record: geom_core::sym::NodeRecord,
+) -> NodeStep<T> {
     match &mut step.result {
         NodeResult::Ok(value) if !step.reused => value.sym = Arc::new(record),
         NodeResult::Failed(error) => error.sym = Arc::new(record),
@@ -5378,7 +5699,7 @@ where
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
     }
-    let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
+    let mut stands: BTreeMap<RecipeNodeId, &NodeValue<T>> = BTreeMap::new();
     for input in doc.upstream_of(id, node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
@@ -5386,7 +5707,7 @@ where
             node: input,
         }) {
             Ok(v) => {
-                keys.insert(input, (v.content_key, v.naming_key));
+                stands.insert(input, v);
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
@@ -5401,43 +5722,6 @@ where
             }
         }
     }
-    // What the keys read of upstream: one entry per READ, in field
-    // order, as the operation it reads and the port (D10; DR-59's
-    // class: two outputs of one operation are two inputs, and a key
-    // that saw only the operation would serve one half's body for the
-    // other); a selection's read is its body's. Every operation here
-    // has its result (above). A placement's constraint side reading its
-    // own copy is no upstream read (`Doc::upstream_of`'s one exemption,
-    // the same predicate): the node's own key is what is being formed,
-    // and the side's selection names still key it.
-    let reads: Vec<(RecipeNodeId, u8)> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
-        .flat_map(|(_, var)| doc.read_ports(var))
-        .collect();
-    let key_of = |at: &RecipeNodeId| {
-        *keys
-            .get(at)
-            .unwrap_or_else(|| unreachable!("every operation a node reads is in its upstream"))
-    };
-    let upstream_keys: Vec<UpstreamRead<ContentKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).0,
-        })
-        .collect();
-    let upstream_naming: Vec<UpstreamRead<NamingKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).1,
-        })
-        .collect();
-
     // Slot evaluation — the (node, slot) context door (PR 1's banked
     // NonFiniteResult obligation lands here). TWICE, through the one
     // door: at the evaluation scalar, which is what the op runs on,
@@ -5624,6 +5908,17 @@ where
         _ => wire::OpInput::Other(node),
     };
 
+    // What the keys read of upstream: one entry per READ, in field
+    // order, as the operation it reads and the port (D10; DR-59's
+    // class: two outputs of one operation are two inputs, and a key
+    // that saw only the operation would serve one half's body for the
+    // other), each with the value the read sees of it
+    // ([`wire::SeenRead`]), whose keys are the ones hashed. Every
+    // operation here has its result (above).
+    let reads = wire::seen_reads(id, node, doc, &stands, &slot_values, env);
+    // The node's scope reads the records of what its reads see, before
+    // anything below decides.
+    read_records(&reads, &stands);
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
@@ -5635,12 +5930,25 @@ where
         pose_words.as_deref(),
         input.resolved_program(),
         input.lane_program(),
-        &upstream_keys,
+        &reads,
         doc.witness(id),
         tol,
     );
     let content_key = members::member_key(content_key, at);
-    let naming_key = naming_key(content_key, &upstream_naming);
+    let naming_key = naming_key(content_key, &reads);
+    // A clearance's verdict stands at the point of the `f64` rebuild its
+    // verifier read wherever it cites a pair ([`wire::Witnessing`]), and
+    // that point is the run's box's, which the lane's keys do not hash:
+    // two boxes of a variable no seat reads key alike. So a prior
+    // verdict that cites a point is this run's only where the point is;
+    // one that cites none reads nothing of the rebuild's point, and is
+    // served across boxes.
+    let prior = prior.filter(|v| match (&input, clearance_point(v)) {
+        (wire::OpInput::Clearance { .. }, Some(point)) => {
+            op_env.lane.witness.is_some_and(|w| w.param == *point)
+        }
+        _ => true,
+    });
 
     // Memo (spec D4 + #95 disposition 2): a content-key match
     // certifies the GEOMETRY; whole-value reuse additionally requires
@@ -5666,12 +5974,11 @@ where
         // exactly what the precompute decides from, so D9 makes the two
         // sequences equal, at every scalar.
         // The reused value IS the record, so the fresh frame is
-        // finished and dropped rather than spliced in, and the prefix
-        // identity is asserted in every profile: one compare of a few
-        // dozen verdicts per hit, beside a precompute that just
-        // replayed and validated the profile.
+        // finished and dropped rather than spliced in. The prefix
+        // identity is a kernel bug's re-derivation: no input reaches it
+        // while the keys fix what the precompute decides from.
         let fresh = bracket.finish();
-        assert!(
+        debug_assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations)
                 && v.marks.starts_with(&fresh.marks),
@@ -5821,6 +6128,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
+            /// v25: a read's upstream key is the key of the value the
+            /// read sees (`wire::seen_reads`): the member its index
+            /// picks, or the family where it takes it whole, where it
+            /// was the value standing in the reader's results; and a
+            /// clearance writes, after each read's port, whether the
+            /// read picks a member and that member's place.
             /// v24: an extrude's depth is signed, so a negative depth's
             /// stream is a pocket's tool where it was a refusal. v23: a
             /// slide beside a mate whose direction is oblique in
@@ -5865,7 +6178,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 24,
+            VERSION = 25,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -6260,12 +6573,12 @@ fn content_key<'d, T>(
     pose_words: Option<&[wire::pose::PoseWord<T>]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    upstream_keys: &[UpstreamRead<ContentKey>],
+    reads: &[wire::SeenRead<'_, T>],
     witness: Option<&crate::witness::WitnessDatum>,
     tol: Tol,
 ) -> ContentKey
 where
-    T: Decide + ContentBits,
+    T: Decide + ContentBits + topo::AtRestPolicy,
 {
     use crate::node::Node;
     let mut h = KeyHasher::new();
@@ -6363,6 +6676,8 @@ where
         // A fresh word: the assemble keeps its members apart, so it
         // and a union of the same members are different bodies.
         Node::Assemble { .. } => 44,
+        // A fresh word: a datum places a frame, no copy.
+        Node::Datum { .. } => 45,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -6580,11 +6895,21 @@ where
             target: _,
             constraints,
         } => feed_bundle(&mut h, defs, constraints),
+        Node::Datum {
+            target: _,
+            constraints,
+        } => feed_bundle(&mut h, defs, constraints),
         Node::World | Node::Space => {}
-        // The operands and the members are input edges.
-        Node::Subtract { from: _, tool: _ } => {}
-        Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
-            h.write_tag(match members {
+        // The operands and the members are input edges; a list's shape
+        // is not.
+        Node::Subtract {
+            from: _,
+            tool: list,
+        }
+        | Node::Union { members: list }
+        | Node::Intersect { members: list }
+        | Node::Assemble { members: list } => {
+            h.write_tag(match list {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
             });
@@ -6882,15 +7207,28 @@ where
     // Upstream identity, by CONTENT (never by id — ids are stable
     // labels, content keys are the Merkle links): each read as its
     // operation's key and the port it reads.
-    h.write_u64(upstream_keys.len() as u64);
-    for read in upstream_keys {
-        h.write_key(read.key);
+    // A clearance reports each seat by its member's place among its
+    // family's bodies (`wire::member_place`), which the member's own key
+    // does not fix: it moves with the members before it. No other node
+    // reads a place, so no other writes one.
+    let places = matches!(
+        node,
+        Node::Assertion(crate::measure::Claim::Clearance { .. })
+    );
+    h.write_u64(reads.len() as u64);
+    for read in reads {
+        h.write_key(read.value.content_key);
         feed_port(&mut h, read.port);
+        if places {
+            match read.place {
+                None => h.write_tag(tag::presence::ABSENT),
+                Some(place) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(u64::from(place));
+                }
+            }
+        }
     }
-    // The recorded witness datum. Its presence is a word of its own so
-    // `None` cannot alias a `Some` with empty bytes; a cleared witness
-    // and a never-recorded one are both `None` and key alike, which is
-    // right — neither is an input.
     match witness {
         None => h.write_tag(tag::presence::ABSENT),
         Some(w) => {
@@ -6904,16 +7242,6 @@ where
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
 /// the variable read, the port read, and that operation's key.
-#[derive(Clone, Copy)]
-struct UpstreamRead<K> {
-    at: RecipeNodeId,
-    port: u8,
-    key: K,
-}
-
-/// A read's port, as the keys feed it: a presence tag, then the port.
-/// The tag stays in the byte stream so the keys of every stored
-/// document stay what they are.
 fn feed_port(h: &mut KeyHasher, port: u8) {
     h.write_tag(tag::presence::PRESENT);
     h.write_u64(u64::from(port));
@@ -6923,18 +7251,37 @@ fn feed_port(h: &mut KeyHasher, port: u8) {
 /// [`NamingKey`]): the node's own content key plus every read's
 /// (operation id, port, naming key), in read order — ids INCLUDED,
 /// which is exactly what the content key omits by design (D8).
-fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> NamingKey {
+fn naming_key<T: topo::AtRestPolicy + Decide>(
+    content: ContentKey,
+    reads: &[wire::SeenRead<'_, T>],
+) -> NamingKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
-    h.write_u64(upstream.len() as u64);
-    for read in upstream {
+    h.write_u64(reads.len() as u64);
+    for read in reads {
+        h.write_id(read.read.0);
         h.write_id(read.at.0);
         feed_port(&mut h, read.port);
-        h.write_u64(read.key.0 as u64);
-        h.write_u64((read.key.0 >> 64) as u64);
+        let key = read.value.naming_key.0;
+        h.write_u64(key as u64);
+        h.write_u64((key >> 64) as u64);
     }
     NamingKey(h.finish().0)
+}
+
+/// **The point a clearance's verdict stands at**, where `value` is a
+/// clearance's and its verdict cites a pair the `f64` rebuild verified
+/// ([`crate::clearance::ClearanceVerdict::point`]).
+fn clearance_point<T: topo::AtRestPolicy + Decide>(
+    value: &NodeValue<T>,
+) -> Option<&crate::clearance::ParamWitness> {
+    match &value.payload {
+        ValuePayload::Assertion(crate::measure::AssertionVerdict::Clearance(report)) => {
+            report.verdict().point()
+        }
+        _ => None,
+    }
 }
 
 /// The content-key tag of an authoring verb — the ONE place a verb's
@@ -7334,10 +7681,8 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
 fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     h.write_u64((doc_ref.id.0 >> 64) as u64);
     h.write_u64(doc_ref.id.0 as u64);
-    for chunk in doc_ref.pin.0.chunks(8) {
-        let mut byte8 = [0u8; 8];
-        byte8[..chunk.len()].copy_from_slice(chunk);
-        h.write_u64(u64::from_be_bytes(byte8));
+    for word in doc_ref.pin.words() {
+        h.write_u64(word);
     }
 }
 
@@ -8376,8 +8721,8 @@ mod bundle_key {
         Constraint::of_mate(
             id(10),
             Mate {
-                on: ON,
-                to,
+                on: ON.into(),
+                to: to.into(),
                 orient: crate::Orientation::IDENTITY,
             },
         )

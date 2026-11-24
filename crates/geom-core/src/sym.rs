@@ -661,19 +661,19 @@
 //! payload bits)` — never a sequence number. An id is therefore the same
 //! under every rayon schedule and every insertion order, structural
 //! sharing is free, and two builds of the same expression memoize the
-//! same normal form. The hash-consing table is per-leaf-replay
-//! ([`with_session`]), holds nothing across leaves, and is dropped with
-//! the leaf; so are the early and door memos, the per-node
-//! reduction's memo (`reduce_per_node`), the registry and the parameter
-//! brackets.
+//! same normal form. Outside a drive the hash-consing table is the
+//! session's ([`with_session`]) and is dropped with it. The early memo,
+//! the per-node reduction's memo (`reduce_per_node`) and the parameter
+//! brackets are a leaf's; the registry, the door memo and the retry
+//! memos are a document node's and are dropped with its scope
+//! ([`MintScope::node`]).
 //!
-//! **The PLAIN memo is the exception, and it is per DRIVE when a drive
-//! installs one** ([`DriveMemo`], [`with_session_memo`] and
-//! [`with_session_memo_retry`]). It serves the plain walk and nothing
-//! else — never the early or door walk, and never a retry's: a retry's
-//! forms live in the session's own retry tables ([`SymRetry`]) and are
-//! dropped with the leaf, and the plain rung a drive memo serves is the
-//! one rung no retry re-asks. A node's
+//! **The expression table, the plain forms and the atom records are per
+//! DRIVE when a drive installs a table** ([`DriveMemo`],
+//! [`with_session_memo`] and [`with_session_memo_retry`]). The table
+//! serves the plain walk and nothing else — never the early or door
+//! walk, and never a retry's, and the plain rung is the one rung no
+//! retry re-asks. A node's
 //! plain form is a function of its id, the budget and the two dials the
 //! plain walk consults, and of nothing else: the walk reads no value,
 //! every atom in it is opaque, and rule A0 is the only rule. So a form
@@ -811,8 +811,8 @@
 //! the three documents say so between them. The slab halves because the
 //! plain walk is half of its replay and nearly all of it is
 //! recomputation. The plate moves by a fifth, because half of it is the
-//! per-node rule A/B reduction inside the EARLY walk, which consults
-//! the leaf's registry and stays per leaf. And a boss on a derived
+//! per-node rule A/B reduction inside the EARLY walk, which reads the
+//! leaf's parameter brackets and stays per leaf. And a boss on a derived
 //! frame over a tilted datum — every leaf refused, the early walk the
 //! whole cost — moves by NOTHING: 275.8 s with the memo on against
 //! 276.1 s with it off at 48 leaves (R2's reading). A drive of that
@@ -1016,7 +1016,6 @@
 use core::cell::RefCell;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::predicate::{Band, Decide, Decided, Indeterminate, Sign};
@@ -1054,6 +1053,10 @@ pub mod memo;
 pub mod mint;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The structural question: whether an expression is zero as a function
+/// of the document's variables, asked of the expression.
+#[path = "sym/question.rs"]
+mod question;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -1362,8 +1365,10 @@ impl SymNode {
     }
 
     /// An opaque value's node: its ordinal in the payload and its mint
-    /// scope's name in the first child slot, which the op's arity
-    /// leaves outside [`Self::kids`], so no walk reads it as a node.
+    /// scope's name in the first child slot. The slot holds no node:
+    /// the op's arity is zero, so [`Self::kids`], which is what a walk
+    /// of a node's children reads, is empty, and a reader of the raw
+    /// slots reads them by an op that has children.
     fn opaque(scope: u128, ordinal: u64) -> Self {
         SymNode {
             op: SymOp::Opaque,
@@ -2380,6 +2385,10 @@ struct AtomInfo {
 ///   the retry memos their guard counts, the door memo and the plain
 ///   roots. A node's scope opens with none of another node's.
 ///
+/// - **Names**: `mints`, the count each closed mint scope stopped at
+///   ([`mint`]), beside the thread's open scope; a value with no
+///   expression is named by the scope that minted it.
+///
 /// So a node's decisions read nothing whose lifetime is the replay but
 /// the box.
 struct Session {
@@ -2429,7 +2438,7 @@ struct Session {
     /// both at once — so a `sin_cos` pair minted from one node folded
     /// TWICE before this memo (R2's Q7). Keyed by the argument form's
     /// digest, per session like every other memo here.
-    trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
+    trig_closed: IndetMap<Vec<trig::Held>>,
     /// **The per-node reduction's answers, by input form**
     /// ([`reduce_per_node`]): each bucket, under the input's digest,
     /// holds the forms reduced with that digest, compared WHOLE, beside
@@ -2455,6 +2464,12 @@ struct Session {
     /// leaf's caches is written to it as it is made, and a miss in the
     /// caches asks it.
     memo: Option<Arc<DriveMemo>>,
+    /// **The table an ask's state reads nodes in** (`question`): the
+    /// installed session's, for [`Session::node_of`] and nothing else.
+    /// An ask's rules and budget are its own, so it neither reads a
+    /// form of the drive's nor writes one. `None` in every session but
+    /// an ask's.
+    nodes_in: Option<Arc<DriveMemo>>,
     /// **The Zeros a deferring session left for later**
     /// ([`with_deferred_session`](self::deferred::with_deferred_session)): `None` in every other session, which
     /// discharges each decision as it is taken.
@@ -2464,6 +2479,18 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// Which table this session's nodes are in ([`table`]): the
+    /// drive's, or one of its own.
+    table: u64,
+    /// **The nodes whose plain form rests on an id no table names**: a
+    /// value minted outside every session on this table, and every node
+    /// whose form was built over one. Such a form is this leaf's
+    /// reading and not a function of the node's id (a leaf whose table
+    /// holds the node builds a real form), so it is not published to
+    /// the drive's table and leaves this leaf's caches before they go
+    /// back to the drive. It decides nothing symbolically that the node
+    /// itself would not: the unknown is an indeterminate of its own.
+    unknown: IdSet,
     /// Times the retry ladder's growth guard withheld an attempt (read
     /// by the contradiction instrument's report).
     #[cfg(feature = "sym-revalue-testing")]
@@ -2474,7 +2501,11 @@ struct Session {
     instrumented: bool,
     /// Every identity registered in this session, in the order made,
     /// whichever node's: what the contradiction instrument asks its
-    /// door question under, after the build.
+    /// door question under, after the build. No decision reads it: the
+    /// instrument re-asks decisions already taken, from outside every
+    /// node's scope, and asks under the union so that an identity ANY
+    /// node stated is tested against every definite sign. It is the
+    /// instrument's input and not a registry a node can see.
     #[cfg(feature = "sym-revalue-testing")]
     stated: Vec<(SymId, SymId)>,
 }
@@ -2497,6 +2528,8 @@ struct NodeState {
     /// The registrations made inside this scope, in the order made, as
     /// the registry recorded them: what [`NodeRecord`] carries.
     identities: Vec<(SymId, SymId)>,
+    /// The brackets recorded inside this scope ([`NodeRecord`]).
+    brackets: Vec<(u128, (f64, f64))>,
     /// **The door-reduced forms** ([`SymRules::registered`]): the early
     /// walk with `registry` applied, a memo beside the early one so
     /// that a decision the early form answers never pays for the
@@ -2517,14 +2550,24 @@ struct NodeState {
     /// is counted over their closure ([`leaf_need`]). Kept only while a
     /// drive memo is installed.
     plain_roots: IdSet,
+    /// The records this scope has read ([`reads`]): what
+    /// [`NodeRecord`] carries as `over`.
+    over: Vec<Arc<NodeRecord>>,
+    /// `over`'s records by address, so that a record reached through
+    /// two reads enters once.
+    over_held: std::collections::HashSet<*const NodeRecord>,
+    /// The records the scopes opened inside this one read, each once,
+    /// in the order read. They are in this scope's record (`over`) and
+    /// not in its registry: a family's value is built over what its
+    /// members read.
+    over_inside: Vec<Arc<NodeRecord>>,
 }
 
 impl NodeState {
     /// Adds what a scope opened inside this one came to: its counts
     /// and its roots.
     fn absorb(&mut self, inner: &NodeState) {
-        self.counts.absorb(inner.counts);
-        self.counts.frozen += inner.counts.frozen;
+        self.counts = with_work(self.counts, inner.counts);
         for id in inner.plain_roots.keys() {
             self.plain_roots.insert(*id, ());
         }
@@ -2534,14 +2577,33 @@ impl NodeState {
 /// **What a node's evaluation leaves for the nodes it feeds and for
 /// the leaf's receipt** ([`MintScope::node`]): the identities it
 /// registered, what its decisions came to, and the roots its `frozen`
-/// column is counted over. It travels with the node's value, and it is
-/// a function of the node's inputs: two replays that evaluate a node
-/// under one content key hold equal records.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// column is counted over, and the parameter brackets recorded while
+/// its scope was open. It travels with the node's value.
+///
+/// **What it is a function of**: the node's inputs and the brackets of
+/// the parameters its forms reach. The evaluator's content key hashes
+/// each input's number and expression and no bracket, so two replays
+/// hold equal records under one key only where their boxes agree on
+/// those parameters; whatever serves a node across boxes owes that
+/// check.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct NodeRecord {
+    /// The brackets [`Sym::param_over`] recorded inside the scope, by
+    /// the parameter's indeterminate, in the order recorded: a replay
+    /// served this node's result has not run the node, and holds these
+    /// brackets only if it is handed them.
+    brackets: Vec<(u128, (f64, f64))>,
     identities: Vec<(SymId, SymId)>,
     counts: SymCounts,
     roots: Vec<SymId>,
+    /// **The records the node read that registered an identity**
+    /// ([`reads`]), each once, in the order read, with the records each
+    /// of those read before it: what the node's registry was built
+    /// from. A reader of this node's value reads these before the
+    /// node's own, so what reaches a node through another is what that
+    /// other's value was built over, and not what stands in a results
+    /// map when the reader runs.
+    over: Vec<Arc<NodeRecord>>,
 }
 
 impl NodeRecord {
@@ -2553,10 +2615,55 @@ impl NodeRecord {
         self.counts
     }
 
+    /// **The records of what one reader reads, as one record**: the
+    /// identities one after another in the order given, the counts
+    /// added, the roots together. The order is the caller's and has to
+    /// be the document's (node ids, a family's members by index), the
+    /// same in every replay: which identity a cycle drops and which
+    /// node an alias chain ends at follow it.
+    #[must_use]
+    pub fn gather<'a>(records: impl IntoIterator<Item = &'a NodeRecord>) -> Self {
+        let mut all = Self::default();
+        let mut held = std::collections::HashSet::new();
+        for record in records {
+            all.brackets.extend(record.brackets.iter().copied());
+            all.identities.extend(record.identities.iter().copied());
+            all.counts.absorb(record.counts);
+            all.roots.extend(record.roots.iter().copied());
+            for over in &record.over {
+                if held.insert(Arc::as_ptr(over)) {
+                    all.over.push(Arc::clone(over));
+                }
+            }
+        }
+        all.roots.sort_unstable_by_key(|id| id.bits());
+        all.roots.dedup();
+        all
+    }
+
+    /// This record's identities alone: what a reader of a result
+    /// receives where the result's counts are entered elsewhere (a
+    /// part's run is counted once in a leaf, however many instance
+    /// nodes read it).
+    #[must_use]
+    pub fn identities_alone(&self) -> Self {
+        Self {
+            identities: self.identities.clone(),
+            ..Self::default()
+        }
+    }
+
     /// How many identities the node registered.
     #[must_use]
     pub fn registrations(&self) -> usize {
         self.identities.len()
+    }
+
+    /// How many identities the node read: the registrations of every
+    /// record it was opened over, each record once.
+    #[must_use]
+    pub fn read(&self) -> usize {
+        self.over.iter().map(|record| record.identities.len()).sum()
     }
 }
 
@@ -2571,23 +2678,38 @@ impl Session {
         if a == b || self.reaches(b, a) {
             return None;
         }
+        self.state(a, b);
+        Some((a, b))
+    }
+
+    /// Writes `a -> b`, already resolved and checked, into the open
+    /// node's registry. Only the DOOR memos can hold a form the record
+    /// would have changed, the first attempt's and every retry's; the
+    /// plain and early memos never consult the registry.
+    fn state(&mut self, a: SymId, b: SymId) {
         self.node.registry.insert(a, b);
         self.node.forms_door.clear();
         for r in &mut self.node.retries {
             r.door.clear();
         }
-        Some((a, b))
     }
 
     /// What the session's decisions have come to so far: every open
     /// scope's counts.
     fn counts_so_far(&self) -> SymCounts {
-        self.outer.iter().fold(self.node.counts, |mut sum, outer| {
-            sum.absorb(outer.counts);
-            sum.frozen += outer.counts.frozen;
-            sum
-        })
+        self.outer
+            .iter()
+            .fold(self.node.counts, |sum, outer| with_work(sum, outer.counts))
     }
+}
+
+/// `a` and `b` added column by column, `frozen` included: inside one
+/// session `frozen` is the plain freezes made so far, a count of work
+/// that adds, where [`SymCounts::absorb`] leaves a receipt's set alone.
+fn with_work(mut a: SymCounts, b: SymCounts) -> SymCounts {
+    a.absorb(b);
+    a.frozen += b.frozen;
+    a
 }
 
 /// Closes the node scope [`node_scope`] opened, by any path including a
@@ -2603,42 +2725,107 @@ impl NodeGuard {
         SESSION.with(|s| {
             let mut slot = s.borrow_mut();
             let sess = slot.as_mut()?;
+            // Scopes close innermost first; another depth is a guard
+            // closed out of turn, which would hand a node the wrong
+            // state.
+            debug_assert_eq!(
+                sess.outer.len(),
+                self.depth,
+                "a node scope was closed out of turn"
+            );
             if sess.outer.len() != self.depth {
                 return None;
             }
             let outer = sess.outer.pop()?;
-            let inner = core::mem::replace(&mut sess.node, outer);
+            let mut inner = core::mem::replace(&mut sess.node, outer);
             #[cfg(feature = "sym-profile-testing")]
             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+            // What the scope read, and what the scopes inside it read.
+            let mut over = core::mem::take(&mut inner.over);
+            for read in core::mem::take(&mut inner.over_inside) {
+                if inner.over_held.insert(Arc::as_ptr(&read)) {
+                    over.push(read);
+                }
+            }
             sess.node.absorb(&inner);
-            // A scope opened inside a node's scope is part of that
-            // node: what it registered, the node has registered. The
-            // root scope is no node, and reads nothing a node stated.
+            // What a scope opened inside a node's scope registered is
+            // on that node's RECORD (a family holds its members', a
+            // part's run its nodes'), and in nobody's registry: a scope
+            // reads the records it is opened over and nothing else.
             if !sess.outer.is_empty() {
-                for &(a, b) in &inner.identities {
-                    if let Some(recorded) = sess.record_identity(a, b) {
-                        sess.node.identities.push(recorded);
+                sess.node
+                    .identities
+                    .extend(inner.identities.iter().copied());
+                sess.node.brackets.extend(inner.brackets.iter().copied());
+                for read in &over {
+                    if !sess
+                        .node
+                        .over_inside
+                        .iter()
+                        .any(|held| Arc::ptr_eq(held, read))
+                    {
+                        sess.node.over_inside.push(Arc::clone(read));
                     }
                 }
             }
             let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
             roots.sort_unstable_by_key(|id| id.bits());
             Some(NodeRecord {
+                brackets: inner.brackets,
                 identities: inner.identities,
                 counts: SymCounts {
                     frozen: 0,
                     ..inner.counts
                 },
                 roots,
+                over,
             })
         })
     }
+}
+
+/// **The open node scope reads `records`**, the records of the values
+/// it reads, in the order given: each record that registered an
+/// identity enters the scope's registry once, after the records that
+/// record itself read ([`NodeRecord`]'s `over`). Nothing outside a
+/// session or outside a node scope's work.
+///
+/// **The order is part of the answer.** Records merge one after
+/// another, and which identity a cycle drops and which node an alias
+/// chain ends at follow that order. The caller's order has to be the
+/// document's (a node's reads in field order), the same in every
+/// replay.
+pub fn reads<'a>(records: impl IntoIterator<Item = &'a Arc<NodeRecord>>) {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else { return };
+        for record in records {
+            for read in record.over.iter().chain([record]) {
+                if read.identities.is_empty() || !sess.node.over_held.insert(Arc::as_ptr(read)) {
+                    continue;
+                }
+                for &(a, b) in &read.identities {
+                    let _ = sess.record_identity(a, b);
+                }
+                sess.node.over.push(Arc::clone(read));
+            }
+        }
+    });
 }
 
 impl Drop for NodeGuard {
     fn drop(&mut self) {
         let _ = self.close();
     }
+}
+
+/// **A scope of its own for a unit of work that is no document node**:
+/// a part's run, the product's gather. Opened over no identity, it
+/// decides and counts apart from every node, and the record it leaves
+/// goes where the unit's result goes, so that every decision of a
+/// replay is on a record some reader of its result receives.
+pub fn apart<R>(work: impl FnOnce() -> R) -> (R, NodeRecord) {
+    node_scope([], work)
 }
 
 /// [`MintScope::node`]'s session half: `work` in a node scope of its
@@ -2652,11 +2839,7 @@ pub(crate) fn node_scope<'a, R>(
     let opened = SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let sess = slot.as_mut()?;
-        let fresh = NodeState {
-            registry: sess.node.registry.clone(),
-            ..NodeState::default()
-        };
-        let outer = core::mem::replace(&mut sess.node, fresh);
+        let outer = core::mem::take(&mut sess.node);
         sess.outer.push(outer);
         for record in upstream {
             for &(a, b) in &record.identities {
@@ -2765,6 +2948,7 @@ impl Session {
         // A leaf of a drive starts with the caches an earlier leaf
         // left (`memo`'s header): entries of the drive's table.
         let warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
+        let table = memo.as_ref().map_or_else(memo::table_token, |m| m.token());
         Self {
             budget,
             rules,
@@ -2784,8 +2968,11 @@ impl Session {
             #[cfg(test)]
             reduction_hits: 0,
             memo,
+            nodes_in: None,
             deferred: None,
             budget_frozen: IdSet::default(),
+            unknown: IdSet::default(),
+            table,
             #[cfg(feature = "sym-revalue-testing")]
             withheld: 0,
             #[cfg(feature = "sym-revalue-testing")]
@@ -2802,7 +2989,7 @@ impl Session {
         self.nodes
             .get(&id)
             .copied()
-            .or_else(|| self.memo.as_ref()?.node(id))
+            .or_else(|| self.memo.as_ref().or(self.nodes_in.as_ref())?.node(id))
     }
 
     /// The node `id` denotes, following the registry to its end — `id`
@@ -3050,8 +3237,19 @@ fn with_session_in<R>(
     });
     #[cfg(feature = "sym-profile-testing")]
     profile::session_start();
+    // A leaf that panics takes its session with it: left installed, it
+    // would refuse every later session on this thread as nested and
+    // keep the drive's table alive.
+    struct Installed;
+    impl Drop for Installed {
+        fn drop(&mut self) {
+            drop(SESSION.with(|s| s.borrow_mut().take()));
+        }
+    }
+    let installed = Installed;
     let out = f();
     let mut sess = SESSION.with(|s| s.borrow_mut().take());
+    drop(installed);
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
@@ -3071,6 +3269,9 @@ fn with_session_in<R>(
         && let Some(memo) = s.memo.clone()
     {
         s.node.counts.frozen = leaf_need(s, &memo);
+        for id in s.unknown.keys() {
+            s.forms.remove(id);
+        }
         // The leaf's caches go back to the drive for the next leaf.
         memo.rest(memo::Warm {
             nodes: core::mem::take(&mut s.nodes),
@@ -3089,10 +3290,18 @@ fn with_session_in<R>(
 fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
     // A drive that froze nothing answers 0 without a walk: one read
     // lock per leaf (the M10-3 slab is that document).
-    if memo.frozen_is_empty() {
+    if memo.frozen_is_empty() && sess.unknown.is_empty() {
         return 0;
     }
-    memo.need(&sess.closure(sess.node.plain_roots.keys().copied()))
+    let reached = sess.closure(sess.node.plain_roots.keys().copied());
+    // An unknown under the roots is a node this leaf's reasoning rests
+    // on as an indeterminate, in no drive's set.
+    let unknown = sess
+        .unknown
+        .keys()
+        .filter(|id| reached.contains_key(id) && sess.node_of(**id).is_none())
+        .count() as u64;
+    memo.need(&reached) + unknown
 }
 
 /// The counts so far in the installed session (`None` outside one) — the
@@ -3134,11 +3343,10 @@ pub fn session_counts() -> Option<SymCounts> {
 ///   numeric one. A unit on a worker would decide differently from its
 ///   siblings on the caller's thread — the one thing D9 forbids
 ///   outright.
-/// - **The receipt is written in place.** `count_decision` and
-///   `count_registration_refused` mutate the installed session's
-///   [`SymCounts`], and [`Sym::opaque`] advances the count of the mint
-///   scope open on its thread ([`mint`]), which a session keeps while
-///   the scope is closed. Neither is a
+/// - **The receipt is written in place.** `count_decision` mutates
+///   the installed session's [`SymCounts`], and [`Sym::opaque`] advances
+///   the count of the mint scope open on its thread ([`mint`]), which a
+///   session keeps while the scope is closed. Neither is a
 ///   value handed back, so neither can be spliced. (Node ids are NOT in
 ///   this list: `intern` is a content hash of the node, so the DAG a
 ///   replay builds is the same whatever order it is built in.)
@@ -3156,10 +3364,22 @@ pub fn decisions_are_thread_portable() -> bool {
     !session_installed() && !report::active()
 }
 
+/// **Which expression table the installed session's nodes are in**: a
+/// token for the drive's table, the same in every leaf of the drive,
+/// or for the session's own where no drive installed one; `None`
+/// outside a session. A value built under one table means nothing
+/// under another, so whatever hands a value from one session to
+/// another compares these.
+#[must_use]
+pub fn table() -> Option<u64> {
+    SESSION.with(|s| s.borrow().as_ref().map(|s| s.table))
+}
+
 /// **Whether a symbolic session is installed on this thread** — the one
-/// home of that test. A value minted outside the installed session is
-/// not in its table and freezes there (module docs: no session, no
-/// tier), so whatever keeps a `Sym` value across calls reads this
+/// home of that test. A value minted outside every session on the
+/// installed session's table is an unknown there (`Session::unknown`:
+/// it proves nothing, and nothing built over it is shared), so
+/// whatever keeps a `Sym` value across calls reads this
 /// before it serves one: [`decisions_are_thread_portable`] does, and so
 /// does the NURBS speed meter's memo, which serves and fills only while
 /// it is false.
@@ -3788,9 +4008,9 @@ fn form_in(
         Arc::new(Form::poly(Poly::indet(id.bits())))
     };
     // **One predicate for the plain walk**, and the drive's memo behind
-    // it: the memo is the PLAIN walk's alone, because the early and door
-    // walks consult this leaf's registry and its parameter brackets,
-    // which a value-dependent refusal can make differ between leaves.
+    // it: the table is the PLAIN walk's alone, because the early walk
+    // reads this leaf's parameter brackets and the door walk a node's
+    // registry.
     let plain = !early && !registry;
     let drive = plain.then(|| sess.memo.clone()).flatten();
     // **The walk root, noted for the leaf's NEED** ([`leaf_need`]): the
@@ -3837,13 +4057,11 @@ fn form_in(
         let Some(node) = sess.node_of(id) else {
             // In no table this session reads: minted outside every
             // session on it. An unknown function of the parameters is
-            // an indeterminate. Under a drive's table that is a kernel
-            // bug (`memo`'s header): whether the id is absent would
-            // depend on which leaf ran first.
-            debug_assert!(
-                sess.memo.is_none(),
-                "a node of a drive's leaf was minted outside every session on the drive's table"
-            );
+            // an indeterminate, and it is this leaf's alone
+            // (`Session::unknown`).
+            if plain {
+                sess.unknown.insert(id, ());
+            }
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
@@ -3995,7 +4213,14 @@ fn form_in(
             Some(p) => p,
             None => frozen(sess, id),
         };
-        note(id, &f, froze);
+        // A form built over an unknown is this leaf's reading of it,
+        // not the node's: a leaf that holds the node builds another.
+        // It is not published (`Session::unknown`).
+        if plain && node.kids().iter().any(|k| sess.unknown.contains_key(k)) {
+            sess.unknown.insert(id, ());
+        } else {
+            note(id, &f, froze);
+        }
         memo.insert(id, f);
     }
     memo.get(&root)
@@ -4185,7 +4410,7 @@ enum WalkKind {
 }
 
 /// **Which memo a walk reads and fills**: the first attempt's three,
-/// or one retry attempt's early or door table ([`Session::retries`]).
+/// or one retry attempt's early or door table (`NodeState::retries`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoSlot {
     Plain,
@@ -4802,6 +5027,20 @@ impl<T> Sym<T> {
         SESSION.with(|s| {
             if let Some(sess) = s.borrow_mut().as_mut() {
                 sess.params.insert(indet_param(symbol.0), (lo, hi));
+                if !sess.outer.is_empty() {
+                    // One scope holds at most one environment (a part's
+                    // run builds its own once), and an environment binds
+                    // a variable once: a second bracket for one symbol
+                    // in one scope is a caller binding it twice.
+                    debug_assert!(
+                        sess.node
+                            .brackets
+                            .iter()
+                            .all(|&(id, held)| id != indet_param(symbol.0) || held == (lo, hi)),
+                        "one scope recorded two brackets for one parameter"
+                    );
+                    sess.node.brackets.push((indet_param(symbol.0), (lo, hi)));
+                }
             }
         });
         Self::param(symbol, value)
@@ -4995,18 +5234,10 @@ impl<T: Real> Sym<T> {
                 sess.node.counts.registrations_refused += 1;
                 return SymRegistration::Cyclic;
             }
-            // Only the DOOR memos can hold a form the new record would
-            // have changed, the first attempt's and every retry's
-            // (`Session::record_identity` clears them); the plain and early memos
-            // never consult the registry.
-            sess.node.registry.insert(a, b);
+            sess.state(a, b);
             sess.node.identities.push((a, b));
             #[cfg(feature = "sym-revalue-testing")]
             sess.stated.push((a, b));
-            sess.node.forms_door.clear();
-            for r in &mut sess.node.retries {
-                r.door.clear();
-            }
             SymRegistration::Recorded
         })
     }
@@ -5096,6 +5327,13 @@ impl<T: Real> Real for Sym<T> {
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
 
+    /// The node, whatever the lane scalar: the tier reads no value.
+    type Expression = SymId;
+
+    fn expression(self) -> Option<SymId> {
+        Some(self.node)
+    }
+
     /// The symbolic scalar over its numeric channel's value: the
     /// identity over the unknowns is what a decision at it reads, so it
     /// is kept, node for node. Over `f64` or `Interval` that is the
@@ -5164,6 +5402,27 @@ impl<T: Real> Real for Sym<T> {
         self.unary(self.value.sqrt(), SymOp::Sqrt, 0)
     }
 
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::difference_dot`]): the same real, read to its digits.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Sym {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            node: plain.node,
+        }
+    }
+
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::harmonic_belly`]): the same real, read to its digits.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            node: plain.node,
+        }
+    }
+
     fn abs(self) -> Self {
         self.unary(self.value.abs(), SymOp::Abs, 0)
     }
@@ -5174,14 +5433,6 @@ impl<T: Real> Real for Sym<T> {
 
     fn is_bounded(self) -> bool {
         self.value.is_bounded()
-    }
-
-    /// Its numeric channel's every channel: at `Sym<Dual<_>>` the dual's
-    /// derivative too. The symbolic scalar's own exact zero
-    /// ([`crate::real::is_exact_zero`]) reads its poison off that channel
-    /// alone, so the channel's answer already holds it.
-    fn is_exact_zero_in_every_channel(self) -> bool {
-        self.value.is_exact_zero_in_every_channel()
     }
 
     /// **The one scalar that RECORDS** rather than only witnessing —
@@ -6723,6 +6974,53 @@ mod tests {
             "proven"
         } else {
             "numeric"
+        }
+    }
+
+    /// **The structural question does not read the registry**
+    /// ([`crate::Expression::proves_zero`]): two values a constructor
+    /// registered equal decide Zero through the session's door, and the
+    /// question, asked of their difference, proves nothing. An answer
+    /// taken from the installed session's ladder is red here.
+    #[test]
+    fn the_structural_question_does_not_read_the_registry() {
+        use crate::real::Expression;
+        with_session(budget(), || {
+            let (n, r) = (p("n", 1.0), p("r", 1.0));
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
+            let residual = n - r;
+            let decided = residual.sign_within(band()).unwrap();
+            assert!(decided.margin.proven(), "the door proves the pair");
+            assert!(
+                residual
+                    .expression()
+                    .and_then(Expression::proves_zero)
+                    .is_none()
+            );
+        });
+    }
+
+    /// **The kept-atom shapes close without the ladder at the question's
+    /// budget**: the two identities the retry ladder was measured on
+    /// (rule G shut, rule A shut) are proved by an ask with the ladder
+    /// and by one without it. At 64 terms the form each retry would keep
+    /// as an atom is already frozen into one.
+    #[test]
+    fn the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget() {
+        for build in [
+            closes_only_with_rule_g_off as fn() -> Sym<f64>,
+            closes_only_with_rule_a_off,
+        ] {
+            let answers = with_session(budget(), || {
+                let id = build().node();
+                [SymRetry::kept_atom(), SymRetry::none()]
+                    .map(|retry| question::asked(id, question::BUDGET, retry))
+            })
+            .0;
+            assert_eq!(answers, [true, true]);
         }
     }
 

@@ -58,7 +58,7 @@ pub fn document() -> CorpusDoc {
     });
     let placed = r.against(cylinder, boss, &Frame::IDENTITY);
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![cylinder.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![cylinder.into(), placed.into()]),
     });
     r.place_part(whole);
 

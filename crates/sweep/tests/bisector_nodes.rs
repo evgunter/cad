@@ -466,12 +466,13 @@ fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) ->
     };
     matches!(
         join.error(),
-        JoinError::Euler(EulerOpError::Certification {
+        JoinError::Euler(EulerOpError::DescriptionUncertified {
             error: CertifyError::NotTransverse { .. }
                 | CertifyError::Escalated {
                     check: CertCheck::Transversality,
                     ..
                 },
+            ..
         })
     )
 }
@@ -508,6 +509,26 @@ fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
 ///   re-posed order). D4's ε < δ < K·ε.
 #[test]
 fn the_near_node_poses_at_the_witness_band() {
+    // Pinned red: a single cap's rim at δ = 1e-8 refuses on its rebased
+    // carrier's dihedral arm, not its placement
+    // (`work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-9],
+        "the near-node poses",
+        &[
+            "A's cap δ = 1e-8, direct (B, A), ∪: the rim's placement in band, got \
+             Err(Euler(RebasedCarrier { edge: EdgeKey(15v3), error: Escalated { check: \
+             TransversalityArm, sample: 1, cause: Indeterminate { margin: \
+             MarginDiag(Value(9.999999911469715e-9, None, ZeroWord(0)))",
+            "predicate: Some(\"dihedral_arm_wedge\")",
+        ],
+        the_near_node_poses_at_the_witness_band_row,
+    );
+}
+
+/// The row [`the_near_node_poses_at_the_witness_band`] runs, under its pin.
+fn the_near_node_poses_at_the_witness_band_row() {
     let tol = Tol::witness();
     if geom_core::Band::linear(tol).unwrap().zero() != 1e-9 {
         test_utils::vacuity::stood_down(

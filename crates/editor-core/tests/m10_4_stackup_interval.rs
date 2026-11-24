@@ -483,7 +483,7 @@ fn the_two_hole_plate_stackup() {
             name: Some(name("web")),
         },
     );
-    let rendered = report.render(&named, &analyzed);
+    let rendered = report.render(&named, &analyzed).to_string();
     assert_eq!(
         rendered.lines().next(),
         Some("stackup of web"),
@@ -520,11 +520,11 @@ fn the_two_hole_plate_stackup() {
     assert!(!golden.contains("hole_r"), "{golden}");
     // The human form SPEAKS the node: by its spoken name, where the
     // content-keyed goldening form above holds its identity.
-    let human = unliftable.render(&doc, &analyzed);
+    let human = unliftable.render(&doc, &analyzed).to_string();
     assert!(
         human.contains(&format!(
             "unliftable at {}: the guided elaboration could not re-confirm loop 0 step 1",
-            doc.spoken(distance)
+            editor_core::test_support::node_text(&doc.spoken(distance))
         )),
         "{human}"
     );
@@ -1555,9 +1555,10 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
                 Some("edited")
             );
             assert!(
-                refusal
-                    .to_string()
-                    .contains(&format!("a different content key at {spoken} — ")),
+                refusal.to_string().contains(&format!(
+                    "a different content key at {spoken} — ",
+                    spoken = editor_core::test_support::node_text(spoken)
+                )),
                 "{refusal}"
             );
             assert_ne!(recorded, replayed);

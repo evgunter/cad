@@ -295,8 +295,8 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
     let back = -(by - Point3::origin());
     Some(match curve.clone() {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
-        Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(back))),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(back))),
+        Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(back))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.translated(back)),
         Curve3::Spiric {
             frame: carrier_frame,
             major_radius,
@@ -756,7 +756,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
-        Curve3::Line(geom::Line { dir, .. }) => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Line(geom::Line { dir, .. }) => (dir.get().norm() * Interval::point(span)).mag(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
             Some(k) => (k.speed_hi() * Interval::point(span)).mag(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -1156,11 +1156,33 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
                    walk read — the loop's cycle and its flattened edges disagree",
         });
     }
-    let TrimRectangle { rect, turn } = trim_rectangle(&lift)?;
+    let collapsed: Vec<(geom_brep::ChartSide, f64)> =
+        geom_brep::chart_singularity::collapsed_sides(payload)
+            .into_iter()
+            .filter_map(|(side, _)| {
+                let domain = match side.fixed {
+                    geom_brep::ChartAxis::U => payload.knot_values_u().domain(),
+                    geom_brep::ChartAxis::V => payload.knot_values_v().domain(),
+                };
+                let end = match side.end {
+                    geom_brep::ChartEnd::Low => domain.0,
+                    geom_brep::ChartEnd::High => domain.1,
+                };
+                exact_value(Interval::from_certified(end), false)
+                    .ok()
+                    .map(|value| (side, value))
+            })
+            .collect();
+    let TrimRectangle { rect, turn, jumps } = trim_rectangle(&lift, &collapsed)?;
     let envelopes: Vec<f64> = lift.iter().map(|row| envelopes[&row.half_edge]).collect();
     let (sup_u, sup_v) = payload.stretch_sup();
     let mag = |x: T| Interval::from_certified(x).mag();
-    boundary_defect += joint_defect(&lift, (mag(sup_u.get()), mag(sup_v.get())), &envelopes);
+    boundary_defect += joint_defect(
+        &lift,
+        (mag(sup_u.get()), mag(sup_v.get())),
+        &envelopes,
+        &jumps,
+    );
     let control = about(
         payload
             .control()
@@ -1235,7 +1257,7 @@ enum Way {
 
 /// One side of a trim: the axis its line holds, the line's exact value,
 /// and the way the side runs along it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Side {
     axis: geom_brep::ChartAxis,
     value: f64,
@@ -1248,6 +1270,9 @@ struct Side {
 struct TrimRectangle {
     rect: ChartRect,
     turn: Turn,
+    /// The joints that walk a collapsed side: the row each enters, and
+    /// the side.
+    jumps: Vec<(usize, Side)>,
 }
 
 impl TrimRectangle {
@@ -1285,7 +1310,11 @@ impl TrimRectangle {
         } else {
             Turn::Clockwise
         };
-        Some(Self { rect, turn })
+        Some(Self {
+            rect,
+            turn,
+            jumps: Vec::new(),
+        })
     }
 }
 
@@ -1305,8 +1334,15 @@ impl TrimRectangle {
 /// one line, is never asked to be exact, and a corner is the meet of two
 /// lines, never an image's end; how far an end lies from its joint's
 /// point is the pad's ([`joint_defect`]).
+///
+/// A step between two lines of one axis is a side of the rectangle the
+/// boundary walks with no edge on it: a collapsed side of the net
+/// (`collapsed`, each side held at its domain end's exact value), which
+/// the step's joint walks along and which [`joint_defect`] reads as that
+/// side's two corners.
 fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
     lift: &crate::pcurves::Lift<T>,
+    collapsed: &[(geom_brep::ChartSide, f64)],
 ) -> Result<TrimRectangle, PropsError> {
     let refuse = |what| PropsError::QuadratureUnsupported { what };
     match lift.winding() {
@@ -1324,53 +1360,93 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
         }
         Some(_) => {}
     }
-    let runs = lift.runs().map_err(|missed| {
-        refuse(match missed.why {
-            geom_brep::NoHeldLine::NotIso => {
-                "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
-                 quadrature is the cut-loft unit's"
-            }
-            geom_brep::NoHeldLine::Diagonal => {
-                "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
-                 outside the rectangle lane (the cut-loft unit's)"
-            }
-            geom_brep::NoHeldLine::Point => {
-                "a NURBS-face pcurve is one chart point — an image that moves along \
-                 no channel holds no line of the chart, and the rectangle lane reads \
-                 lines"
-            }
-        })
+    let runs = lift.runs().map_err(|_| {
+        refuse(
+            "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
+             quadrature is the cut-loft unit's",
+        )
     })?;
-    let [r0, r1, r2, r3] = runs.as_slice() else {
+    // Each piece's held value and rate, crossed into certification
+    // arithmetic, and whether the lift moved it by a period.
+    let piece = |i: usize, line: &geom_brep::HeldLine<T>| Piece {
+        value: Interval::from_certified(line.line.value),
+        rate: Interval::from_certified(line.rate),
+        moved: lift.rows()[i].lift != crate::joint::Deck::IDENTITY,
+    };
+    // A run splits where its held value steps: two lines on one axis,
+    // joined across a collapsed side of the net (a pole the boundary
+    // walks along with no edge on it). That side is the rectangle's too,
+    // held at the domain's end the run before it reaches, and it runs
+    // from that run's line to the next.
+    let mut held: Vec<(geom_brep::ChartAxis, Vec<Piece>, usize)> = Vec::new();
+    for run in &runs {
+        for &(i, line) in &run.members {
+            let p = piece(i, &line);
+            let value = exact_value(p.value, p.moved)?;
+            match held.last_mut() {
+                Some((axis, pieces, _))
+                    if *axis == run.axis
+                        && pieces
+                            .last()
+                            .is_some_and(|q| exact_value(q.value, q.moved).ok() == Some(value)) =>
+                {
+                    pieces.push(p);
+                }
+                _ => held.push((run.axis, vec![p], i)),
+            }
+        }
+    }
+    let mut sides: Vec<Side> = Vec::with_capacity(4);
+    let mut jumps: Vec<(usize, Side)> = Vec::new();
+    let m = held.len();
+    for k in 0..m {
+        let (axis, pieces, _) = &held[k];
+        let this = side(*axis, pieces)?;
+        sides.push(this);
+        let (next_axis, next_pieces, next_row) = &held[(k + 1) % m];
+        if m > 1 && next_axis == axis {
+            let next = side(*next_axis, next_pieces)?;
+            let across = axis.other();
+            let end = match this.way {
+                Way::WithChannel => geom_brep::ChartEnd::High,
+                Way::AgainstChannel => geom_brep::ChartEnd::Low,
+            };
+            let Some(&(_, value)) = collapsed
+                .iter()
+                .find(|(c, _)| c.fixed == across && c.end == end)
+            else {
+                return Err(refuse(
+                    "a NURBS-face side's pieces lie on different chart lines, with no \
+                     collapsed side of its chart between them — a stepped trim is outside \
+                     the rectangle lane (the cut-loft unit's)",
+                ));
+            };
+            let pole = Side {
+                axis: across,
+                value,
+                way: if next.value > this.value {
+                    Way::WithChannel
+                } else {
+                    Way::AgainstChannel
+                },
+            };
+            sides.push(pole);
+            jumps.push((*next_row, pole));
+        }
+    }
+    let Ok(sides) = <[Side; 4]>::try_from(sides) else {
         return Err(refuse(
             "the NURBS-face boundary is not four sides of its chart — a trimmed \
              or multiply-wound region is outside the rectangle lane (the \
              cut-loft unit's)",
         ));
     };
-    // Each piece's held value and rate, crossed into certification
-    // arithmetic, and whether the lift moved it by a period.
-    let pieces = |run: &crate::pcurves::HeldRun<T>| -> Vec<Piece> {
-        run.members
-            .iter()
-            .map(|&(i, line)| Piece {
-                value: Interval::from_certified(line.value),
-                rate: Interval::from_certified(line.rate),
-                moved: lift.rows()[i].lift != crate::joint::Deck::IDENTITY,
-            })
-            .collect()
-    };
-    let sides = [
-        side(r0.axis, &pieces(r0))?,
-        side(r1.axis, &pieces(r1))?,
-        side(r2.axis, &pieces(r2))?,
-        side(r3.axis, &pieces(r3))?,
-    ];
-    TrimRectangle::walked(sides).ok_or(refuse(
+    let TrimRectangle { rect, turn, .. } = TrimRectangle::walked(sides).ok_or(refuse(
         "the NURBS-face boundary does not traverse its UV rectangle exactly once — \
          a trimmed or multiply-wound region is outside the rectangle lane (the \
          cut-loft unit's)",
-    ))
+    ))?;
+    Ok(TrimRectangle { rect, turn, jumps })
 }
 
 /// One piece of a run as [`side`] reads it: its line's held value and its
@@ -1419,9 +1495,9 @@ fn exact_value(x: Interval, moved: bool) -> Result<f64, PropsError> {
         Ok(x.lo())
     } else if moved {
         Err(PropsError::QuadratureUnsupported {
-            what: "a NURBS-face line the lift moved one period of a closed chart is \
-                   held at a computed `lo + (hi − lo)`, which is no single number — the \
-                   period is stated by a length, not by the domain's two ends",
+            what: "a NURBS-face line the lift moved by periods of a closed chart is held \
+                   at a computed value, which is no single number — only a line at an end \
+                   of the chart's domain, moved one period, is the other end exactly",
         })
     } else {
         Err(PropsError::QuadratureUnsupported {
@@ -1466,6 +1542,7 @@ fn joint_defect<T: Decide + Bounds + CertifiedEnclosure>(
     lift: &crate::pcurves::Lift<T>,
     (sup_u, sup_v): (f64, f64),
     envelopes: &[f64],
+    jumps: &[(usize, Side)],
 ) -> f64 {
     let iv = Interval::from_certified;
     let (su, sv) = (Interval::point(sup_u), Interval::point(sup_v));
@@ -1473,14 +1550,38 @@ fn joint_defect<T: Decide + Bounds + CertifiedEnclosure>(
     let mut defect = Interval::zero();
     for i in 0..n {
         let before = (i + n - 1) % n;
-        let m = lift.joint_point(i);
-        let off = |x: T| Interval::point(iv(x).mag());
-        let reach =
-            |p: Point2<T>| Interval::point((su * off(p.x - m.x) + sv * off(p.y - m.y)).mag());
-        let (a, b) = (
-            reach(lift.rows()[before].entry_exit_points().1),
-            reach(lift.rows()[i].entry_exit_points().0),
+        let (exit, entry) = (
+            lift.rows()[before].entry_exit_points().1,
+            lift.rows()[i].entry_exit_points().0,
         );
+        // Off the collapsed side a joint walks, each end against its own
+        // corner of that side: the meet of the side with the end's line,
+        // which differs from the end only in the side's channel.
+        let pole = jumps
+            .iter()
+            .find(|(row, _)| *row == i)
+            .map(|(_, side)| *side);
+        let off = |x: Interval| Interval::point(x.mag());
+        let reach = |p: Point2<T>, m: Point2<Interval>| {
+            Interval::point((su * off(iv(p.x) - m.x) + sv * off(iv(p.y) - m.y)).mag())
+        };
+        let at = |p: Point2<T>| match pole {
+            Some(Side {
+                axis: geom_brep::ChartAxis::U,
+                value,
+                ..
+            }) => Point2::new(Interval::point(value), iv(p.y)),
+            Some(Side {
+                axis: geom_brep::ChartAxis::V,
+                value,
+                ..
+            }) => Point2::new(iv(p.x), Interval::point(value)),
+            None => {
+                let m = lift.joint_point(i);
+                Point2::new(iv(m.x), iv(m.y))
+            }
+        };
+        let (a, b) = (reach(exit, at(exit)), reach(entry, at(entry)));
         let (e0, e1) = (
             Interval::point(envelopes[before]),
             Interval::point(envelopes[i]),
@@ -1504,7 +1605,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<f64, PropsError> {
     Ok(match carrier {
         Curve3::Line(geom::Line { dir, .. }) => {
-            (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
+            (Interval::from_certified(dir.get().norm()) * Interval::from_certified(t1 - t0)).mag()
         }
         // The control polygon bounds the spline's arc length
         // (the convex-hull/variation-diminishing fact).
@@ -1555,25 +1656,25 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<LaneRun, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "NURBS face half-edge carries no stored pcurve cache — the \
-                       loft assembly mints them; a body that lost its caches must \
-                       re-mint before mass properties",
-            });
-        };
+    let unminted = || PropsError::QuadratureUnsupported {
+        what: "NURBS face half-edge carries no stored pcurve cache — the \
+               loft assembly mints them; a body that lost its caches must \
+               re-mint before mass properties",
+    };
+    let (lift, rows) = crate::pcurves::lift_of_halves(body, hes).ok_or_else(unminted)?;
+    for ((le, he), &row) in outer.iter().zip(hes).zip(&rows) {
+        let row = row.ok_or_else(unminted)?;
+        let cache = body.pcurve(*he).ok_or_else(unminted)?;
+        let image = &lift.rows()[row].pcurve;
         let (t0, t1) = cache.params();
-        let [pa, pb] = image.span_ends(cache.edge_span());
-        let (a, b) = if le.forward {
-            ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
-        } else {
-            ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
-        };
+        // The chord runs between the row's two joints in the lift: a
+        // corner's meet where an iso row meets an iso column, the
+        // image's own value everywhere else.
+        let (pa, pb) = (lift.joint_point(row), lift.exit_point(row));
+        let (a, b) = ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)));
         let piece = match image {
-            // An iso image is one exact chord: its endpoints are
-            // structure, so there is no arc to bound.
+            // An iso image is its chord: a straight segment of the
+            // chart, so there is no arc to bound.
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
             Pcurve::General(image) => {
                 // The engine subdivides the WHOLE stored image, so
@@ -1802,7 +1903,7 @@ mod tests {
             let line = LoopEdge::hand_built(
                 Curve3::line(
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 iv(0.0),
                 iv(1.0),
@@ -1871,14 +1972,9 @@ mod tests {
         }
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
-            LoopEdge::hand_built(
-                Curve3::line(a, b - a),
-                iv(0.0),
-                iv(1.0),
-                true,
-                tags.0,
-                tags.1,
-            )
+            // The side is its chord, its span in metres.
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            LoopEdge::hand_built(Curve3::line(a, dir), iv(0.0), len, true, tags.0, tags.1)
         }
 
         fn nurbs(
@@ -2225,7 +2321,7 @@ mod tests {
             for (key, _) in body.faces() {
                 let face = body.proven_face(key);
                 let surface = face.surface();
-                let loops = flat_loops(body, face.record()).unwrap();
+                let loops = flat_loops(face).unwrap();
                 let rings = vertex_rings(body, surface, &loops, lane)
                     .unwrap()
                     .expect("a planar face bounded by lines");
@@ -2398,11 +2494,11 @@ mod tests {
                 let centre = corner_of(lane, run);
                 let face = body.proven_face(run.face);
                 let surface = face.surface();
-                let loops = face_loops(&body, face.record()).unwrap();
+                let loops = face_loops(face).unwrap();
                 let (c, _) = super::super::closed_form(
                     surface,
                     &loops,
-                    &crate::props::face_tips(&body, face.record()).unwrap(),
+                    &crate::props::face_tips(face).unwrap(),
                     face.sense(),
                     band,
                     centre,
@@ -2412,13 +2508,7 @@ mod tests {
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
-                    + match vertex_rings(
-                        &body,
-                        surface,
-                        &flat_loops(&body, face.record()).unwrap(),
-                        lane,
-                    )
-                    .unwrap()
+                    + match vertex_rings(&body, surface, &flat_loops(face).unwrap(), lane).unwrap()
                     {
                         Some(rings) => {
                             let &geom::Surface::Plane { frame, .. } = surface else {
@@ -2471,15 +2561,30 @@ mod tests {
         use crate::joint::{Deck, Winding};
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
-        use geom_brep::{Pcurve, StoredSpan};
+        use geom_brep::{ChartLine, Pcurve};
         use geom_core::{Bounds as _, Interval, Point2, Real, Vec2};
 
-        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
+        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward:
+        /// the row through `p0` where the fixture's `pl` has no `v` part,
+        /// the column through it otherwise (so `pl = (0, 0)` is a column
+        /// that does not move).
         fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
-            let pcurve = Pcurve::IsoLine {
-                p0: Point2::new(p0.0, p0.1),
-                pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
-                ends: None,
+            assert!(
+                pl.0 == 0.0 || pl.1 == 0.0,
+                "a side piece is a row or a column"
+            );
+            let pcurve = if pl.1 == 0.0 && pl.0 != 0.0 {
+                Pcurve::IsoLine {
+                    line: ChartLine::row(p0.1),
+                    at0: p0.0,
+                    rate: T::from_f64(pl.0),
+                }
+            } else {
+                Pcurve::IsoLine {
+                    line: ChartLine::column(p0.0),
+                    at0: p0.1,
+                    rate: T::from_f64(pl.1),
+                }
             };
             LiftedRow::stated_for_tests(pcurve, (T::zero(), T::one()), true)
         }
@@ -2514,18 +2619,30 @@ mod tests {
 
         /// The two scalars a loop is read at, each reading its loop.
         trait Reads: Real {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError>;
+            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
+                Self::read_collapsed(rows, &[])
+            }
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError>;
         }
 
         impl Reads for f64 {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
-                trim_rectangle(&Lift::stated_for_tests(rows, closed()))
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, closed()), collapsed)
             }
         }
 
         impl Reads for Interval {
-            fn read(rows: Vec<LiftedRow<Self>>) -> Result<TrimRectangle, PropsError> {
-                trim_rectangle(&Lift::stated_for_tests(rows, closed()))
+            fn read_collapsed(
+                rows: Vec<LiftedRow<Self>>,
+                collapsed: &[(geom_brep::ChartSide, f64)],
+            ) -> Result<TrimRectangle, PropsError> {
+                trim_rectangle(&Lift::stated_for_tests(rows, closed()), collapsed)
             }
         }
 
@@ -2553,6 +2670,7 @@ mod tests {
                 let ccw = TrimRectangle {
                     rect: rect(0.0, 1.0, 0.0, 1.0),
                     turn: Turn::CounterClockwise,
+                    jumps: Vec::new(),
                 };
                 assert_eq!(read(SQUARE.to_vec()).unwrap(), ccw);
                 let cw: Vec<_> = SQUARE.iter().rev().copied().collect();
@@ -2595,20 +2713,19 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let (zero, one) = (Interval::zero(), Interval::one());
             let first = piece((zero, zero), (1.0, 0.0));
-            let mut first_short = first.clone();
-            first_short.params = StoredSpan::for_tests(zero, cut);
-            let mut second = first;
-            second.params = StoredSpan::for_tests(cut, one);
+            let first_short = first.clone().piece_for_tests((zero, cut));
+            let second = first.piece_for_tests((cut, one));
             rows.splice(0..1, [first_short, second]);
             let lift = Lift::stated_for_tests(rows, closed());
             assert_eq!(
-                trim_rectangle(&lift).unwrap(),
+                trim_rectangle(&lift, &[]).unwrap(),
                 TrimRectangle {
                     rect: rect(0.0, 1.0, 0.0, 1.0),
                     turn: Turn::CounterClockwise,
+                    jumps: Vec::new(),
                 }
             );
-            let pad = joint_defect(&lift, (2.0, 2.0), &[0.0; 5]);
+            let pad = joint_defect(&lift, (2.0, 2.0), &[0.0; 5], &[]);
             assert!(
                 pad > 0.0 && pad < 1e-29,
                 "the cut's gap is its enclosure's width, squared: {pad:e}"
@@ -2622,17 +2739,17 @@ mod tests {
         #[test]
         fn a_corner_adds_its_gap_to_the_pad() {
             let lift = Lift::stated_for_tests(polygon::<f64>(&SQUARE), closed());
-            assert_eq!(joint_defect(&lift, (2.0, 3.0), &[1e-3; 4]), 0.0);
+            assert_eq!(joint_defect(&lift, (2.0, 3.0), &[1e-3; 4], &[]), 0.0);
             let mut short = polygon::<f64>(&SQUARE);
             short[0] = from_to((0.0, 0.0), (0.75, 0.0));
             let lift = Lift::stated_for_tests(short, closed());
             assert_eq!(
-                trim_rectangle(&lift).unwrap().rect,
+                trim_rectangle(&lift, &[]).unwrap().rect,
                 rect(0.0, 1.0, 0.0, 1.0)
             );
             // The bottom's end stands 0.25 short of `(1, 0)`: a reach of
             // 0.5 at `sup |S_u| = 2`, swept against its envelope.
-            let pad = joint_defect(&lift, (2.0, 3.0), &[1e-3; 4]);
+            let pad = joint_defect(&lift, (2.0, 3.0), &[1e-3; 4], &[]);
             assert!((pad - 0.5 * (0.5 + 2e-3)).abs() < 1e-12, "{pad}");
         }
 
@@ -2647,11 +2764,11 @@ mod tests {
             rows[1] = from_to((1.0, 0.25), (1.0, 1.0));
             let lift = Lift::stated_for_tests(rows, closed());
             assert_eq!(
-                trim_rectangle(&lift).unwrap().rect,
+                trim_rectangle(&lift, &[]).unwrap().rect,
                 rect(0.0, 1.0, 0.0, 1.0)
             );
             let e = [1e-3, 2e-3, 1e-3, 1e-3];
-            let pad = joint_defect(&lift, (2.0, 3.0), &e);
+            let pad = joint_defect(&lift, (2.0, 3.0), &e, &[]);
             let want = 0.75 * (0.75 + 2.0 * 2e-3);
             assert!((pad - want).abs() < 1e-12, "{pad} against {want}");
         }
@@ -2698,13 +2815,14 @@ mod tests {
         fn three_five_and_notched_sides_refuse() {
             fn each<T: Reads>() {
                 // Three: the bottom, the right side and the top, the top's
-                // row joined to the bottom's.
+                // row joined to the bottom's across a side no net
+                // collapses (`a_collapsed_side_is_a_side_of_the_rectangle`).
                 let three = vec![
                     from_to((0.0, 0.0), (1.0, 0.0)),
                     from_to((1.0, 0.0), (1.0, 1.0)),
                     from_to((1.0, 1.0), (0.0, 1.0)),
                 ];
-                refused::<T>(three, "not four sides");
+                refused::<T>(three, "different chart lines");
                 // Five: the square with its left side stopped half way
                 // and a row at `v = 1/2` back to the start's column.
                 let five = vec![
@@ -2740,17 +2858,78 @@ mod tests {
             each::<Interval>();
         }
 
-        /// A side carrying an image on no held line refuses, naming why: a
-        /// diagonal iso map, a harmonic image (no iso image at all), and a
-        /// point image, both of whose slopes are an exact zero.
+        /// **A collapsed side is a side of the rectangle**: the three
+        /// sides above, the top's row joined to the bottom's across the
+        /// net's collapsed `u = 0` column, read the whole square, with
+        /// the joint into the bottom row walking that column; across the
+        /// collapsed `u = 1` column instead, which the top row does not
+        /// reach, they refuse.
+        #[test]
+        fn a_collapsed_side_is_a_side_of_the_rectangle() {
+            use geom_brep::{ChartAxis, ChartEnd, ChartSide};
+            fn each<T: Reads>() {
+                let three = || {
+                    vec![
+                        from_to::<T>((0.0, 0.0), (1.0, 0.0)),
+                        from_to((1.0, 0.0), (1.0, 1.0)),
+                        from_to((1.0, 1.0), (0.0, 1.0)),
+                    ]
+                };
+                let side = |end| ChartSide {
+                    fixed: ChartAxis::U,
+                    end,
+                };
+                let read = |collapsed: &[(ChartSide, f64)]| T::read_collapsed(three(), collapsed);
+                let got = read(&[(side(ChartEnd::Low), 0.0)]).unwrap();
+                assert_eq!(
+                    (got.rect, got.turn),
+                    (rect(0.0, 1.0, 0.0, 1.0), Turn::CounterClockwise),
+                    "{}: the square",
+                    T::NAME
+                );
+                assert_eq!(
+                    got.jumps
+                        .iter()
+                        .map(|(row, s)| (*row, s.axis, s.value))
+                        .collect::<Vec<_>>(),
+                    vec![(0, ChartAxis::U, 0.0)],
+                    "{}: the joint into the bottom row walks the column",
+                    T::NAME
+                );
+                assert!(
+                    matches!(
+                        read(&[(side(ChartEnd::High), 1.0)]),
+                        Err(PropsError::QuadratureUnsupported { what })
+                            if what.contains("different chart lines")
+                    ),
+                    "{}: the other column is not the one the top row reaches",
+                    T::NAME
+                );
+            }
+            each::<f64>();
+            each::<Interval>();
+        }
+
+        /// A side that is no line the certificate reads refuses, naming
+        /// why: a slanted line (a curve in UV: no iso image holds one), a
+        /// harmonic image (no iso image at all), and an iso image that
+        /// does not move, whose way along its line is undecided.
         #[test]
         fn a_side_on_no_held_line_refuses_and_says_why() {
             fn each<T: Reads>() {
-                let mut diagonal = polygon::<T>(&SQUARE);
-                diagonal[1] = piece((T::one(), T::zero()), (1e-3, 1.0));
-                refused::<T>(diagonal, "not axis-aligned");
-                let mut harmonic = polygon::<T>(&SQUARE);
+                // A slanted line is no iso image: it is stated as a curve
+                // in UV, which holds no line however straight its net.
                 let f = T::from_f64;
+                let mut diagonal = polygon::<T>(&SQUARE);
+                let slanted = geom::NurbsCurve2::new(
+                    geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                    vec![Point2::new(1.0, 0.0), Point2::new(1.0 + 1e-3, 1.0)],
+                    vec![1.0, 1.0],
+                )
+                .unwrap();
+                diagonal[1].pcurve = Pcurve::General(std::sync::Arc::new(slanted.map_scalar(f)));
+                refused::<T>(diagonal, "not an iso image");
+                let mut harmonic = polygon::<T>(&SQUARE);
                 harmonic[1].pcurve = Pcurve::free_harmonic(
                     Point2::new(f(1.0), f(0.0)),
                     Vec2::new(f(0.0), f(0.0)),
@@ -2760,7 +2939,7 @@ mod tests {
                 refused::<T>(harmonic, "not an iso image");
                 let mut point = polygon::<T>(&SQUARE);
                 point.insert(1, piece((T::one(), T::zero()), (0.0, 0.0)));
-                refused::<T>(point, "one chart point");
+                refused::<T>(point, "not decided");
             }
             each::<f64>();
             each::<Interval>();
@@ -2787,9 +2966,9 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let LiftedRow { pcurve, .. } = &mut rows[0];
             *pcurve = Pcurve::IsoLine {
-                p0: Point2::new(Interval::zero(), Interval::zero()),
-                pl: Vec2::new(Interval::from_bounds(-1e-300, 1.0), Interval::zero()),
-                ends: None,
+                line: geom_brep::ChartLine::row(Interval::zero()),
+                at0: Interval::zero(),
+                rate: Interval::from_bounds(-1e-300, 1.0),
             };
             refused::<Interval>(rows, "not decided");
         }
@@ -2800,7 +2979,7 @@ mod tests {
         /// compose to one period.
         #[test]
         fn a_loop_that_does_not_close_in_its_chart_refuses_saying_how() {
-            let says = |lift: Lift<f64>, text: &str| match trim_rectangle(&lift) {
+            let says = |lift: Lift<f64>, text: &str| match trim_rectangle(&lift, &[]) {
                 Err(PropsError::QuadratureUnsupported { what }) if what.contains(text) => {}
                 other => panic!("refused saying {text:?}: {other:?}"),
             };
@@ -2847,7 +3026,7 @@ mod tests {
             for delta in [f64::EPSILON / 2.0, tol.eps() / 20.0] {
                 let perimeter = 2.0 * 2.0 * (1.0 - delta) + 2.0 * 3.0;
                 let lift = Lift::stated_for_tests(trim::<f64>(delta), closed());
-                let pad = perimeter * e + joint_defect(&lift, (2.0, 3.0), &[e; 4]);
+                let pad = perimeter * e + joint_defect(&lift, (2.0, 3.0), &[e; 4], &[]);
                 for (scalar, r) in [
                     ("f64", read::<f64>(trim(delta)).unwrap()),
                     ("Interval", read::<Interval>(trim(delta)).unwrap()),
@@ -2888,46 +3067,77 @@ mod tests {
             }
         }
 
-        /// **A seam column moved one period of a closed chart** whose
-        /// domain is `[lo, hi]`: the lift states it at `lo + (hi − lo)`,
-        /// computed. At `Interval` that sum has width, so the column's
-        /// value is no point and the certificate refuses it, naming the
-        /// period. At `f64` it is a point, and the certificate reads the
-        /// sum's rounding as the column: on `[0.3, 1.7]` that lands on
-        /// `1.7`, and on `[0.4, 1.7]`, `[0.6, 1.7]` and `[0.7, 3.1]` it
-        /// misses `hi` by an ulp, below, above (outside the domain) and
-        /// above. (The period's statement is
-        /// `work/boxfinish/a-seam-column-moved-a-period-reads-lo-plus-the-period.md`'s.)
+        /// **A seam column moved one period of a closed chart is its
+        /// domain's other end**, on domains that do not start at 0, end
+        /// to end: the column stored at `lo` is moved by the lift's own
+        /// door ([`crate::joint::Deck::apply`] on a chart whose `u`
+        /// domain is `[lo, hi]`, which moves an iso image's held value
+        /// through [`geom_brep::Period::moved`]), and the moved image is
+        /// held at `hi` itself, so the certificate reads the rectangle
+        /// `[lo, hi]` at `f64` and at `Interval` alike. The sum
+        /// `lo + (hi − lo)` it replaces has width at `Interval` on every
+        /// one of these domains and at `f64` misses `hi` by an ulp on
+        /// three of them. A column that is NOT at an end lands its offset
+        /// off the other end, a computed value that at `Interval` is no
+        /// point here, and the certificate refuses it, naming the move.
+        ///
+        /// Red under `Period::moved` adding `k·(hi − lo)` to every value:
+        /// the `Interval` rectangles refuse and three `f64` ones miss `hi`.
         #[test]
-        fn a_seam_column_moved_one_period_is_its_computed_sum() {
-            fn moved<T: Reads>((lo, hi): (f64, f64)) -> (T, Result<TrimRectangle, PropsError>) {
+        fn a_seam_column_moved_one_period_is_the_domains_other_end() {
+            const ONCE: Deck = Deck {
+                u: 1,
+                v: 0,
+                twin: false,
+            };
+            /// The bilinear chart over `[lo, hi] × [0, 1]`.
+            fn chart<T: geom_core::Decide>(lo: f64, hi: f64) -> geom::Surface<T> {
+                use geom_core::spline::KnotVector;
+                let ku = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+                let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+                    .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+                    .to_vec();
+                let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap();
+                geom::Surface::Nurbs(std::sync::Arc::new(net.map_scalar(T::from_f64)))
+            }
+            /// The square on `[lo, hi] × [0, 1]` whose far column is the
+            /// column stored at `at`, as the lift moves it one period of
+            /// the chart's `u` channel.
+            fn moved<T: Reads + geom_core::Decide>(
+                (lo, hi): (f64, f64),
+                at: f64,
+            ) -> Result<TrimRectangle, PropsError> {
                 let f = T::from_f64;
-                let column = f(lo) + (f(hi) - f(lo));
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                rows[1] = piece((column, T::zero()), (0.0, 1.0)).moved_for_tests(Deck {
-                    u: 1,
-                    v: 0,
-                    twin: false,
-                });
-                (column, read(rows))
+                let surface = chart::<T>(lo, hi);
+                let periods = crate::pcurves::ChartPeriods::stated(&surface);
+                let stored = piece((f(at), T::zero()), (0.0, 1.0));
+                // The chart states a `u` period, so the move is made.
+                let image = ONCE.apply(&stored.pcurve, &surface, periods).unwrap();
+                let mut lifted = stored.moved_for_tests(ONCE);
+                lifted.pcurve = image;
+                rows[1] = lifted;
+                read(rows)
             }
-            match moved::<Interval>((0.3, 1.7)).1 {
-                Err(PropsError::QuadratureUnsupported { what }) if what.contains("one period") => {}
-                other => panic!("Interval: the moved column is no point: {other:?}"),
+            fn each<T: Reads + geom_core::Decide>() {
+                for (lo, hi) in [(0.3, 1.7), (0.4, 1.7), (0.6, 1.7), (0.7, 3.1)] {
+                    assert_eq!(
+                        moved::<T>((lo, hi), lo).unwrap().rect,
+                        rect(lo, hi, 0.0, 1.0),
+                        "the seam at {lo} lifted one period of [{lo}, {hi}] is the column {hi}"
+                    );
+                }
             }
-            for ((lo, hi), lands) in [
-                ((0.3, 1.7), 1.7),
-                ((0.4, 1.7), 1.699_999_999_999_999_7),
-                ((0.6, 1.7), 1.700_000_000_000_000_2),
-                ((0.7, 3.1), 3.100_000_000_000_000_5),
-            ] {
-                let (column, r) = moved::<f64>((lo, hi));
-                assert_eq!(column, lands, "f64: the sum on [{lo}, {hi}]");
-                assert_eq!(
-                    r.unwrap().rect,
-                    rect(lo, lands, 0.0, 1.0),
-                    "f64: the column read on [{lo}, {hi}] is the sum, not `hi`"
-                );
+            each::<f64>();
+            each::<Interval>();
+            // A column an ulp inside the domain is no end: it lands that
+            // ulp past the other end, which at `Interval` is no point.
+            let (lo, hi) = (0.4_f64, 1.7_f64);
+            match moved::<Interval>((lo, hi), f64::from_bits(lo.to_bits() + 1)) {
+                Err(PropsError::QuadratureUnsupported { what })
+                    if what.contains("computed value") => {}
+                other => panic!("Interval: a moved interior column is no point: {other:?}"),
             }
         }
 

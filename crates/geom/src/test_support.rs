@@ -1,20 +1,26 @@
-//! **One fixture of every analytic kind**, behind the `test-support`
-//! feature (on only through dev-dependency edges), for the rows that
-//! hold a field-by-field reader to the walks ([`Surface::data`],
-//! [`Curve3::data`]).
+//! **Test fixtures**, behind the `test-support` feature (on only
+//! through dev-dependency edges): one fixture of every analytic kind,
+//! for the rows that hold a field-by-field reader to the walks
+//! ([`Surface::data`], [`Curve3::data`]); the NURBS segments a row hands
+//! a spline door ([`nurbs_segment`], [`poisoned_nurbs_segment`]); and
+//! the chart frames of [`reframed`].
 //!
-//! Each kind is a builder over a flat scalar list, laid out in its
+//! Each analytic kind is a builder over a flat scalar list, laid out in its
 //! variant's field order, beside the number of scalars it reads. The
 //! kinds are read off the kind rosters ([`SurfaceKind::ALL`],
 //! [`CurveKind::ALL`]), so a variant added to [`Surface`] or [`Curve3`]
 //! fails this module until it is given a builder or declared as not
 //! read field by field.
 
+pub mod collapsed;
 pub mod held_arc;
 
 use crate::datum::ANALYTIC_DATA_MAX;
 use crate::{Curve3, CurveKind, Surface, SurfaceKind};
-use geom_core::{Point3, Vec3};
+use core::num::NonZeroUsize;
+use geom_core::spline::{KnotVector, Knots, SpanLocate};
+use geom_core::{Point3, UnitVec3, Vec3};
+use std::sync::Arc;
 
 /// One analytic kind: a builder over a flat scalar list, and how many
 /// of the list's leading scalars it reads.
@@ -105,7 +111,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
         .filter_map(|kind| -> Option<AnalyticKind<Curve3<f64>>> {
             Some(match kind {
                 CurveKind::Line => AnalyticKind {
-                    build: |x| Curve3::line(pt(&x[0..3]), dir(&x[3..6])),
+                    build: |x| Curve3::line(pt(&x[0..3]), UnitVec3::squared(dir(&x[3..6]))),
                     scalars: 6,
                 },
                 CurveKind::Circle => AnalyticKind {
@@ -135,6 +141,34 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
             })
         })
         .collect()
+}
+
+/// A degree-1 NURBS segment on `[0, 1]` from `a` to `b`, unit weights.
+#[allow(clippy::expect_used)]
+fn segment<T: SpanLocate>(a: Point3<T>, b: Point3<T>) -> Curve3<T> {
+    let knots = Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)).lift(T::from_f64);
+    Curve3::Nurbs(Arc::new(
+        crate::NurbsCurve3::new(knots, vec![a, b], vec![T::one(), T::one()])
+            .expect("a degree-1 segment with unit weights validates"),
+    ))
+}
+
+/// **A described NURBS carrier**: the degree-1 segment from `a` to `b`
+/// on `[0, 1]`, unit weights — the smallest spline a row can hand a
+/// door that refuses or reads splines as such.
+#[must_use]
+pub fn nurbs_segment(a: Point3<f64>, b: Point3<f64>) -> Curve3<f64> {
+    segment(a, b)
+}
+
+/// **A NURBS carrier poisoned in every channel**: the degree-1 segment
+/// whose two control points are the scalar's poison
+/// (`net::poison_point`). It validates, so every evaluator answers it,
+/// and every answer is poison.
+#[must_use]
+pub fn poisoned_nurbs_segment<T: SpanLocate>() -> Curve3<T> {
+    let p = crate::net::poison_point::<T, Point3<T>>();
+    segment(p, p)
 }
 
 /// **The frames a frame pin charts one surface on**, as `(t, flip)`

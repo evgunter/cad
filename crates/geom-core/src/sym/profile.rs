@@ -125,6 +125,10 @@ pub enum Origin {
     /// The shape report's rendering of a blocked residual
     /// (`report::render_node`), when the report is installed.
     Report,
+    /// The structural question (`crate::Expression::proves_zero`): a
+    /// construction asking whether an expression is zero, which is no
+    /// decision.
+    Question,
 }
 
 /// What one op kind did across every node of that kind.

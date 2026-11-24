@@ -124,7 +124,7 @@ pub(crate) fn world_in_brick(
 
 /// Where the cut survives, the result holds two pieces of one sphere
 /// face across it.
-const CUT_LEFT: &str =
+pub(crate) const CUT_LEFT: &str =
     "work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
 
 /// The document: the lens, the brick, and `op` over them, lens first or
@@ -139,7 +139,7 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, lens) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
+            members: editor_core::Bodies::spelled(vec![b1.into(), b2.into()]),
         },
     );
     let (x, y) = if lens_first {
@@ -153,10 +153,10 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
             tool: y.into(),
         },
         "union" => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
         _ => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
     };
     let (doc, out) = insert(doc, node);

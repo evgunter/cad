@@ -50,7 +50,10 @@ fn wound_negative() -> Curve3<f64> {
 
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
-        Curve3::Circle(geom::Circle { frame, .. }) => frame.origin(),
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
+            frame.origin()
+        }
         _ => panic!("a circle fixture"),
     }
 }
@@ -272,7 +275,8 @@ fn the_answer_is_the_branch_within_half_a_turn_of_the_anchor() {
 /// the definition it is supposed to be pinning against.
 fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f64 {
     let (center, axis, u_ref) = match *carrier {
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             (center, axis, u_ref)
         }
@@ -359,7 +363,7 @@ fn at_the_half_turn_boundary_the_answer_is_a_parameter_within_half_a_turn() {
 fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
     let line = Curve3::line(
         Point3::new(0.5, -1.0, 2.0),
-        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+        geom::stated_direction(Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)),
     );
     for t in [-4.0, 0.0, 0.25, 17.0] {
         let p = line.eval(t);
@@ -399,7 +403,8 @@ fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
 /// `None` — the typed refusal each consumer turns into its own error.
 #[test]
 fn the_nurbs_arm_refuses() {
-    let nurbs = Curve3::<f64>::nurbs_placeholder();
+    let nurbs: Curve3<f64> =
+        geom::test_support::nurbs_segment(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     assert!(nurbs.param_near(Point3::new(0.0, 0.0, 0.0), 0.0).is_none());
 }
 

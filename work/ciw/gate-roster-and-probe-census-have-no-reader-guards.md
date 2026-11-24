@@ -5,7 +5,7 @@ title: gate-roster.sh reports OK over a reader that read nothing: zero guard sit
 status: open
 opened: 2026-09-10
 priority: P3
-cost: D
+cost: E
 ---
 
 

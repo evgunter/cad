@@ -292,13 +292,16 @@ fn line_arms() -> Vec<Arm> {
                 frame: geom::Frame::new(o, z, x),
                 radius: 1.0,
             },
-            Curve3::line(Point3::new(phi.cos(), phi.sin(), 0.0), z),
+            Curve3::line(
+                Point3::new(phi.cos(), phi.sin(), 0.0),
+                geom::stated_direction(z),
+            ),
             (0.3, 2.0),
         ),
         (
             "cone ruling",
             cone.clone(),
-            Curve3::line(o + ruling * 0.5, ruling),
+            Curve3::line(o + ruling * 0.5, geom::stated_direction(ruling)),
             (0.2, 1.5),
         ),
         (
@@ -306,7 +309,7 @@ fn line_arms() -> Vec<Arm> {
             cone,
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: ruling,
+                dir: geom::stated_direction(ruling),
             }),
             (-1.0, 1.0),
         ),
@@ -318,16 +321,11 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_41,
-                ..
-            },
-        ) => {
+        Curve3::Circle(conic_k) => {
             let (center, axis, u_ref) = (
-                carrier_frame_41.origin(),
-                carrier_frame_41.axis(),
-                carrier_frame_41.u_ref(),
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
             );
             let radius = conic_k.radius();
             circle(
@@ -337,7 +335,7 @@ fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
                 u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
             )
         }
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir.get() * by, dir),
         _ => unreachable!("only circles and lines are restarted here"),
     }
 }

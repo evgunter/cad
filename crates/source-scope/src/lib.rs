@@ -12,7 +12,8 @@
 //! Lexing — *is this text code, a comment or a literal* — stays in
 //! `test_utils::source`, which is a zero-dependency leaf on purpose.
 //! `test-utils/tests/reader_census.rs` keeps the scope ledger: every
-//! site that asks a scope question has a line there, and the hand-rolled
+//! site that asks a scope question without calling this crate's reader
+//! has a line there, and the hand-rolled
 //! scope readers that predate this crate are recorded by item, in a
 //! record `scripts/gates/scope-readers-only-shrink.sh` holds against the
 //! merge base.
@@ -87,6 +88,7 @@
 //!   traits are not tracked: a method call's receiver type is not
 //!   inferred, and a path through a type (`T::f`) is not followed.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 use std::collections::HashMap;
 
 use proc_macro2::Span;

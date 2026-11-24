@@ -218,6 +218,10 @@ pub fn tangent_certificate_lane<T: Real>(
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn tangent_span_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -230,7 +234,7 @@ pub fn tangent_span_bounds<T: Real>(
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
     if let Curve3::Circle(circle) = carrier {
-        let f = circle.frame;
+        let f = circle.frame();
         return circle_span_bounds(
             s1,
             s2,
@@ -257,14 +261,14 @@ pub fn tangent_span_bounds<T: Real>(
         match *s {
             Surface::Plane { .. } => Some((T::zero(), T::zero())),
             Surface::Sphere { radius, .. } => {
-                let f2 = dir.norm_squared() / radius;
-                let drift = eight * dir.norm() / radius.powi(2);
+                let f2 = dir.get().norm_squared() / radius;
+                let drift = eight * dir.get().norm() / radius.powi(2);
                 Some((f2, drift))
             }
             Surface::Cylinder { frame, radius, .. } => {
                 let axis = frame.axis();
-                let d_ax = dir.dot(axis);
-                let d_perp2 = dir.norm_squared() - d_ax.powi(2);
+                let d_ax = dir.get().dot(axis);
+                let d_perp2 = dir.get().norm_squared() - d_ax.powi(2);
                 let f2 = d_perp2 / radius;
                 // Only the axis-TRANSVERSE component turns the Gauss
                 // map or moves ρ: a ruling (the C5 tangent-arm mint)

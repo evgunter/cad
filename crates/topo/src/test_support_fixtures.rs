@@ -1740,7 +1740,8 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
     assert!(f.rings.is_empty(), "a sheet face has no ring");
     let outer = f.outer;
     let surface = body.get_surface(f.surface).expect("the surface").clone();
-    let (edges, _) = crate::props::loop_edges(body, outer).expect("the loop's edges");
+    let (edges, _) = crate::props::loop_edges(body.cycle_loop(outer).expect("a cycle loop"))
+        .expect("the loop's edges");
     let encoded = match geom_brep::props::boundary_material_sign_loops(&surface, &[&edges], band) {
         Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
             Some(side == geom_core::Sign::Positive)
@@ -2233,19 +2234,17 @@ pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestP
 /// start corner at the carrier's start, its end corner at the carrier's
 /// end plus `off` (certified, so `off` lies within the run's zero band).
 /// Returns the body and the cap face.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     carrier: Curve3<T>,
     span: (T, T),
     off: Vec3<T>,
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame,
-            ..
-        },
-    ) = carrier
-    else {
+    let Curve3::Circle(conic_k) = carrier else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
     let radius = conic_k.radius();
@@ -2253,10 +2252,10 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        frame: carrier_frame,
+        frame: conic_k.frame(),
     });
     let wall = body.add_surface(Surface::Cylinder {
-        frame: carrier_frame,
+        frame: conic_k.frame(),
         radius,
     });
     let arc = body
@@ -2482,7 +2481,7 @@ pub fn bezier_arc_sheet(mx: f64, h: f64, tol: Tol) -> (Body<f64>, EdgeKey) {
         },
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(plane),
-            carrier: Curve3::line(p1, Vec3::new(-1.0, 0.0, 0.0)),
+            carrier: Curve3::line(p1, geom::stated_direction(Vec3::new(-1.0, 0.0, 0.0))),
             param_start: 0.0,
             param_end: 2.0,
         },
@@ -2633,7 +2632,8 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle(geom::Circle { frame, .. }) => {
+                    Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                        let frame = the_circle.frame();
                         let axis = frame.axis();
                         Some(axis.to_array())
                     }

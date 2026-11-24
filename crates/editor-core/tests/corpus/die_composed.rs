@@ -155,7 +155,10 @@ pub fn selection(
     for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
         let (x, y) = (
             carried(from.read, cap_top.clone()),
-            carried(tool.read, ball_face(band)),
+            carried(
+                tool.reads().next().expect("a subtract with one tool").read,
+                ball_face(band),
+            ),
         );
         let (a, b) = if y < x { (y, x) } else { (x, y) };
         out.push(at(RoleSeg::Seam {
@@ -233,7 +236,9 @@ pub fn excluded_meridians(
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     let tool = match doc.node(pipped) {
-        Some(Node::Subtract { tool, .. }) => tool.read,
+        Some(Node::Subtract { tool, .. }) => {
+            tool.reads().next().expect("a subtract with one tool").read
+        }
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
     [MeridianEnd::Seam, MeridianEnd::Pi]

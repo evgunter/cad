@@ -151,12 +151,13 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                     ..
                 } if matches!(
                     **cause,
-                    EulerOpError::Certification {
+                    EulerOpError::DescriptionUncertified {
                         error: geom_brep::CertifyError::NotTransverse {
                             sample: geom_brep::certify::NOT_A_SAMPLE,
                             lever: None,
                             verdict: geom_brep::recourse::Refused::Zero(_),
                         },
+                        ..
                     }
                 )
             ),
@@ -205,7 +206,10 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
 /// as tangent (`ssi_pair_row`). On rim 2 the cover is clear, the section
 /// there is the row, a `Side` region on a side of both charts, and the
 /// pair clears by W1′. The walls that share no rim meet at the lens's
-/// tips and clear; so do the plane caps. Red against no row handed in
+/// tips, corners of both charts handed in as corners
+/// (`boolean::spline_known::corners`, read from the loops' lifts), and
+/// clear; so do the plane caps. Red against no corner handed in (the two
+/// pairs that meet at the tips refuse `ssi_pair_boundary`), against no row handed in
 /// (rim 2 refuses `ssi_pair_boundary`), against the cover's width
 /// dropped (likewise), and against a `Side` region read as a loop (rim 2
 /// is placed nowhere: R-undec).

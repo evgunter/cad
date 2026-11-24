@@ -47,7 +47,10 @@ fn flat_wall() -> NurbsSurface<f64> {
 
 /// The off-iso diagonal on the flat wall, `t ∈ [0, 1]`.
 fn diagonal() -> Curve3<f64> {
-    Curve3::line(Point3::new(0.1, 0.1, 0.0), Vec3::new(0.6, 0.8, 0.0))
+    Curve3::line(
+        Point3::new(0.1, 0.1, 0.0),
+        geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+    )
 }
 
 /// The vertical plane through the diagonal.
@@ -78,30 +81,20 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_20,
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_20.origin(),
-                carrier_frame_20.axis(),
-                carrier_frame_20.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1))
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_19,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, axis, u_ref) = (
-                carrier_frame_19.origin(),
-                carrier_frame_19.axis(),
-                carrier_frame_19.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1))
@@ -516,7 +509,10 @@ fn bumped_wall(peak: f64) -> NurbsSurface<f64> {
 /// with the bound it read. The line and its spline twin alike.
 #[test]
 fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
-    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let line = Curve3::line(
+        Point3::new(0.0, 0.5, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.5, 0.0),
@@ -577,7 +573,10 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
 /// carrier's miss (`HullValueChart`), never [`SsiLimb::ImageMiss`].
 #[test]
 fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
-    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let line = Curve3::line(
+        Point3::new(0.0, 0.5, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let plane = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.5, 0.0),

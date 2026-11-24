@@ -207,7 +207,7 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
         )
         .unwrap_err();
     assert!(
-        matches!(refused, EulerOpError::Certification { .. }),
+        matches!(refused, EulerOpError::DescriptionUncertified { .. }),
         "{refused:?}"
     );
     assert_eq!(format!("{body:?}"), before);
@@ -485,11 +485,11 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
             let mut fresh = body.clone();
             fresh.detach_pcurve(h);
             let derived = topo::pcurve_of(&fresh, h, band());
-            let Ok(Pcurve::IsoLine { pl, .. }) = derived else {
+            let Ok(Pcurve::IsoLine { line, rate, .. }) = derived else {
                 panic!("{edge:?}: the member's wall image is an iso line: {derived:?}")
             };
-            let column = pl.x == 0.0 && pl.y != 0.0;
-            let row = pl.y == 0.0 && pl.x != 0.0;
+            let column = line.axis == geom_brep::ChartAxis::U && rate != 0.0;
+            let row = line.axis == geom_brep::ChartAxis::V && rate != 0.0;
             assert!(
                 if seam { column } else { row },
                 "{edge:?}: a {} takes its {}: {derived:?}",
@@ -555,7 +555,7 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
         let Curve3::Line(geom::Line { origin, dir }) = spec.carrier else {
             unreachable!("line_between builds a line")
         };
-        spec.carrier = Curve3::line(origin - dir, dir);
+        spec.carrier = Curve3::line(origin - dir.get(), dir);
         spec.param_start += 1.0;
         spec.param_end += 1.0;
         let before = wall_images(&body);

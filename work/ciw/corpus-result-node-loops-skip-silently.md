@@ -2,10 +2,11 @@
 id: corpus-result-node-loops-skip-silently
 kind: issue
 title: m4_pr8_corpus.rs's result-node loop can skip every document with nothing counting it
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-11-23
 ---
 
 
@@ -46,3 +47,7 @@ because the question is a claim that cannot fail, not a cost.
 Filed by SUITE/D114.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-23, CIW (stale). `exact_mass_pins_hold` already ends with `assert!(pinned >= 6)`, and a document reaches `pinned += 1` only after getting past the `continue`. If every document skipped, the test would already fail (found by the drive-by lane on PR 7419).

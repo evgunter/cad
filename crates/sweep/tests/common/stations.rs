@@ -30,10 +30,12 @@ pub fn cut_stations(
         .clone();
     let (t0, t1) = c.params();
     let mut us: Vec<f64> = match *c.carrier() {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            points.iter().map(|&p| (p - origin).dot(dir)).collect()
-        }
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Line(geom::Line { origin, dir }) => points
+            .iter()
+            .map(|&p| (p - origin).dot(dir.get()))
+            .collect(),
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let v_ref = axis.cross(u_ref);
             let (lo, hi) = (t0.min(t1), t0.max(t1));
@@ -89,17 +91,10 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
                 origin: o2,
                 dir: d2,
             }),
-        ) => d1.cross(*d2).norm() < 1e-9 && d1.cross(*o2 - *o1).norm() < 1e-9,
-        (
-            Curve3::Circle(
-                k1 @ geom::Circle {
-                    frame: carrier_frame,
-                    ..
-                },
-            ),
-            Curve3::Circle(k2 @ geom::Circle { frame, .. }),
-        ) => {
-            let (c1, a1) = (carrier_frame.origin(), carrier_frame.axis());
+        ) => d1.get().cross(d2.get()).norm() < 1e-9 && d1.get().cross(*o2 - *o1).norm() < 1e-9,
+        (Curve3::Circle(k1), Curve3::Circle(k2)) => {
+            let frame = k2.frame();
+            let (c1, a1) = (k1.frame().origin(), k1.frame().axis());
             let (c2, a2) = (frame.origin(), frame.axis());
             let r1 = k1.radius();
             let r2 = k2.radius();

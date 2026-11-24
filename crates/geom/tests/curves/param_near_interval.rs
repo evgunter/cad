@@ -177,7 +177,8 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
 fn the_line_arm_has_no_cut_to_widen_at() {
     let line = Curve3::line(
         Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
-        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
+        geom::stated_direction(Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0))
+            .map_scalar(Interval::from_f64),
     );
     let p = line.eval(Interval::from_f64(3.25));
     let first = line.param_near(p, Interval::from_f64(0.0)).unwrap();
@@ -211,13 +212,10 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 #[test]
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
-    let Curve3::Circle(geom::Circle {
-        frame: carrier_frame,
-        ..
-    }) = carrier
-    else {
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
         panic!("a circle fixture")
     };
+    let carrier_frame = the_circle.frame();
     let (center, axis, u_ref) = (
         carrier_frame.origin(),
         carrier_frame.axis(),

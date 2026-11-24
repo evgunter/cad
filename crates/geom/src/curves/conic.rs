@@ -5,10 +5,10 @@
 //! not a circle with a stretch. What the two share is named once and
 //! held by each:
 //!
-//! - **The placement**, [`Frame`]: centred on the conic, `axis` the
-//!   unit plane normal and `u_ref` the unit seam, `θ = 0` on it. A
-//!   reading of the placement alone (a point's in-plane components, the
-//!   frame reversed or moved) is [`Frame`]'s.
+//! - **The placement**, [`Frame`]: `axis` the unit plane normal and
+//!   `u_ref` the unit seam, `θ = 0` on it, read at the conic's centre
+//!   ([`Conic::frame`]). A reading of the placement alone (a point's
+//!   in-plane components, the frame reversed or moved) is [`Frame`]'s.
 //! - **The readings either kind answers**, the [`Conic`] trait: the point
 //!   and the derivatives at `θ`, the angle of a point and its parameter on
 //!   a branch, the speed bounds, the major frame. A reader that treats the
@@ -24,6 +24,76 @@
 //! on a near-circle it is rounding, so a reader that needs the major
 //! direction takes it from the surface the ellipse is a section of
 //! ([`Ellipse::section_frame`]).
+//!
+//! # Where a conic is held
+//!
+//! A conic stores ONE point. A circle's is its centre. An ellipse's is
+//! its centre or a point of its arc, and its private placement says
+//! which; the other is derived by name on each read.
+//!
+//! - **Held at its centre** ([`Circle::new`], [`Ellipse::new`], and the
+//!   doors over them): the placement stands at the centre as given, and
+//!   a point is `center + u_ref·(a·cos θ) + v_ref·(b·sin θ)`. Every bit
+//!   a file or a caller stated is kept, and a point at a quarter turn is
+//!   the centre moved by one semi-axis exactly.
+//! - **Held on its arc** ([`Ellipse::anchored`]): the placement stands
+//!   at the **anchor**, a point of the ellipse, with the pair
+//!   `(cos θ₀, sin θ₀)` of the anchor's eccentric anomaly from `u_ref`
+//!   beside it. A point is summed from the anchor,
+//!   `anchor + u_ref·a·(cos θ − cos θ₀) + v_ref·b·(sin θ − sin θ₀)`, the
+//!   first offset read as `−(2·sin²(θ/2) − (1 − cos θ₀))`. The centre is
+//!   `anchor − u_ref·(a·cos θ₀) − v_ref·(b·sin θ₀)` ([`Conic::center`],
+//!   [`Conic::frame`]), derived on each read and so rounded at the
+//!   semi-axes' scale; a reader that wants a centre as a datum reads
+//!   that, and nothing stores it.
+//!
+//! An ellipse is minted on its arc with the anchor at the seam's own
+//! vertex, `θ₀ = 0`, the pair `(1, 0)`: a point is then
+//! `anchor − u_ref·a·2·sin²(θ/2) + v_ref·b·sin θ`, with no cancellation
+//! at any `θ`, and a point near the anchor holds to the rounding of its
+//! own coordinates however long the semi-axes. A section whose centre
+//! lies a megametre off the arc it serves is stored at the arc.
+//!
+//! **A re-seam moves parameter zero and never the anchor.** Turning the
+//! seam a quarter or a half turn ([`Ellipse::seamed_near`]) permutes
+//! `u_ref`, the semi-axes and the pair exactly, and the anchor is the
+//! stored one bit for bit; so the anchor is the point at `θ = 0` only
+//! until the seam is turned. The parameter stays the eccentric anomaly
+//! from `u_ref`, which is what every reader pairs with the principal
+//! directions. With the anchor a quarter or a half turn from the seam
+//! the parameter itself carries that turn, and a point near the anchor
+//! holds to the semi-axis's rounding, not its own. The derived centre is
+//! read from the same anchor at every seam, but not to the same bits: at
+//! `f64` a quarter turn takes the turned seam renormalized
+//! ([`Frame::quarter_turned_renormalized`]), a rounding apart from the
+//! frame's own `v`, and the centre read through the turned frame moves
+//! by a few roundings of the semi-axis, more as the seam handed in
+//! nears the axis; across a half turn, which is exact, it does not move.
+//!
+//! The placement is private to this module, and nothing outside it asks
+//! which point a conic holds: where the conic is is read through its
+//! readings (below), its centre is a datum of the whole conic
+//! ([`Conic::center`], the origin of [`Conic::frame`]), and the stored
+//! data are walked by name ([`Curve3::data`], whose datum for the stored
+//! point is [`CurveDatum::Center`] or [`CurveDatum::Anchor`]). A motion
+//! of the conic maps its one placement ([`Circle::placed`],
+//! [`Ellipse::mapped`]), so the image is held as the conic was.
+//!
+//! A reader that asks where the conic is asks the conic: its point
+//! ([`Conic::point_at`]), a point's parameter ([`Conic::azimuth`]), its
+//! extent along a direction over a span ([`Conic::extent_along`]) and
+//! its cover over a span ([`Conic::cover_over`]), each stated from the
+//! stored point. The directions ([`Conic::axis`], and as its unit
+//! witness [`Conic::axis_unit`]; [`Conic::u_ref`], [`Conic::v_ref`])
+//! are stored and derive nothing.
+//!
+//! Each conic evaluates one way, [`Conic::point_at`], and
+//! [`Conic::running_point`] is that evaluation operation for operation
+//! with its bound. The derivatives read no position and are the same
+//! however the conic is held.
+//!
+//! [`CurveDatum::Center`]: crate::CurveDatum::Center
+//! [`CurveDatum::Anchor`]: crate::CurveDatum::Anchor
 //!
 //! # Conventions
 //!
@@ -53,7 +123,10 @@
 //!   tilt reading), never by comparing the semi-axes.
 //! - **The seam.** A caller seams an ellipse at the principal vertex
 //!   nearest the part of it in use ([`Ellipse::seamed_near`]), so the
-//!   parameter there is near zero and resolves to the scale of that part.
+//!   parameter there is near zero. On an ellipse held at its centre, or
+//!   on its arc at that vertex, the parameter then resolves to the scale
+//!   of that part; held on its arc elsewhere, a point there holds to the
+//!   semi-axis's rounding ("Where a conic is held").
 //! - **One branch rule.** A point's parameter is its direction
 //!   ([`Conic::azimuth`]) read within half a turn of a reference
 //!   ([`Azimuth::near`]): a parameter the caller holds, or a span's middle
@@ -61,35 +134,62 @@
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 
-use geom_core::{Decide, Point3, Real, Rounded, Vec3};
+#![allow(
+    clippy::disallowed_methods,
+    reason = "the conic's own module: the centre is derived here and nowhere else"
+)]
+
+use geom_core::{Decide, Point3, Real, Rounded, StoredHarmonic, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
+use crate::cover::{Cover, ParamWindow};
 use crate::curves::Curve3;
+use crate::curves::boxes::ArcWindow;
 use crate::frame::Frame;
 
-/// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
+/// **A full circle**, `P(θ) = center + (u_ref·cos θ + v_ref·sin θ)·radius`.
 ///
 /// Its invariants: the axis is unit, the radius never definitely
 /// negative ([`Circle::new`]), and the seam (`u_ref`) is carried whether
 /// or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
-    /// The placement: `origin` the centre, `axis` the unit plane normal
+    /// The placement, at the centre: `axis` the unit plane normal
     /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives.
-    pub frame: Frame<T>,
+    at: Frame<T>,
     /// The radius in metres, never definitely negative ([`Circle::new`]).
     radius: T,
 }
 
+/// **Which point an ellipse's placement stands at** ([module
+/// docs](self), "Where a conic is held"). Matched in this module only.
+#[derive(Clone, Copy, Debug)]
+enum Held<T: Real> {
+    /// At the centre.
+    Centre,
+    /// At the anchor, a point of the arc.
+    Arc {
+        /// `(cos θ₀, sin θ₀)` of the anchor's eccentric anomaly from
+        /// `u_ref`: `(1, 0)` as minted, and one of `(±1, 0)`, `(0, ±1)`
+        /// wherever the seam's turns were decided. A re-seam turns
+        /// `u_ref` and this pair by one exact permutation and leaves the
+        /// anchor where it is.
+        phase: (T, T),
+    },
+}
+
 /// **A full ellipse**,
-/// `P(θ) = origin + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`, `u_ref`
+/// `P(θ) = center + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`, `u_ref`
 /// a principal direction.
 #[derive(Clone, Copy, Debug)]
 pub struct Ellipse<T: Real> {
-    /// The placement: `origin` the centre, `axis` the unit plane normal
-    /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives, and
-    /// a principal direction along either semi-axis.
-    pub frame: Frame<T>,
+    /// The placement: `axis` the unit plane normal (right-hand
+    /// winding), `u_ref` the seam, where `θ = 0` lives, a principal
+    /// direction along either semi-axis, and `origin` the one point the
+    /// ellipse stores, which `held` names.
+    at: Frame<T>,
+    /// Which point `at` stands at.
+    held: Held<T>,
     /// The semi-axis along `u_ref`, in metres, never definitely negative
     /// ([`Ellipse::new`]).
     semi_u: T,
@@ -123,8 +223,24 @@ pub struct MajorFrame<T: Real> {
 /// order (D9), and [`Curve3`]'s evaluators call them, so a reader through
 /// this trait builds the very bits [`Curve3::eval`] does.
 pub trait Conic<T: Real>: core::fmt::Debug {
-    /// The placement.
-    fn frame(&self) -> &Frame<T>;
+    /// **The principal frame at the centre**: the stored placement of a
+    /// conic held at its centre, and for one held on its arc its
+    /// placement moved back to the derived centre ([`Self::center`]).
+    fn frame(&self) -> Frame<T>;
+
+    /// The unit plane normal, as stored.
+    fn axis(&self) -> Vec3<T>;
+
+    /// [`Self::axis`] as the unit direction it is stored as
+    /// ([`Frame::axis_unit`]), for a reader that hands the direction on
+    /// as a witness.
+    fn axis_unit(&self) -> UnitVec3<T>;
+
+    /// The unit seam, as stored: the direction `θ = 0` lies along.
+    fn u_ref(&self) -> Vec3<T>;
+
+    /// `axis × u_ref`, crossed on each read as [`Frame::v_ref`] is.
+    fn v_ref(&self) -> Vec3<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
     /// twice. Both are finite and never definitely negative (the
@@ -138,8 +254,8 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// `dP/dθ` at `theta`.
     fn derivative_at(&self, theta: T) -> Vec3<T>;
 
-    /// The point and `dP/dθ` at `theta` from one `sin_cos`, each half
-    /// bit for bit its own evaluator's.
+    /// The point and `dP/dθ` at `theta`, each half bit for bit its own
+    /// evaluator's.
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>);
 
     /// `d²P/dθ²` at `theta`, the negated offset from the centre
@@ -172,11 +288,22 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
 
-    /// **The point at `θ` with a first-order running bound on its
-    /// rounding** ([`Rounded`]), from `sin θ` and `cos θ` already charged:
-    /// [`Self::point_at`] operation for operation, so its value is that
-    /// point bit for bit. The frame and the sizes are taken as exact.
-    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3];
+    /// **The point at the parameter `theta` with a first-order running
+    /// bound on its rounding** ([`Rounded`]): [`Self::point_at`]
+    /// operation for operation, so its value is that point bit for bit.
+    /// `theta`, the frame, the sizes and the stored centre or anchor are
+    /// taken as exact. Every operation is charged its rounding: each sine
+    /// or cosine read an ulp, and on an ellipse held on its arc the
+    /// half-angle square and the two differences with the anchor's phase
+    /// their own.
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3];
+
+    /// **The centre**: the frame's origin. Stored where the conic is
+    /// held at it; derived from the anchor where it is held on its arc,
+    /// and then rounded at the semi-axes' own scale.
+    fn center(&self) -> Point3<T> {
+        self.frame().origin()
+    }
 
     /// **`p` in the conic's unit coordinates**: its in-plane components
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
@@ -185,12 +312,31 @@ pub trait Conic<T: Real>: core::fmt::Debug {
         self.unit_of(p - self.frame().origin())
     }
 
+    /// **The `(lo, hi)` of `(P(θ) − origin)·n` over `window`**, stated
+    /// from the point the conic stores: the harmonic's constant is that
+    /// point's height, so an arc beside the anchor of a conic held on its
+    /// arc reads at the arc's own scale however far the centre lies. `n`
+    /// need not be unit. This body is a conic held at its centre's; a
+    /// kind that can be held elsewhere states its own.
+    fn extent_along(&self, window: &ArcWindow<T>, origin: Point3<T>, n: Vec3<T>) -> (T, T) {
+        let (p, q) = self.along(n);
+        window.extent((self.frame().origin() - origin).dot(n), p, q)
+    }
+
+    /// **The cover of the arc over `window`**, stated from the point
+    /// the conic stores. This body is a conic held at its centre's
+    /// ([`Cover::arc`] on its frame); a kind that can be held elsewhere
+    /// states its own. `None` for a datum that is not a finite number.
+    fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
+        Cover::arc(&self.frame(), self.semi_axes(), window)
+    }
+
     /// **The vector `w` in the conic's unit coordinates**:
     /// `(w·u_ref/a, w·v_ref/b)`, [`Self::unit_in_plane`] for an offset
     /// rather than a point.
     fn unit_of(&self, w: Vec3<T>) -> (T, T) {
-        let (f, (a, b)) = (self.frame(), self.semi_axes());
-        (w.dot(f.u_ref()) / a, w.dot(f.v_ref()) / b)
+        let (a, b) = self.semi_axes();
+        (w.dot(self.u_ref()) / a, w.dot(self.v_ref()) / b)
     }
 
     /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
@@ -207,8 +353,8 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// of its own size, so its cross with `â` cancels nothing. Away from parallel both
     /// forms are as good, so the choice at `â·n = 0` is free.
     fn along(&self, n: Vec3<T>) -> (T, T) {
-        let (f, (a, b)) = (self.frame(), self.semi_axes());
-        let axis = f.axis();
+        let (a, b) = self.semi_axes();
+        let axis = self.axis();
         let across = |m: Vec3<T>| axis.cross(m).cross(axis);
         // `|n|·â`, so the difference rounds at `n`'s own scale.
         let scaled = axis * n.norm();
@@ -221,7 +367,31 @@ pub trait Conic<T: Real>: core::fmt::Debug {
         );
         // `(â × m) × â` is `m`'s part across the plane only for a unit
         // `â`; the frame's axis is unit by the conic's convention.
-        (a * f.u_ref().dot(d), b * f.v_ref().dot(d))
+        (a * self.u_ref().dot(d), b * self.v_ref().dot(d))
+    }
+
+    /// **The conic's belly across the plane through `o` with unit
+    /// normal `n`**: of its height there, `D + A cos θ + B sin θ`, the
+    /// reach `√(A² + B²) − |D|` of its extreme nearer the plane past it
+    /// (positive where the conic crosses the plane, negative where it
+    /// stands clear by that much). Read from the placement the conic
+    /// stores, which no reader sees: its stored point (its centre, or the
+    /// anchor of an ellipse held on its arc), axis, seam and semi-axes,
+    /// the across-seam direction crossed exactly rather than read rounded,
+    /// and posed so its digits are the belly's own
+    /// ([`Real::harmonic_belly`]); never as the difference of the swing
+    /// and the offset, which are each of the conic's size where the belly
+    /// is the band's (a far-centred conic grazing the plane).
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T;
+
+    /// **This conic's belly across the plane `other` lies in**
+    /// ([`Self::belly_along`]): the plane stated at the point `other` is
+    /// placed by and its stored axis, read here so no reader outside this
+    /// module takes `other`'s placement. Held at its centre, that point is
+    /// the stored centre, which lies in the plane exactly; held on its
+    /// arc, the derived centre (`work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md`).
+    fn belly_across(&self, other: &dyn Conic<T>) -> T {
+        self.belly_along(other.frame().origin(), other.axis())
     }
 
     /// **The parameter of `p` within half a turn of `span`'s middle**:
@@ -238,8 +408,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// order: the conic is `center + cos θ·first + sin θ·second`.
     fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
         let (a, b) = self.semi_axes();
-        let f = self.frame();
-        (f.u_ref() * a, f.v_ref() * b)
+        (self.u_ref() * a, self.v_ref() * b)
     }
 
     /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
@@ -267,8 +436,20 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 /// A borrowed conic reads as the conic, so a `&dyn Conic` held by value
 /// passes where a conic is asked for.
 impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
-    fn frame(&self) -> &Frame<T> {
+    fn frame(&self) -> Frame<T> {
         (**self).frame()
+    }
+    fn axis(&self) -> Vec3<T> {
+        (**self).axis()
+    }
+    fn axis_unit(&self) -> UnitVec3<T> {
+        (**self).axis_unit()
+    }
+    fn u_ref(&self) -> Vec3<T> {
+        (**self).u_ref()
+    }
+    fn v_ref(&self) -> Vec3<T> {
+        (**self).v_ref()
     }
     fn semi_axes(&self) -> (T, T) {
         (**self).semi_axes()
@@ -300,11 +481,23 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn major_frame(&self) -> MajorFrame<T> {
         (**self).major_frame()
     }
-    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
-        (**self).running_point(sin_cos)
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+        (**self).running_point(theta)
+    }
+    fn center(&self) -> Point3<T> {
+        (**self).center()
+    }
+    fn extent_along(&self, window: &ArcWindow<T>, origin: Point3<T>, n: Vec3<T>) -> (T, T) {
+        (**self).extent_along(window, origin, n)
+    }
+    fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
+        (**self).cover_over(window)
     }
     fn along(&self, n: Vec3<T>) -> (T, T) {
         (**self).along(n)
+    }
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        (**self).belly_along(o, n)
     }
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         (**self).unit_in_plane(p)
@@ -329,16 +522,20 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
 }
 
-/// A frame's centre, `u_ref` and `v_ref` entered exactly into running
+/// A frame's origin, `u_ref` and `v_ref` entered exactly into running
 /// arithmetic, `v_ref` crossed there in [`Vec3::cross`]'s order.
 fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
     use geom_core::running::{cross, exact_vec};
     let (n, u) = (exact_vec(f.axis()), exact_vec(f.u_ref()));
-    let c = exact_vec(Vec3::new(f.origin().x, f.origin().y, f.origin().z));
-    (c, u, cross(n, u))
+    (exact_point(f.origin()), u, cross(n, u))
 }
 
-/// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
+/// A point's coordinates entered exactly into running arithmetic.
+fn exact_point<T: Real>(p: Point3<T>) -> [Rounded<T>; 3] {
+    geom_core::running::exact_vec(Vec3::new(p.x, p.y, p.z))
+}
+
+/// A frame in running arithmetic: origin, `u_ref`, `v_ref`.
 type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
 /// **A conic's size as it may be stored**: `x` itself, where it is a
@@ -368,6 +565,105 @@ fn stored_size<T: Real>(x: T, door: &str, name: &str) -> T {
     x
 }
 
+/// **The two offsets an arc-held ellipse's point is summed from**, the
+/// anchor at the anomaly whose `(cos, sin)` is `phase`:
+/// `(cos θ − cos θ₀, sin θ − sin θ₀)`, the first read as
+/// `−(2·sin²(θ/2) − (1 − cos θ₀))`. At the seam's own vertex,
+/// `phase = (1, 0)`, they are `(−2·sin²(θ/2), sin θ)` to the bit, with no
+/// cancellation at any `θ`. Each is a function of one sine of `θ` alone,
+/// so an enclosure of `θ` gives the enclosure of each with no dependency
+/// between two factors.
+fn offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (T, T) {
+    let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
+    let (s, _) = theta.sin_cos();
+    (-(T::from_f64(2.0) * sh.powi(2) - (T::one() - c0)), s - s0)
+}
+
+/// A sine or a cosine as computed, charged an ulp.
+fn transcendental<T: Real>(x: T) -> Rounded<T> {
+    Rounded {
+        value: x,
+        error: T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF) * x.abs(),
+    }
+}
+
+/// `(sin θ, cos θ)` in running arithmetic, each charged an ulp.
+fn running_sin_cos<T: Real>(theta: T) -> (Rounded<T>, Rounded<T>) {
+    let (s, c) = theta.sin_cos();
+    (transcendental(s), transcendental(c))
+}
+
+/// [`offsets`] in running arithmetic: each sine charged an ulp, the
+/// square its rounding, the halving, the doubling and the negation
+/// exact.
+fn running_offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (Rounded<T>, Rounded<T>) {
+    let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
+    let (s, _) = theta.sin_cos();
+    let sq = transcendental(sh).square();
+    let two = T::from_f64(2.0);
+    let doubled = Rounded {
+        value: two * sq.value,
+        error: two * sq.error,
+    };
+    // The stored phase enters exact; its two differences are charged
+    // their rounding, which is none at the seam's own vertex.
+    let first = doubled - (Rounded::exact(T::one()) - Rounded::exact(c0));
+    (
+        Rounded {
+            value: -first.value,
+            error: first.error,
+        },
+        transcendental(s) - Rounded::exact(s0),
+    )
+}
+
+/// **The `(lo, hi)` of `p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)` over
+/// `window`**, `(cos θ₀, sin θ₀)` the unit pair `phase`: an arc-held
+/// conic's harmonic along a direction, less its anchor's height.
+///
+/// An end reads through [`offsets`], as the point there does. A crest
+/// stands `A − k` over the anchor and a trough `A + k` under it,
+/// `A = √(p² + q²)` and `k = p·cos θ₀ + q·sin θ₀` ([`over_anchor`]).
+fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (T, T) {
+    let (t0, t1) = window.span();
+    let end = |t: T| {
+        let (ku, kv) = offsets(t, phase);
+        p * ku + q * kv
+    };
+    let (r0, r1) = (end(t0), end(t1));
+    let (c0, s0) = phase;
+    let amp = (p.powi(2) + q.powi(2)).sqrt();
+    let k = p * c0 + q * s0;
+    let cross = p * s0 - q * c0;
+    let crest = over_anchor(amp, k, cross);
+    let trough = -over_anchor(amp, -k, cross);
+    let hi = window.crest_outside(p, q).select_le_zero(crest, r0.max(r1));
+    let lo = window
+        .crest_outside(-p, -q)
+        .select_le_zero(trough, r0.min(r1));
+    (r0.min(r1).min(lo), r0.max(r1).max(hi))
+}
+
+/// **`A − k`, how far a harmonic's crest stands over its anchor**, for
+/// `A = √(p² + q²)`, `k` the anchor's own height in it and `cross` with
+/// `cross² = A² − k²`. Never negative in ℝ.
+///
+/// Where `k ≤ 0` the difference adds. Where `k > 0` it cancels as the
+/// anchor nears the crest, losing a rounding of `A`, the semi-axis's
+/// scale; there it is read as the ratio `cross² / (A + k)`, the same
+/// number as a quotient of sums, whose divisor is at least `A`.
+///
+/// An enclosure of `k` across zero takes both. Along the conic's own
+/// normal `p` and `q` enclose zero, so `A + k` does too and the ratio
+/// bounds nothing: the divisor is floored at the least positive number,
+/// which keeps the ratio a bounded enclosure, and the reading is held
+/// under `A + |k|`, which the number never passes and which is small
+/// there.
+fn over_anchor<T: Real>(amp: T, k: T, cross: T) -> T {
+    let ratio = cross.powi(2) / (amp + k).max(T::from_f64(f64::MIN_POSITIVE));
+    k.select_le_zero(amp - k, ratio).min(amp + k.abs())
+}
+
 impl<T: Real> Circle<T> {
     /// The circle of `radius` placed by `frame`.
     ///
@@ -379,22 +675,84 @@ impl<T: Real> Circle<T> {
     #[must_use]
     pub fn new(frame: Frame<T>, radius: T) -> Self {
         Self {
-            frame,
+            at: frame,
             radius: stored_size(radius, "Circle::new", "radius"),
         }
+    }
+
+    /// **This circle with its placement mapped by `map`**: its image
+    /// under a map of space that keeps its radius (a motion).
+    ///
+    /// [`Frame::reversed`] handed here is the half turn about the line
+    /// through the frame's origin along the seam. A circle's frame
+    /// stands at its centre, so that line is a diameter and the half
+    /// turn carries the circle onto itself with `θ ↦ −θ`: the same
+    /// circle run back, which is how [`Curve3::reversed`] spells it. An
+    /// ellipse's frame may stand on its arc, where that is another
+    /// ellipse, so an ellipse is run back by its own door
+    /// ([`Ellipse::reversed`]).
+    #[must_use]
+    pub fn placed(&self, map: impl FnOnce(&Frame<T>) -> Frame<T>) -> Self {
+        Self {
+            at: map(&self.at),
+            radius: self.radius,
+        }
+    }
+
+    /// **This circle at another scalar**: its placement as `frame`
+    /// carries it, its radius through `f`.
+    pub fn map_scalar<U: Real>(
+        &self,
+        frame: impl FnOnce(&Frame<T>) -> Frame<U>,
+        f: impl Fn(T) -> U,
+    ) -> Circle<U> {
+        Circle {
+            at: frame(&self.at),
+            radius: stored_size(f(self.radius), "Circle::map_scalar", "radius"),
+        }
+    }
+
+    /// **This circle moved so that its centre stands at `center`.**
+    #[must_use]
+    pub fn centred_at(&self, center: Point3<T>) -> Self {
+        self.placed(|at| at.with_origin(center))
+    }
+
+    /// The principal frame at the centre ([`Conic::frame`]).
+    #[must_use]
+    pub fn frame(&self) -> Frame<T> {
+        self.at
+    }
+
+    /// The unit plane normal ([`Conic::axis`]).
+    #[must_use]
+    pub fn axis(&self) -> Vec3<T> {
+        self.at.axis()
+    }
+
+    /// The plane normal as the unit direction it is stored as
+    /// ([`Conic::axis_unit`]).
+    #[must_use]
+    pub fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
+    /// The unit seam ([`Conic::u_ref`]).
+    #[must_use]
+    pub fn u_ref(&self) -> Vec3<T> {
+        self.at.u_ref()
+    }
+
+    /// `axis × u_ref` ([`Conic::v_ref`]).
+    #[must_use]
+    pub fn v_ref(&self) -> Vec3<T> {
+        self.at.v_ref()
     }
 
     /// The radius.
     #[must_use]
     pub fn radius(&self) -> T {
         self.radius
-    }
-
-    /// The same circle placed by `frame`: the radius kept, so already
-    /// a stored one.
-    #[must_use]
-    pub fn with_frame(&self, frame: Frame<T>) -> Self {
-        Self { frame, ..*self }
     }
 
     /// **The circle's period**: its parameter is an angle
@@ -406,22 +764,55 @@ impl<T: Real> Circle<T> {
         crate::conic_period()
     }
 
-    /// The point from an azimuthal frame already built:
-    /// `center + radial·radius`, exactly as parenthesized (D9) — the one
-    /// spelling of a circle's point, which [`Curve3::circle_at`] and
-    /// [`Conic::jet_at`] both reach.
-    pub(crate) fn point_on(&self, at: &azimuth::AzimuthFrame<T>) -> Point3<T> {
-        self.frame.origin() + at.radial.0 * self.radius
-    }
-
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
-        azimuth::frame(&self.frame, theta)
+        azimuth::frame(&self.at, theta)
     }
 }
 
+/// The placement `at` stores, with these semi-axes and phase, as
+/// [`Real::harmonic_belly`] reads it.
+fn stored_harmonic<T: Real>(at: &Frame<T>, semi: (T, T), phase: (T, T)) -> StoredHarmonic<T> {
+    StoredHarmonic {
+        at: point(at.origin()),
+        axis: vector(at.axis()),
+        u_ref: vector(at.u_ref()),
+        semi,
+        phase,
+    }
+}
+
+fn point<T: Real>(p: Point3<T>) -> [T; 3] {
+    [p.x, p.y, p.z]
+}
+
+fn vector<T: Real>(v: Vec3<T>) -> [T; 3] {
+    [v.x, v.y, v.z]
+}
+
 impl<T: Real> Conic<T> for Circle<T> {
-    fn frame(&self) -> &Frame<T> {
-        &self.frame
+    fn frame(&self) -> Frame<T> {
+        self.at
+    }
+
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let curve = stored_harmonic(&self.at, (self.radius, self.radius), (T::zero(), T::zero()));
+        T::harmonic_belly(curve, point(o), vector(n))
+    }
+
+    fn axis(&self) -> Vec3<T> {
+        self.at.axis()
+    }
+
+    fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
+    fn u_ref(&self) -> Vec3<T> {
+        self.at.u_ref()
+    }
+
+    fn v_ref(&self) -> Vec3<T> {
+        self.at.v_ref()
     }
 
     fn semi_axes(&self) -> (T, T) {
@@ -429,7 +820,7 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn point_at(&self, theta: T) -> Point3<T> {
-        self.point_on(&self.azimuth(theta))
+        self.at.origin() + self.azimuth(theta).radial.0 * self.radius
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -437,19 +828,22 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
-        let at = self.azimuth(theta);
-        (self.point_on(&at), at.tangential.0 * self.radius)
+        let frame = self.azimuth(theta);
+        (
+            self.at.origin() + frame.radial.0 * self.radius,
+            frame.tangential.0 * self.radius,
+        )
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
-        let ((s, c), v_ref) = azimuth::basis(&self.frame, theta);
-        (self.frame.u_ref() * (-c) + v_ref * (-s)) * self.radius
+        let ((s, c), v_ref) = azimuth::basis(&self.at, theta);
+        (self.at.u_ref() * (-c) + v_ref * (-s)) * self.radius
     }
 
     /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
     /// reads its own.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        self.frame.azimuth(p).scaled(self.radius, self.radius)
+        self.at.azimuth(p).scaled(self.radius, self.radius)
     }
 
     fn speed_lo(&self) -> T {
@@ -464,9 +858,10 @@ impl<T: Real> Conic<T> for Circle<T> {
         self.radius.abs()
     }
 
-    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
-        let (c, u, v) = running_frame(&self.frame);
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+        let (c, u, v) = running_frame(&self.at);
         let r = Rounded::exact(self.radius);
+        let (sin, cos) = running_sin_cos(theta);
         core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
     }
 
@@ -474,8 +869,38 @@ impl<T: Real> Conic<T> for Circle<T> {
         MajorFrame {
             major: self.radius,
             minor: self.radius,
-            major_dir: self.frame.u_ref(),
+            major_dir: self.at.u_ref(),
             phase: T::zero(),
+        }
+    }
+}
+
+/// **An ellipse's stored placement as its walk reads it**
+/// ([`Ellipse::stored`]).
+pub(super) struct Stored<T: Real> {
+    /// What the stored point is: [`CurveDatum::Center`] or
+    /// [`CurveDatum::Anchor`].
+    ///
+    /// [`CurveDatum::Center`]: super::CurveDatum::Center
+    /// [`CurveDatum::Anchor`]: super::CurveDatum::Anchor
+    pub(super) datum: super::CurveDatum,
+    /// The stored point.
+    pub(super) at: Point3<T>,
+    /// The stored axis.
+    pub(super) axis: Vec3<T>,
+    /// The stored seam.
+    pub(super) u_ref: Vec3<T>,
+    /// Beside an anchor, where on the ellipse it sits: the in-plane unit
+    /// direction `(cos θ₀, sin θ₀, 0)`.
+    pub(super) phase: Option<Vec3<T>>,
+}
+
+impl<T: Real> Held<T> {
+    /// This placement's kind with an arc's phase read through `f`.
+    fn with_phase<U: Real>(self, f: impl FnOnce((T, T)) -> (U, U)) -> Held<U> {
+        match self {
+            Held::Centre => Held::Centre,
+            Held::Arc { phase } => Held::Arc { phase: f(phase) },
         }
     }
 }
@@ -489,8 +914,8 @@ impl<T: Real> Ellipse<T> {
         crate::conic_period()
     }
 
-    /// The ellipse placed by `frame` with `semi_u` along its `u_ref` and
-    /// `semi_v` along its `v_ref`.
+    /// The ellipse placed by `frame`, at its centre, with `semi_u` along
+    /// its `u_ref` and `semi_v` along its `v_ref`.
     ///
     /// # Panics
     ///
@@ -500,10 +925,219 @@ impl<T: Real> Ellipse<T> {
     #[must_use]
     pub fn new(frame: Frame<T>, semi_u: T, semi_v: T) -> Self {
         Self {
-            frame,
+            at: frame,
+            held: Held::Centre,
             semi_u: stored_size(semi_u, "Ellipse::new", "semi_u"),
             semi_v: stored_size(semi_v, "Ellipse::new", "semi_v"),
         }
+    }
+
+    /// **The ellipse held on its arc at its vertex `anchor`** ([module
+    /// docs](self), "Where a conic is held"): in the plane of normal
+    /// `axis`, with `semi_u` along `toward` (the principal direction
+    /// from the centre to the anchor, squared to the axis with no
+    /// decision) and `semi_v` across it. The anchor is the datum it
+    /// stores, and its point at `θ = 0` until its seam is turned; the
+    /// centre, `semi_u` back from it, is derived. Unchecked;
+    /// [`Curve3::ellipse_anchored`] is the deciding door.
+    #[must_use]
+    pub fn anchored(
+        anchor: Point3<T>,
+        axis: Vec3<T>,
+        toward: Vec3<T>,
+        semi_u: T,
+        semi_v: T,
+    ) -> Self {
+        Self {
+            at: Frame::new(anchor, axis, toward),
+            held: Held::Arc {
+                phase: (T::one(), T::zero()),
+            },
+            semi_u: stored_size(semi_u, "Ellipse::anchored", "semi_u"),
+            semi_v: stored_size(semi_v, "Ellipse::anchored", "semi_v"),
+        }
+    }
+
+    /// **This ellipse's image under an isometry of space that keeps its
+    /// parameter**, `map` that isometry on a frame (a motion's image of
+    /// the frame, or under a reflection the frame the image is read by on
+    /// the same parameter): the image's point at each parameter is the
+    /// isometry's image of this ellipse's point there, so an anchor stays
+    /// at its own anomaly and the image is held as this ellipse is.
+    ///
+    /// A re-parameterization of the same locus is not such a map:
+    /// running the ellipse back is [`Self::reversed`], and
+    /// [`Frame::reversed`] handed here is the half turn about the line
+    /// through the stored point along the seam, which is the same locus
+    /// only where that line passes through the centre.
+    #[must_use]
+    pub fn mapped(&self, map: impl FnOnce(&Frame<T>) -> Frame<T>) -> Self {
+        Self {
+            at: map(&self.at),
+            ..*self
+        }
+    }
+
+    /// **This ellipse moved by `by`**: a translation of its one
+    /// placement.
+    #[must_use]
+    pub fn translated(&self, by: Vec3<T>) -> Self {
+        self.mapped(|at| at.translated(by))
+    }
+
+    /// **The same locus run back** ([`Curve3::reversed`]): the axis
+    /// flipped and the seam kept, so `θ ↦ −θ`, and an anchor's anomaly
+    /// with it: the anchor stays where it is.
+    #[must_use]
+    pub fn reversed(&self) -> Self {
+        Self {
+            at: self.at.reversed(),
+            held: self.held.with_phase(|(c0, s0)| (c0, -s0)),
+            ..*self
+        }
+    }
+
+    /// **The four statements of this ellipse's point set that its stored
+    /// numbers reach exactly**: itself; its seam a half turn on (`u_ref`
+    /// and an anchor's phase negated, `θ ↦ θ + π`); run back
+    /// ([`Self::reversed`], `θ ↦ −θ`); and both (`θ ↦ π − θ`). Each
+    /// negates stored numbers and rounds nothing, and the position
+    /// ([`Conic::point_at`]) of each is the others' at the parameter
+    /// named, as an identity in the stored numbers: `v_ref` is
+    /// `axis × u_ref`, which negates with either factor, and an anchor's
+    /// offsets `(cos θ − cos θ₀, sin θ − sin θ₀)` negate with the phase
+    /// component and the parameter's map together.
+    ///
+    /// A quarter turn is not among them. It would state `u_ref` as the
+    /// old `v_ref` and need `axis × (axis × u_ref)` to be `−u_ref`,
+    /// which holds of stored axes only where they are rigid to the bit;
+    /// [`Self::quarter_turned_where`] rounds, and its ellipse is another
+    /// statement a rounding from this one.
+    #[must_use]
+    pub fn restatements(&self) -> [Self; 4] {
+        let half = self.half_turned_where(T::one());
+        [*self, half, self.reversed(), half.reversed()]
+    }
+
+    /// **This ellipse with its seam a half turn on where `back > 0`**, as
+    /// it is where `back ≤ 0`, read without a branch: `u_ref` and the
+    /// derived `v_ref` reversed, and an anchor's anomaly less `π`, both
+    /// phase components negated. The stored point stays where it is.
+    fn half_turned_where(&self, back: T) -> Self {
+        Self {
+            // The axes alone are selected: the stored point is put back as
+            // stored, its bits and its enclosure untouched by the selection.
+            at: Frame::select_le_zero(back, self.at, self.at.half_turned())
+                .with_origin(self.at.origin()),
+            held: self.held.with_phase(|(c0, s0)| {
+                (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+            }),
+            ..*self
+        }
+    }
+
+    /// **This ellipse at another scalar**: its placement as `frame`
+    /// carries it, its semi-axes and an anchor's phase through `f`.
+    pub fn map_scalar<U: Real>(
+        &self,
+        frame: impl FnOnce(&Frame<T>) -> Frame<U>,
+        f: impl Fn(T) -> U,
+    ) -> Ellipse<U> {
+        Ellipse {
+            at: frame(&self.at),
+            held: self.held.with_phase(|(c0, s0)| (f(c0), f(s0))),
+            semi_u: stored_size(f(self.semi_u), "Ellipse::map_scalar", "semi_u"),
+            semi_v: stored_size(f(self.semi_v), "Ellipse::map_scalar", "semi_v"),
+        }
+    }
+
+    /// **The stored placement, datum by datum**, for the walk of the
+    /// stored data alone ([`Curve3::data`]).
+    pub(super) fn stored(&self) -> Stored<T> {
+        let (datum, phase) = match self.held {
+            Held::Centre => (super::CurveDatum::Center, None),
+            Held::Arc { phase: (c0, s0) } => (
+                super::CurveDatum::Anchor,
+                Some(Vec3::new(c0, s0, T::zero())),
+            ),
+        };
+        Stored {
+            datum,
+            at: self.at.origin(),
+            axis: self.at.axis(),
+            u_ref: self.at.u_ref(),
+            phase,
+        }
+    }
+
+    /// Whether `other` is held as this ellipse is, on a placement `same`
+    /// reads as this one's and, on its arc, at a phase `same_scalar`
+    /// reads as this one's ([`Curve3::same_content`]).
+    pub(super) fn same_placement(
+        &self,
+        other: &Self,
+        same: impl Fn(&Frame<T>, &Frame<T>) -> bool,
+        same_scalar: impl Fn(T, T) -> bool,
+    ) -> bool {
+        same(&self.at, &other.at)
+            && match (self.held, other.held) {
+                (Held::Centre, Held::Centre) => true,
+                (Held::Arc { phase: p }, Held::Arc { phase: q }) => {
+                    same_scalar(p.0, q.0) && same_scalar(p.1, q.1)
+                }
+                (Held::Centre, Held::Arc { .. }) | (Held::Arc { .. }, Held::Centre) => false,
+            }
+    }
+
+    /// **This ellipse moved so that its centre stands at `center`**: a
+    /// translation of its one placement, exact on an ellipse held at its
+    /// centre.
+    #[must_use]
+    pub fn centred_at(&self, center: Point3<T>) -> Self {
+        self.mapped(|at| match self.held {
+            Held::Centre => at.with_origin(center),
+            Held::Arc { .. } => at.translated(center - Conic::center(self)),
+        })
+    }
+
+    /// `at_centre`, a frame at this ellipse's centre, stood where this
+    /// ellipse's placement stands: itself, or moved to the anchor.
+    fn stood(&self, at_centre: Frame<T>) -> Frame<T> {
+        match self.held {
+            Held::Centre => at_centre,
+            Held::Arc { .. } => at_centre.with_origin(self.at.origin()),
+        }
+    }
+
+    /// The principal frame at the centre ([`Conic::frame`]).
+    #[must_use]
+    pub fn frame(&self) -> Frame<T> {
+        Conic::frame(self)
+    }
+
+    /// The unit plane normal ([`Conic::axis`]).
+    #[must_use]
+    pub fn axis(&self) -> Vec3<T> {
+        self.at.axis()
+    }
+
+    /// The plane normal as the unit direction it is stored as
+    /// ([`Conic::axis_unit`]).
+    #[must_use]
+    pub fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
+    /// The unit seam ([`Conic::u_ref`]).
+    #[must_use]
+    pub fn u_ref(&self) -> Vec3<T> {
+        self.at.u_ref()
+    }
+
+    /// `axis × u_ref` ([`Conic::v_ref`]).
+    #[must_use]
+    pub fn v_ref(&self) -> Vec3<T> {
+        self.at.v_ref()
     }
 
     /// `(semi_u, semi_v)` in stored order.
@@ -522,13 +1156,6 @@ impl<T: Real> Ellipse<T> {
     #[must_use]
     pub fn semi_v(&self) -> T {
         self.semi_v
-    }
-
-    /// The same ellipse placed by `frame`: the semi-axes kept, so
-    /// already stored ones.
-    #[must_use]
-    pub fn with_frame(&self, frame: Frame<T>) -> Self {
-        Self { frame, ..*self }
     }
 
     /// **The semi-axes by size**: the larger and the smaller, in that
@@ -550,7 +1177,7 @@ impl<T: Real> Ellipse<T> {
     /// keeps the seam's own axis.
     #[must_use]
     pub fn section_frame(&self, axis: Vec3<T>) -> MajorFrame<T> {
-        let f = &self.frame;
+        let f = &self.at;
         self.frame_turned_where(f.v_ref().dot(axis).abs() - f.u_ref().dot(axis).abs())
     }
 
@@ -561,7 +1188,7 @@ impl<T: Real> Ellipse<T> {
         MajorFrame {
             major: e.semi_u,
             minor: e.semi_v,
-            major_dir: e.frame.u_ref(),
+            major_dir: e.at.u_ref(),
             phase: turn.select_le_zero(T::zero(), T::pi() * T::from_f64(0.5)),
         }
     }
@@ -581,25 +1208,45 @@ impl<T: Real> Ellipse<T> {
     /// takes the exact turn ([`Frame::quarter_turned`], a permutation of
     /// the frame's axes), which encloses the same turned rotation and adds
     /// no width, where re-squaring there would widen every entry by the
-    /// squaring's own. Built through [`Self::new`], so a poison `turn`,
-    /// which hulls the two sizes to poison, panics there rather than
-    /// storing it.
+    /// squaring's own.
+    ///
+    /// An ellipse held on its arc keeps its anchor: the seam turns under
+    /// it, and its phase turns back by the same quarter.
+    ///
+    /// # Panics
+    ///
+    /// On a poison `turn`, which hulls the two sizes to poison: the
+    /// sizes are read as the constructors read them ([`stored_size`]),
+    /// so it is refused here rather than stored.
     #[must_use]
     pub fn quarter_turned_where(&self, turn: T) -> Self {
-        let f = self.frame;
-        Self::new(
-            Frame::select_le_zero(
-                turn,
-                f,
-                if T::WITNESS == geom_core::Witness::Inexact {
-                    f.quarter_turned_renormalized()
-                } else {
-                    f.quarter_turned()
-                },
+        // The turn is read on the frame at the centre, which an ellipse
+        // held there stores, so its bits are the stored frame's.
+        let f = Conic::frame(self);
+        let turned = if T::WITNESS == geom_core::Witness::Inexact {
+            f.quarter_turned_renormalized()
+        } else {
+            f.quarter_turned()
+        };
+        let door = "Ellipse::quarter_turned_where";
+        Self {
+            at: self.stood(Frame::select_le_zero(turn, f, turned)),
+            // `θ = s + π/2`: the anchor's anomaly from the turned seam
+            // is `θ₀ − π/2`, an exact permutation of the stored pair.
+            held: self
+                .held
+                .with_phase(|(c0, s0)| (turn.select_le_zero(c0, s0), turn.select_le_zero(s0, -c0))),
+            semi_u: stored_size(
+                turn.select_le_zero(self.semi_u, self.semi_v),
+                door,
+                "semi_u",
             ),
-            turn.select_le_zero(self.semi_u, self.semi_v),
-            turn.select_le_zero(self.semi_v, self.semi_u),
-        )
+            semi_v: stored_size(
+                turn.select_le_zero(self.semi_v, self.semi_u),
+                door,
+                "semi_v",
+            ),
+        }
     }
 
     /// **The same ellipse seamed at the principal vertex nearest the
@@ -615,60 +1262,138 @@ impl<T: Real> Ellipse<T> {
     /// at `0`, `π/2`, `π` and `3π/2`, the one on the axis whose component
     /// dominates, a tie keeping the seam's own axis; on that axis, the
     /// vertex the component's sign points to, a zero pointing forward.
-    /// Near the new seam the parameter is near zero, so it resolves to the
-    /// scale of the arc there rather than to `ulp(π/2)` times the
-    /// semi-axis across it.
+    /// Near the new seam the parameter is near zero. An ellipse held on
+    /// its arc keeps its anchor through the turn ([module docs](self),
+    /// "Where a conic is held").
     #[must_use]
     pub fn seamed_toward(&self, cos: T, sin: T) -> Self {
         let turn = sin.abs() - cos.abs();
         // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
         let back = T::zero() - turn.select_le_zero(cos, sin);
-        let e = self.quarter_turned_where(turn);
-        e.with_frame(Frame::select_le_zero(back, e.frame, e.frame.half_turned()))
+        self.quarter_turned_where(turn).half_turned_where(back)
     }
 
     fn basis(&self, theta: T) -> ((T, T), Vec3<T>) {
-        azimuth::basis(&self.frame, theta)
+        azimuth::basis(&self.at, theta)
     }
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
-    fn frame(&self) -> &Frame<T> {
-        &self.frame
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let phase = match self.held {
+            Held::Centre => (T::zero(), T::zero()),
+            Held::Arc { phase } => phase,
+        };
+        let curve = stored_harmonic(&self.at, (self.semi_u, self.semi_v), phase);
+        T::harmonic_belly(curve, point(o), vector(n))
+    }
+
+    fn frame(&self) -> Frame<T> {
+        match self.held {
+            Held::Centre => self.at,
+            // The centre lies `u·(a·cos θ₀) + v·(b·sin θ₀)` back from the
+            // anchor: `u·a` at the seam's own vertex, to the bit.
+            Held::Arc { phase: (c0, s0) } => self.at.with_origin(
+                self.at.origin()
+                    - self.at.u_ref() * (self.semi_u * c0)
+                    - self.at.v_ref() * (self.semi_v * s0),
+            ),
+        }
+    }
+
+    fn axis(&self) -> Vec3<T> {
+        self.at.axis()
+    }
+
+    fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
+    fn u_ref(&self) -> Vec3<T> {
+        self.at.u_ref()
+    }
+
+    fn v_ref(&self) -> Vec3<T> {
+        self.at.v_ref()
     }
 
     fn semi_axes(&self) -> (T, T) {
         Ellipse::semi_axes(self)
     }
 
+    fn extent_along(&self, window: &ArcWindow<T>, origin: Point3<T>, n: Vec3<T>) -> (T, T) {
+        let (p, q) = self.along(n);
+        let at = (self.at.origin() - origin).dot(n);
+        match self.held {
+            Held::Centre => window.extent(at, p, q),
+            Held::Arc { phase } => {
+                let (lo, hi) = offset_extent(window, p, q, phase);
+                (at + lo, at + hi)
+            }
+        }
+    }
+
+    fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
+        match self.held {
+            Held::Centre => Cover::arc(&self.at, self.semi_axes(), window),
+            Held::Arc { .. } => Cover::arc_of(*self, window),
+        }
+    }
+
     fn point_at(&self, theta: T) -> Point3<T> {
-        let ((s, c), v_ref) = self.basis(theta);
-        self.frame.origin() + (self.frame.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+        match self.held {
+            Held::Centre => {
+                let ((s, c), v_ref) = self.basis(theta);
+                self.at.origin() + (self.at.u_ref() * (self.semi_u * c) + v_ref * (self.semi_v * s))
+            }
+            Held::Arc { phase } => {
+                let (ku, kv) = offsets(theta, phase);
+                let (u, v) = (self.at.u_ref(), self.at.v_ref());
+                self.at.origin() + (u * (self.semi_u * ku) + v * (self.semi_v * kv))
+            }
+        }
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref() * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
+        self.at.u_ref() * (-(self.semi_u * s)) + v_ref * (self.semi_v * c)
     }
 
     fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
         let ((s, c), v_ref) = self.basis(theta);
-        let u_ref = self.frame.u_ref();
+        let u_ref = self.at.u_ref();
         (
-            self.frame.origin() + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
+            self.point_at(theta),
             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
         )
     }
 
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.u_ref() * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
+        self.at.u_ref() * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
     }
 
     /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
-    /// direction scaled by `a·b`, with no division.
+    /// direction scaled by `a·b`, with no division. An ellipse held on
+    /// its arc reads `p` from its anchor, `x = a·cos θ₀ + (p − A)·u_ref`
+    /// and `y = b·sin θ₀ + (p − A)·v_ref`, so near an anchor at the
+    /// seam's own vertex the angle resolves at the arc's scale however
+    /// far the derived centre lies.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
-        self.frame.azimuth(p).scaled(self.semi_u, self.semi_v)
+        match self.held {
+            Held::Centre => self.at.azimuth(p),
+            Held::Arc { phase: (c0, s0) } => {
+                let w = p - self.at.origin();
+                // `y − (0 − b·sin θ₀)`: the anchor's own coordinates
+                // added back, `y` itself (its zero's sign too) at the
+                // seam's own vertex.
+                Azimuth::of(
+                    w.dot(self.at.v_ref()) - (T::zero() - self.semi_v * s0),
+                    self.semi_u * c0 + w.dot(self.at.u_ref()),
+                )
+            }
+        }
+        .scaled(self.semi_u, self.semi_v)
     }
 
     fn speed_lo(&self) -> T {
@@ -692,13 +1417,21 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         self.frame_turned_where(self.semi_v - self.semi_u)
     }
 
-    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
-        let (c, u, v) = running_frame(&self.frame);
-        let (ac, bs) = (
-            Rounded::exact(self.semi_u) * cos,
-            Rounded::exact(self.semi_v) * sin,
-        );
-        core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs))
+    fn running_point(&self, theta: T) -> [Rounded<T>; 3] {
+        let (at, u, v) = running_frame(&self.at);
+        let (a, b) = (Rounded::exact(self.semi_u), Rounded::exact(self.semi_v));
+        match self.held {
+            Held::Centre => {
+                let (sin, cos) = running_sin_cos(theta);
+                let (ac, bs) = (a * cos, b * sin);
+                core::array::from_fn(|i| at[i] + (u[i] * ac + v[i] * bs))
+            }
+            Held::Arc { phase } => {
+                let (ku, kv) = running_offsets(theta, phase);
+                let (ku, kv) = (a * ku, b * kv);
+                core::array::from_fn(|i| at[i] + (u[i] * ku + v[i] * kv))
+            }
+        }
     }
 }
 
@@ -749,24 +1482,879 @@ mod tests {
         let o = Point3::origin();
         match carrier {
             Curve3::Circle(k) => {
-                let (u, r) = (k.frame.u_ref(), k.radius());
-                let v = k.frame.axis().cross(u);
+                let (u, r) = (k.frame().u_ref(), k.radius());
+                let v = k.frame().axis().cross(u);
                 [
-                    (k.frame.origin() + (u * c + v * s) * r) - o,
+                    (k.frame().origin() + (u * c + v * s) * r) - o,
                     (u * (-s) + v * c) * r,
                     (u * (-c) + v * (-s)) * r,
                 ]
             }
             Curve3::Ellipse(k) => {
-                let (u, (a, b)) = (k.frame.u_ref(), k.semi_axes());
-                let v = k.frame.axis().cross(u);
+                let (u, (a, b)) = (k.frame().u_ref(), k.semi_axes());
+                let v = k.frame().axis().cross(u);
                 [
-                    (k.frame.origin() + (u * (a * c) + v * (b * s))) - o,
+                    (k.frame().origin() + (u * (a * c) + v * (b * s))) - o,
                     u * (-(a * s)) + v * (b * c),
                     u * (-(a * c)) + v * (-(b * s)),
                 ]
             }
             _ => unreachable!(),
+        }
+    }
+
+    /// The stored point and the phase of an ellipse held on its arc.
+    fn anchor_of(e: &super::Ellipse<f64>) -> Option<(Point3<f64>, (f64, f64))> {
+        match e.held {
+            super::Held::Centre => None,
+            super::Held::Arc { phase } => Some((e.at.origin(), phase)),
+        }
+    }
+
+    /// **The arc-held chain's bound holds each charge it names.** At the
+    /// seam's own vertex the first offset is `−2·sin²(θ/2)` and its bound
+    /// is three terms: the half-angle sine's ulp carried through the
+    /// square (`8u·sh²`), the square's own rounding (`2u·sh²` once
+    /// doubled), and the charge of the difference with `1 − cos θ₀`
+    /// (`u·2sh²`; the difference is exact there, and the charge is kept).
+    /// The second offset's is the sine's ulp and its difference's charge.
+    /// `mul_add` reads the square's rounding exactly, and the charge held
+    /// for it covers that reading. Red where the square's rounding is
+    /// uncharged, where either sine's ulp is, and where a difference's
+    /// charge is dropped.
+    #[test]
+    fn the_arc_held_offsets_bound_holds_each_charge_it_names() {
+        let u = geom_core::UNIT_ROUNDOFF;
+        let mut inexact = 0;
+        for i in 1..=600 {
+            let theta = -3.1 + 0.0103 * f64::from(i);
+            let (first, second) = super::running_offsets(theta, (1.0, 0.0));
+            let (sh, s) = ((0.5 * theta).sin(), theta.sin());
+            let sines_share = 2.0 * (2.0 * sh.abs() * (2.0 * u * sh.abs()));
+            let squares = 2.0 * (u * sh * sh);
+            let differences = u * (2.0 * sh * sh);
+            assert!(
+                first.error >= (sines_share + squares + differences) * (1.0 - 8.0 * u),
+                "θ {theta}: the first offset's bound {:e} holds the sine's share \
+                 {sines_share:e}, the square's {squares:e} and the difference's {differences:e}",
+                first.error
+            );
+            let rounding = sh.mul_add(sh, -(sh * sh)).abs();
+            assert!(
+                2.0 * rounding <= squares,
+                "θ {theta}: the square's charge covers its rounding"
+            );
+            assert!(
+                second.error >= (2.0 * u * s.abs() + u * s.abs()) * (1.0 - 8.0 * u),
+                "θ {theta}: the second offset's bound {:e} holds the sine's ulp and its \
+                 difference's charge",
+                second.error
+            );
+            inexact += usize::from(rounding > 0.0);
+        }
+        assert!(inexact > 500, "the square rounds at {inexact} of 600");
+    }
+
+    /// **An ellipse's restatements are the four exact ones, of the
+    /// sixteen sign patterns on its statement** ([`Ellipse::restatements`]).
+    /// An ellipse held on its arc at a phase with neither component zero,
+    /// restated with each of the axis, `u_ref` and the two phase
+    /// components kept or negated (sixteen patterns; the stored `v` is
+    /// `axis × u_ref`'s, so the frame has no other): exactly the four of
+    /// the group are a restatement by content, and those four alone keep
+    /// the centre, so every other pattern states another ellipse. All
+    /// negated at once (the axis, `u_ref` and both phase components) is
+    /// not one of them: it is the mirror image across the tangent at the
+    /// anchor. Held at the centre, where no phase exists, all four
+    /// patterns on the axis and `u_ref` are restatements: the centre and
+    /// both axis lines are kept by each. Each restatement's sum of stored
+    /// point, vectors, sizes and offsets, at the offsets its identity
+    /// gives (both negated a half turn on, the sine's run back, the
+    /// cosine's for both), is the ellipse's point bit for bit, with no
+    /// parameter rounded. Over frames not rigid to the bit, held either
+    /// way, each restatement's stored axes are bit negations, run back is
+    /// the ellipse's point at `−θ` and both the half turn's there, the
+    /// half turn's derivatives at one `θ` are the ellipse's negated, and
+    /// about a centre at the origin its point is. Nothing here is held to
+    /// a tolerance: a half turn read through the evaluator at `θ + π`
+    /// would be, the parameter being rounded, and is not asserted. Red if a pattern outside the group is a
+    /// restatement, or one inside is not.
+    #[test]
+    fn an_ellipses_restatements_are_the_four_exact_ones_of_its_sign_patterns() {
+        use super::Conic;
+        let (anchor, n, u) = (
+            Point3::new(0.3, -0.0, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+        );
+        // No constructor states a phase off the principal vertices, so
+        // the statement is written out.
+        let stated = |[sn, su, pc, ps]: [f64; 4]| super::Ellipse {
+            at: crate::Frame::new(anchor, n * sn, u * su),
+            held: super::Held::Arc {
+                phase: (0.6 * pc, 0.8 * ps),
+            },
+            semi_u: 0.75,
+            semi_v: 0.4,
+        };
+        let e = stated([1.0; 4]);
+        let group = [
+            [1.0, 1.0, 1.0, 1.0],
+            [1.0, -1.0, -1.0, -1.0],
+            [-1.0, 1.0, 1.0, -1.0],
+            [-1.0, -1.0, -1.0, 1.0],
+        ];
+        let signs = [1.0, -1.0];
+        let mut restated = Vec::new();
+        for sn in signs {
+            for su in signs {
+                for pc in signs {
+                    for ps in signs {
+                        let pattern = [sn, su, pc, ps];
+                        let other = stated(pattern);
+                        let is = e
+                            .restatements()
+                            .iter()
+                            .any(|r| Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(other)));
+                        let moved = (Conic::center(&other) - Conic::center(&e)).norm();
+                        assert_eq!(is, group.contains(&pattern), "{pattern:?}");
+                        assert!(
+                            if is { moved == 0.0 } else { moved > 0.1 },
+                            "{pattern:?}: the centre moves by {moved:e}"
+                        );
+                        if is {
+                            restated.push(pattern);
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(restated.len(), 4, "{restated:?}");
+        // Held at the centre there is no phase to pair: every one of the
+        // four sign patterns on the axis and `u_ref` is a restatement.
+        let centred = |sn: f64, su: f64| {
+            super::Ellipse::new(crate::Frame::new(anchor, n * sn, u * su), 0.75, 0.4)
+        };
+        for sn in signs {
+            for su in signs {
+                assert!(
+                    centred(1.0, 1.0).restatements().iter().any(|r| {
+                        Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(centred(sn, su)))
+                    }),
+                    "held at the centre: {sn} {su}"
+                );
+            }
+        }
+        let [_, half, back, both] = e.restatements();
+        // The position as the evaluator sums it from a statement, at the
+        // offsets `(ku, kv)`: the stored point plus two stored vectors
+        // times two stored sizes times the offsets.
+        let summed = |x: &super::Ellipse<f64>, (ku, kv): (f64, f64)| {
+            x.at.origin() + (x.at.u_ref() * (x.semi_u * ku) + x.at.v_ref() * (x.semi_v * kv))
+        };
+        for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
+            let p = Conic::point_at(&e, theta);
+            // Term by term at one cosine and sine, with no parameter
+            // rounded: each restatement's sum at its own offsets, the
+            // ellipse's with the signs its identity gives them, is the
+            // ellipse's point to the bit. At `θ + π` both offsets negate;
+            // at `π − θ` the first; at `−θ` the second.
+            let (ku, kv) = super::offsets(theta, (0.6, 0.8));
+            assert!(p.equals_exactly(summed(&e, (ku, kv))), "the sum at {theta}");
+            for (what, r, k) in [
+                ("a half turn on", &half, (-ku, -kv)),
+                ("run back", &back, (ku, -kv)),
+                ("both", &both, (-ku, kv)),
+            ] {
+                assert!(
+                    p.equals_exactly(summed(r, k)),
+                    "{what} at {theta}, term by term"
+                );
+            }
+        }
+        // The same over ellipses whose frames are not rigid to the bit,
+        // held either way: each restatement's stored axes are the bit
+        // negations its row of the group names, on the stored point; run
+        // back is the ellipse's own point at `−θ`, and both is the half
+        // turn's there; at one `θ` the half turn's two derivatives are
+        // the ellipse's negated. Every comparison is of bits.
+        let directions = [
+            (n, u),
+            (Vec3::new(0.3, -0.2, 0.9), Vec3::new(1.0, 0.7, -0.1)),
+            (Vec3::new(-0.61, 0.13, 0.4), Vec3::new(0.2, 0.9, 0.33)),
+            (Vec3::new(0.05, 0.99, -0.07), Vec3::new(-0.8, 0.1, 0.59)),
+            (Vec3::new(0.577, 0.577, 0.578), Vec3::new(0.1, -0.3, 0.2)),
+        ];
+        let negated = |v: Vec3<f64>, s: f64| if s < 0.0 { -v } else { v };
+        let mut bent = false;
+        for (axis, seam) in directions {
+            let at = crate::Frame::new(anchor, axis, seam);
+            let m = at.motion();
+            bent |= m.u().get().dot(m.u().get()) != 1.0 || m.w().get().dot(m.u().get()) != 0.0;
+            for x in [
+                super::Ellipse::new(at, 0.75, 0.4),
+                super::Ellipse {
+                    held: super::Held::Arc { phase: (0.6, 0.8) },
+                    ..super::Ellipse::new(at, 0.75, 0.4)
+                },
+            ] {
+                let [_, half, back, both] = x.restatements();
+                for (what, r, [su, sv, sw]) in [
+                    ("a half turn on", &half, [-1.0, -1.0, 1.0]),
+                    ("run back", &back, [1.0, -1.0, -1.0]),
+                    ("both", &both, [-1.0, 1.0, -1.0]),
+                ] {
+                    let k = r.at.motion();
+                    assert!(
+                        k.origin().same_bits(m.origin())
+                            && k.u().get().same_bits(negated(m.u().get(), su))
+                            && k.v().get().same_bits(negated(m.v().get(), sv))
+                            && k.w().get().same_bits(negated(m.w().get(), sw)),
+                        "{what}: the stored axes of {x:?}: {r:?}"
+                    );
+                }
+                for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
+                    assert!(
+                        Conic::point_at(&x, theta).same_bits(Conic::point_at(&back, -theta)),
+                        "run back at {theta}: {x:?}"
+                    );
+                    assert!(
+                        Conic::point_at(&both, theta).same_bits(Conic::point_at(&half, -theta)),
+                        "both against the half turn at {theta}: {x:?}"
+                    );
+                    assert!(
+                        Conic::derivative_at(&half, theta)
+                            .same_bits(-Conic::derivative_at(&x, theta))
+                            && Conic::second_derivative_at(&half, theta)
+                                .same_bits(-Conic::second_derivative_at(&x, theta)),
+                        "the half turn's derivatives at {theta}: {x:?}"
+                    );
+                }
+            }
+            // Held at a centre at the origin, the half turn's point is the
+            // ellipse's negated.
+            let x = super::Ellipse::new(at.with_origin(Point3::origin()), 0.75, 0.4);
+            let [_, half, ..] = x.restatements();
+            for theta in [-2.9, -0.7, 0.3, 1.1, 2.4, 5.0] {
+                let (p, q) = (Conic::point_at(&x, theta), Conic::point_at(&half, theta));
+                assert!(
+                    (q - Point3::origin()).same_bits(-(p - Point3::origin())),
+                    "about the origin at {theta}: {p:?} {q:?}"
+                );
+            }
+        }
+        assert!(bent, "some frame here is not rigid to the bit");
+    }
+
+    /// **A re-seam and a half-turned restatement store what a half turn
+    /// written out stores, every stored number and its enclosure**
+    /// ([`Ellipse::seamed_toward`], [`Ellipse::restatements`]). The
+    /// reference is test-only and written out apart from the helper the
+    /// two share: the quarter turn, then the centre frame selected against
+    /// its half turn and stood back at the stored point, the phase
+    /// selected against its negation; and for the restatement the stored
+    /// frame half-turned and the phase negated. Over frames rigid to the
+    /// bit and not, anchors that carry `−0.0` in each coordinate, either
+    /// holding at each phase a door states, and seams on the axes, on
+    /// the ties, at signed zeros and between; at `f64`, and at `Interval`
+    /// with the seam a point and a box across zero, where the selection
+    /// hulls. Red if the stored point passes through the selection, which
+    /// rewrites a `−0.0` as `+0.0` and weakens an enclosure hulled with
+    /// itself, or if a turn selects another frame or phase.
+    #[test]
+    fn a_re_seam_stores_what_a_half_turn_written_out_stores() {
+        use super::{Conic, Ellipse};
+        use crate::Frame;
+        use geom_core::interval::Interval;
+        fn seamed<T: Real>(x: &Ellipse<T>, cos: T, sin: T) -> Ellipse<T> {
+            let turn = sin.abs() - cos.abs();
+            let back = T::zero() - turn.select_le_zero(cos, sin);
+            let e = x.quarter_turned_where(turn);
+            let f = Conic::frame(&e);
+            Ellipse {
+                at: e.stood(Frame::select_le_zero(back, f, f.half_turned())),
+                held: e.held.with_phase(|(c0, s0)| {
+                    (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+                }),
+                ..e
+            }
+        }
+        fn half<T: Real>(x: &Ellipse<T>) -> Ellipse<T> {
+            Ellipse {
+                at: x.at.half_turned(),
+                held: x.held.with_phase(|(c0, s0)| (-c0, -s0)),
+                ..*x
+            }
+        }
+        // Every stored number as printed, which tells `−0.0` from `0.0`
+        // and one enclosure from another.
+        fn stored<T: Real>(x: &Ellipse<T>) -> String {
+            format!(
+                "{:?} {:?} {:?} {:?}",
+                x.at.motion(),
+                x.held,
+                x.semi_u,
+                x.semi_v
+            )
+        }
+        let frames = [
+            (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            (Vec3::new(-0.0, 1.0, 0.0), Vec3::new(0.0, -0.0, -1.0)),
+            (
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                Vec3::new(0.6, -0.8, 0.1),
+            ),
+            (Vec3::new(-0.61, 0.13, 0.4), Vec3::new(0.2, 0.9, 0.33)),
+        ];
+        let anchors = [
+            Point3::new(-0.0, 1.25, -2.5),
+            Point3::new(0.3, -0.0, 2.9),
+            Point3::new(1.5, 0.75, -0.0),
+            Point3::new(-0.0, -0.0, -0.0),
+            Point3::new(0.3, -1.1, 2.9),
+        ];
+        let seams = [
+            (1.0, 0.0),
+            (0.0, 1.0),
+            (-1.0, 0.0),
+            (0.0, -1.0),
+            (0.0, 0.0),
+            (-0.0, -0.0),
+            (-1.0, -0.0),
+            (-0.0, 1.0),
+            (0.5, 0.5),
+            (-0.5, 0.5),
+            (-0.5, -0.5),
+            (0.9, -0.3),
+            (-0.2, 0.7),
+            (-0.8, -0.6),
+            (6.123233995736766e-17, 1.0),
+            (-1.0, 1.2246467991473532e-16),
+        ];
+        let lift = Interval::from_f64;
+        let mut asked = 0usize;
+        for (axis, seam) in frames {
+            for anchor in anchors {
+                let frame = Frame::new(anchor, axis, seam);
+                let minted = Ellipse::anchored(anchor, axis, seam, 0.75, 0.4);
+                let mut held = vec![Ellipse::new(frame, 0.75, 0.4), minted];
+                // Each phase a door states, by the reference.
+                held.extend(
+                    [(0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)].map(|(c, s)| seamed(&minted, c, s)),
+                );
+                for x in held {
+                    assert_eq!(
+                        stored(&x.restatements()[1]),
+                        stored(&half(&x)),
+                        "the half-turned restatement of {x:?}"
+                    );
+                    let twin: Ellipse<Interval> = x.map_scalar(|f| f.map_scalar(lift), lift);
+                    assert_eq!(
+                        stored(&twin.restatements()[1]),
+                        stored(&half(&twin)),
+                        "the half-turned restatement of {x:?} at Interval"
+                    );
+                    for (c, s) in seams {
+                        assert_eq!(
+                            stored(&x.seamed_toward(c, s)),
+                            stored(&seamed(&x, c, s)),
+                            "{x:?} toward ({c}, {s})"
+                        );
+                        let wide = |t: f64| Interval::from_bounds(t - 0.3, t + 0.3);
+                        for (ci, si) in [(lift(c), lift(s)), (wide(c), wide(s))] {
+                            assert_eq!(
+                                stored(&twin.seamed_toward(ci, si)),
+                                stored(&seamed(&twin, ci, si)),
+                                "{x:?} at Interval toward ({ci:?}, {si:?})"
+                            );
+                        }
+                        asked += 3;
+                    }
+                }
+            }
+        }
+        assert_eq!(asked, 4 * 5 * 5 * 16 * 3, "every case is asked");
+    }
+
+    /// **An ellipse held on its arc reads from its anchor.** As minted
+    /// its point at `θ = 0` is the anchor bit for bit, its centre is the
+    /// anchor less the semi-axis along the seam, and round the turn it
+    /// is the ellipse of that centre to the centre's own rounding. Its
+    /// derivatives are that centre-held ellipse's bit for bit, a point's
+    /// parameter reads back, and the anchor rides a reversal, a
+    /// translation and a re-seam, whichever way the seam turns
+    /// (`a_re_seam_moves_parameter_zero_and_never_the_anchor`). An
+    /// ellipse held at its centre has no anchor.
+    #[test]
+    fn an_arc_held_ellipse_reads_from_its_anchor() {
+        use super::{Conic, Ellipse};
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        for far in [0.7, 30.0, 1500.0, 1e6] {
+            for e in [
+                Ellipse::anchored(at, n, toward, far, far * 0.01),
+                Ellipse::anchored(at, n, toward, far, far),
+            ] {
+                let carrier = Curve3::Ellipse(e);
+                let k = carrier.conic().unwrap();
+                assert_eq!(anchor_of(&e).map(|(p, _)| bits(p - o)), Some(bits(at - o)));
+                assert_eq!(bits(k.point_at(0.0) - o), bits(at - o), "{carrier:?}");
+                assert_eq!(bits(carrier.eval(0.0) - o), bits(at - o), "{carrier:?}");
+                let (a, b) = k.semi_axes();
+                let f = k.frame();
+                assert_eq!(bits(k.center() - o), bits((at - f.u_ref() * a) - o));
+                // The same ellipse held at that centre holds the frame it
+                // was given, bit for bit, and has no anchor.
+                let centred = Ellipse::new(f, a, b);
+                let c: &dyn Conic<f64> = &centred;
+                assert!(anchor_of(&centred).is_none());
+                let held = c.frame();
+                assert_eq!(bits(held.origin() - o), bits(f.origin() - o));
+                assert_eq!(bits(held.axis()), bits(f.axis()));
+                assert_eq!(bits(held.u_ref()), bits(f.u_ref()));
+                assert!(carrier.same_content(&carrier.clone()));
+                let scale = (f.origin() - o).norm() + 2.0 * a;
+                for t in [-3.0, -1.2, -2e-3, 1e-7, 0.4, 1.55, 2.9] {
+                    let gap = (k.point_at(t) - c.point_at(t)).norm();
+                    assert!(
+                        gap <= 8.0 * f64::EPSILON * scale,
+                        "{carrier:?} at {t}: {gap:e} off its centre's ellipse"
+                    );
+                    assert_eq!(bits(k.derivative_at(t)), bits(c.derivative_at(t)));
+                    assert_eq!(
+                        bits(k.second_derivative_at(t)),
+                        bits(c.second_derivative_at(t))
+                    );
+                    let (jp, jd) = k.jet_at(t);
+                    assert_eq!(bits(jp - o), bits(k.point_at(t) - o));
+                    assert_eq!(bits(jd), bits(k.derivative_at(t)));
+                    // The parameter reads back at the arc's own scale,
+                    // whatever the semi-axis: to the rounding of the
+                    // point's offset from the anchor, over the smaller
+                    // semi-axis it is divided by.
+                    let back = k.param_in(k.point_at(t), (t - 0.3, t + 0.3));
+                    assert!(
+                        (back - t).abs() <= 8.0 * f64::EPSILON * (1.0 + t.abs()) * (a / b),
+                        "{carrier:?}: {t} reads back as {back}"
+                    );
+                    // Run back, the point at `−t` is this one's at `t`.
+                    let reversed = carrier.reversed().unwrap();
+                    assert_eq!(
+                        bits(reversed.eval(-t) - o),
+                        bits(carrier.eval(t) - o),
+                        "{carrier:?} reversed at {t}"
+                    );
+                }
+                let by = Vec3::new(0.25, -4.0, 1.5);
+                let Curve3::Ellipse(moved) = carrier.translated(by).unwrap() else {
+                    unreachable!()
+                };
+                assert_eq!(
+                    anchor_of(&moved).map(|(p, _)| bits(p - o)),
+                    Some(bits((at + by) - o)),
+                    "{carrier:?}: a translation carries the anchor"
+                );
+                for seam in [0.3, 1.4, 2.9, -1.5] {
+                    assert_eq!(
+                        anchor_of(&e.seamed_near(seam)).map(|(p, _)| bits(p - o)),
+                        Some(bits(at - o)),
+                        "a re-seam near {seam} keeps the anchor"
+                    );
+                }
+                assert!(anchor_of(&centred.seamed_near(1.4)).is_none());
+            }
+        }
+    }
+
+    /// **An arc-held ellipse moved to a centre is that ellipse
+    /// translated whole.** [`Ellipse::centred_at`] on an ellipse held on
+    /// its arc, as minted and re-seamed: the centre stands at the point
+    /// asked for, the anchor has moved by the same step, the phase is
+    /// kept, and the point at every parameter is the original's moved by
+    /// that step. Held at its centre, the origin is the point asked for
+    /// to the bit. Red where the arc-held arm sets the placement's origin
+    /// to the centre asked for, which puts the anchor there.
+    #[test]
+    fn an_arc_held_ellipse_centred_elsewhere_is_translated_whole() {
+        use super::{Conic, Ellipse};
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let to = Point3::new(-7.25, 0.5, 11.0);
+        for (a, b) in [(0.7, 0.3), (30.0, 41.0), (1500.0, 15.0)] {
+            let minted = Ellipse::anchored(at, n, toward, a, b);
+            for e in [minted, minted.seamed_near(1.4), minted.seamed_near(2.9)] {
+                let step = to - e.center();
+                let slack =
+                    64.0 * f64::EPSILON * ((to - o).norm() + (at - o).norm() + 2.0 * a.max(b));
+                let moved = e.centred_at(to);
+                assert!(
+                    moved.center().distance(to) <= slack,
+                    "({a}, {b}): the centre"
+                );
+                let ((anchor, phase), (was, was_phase)) =
+                    (anchor_of(&moved).unwrap(), anchor_of(&e).unwrap());
+                assert_eq!(phase, was_phase);
+                assert!(
+                    anchor.distance(was + step) <= slack,
+                    "({a}, {b}): the anchor"
+                );
+                for t in [-3.0, -1.2, 0.0, 0.4, 1.55, 2.9] {
+                    assert!(
+                        moved.point_at(t).distance(e.point_at(t) + step) <= slack,
+                        "({a}, {b}) at {t}"
+                    );
+                }
+            }
+            let centred = Ellipse::new(minted.frame(), a, b).centred_at(to);
+            assert!(anchor_of(&centred).is_none());
+            let got = centred.frame().origin();
+            assert_eq!(
+                [got.x, got.y, got.z].map(f64::to_bits),
+                [to.x, to.y, to.z].map(f64::to_bits)
+            );
+        }
+    }
+
+    /// **Two ellipses that differ only in how they are held are two
+    /// carriers, and the walk says how.** On one stored frame and one
+    /// pair of semi-axes: held at the frame's origin as the centre, held
+    /// there on the arc, and held there on the arc at another phase, no
+    /// two are the same content ([`Curve3::same_content`]). The walk of
+    /// the stored data ([`Curve3::data`]) names the stored point
+    /// `Center` or `Anchor`, and beside an anchor its phase, the pair as
+    /// stored. Red where `same_content` does not read the kind of point,
+    /// or not the phase, and where the walk leaves the phase out.
+    #[test]
+    fn the_walk_names_an_arc_held_ellipses_anchor_and_phase() {
+        use super::{Ellipse, Held};
+        use crate::{CurveDatum, DatumValue};
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let arc = Ellipse::anchored(at, n, toward, 30.0, 41.0);
+        let centre = Ellipse::new(super::Frame::new(at, n, toward), 30.0, 41.0);
+        let turned = Ellipse {
+            held: Held::Arc { phase: (0.0, -1.0) },
+            ..arc
+        };
+        let three = [centre, arc, turned].map(Curve3::Ellipse);
+        for (i, a) in three.iter().enumerate() {
+            for (j, b) in three.iter().enumerate() {
+                assert_eq!(a.same_content(b), i == j, "{a:?} against {b:?}");
+            }
+        }
+        let point = |c: &Curve3<f64>, d| match c.data().named(d) {
+            Some(DatumValue::Point(p)) => Some((p.x, p.y, p.z)),
+            _ => None,
+        };
+        let at = (at.x, at.y, at.z);
+        let phase = |c: &Curve3<f64>| match c.data().named(CurveDatum::Phase) {
+            Some(DatumValue::Direction(d)) => Some((d.x, d.y, d.z)),
+            _ => None,
+        };
+        assert_eq!(point(&three[0], CurveDatum::Center), Some(at));
+        assert!(point(&three[0], CurveDatum::Anchor).is_none() && phase(&three[0]).is_none());
+        for (k, want) in [(1, (1.0, 0.0, 0.0)), (2, (0.0, -1.0, 0.0))] {
+            assert_eq!(point(&three[k], CurveDatum::Anchor), Some(at));
+            assert!(point(&three[k], CurveDatum::Center).is_none());
+            assert_eq!(phase(&three[k]), Some(want));
+        }
+    }
+
+    /// **A re-seamed arc-held ellipse reads back, lifts and moves as
+    /// itself.** Seamed near each of its four principal vertices, and
+    /// each of those run back:
+    ///
+    /// - a point's parameter reads back as the parameter it was
+    ///   evaluated at (red where the direction of a point ignores the
+    ///   phase's sine, or its cosine);
+    /// - lifted to `Interval`, its phase is the stored pair, and its
+    ///   point's and its centre's enclosures sit on the `f64` ones (red
+    ///   where the lift drops the phase, which reads the anchor as the
+    ///   turned seam's vertex);
+    /// - moved, it is the same ellipse moved: translated, and carried by
+    ///   a rotation, its point at each parameter is the image of the
+    ///   original's there (red where the map drops the phase).
+    #[test]
+    fn a_re_seamed_arc_held_ellipse_reads_back_lifts_and_moves_as_itself() {
+        use super::{Conic, Ellipse};
+        use geom_core::{Bounds, Interval, RigidMotion};
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let lift = Interval::from_f64;
+        let mid = |p: Point3<Interval>| {
+            Point3::new(
+                0.5 * (p.x.lo() + p.x.hi()),
+                0.5 * (p.y.lo() + p.y.hi()),
+                0.5 * (p.z.lo() + p.z.hi()),
+            )
+        };
+        let turn = RigidMotion::rotation_about_axis(
+            Point3::new(0.5, 2.0, -1.0),
+            super::Frame::new(o, Vec3::new(1.0, 2.0, -2.0), Vec3::unit_x()).axis_unit(),
+            0.7,
+        )
+        .unwrap();
+        let by = Vec3::new(0.25, -4.0, 1.5);
+        for (a, b) in [(0.7, 0.3), (30.0, 41.0), (1500.0, 15.0), (1e6, 1e4)] {
+            let e = Ellipse::anchored(at, n, toward, a, b);
+            let scale = (e.center() - o).norm() + 2.0 * a.max(b);
+            let slack = 64.0 * f64::EPSILON * scale;
+            for seam in [0.3, 1.4, 2.9, -1.5] {
+                for r in [e.seamed_near(seam), e.seamed_near(seam).reversed()] {
+                    let (_, phase) = anchor_of(&r).unwrap();
+                    let lifted = r.map_scalar(|f| f.map_scalar(lift), lift);
+                    let lifted_phase = match lifted.held {
+                        super::Held::Arc { phase } => phase,
+                        super::Held::Centre => {
+                            unreachable!("the lift keeps the ellipse on its arc")
+                        }
+                    };
+                    assert_eq!(
+                        (
+                            lifted_phase.0.lo(),
+                            lifted_phase.0.hi(),
+                            lifted_phase.1.lo(),
+                            lifted_phase.1.hi()
+                        ),
+                        (phase.0, phase.0, phase.1, phase.1),
+                        "({a}, {b}) seamed near {seam}: the lifted phase"
+                    );
+                    assert!(
+                        mid(lifted.center()).distance(r.center()) <= slack,
+                        "({a}, {b}) seamed near {seam}: the lifted centre"
+                    );
+                    let translated = r.translated(by);
+                    let carried = r.mapped(|f| f.moved(&turn));
+                    for t in [-3.0, -1.2, -2e-3, 0.0, 1e-7, 0.4, 1.55, 2.9] {
+                        let p = r.point_at(t);
+                        let back = r.param_in(p, (t - 0.3, t + 0.3));
+                        assert!(
+                            (back - t).abs() <= slack / a.min(b),
+                            "({a}, {b}) seamed near {seam}: {t} reads back as {back}"
+                        );
+                        assert!(
+                            mid(lifted.point_at(lift(t))).distance(p) <= slack,
+                            "({a}, {b}) seamed near {seam}: the lifted point at {t}"
+                        );
+                        assert!(
+                            (translated.point_at(t) - (p + by)).norm() <= slack,
+                            "({a}, {b}) seamed near {seam}: translated, at {t}"
+                        );
+                        assert!(
+                            (carried.point_at(t) - turn.transform_point(p)).norm() <= slack,
+                            "({a}, {b}) seamed near {seam}: carried by a rotation, at {t}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// **Running an ellipse back is [`Ellipse::reversed`], and a frame's
+    /// reversal handed to [`Ellipse::mapped`] is another map.** On an
+    /// arc-held ellipse seamed a quarter turn on, `reversed` at `−t` is
+    /// the ellipse at `t` bit for bit. `mapped(Frame::reversed)` is the
+    /// ellipse turned half a turn about the line through its anchor
+    /// along its seam: the anchor is kept, each point is that half
+    /// turn's image, and it is not the same locus (its point at `−t`
+    /// stands up to twice the semi-axis across the seam from the
+    /// ellipse's at `t`). Held at its centre the two agree, the line
+    /// passing through the centre.
+    #[test]
+    fn running_an_ellipse_back_is_its_own_door_and_not_a_frames_reversal() {
+        use super::{Conic, Ellipse, Frame};
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let params = [-3.0, -1.2, 0.0, 0.4, 1.55, 2.9];
+        for (a, b) in [(30.0, 41.0), (1500.0, 15.0)] {
+            let r = Ellipse::anchored(at, n, toward, a, b).seamed_near(1.4);
+            let (anchor, phase) = anchor_of(&r).unwrap();
+            assert_eq!(phase, (0.0, -1.0));
+            let (back, by_frame) = (r.reversed(), r.mapped(Frame::reversed));
+            assert_eq!(
+                anchor_of(&by_frame).map(|(p, _)| bits(p - o)),
+                Some(bits(anchor - o))
+            );
+            let u = r.frame().u_ref();
+            let slack = 64.0 * f64::EPSILON * ((r.center() - o).norm() + 2.0 * a.max(b));
+            let mut apart = 0.0_f64;
+            for t in params {
+                let p = r.point_at(t);
+                assert_eq!(
+                    bits(back.point_at(-t) - o),
+                    bits(p - o),
+                    "({a}, {b}) at {t}"
+                );
+                let w = p - anchor;
+                let half_turned = anchor + (u * (2.0 * w.dot(u)) - w);
+                assert!(
+                    (by_frame.point_at(t) - half_turned).norm() <= slack,
+                    "({a}, {b}) at {t}: the frame's reversal is the half turn about the seam"
+                );
+                apart = apart.max((by_frame.point_at(-t) - p).norm());
+            }
+            // The anchor sits a quarter turn from the seam, so the two
+            // centres are twice the semi-axis across the seam apart.
+            assert!(
+                (apart - 2.0 * r.semi_v()).abs() <= slack,
+                "({a}, {b}): the frame's reversal stands {apart:e} off, not twice {}",
+                r.semi_v()
+            );
+            let centred = Ellipse::new(r.frame(), r.semi_u(), r.semi_v());
+            for t in params {
+                assert_eq!(
+                    bits(centred.mapped(Frame::reversed).point_at(-t) - o),
+                    bits(centred.reversed().point_at(-t) - o)
+                );
+            }
+        }
+    }
+
+    /// **A re-seam moves parameter zero and never the anchor.** An
+    /// anchored ellipse seamed near each of its four principal vertices:
+    ///
+    /// - the anchor is the stored one, bit for bit, and the phase is the
+    ///   exact quarter turn `(cos, sin)(−k·π/2)` (red where the re-seam
+    ///   re-anchors at the turned seam's vertex);
+    /// - it is the same ellipse: its point at `t − k·π/2` is the
+    ///   original's at `t`, and its centre the original's, to the rounding
+    ///   of their own size (red where the phase is dropped, which reads
+    ///   the anchor as the new seam's vertex);
+    /// - parameter zero is at the new seam's principal vertex,
+    ///   `centre + u_ref·semi_u` of the turned frame, so the parameter is
+    ///   still the eccentric anomaly from `u_ref` that every reader pairs
+    ///   with the principal directions (red where parameter zero is left
+    ///   at the anchor);
+    /// - run back, its point at `−t` is its own at `t`, bit for bit (red
+    ///   where the reversal keeps the phase's sine);
+    /// - at `Interval`, its centre is as wide as the original's to within
+    ///   a hundredth and a few roundings of the scale: the centre is read
+    ///   from the stored anchor, and a re-seam re-sums nothing (red where the anchor is re-summed, which carries the
+    ///   semi-axis into the centre three times).
+    #[test]
+    fn a_re_seam_moves_parameter_zero_and_never_the_anchor() {
+        use super::{Conic, Ellipse};
+        use core::f64::consts::FRAC_PI_2;
+        use geom_core::{Bounds, Interval};
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let o = Point3::origin();
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        for (a, b) in [(0.7, 0.3), (30.0, 41.0), (1500.0, 15.0), (1e6, 1e4)] {
+            let e = Ellipse::anchored(at, n, toward, a, b);
+            let scale = (e.center() - o).norm() + 2.0 * a.max(b);
+            let slack = 16.0 * f64::EPSILON * scale;
+            for (seam, k) in [(0.3, 0), (1.4, 1), (2.9, 2), (-1.5, 3), (3.3, 2), (4.6, 3)] {
+                let r = e.seamed_near(seam);
+                let (anchor, phase) = anchor_of(&r).unwrap();
+                assert_eq!(bits(anchor - o), bits(at - o));
+                let want = [(1.0, 0.0), (0.0, -1.0), (-1.0, 0.0), (0.0, 1.0)][k];
+                assert_eq!(phase, want, "({a}, {b}) seamed near {seam}");
+                // Across a half turn, which negates stored numbers and
+                // rounds nothing, the derived centre does not move; across
+                // a quarter it moves by the turned seam's rounding.
+                if k % 2 == 0 {
+                    assert_eq!(bits(r.center() - o), bits(e.center() - o), "the centre");
+                } else {
+                    assert!((r.center() - e.center()).norm() <= slack, "the centre");
+                }
+                let turn = FRAC_PI_2 * f64::from(u32::try_from(k).unwrap());
+                for t in [-3.0, -1.2, -2e-3, 0.0, 1e-7, 0.4, 1.55, 2.9] {
+                    let gap = (r.point_at(t - turn) - e.point_at(t)).norm();
+                    assert!(
+                        gap <= slack,
+                        "({a}, {b}) seamed near {seam}: {gap:e} off the original at {t}"
+                    );
+                    let back = Curve3::Ellipse(r).reversed().unwrap();
+                    assert_eq!(
+                        bits(back.eval(-t) - o),
+                        bits(r.point_at(t) - o),
+                        "({a}, {b}) seamed near {seam}, reversed at {t}"
+                    );
+                }
+                let f = r.frame();
+                let vertex = f.origin() + f.u_ref() * r.semi_u();
+                assert!(
+                    (r.point_at(0.0) - vertex).norm() <= slack,
+                    "({a}, {b}) seamed near {seam}: parameter zero is the seam's vertex"
+                );
+            }
+            let lift = Interval::from_f64;
+            let wide = |x: f64| Interval::from_bounds(x - 1e-13 * x.abs(), x + 1e-13 * x.abs());
+            let ei = e.map_scalar(|f| f.map_scalar(lift), wide);
+            let width = |p: Point3<Interval>| {
+                [p.x, p.y, p.z]
+                    .into_iter()
+                    .map(|c| c.hi() - c.lo())
+                    .fold(0.0, f64::max)
+            };
+            for seam in [0.3, 1.4, 2.9, -1.5] {
+                let ri = ei.seamed_near(lift(seam));
+                assert!(
+                    width(ri.center()) <= 1.01 * width(ei.center()) + 8.0 * f64::EPSILON * scale,
+                    "({a}, {b}) seamed near {seam} at Interval: the centre {:e} wide against {:e}",
+                    width(ri.center()),
+                    width(ei.center())
+                );
+            }
+        }
+    }
+
+    /// **A re-seamed ellipse holds a point near its anchor to the
+    /// semi-axis's rounding, not the arc's.** As minted, parameter zero
+    /// is at the anchor and a point a step `d` along the arc is the
+    /// anchor plus `P′·d` to a few roundings of its own coordinates.
+    /// Seamed a quarter turn on, the anchor has not moved but its
+    /// parameter is `−π/2`, which the parameter itself now carries: the
+    /// same step lands a rounding of the SEMI-AXIS off (measured 1.5 to
+    /// 3.6 `u·a` over anchors a quarter and a half turn from the seam).
+    ///
+    /// The second half is a pin on a known shortfall, held from both
+    /// sides: red if it gets worse than `8 u·a`, and red if it becomes
+    /// arc-scale, which is what
+    /// `work/conic/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`
+    /// closes (parameter zero kept at the anchor through a re-seam); the
+    /// unit that does it turns this half over.
+    #[test]
+    fn a_re_seamed_ellipse_resolves_near_its_anchor_at_the_semi_axis() {
+        use super::{Conic, Ellipse};
+        let u = geom_core::UNIT_ROUNDOFF;
+        let (at, n) = (Point3::new(3.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0));
+        let toward = Vec3::new(1.0, -2.0, 2.0);
+        let own = (at - Point3::origin()).norm();
+        for a in [1e4, 1e5, 1e6] {
+            let e = Ellipse::anchored(at, n, toward, a, 0.37 * a);
+            let worst = |k: &Ellipse<f64>, at_param: f64| {
+                let speed = k.derivative_at(at_param);
+                [-3e-10, -1e-10, 7e-11, 2e-10, 3.3e-10]
+                    .into_iter()
+                    .map(|d: f64| (k.point_at(at_param + d) - (at + speed * d)).norm())
+                    .fold(0.0, f64::max)
+            };
+            // The step's own curvature term, `a·d²/2`, is under 1e-13.
+            let minted = worst(&e, 0.0);
+            assert!(
+                minted <= 16.0 * u * own + 1e-13,
+                "a {a:e}, as minted: {minted:e} off, past its own rounding"
+            );
+            let turned = e.seamed_near(1.4);
+            assert_eq!(anchor_of(&turned).map(|(_, p)| p), Some((0.0, -1.0)));
+            let off = worst(&turned, -core::f64::consts::FRAC_PI_2);
+            assert!(
+                off <= 8.0 * u * a,
+                "a {a:e}, seamed a quarter turn on: {off:e} off, past 8 u·a"
+            );
+            assert!(
+                off >= 0.05 * u * a,
+                "a {a:e}, seamed a quarter turn on: {off:e} off is arc-scale now: turn this \
+                 half of the row over and close the general anchor's row"
+            );
         }
     }
 
@@ -891,7 +2479,7 @@ mod tests {
     /// A poison turn reads poison sizes, which the checked constructor
     /// refuses rather than store.
     #[test]
-    #[should_panic(expected = "Ellipse::new: semi_u NaN")]
+    #[should_panic(expected = "Ellipse::quarter_turned_where: semi_u NaN")]
     fn a_poison_seam_turn_panics_at_construction() {
         let f = super::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let _ = super::Ellipse::new(f, 0.9, 0.4).seamed_near(f64::NAN);

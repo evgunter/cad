@@ -2,11 +2,12 @@
 id: rustdoc-gate-private-intra-doc-links
 kind: issue
 title: Revisit — should the rustdoc gate reinstate private_intra_doc_links?
-status: open
+status: closed
 opened: 2026-08-15
 refs: [465]
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 ## From GitHub issue 519
@@ -149,3 +150,10 @@ the instance costs.
 ## Re-homed to CIW (2026-09-28)
 
 Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Option 1 is decided and recorded in the gate itself (`scripts/doc-gate.sh:28-40`,
+flag at :520). Options 2/3 cost: 278 sites to rewrite (2026-09-10) or a second rustdoc
+invocation per PR. Its revisit trigger (a public-only doc set / Q9) has not fired; nothing
+for a lane to do.

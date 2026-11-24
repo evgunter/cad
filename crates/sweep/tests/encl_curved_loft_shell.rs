@@ -190,8 +190,8 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
-                if pl.y == 0.0 && (p0.y - z).abs() < 1e-9)
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && (line.value - z).abs() < 1e-9)
         })
         .count();
     assert_eq!(
@@ -263,7 +263,11 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
         // so the 1e-9 arm reads it within 5%.
         let ReplaceFaceError::Op {
-            error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
+            error:
+                topo::EulerOpError::DescriptionUncertified {
+                    edge: topo::EdgeSubject::Keyed(edge),
+                    error,
+                },
             ..
         } = error.as_ref()
         else {
@@ -352,15 +356,15 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
         if !is_spline_wall(&walls, face) {
             continue;
         }
-        let geom_brep::Pcurve::IsoLine { p0, pl, .. } = *cache.pcurve() else {
+        let geom_brep::Pcurve::IsoLine { line, .. } = *cache.pcurve() else {
             continue;
         };
         // A row: `u` moves and `v` is fixed, strictly inside the chart.
-        if pl.y == 0.0 && p0.y > 0.0 && p0.y < 1.0 {
+        if line.axis == geom_brep::ChartAxis::V && line.value > 0.0 && line.value < 1.0 {
             assert!(
-                (p0.y - (1.0 - THICKNESS)).abs() < 1e-12,
+                (line.value - (1.0 - THICKNESS)).abs() < 1e-12,
                 "the rim's row is the moved cap's height, got v = {}",
-                p0.y
+                line.value
             );
             rims += 1;
         }
@@ -553,8 +557,8 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
                 .is_some_and(|f| is_spline_wall(&walls, f))
         })
         .filter(|(_, c)| {
-            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl, .. }
-                if pl.y == 0.0 && (p0.y - row).abs() < 1e-9)
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && (line.value - row).abs() < 1e-9)
         })
         .count();
     assert_eq!(rows, 2, "each wall carries its rim on its row v = {row}");
@@ -734,7 +738,7 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
         let e = topo::replace_face_offset(&mut moved, cap, d, Tol::witness())
             .expect_err("the marched rim does not certify");
         let ReplaceFaceError::Op {
-            error: topo::EulerOpError::RechartFalsifies { error, .. },
+            error: topo::EulerOpError::DescriptionUncertified { error, .. },
             ..
         } = &e
         else {
@@ -1240,7 +1244,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
                 matches!(
                     moved,
                     Err(ReplaceFaceError::Op {
-                        error: topo::EulerOpError::RechartFalsifies {
+                        error: topo::EulerOpError::DescriptionUncertified {
                             error: geom_brep::CertifyError::PlaneNurbs(
                                 geom_brep::PlaneNurbsRefusal::Limb {
                                     limb: geom_brep::ssi::SsiLimb::ImageMiss,
@@ -1350,7 +1354,7 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         });
         let EdgeDescriptionSpec::Chart {
             surface,
-            image: Some(Pcurve::IsoLine { p0, pl, .. }),
+            image: Some(Pcurve::IsoLine { line, .. }),
             ..
         } = spec.description
         else {
@@ -1360,21 +1364,25 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
         let old = certified_curve(&body, edge);
         let (t0, t1) = old.params();
         let (a, b) = (old.carrier().eval(t0), old.carrier().eval(t1));
-        let fixed = if pl.x == 0.0 {
+        let fixed = if line.axis == geom_brep::ChartAxis::U {
             u_rows += 1;
             assert!(
                 (a.x - b.x).abs() < 1e-12,
                 "{edge:?}: a u row is an edge along y"
             );
-            (p0.x, a.x)
+            (line.value, a.x)
         } else {
             v_rows += 1;
-            assert_eq!(pl.y, 0.0, "{edge:?}: a row holds one parameter fixed");
+            assert_eq!(
+                line.axis,
+                geom_brep::ChartAxis::V,
+                "{edge:?}: a row holds one parameter fixed"
+            );
             assert!(
                 (a.y - b.y).abs() < 1e-12,
                 "{edge:?}: a v row is an edge along x"
             );
-            (p0.y, a.y)
+            (line.value, a.y)
         };
         assert_eq!(
             2.0 * fixed.0,

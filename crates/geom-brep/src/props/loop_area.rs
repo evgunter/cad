@@ -71,13 +71,13 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let axis = frame.axis();
+            Curve3::Circle(circle) => {
+                let axis = circle.axis();
                 let radius = circle.radius();
                 arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
             }
-            Curve3::Ellipse(ellipse @ geom::Ellipse { frame, .. }) => {
-                let axis = frame.axis();
+            Curve3::Ellipse(ellipse) => {
+                let axis = ellipse.axis();
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half
             }
@@ -326,7 +326,7 @@ pub fn closed_segment_term<T: SpanLocate>(
         Some(conic) => {
             let (a, b) = conic.semi_axes();
             let span = if forward { t1 - t0 } else { t0 - t1 };
-            arc_segment_term(conic.frame().axis(), a * b, span)
+            arc_segment_term(conic.axis(), a * b, span)
         }
         None => spline_bulge(carrier, (t0, t1), forward)?,
     };
@@ -610,7 +610,13 @@ mod tests {
             ))
         };
         let carriers = [
-            (Curve3::line(p(0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)), true),
+            (
+                Curve3::line(
+                    p(0.0, 0.0),
+                    geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+                ),
+                true,
+            ),
             (
                 Curve3::circle(
                     p(0.0, 0.0),
@@ -648,7 +654,14 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, forward, 0, 0)
+        LoopEdge::hand_built(
+            Curve3::line(a, geom::stated_direction(d * (1.0 / len))),
+            0.0,
+            len,
+            forward,
+            0,
+            0,
+        )
     }
 
     #[test]

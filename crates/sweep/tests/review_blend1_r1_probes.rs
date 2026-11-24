@@ -57,10 +57,8 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle(circle @ geom::Circle { frame, .. })
-                    if frame.origin().z > 0.5 =>
-                {
-                    let (_, axis) = (frame.origin(), frame.axis());
+                geom::Curve3::Circle(circle) if circle.frame().origin().z > 0.5 => {
+                    let (_, axis) = (circle.frame().origin(), circle.frame().axis());
                     Some((k, axis, circle.radius()))
                 }
                 _ => None,
@@ -262,7 +260,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if frame.origin().z > 0.5
+                    Some(geom::Curve3::Circle(circle @ geom::Circle { .. })) if circle.frame().origin().z > 0.5
                 )
             })
             .expect("a raised arc")
@@ -344,7 +342,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     };
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
-    let axis = geom::Curve3::line(o, Vec3::new(0.0, 0.0, 1.0));
+    let axis = geom::Curve3::line(o, geom_core::UnitVec3::exact_z());
     let side = |surface| geom_brep::SideFace {
         surface,
         sense: true,
@@ -458,7 +456,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                     geom::Curve3::Line(geom::Line { origin, dir }) => ((origin.x - 1.0).abs()
                         < 1e-12
                         && origin.y.abs() < 1e-6
-                        && dir.z.abs() > 0.5)
+                        && dir.get().z.abs() > 0.5)
                         .then_some(k),
                     _ => None,
                 }
@@ -488,7 +486,9 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
             .filter_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z > 0.5 => {
+                    geom::Curve3::Circle(circle @ geom::Circle { .. })
+                        if circle.frame().origin().z > 0.5 =>
+                    {
                         Some(k)
                     }
                     _ => None,

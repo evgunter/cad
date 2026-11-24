@@ -545,9 +545,10 @@ fn a_steep_ellipse_is_off_where_it_is_off() {
                 .unwrap()
                 .certified()
                 .unwrap();
-            let geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) = *curve.carrier() else {
+            let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = *curve.carrier() else {
                 panic!("an ellipse");
             };
+            let frame = the_ellipse.frame();
             let (center, u_ref) = (frame.origin(), frame.u_ref());
             let (t0, t1) = curve.params();
             for th in [0.0f64, core::f64::consts::PI] {

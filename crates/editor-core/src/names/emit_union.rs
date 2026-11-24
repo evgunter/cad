@@ -82,7 +82,7 @@
 //!
 //! A refusal raised mid-fold carries no fold-table name: a step's
 //! refusal is the kernel's own, under the member that step folds in
-//! (`NodeErrorKind::UnionFoldStep`). A coincidence row a step decides
+//! (`NodeErrorKind::FoldStep`). A coincidence row a step decides
 //! is read against the collapsed accumulation ([`collapse_table`]) and
 //! spelled by the member cells that meet there ([`member_cells`]), as
 //! the pairwise judgement's rows are.
@@ -2085,22 +2085,14 @@ impl<T: geom_core::Real> PairSenses<T> {
     /// # Errors
     ///
     /// [`NamingError::Settle`] where a key's rows lead to a cell the
-    /// result does not hold: a corrupt record, not an absent key; and
-    /// [`NamingError::UnsupportedTurnedCell`] where the judgement keeps
-    /// a cell a sphere re-chart turned
-    /// ([`super::emit_topo::refuse_turned_cells`]).
+    /// result does not hold: a corrupt record, not an absent key.
     pub(crate) fn judged(
         &mut self,
         a: usize,
         b: usize,
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
-        reads: [crate::VarId; 2],
-        b_body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
-        // A judgement's body is named by no pair emitter.
-        let inv = super::emit_topo::GraftInverse::of(naming);
-        super::emit_topo::refuse_turned_cells(body, naming, &inv, reads, b_body)?;
         let grafted: BTreeMap<topo::VertexKey, topo::VertexKey> =
             naming.graft_vertices.iter().copied().collect();
         let settler = naming.settler(body);
