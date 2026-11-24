@@ -83,6 +83,9 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// every member of the family it is written over
 /// (`checks::at_rest::written_pair`), and reading each member's pair
 /// finishes: 390 -> 398, all in heat_sink (29 -> 37). Offering the pair
-/// without the members' reading puts back 390.
+/// without the members' reading puts back 390. Then a gather of finished
+/// members carries their verdicts (`topo::boolean::gather_finished`):
+/// 398 -> 375, one finish fewer in each document whose product's census
+/// gathers finished copies, and two in cut_cylinder.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 398;
+const PINNED: u64 = 375;
