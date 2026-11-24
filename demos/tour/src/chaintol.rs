@@ -25,10 +25,16 @@
 //! joint's rotation is a rigid motion by construction (`RigidMotion`),
 //! and a moved copy carries its certificates
 //! (`topo::FinishedBody::moved`), so no joint's transform re-certifies
-//! an edge whose images it enclosed apart. Those re-certifications were
-//! this table's walls before ONEHOME stage 2 (PR 6820): plain
-//! `Interval` refused at the first transform and `Sym<Interval>` at two
-//! links (`work/shell/transform-rigid-recertifies-images-enclosed-apart`).
+//! an edge whose images it enclosed apart.
+//!
+//! **Which tier "CERTIFIES" means here.** Every node built over the box
+//! with no escalation. The bar and the pins are sweeps, whose leaf at the
+//! box scalars is tier 2 alone while the box-scalar switch lives
+//! (`topo::AtRestPolicy::leaf`), and nothing takes the chain's product,
+//! so at both lanes this table's bodies have had tier 2, not tier 3.
+//! Where the box scalars' leaf is finished, each member's tier 3 runs in
+//! its own frame and the product's gather carries those verdicts through
+//! the joints (`topo::gather`).
 //!
 //! # The drive over the whole study
 //!
