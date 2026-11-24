@@ -2,11 +2,11 @@
 id: a-node-that-fails-definitely-over-a-leaf-bisects-to-the-budget
 kind: issue
 title: A node that fails definitely over a leaf is bisected until the budget: the drive has no class for a leaf that is definitely invalid
-status: open
+status: parked
 opened: 2026-11-24
 priority: P2
 cost: M
-design: true
+blocked_on: [a-parted-path-with-no-turn-is-reported-as-an-empty-flip-crossing]
 ---
 
 
@@ -55,4 +55,13 @@ extrude's rung-3 carrier enclosure (the `notch` drives).
 `an-extrude-with-no-definite-length-fails-with-no-escalation-logged`,
 filed on the first reading, is closed into this row. (BOXFINISH
 orchestrator)
+
+**Weighed with the parted-path fork (2026-11-24): a node that fails on
+a decided answer where the witness builds is a `FlipCrossing` naming
+that decision, refused at once.** A turned definite sign holds on
+every sub-box, so no split helps. `classify_replay`'s failure arm has
+to read the failed node's log to see it. That is one of the clauses
+put to Ev on PR 7700 and is built with that fork's unit, on which this
+row now waits. A node that fails definitely with NO decision turned
+against the witness has no instance yet. (BOXFINISH orchestrator)
 
