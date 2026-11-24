@@ -2004,3 +2004,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Every remaining red is main's.
   - **Confirmation:** R2 (Opus) is dispatched now. R1 (Fable) waits on the user's answer about the Fable outage (rule 12).
   - A main seed was added to SPLICE's ellipse_torus row.
+- 2026-11-24 — **U4a R2 (Opus) confirmation: APPROVE** on `59fc7e246`.
+  - All 7 findings are FIXED.
+  - The torus probes lost the touch 0 times in 162 cases (20 before).
+  - The seam fuzz gave 0 wrong answers (4 before).
+  - Mutants M2, M5, M6, M7, M8, and R2's own M9, all red.
+  - Suites pass 9719/9719 at the default ε and at 1e-6. At 1e-12 they pass 9717/9719, and both reds are main's.
+  - NOTE: `on_span` copies only ±1 turn, so a narrow window on a span of 4π or more could miss its copy two turns away. This was found by inspection, and it matters only if such spans are legal. It is to be checked as a U4b question.
+  - R1 (Fable) is still held under rule 12.
