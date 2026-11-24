@@ -228,6 +228,41 @@ true at every type it can produce
 (`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
 scalars).
 
+### A size is a type `[sizes]`
+
+A length the kernel stores as a size is a `Size` (not the user-facing
+`quantity::Length`). A `Size` is
+finite and strictly positive: it is bounded and not definitely at or
+below zero, so at an `Interval` an enclosure that straddles zero is
+still one. It has one mint, and that mint is fallible: a zero, a
+negative, a NaN or an unbounded value refuses with a typed error and
+never panics. Finiteness is decided at the mint and nowhere else.
+`decide` stays a sign verdict, so `decide(+∞)` is `Positive`.
+
+- **A conic's sizes** (a circle's radius, an ellipse's semi-axes) are
+  exact `Size`s, with no band. Whether a computed conic exists is
+  its producer's pose decision, or is implied by the surface it lies
+  on. A second band decision at the mint would be a second place for
+  that fact ([one-way.places]). The readers that meter through a
+  conic decide span questions, and keep them.
+- **A surface kind's convention** is a witness decided on the run's
+  band, minted where the surface comes to exist, on the run's
+  tolerance and never on a caller's band. A cylinder's or a sphere's
+  radius is decided positive, a torus holds a `RingTorus`, and a
+  spindle holds its sheet verdict. A witness hands out `Size`s.
+  The at-rest check's radius half and the section arms' radius guards
+  re-decide this fact, and retire.
+- **A cone's half-angle** is an exact type, strictly inside
+  `(0, π/2)`. Where its band fact lives, and at which lever, is a
+  question of its own.
+- **A builder that computes a size returns `Result`.** Evaluators
+  stay total, and poison flows through numbers, never into a stored
+  size. A builder below a predicate battery hands back numbers, and
+  the entity is minted after the battery passes, from that battery's
+  decision. A blend torus's ring witness is minted from the spine
+  regularity predicate's passed decision, through a token only that
+  decision mints.
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -1064,11 +1099,7 @@ tiers".
   (D1), kept to its end at the singularity: a native construction's
   seam already is it, and the kernel mints one only where a file
   states none. The join never removes a cut either
-  exception requires. Any other cut the kernel makes for its own
-  reasons (a chart cut that lets the join see a section loop no edge
-  reaches, a section strut) is transient: the door that makes it
-  records it, and removes it from that record before the door returns,
-  asking no question of the carriers, so no result holds it.
+  exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker, and its standing is `Refusal::Unbuilt`

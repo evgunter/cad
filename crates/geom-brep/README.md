@@ -1326,8 +1326,10 @@ It reads the count again on the two lines of the spiric's plane that
 stand the band's escalation above and below the cutting plane, and
 refuses as a tangency where either differs: an oval with one extreme of
 its height within the band of the cutting plane, a near miss or a shallow
-dip. An oval wholly within the band on one side of the cutting plane
-keeps a count of none on all three lines and reads as a miss.
+dip. The oval is convex, so where the count is none on all three lines
+it lies wholly on one side of each, and one of its points read across
+the line says whether it lies within the band on one side of the
+cutting plane; there it refuses too.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
@@ -1714,9 +1716,7 @@ has the C7 second-order lane. (3) `EdgeCurveSpec::split_specs` splits a
 NURBS carrier by knot insertion and a conic by parameter interval.
 (4) The census is CONTACT-DESIGN's. (5) `merge_faces.rs` merges
 cosurface runs through the same never-numeric ladder; a curved run that
-closes its chart's full period refuses, which keeps the cuts an author
-wrote on a closed wall (`[edges]`). A cut the kernel makes for its own
-reasons never reaches the merge: its door has removed it (`[edges]`). (6) Curved tessellation
+closes its chart's full period refuses. (6) Curved tessellation
 (`mesh/src/curved.rs`) takes iso-rectangle chart domains from the
 boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
