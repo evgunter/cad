@@ -80,6 +80,12 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
 /// Moving each member's leaf before its take again puts back 440, and the
 /// copies' as well, 445. Then a `⊔`'s gather reads the body its door
 /// finished and finishes no graft of its own: 390 -> 383 (die 73 -> 72,
-/// heat_sink 29 -> 28, and one each of five more).
+/// heat_sink 29 -> 28, and one each of five more). Then the at-rest
+/// localization lost its quieting pre-filter (OFFER's rule, main's
+/// `checks/at_rest.rs` of 2026-11-23: `localize` asks `crossing` of every
+/// candidate pair where `could_quiet` used to pass some by), and each
+/// asking extrudes a probe leaf and finishes it: 383 -> 391, all of it
+/// heat_sink's (28 -> 36: 18 probe leaves where there were 10). The
+/// eight are that rule's price, read off the call sites on both trees.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 383;
+const PINNED: u64 = 391;
