@@ -14,7 +14,7 @@
 //! Parameter symbols are hashes, so a harness that wants names in the
 //! rendering registers them (`name_param`) before evaluating.
 //!
-//! What it writes for one decision is bounded ([`RENDER_BUDGET`]): a
+//! What it writes for one decision is bounded (`RENDER_BUDGET`): a
 //! form too large for its share is spelled less deep, its unspelled
 //! atoms named and its unwritten terms counted.
 
