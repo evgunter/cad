@@ -1725,7 +1725,7 @@ mod tests {
         let reads = |y: Interval, x: Interval| {
             let lane = <Interval as SolveScalar>::solve_atan2(y, x);
             let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
-            [lane, sym.value]
+            [lane, sym.value()]
         };
         // `angle` or a copy of it a whole turn away lies in `read`.
         let holds = |read: Interval, angle: f64| {
@@ -1808,9 +1808,10 @@ mod tests {
         use crate::mate::SolveScalar;
         use geom_core::{Bounds, Interval, Sym};
         let zero = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(0.0), Sym::opaque(-0.0));
-        assert_eq!(zero.value, 0.0, "an exact zero reads u_ref");
+        assert_eq!(zero.value(), 0.0, "an exact zero reads u_ref");
         for (y, x) in [(0.0, 0.0), (1e-300, 0.0), (0.0, -1e-300)] {
-            let sym = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value;
+            let sym =
+                <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value();
             let lane = <f64 as SolveScalar>::solve_atan2(y, x);
             assert!(sym.is_finite(), "({y}, {x}): {sym}");
             assert_eq!(sym.to_bits(), lane.to_bits(), "({y}, {x}): the f64 lane's");

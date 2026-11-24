@@ -468,10 +468,11 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`crate::separating::apart`]), which reads both faces along
-///   directions that turn with the operands. A pair it parts is
-///   certified apart as a box non-overlap is, and the verdict is the
-///   pair's rather than the pose's.
+///   ([`crate::separating::faces_apart`]), which reads both faces along
+///   directions that turn with the operands and with the pair, as the
+///   census reads a pair at rest. A pair it parts is certified apart as
+///   a box non-overlap is, and the verdict is the pair's rather than
+///   the pose's.
 /// - **Overlap is a MAY, not a DOES.** Boxes over-approximate, so
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
@@ -480,10 +481,15 @@ pub(super) struct UnsupportedPair {
 ///   meeting the kernel has not computed.
 ///
 /// The pad is the sweep's own ([`crate::boxes::sweep_pad`]), and the
-/// sweep's curved arm reads the same narrow phase behind its tree, for
-/// an edge and for either face it lies on: a face pair the gate parts,
-/// the sweep parts too, for every edge of that face. The converse does
-/// not hold. The sweep also skips an edge whose own reach is apart from
+/// sweep's curved arm reads this narrow phase's first read
+/// ([`crate::separating::apart`]) behind its tree, for an edge and for
+/// either face it lies on: a face pair that read parts, the sweep parts
+/// too, for every edge of that face. A pair the gate parts only along
+/// the pair's own directions is not parted there: an edge of it reaches
+/// the curve × face table's door for the face, which reads a NURBS or an
+/// `Approx` face through its boundary pass ([`spline_face`]) and refuses
+/// a spindle face typed (no lane yet). The converse does not hold
+/// either. The sweep also skips an edge whose own reach is apart from
 /// the face though its faces' reaches are not, so a pair the gate
 /// refuses may be one no edge of the sweep ever examines.
 ///
@@ -564,9 +570,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !crate::separating::apart(
-                        (body, Item::Face(face)),
-                        (other, Item::Face(other_face)),
+                    && !crate::separating::faces_apart(
+                        (body, face),
+                        (other, other_face),
                         axes.of(a, b, band),
                         pad,
                         band,
@@ -596,8 +602,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// may meet the author has DECLARED.
 ///
 /// Nothing about the operands' own validity is read here: each is a
-/// finished body ([`crate::finish`](fn@crate::finish)), or, on the sphere re-cut's
-/// re-entry, one carved, turned, grafted and cut from a finished body
+/// finished body ([`crate::finish`](fn@crate::finish)), or, on the sphere cut-in's
+/// re-entry, one cut from a finished body
 /// by operators that keep tier 2. Edge carriers are not gated either: a
 /// lane that reads one refuses a kind it has no row for at its own
 /// site, naming the edge and the face
@@ -994,8 +1000,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // the edge, or either face the edge lies on, is apart
                 // from along a direction that turns with the operands
                 // meets the edge nowhere, whichever arm its kind has.
-                // The parents' reading is the operand gate's, so a pair
-                // the gate cleared is cleared here too.
+                // The parents' reading is the operand gate's first read
+                // (`separating::apart`, [`first_unsupported_pair`]).
                 let apart_from_face = |item| {
                     crate::separating::apart(
                         (x, item),

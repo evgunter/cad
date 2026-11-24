@@ -3,7 +3,7 @@
 //! decision it calls `Zero` keeps its margin's node on a list instead
 //! of being discharged on the spot. A reader that wants to know whether
 //! one of those Zeros is proven asks for it by its margin
-//! ([`discharge`]), inside the same session, and pays the identity tier
+//! ([`discharge`](crate::sym::deferred::discharge)), inside the same session, and pays the identity tier
 //! for that margin alone.
 //!
 //! A replay that discharges every Zero as it is taken pays the tier on
@@ -29,8 +29,10 @@ use crate::predicate::{Decided, Indeterminate, MarginDiag, Sign};
 /// ([`MarginDiag::jointly`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Pending {
-    /// A margin the numeric channel called `Zero`.
-    Zero(SymId),
+    /// A margin the numeric channel called `Zero`, with its certified
+    /// enclosure where the lane reads one (`Decide::enclosure_probe`),
+    /// for the check its discharge passes.
+    Zero(SymId, Option<(f64, f64)>),
     /// A decision that already carried its proof.
     Proven,
     /// Both entries.
@@ -55,13 +57,14 @@ pub fn with_deferred_session<R>(
     })
 }
 
-/// The hook `Sym::sign_within` calls with the numeric channel's answer:
-/// `None` outside a deferring session, where the decision goes on to
-/// the tier; inside one, that answer, a `Zero`'s margin stamped with
-/// its place on the list.
+/// The hook `Sym::sign_within` calls with the numeric channel's answer
+/// and the margin's enclosure: `None` outside a deferring session, where
+/// the decision goes on to the tier; inside one, that answer, a `Zero`'s
+/// margin stamped with its place on the list.
 pub(super) fn defer(
     node: SymId,
     numeric: Result<Decided, Indeterminate>,
+    enclosure: Option<(f64, f64)>,
 ) -> Option<Result<Decided, Indeterminate>> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
@@ -72,7 +75,7 @@ pub(super) fn defer(
                 margin,
             }) => Ok(Decided {
                 sign: Sign::Zero,
-                margin: match push(list, Pending::Zero(node)) {
+                margin: match push(list, Pending::Zero(node, enclosure)) {
                     Some(index) => margin.deferred_at(index),
                     None => margin,
                 },
@@ -162,7 +165,7 @@ fn discharged(margin: MarginDiag, why: bool) -> Result<(), Undischarged> {
     while let Some(next) = stack.pop() {
         match next {
             Pending::Proven => {}
-            Pending::Zero(node) => match super::discharge_retried(node) {
+            Pending::Zero(node, enclosure) => match super::discharge_checked(node, enclosure) {
                 Some(_) => {}
                 None if why && super::keeps_an_opaque_atom(node) == Some(true) => {
                     return Err(Undischarged::KeepsAnOpaqueAtom);
@@ -196,7 +199,7 @@ pub fn dag_size(margin: MarginDiag) -> Option<DagSize> {
     let mut stack = vec![margin.pending()?];
     while let Some(next) = stack.pop() {
         match next {
-            Pending::Zero(node) => roots.push(node),
+            Pending::Zero(node, _) => roots.push(node),
             Pending::Proven => {}
             Pending::Both(a, b) => {
                 stack.push(entry(a)?);
@@ -248,7 +251,7 @@ pub fn render(margin: MarginDiag) -> Vec<String> {
     let mut stack = vec![first];
     while let Some(next) = stack.pop() {
         match next {
-            Pending::Zero(node) => {
+            Pending::Zero(node, _) => {
                 out.push(super::report::render_early_of(node).unwrap_or_default());
             }
             Pending::Proven => {}

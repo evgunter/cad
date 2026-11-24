@@ -2,9 +2,11 @@
 id: a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies
 kind: issue
 title: the f64 witness records a curved face's props premise checks that the interval leaf replay skips, so the drive refuses every curved leaf as a FlipCrossing with empty evidence
-status: open
+status: dispatched
 opened: 2026-11-23
-priority: P1
+priority: P0
+cost: M
+branch: boxfinish/witness-premises
 ---
 
 
@@ -33,3 +35,17 @@ Every curved document's leaves now compare unequal to their witness. So `drive` 
 ## What would close it
 
 Either the premise checks are recorded identically at both scalars (decided once, but logged in both runs), or `certifying_vector` leaves out premise checks that only one lane runs. A row: the plate's `hole_r` leaf `[0, ε/4]` certifies (the range row above is one).
+
+## Dispatched (2026-11-24)
+
+Re-banded P0: if the report holds, the drive and the range search
+certify nothing on curved geometry since PR 7344, and a consumer reads
+an empty flip as "proven different". Cost M.
+
+**Letter M; tier single FULL** (it changes what a leaf's verdict vector
+holds and what the driver says of a comparison that fails with no
+differing decision; a mistake there certifies or refuses wrongly, so
+the review carries the correctness claims). The implementer is PR
+7344's arm continued, as a later escape's repair is; no fresh draw.
+Branch `boxfinish/witness-premises`; measure first, with an interim
+note before the build. (BOXFINISH orchestrator)

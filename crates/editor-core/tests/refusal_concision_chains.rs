@@ -98,7 +98,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -948,7 +947,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus, Frame,
         ];
     }
 
@@ -4896,6 +4895,41 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 .expect("a half the band left undecided refuses"),
             )),
         ),
+        (
+            "Carrier/Frame",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/axis",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::U,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
+        ),
+        (
+            "Carrier/Frame/underflowed",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::UnderflowedLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/non-finite",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::NonFiniteLength,
+            })),
+        ),
+        (
+            "Carrier/Frame/escalated",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Escalated(diag()),
+            })),
+        ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];
     faults
@@ -5155,13 +5189,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 refusal: topo::HeldRefusal::UncutRemainder {
                     face: topo::FaceKey::default(),
                 },
-            },
-        ),
-        (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
             },
         ),
         (

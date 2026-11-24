@@ -2,11 +2,12 @@
 id: spline-control-rounding-is-a-parallel-array-read-twice
 kind: unit
 title: A spline control point carries its rounding as a parallel f64 array, and its out-of-homogeneous read is written twice
-status: dispatched
+status: review
 opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/spline-control-rounding
+pr: 7652
 ---
 
 

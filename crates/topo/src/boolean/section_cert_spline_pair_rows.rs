@@ -13,8 +13,8 @@ use super::*;
 use geom::Surface;
 use geom_brep::KnownPair;
 use geom_brep::ssi::{ChartCorner, ChartEnd, PairCorner};
+use geom_core::Band;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Vec2};
 
 /// The pair's section through the march door, `known` handed in, over a
 /// reach the spline arm does not read.
@@ -185,9 +185,9 @@ fn ramp(h: f64) -> Surface<f64> {
 /// parameter `x`.
 fn shared_rim() -> KnownPair<f64> {
     let image = geom_brep::Pcurve::IsoLine {
-        p0: Point2::new(0.0, 0.0),
-        pl: Vec2::new(1.0, 0.0),
-        ends: None,
+        line: geom_brep::ChartLine::row(0.0),
+        at0: 0.0,
+        rate: 1.0,
     };
     KnownPair {
         rows: vec![geom_brep::KnownRow {

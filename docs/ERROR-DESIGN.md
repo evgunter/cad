@@ -786,9 +786,12 @@ number.
   half-multiple of π is its constant. All four of the plate's identity
   residuals go: two as theorems, the scaffold residual through the door
   at every sample (the rim identity the registrant states is what
-  closes it), and the chart's own phase — `atan2(0, r²/sqrt(r²))` from
-  the cylinder chart derivation, whose `u_ref` on the extrude's wall is
-  the start's own radial — folds as a fact about `atan2` on a syntactic
+  closes it), and the chart's own phase — from the cylinder chart
+  derivation, whose `u_ref` on the extrude's wall is the start's own
+  radial: a rim's `atan2(0, r²/sqrt(r²))`, and the seam's ruling's
+  `atan2(0, r²/(sqrt(r²)·|r|))`, its radial offset over the stored
+  radius, which the quotient rule reduces to `atan2(0, 1)` — folds as a
+  fact about `atan2` on a syntactic
   class (positive wherever the arc exists; the degenerate box is
   clause 1's), with the rim identity closing the rest through the door.
   No sign was read. The plate's whole-certifying box is 0.2368, 0.2631

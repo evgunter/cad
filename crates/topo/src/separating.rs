@@ -20,6 +20,12 @@
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
+//! For two faces, [`faces_apart`] reads on past [`apart`]: along the
+//! directions the pair's own geometry aims (the census's,
+//! [`crate::census::pair_directions`]), each face's cover read along the
+//! direction ([`crate::cover::face_cover_toward`]), as the census's
+//! arm 1 reads a pair at rest.
+//!
 //! **Soundness.** Every cover holds its item's locus, so a gap decided
 //! positive after both items' pads proves the loci disjoint: the same
 //! certificate a non-overlap of the two padded world boxes gives, read
@@ -70,16 +76,13 @@ pub(crate) enum Item<T: Real> {
     },
 }
 
-/// The full circle about `center` of radius `radius` in the plane of
-/// the orthonormal `u_ref`, `v_ref`.
+/// The full circle of radius `radius` about its frame's origin, in the
+/// plane square to its frame's axis.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Circle<T: Real> {
-    /// The centre.
-    pub(crate) center: Point3<T>,
-    /// One in-plane unit direction.
-    pub(crate) u_ref: Vec3<T>,
-    /// The other, perpendicular to it.
-    pub(crate) v_ref: Vec3<T>,
+    /// The circle's frame: its centre, and the plane it lies in as the
+    /// face it was read on holds it.
+    pub(crate) frame: geom::Frame<T>,
     /// The radius.
     pub(crate) radius: T,
 }
@@ -93,7 +96,7 @@ impl<T: Real> Circle<T> {
     )]
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
-            &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
+            &self.frame,
             (self.radius, self.radius),
             // The circle's one turn (a circle's period).
             ParamWindow::new(T::zero(), geom::conic_period::<T>().length()),
@@ -230,6 +233,49 @@ pub(crate) fn apart<T: Decide>(
     })
 }
 
+/// **Whether two faces, each of its own body, are certainly apart**:
+/// [`apart`] along `axes`, and past it every direction the pair's own
+/// geometry aims ([`crate::census::pair_directions`]: an axis or
+/// centre toward the other face's nearest boundary segment point, an
+/// arc's chord normal, the line between two carriers' axes or centres)
+/// with `axes` again, each face's cover read along the direction
+/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side
+/// cut). That second read is arm 1's of the census
+/// (`census::backstop_apart`), so a face pair the census parts at rest
+/// these doors part too. It costs a boundary walk per face, and a point
+/// placement per pole of a sphere face, so it runs only on a pair the
+/// first read leaves.
+///
+/// The pole-side cut places a point in a face through its region
+/// ([`crate::contain::curved_face_placement`]), and narrows only on a
+/// definite `Out`. Its callers read operands at rest, or a sphere
+/// re-cut's operands re-entered whole. The boolean's curved sweep arm
+/// places its pierce and end points through the same door
+/// (`boolean::reduce::curved_face_arm`), in the faces of the operand it
+/// sweeps against, and the reverse sweep in the other's, so every face
+/// these callers place into is one the operation already places into by
+/// that door.
+///
+/// # Panics
+///
+/// As [`apart`].
+pub(crate) fn faces_apart<T: Decide>(
+    (x, fx): (&Body<T>, FaceKey),
+    (y, fy): (&Body<T>, FaceKey),
+    axes: &[UnitVec3<T>],
+    pad: f64,
+    band: Band,
+) -> bool {
+    let (xi, yi) = ((x, Item::Face(fx)), (y, Item::Face(fy)));
+    apart(xi, yi, axes, pad, band) || {
+        let mut dirs = crate::census::pair_directions((x, fx), (y, fy), band);
+        dirs.extend_from_slice(axes);
+        apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
+            crate::cover::face_cover_toward(body, f, band, aim).ok()
+        })
+    }
+}
+
 /// A face's cover read along an aim: [`crate::cover::face_cover`], or
 /// [`crate::cover::face_cover_toward`], which reads one more constraint
 /// off the aim. `None` for a face with no cover.
@@ -326,7 +372,7 @@ fn cover<T: Decide>(
         Item::Edge(e) => crate::cover::edge_cover(body, e).ok(),
         Item::Circle(circle) => circle.cover(),
         Item::Ball { center, radius } => Cover::tube(
-            &geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            &geom::Frame::of_motion(&geom_core::RigidMotion::identity().with_origin(center)),
             T::zero(),
             radius,
         ),
@@ -357,7 +403,8 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
                 });
             }
         }
-        Item::Circle(Circle { center, .. }) | Item::Ball { center, .. } => return Some(center),
+        Item::Circle(Circle { frame, .. }) => return Some(frame.origin()),
+        Item::Ball { center, .. } => return Some(center),
     }
     mean(points)
 }

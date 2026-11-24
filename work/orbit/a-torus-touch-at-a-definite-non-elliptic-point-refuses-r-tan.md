@@ -2,12 +2,12 @@
 id: a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan
 kind: issue
 title: A torus touch that is isolated but not at an elliptic point refuses R-tan
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
-design: true
 refs: [4159, a-torus-touch-along-a-whole-parallel-refuses-r-tan]
+closed: 2026-11-23
 ---
 
 
@@ -54,3 +54,9 @@ partner's level function (the rule `torus_sphere_touch` already
 decides, less its elliptic margin) rather than only at an elliptic
 point? Or, more widely, wherever the connected-region reading of
 `a-torus-touch-along-a-whole-parallel-refuses-r-tan` holds?
+
+## Closed (2026-11-23)
+
+One question with its sibling. Both are carried by the unit
+`a-torus-touch-is-read-by-its-near-band`, which states the design the
+designers converged on and the rows that move.

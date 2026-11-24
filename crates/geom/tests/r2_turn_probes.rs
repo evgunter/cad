@@ -346,7 +346,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
 
 /// `(sin, cos)` of `t0 + d`, `t0` an exact `f64` and `d` an enclosure,
 /// through the addition formula, so a far `t0` keeps a tight enclosure.
-fn sin_cos_at(t0: f64, d: Interval) -> (Interval, Interval) {
+pub(crate) fn sin_cos_at(t0: f64, d: Interval) -> (Interval, Interval) {
     let (s0, c0) = Interval::from_f64(t0).sin_cos();
     let (sd, cd) = d.sin_cos();
     (s0 * cd + c0 * sd, c0 * cd - s0 * sd)
@@ -360,15 +360,32 @@ fn true_defect(x: f64) -> Interval {
 }
 
 /// The speed of an ellipse at `t0 + d`, as a certified enclosure: its
-/// ends bracket the true speed.
-fn speed_enclosure(a: f64, b: f64, t0: f64, d: Interval) -> Interval {
+/// ends bracket the true speed. `|C′|² = a²·sin²t + b²·cos²t` weighs `a²`
+/// and `b²` by weights that sum to one, so the speed lies between the
+/// smaller and the larger semi-axis at every `t`, and the enclosure is
+/// held to them: the formula's own rounding reaches past a semi-axis by
+/// ulps where `sin t` or `cos t` is near zero, which no speed does.
+pub(crate) fn speed_enclosure(a: f64, b: f64, t0: f64, d: Interval) -> Interval {
     let (s, c) = sin_cos_at(t0, d);
-    ((Interval::from_f64(a) * s).powi(2) + (Interval::from_f64(b) * c).powi(2)).sqrt()
+    let speed = ((Interval::from_f64(a) * s).powi(2) + (Interval::from_f64(b) * c).powi(2)).sqrt();
+    let (floor, ceiling) = semi_axes(a, b);
+    // The rebuild narrows a certified enclosure to the speed's exact range.
+    assert!(
+        speed.is_certified(),
+        "the speed's enclosure is poison: {speed:?}"
+    );
+    Interval::from_bounds(speed.lo().max(floor), speed.hi().min(ceiling))
+}
+
+/// The smaller and the larger semi-axis: the least and the greatest
+/// speed of the ellipse.
+fn semi_axes(a: f64, b: f64) -> (f64, f64) {
+    (a.min(b), a.max(b))
 }
 
 /// **The turn defect's two speed bounds hold over the true defect, at
 /// `f64` and at `Interval`, and are local** (a counterexample search: the
-/// seed varies): on ellipses of every sign and of eccentricity up to
+/// seed varies): on ellipses of eccentricity up to
 /// `e¹⁰ ≈ 2·10⁴`, a window at any `t0` out to `10⁶` (where the reach's
 /// rounding allowance is widest) short of a turn or over one by a defect
 /// from `1e-15` to two radians, the inf at either scalar is at most the
@@ -389,55 +406,136 @@ fn turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval() {
             rng.log_uniform(20.0, 1e6) * sign(&mut rng, 0.5)
         };
         let gap = rng.log_uniform(1e-15, 2.0) * sign(&mut rng, 0.5);
-        let x = TAU - gap;
-        let carrier = ellipse(a, b);
-        let carrier_iv = carrier.map_scalar(Interval::from_f64);
-        let extent = Extent::hull([0.0, x]).unwrap();
-        let extent_iv = Extent::hull([Interval::zero(), Interval::from_f64(x)]).unwrap();
-        let lo = turn_defect_speed_lo(&carrier, t0, extent).get();
-        let hi = turn_defect_speed_hi(&carrier, t0, extent).get();
-        let t0_iv = Interval::from_f64(t0);
-        let lo_iv = turn_defect_speed_lo(&carrier_iv, t0_iv, extent_iv)
-            .get()
-            .lo();
-        let hi_iv = turn_defect_speed_hi(&carrier_iv, t0_iv, extent_iv)
-            .get()
-            .hi();
-        let (floor, ceiling) = (a.min(b), a.max(b));
-        let case = format!("a {a} b {b} t0 {t0} gap {gap:e} ({})", fuzz::replay());
+        turn_defect_speeds_bound_the_speed_at(a, b, t0, gap, &fuzz::replay());
+    }
+}
+
+/// **The fuzz's cases whose sampled speed ran past a semi-axis**, where
+/// the bound reads that semi-axis exactly: the sup at the ceiling (`|a|`
+/// or `|b|`, at either end of the defect and inside it) and the inf at
+/// the floor.
+#[test]
+fn turn_defect_speeds_bound_the_speed_where_it_meets_a_semi_axis() {
+    for (a, b, t0, gap) in [
+        // 0xcc21d29c318a7479 at 1e-6, the row's line (`a` was drawn negative then)
+        (
+            130.88286993304766,
+            0.027471258741429194,
+            1.5708606597176065,
+            2.571067338045846e-4,
+        ),
+        // 0x85193fcde51a223a at 1e-12, the row's line
+        (
+            1.0336476587993828,
+            2.953798525442482,
+            0.0002488148581001326,
+            7.583415220477767e-4,
+        ),
+        // 0x85193fcde51a223a, its draw on main e3fdefa369
+        (
+            2.953798525442482,
+            3.015283037154643,
+            0.0002488148581001326,
+            7.583415220477767e-4,
+        ),
+        // 0x6aefff4768992785 at the default ε, the row's line
+        (
+            0.03369404504116446,
+            0.13233093034424084,
+            18.85412848563191,
+            1.2723748588382879e-2,
+        ),
+        // 0x4c4e025223660e02, its draw on main e3fdefa369
+        (
+            1.977716557583453,
+            45.74884339543839,
+            822842.7892914331,
+            -3.098368395400565e-2,
+        ),
+        // 0x60f5bbc7adbbd2d2 at 1e-9 and 1e-12, the row's line
+        (
+            26.03895124682756,
+            0.007562229532909478,
+            -237.19042521848743,
+            -1.7984767358215947e-4,
+        ),
+        // 0x19eec72bea96df53, its draw on main e3fdefa369
+        (
+            0.011120948807169967,
+            0.27856151065157725,
+            380.1317794593529,
+            -1.8631574094071257e-3,
+        ),
+        // 0x33ed5f8575435ac4, PR 7553's gate line
+        (
+            137.656887657693,
+            130.10564052669167,
+            351388.7089381741,
+            -2.5972671470384146e-4,
+        ),
+        // 0x4d073e89924408a0 at 1e-6, the row's line: the inf at the floor
+        (
+            0.04921567327106361,
+            0.058765961403788376,
+            10.996733954176399,
+            1.325396594573192e-3,
+        ),
+    ] {
+        turn_defect_speeds_bound_the_speed_at(a, b, t0, gap, "a pinned case");
+    }
+}
+
+/// One case of the two tests above: the window at `t0` over `TAU − gap`
+/// on the ellipse of semi-axes `a` and `b`.
+fn turn_defect_speeds_bound_the_speed_at(a: f64, b: f64, t0: f64, gap: f64, replay: &str) {
+    let case = format!("a {a} b {b} t0 {t0} gap {gap:e} ({replay})");
+    let x = TAU - gap;
+    let carrier = ellipse(a, b);
+    let carrier_iv = carrier.map_scalar(Interval::from_f64);
+    let extent = Extent::hull([0.0, x]).unwrap();
+    let extent_iv = Extent::hull([Interval::zero(), Interval::from_f64(x)]).unwrap();
+    let lo = turn_defect_speed_lo(&carrier, t0, extent).get();
+    let hi = turn_defect_speed_hi(&carrier, t0, extent).get();
+    let t0_iv = Interval::from_f64(t0);
+    let lo_iv = turn_defect_speed_lo(&carrier_iv, t0_iv, extent_iv)
+        .get()
+        .lo();
+    let hi_iv = turn_defect_speed_hi(&carrier_iv, t0_iv, extent_iv)
+        .get()
+        .hi();
+    let (floor, ceiling) = semi_axes(a, b);
+    assert!(
+        lo >= floor && lo_iv >= floor * (1.0 - 1e-15),
+        "never below the floor: {lo} / {lo_iv} < {floor}: {case}"
+    );
+    assert!(
+        hi <= ceiling && hi_iv <= ceiling * (1.0 + 1e-15),
+        "never above the ceiling: {hi} / {hi_iv} > {ceiling}: {case}"
+    );
+    let defect = true_defect(x);
+    let (mut least, mut most) = (f64::INFINITY, 0.0_f64);
+    for i in 0..=64 {
+        let d = defect * Interval::from_f64(f64::from(i) / 64.0);
+        let speed = speed_enclosure(a, b, t0, d);
+        least = least.min(speed.lo());
+        most = most.max(speed.hi());
         assert!(
-            lo >= floor && lo_iv >= floor * (1.0 - 1e-15),
-            "never below the floor: {lo} / {lo_iv} < {floor}: {case}"
+            lo <= speed.lo() && lo_iv <= speed.lo(),
+            "inf over the defect: {lo} (f64) / {lo_iv} (Interval) > {} at {i}/64: {case}",
+            speed.lo()
         );
         assert!(
-            hi <= ceiling && hi_iv <= ceiling * (1.0 + 1e-15),
-            "never above the ceiling: {hi} / {hi_iv} > {ceiling}: {case}"
-        );
-        let defect = true_defect(x);
-        let (mut least, mut most) = (f64::INFINITY, 0.0_f64);
-        for i in 0..=64 {
-            let d = defect * Interval::from_f64(f64::from(i) / 64.0);
-            let speed = speed_enclosure(a, b, t0, d);
-            least = least.min(speed.lo());
-            most = most.max(speed.hi());
-            assert!(
-                lo <= speed.lo() && lo_iv <= speed.lo(),
-                "inf over the defect: {lo} (f64) / {lo_iv} (Interval) > {} at {i}/64: {case}",
-                speed.lo()
-            );
-            assert!(
-                hi >= speed.hi() && hi_iv >= speed.hi(),
-                "sup over the defect: {hi} (f64) / {hi_iv} (Interval) < {} at {i}/64: {case}",
-                speed.hi()
-            );
-        }
-        let m = t0 - 0.5 * gap;
-        let reach = ceiling * gap.abs() + ceiling * (1.0 + m.abs()) * 1e-13;
-        assert!(
-            lo + reach >= least && hi - reach <= most,
-            "local: [{lo}, {hi}] ± {reach:e} against [{least}, {most}] sampled: {case}"
+            hi >= speed.hi() && hi_iv >= speed.hi(),
+            "sup over the defect: {hi} (f64) / {hi_iv} (Interval) < {} at {i}/64: {case}",
+            speed.hi()
         );
     }
+    let m = t0 - 0.5 * gap;
+    let reach = ceiling * gap.abs() + ceiling * (1.0 + m.abs()) * 1e-13;
+    assert!(
+        lo + reach >= least && hi - reach <= most,
+        "local: [{lo}, {hi}] ± {reach:e} against [{least}, {most}] sampled: {case}"
+    );
 }
 
 /// The speed of a spiric at `v`, `r·√(1 + (d·sin v / f)²)` with

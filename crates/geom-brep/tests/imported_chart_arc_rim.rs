@@ -18,7 +18,7 @@ use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCache, pick_arc_rim};
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3, Vec2, Vec3};
+use geom_core::{Point3, Vec3};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -98,8 +98,9 @@ fn a_forward_arc_rim_certifies_on_a_non_unit_chart() {
     let tau = core::f64::consts::TAU;
     let cache = PcurveCache::certify(
         Pcurve::IsoArc {
-            p0: Point2::new(0.0, 0.0),
-            pd: Vec2::new(5.1961524227066, 0.0),
+            line: geom_brep::ChartLine::row(0.0),
+            g0: 0.0,
+            gd: 5.1961524227066,
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
@@ -133,8 +134,9 @@ fn a_reversed_arc_rim_certifies_on_a_non_unit_chart() {
     let tau = core::f64::consts::TAU;
     let cache = PcurveCache::certify(
         Pcurve::IsoArc {
-            p0: Point2::new(5.1961524227066, 0.0),
-            pd: Vec2::new(-5.1961524227066, 0.0),
+            line: geom_brep::ChartLine::row(0.0),
+            g0: 5.1961524227066,
+            gd: -5.1961524227066,
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
@@ -161,8 +163,9 @@ fn an_interior_column_still_refuses() {
     let tau = core::f64::consts::TAU;
     let outcome = PcurveCache::certify(
         Pcurve::IsoArc {
-            p0: Point2::new(1.0, 0.0),
-            pd: Vec2::new(5.1961524227066, 0.0),
+            line: geom_brep::ChartLine::row(0.0),
+            g0: 1.0,
+            gd: 5.1961524227066,
             t0: 0.0,
             angle: tau,
             breaks: breaks(),
@@ -202,9 +205,9 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
     let seam = |u: f64| {
         PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(u, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: geom_brep::ChartLine::column(u),
+                at0: 0.0,
+                rate: 1.0,
             },
             0.0,
             1.0,
@@ -247,8 +250,9 @@ fn a_scaled_arc_column_certifies_and_a_broken_pattern_refuses() {
     let certify = |wall: &Surface<f64>| {
         PcurveCache::certify(
             Pcurve::IsoArc {
-                p0: Point2::new(0.0, 0.0),
-                pd: Vec2::new(5.1961524227066, 0.0),
+                line: geom_brep::ChartLine::row(0.0),
+                g0: 0.0,
+                gd: 5.1961524227066,
                 t0: 0.0,
                 angle: tau,
                 breaks: breaks(),
@@ -348,8 +352,9 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             cache.certificate().envelope
         );
         let Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks,
@@ -359,8 +364,9 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
             unreachable!()
         };
         let standard = Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks: breaks.clone(),
@@ -380,8 +386,9 @@ fn a_row_at_unequal_end_weights_holds_its_arc_rim() {
         let mut off = ends.clone();
         off[1] = f64::from_bits(off[1].to_bits() + 1);
         let nudged = Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks: breaks.clone(),

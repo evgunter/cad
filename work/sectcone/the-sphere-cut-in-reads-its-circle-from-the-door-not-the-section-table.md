@@ -22,3 +22,7 @@ The value reads the same door, so the two cannot disagree on the circle today. T
 ## Open question
 
 The cut-in runs in the extent scan, which may come before the glue door builds the table. If so, the door is the only reading available there, and this row closes as "not a second reading". Otherwise the cut-in should take the circle from `SectionTable::held`.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+`pair_seam` is gone with the re-chart it served. `sphere_pair_cut` is the one remaining reading of the pair's circle from the door, and it now serves closed balls too.
