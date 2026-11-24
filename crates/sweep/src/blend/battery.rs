@@ -956,13 +956,34 @@ impl BallRoom {
 // Predicate 4 — chain G1 closure / termination.
 // ---------------------------------------------------------------
 
+/// **The arm a junction's G1 is levered at**: the nearer of the links'
+/// reaches from the junction's point, each from above, its cover's far
+/// distance from that point ([`geom_brep::span_reach_bounds`]). The
+/// two tangents are read at the junction, and [`chain_g1`] acts on its
+/// Zero (the junction accepted as smooth), so the arm is the reach from
+/// there read from above: an arm short of it reads a Zero the link's
+/// own turn would read Positive. Where the junction's point does not
+/// resolve, each link's extent from above ([`geom_brep::edge_extent_sup`]),
+/// which bounds its reach from any of its points.
+fn junction_arm<T: Decide>(links: &[(&Curve3<T>, (T, T))], at: Option<Point3<T>>) -> Lever<T> {
+    links
+        .iter()
+        .map(|&(carrier, (t0, t1))| match at {
+            Some(p) => geom_brep::span_reach_bounds(carrier, (t0, t1), p).above(),
+            None => geom_brep::edge_extent_sup(carrier, t0, t1),
+        })
+        .reduce(Lever::min)
+        .unwrap_or_else(|| unreachable!("a junction joins at least one link"))
+}
+
 /// **`fillet3_chain_g1`** — do two consecutive links meet
 /// tangentially at their shared vertex?
 ///
 /// Margin: `sin θ · arm` in METERS — the same shape the dihedral
 /// classifier uses one dimension up, with `θ` the angle between the
-/// two carriers' unit tangents at the junction and `arm` the smaller
-/// of the two links' extents. It is gated by `fillet3_chain_arm`
+/// two carriers' unit tangents at the junction and `arm` the nearer
+/// of the two links' reaches from it, from above ([`junction_arm`]).
+/// It is gated by `fillet3_chain_arm`
 /// exactly as the dihedral is: an angle at an arm not definitely
 /// positive is not a question, so such an arm refuses as that gate
 /// ([`classify_positive`]), carrying the arm it read, rather than
@@ -1100,9 +1121,10 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (face_a, face_b) = sides.faces();
     let (start, end) = body.edge_vertices(edge).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge)?;
-    // The edge's own extent levers what is read ALONG the edge: the
-    // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
-    // pair's co-ruling.
+    // The edge's own extent levers what is read ALONG the edge: an end
+    // cap's departure ([`Link::arm_len`]) and a ruled pair's co-ruling.
+    // The chain's G1 reads each link's reach from the junction instead
+    // ([`junction_arm`]).
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
@@ -1936,7 +1958,8 @@ fn chain_turns<T: Decide + Bounds>(
         // Each tangent heads INTO the junction, so a smooth joint reads
         // them opposed.
         let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
-        let g1 = chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band);
+        let arm = junction_arm(&[(&ca, (ta0, ta1)), (&cb, (tb0, tb1))], tv);
+        let g1 = chain_g1(tau_a, tau_b, arm, *v, band);
         if g1.is_ok() && !same_supports(body, a, b)? {
             band_g1(body, a, b, *v, band)?;
         }
@@ -1977,9 +2000,19 @@ fn chain_turns<T: Decide + Bounds>(
         let l = chain.first();
         if l.start == l.end {
             let (c, t0, t1) = carrier_of(body, l.edge)?;
+            let at = body
+                .get_vertex(l.start)
+                .and_then(|x| body.get_point(x.point))
+                .copied();
             // One cell meeting itself is not a coincidence of two, so
             // its Zero records no row.
-            chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
+            chain_g1(
+                c.deriv(t1),
+                c.deriv(t0),
+                junction_arm(&[(&c, (t0, t1))], at),
+                l.start,
+                band,
+            )?;
         }
     }
     Ok((turns, tangent))
@@ -4171,5 +4204,65 @@ mod coaxial_spine_rows {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod junction_arm_rows {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    use std::sync::Arc;
+
+    /// **A junction's G1 is levered at the nearer link's reach from the
+    /// junction, from above.** One link is the quadratic spline whose
+    /// net is `(0, 0)`, `(1, 2)`, `(2, 0)`: it runs between its ends 2
+    /// apart and bulges to `y = 1`, so every pair of its samples stands
+    /// at most 2 apart, while its region (its net's hull) reaches `√5`
+    /// from the junction at `(0, 0)`. The other link is a line 10 long.
+    /// The arm is the spline's far distance from the junction: never
+    /// short of `√5`, where the sampled diameter, the bound from below
+    /// a Zero must not be read at, is 2; and not the line's 10.
+    /// **A junction's G1 is levered at the nearer link's reach from the
+    /// junction, from above.** One link is the quadratic spline whose
+    /// net is `(0, 0)`, `(4, 4)`, `(0.3, 1)`: it runs out from the
+    /// junction at `(0, 0)` and back, its farthest point from it about
+    /// `3.0821` away at `t ≈ 0.545`, between the battery's samples and
+    /// the extent home's. Its sampled diameter (the arm this read took
+    /// before) is about `3.061` and its samples' reach from the
+    /// junction about `3.079`, both short of the reach, so each would
+    /// read a Zero over less than the link turns across. The other link
+    /// is a line 10 long, which the nearer reach is not.
+    #[test]
+    fn a_junction_reads_the_nearer_links_reach_from_it_from_above() {
+        let net = [(0.0, 0.0), (4.0, 4.0), (0.3, 1.0)];
+        let hook = Curve3::Nurbs(Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                net.iter().map(|&(x, y)| Point3::new(x, y, 0.0)).collect(),
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let line = Curve3::line(
+            Point3::origin(),
+            UnitVec3::squared(Vec3::new(-1.0, 0.0, 0.0)),
+        );
+        let junction = Point3::origin();
+        let reach = (0..=100_000)
+            .map(|k| hook.eval(f64::from(k) / 1e5).distance(junction))
+            .fold(0.0, f64::max);
+        let sampled = extent_of(&hook, 0.0, 1.0).length();
+        assert!(
+            sampled < reach - 1e-3,
+            "the sampled diameter {sampled} against {reach}"
+        );
+        let arm =
+            junction_arm(&[(&hook, (0.0, 1.0)), (&line, (0.0, 10.0))], Some(junction)).length();
+        assert!(
+            arm >= reach - 1e-9 && arm <= 32.0_f64.sqrt() + 1e-9,
+            "the arm {arm}: the spline's reach {reach} from the junction, from above, within \
+             its net's far distance, and not the line's 10"
+        );
     }
 }

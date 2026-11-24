@@ -23459,3 +23459,55 @@ mod edge_view_review_probes {
         }
     }
 }
+
+/// **The parallel screen's Zero is read over the shorter span's length**
+/// ([`parallel_reading`]): its claim is the pair within the band over
+/// their overlap, which that length bounds from above.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod parallel_reading_rows {
+    use super::{Span, parallel_reading};
+    use geom_core::{Band, Point3, UnitVec3, Vec3};
+
+    fn span(p0: Point3<f64>, dir: Vec3<f64>, len: f64) -> Span<f64> {
+        let dir = UnitVec3::squared(dir);
+        Span {
+            p0,
+            dir,
+            at: (0.0, len),
+            ends: [p0, p0 + dir.get() * len],
+            points: [None; 2],
+            produced: 0.0,
+            stored: true,
+        }
+    }
+
+    /// A span 10 long on `x̂`, and one a metre long from `(9.5, 0, 0)`
+    /// tilted off it at the sine `s`: the two overlap over half a metre,
+    /// the shorter is 1, the longer 10. Under `(10⁻⁹, 10⁻⁸)`, at
+    /// `s = 0.8·10⁻⁹` the screen reads them parallel (the shorter's
+    /// `0.8·10⁻⁹`), where the longer would read in band; at
+    /// `s = 1.6·10⁻⁹` it reads in band (the shorter's `1.6·10⁻⁹`), where
+    /// the overlap's half metre would read Zero: the lever is the
+    /// shorter span, which bounds the overlap from above, not the
+    /// overlap itself.
+    #[test]
+    fn the_parallel_screen_reads_the_shorter_spans_length() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let long = span(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 10.0);
+        let read = |s: f64| {
+            let short = span(
+                Point3::new(9.5, 0.0, 0.0),
+                Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+                1.0,
+            );
+            parallel_reading(&long, &short, band, &mut Vec::new())
+        };
+        assert_eq!(
+            read(0.8e-9),
+            Some(true),
+            "Zero at the shorter span's length"
+        );
+        assert_eq!(read(1.6e-9), None, "in band at the shorter span's length");
+    }
+}
