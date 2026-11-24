@@ -169,5 +169,11 @@ another pair (`Uncertified { 3v1, 4v1, Edge(6v1), Departure }`) and at
 `work/embed/a-generic-mirror-refuses-at-interval-a-body-that-holds-at-f64.md`.
 
 Pinned as it reads, its `f64` half:
-`self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`
+`self_intersection_proves_injectivity::a_generic_mirror_refuses_the_ring_at_f64_and_the_block_at_interval`
 (the ring's `f64` refusal).
+
+**On main `17e78d9c90` (2026-11-24, `embed/wave3-land-next`)** the
+sighting stands: the mirrored ring's rim rows still store the rounding
+(`a: 2.8e-17` and `5.6e-17`, `b: 1.4e-17` and `2.8e-17`) and the ring
+still refuses at `f64` (`Uncertified { 3v1, 4v1, Edge(6v1), Departure }`).
+
