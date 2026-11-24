@@ -110,3 +110,4 @@ demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-clos
 demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	leaf	<fn>	f64 frames and points a demo lifts into its scalar
 demos/tour/src/lily.rs	2	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	roll_the_mouth	<fn>	f64 frames and points a demo lifts into its scalar
 demos/tour/src/projectbox.rs	2	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	spring	<fn>	f64 frames and points a demo lifts into its scalar
+crates/geom/src/azimuth.rs	1	owed(constants-spelled-through-from-computed)	about_middle	mid(self.y).atan2(mid(self.x))	Azimuth::about_middle: a reference angle chosen at f64 at the concrete Interval, about which the enclosed angle is read: a choice, from_f64's

@@ -16,5 +16,6 @@ A constant of the model enters by where it comes from (DL5.2's fourth row), thro
 
 - `geom_brep::pair_section::ruling` `coverage` and `pair_section/winds.rs` `lift`: exact `f64` rulings and values lifted to the concrete `Interval`, where `from_computed` is the point embed `from_f64` is.
 - `geom_brep::props::curved` `sphere_region_cover`'s `c`: a census threshold (a count and a half).
+- `geom::azimuth` `Azimuth::about_middle`'s `theta`: a reference angle chosen at `f64` at the concrete `Interval` (the angle of the components' middles), about which the enclosed angle is read; any choice reads an enclosure of the same angle, so it is a choice, not a computed value (landed on main beside this unit).
 
 Cost: E. Each becomes `from_f64` with a `from-f64-sites.tsv` row (`constant`), or a literal.
