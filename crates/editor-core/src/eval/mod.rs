@@ -3570,7 +3570,8 @@ impl ComputingTwist {
         tol: Tol,
     ) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
         let lift = |v: [f64; 3]| {
-            geom_core::Vec3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]))
+            let at = crate::expr::authored::<T>;
+            geom_core::Vec3::new(at(v[0]), at(v[1]), at(v[2]))
         };
         let not_unit = geom_core::RigidMotionError::NotRigid {
             check: "computing_twist_axis_unit",
@@ -3580,7 +3581,7 @@ impl ComputingTwist {
             .map_err(|_| not_unit)?;
         geom_core::RigidMotion::rotation_then_translation(
             axis,
-            T::from_f64(self.angle),
+            crate::expr::authored(self.angle),
             lift(self.by),
         )
     }
@@ -3987,7 +3988,7 @@ fn probe_env<'e, T: EvalScalar>(
                 Some(&crate::doc::FreeVar::Continuous { dim, value, .. }) => {
                     crate::expr::ParamValue::Continuous {
                         dim,
-                        value: T::from_f64(value),
+                        value: crate::expr::authored(value),
                     }
                 }
                 Some(&crate::doc::FreeVar::Count { value }) => {

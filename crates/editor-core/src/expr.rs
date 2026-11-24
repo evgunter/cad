@@ -627,7 +627,7 @@ impl LeafSet for AuthoredLeaf {
     fn value<T: Real>(&self, dim: Dimension) -> Result<T, EvalError> {
         match unlowered(self, dim) {
             Ok(fault) => Err(EvalError::Unlowered(fault)),
-            Err(q) => Ok(T::from_f64(q.value)),
+            Err(q) => Ok(authored(q.value)),
         }
     }
     fn count(&self, dim: Dimension) -> Result<i64, EvalError> {
@@ -1821,6 +1821,26 @@ pub struct ExprPath {
     pub path: Vec<u8>,
 }
 
+/// **The document's parameter door** (`geom-core`'s README, DL5.2): a
+/// number the document's author wrote, at the scalar a run evaluates
+/// at. The one step by which an authored `f64` (a free variable's
+/// nominal, a quantity literal of an expression, a stated motion of a
+/// test-facing option) becomes a `T`; the count and the ratio an author
+/// writes are integers and enter as counts.
+///
+/// What it is at each scalar: the number at `f64`; its point at an
+/// enclosure scalar; a literal at [`geom_core::Sym`], the nominal as
+/// written, the same at every valuation; a zero tangent at a dual.
+/// What varies about an authored variable is not the nominal: it is the
+/// axis the parameter box adds beside it
+/// ([`crate::analysis::AxisScalar::axis_of`]), an enclosure at an
+/// interval and the variable's own symbol at `Sym`, and the seed a
+/// tangent run places. A variable on no axis is held at its nominal,
+/// and a symbolic identity over it is about the document as authored.
+pub(crate) fn authored<T: Real>(value: f64) -> T {
+    T::from_f64(value)
+}
+
 /// A document-parameter value bound for evaluation (spec D4). The
 /// scalar type is generic: the document stores exact `f64`/`i64`;
 /// [`crate::Doc::var_env`] embeds them into any [`Real`].
@@ -2202,7 +2222,7 @@ fn eval_inner<T: Real, L: LeafSet>(root: &ExprTree<L>, params: &VarEnv<T>) -> Re
                     // i64::MIN is a typed refusal); f64::from(i32) is exact.
                     let small =
                         i32::try_from(n).map_err(|_| EvalError::CountToScalarOutOfRange(n))?;
-                    Visit::Value(T::from_f64(f64::from(small)))
+                    Visit::Value(T::count(small))
                 }
                 binary_kind!(a, b) => Visit::Two(a, b),
                 K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) => Visit::One(a),
@@ -2602,6 +2622,23 @@ mod tests {
     use super::*;
 
     use crate::tree::raw_chain;
+
+    /// The document's parameter door at each scalar: the nominal at
+    /// `f64`, its point at an interval, one literal at `Sym` (an opaque
+    /// unknown is a different node), no tangent at a dual.
+    #[test]
+    fn an_authored_nominal_is_a_literal_at_sym_and_carries_no_tangent() {
+        use geom_core::{Bounds, Dual64, Interval, Sym};
+        let nominal = 12.5_f64;
+        assert_eq!(authored::<f64>(nominal).to_bits(), nominal.to_bits());
+        let i = authored::<Interval>(nominal);
+        assert_eq!((Bounds::lo(i), Bounds::hi(i)), (nominal, nominal));
+        let d = authored::<Dual64>(nominal);
+        assert_eq!((d.value, d.deriv), (nominal, 0.0));
+        let s = authored::<Sym<f64>>(nominal);
+        assert_eq!(s.node(), <Sym<f64> as Real>::from_f64(nominal).node());
+        assert_ne!(s.node(), <Sym<f64> as Real>::from_computed(nominal).node());
+    }
 
     /// **The final check refuses an unbounded enclosure.** `[MAX, ∞]`,
     /// `[0, ∞]` and `[−∞, ∞]` each refuse as a non-finite result, where

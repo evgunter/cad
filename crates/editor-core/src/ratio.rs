@@ -185,11 +185,11 @@ impl Ratio {
     #[allow(clippy::cast_precision_loss)]
     pub fn eval<T: Real>(self) -> T {
         // Exact: both operands are at most 2^53 in magnitude.
-        let num = T::from_f64(self.num as f64);
+        let num = T::count(self.num);
         if self.den == 1 {
             num
         } else {
-            num / T::from_f64(self.den as f64)
+            num / T::count(self.den)
         }
     }
 

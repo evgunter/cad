@@ -1186,7 +1186,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
             FreeVar::Continuous { dim, value, .. } if box_.get(id).is_none() && !is_axis(p) => {
                 crate::expr::ParamValue::Continuous {
                     dim,
-                    value: T::from_f64(value),
+                    value: crate::expr::authored(value),
                 }
             }
             // HELD at its nominal: a `Fixed` axis. Its value is the
@@ -1205,7 +1205,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
             {
                 crate::expr::ParamValue::Continuous {
                     dim,
-                    value: T::from_f64(value) + T::from_f64(0.0),
+                    value: crate::expr::authored::<T>(value) + T::from_f64(0.0),
                 }
             }
             FreeVar::Continuous { dim, value, .. } => {
@@ -1222,7 +1222,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                     })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
-                    value: T::from_f64(value) + offset,
+                    value: crate::expr::authored::<T>(value) + offset,
                 }
             }
             FreeVar::Count { value } => crate::expr::ParamValue::Count(value),
@@ -1296,7 +1296,7 @@ pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
                 })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
-                    value: T::from_f64(value) + offset,
+                    value: crate::expr::authored::<T>(value) + offset,
                 }
             }
             FreeVar::Count { value } => crate::expr::ParamValue::Count(value),

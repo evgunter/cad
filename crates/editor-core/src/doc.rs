@@ -3493,7 +3493,7 @@ impl<P> Doc<P> {
                 let v = match *free {
                     FreeVar::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
-                        value: T::from_f64(value),
+                        value: crate::expr::authored(value),
                     },
                     FreeVar::Count { value } => ParamValue::Count(value),
                 };
