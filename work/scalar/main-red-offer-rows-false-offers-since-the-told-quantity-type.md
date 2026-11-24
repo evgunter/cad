@@ -61,6 +61,8 @@ One unit for this row and `work/green/main-red-three-source-censuses-red-since-t
 
 `sweep offer_rows::every_sphere_offer_passes_just_below_it` (slow set) is red on main the same way, on both sides of PR 7227's differential and in its review. `nested_off_axis_in_the_zero_band_union` and `…_subtract` each quote `None` and offer `Some(4.999e-11)` where the computed margin is `5e-10`: the offer is the margin over the band's ratio rendered at four significant figures, just below it, as in the three topo rows above. Read as the same cause, not bisected. Reproduce: `cargo nextest run -p sweep -E 'test(=offer_rows::every_sphere_offer_passes_just_below_it)'`.
 
+- 2026-11-22 — **`a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt` is still red on main** (EMBED, lane strip): on main `9bc9d6517`, under CI's build (`--profile ci`, test crates at opt-0, the rest at opt-1), with the same offer of 2.999e-11 against the text's "below 3e-11 m" at `a_corner_reads_only_its_own_sectors.rs:122`.
+
 ## Red at every ε row (GREEN U9, 2026-11-22)
 
 (GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed

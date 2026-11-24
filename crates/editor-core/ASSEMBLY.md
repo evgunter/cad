@@ -48,8 +48,8 @@ nothing is rebuilt, and export composes the frame into the world. A resolved doc
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
 instantiates at most once (`PartStore`), before its mate solve and node
 map read it (`Reached`); a part the prior evaluation carried under the
-same pin is reused rather than evaluated again, and a faulted one is
-asked again. A reference already on the descent chain is a
+same pin is reused rather than evaluated again, where the run reads its
+prior at all (`PriorRefusal`), and a faulted one is asked again. A reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part, and that
 fusing is an explicit boolean, is DESIGN `[assemblies.document]`.
 
@@ -100,7 +100,8 @@ The doors that refuse:
 The memo reads the stamp too, and since `evaluate` returns no `Result`
 it refuses by dropping: a prior of another document is dropped whole
 before the schedule is built, the run records the drop as
-`Evaluation::prior_refused`, and everything is recomputed.
+`Evaluation::prior_refused` (`PriorRefusal::Document`), and everything
+is recomputed.
 
 **The pick doors** pair a value of a document with an evaluation: a
 `NodePick` is built from one evaluation and handed a second at each name

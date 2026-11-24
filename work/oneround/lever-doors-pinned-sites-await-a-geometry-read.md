@@ -16,7 +16,7 @@ The gate counted 59 references when this row was filed: 4 not sites, 8 always ze
 
 Each conversion moves a reading and wants its own differential.
 
-## Geometry in the function (32)
+## Geometry in the function (31)
 
 The function holds a carrier, a surface, a cover, a `Reach` or extent ball, a pose of carriers, or a body with the face, edge or vertex.
 
@@ -50,14 +50,14 @@ topo:
 - `separating::planar_axis` — `ExtentBall::box_diagonal`. `body` and `face`; the box is a closure's `(lo, hi)`, its caller's. **Converted** (`oneround/lever-sites-topo`): the face's own `face_cover`, levered at `ExtentBall::diameter`; the closure is gone.
 - `solid_contain::selection_reach` (zero) — `ExtentBall::point`. `body` and the faces; the fold's seed. **Converted** (`oneround/lever-sites-topo`): no seed; an empty selection refuses `ZeroVolumeBody`.
 - `splitting::containment::extent_from` (2, one zero) — `ExtentBall::point`. `covers: &[Cover<T>]`, read in the same fold beside `verts`. **Left** (`oneround/lever-sites-topo`): `verts` is a point list its caller hands, and `Cover::points` of it is the same points respelled out of the gate's sight. It waits with the points-only family; the zero seed waits with it.
-- `wedge_reach::WedgeReach::reach` — `points_lever_from`. The carrier, the span and the two face keys. **Left** (`oneround/lever-sites-topo`): as `pcurves::decision::edge_reach`.
 
-## Points or scalars only (11)
+## Points or scalars only (12)
 
 - `geom_brep::ssi::point_arm` — `within_curvature`. `kappa: T` and an extent `Lever`.
 - `sweep::blend::battery::corner_independence` — `curvature_radius`. Three normals and `radius: T`.
 - `topo::bound_side::BoundSupport::lever` — `ExtentBall::point`. `BoundSupport::Chord { base, far }`, two stored points.
 - `topo::bound_side` `read_down` — `curvature_radius`. `FaceDatum.lever: Option<T>` and `FaceBend`'s radius, two stored scalars; `FaceBend::at(surface, sense, p)` reads the surface where the bend is built.
+- `topo::wedge_reach::reach_from_vertex` — `points_lever_from`. A pivot and points, both the caller's: a pass-through. `WedgeReach::reach` held this site with the carrier, the span and the two face keys until EMBED's `embed/remeter` (PR 7329) moved it here, so that the embedding question reads the same recipe at its lifted scalar (`reach_over`) and two faces' reach from a vertex.
 - `topo::link::second_order::reach` — `ExtentBall::point`. `point(apex + d).lever_from(apex)` is `|d|`.
 - `topo::splitting::containment::polygon_walk` (2, one zero) — `ExtentBall::point`. The loop's points and `q`.
 - `topo::splitting::join::crossing_reach` (2, one zero) — `ExtentBall::point`. The crossings and `from`.
@@ -83,6 +83,7 @@ grep -vE 'fn NAME\b' /tmp/prod.txt | grep -oE 'PATTERN' | wc -l
 
 - `sweep::blend::battery::corner_independence(vertex, normals, radius, band)` — `pub`, takes `radius: T`. 4 (`corner_independence\(`).
 - `geom_brep::ssi::point_arm(kappa, extent)` — `pub(crate)`, takes `kappa: T`. 5 (`point_arm\(`).
+- `topo::wedge_reach::reach_over(carrier, span, faces)` and `reach_from_vertex(vertex, faces)` — `pub(crate)`, each takes the faces' points, and the second the pivot; `WedgeReach::reach`'s pinned site moved into the second. 2 and 2 (`reach_over\(`, `reach_from_vertex\(`). Added by EMBED's `embed/remeter` (2026-11-22): the embedding question reads an edge's reach by tier 3's recipe at its own scalar, off the lifted carrier and the two faces' lifted vertices, and two faces' reach from a vertex they share alone, which is a new read at a new pivot. The pin did not rise because both go through one call; that is this list's pattern, not a geometry read.
 - `topo::bound_side::FaceDatum::of_face(normal, bend, lever)` — `pub(crate)`, takes `lever: T`. 3 (`FaceDatum::of_face\(`). `boolean::sectors::pierce_side(.., lever: T, ..)`, `pub(super)`, hands it on: 2 (`pierce_side\(`).
 - `topo::bound_side::BoundSupport::Chord { base, far }` — a `pub(crate)` variant with public fields. 11 (`BoundSupport::Chord`); a `Self::Chord` or a `Chord` reached by import is not in that count. The widest.
 - `topo::cover::meet_within(a, b, tolerance)` — `pub(crate)`, takes `tolerance: f64`. 2 (`meet_within\(`).

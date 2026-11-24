@@ -35,6 +35,8 @@ The fix is a chamber whose leaves need visibly different amounts again — a doc
 
 (GREEN U3, `green/editor-1e-12`) On the scheduled nightly 44870651337 (main `f5ef8f2b`) this row is red at the default ε, 1e-6 and 1e-12 with one message, `race: the row's certified arm is vacuous unless this drive certifies: Receipt { certified: 1, refused: 7, splits: 7 }` at `m10_sym_drive_memo_interval.rs:539`. So the re-pin this row owes greens the 1e-6 and 1e-12 rows too, and GREEN's 1e-12 row defers to it.
 
+- 2026-11-22 — **still red on main `788403465`** (EMBED, lane strip): the same panic at `m10_sym_drive_memo_interval.rs:539`, `Receipt { certified: 1, refused: 7, splits: 7 }`. Measured in a clean worktree of that main under CI's build (`--profile ci`, test crates at opt-0, the rest at opt-1).
+
 ## Still red at every ε on 11-22's main (GREEN U9, 2026-11-22)
 
 (GREEN, `green/held-reds`) Two lanes cited this test to GREEN's closed
