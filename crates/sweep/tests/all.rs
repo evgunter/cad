@@ -138,6 +138,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size.rs"]
+mod a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size;
 #[path = "a_plane_through_a_cones_apex.rs"]
 mod a_plane_through_a_cones_apex;
 #[path = "a_plane_through_a_pole_cuts_a_cap.rs"]

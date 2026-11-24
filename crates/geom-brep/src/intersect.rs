@@ -513,8 +513,10 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// with every Approx pairing over its fits). Cylinder×torus and
 /// torus×torus read the section value ([`crate::pair_section()`]),
 /// which serves every pose its pose decision classifies, a general one
-/// through its march; plane×torus reads its closed-form arm, and a pose
-/// that arm routes to the general rung the section value. Every unimplemented pair answers
+/// through its march; plane×torus reads the section value's pose, whose
+/// closed-form question is asked over the torus's ball and not at
+/// `reach`, so the gate and every other reader of the pose read it one
+/// way ([`crate::PlaneTorusPose::closed_form`]). Every unimplemented pair answers
 /// [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -578,16 +580,7 @@ pub fn route_pose<T: Decide>(
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, reach, band).map(drop),
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
-        // A tilted plane is the section value's, which marches it.
-        (Plane, Torus) | (Torus, Plane) => {
-            let (plane, torus) = if ka == Plane { (a, b) } else { (b, a) };
-            match plane_torus_section(plane, torus, extent(), band) {
-                Err(SectionError::RoutesToGeneralRung { .. }) => {
-                    crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
-                }
-                read => read.map(drop),
-            }
-        }
+        (Plane, Torus) | (Torus, Plane) => torus_pose(crate::PlaneTorusPose::decide(a, b, band)),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
         (Cone, Cone | Sphere) | (Sphere, Cone) => {
