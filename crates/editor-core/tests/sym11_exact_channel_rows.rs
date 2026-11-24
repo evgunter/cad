@@ -56,12 +56,15 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The floors fell, and the pad's ceiling, when validation stopped
 /// reading an adjacent line pair's shared vertex (PROFILE, `dbc608ffba`):
 /// decisions no longer asked, not decisions answered differently.
+///
+/// The `frozen` ceilings are the decisions' own walks: a definite numeric
+/// sign walks none.
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
     ("two_hole_plate", None, 955, 36),
     ("r1_annulus", None, 511, 36),
-    ("r2_link", None, 786, 2600),
-    ("r2_filleted_bracket", None, 1337, 57),
-    ("r2_rounded_pad", None, 1471, 1963),
+    ("r2_link", None, 786, 2175),
+    ("r2_filleted_bracket", None, 1337, 53),
+    ("r2_rounded_pad", None, 1471, 1303),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
