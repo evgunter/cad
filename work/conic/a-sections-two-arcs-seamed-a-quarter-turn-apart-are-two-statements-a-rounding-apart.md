@@ -4,7 +4,7 @@ kind: issue
 title: A section's two arcs, each seamed near its own middle, are stated a quarter turn apart through a turn that rounds at f64, so they are two statements an ulp apart and no certificate may read them as one conic: a cone cut out through a cap refuses on its cut cap
 status: open
 opened: 2026-11-23
-priority: P0
+priority: P1
 cost: M
 refs: [two-conics-are-compared-through-three-doors, 7605]
 ---
@@ -54,18 +54,21 @@ this cut refuses `Uncertified { Departure }` on its cut cap in all four
 (4 of 4), the cap against a half-cone across a section arc.
 
 **What decides it, and a count.** Each arc is seamed at the principal
-vertex nearest its own middle. A cut through the wall alone leaves two
-arcs between the two rulings the wall's halves meet on, their middles
-opposite: a half turn, exact. A cut that runs out through a cap leaves
-two arcs that each end on the cap's rim, their middles in adjacent
-quadrants: a quarter turn, rounded. Of the split bodies built for this
-unit on main, as built: 7 of 7 cone cuts through the wall alone (either
-side kept, tilted toward a ruling and off it) and 5 of 5 cylinder cuts
-through the wall alone state a half turn; the 1 cone cut and the 1
-cylinder cut out through a cap state a quarter turn (the cylinder's
-held at the centre, `u_ref` of the second the first's stored `v`
-direction and the semi-axes exchanged). The cylinder's cap cut holds at
-`f64` all the same in three of four placements, by another reading.
+vertex nearest its own middle, so the two arcs' middles decide it:
+opposite, a half turn, exact; in adjacent quadrants, a quarter turn,
+rounded. A cut through the wall alone leaves two arcs between the two
+rulings the wall's halves meet on, their middles opposite: a half turn
+in 864 of 864 such cuts of a frustum and a rod, either side kept (the
+review's scan of 1,152 splits,
+`review_scan_which_restatement_a_split_states` on
+`embed/conic-symmetry-review-4b5e7c`). A cut that runs out through a
+cap leaves two arcs that each end on the cap's rim, and whether it
+meets a cap does not decide it: of 66 two-arc cuts through a cap, 26
+state a quarter turn and 40 a half. This row first said a cap cut
+states a quarter; that was half right, read off 2 cap cuts and 12 wall
+cuts built by the lane. No split in the scan states its arcs run back
+or both (0 of 930); `oriented_arc`'s clockwise branch
+(`crates/topo/src/chord_join.rs`) is a door that could.
 
 Of the 24 cone/cone census tests run through the at-rest gate with
 PR 7605's reading and this unit's in one tree, 12 still fail, and none
@@ -74,9 +77,13 @@ against a plane (5), two cones (5), a plane against a torus (1) and a
 depth budget (1), and they are the 12 that failed before the anchored
 ellipse.
 
-**Not checked:** the census tests' own bodies (the count above is of
-14 bodies built here, not of the census), and which other section doors
-seam two arcs of one conic a quarter turn apart.
+**The band.** P1, by `work/README.md`'s definitions: no verb on main
+is gated on this (no cut cone holds on main at all), one family of cap
+cuts refuses behind PR 7605, and no census test was traced to it. It is
+P0 the day the at-rest gate asks the embedding question in the split.
+
+**Not checked:** the census tests' own bodies, and which other section
+doors seam two arcs of one conic a quarter turn apart.
 
 The cone-image lane's row
 `two-arcs-of-one-cone-section-are-stated-as-two-anchored-ellipses-so-no-reading-knows-them-one-conic`

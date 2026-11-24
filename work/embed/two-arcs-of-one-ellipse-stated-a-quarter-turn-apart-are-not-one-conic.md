@@ -181,3 +181,18 @@ anchored ellipse, against 1 of 24 on that branch without this unit. At
 `Interval` no verdict moves (28 of 28 refuse either way):
 `a-cut-cones-cap-arcs-are-enclosures-at-interval-so-it-refuses-where-f64-holds`.
 
+**No body row on main can go red on this admission** (the review of PR
+7640, by mutants): with `one_stated_conic`'s ellipse arm made to admit
+every pair of ellipses the whole suite file is green, and with no
+stored arm only the tee row moves. On main that is unavoidable, since
+no cut cone holds there. The unit rows pin the admission; the body
+rows pin what the split states and that a crossing at the two-arc
+corner is found, and say so. **The body-level pins of the admission,
+positive and negative, are owed where a cut cone holds, and land with
+PR 7605 (`embed/cone-image`)**: the mutant that must go red there is
+the arm admitting every pair of ellipses.
+
+**What decides half or quarter is corrected**: the arcs' middles, not
+whether the cut meets a cap (a reviewer's scan: 864 of 864 wall-alone
+cuts a half turn; of 66 two-arc cuts through a cap, 26 a quarter and 40
+a half). The conic row carries it.

@@ -4246,15 +4246,15 @@ const SPLIT_POSES: [SplitPose; 4] = [
 /// frustum revolved a full turn about `y` (its wall two half-cones
 /// meeting along the rulings at `±x`) and split.
 fn split_cone<T: Scalar>(cut: SplitCone, pose: SplitPose) -> Body<T> {
-    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e}"))
+    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e:?}"))
 }
 
-/// [`split_cone`], with the mirror door's refusal handed back as its
-/// `Debug` text for a row that reads a build limit.
+/// [`split_cone`], with the mirror door's refusal handed back for a row
+/// that reads a build limit.
 fn try_split_cone<T: Scalar>(
     ((r0, r1, h), (q, phi, psi), above): SplitCone,
     pose: SplitPose,
-) -> Result<Body<T>, String> {
+) -> Result<Body<T>, topo::TransformError> {
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::finished;
     use topo::splitting::{SplitPart, SplitPlane, split};
@@ -4300,7 +4300,7 @@ fn try_split_cone<T: Scalar>(
                 tol(),
             )
             .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol()).map_err(|e| format!("{e:?}"))?
+            topo::mirror_body(&body, &across, tol())?
         }
     })
 }
@@ -4318,18 +4318,24 @@ fn section_arcs(body: &Body<f64>) -> Vec<geom::Ellipse<f64>> {
 }
 
 /// **A cone's split states its section's two arcs as one ellipse
-/// restated a half turn on, or as two a rounding apart.** Cut through
-/// the wall alone, the two arcs are stated on one anchor with `u_ref`
-/// and the phase negated: one of them is the other's half-turned
-/// restatement ([`geom::Ellipse::restatements`]) by content, exactly,
-/// in every placement, which is what the certificate reads as one conic
-/// (`injective`'s `one_stated_conic`). Cut out through a cap, the two
-/// are stated a quarter turn apart with the semi-axes exchanged, through
-/// a turn that rounds: no restatement of one is the other, and the
-/// certificate reads two. A reading of stored statements, so asked of
-/// the `f64` body alone: a body held as enclosures stores none. Red if
-/// the split states a wall cut's arcs any other way, or a cap cut's as
-/// restatements, either of which moves what the cap's corner reads.
+/// restated a half turn on, or as two a rounding apart.** Each arc is
+/// seamed at the principal vertex nearest its own middle. The two wall
+/// cuts here leave arcs whose middles lie opposite: stated on one
+/// anchor with `u_ref` and the phase negated, one is the other's
+/// half-turned restatement ([`geom::Ellipse::restatements`]) by
+/// content, exactly, in every placement. The cap cut here leaves arcs
+/// whose middles lie in adjacent quadrants: stated a quarter turn apart
+/// with the semi-axes exchanged, through a turn that rounds, so no
+/// restatement of one is the other. Where the middles fall decides it,
+/// not whether the cut meets a cap: of two-arc cuts through a cap, a
+/// reviewer's scan found 26 stating a quarter and 40 a half, and every
+/// one of 864 cuts through the wall alone a half
+/// (`review_scan_which_restatement_a_split_states`, on
+/// `embed/conic-symmetry-review-4b5e7c`). The row pins what these three
+/// splits state, read through the same restatements the certificate
+/// reads (`injective`'s `one_stated_conic`), so it goes red when the
+/// split's statements move and not when that reading does. Asked of
+/// the `f64` body alone: a body held as enclosures stores no statement.
 #[test]
 fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter() {
     let restated = |a: &geom::Ellipse<f64>, b: &geom::Ellipse<f64>| {
@@ -4378,6 +4384,12 @@ fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter
 /// their caps' two arcs one conic, and the cap cut still refuses on its
 /// cut cap, its arcs two
 /// (`a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
+/// At `Interval` every one still refuses there, measured as built with
+/// both in one tree: the cut toward a ruling on its cut cap against a
+/// half-cone (`5v1`, `8v3`, across `Edge(11v1)`), the cut off a ruling
+/// on another pair first (`2v1`, `5v1`, across `Edge(9v1)`), and the cap
+/// cut on a depth `Budget` (`3v1`, `4v1`). The row that lands that
+/// reading re-pins both scalars.
 #[test]
 fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
     use topo::clearance::Embedding;
@@ -4394,52 +4406,72 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
             "{what}: the refused pair holds a cone: {a:?} {b:?}"
         );
     }
+    // The split cone placed, or `None` at the one build limit: below
+    // 1e-11 the mirror door refuses a wall cut's `Interval` twin at its
+    // pcurve envelope, an indeterminate margin at the band. Any other
+    // refusal, or that one anywhere else, fails the row.
+    fn placed<T: Scalar>(
+        what: &str,
+        cut: SplitCone,
+        wall: bool,
+        pose: SplitPose,
+        twin: bool,
+    ) -> Option<Body<T>> {
+        use geom_brep::{PcurveCertifyError, PcurveCheck};
+        use topo::{PcurveMintError, TransformError};
+        match try_split_cone::<T>(cut, pose) {
+            Ok(body) => Some(body),
+            Err(
+                refusal @ TransformError::Pcurve {
+                    source:
+                        PcurveMintError::Certify {
+                            error:
+                                PcurveCertifyError::Escalated {
+                                    check: PcurveCheck::Envelope,
+                                    ..
+                                },
+                            ..
+                        },
+                },
+            ) if twin && wall && matches!(pose, SplitPose::Mirrored) && tol().eps() < 1e-11 => {
+                println!(
+                    "SKIPPED (ε = {:e}): {what} {pose:?} at Interval is not placed: {refusal:?}",
+                    tol().eps()
+                );
+                None
+            }
+            Err(refusal) => panic!("{what} {pose:?} is placed: {refusal:?}"),
+        }
+    }
     for pose in SPLIT_POSES {
-        for (what, cut) in [
-            ("the wall cut on the grid", WALL_CUT),
-            ("the wall cut off the grid", WALL_CUT_OFF_GRID),
-            ("the cap cut", CAP_CUT),
+        for (what, cut, wall) in [
+            ("the wall cut on the grid", WALL_CUT, true),
+            ("the wall cut off the grid", WALL_CUT_OFF_GRID, true),
+            ("the cap cut", CAP_CUT, false),
         ] {
-            // Below 1e-11 the mirror door refuses one of these at its own
-            // pcurve envelope, an indeterminate margin at the band: a
-            // build limit, said loudly, and any other refusal fails the
-            // row.
-            match (
-                try_split_cone::<f64>(cut, pose),
-                try_split_cone::<Interval>(cut, pose),
-            ) {
-                (Ok(float), Ok(twin)) => {
-                    refuses(&format!("{what} {pose:?} at f64"), &float);
-                    refuses(&format!("{what} {pose:?} at Interval"), &twin);
-                }
-                (f, t) => {
-                    let refusal = [f.err(), t.err()].into_iter().flatten().collect::<Vec<_>>();
-                    assert!(
-                        tol().eps() < 1e-11
-                            && refusal
-                                .iter()
-                                .all(|e| e.contains("Escalated { check: Envelope")),
-                        "{what} {pose:?} builds: {refusal:?}"
-                    );
-                    println!(
-                        "SKIPPED (ε = {:e}): {what} {pose:?} is not placed: {refusal:?}",
-                        tol().eps()
-                    );
-                }
+            if let Some(float) = placed::<f64>(what, cut, wall, pose, false) {
+                refuses(&format!("{what} {pose:?} at f64"), &float);
+            }
+            if let Some(twin) = placed::<Interval>(what, cut, wall, pose, true) {
+                refuses(&format!("{what} {pose:?} at Interval"), &twin);
             }
         }
     }
 }
 
-/// **A ball through a split cylinder's two-arc corner crosses, at both
-/// scalars.** A rod of radius 0.7 split by a tilted plane states its
-/// section's two arcs held at the centre, a half turn apart: one
-/// stated conic by its restatement, read on through the vertex where
-/// they meet on a ruling. A ball of radius 0.02 centred on that vertex
-/// passes through the wall and the cut cap there. The readings at the
-/// corner leave the crossing to be found and never certify it: `Crosses`
-/// at the default ε; at another the walk may run out of its budget on
-/// the crossing pair first, and then refuses on it, never embedded.
+/// **A ball through a split cylinder's wall and cut cap, where its two
+/// section arcs meet, crosses, at both scalars.** A rod of radius 0.7
+/// split by a tilted plane states its section's two arcs held at the
+/// centre, a half turn apart (asserted), and a ball of radius 0.02
+/// centred on the vertex where they meet on a ruling passes through the
+/// wall and the cut cap there. It reads `Crosses` at the default ε; at
+/// another the walk may run out of its budget on the crossing pair
+/// first, and then refuses on it, never embedded. What it pins is that
+/// a crossing there is found. It does NOT pin the corner's reading: the
+/// row is green whatever `one_stated_conic` answers, a grafted ball
+/// sharing no cell with the rod, and on main no body's verdict rests on
+/// that reading alone. The body rows that go red when the reading
+/// admits too much are owed where a cut cone holds, with PR 7605.
 #[test]
 fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
     use topo::clearance::Embedding;

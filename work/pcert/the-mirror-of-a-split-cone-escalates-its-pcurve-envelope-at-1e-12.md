@@ -23,18 +23,22 @@ the mirror door refuses
 
 for both cuts tried: radii 1 and 0.5 over a height of 1 cut at
 `(0, 0.5, 0)` tilted 0.25 toward `+x`, and radii 0.7 and 0.31 over 0.9
-cut at `(0, 0.43, 0)` tilted 0.3 toward the azimuth 0.7 (the same
-half-edge and the same enclosure to the digits printed). The cut out
+cut at `(0, 0.43, 0)` tilted 0.3 toward the azimuth 0.7. The payload
+above is the first's; the second refuses on the same half-edge with an
+enclosure of `1.2774216889551278e-12` (the review of PR 7640 read both;
+this row first said the two were the same to the digits printed, which
+was wrong). The cut out
 through the top cap mirrors. At the default ε and at 1e-6 all three
 mirror at both scalars.
 
-One of the two scalars refuses; the `f64` mirror builds at 1e-12
-(`self_intersection_proves_injectivity::a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`
-reads its edges there and passes), so it is the `Interval` build. Which
+It is the `Interval` build that refuses; the `f64` mirror builds at
+1e-12 and is asked. Which
 edge `21v1` lies on was not read.
 
 ## Pin
 
 `self_intersection_proves_injectivity::a_split_cone_refuses_on_a_pair_holding_its_wall`
-skips these two placements at ε below 1e-11, printing `SKIPPED` with the
-refusal, and fails on any other refusal.
+skips the `Interval` twin of these two placements at ε below 1e-11,
+matching the refusal by variant and printing `SKIPPED` with it, asks
+the `f64` body all the same, and fails on any other refusal or on this
+one anywhere else.
