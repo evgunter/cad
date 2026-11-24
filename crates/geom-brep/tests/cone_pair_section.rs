@@ -1527,6 +1527,33 @@ fn a_ball_touching_both_nappes_lists_both_touches() {
     );
 }
 
+/// **Both lines `Zero` with the centre inside a nappe refuses**: a cone
+/// opened to `cos α = 4·escalate` (inside its convention over the
+/// region), the centre `(0.01, 0, 2)` inside its upper nappe and `R = 2`.
+/// Both lines of the meridian plane stand `2 sin α ± 0.01 cos α` from the
+/// centre, each within the band of `R`, but the far one is the most the
+/// centre's distance from the double cone reaches, not the least: the
+/// contact runs within the band round the whole turn, which no two points
+/// describe. Red if the two `Zero`s are listed as two touches.
+#[test]
+fn both_lines_zero_inside_a_nappe_refuses() {
+    let cos = 4.0 * band().escalate();
+    let wide = cone_about(Point3::origin(), Vec3::unit_z(), cos.acos());
+    let ball = sphere(p(0.01, 0.0, 2.0), 2.0);
+    for (a, b) in [(&wide, &ball), (&ball, &wide)] {
+        assert!(
+            matches!(
+                read(a, b, region()),
+                Err(SectionError::Pinched {
+                    predicate: "kc_sphere_tangency"
+                })
+            ),
+            "refused by its tangency: {:?}",
+            read(a, b, region()).map(|_| ())
+        );
+    }
+}
+
 /// **A ball touching the generator is decided tangent in closed form**,
 /// from outside and from inside the cone: its centre `0.4` along the
 /// cone's normal from a generator point either way, the oracle's own

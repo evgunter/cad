@@ -13,8 +13,9 @@
 //!   one loop about its own axis, both apexes clear of the other cone,
 //!   the general cone × cone pose, marched.
 //!
-//! Each run's outcome is pinned, `built` or the refusal's variant, so the
-//! row goes red the day either changes. Today every run of both refuses
+//! Each run's outcome is pinned at the default ε, `built` or the refusal
+//! whole (its operand, face and kind), so the row goes red the day either
+//! changes; the nightly reads the same pins at 1e-6 and 1e-12. Today every run of both refuses
 //! `CurvedBooleanUnsupported` at the cone's face, the ball's poles off it
 //! (`work/sectcone/a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face.md`); where an order's three runs all
 //! build, the volumes close as the operations must:
@@ -67,6 +68,18 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
     cone(to * turn, tol)
 }
 
+/// Each run's refusal today, ∪, ∩, ∖ with the cone first, then with the
+/// other first: the cone's face, the boolean's operand `A` or `B` by the
+/// order asked.
+const PINNED: [&str; 6] = [
+    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
+    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
+    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
+    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
+    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
+    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
+];
+
 fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("the body does not measure: {e:?}"))
@@ -75,7 +88,7 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
 }
 
 /// A run's outcome: its measured volume and pad (zero for an empty
-/// result) and `built`, or the refusal's variant. A desync or a broken
+/// result) and `built`, or the refusal whole (its operand, face and kind). A desync or a broken
 /// invariant is a defect, and red.
 fn outcome(
     label: &str,
@@ -100,13 +113,8 @@ fn outcome(
                 );
             }
             let shown = format!("{e:?}");
-            let variant = shown
-                .split(|c: char| !c.is_alphanumeric())
-                .next()
-                .unwrap_or_default()
-                .to_owned();
             println!("{label}: refused: {shown}");
-            (None, variant)
+            (None, shown)
         }
     }
 }
@@ -174,7 +182,7 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
         "the ball",
         (&cone(Affine3::identity(), tol), &ball(tol)),
         4.0 * PI * 0.4f64.powi(3) / 3.0,
-        ["CurvedBooleanUnsupported"; 6],
+        PINNED,
         tol,
     );
 }
@@ -186,7 +194,7 @@ fn two_cones_in_general_pose_build_in_every_order() {
         "the crossing cone",
         (&cone(Affine3::identity(), tol), &crossing_cone(tol)),
         2.0 * PI / 3.0,
-        ["CurvedBooleanUnsupported"; 6],
+        PINNED,
         tol,
     );
 }

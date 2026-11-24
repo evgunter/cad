@@ -3347,8 +3347,8 @@ fn coaxial_cone_sphere<T: Decide>(
     })? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(SectionError::DegenerateOperand {
-                what: "the sphere's radius is not definitely positive",
+            return Err(SectionError::RadiusNotPositive {
+                radius: SectionRadius::Sphere,
             });
         }
     }

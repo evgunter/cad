@@ -2988,6 +2988,9 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::cover::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
+    /// Two cone faces: the ball of both faces' covers, the region the
+    /// value's two-cone pose is read over.
+    Region(geom_brep::ExtentBall<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -3014,6 +3017,16 @@ pub(super) fn frame_extent<T: Decide>(
         }
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             cone_reach((body_a, face_a), (body_b, face_b), at, cone, band)
+        }
+        (geom::Surface::Cone { .. }, geom::Surface::Cone { .. }) => {
+            let ball = |body, face| {
+                crate::cover::face_cover(body, face, band)
+                    .map(|cover| geom_brep::ExtentBall::of_cover(&cover))
+                    .map_err(|_| "a germ face pair's cone face has no cover")
+            };
+            geom_brep::ExtentBall::enclosing(&[ball(body_a, face_a)?, ball(body_b, face_b)?])
+                .map(FrameExtent::Region)
+                .ok_or("two cone faces' covers have no enclosing ball")
         }
         _ => Ok(FrameExtent::Radii),
     }
@@ -4094,14 +4107,13 @@ fn conic_section_frame_at<T: Decide>(
     {
         return Err(FrameError::NoArm);
     }
-    // Two cones reach a frame ask only where the table holds no section
-    // of theirs: the pairs the value reads elsewhere (two cones of one
-    // aperture on parallel axes; two through one apex take their rulings'
-    // plane before any frame), since a section it builds rides carried.
-    if matches!(
-        (sa, sb),
-        (geom::Surface::Cone { .. }, geom::Surface::Cone { .. })
-    ) {
+    // Likewise two cones of one aperture on parallel axes (the plane
+    // conic), read over the two faces' region; two through one apex take
+    // their rulings' plane before any frame.
+    if let FrameExtent::Region(region) = &extent
+        && let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+            geom_brep::pair_section::ConeRuledPose::decide(sa, sb, *region, band)
+    {
         return Err(FrameError::NoArm);
     }
     if geom_brep::pair_section::serves(sa.kind(), sb.kind()) {
@@ -6976,13 +6988,13 @@ mod frame_dispatch_tests {
 
     /// **A served cone pair the value reads elsewhere refuses its frame
     /// typed**: a sphere on a cone's axis (the coaxial circles) and two
-    /// cones of one aperture on parallel axes (the plane conic) are served
-    /// by kind, and the table holds no section for them, so a germ asks
-    /// their frame; it answers `NoArm`, as a coaxial cone × torus does, and
-    /// never a desync. The same sphere off the axis, which the table holds,
-    /// is a desync, so the guard reads the pose and not the kind. Red if
-    /// either `Elsewhere` pose desyncs, or the guard swallows a served
-    /// pose.
+    /// cones of one aperture on parallel axes (the plane conic, read over
+    /// the two faces' region) are served by kind, and the table holds no
+    /// section for them, so a germ asks their frame; it answers `NoArm`,
+    /// as a coaxial cone × torus does, and never a desync. The same sphere
+    /// off the axis and a tilted cone, which the table holds, desync: the
+    /// guards read the pose, not the kind. Red if either `Elsewhere` pose
+    /// desyncs, or a guard swallows a held pose.
     #[test]
     fn a_cone_pair_read_elsewhere_refuses_its_frame_typed() {
         let cone = |apex: Point3<f64>| geom::Surface::Cone {
@@ -6994,30 +7006,49 @@ mod frame_dispatch_tests {
             radius: 0.5,
         };
         let k = cone(Point3::new(0.0, 0.0, 0.0));
-        for (what, other) in [
-            (
-                "a sphere on the cone's axis",
-                ball(Point3::new(0.0, 0.0, 2.0)),
-            ),
+        let region = FrameExtent::Region(geom_brep::ExtentBall::of_box(
+            Point3::new(-3.0, -3.0, -3.0),
+            Point3::new(3.0, 3.0, 3.0),
+        ));
+        let frame = |a, b, extent| one_loop(pair_section_frame_at(a, b, extent, band()));
+        let parallel = cone(Point3::new(1.0, 0.0, 0.0));
+        let on_axis = ball(Point3::new(0.0, 0.0, 2.0));
+        for (what, other, extent) in [
+            ("a sphere on the cone's axis", &on_axis, FrameExtent::Radii),
             (
                 "a cone of one aperture on a parallel axis",
-                cone(Point3::new(1.0, 0.0, 0.0)),
+                &parallel,
+                region.clone(),
             ),
         ] {
-            for (a, b) in [(&k, &other), (&other, &k)] {
+            for (a, b) in [(&k, other), (other, &k)] {
                 assert!(
-                    matches!(pair_section_frame(a, b, band()), Err(FrameError::NoArm)),
+                    matches!(frame(a, b, extent.clone()), Err(FrameError::NoArm)),
                     "{what}: refused typed"
                 );
             }
         }
-        assert!(
-            matches!(
-                pair_section_frame(&k, &ball(Point3::new(0.8, 0.0, 2.0)), band()),
-                Err(FrameError::Desync(_))
+        let tilted = geom::Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(2.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 1.0).normalize(),
+                Vec3::new(0.0, 1.0, 0.0),
             ),
-            "a sphere off the axis is held by the table, so a frame ask is a desync"
-        );
+            half_angle: 0.3,
+        };
+        for (what, other, extent) in [
+            (
+                "a sphere off the axis",
+                ball(Point3::new(0.8, 0.0, 2.0)),
+                FrameExtent::Radii,
+            ),
+            ("a tilted cone", tilted, region.clone()),
+        ] {
+            assert!(
+                matches!(frame(&k, &other, extent), Err(FrameError::Desync(_))),
+                "{what} is held by the table, so a frame ask is a desync"
+            );
+        }
     }
 
     /// **The nodes are a property of the whole intersecting

@@ -116,6 +116,10 @@ pub enum ConeDecision {
     /// from each of the cone's two lines in its meridian plane, less the
     /// radius.
     SphereTangency,
+    /// `kc_sphere_between_nappes`: `ρ cos α − |h| sin α`, the sphere's
+    /// centre's elevation off the double cone, positive between the
+    /// nappes.
+    SphereBetweenNappes,
 }
 
 impl ConeDecision {
@@ -136,6 +140,7 @@ impl ConeDecision {
             Self::SphereRadius => "kc_sphere_radius",
             Self::SphereOnAxis => "kc_sphere_on_axis",
             Self::SphereTangency => "kc_sphere_tangency",
+            Self::SphereBetweenNappes => "kc_sphere_between_nappes",
         }
     }
 
@@ -157,6 +162,7 @@ impl ConeDecision {
             Self::SphereRadius => "kc_sphere_radius_floor",
             Self::SphereOnAxis => "kc_sphere_on_axis_floor",
             Self::SphereTangency => "kc_sphere_tangency_floor",
+            Self::SphereBetweenNappes => "kc_sphere_between_nappes_floor",
         }
     }
 }
@@ -487,6 +493,22 @@ impl<T: Decide> ConeRuledPose<T> {
                 Sign::Negative => crossed = true,
                 Sign::Positive => {}
             }
+        }
+        // Both lines `Zero` are the least distance at both feet only where the
+        // centre stands between the nappes, each line's foot a minimum of
+        // `δ`; inside a nappe one is the most, `δ` within the band of `R`
+        // round the whole turn, which no two points describe.
+        if zeros.len() == 2
+            && read_across(
+                ConeDecision::SphereBetweenNappes,
+                rho * co - h.abs() * s,
+                swing,
+                band,
+            )?
+            .sign
+                != Sign::Positive
+        {
+            crossed = true;
         }
         let tangent = match zeros.first() {
             None => None,
@@ -819,7 +841,8 @@ enum SphereTangency<T: Real> {
     /// Every other critical value of the clearance is decided positive
     /// (the other line farther than `R`, the apex outside the sphere): the
     /// sphere comes nearest the double cone at each `Zero` foot, and the
-    /// section is those isolated points, one or two, each with its margin.
+    /// section is those isolated points, one or two (two only with the
+    /// centre decided between the nappes), each with its margin.
     Touches(Vec<(MarginDiag, Point3<T>)>),
     /// A `Zero` line beside a crossing (the other line nearer than `R`,
     /// or the apex inside the sphere): the section is a touch beside other
