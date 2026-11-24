@@ -4660,10 +4660,40 @@ fn discharge_in(id: SymId, path: Path) -> Option<(Rung, u8)> {
 /// attempt, then — only into their silence — each retry's rungs in
 /// [`SymRetry::attempts`]'s order. Both paths climb it; the door rung is
 /// the decision path's alone ([`rungs`]).
+/// PROBE (M11): one line per stage of a pose-disc decision's ladder.
+fn m11_stage(stage: &str, t: std::time::Instant, form: Option<&Form>, note: &str) {
+    if crate::k_stats::probe_tally::m11()
+        && crate::k_stats::current_predicate() == crate::k_stats::probe_tally::DISC
+    {
+        eprintln!(
+            "[m11-ladder] stage={stage} ms={:.2} {} {note}",
+            t.elapsed().as_secs_f64() * 1e3,
+            form.map_or("form=none".to_owned(), |f| format!(
+                "terms={} den_terms={} poisoned={} zero={}",
+                f.num.terms().len(),
+                f.den.terms().len(),
+                f.poisoned,
+                f.is_zero()
+            )),
+        );
+    }
+}
+
+/// PROBE (M11): the installed session's table sizes (nodes, forms, atoms).
+pub fn probe_session_sizes() -> (usize, usize, usize) {
+    SESSION.with(|s| {
+        s.borrow()
+            .as_ref()
+            .map_or((0, 0, 0), |sess| (sess.nodes.len(), sess.forms.len(), sess.atoms.len()))
+    })
+}
+
 fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** No attempt
     // above the first builds a plain form ([`SymRetry`]).
+    let m11_t = std::time::Instant::now();
     let plain = plain_form(sess, id);
+    m11_stage("plain", m11_t, Some(&plain), "");
     if plain.is_zero() {
         return Some((Rung::Plain, 0));
     }
@@ -4671,6 +4701,7 @@ fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     if let Some(rung) = rungs(sess, id, &plain, 0, first, path) {
         return Some((rung, 0));
     }
+    m11_stage("first-attempt-ended-unproven", std::time::Instant::now(), None, &format!("retry_attempts_offered={}", sess.retry.attempts(sess.rules).count()));
     for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
         // **The GROWTH GUARD** (`SymRetry::max_forms`), checked BEFORE
         // the attempt is walked: an attempt whose memos are at the cap
@@ -4711,8 +4742,13 @@ fn rungs(
     (rules, bits): (SymRules, u64),
     path: Path,
 ) -> Option<Rung> {
-    if rules.early && walk(sess, id, WalkKind::Early, attempt, (rules, bits)).is_zero() {
-        return Some(Rung::Early);
+    if rules.early {
+        let m11_t = std::time::Instant::now();
+        let early = walk(sess, id, WalkKind::Early, attempt, (rules, bits));
+        m11_stage("early", m11_t, Some(&early), &format!("attempt={attempt}"));
+        if early.is_zero() {
+            return Some(Rung::Early);
+        }
     }
     // Rules A and B over the residual, once. The residual is the PLAIN
     // form on every attempt — the plain rung is never retried — but the
@@ -4726,6 +4762,7 @@ fn rungs(
         });
         #[cfg(feature = "sym-profile-testing")]
         profile::reduce_top_done(t0);
+        m11_stage("top", std::time::Instant::now(), reduced.as_ref(), &format!("attempt={attempt} (ms not timed)"));
         if reduced.as_ref().is_some_and(|f| f.is_zero()) {
             return Some(Rung::Top);
         }
@@ -5564,6 +5601,14 @@ impl<T: Decide> Sym<T> {
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        // PROBE (M11): an indeterminate pose-disc asks the tier nothing.
+        if crate::k_stats::probe_tally::skip_disc()
+            && numeric.is_err()
+            && crate::k_stats::current_predicate() == crate::k_stats::probe_tally::DISC
+        {
+            count_decision(false);
+            return numeric;
+        }
         let answered = if domain_violation {
             None
         } else {

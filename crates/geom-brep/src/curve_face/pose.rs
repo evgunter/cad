@@ -1062,6 +1062,15 @@ fn discriminant<T: Decide>(
 ) -> Result<LineQuadric<T>, PoseRefusal> {
     let two_r = T::from_f64(2.0) * radius;
     let disc = centred.disc();
+    if geom_core::k_stats::probe_tally::m11() {
+        let w = |x: &T| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+        eprintln!(
+            "[m11-in] scalar={} a={} b={} c={} disc={} a2={} radius={} shift={}",
+            core::any::type_name::<T>().rsplit("::").next().unwrap_or("?"),
+            w(&centred.coeffs[0]), w(&centred.coeffs[1]), w(&centred.coeffs[2]),
+            w(&disc), w(&a2), w(&radius), w(&centred.shift),
+        );
+    }
     match decide(
         "curve_face_pose_disc",
         Margin::over_lever(centred.charged(disc, about) / a2, two_r),

@@ -488,6 +488,26 @@ pub mod probe_tally {
         }
     }
 
+    /// PROBE (M11): `BOXFINISH_M11=1` traces the pose-disc decisions and memory.
+    pub fn m11() -> bool {
+        static V: OnceLock<bool> = OnceLock::new();
+        *V.get_or_init(|| std::env::var("BOXFINISH_M11").is_ok_and(|v| v == "1"))
+    }
+    /// PROBE (M11): `BOXFINISH_SKIP_DISC=1`: an indeterminate
+    /// `curve_face_pose_disc` asks the tier nothing.
+    pub fn skip_disc() -> bool {
+        static V: OnceLock<bool> = OnceLock::new();
+        *V.get_or_init(|| std::env::var("BOXFINISH_SKIP_DISC").is_ok_and(|v| v == "1"))
+    }
+    pub const DISC: &str = "curve_face_pose_disc";
+    /// PROBE (M11): resident memory, kB.
+    pub fn rss_kb() -> u64 {
+        std::fs::read_to_string("/proc/self/statm")
+            .ok()
+            .and_then(|s| s.split_whitespace().nth(1).and_then(|p| p.parse::<u64>().ok()))
+            .map_or(0, |pages| pages * 4)
+    }
+
     /// PROBE (M8): `BOXFINISH_M8=1` traces each replay's nodes.
     pub fn m8() -> bool {
         static M8: OnceLock<bool> = OnceLock::new();
@@ -846,11 +866,27 @@ fn classify_quoting<T: Decide, A: MarginTerms>(
         let entered = std::time::Instant::now();
         (entered, format!("{margin:?} {band:?}"))
     });
+    let m11 = (probe_tally::m11() && name == probe_tally::DISC).then(|| {
+        probe_tally::walk_reset();
+        (format!("{margin:?}"), std::time::Instant::now())
+    });
     if deep.is_some() {
         probe_tally::walk_reset();
     }
     let t0 = std::time::Instant::now();
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    if let Some((text, t)) = m11 {
+        let w = probe_tally::walk_take();
+        let text = probe_tally::strip_nodes(&text);
+        eprintln!(
+            "[m11-disc] scalar={} outcome={} ms={:.2} forms={} largest_terms={} made_ms={:.1} refused_nodes={} ring={} decision_ladders={} margin={}",
+            core::any::type_name::<T>().rsplit("::").next().unwrap_or("?"),
+            match &outcome { Ok(d) => format!("{:?}", d.sign), Err(_) => "Indeterminate".to_owned() },
+            t.elapsed().as_secs_f64() * 1e3,
+            w.forms, w.largest, w.ns_made as f64 / 1e6, w.refused, w.ring, w.decision_ladders,
+            text.chars().take(600).collect::<String>(),
+        );
+    }
     if let Some((entered, text)) = deep {
         let t1 = std::time::Instant::now();
         probe_tally::decision(name, &text, entered, t0, t1);

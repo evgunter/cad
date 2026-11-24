@@ -1685,6 +1685,32 @@ pub(crate) fn classify(
                 }
                 let m9_eval = std::time::Instant::now();
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                if geom_core::k_stats::probe_tally::m11() {
+                    static LEAVES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                    let n = LEAVES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    let (nodes, forms, atoms) = geom_core::sym::probe_session_sizes();
+                    let spans: Vec<String> = box_
+                        .order()
+                        .iter()
+                        .filter_map(|n| Some((n, box_.get(*n)?)))
+                        .map(|(n, axis)| {
+                            let (lo, hi) = axis.span();
+                            format!("{}=[{lo:e},{hi:e}]", n.full().to_string().chars().take(4).collect::<String>())
+                        })
+                        .collect();
+                    let first = leaf.order.iter().find_map(|id| match leaf.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some(format!("node {} {}", id.0, format!("{:?}", e.kind).chars().take(500).collect::<String>())),
+                        _ => None,
+                    });
+                    eprintln!(
+                        "[m11-mem] leaf={n} rss_kb={} eval_ms={:.0} session_nodes={nodes} session_forms={forms} session_atoms={atoms} drive_memo={:?} box={} first_failure={}",
+                        geom_core::k_stats::probe_tally::rss_kb(),
+                        m9_eval.elapsed().as_secs_f64() * 1e3,
+                        memo.size(),
+                        spans.join(";"),
+                        first.unwrap_or_else(|| "none".to_owned()),
+                    );
+                }
                 let m9_eval_ms = m9_eval.elapsed().as_secs_f64() * 1e3;
                 let m9_probe = std::time::Instant::now();
                 // PROBE (M8): one line per replay and per node, inside
