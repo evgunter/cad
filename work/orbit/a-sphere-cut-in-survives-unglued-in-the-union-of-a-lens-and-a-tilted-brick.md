@@ -100,8 +100,9 @@ carries the cut-in's meridians into the re-entered boolean as a record
 and closes each surviving piece in the output stage (`slit::close_cuts`:
 `kef`, `kev`, `kemr`) before the coplanar merge, so no result holds a
 chart cut and naming no longer reads them. The lens-and-brick union and
-lens − brick now build, and the die's pips union builds, names and
-meshes. Dual review (two Opus) approved at d8b78b203; the unreached
+lens − brick now build without a surviving cut, and so does the die's
+pips union; their conventional vertex is named by PR 7694 (next
+section), with which every op here builds, names and meshes. Dual review (two Opus) approved at d8b78b203; the unreached
 ring-move path is `a-chart-cut-kef-onto-a-ringed-piece-has-no-row`.
 
 ## 2026-11-24 — every op names on `orbit/conventional-vertex-names`
