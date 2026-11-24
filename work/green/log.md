@@ -664,3 +664,33 @@ U15 bisected the kite's second move to PR 7501 (`43bbb7277f`), which
 redefined `fixture::digest`. It was a respelling, with no value moved. The
 pin is now `0x5533_9c14_5231_454e`, and the gate passed on `833320a385`. The
 respelling row now records how 7501 narrowed it.
+
+## 2026-11-23: 7558 and 7599 merged
+
+- **7558 (`5fdf61e7be`).** U13 re-pinned the rows that ONEHOME's check-1
+  change (7323/7349) moved. Verified by run 45274813404 at every ε and
+  45274824819 under the mutants.
+  - Tipped rods (1.25, 1.35], torus rod (1.65, 1.8], far-off carrier
+    (1.45, 1.6], and 7131's ruling row (1.05, 1.2] (×1e-12).
+  - Seven of the 11 band rims now reach BAND's own `shared_row_touch`, at
+    hi 2.9 to 4.9e-11. The frame cost widens them but no longer decides
+    the stop. The four that still refuse are named in
+    `UNADMITTED_AT_THE_FRAME_COST`.
+- **7599 (`583a682298`).** U16:
+  - the slow-set name check defers viewer (`--elsewhere`);
+  - the viewer jobs check viewer against an `app` listing and run the
+    diff's app slow tests;
+  - the two app entries are restored;
+  - a flag value can no longer be another flag.
+
+  It also closes `NodeErrorClass`, already fixed by FORMWORDS' 7580. New
+  rows: P3 `a-landed-lint-red-is-seen-by-no-run-of-main` and P3 for the
+  duplicated viewer slow tests. Main fixed the pncad-py lints drift
+  (`6bf0e19ef7`) at the same time.
+
+Reds inherited on the 7599 gate: NEARPOINT's 1e-12 cylinder wall, the
+python suite's Union errors (GREEN P1), and a new prose-census red on
+`BooleanError`'s `curve`/`surface`, which U16 is filing as P0.
+
+My slip: I asked U16 to slow-set the shell8 test, which main already
+had in the slow set (PR 7291). I should have grepped `.config/nextest.toml` first.
