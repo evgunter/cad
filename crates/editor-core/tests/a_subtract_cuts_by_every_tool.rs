@@ -64,9 +64,14 @@ fn a_plate_cut_by_a_row_read_whole_is_one_plate_with_every_hole() {
         )
     };
     let member = |i| BodyRead::indexed(row, vec![Formula::count(i)]);
-    let (doc, spelled) = cut(doc, Bodies::one(BodyRead::plain(Operand::Node(row))));
+    let (doc, spelled) = cut(
+        doc,
+        Bodies::Spelled(vec![editor_core::Spell::All(BodyRead::plain(
+            Operand::Node(row),
+        ))]),
+    );
     let (doc, whole) = cut(doc, Bodies::Family(BodyRead::plain(Operand::Node(row))));
-    let (doc, written) = cut(doc, Bodies::Spelled(vec![member(0), member(1)]));
+    let (doc, written) = cut(doc, Bodies::spelled(vec![member(0), member(1)]));
     let ev = run(&doc);
     let plate_read = doc.read_of_node(plate).unwrap();
     let row_read = doc.read_of_node(row).unwrap();
@@ -129,21 +134,21 @@ fn a_tool_list_whose_members_overlap_each_other_still_cuts() {
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(wide), read(second)]),
+            tool: Bodies::spelled(vec![read(wide), read(second)]),
         },
     );
     let (doc, backward) = insert(
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(second), read(wide)]),
+            tool: Bodies::spelled(vec![read(second), read(wide)]),
         },
     );
     let (doc, three) = insert(
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(wide), read(second), read(first)]),
+            tool: Bodies::spelled(vec![read(wide), read(second), read(first)]),
         },
     );
     let ev = run(&doc);

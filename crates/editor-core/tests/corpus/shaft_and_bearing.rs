@@ -337,7 +337,7 @@ fn scene(
         }
     };
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(housing.body()),
             shaft_copy.into(),
             third_copy.into(),

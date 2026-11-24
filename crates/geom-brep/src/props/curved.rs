@@ -839,6 +839,10 @@ impl<T: Real> IsoChart<T> {
 /// classification or the span bound lands in the ambiguity band
 /// (escalate, never guess); [`PropsError::Unimplemented`] for a NURBS
 /// surface.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn require_one_chart_branch<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
@@ -1740,6 +1744,10 @@ fn cylinder_chart<T: Decide>(
 /// azimuth each edge turns between its own ends, and at each junction the turn about the axis
 /// from the edge before's end to the edge after's start, metered at the
 /// radius, beside the gap in level. Returns each loop's turns.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cylinder_windings<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -2153,6 +2161,10 @@ pub fn closed_surface<T: Real>(
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
 /// shared parse consumed by both the flux closed form and
 /// [`boundary_material_sign`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cylinder_boundary<T: Decide>(
     origin: Point3<T>,
     axis: UnitVec3<T>,
@@ -2198,11 +2210,8 @@ fn cylinder_boundary<T: Decide>(
                 sides.push(IsoFamily::U);
             }
             Curve3::Circle(conic_k) => {
-                let (center, n_c, u_c) = (
-                    conic_k.frame().origin(),
-                    conic_k.frame().axis(),
-                    conic_k.frame().u_ref(),
-                );
+                let (center, n_c, u_c) =
+                    (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                 let r_c = conic_k.radius();
                 let s = classify_as(
                     "props_circle_axis_class",
@@ -2626,6 +2635,10 @@ fn cone_loops<T: Decide>(
 ///   asks besides whether it is the iso rim ([`require_rim_incidence`]);
 /// - an ellipse arc is bounded off the cone over its whole span
 ///   ([`require_cone_ellipse`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: UnitVec3<T>,
@@ -2639,7 +2652,7 @@ fn require_on_cone<T: Decide>(
             require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
         }
         Curve3::Circle(circle) => {
-            let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
+            let (center, n_c) = (circle.frame().origin(), circle.axis());
             let r_c = circle.radius();
             require_cone_circle(
                 apex,
@@ -2754,6 +2767,10 @@ fn require_cone_circle<T: Decide>(
 /// the axis less what `A` and `B` can move it over the piece. The bound
 /// over-reads the elevation by the spread of `ρ` and `|h|` across a
 /// piece and by the triangle inequality over the five terms.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn require_cone_ellipse<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2765,11 +2782,7 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse(conic_k) = e.carrier else {
         return Err(PropsError::Unimplemented);
     };
-    let (center, n, u_ref) = (
-        conic_k.frame().origin(),
-        conic_k.frame().axis(),
-        conic_k.frame().u_ref(),
-    );
+    let (center, n, u_ref) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let (a, b) = (u_ref * semi_u, n.cross(u_ref) * semi_v);
     let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
@@ -3271,6 +3284,10 @@ struct ConeWinding<T: Real> {
 /// (`props_cone_loop_vertex`), and the Boolean names it first
 /// (`ResultPinchedAtConeApex`). The summed sweep is the same from every
 /// start: every joint off the apex is still read, cyclically.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_loop_winding<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
@@ -3453,6 +3470,10 @@ fn cone_loop_winding<T: Decide>(
 /// to return and no caller that can forget one: the fold refuses a rim
 /// that does not close around the apex ([`require_rim_only_closed`])
 /// rather than folding and leaving the check to whoever asked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_boundary<T: Decide>(
     cone: &Surface<T>,
     apex: Point3<T>,
@@ -3476,7 +3497,7 @@ fn cone_boundary<T: Decide>(
                 sides.push(IsoFamily::U);
             }
             Curve3::Circle(circle) => {
-                let (center, n_c) = (circle.frame().origin(), circle.frame().axis());
+                let (center, n_c) = (circle.frame().origin(), circle.axis());
                 let r_c = circle.radius();
                 let s = require_cone_circle(
                     apex,
@@ -4054,6 +4075,10 @@ fn sphere_loops<T: Decide>(
 /// SIMPLE loop, and simplicity is not decided here: a loop that
 /// crosses itself, or visits a vertex twice (two whole circles joined
 /// at a point), answers the formula's value for it.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sphere_loop<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -5259,6 +5284,10 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// — [`require_iso_rectangle`]'s sphere parse, which `mesh`'s walk
 /// cites. The flux lane and the side reader read circles by
 /// Gauss–Bonnet instead ([`sphere_face`]) and do not parse.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sphere_boundary<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -5858,6 +5887,10 @@ fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i3
 /// end to the edge after's start, metered at the after's distance from
 /// the axis, beside the turn about the tube, metered at the minor
 /// radius.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_chart_loop<T: Decide>(
     center: Point3<T>,
     axis: UnitVec3<T>,
@@ -6274,6 +6307,10 @@ fn torus_boundary<T: Decide>(
 
 /// Certify every edge of a torus face's boundary as a rim or a meridian
 /// arc, in loop order.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_classify<'a, T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,

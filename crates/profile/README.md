@@ -231,9 +231,10 @@ replayed output under every binding: constructed tangency verified,
 never trusted (`TangencyContradicted`); a value-decided junction
 recorded; same-carrier continuation is a tangent joint, constructed or
 decided; fit gating. A `ValidatedProfile` is minted on segments by the
-doors its type's docs list (the validations, and three crossings of a
-canonical form already validated: `lift_onto`, `value_channel`,
-`on_plane`); extrude/revolve/fillet/loft/sweep never see a program. Junction
+doors its type's docs list (the validations, and two crossings of a
+canonical form already validated: `value_channel`, `on_plane`; a
+fixture's `lift_onto` is behind `test-support`);
+extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and

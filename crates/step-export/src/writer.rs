@@ -319,6 +319,10 @@ impl<'a> Writer<'a> {
     /// (start→end in carrier parameter direction, the M2 forward
     /// contract), geometry from the certified carrier, `same_sense =
     /// .T.` by that same contract.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn edge_curve(&mut self, edge_key: EdgeKey) -> Result<u64, StepExportError> {
         if let Some(&id) = self.shared.edge_curves.get(&edge_key) {
             return Ok(id);

@@ -26,7 +26,7 @@ Found by ONEROUND's lane (2026-11-21) on main `43080b1f`: `CAD_TOLERANCE_EPS=1e-
 
 All three fail with these same numbers on `1360b9eb` (2026-11-19 19:50), `46e89240`, `f2c38057`, `48d98d55`, `6d58cebd`, `d3012f9f`, `ca6dd709`, `0ad2e0b5`, `02804869` and `43080b1f`. So they predate every ONEROUND merge of 2026-11-20 (PR 7145, 7146, 7143), and none of those moves a number. Not bisected past `1360b9eb`; the merge that moved them is older.
 
-`m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials` is red at this ε too, with the message `work/scalar/the-race-rows-leaves-need-two-amounts-where-they-needed-six.md` holds for the default ε.
+`m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials` is red at this ε too, with the message `work/certread/the-race-rows-leaves-need-two-amounts-where-they-needed-six.md` holds for the default ε.
 
 ## Owed
 
