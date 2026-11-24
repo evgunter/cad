@@ -4,6 +4,8 @@ kind: issue
 title: The projected and spline-incidence hull bounds enter T arithmetic as operands, not as a decision's allowance
 status: open
 opened: 2026-11-20
+priority: P2
+cost: M
 ---
 
 Found building `a-bound-to-decide-against-never-becomes-a-t` (DL5.2, `crates/geom-core/README.md`).

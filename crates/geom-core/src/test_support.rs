@@ -444,6 +444,142 @@ pub mod twins {
     }
 }
 
+/// **The belly of a stored first harmonic across a plane, decided
+/// exactly** ([`crate::Real::harmonic_belly`]'s oracle). The arithmetic is
+/// exact dyadic rationals over [`num_bigint::BigInt`], none of
+/// [`crate::exact`]'s, and the terms come from the stored data alone. The
+/// across-seam direction is `axis × u_ref` crossed exactly, never a
+/// rounded `v_ref`. The curve is `x + u·a·(cos θ − c₀) + (w × u)·b·(sin θ − s₀)`,
+/// so its height over the plane through `o` with normal `n` is
+/// `D + A cos θ + B sin θ`, and its belly is `β = √(A² + B²) − |D|`.
+/// No square root is taken: for `t ≥ −|D|`, `β > t` exactly where
+/// `(t + |D|)² < A² + B²`.
+pub mod stored_belly {
+    use num_bigint::BigInt;
+
+    use crate::StoredHarmonic;
+
+    /// `m·2^e`, exactly.
+    #[derive(Clone, Debug)]
+    struct Dyadic {
+        m: BigInt,
+        e: i64,
+    }
+
+    impl Dyadic {
+        fn of(x: f64) -> Self {
+            assert!(x.is_finite(), "a stored datum is finite: {x}");
+            let bits = x.to_bits();
+            let biased = i64::try_from((bits >> 52) & 0x7ff).unwrap_or(0);
+            let fraction = i64::try_from(bits & ((1u64 << 52) - 1)).unwrap_or(0);
+            let (m, e) = if biased == 0 {
+                (fraction, -1074)
+            } else {
+                (fraction | (1i64 << 52), biased - 1075)
+            };
+            let m = BigInt::from(if x.is_sign_negative() { -m } else { m });
+            Self { m, e }
+        }
+
+        fn plus(&self, other: &Self) -> Self {
+            let e = self.e.min(other.e);
+            let shift = |d: &Self| &d.m << usize::try_from(d.e - e).unwrap_or(0);
+            Self {
+                m: shift(self) + shift(other),
+                e,
+            }
+        }
+
+        fn times(&self, other: &Self) -> Self {
+            Self {
+                m: &self.m * &other.m,
+                e: self.e + other.e,
+            }
+        }
+
+        fn negated(&self) -> Self {
+            Self {
+                m: -&self.m,
+                e: self.e,
+            }
+        }
+
+        fn is_negative(&self) -> bool {
+            self.m.sign() == num_bigint::Sign::Minus
+        }
+
+        fn abs(&self) -> Self {
+            if self.is_negative() {
+                self.negated()
+            } else {
+                self.clone()
+            }
+        }
+    }
+
+    fn dot(p: &[Dyadic; 3], q: &[Dyadic; 3]) -> Dyadic {
+        p[0].times(&q[0])
+            .plus(&p[1].times(&q[1]))
+            .plus(&p[2].times(&q[2]))
+    }
+
+    /// `(A, B, D)`, exactly.
+    fn terms(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3]) -> [Dyadic; 3] {
+        let v3 = |p: [f64; 3]| p.map(Dyadic::of);
+        let (x, w, u, o, n) = (v3(curve.at), v3(curve.axis), v3(curve.u_ref), v3(o), v3(n));
+        let cross = |i: usize, j: usize| w[i].times(&u[j]).plus(&w[j].times(&u[i]).negated());
+        let v = [cross(1, 2), cross(2, 0), cross(0, 1)];
+        let big_a = Dyadic::of(curve.semi.0).times(&dot(&u, &n));
+        let big_b = Dyadic::of(curve.semi.1).times(&dot(&v, &n));
+        let offset = [0, 1, 2].map(|i| x[i].plus(&o[i].negated()));
+        let d = dot(&offset, &n)
+            .plus(&Dyadic::of(curve.phase.0).times(&big_a).negated())
+            .plus(&Dyadic::of(curve.phase.1).times(&big_b).negated());
+        [big_a, big_b, d]
+    }
+
+    /// **Whether the belly exceeds `t`**, exactly.
+    #[must_use]
+    pub fn exceeds(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3], t: f64) -> bool {
+        let [big_a, big_b, d] = terms(curve, o, n);
+        let lift = Dyadic::of(t).plus(&d.abs());
+        if lift.is_negative() {
+            return true;
+        }
+        let gap = lift
+            .times(&lift)
+            .plus(&big_a.times(&big_a).negated())
+            .plus(&big_b.times(&big_b).negated());
+        gap.is_negative()
+    }
+
+    /// **Whether the belly lies in `[lo, hi]`**, exactly.
+    #[must_use]
+    pub fn within(
+        curve: StoredHarmonic<f64>,
+        o: [f64; 3],
+        n: [f64; 3],
+        (lo, hi): (f64, f64),
+    ) -> bool {
+        !exceeds(curve, o, n, hi) && !below(curve, o, n, lo)
+    }
+
+    /// **Whether the belly lies below `t`**, exactly.
+    #[must_use]
+    pub fn below(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3], t: f64) -> bool {
+        let [big_a, big_b, d] = terms(curve, o, n);
+        let lift = Dyadic::of(t).plus(&d.abs());
+        if lift.is_negative() {
+            return false;
+        }
+        let gap = lift
+            .times(&lift)
+            .plus(&big_a.times(&big_a).negated())
+            .plus(&big_b.times(&big_b).negated());
+        !gap.is_negative() && gap.m.sign() != num_bigint::Sign::NoSign
+    }
+}
+
 /// **How far a motion's `f64` axes are from their polar factor**, the
 /// rotation [`RigidMotion::rounding`] bounds the distance to, read
 /// independently of that bound: `(‖w − Rẑ‖, ‖u − Rx̂‖)`. The Gram defect
