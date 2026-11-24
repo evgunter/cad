@@ -656,11 +656,17 @@ where
         }
         if first_esc_b.is_none() {
             if let Some(p) = esc_of(b, id).first() {
-                first_esc_b = Some(json!([format!("{id:?}"), p]));
+                first_esc_b = Some(json!([format!("{id:?}"), p, first_escalation(b, id)]));
             }
         }
         if sa != sb {
-            standing_diffs.push(json!([format!("{id:?}"), sa, sb]));
+            standing_diffs.push(json!([
+                format!("{id:?}"),
+                sa,
+                sb,
+                failure(a, id),
+                failure(b, id)
+            ]));
             strict_equal = false;
             choices_equal = false;
             continue;
@@ -782,6 +788,75 @@ where
         "esc_b": esc_b,
         "first_esc_b": first_esc_b,
     })
+}
+
+/// A failed node's refusal, as it prints.
+fn failure<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Option<String> {
+    match ev.nodes.get(&id) {
+        Some(NodeResult::Failed(e)) => Some(clip(&format!("{:?}", e.kind))),
+        _ => None,
+    }
+}
+
+/// A node's first escalation, whole: the margin's enclosure, its
+/// decoration, the band.
+fn first_escalation<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Option<String> {
+    let log = match ev.nodes.get(&id) {
+        Some(NodeResult::Ok(v)) => &v.escalations,
+        Some(NodeResult::Failed(e)) => &e.escalations,
+        _ => return None,
+    };
+    log.first().map(|e| clip(&format!("{:?}", e.source)))
+}
+
+/// The geometry a body's named cells sit on, as it prints at the run's
+/// scalar: each vertex's point, each face's sense and surface, each
+/// edge's carrier. For holding one leaf against its witness by eye.
+pub(crate) fn geometry<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>) -> Vec<String> {
+    let mut out = Vec::new();
+    for &id in &ev.order {
+        let Some(v) = ev.value(id) else { continue };
+        let Some(Some(framed)) = v.payload.one_body() else {
+            continue;
+        };
+        let body = framed.body();
+        let table = v.output(0).map(crate::eval::OutputNames::table);
+        let name = |key: EntityKey| -> String {
+            table
+                .and_then(|t| t.name_of(&EntityRef { body: 0, key }))
+                .map_or_else(|| "<unnamed>".to_owned(), |n| format!("{:?}", n.path))
+        };
+        let mut lines = Vec::new();
+        for (k, p) in body.vertex_points() {
+            lines.push(format!("vertex {} at {p:?}", name(EntityKey::Vertex(k))));
+        }
+        for (k, f) in body.faces() {
+            lines.push(format!(
+                "face {} sense {} on {}",
+                name(EntityKey::Face(k)),
+                f.sense,
+                body.face_surface(k)
+                    .map_or_else(|| "?".into(), |s| clip(&format!("{s:?}")))
+            ));
+        }
+        for (k, e) in body.edges() {
+            if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) {
+                lines.push(format!(
+                    "edge {} on {} over {:?}",
+                    name(EntityKey::Edge(k)),
+                    clip(&format!("{:?}", c.carrier())),
+                    c.params()
+                ));
+            }
+        }
+        lines.sort();
+        out.push(format!("node {id:?}"));
+        out.extend(lines);
+    }
+    out
 }
 
 fn esc_of<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Vec<&'static str> {

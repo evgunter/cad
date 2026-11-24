@@ -1,0 +1,87 @@
+# 1. decided builds, equal standing and record, different logs: every first difference
+builds: 2311
+   1348  f64: pose_unit_norm Positive Choice                   box lane: session_box_reach Positive Choice                (other predicate)
+    316  f64: pose_unit_norm Positive Choice                   box lane: mate_chart_slides_span Negative Choice           (other predicate)
+    309  f64: pose_unit_norm Positive Choice                   box lane: mate_chart_slides_span Positive Choice           (other predicate)
+    195  f64: props_circle_axis_class Positive Check           box lane: positive_volume_exact Positive Check             (other predicate)
+     51  f64: ssi_hull_sup Zero Choice                         box lane: pcurve_projected_lever Positive Choice           (other predicate)
+     22  f64: bool_point_in_solid_advance Negative Choice      box lane: bool_point_in_solid_denom Positive Choice        (other predicate)
+     18  f64: pose_unit_norm Positive Choice                   box lane: <end>                                            (one log ends)
+      9  f64: path_leg_length Positive Choice                  box lane: trace_plane_misses Negative Choice               (other predicate)
+      9  f64: props_sphere_circle_on Zero Check                box lane: positive_volume_exact Positive Check             (other predicate)
+      6  f64: path_leg_length Positive Choice                  box lane: trace_plane_lead Positive Choice                 (other predicate)
+      6  f64: bool_point_in_solid_advance Positive Choice      box lane: bool_point_in_solid_denom Positive Choice        (other predicate)
+      4  f64: path_leg_length Positive Choice                  box lane: trace_plane_lead Negative Choice                 (other predicate)
+      3  f64: pose_unit_norm Positive Choice                   box lane: path_circle_radius Positive Choice               (other predicate)
+      2  f64: path_arc_center_radius Positive Choice           box lane: trace_plane_lead Positive Choice                 (other predicate)
+      2  f64: bool_point_in_solid_advance Negative Choice      box lane: bool_point_in_solid_denom Zero Choice            (other predicate)
+      2  f64: props_meridian_on_surface Zero Check             box lane: positive_volume_exact Positive Check             (other predicate)
+      2  f64: point_in_loop_side Zero Check                    box lane: point_in_loop_arm Positive Check                 (other predicate)
+      2  f64: path_leg_length Positive Choice                  box lane: trace_reaches Positive Choice                    (other predicate)
+      1  f64: session_box_reach Positive Choice                box lane: pose_unit_norm Positive Choice                   (other predicate)
+      1  f64: pcurve_line_chart_incident Zero Choice           box lane: pcurve_cylinder_chart_axial Zero Choice          (other predicate)
+      1  f64: pose_unit_norm Positive Choice                   box lane: face_chart_selection_pole Positive Choice        (other predicate)
+      1  f64: pcurve_envelope Zero Check                       box lane: pcurve_cylinder_chart_axial Zero Check           (other predicate)
+      1  f64: bool_point_in_solid_advance Positive Choice      box lane: bool_point_in_solid_denom Negative Choice        (other predicate)
+choices differ in 2108; how first_turn reads the first node that parts (kind, marked site):
+   2088  ('step', '')
+     18  ('ended', '')
+      2  ('turned', '[["pcurve_chart_placement", "Positive", "Negative"]]')
+of those, marks also differ in 36
+
+# 2. the box lane's first escalation at the nominal, by predicate: builds under a drive's box / plain
+      0 boxed  1314 plain  curve_pair_pose_parallel
+      0 boxed   409 plain  germ_side
+      1 boxed   257 plain  chart_singularity_nearer
+      4 boxed   187 plain  curve_carrier_gap
+      0 boxed    74 plain  section_site_foot_bend
+      1 boxed    39 plain  pcurve_span_covered
+      0 boxed    25 plain  curve_pair_pose_clear
+      0 boxed    20 plain  seam_cover_crossing
+      0 boxed    14 plain  split_join_order_u
+      0 boxed    13 plain  plane_eq_offset
+      0 boxed    12 plain  pm_census_ee_span_straddle
+      0 boxed     8 plain  mate_chart_pole
+      0 boxed     8 plain  link_offset_tie
+      0 boxed     7 plain  sector_straight
+      0 boxed     6 plain  pcurve_envelope
+      0 boxed     6 plain  pcurve_map_residual
+      0 boxed     4 plain  ssi_hull_sup
+      0 boxed     3 plain  split_join_frame_axis
+      0 boxed     3 plain  curve_carrier_piece_clear_by
+      0 boxed     3 plain  link_wedge
+      1 boxed     2 plain  carrier_endpoint_end
+      0 boxed     3 plain  props_sheet_apex_turn
+      0 boxed     2 plain  offset_axial_azimuth
+      2 boxed     0 plain  carrier_circles_identity
+      0 boxed     2 plain  assert_bound
+      0 boxed     1 plain  tube_wall_gap
+      0 boxed     1 plain  carrier_pose_planes_parallel
+      0 boxed     1 plain  curve_face_pose_kappa
+      0 boxed     1 plain  path_junction_turn
+      0 boxed     1 plain  curve_face_pose_graze_reach
+      0 boxed     1 plain  segment_gap
+      0 boxed     1 plain  trace_reaches
+      0 boxed     1 plain  revolve_full_vs_partial
+      0 boxed     1 plain  bool_touch_piece_clear
+      0 boxed     1 plain  path_corner_reach_arc
+      0 boxed     1 plain  dihedral_arm
+      0 boxed     1 plain  curve_face_pose_axis_parallel
+      0 boxed     1 plain  shared_row_touch
+      0 boxed     1 plain  fillet_leg_reach
+
+# 3. leaves with a node that fails where the witness builds, no escalation logged
+leaves: 27781
+   13908  budget   Extrude            the extrude op refused: the extrusion has no definite length across the sketch plane (it is in-plane or sliver
+   13759  split    Extrude            the extrude op refused: the extrusion has no definite length across the sketch plane (it is in-plane or sliver
+      49  budget   Profile            the replayed profile failed validation: profile is not simple: crossing between loop 0 segment 0 and loop 0 se
+      46  split    Profile            the replayed profile failed validation: profile is not simple: crossing between loop 0 segment 0 and loop 0 se
+       9  split    ProfileLaneReplay  profile loop 0's lane elaboration refused at step 2 on its own geometry under this binding (the f64 pass is th
+       5  reads_no_variable Skin               the skin construction refused: the skin's spline refused: weight 1 is an enclosure wider than a point, and a c
+       4  split    Extrude            the extrude op refused: an Euler operation refused: edge EdgeKey(6v1)'s description does not certify: the anal
+       1  budget   ProfileLaneReplay  profile loop 0's lane elaboration refused at step 2 on its own geometry under this binding (the f64 pass is th
+   13958  ('budget', 'no turned choice')
+       1  ('reads_no_variable', 'a choice turned at another node')
+       4  ('reads_no_variable', 'no turned choice')
+       1  ('reads_no_variable', 'turned: extrusion_normal_component')
+   13818  ('split', 'no turned choice')

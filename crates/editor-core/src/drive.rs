@@ -2055,8 +2055,17 @@ mod probe {
                         .collect()
                 };
                 br::emit(json!({"k": "dump", "w": witness.epoch.0, "box": render_box(box_),
-                    "witness": lines(&ra), "leaf": lines(&rb)}));
+                    "detail": render_reason_of(verdict),
+                    "witness": lines(&ra), "leaf": lines(&rb),
+                    "geom_witness": br::geometry(witness), "geom_leaf": br::geometry(leaf)}));
             }
+        }
+    }
+
+    fn render_reason_of(verdict: &LeafVerdict) -> String {
+        match verdict {
+            LeafVerdict::Refused(reason) => render_reason(reason),
+            _ => String::new(),
         }
     }
 

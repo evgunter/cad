@@ -34,7 +34,7 @@ Branch `boxfinish/probe-build-record` (never merged). Instrument: `crates/editor
 
 - Leaf replays: 35,683 in `editor-core` (305 drives, 34 range searches), 2,436 in the tour. Decided leaves: 2,017 and 488.
 - **Known flips are not separated.** 660 flip leaves turn a choice (`segment_gap` 300, `path_junction_turn` 220 with `side_planes_cosurface` 220, `extrusion_normal_component` 122, `carrier_line_circle` 18); all 660 hold the witness's record. The `docm9_range` rows hold 219 of them, the `m10_3` and `m10_6` driver rows (the planted-flip fixture `notch` among them) 319, my crease document 12. A flip leaf's record dumped beside its witness's (the crease document, 95 lines) is equal line for line.
-- Inspected: the pairs are the same cells, same incidence, same carrier kinds and senses. They differ in geometry the cells do not state: a crease's convexity (`notch`: a convex point below zero, a notch above), which side of the sketch plane an extrusion lies on.
+- Inspected: the pairs are the same cells, same incidence, same carrier kinds and senses. They differ in geometry the cells do not state, and on two of the four classes in nothing but where a vertex sits (addendum, A2).
 - Converse hunt: 0 groups of decided leaves with equal choices and different records; 0 with equal name tables and a different record (incidence added nothing to the names on today's documents).
 - The instrument does see other cells: two blocks slid apart (`probe_build_record.rs`), 12 leaves past the parting hold 5 lumps against the witness's 4 and other edge names. All 12 are undecided (`side_at_infinity_edge`).
 
@@ -44,7 +44,7 @@ Branch `boxfinish/probe-build-record` (never merged). Instrument: `crates/editor
 |---|---|---|
 | surface and curve carrier kinds, closed-form or general spelling (an edge's stored and described kind) | never (10,872 builds, 2,505 decided leaves) | the measure table (a closed form per carrier pair), STEP export |
 | face senses | never | `gap`'s outward normal, mass properties |
-| a crease's convexity, positions, the side an extrusion lies on | **on all 660 turned flips** | a blend of that edge; every measure value |
+| positions; a crease's convexity (the `path_junction_turn` class only) | **on all 660 turned flips** | a blend of that edge; every measure value |
 | a coincidence's discharge | once (`Sym<Interval>`: `Proven` for `Numeric`) | the coincidence report |
 | a coincidence's margin, a placement's motion, a datum's frame | numbers at the run's scalar; not compared | positional readers |
 | an assertion's verdict | 82 certified leaves read `Violated` for `Holds` | reports only (E10 leaves it out by rule) |
@@ -81,3 +81,32 @@ Final leaves, summed over the suite's drives (a fixture counts once per row that
 - Other eps rows; hosted CI (local runs only, as the brief says).
 - 24 `editor-core` rows are red under the probe (rows that count evaluations or finishes; one killed for memory; my cone row, stopped). Their lines up to the failure are in the data. Three of them (`docm9_range`'s plate row, `m10_9_what_the_registry_buys`, `m10_p_lift::at_sym_a_fixed_box_is_the_build`) are red with the probe switched off too; I did not build clean main to confirm.
 - One tour nightly row (`the_cut_plates_first_subtract_...`) is red with the probe's leaf lines on; not chased.
+
+## Addendum (the orchestrator's follow-ups; tables in `probe/build-record/out/addendum*.txt`)
+
+**A1. Sensitivity.** Confirmed on other cells (section 2's blocks). A document where the same named cells meet differently: not built; none occurs in 38,119 leaf replays.
+
+**A2. What differs on a flip leaf, one representative per class** (instrument's geometry dump: every vertex's point, every face's sense and surface, every edge's carrier, witness against leaf). In all four: same cells, same names, same incidence, every face sense equal, every carrier kind equal, every standing equal, no measure node.
+- `segment_gap` Negative to Positive (300 leaves; `notch`): the moving vertex sits at y = -0.25 in the witness and y in [-0.175, -0.1] over the leaf. **Same side of zero: both are the convex point.** A consumer holding the leaf's body sees the witness's body with one corner 0.075 to 0.15 nearer the base line, and nothing else.
+- `path_junction_turn` Positive to Negative with `side_planes_cosurface` (220; `notch` under `docm9_range`): y = -0.125 in the witness, [0.006, 0.025] over the leaf. The corner has crossed the base line: the crease along its lateral edge is concave where the witness's is convex. Seven faces, fifteen edges, ten vertices either way; the two walls at that corner tilt the other way.
+- `extrusion_normal_component` Positive to Negative (122; a slab of depth 3e-8 in the witness): the end cap sits at z in [8e-8, 1.3e-7] over the leaf. **The extrusion does not change side; it is thicker.** A consumer sees a slab 3 to 4 times as deep. (The report's first wording, "which side of the sketch plane", was my inference and is wrong; corrected above.)
+- `carrier_line_circle` Negative to Positive (18; the band-parameter plate): the hole's two poles sit at x = 0.75 and 1.25 in the witness and [0.59, 0.60] and [1.40, 1.41] over the leaf, the end cap at z in [0.34, 0.66] for 0.5. A larger hole, the same cells.
+- So on 422 of the 660 named flips the turned choice changed nothing a reader of the body can see but coordinates the leaf's own enclosures already carry; on 220 it changed one crease's convexity.
+
+**A3. Leaves with a node that fails where the witness builds, no escalation logged (27,781).** `Extrude` "no definite length across the sketch plane" 27,667 (13,908 end as `Budget`, 13,759 split); `Profile` "not simple: crossing between loop 0 segment 0 and ..." 95; `ProfileLaneReplay` "refused at step 2 on its own geometry under this binding" 10; `Skin` "weight 1 is an enclosure wider than a point" 5 (`ReadsNoVariable`); `Extrude` rung-3 certificate 4. A turned choice at another node: 1 leaf (`extrusion_normal_component`); 0 among the 13,958 that end as `Budget`.
+
+**A4. The 2,311 decided builds with equal records and different logs: every first difference** (`f64` | box lane). `pose_unit_norm` Choice | `session_box_reach` 1,348, | `mate_chart_slides_span` 625, | end of log 18; `props_circle_axis_class` Check | `positive_volume_exact` 195; `ssi_hull_sup` Zero Choice | `pcurve_projected_lever` 51; `bool_point_in_solid_advance` | `bool_point_in_solid_denom` 28; `path_leg_length` | `trace_plane_misses`/`trace_plane_lead`/`trace_reaches` 21; `props_sphere_circle_on` Check | `positive_volume_exact` 9; the rest singles (full list in the file). Choices differ in 2,108: `first_turn` reads 2,088 as `Parting::Step`, 18 as `Ended`, 2 as a turn; **none parts at a marked query**, and marks differ in 36 of them, so the log does not say what steered them.
+
+**A5. The box lane's first escalation at the nominal, by predicate** (2,445 builds). Under a drive's box: 9 (`curve_carrier_gap` 4, `carrier_circles_identity` 2, three singles). Plain evaluations: all the rest. One representative margin each (`Interval`, band zero 1e-9, escalate 1e-8 unless said):
+- `curve_pair_pose_parallel` 1,314: margin `Invalid`.
+- `germ_side` 409: [-6.3e-13, 6.3e-13], decorated `Rejection { sign: Zero, passes: NonZero }`.
+- `chart_singularity_nearer` 258: [-5.6e-17, 5.6e-17], band zero 2.2e-308.
+- `curve_carrier_gap` 191: [0, 0.114].
+- `section_site_foot_bend` 74: margin `Invalid`.
+- `pcurve_span_covered` 40: [-8.9e-16, 8.9e-16], band zero 5e-324.
+- `curve_pair_pose_clear` 25: [-1.00000056e-8, -9.9999944e-9], straddling the band's edge.
+- `seam_cover_crossing` 20: [-6.28, 18.85].
+- `split_join_order_u` 14: [-2.4e-15, 2.4e-15], band zero 5e-324.
+- `plane_eq_offset` 13 and `mate_chart_pole` 8: wholly in band ([5.5e-9, 5.5e-9]; [5.0e-9, 5.0e-9]), terminal slivers.
+
+**A6. The loft whose `Skin` fails with no escalation** (3 builds, one document, `e6_drive_over_a_loft_at_interval::an_arc_loft_refuses_the_root_under_a_box_elsewhere`): `Skin(Structure(Built(CarrierWeightNotAPoint { index: 1 })))`, with 0 escalations on any node's log. I re-ran one of the three.
