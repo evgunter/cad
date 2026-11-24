@@ -9,15 +9,28 @@
 //! 1. **Geometric trilean (definite-different)**: parallelism margin
 //!    `‖n₁ × n₂‖·arm` (`plane_eq_parallel`, the arm the extent's
 //!    radius, the offsets read at its centre) definitely positive ⇒
-//!    [`CarrierRelation::Distinct`]; else offset margin `(d₁ − σ·d₂)`
-//!    (`plane_eq_offset`, σ the orientation sign) definitely nonzero
-//!    ⇒ parallel-but-offset ⇒ `Distinct`.
+//!    [`CarrierRelation::Distinct`]; else offset margin
+//!    `d₁ − (n₁·n₂)·d₂` (`plane_eq_offset`) definitely nonzero ⇒
+//!    parallel-but-offset ⇒ `Distinct`.
 //! 2. **Zero glues** (D10, Booleans): an offset margin decided Zero is
 //!    one plane, `SameOriented` or `SameOpposite` by the decided
 //!    orientation, and the decided margin rides out with the verdict
 //!    for the caller to record. An offset in
 //!    band is a sliver and refuses ([`CarrierEqError::Undecided`]):
 //!    near-coincidence never silently becomes contact (F6).
+//!
+//! **The offset holds no decided sign.** With `dᵢ = nᵢ·(oᵢ − c)` each
+//! plane's signed distance from the extent's centre `c` and
+//! `fᵢ = c + dᵢ·nᵢ` the centre's foot on plane `i`, the offset is
+//! `n₁·(f₁ − f₂)`: how far the second plane's foot stands off the
+//! first plane. Each normal enters it twice, so it is the same
+//! expression whichever way either normal is spelled, and the
+//! orientation rung only labels the verdict. It is read at the feet of
+//! the region in use and never at a plane's stored origin, which may
+//! lie any distance along its plane from that region. The mirror
+//! claim, the first plane's foot off the second plane, is
+//! `(n₁·n₂)·offset − ‖n₁ × n₂‖²·d₂`: the offset to within a sign and a
+//! term second order in the tilt the parallelism rung has bounded.
 //!
 //! In-band parallelism and orientation margins escalate typed
 //! ([`CarrierEqError::Escalated`]), naming the rung that could not decide
@@ -110,6 +123,13 @@ pub fn oriented_plane_eq<T: Decide>(
 
 /// The ladder itself (module docs), with the margin that decided a
 /// coincidence: the offset's decided Zero.
+///
+/// At `f64` the margins are the pose's values to rounding. At
+/// `Interval` they enclose every pose the descriptions admit, so a Zero
+/// holds for all of them. At a symbolic scalar the offset is zero as an
+/// expression where the two descriptions are one plane as formulas,
+/// whichever sign each normal is spelled with, and the orientation is
+/// read off the value alone.
 pub(crate) fn plane_ladder<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
@@ -157,22 +177,22 @@ pub(crate) fn plane_ladder<T: Decide>(
     // dimensionless, and the length band wants the displacement the
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
-    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
-    // `relation` rides beside σ: it is the orientation this decision
-    // just made definite, and the relation the offset's Zero glues
-    // under. A zero has no side to read, so it is the gate's rejection.
+    let cos = p1.normal.dot(p2.normal);
+    let sign_margin = Margin::levered(cos, arm);
+    // The orientation this decision makes definite is the relation the
+    // offset's Zero glues under, and enters no margin. A zero has no
+    // side to read, so it is the gate's rejection.
     let side = decide_nonzero("plane_eq_orient", sign_margin, band).map_err(|diag| {
         CarrierEqError::Escalated {
             rung: PlaneRung::Orientation,
             diag,
         }
     })?;
-    let sigma = side.unit::<T>();
     let relation = match side {
         NonzeroSign::Positive => CarrierRelation::SameOriented,
         NonzeroSign::Negative => CarrierRelation::SameOpposite,
     };
-    let offset_margin = Margin::of(d1 - sigma * d2);
+    let offset_margin = Margin::of(d1 - cos * d2);
     match CoincidenceMeasure::decide("plane_eq_offset", offset_margin, band) {
         Ok(
             offset @ Decided {
@@ -266,6 +286,203 @@ mod tests {
             (rel, discharge(margin))
         });
         assert_eq!(got, (CarrierRelation::SameOriented, false));
+    }
+
+    /// The plane `z = 0` against a plane crossing it at the origin,
+    /// tilted by `tilt`, its origin stated `far` along itself.
+    fn tilted_through_the_centre<T: Decide>(tilt: f64, far: f64) -> [PlaneDesc<T>; 2] {
+        let (s, c) = tilt.sin_cos();
+        let k = T::from_f64;
+        [
+            PlaneDesc {
+                origin: Point3::new(k(0.0), k(0.0), k(0.0)),
+                normal: Vec3::new(k(0.0), k(0.0), k(1.0)),
+            },
+            PlaneDesc {
+                origin: Point3::new(k(far) * k(c), k(0.0), -(k(far) * k(s))),
+                normal: Vec3::new(k(s), k(0.0), k(c)),
+            },
+        ]
+    }
+
+    /// The far-origin poses' verdicts at `T`, at the ladder and at the
+    /// face-pair door, in both operand orders.
+    fn far_origin_verdicts<T: Decide>(band: Band) -> Vec<(String, Option<CarrierRelation>)> {
+        use crate::carrier_eq::{CarrierDesc, pair_door_reading};
+        let z = band.zero();
+        let extent = ConsumedExtent::arm(T::from_f64(1.0));
+        let mut got = Vec::new();
+        for (tilt, far) in [
+            (0.2 * z, 0.0),
+            (0.2 * z, 30.0),
+            (0.2 * z, 1e3),
+            (1e-4 * z, 1e5),
+        ] {
+            let [a, b] = tilted_through_the_centre::<T>(tilt, far);
+            for (order, x, y) in [("as stated", a, b), ("exchanged", b, a)] {
+                let what = format!("tilt {tilt:e}, origin {far} away, {order}");
+                let ladder = plane_ladder(&x, &y, &extent, band);
+                got.push((
+                    format!("{what}, the ladder: {ladder:?}"),
+                    ladder
+                        .ok()
+                        .and_then(CarrierVerdict::one)
+                        .map(|(rel, _)| rel),
+                ));
+                let door = pair_door_reading(
+                    &CarrierDesc::Plane(x),
+                    &CarrierDesc::Plane(y),
+                    &extent,
+                    band,
+                );
+                got.push((
+                    format!("{what}, the pair door: {door:?}"),
+                    door.ok()
+                        .and_then(|read| read.verdict().one())
+                        .map(|(rel, _)| rel),
+                ));
+            }
+        }
+        got
+    }
+
+    /// **Two planes that are one plane over the region are one plane
+    /// wherever an origin is stated.** The planes cross at the extent's
+    /// centre, tilted a fifth of the zero band at its arm, and the
+    /// second's origin is stated on it up to a thousand arms away (and
+    /// `1e5` arms at a tilt of `1e-4` of the band): one plane at every
+    /// distance, in either operand order, at `f64` and at `Interval`, at
+    /// the ladder and at the face-pair door. Red where the offset is read
+    /// at a stored origin (`n₁·(o₂ − o₁)`): the tilt is then levered at
+    /// the origin's distance, undecided at 30 arms and apart at `1e3`.
+    #[test]
+    fn planes_tilted_in_band_are_one_plane_wherever_an_origin_is_stated() {
+        let band = band();
+        for (scalar, got) in [
+            ("f64", far_origin_verdicts::<f64>(band)),
+            ("Interval", far_origin_verdicts::<geom_core::Interval>(band)),
+        ] {
+            assert_eq!(got.len(), 16, "{scalar}");
+            for (what, relation) in got {
+                assert_eq!(
+                    relation,
+                    Some(CarrierRelation::SameOriented),
+                    "{scalar}: {what}"
+                );
+            }
+        }
+    }
+
+    /// Two walls on the plane `y = −h/2` facing opposite ways, each
+    /// normal spelled as `spelling` gives it from the side it was built
+    /// along: a literal axis, or the side's chord over its own length
+    /// (`w/√w²`, `v/√v²`), so one plane's normal carries a sign factor
+    /// the other's does not.
+    fn walls_spelled_two_ways<T: Decide>([w, v, h]: [T; 3], literal: bool) -> [PlaneDesc<T>; 2] {
+        let k = T::from_f64;
+        let y = -(h / k(2.0));
+        let down = if literal {
+            k(-1.0)
+        } else {
+            -(w / (w * w).sqrt())
+        };
+        [
+            PlaneDesc {
+                origin: Point3::new(k(0.0), y, k(0.0)),
+                normal: Vec3::new(k(0.0), down, k(0.0)),
+            },
+            PlaneDesc {
+                origin: Point3::new(v, y, k(0.0)),
+                normal: Vec3::new(k(0.0), v / (v * v).sqrt(), k(0.0)),
+            },
+        ]
+    }
+
+    /// **One plane is one plane as an expression whichever way each
+    /// normal is spelled.** A wall whose normal is a literal axis beside
+    /// one whose normal is its side's chord over its length, and two
+    /// walls each spelled through its own side, in either operand order:
+    /// at the ladder and at the face-pair door the coincidence's margin
+    /// discharges as a theorem at `Sym<f64>`, and over a box at
+    /// `Sym<Interval>`, where the enclosures are a fifth of a metre wide,
+    /// the pair is one plane all the same. Red where a decided
+    /// orientation sign multiplies a normal (`d₁ − σ·d₂`, or the swing
+    /// `|n₁ − σ·n₂|`): the Zero then needs `v/√v² ≡ 1`.
+    #[test]
+    fn one_plane_spelled_with_two_signs_is_one_plane_as_an_expression() {
+        use crate::carrier_eq::{CarrierDesc, pair_door_reading};
+        use geom_core::sym::deferred::{discharge, with_deferred_session};
+        use geom_core::{Interval, ParamSymbol, Real, Sym, SymBudget, SymRetry, SymRules};
+        let band = band();
+        let budget = SymBudget {
+            max_terms: 256,
+            max_degree: 64,
+        };
+        let symbol = |name: &str| ParamSymbol::new(test_utils::symbol_id(name));
+        fn ordered<T: Decide>([a, b]: [PlaneDesc<T>; 2], exchanged: bool) -> [PlaneDesc<T>; 2] {
+            if exchanged { [b, a] } else { [a, b] }
+        }
+        for literal in [true, false] {
+            for exchanged in [false, true] {
+                let what = format!("literal axis {literal}, exchanged {exchanged}");
+                let (proved, _) =
+                    with_deferred_session(budget, SymRules::shipped(), SymRetry::none(), || {
+                        type S = Sym<f64>;
+                        let at = |name, value| S::param(symbol(name), value);
+                        let [a, b] = ordered(
+                            walls_spelled_two_ways(
+                                [at("w", 2.0), at("v", 2.0), at("h", 1.0)],
+                                literal,
+                            ),
+                            exchanged,
+                        );
+                        let extent = ConsumedExtent::arm(S::from_f64(1.0));
+                        let ladder = plane_ladder(&a, &b, &extent, band)
+                            .ok()
+                            .and_then(CarrierVerdict::one);
+                        let door = pair_door_reading(
+                            &CarrierDesc::Plane(a),
+                            &CarrierDesc::Plane(b),
+                            &extent,
+                            band,
+                        )
+                        .ok()
+                        .and_then(|read| read.verdict().one());
+                        [ladder, door].map(|one| one.map(|(rel, margin)| (rel, discharge(margin))))
+                    });
+                assert_eq!(
+                    proved,
+                    [Some((CarrierRelation::SameOpposite, true)); 2],
+                    "{what}: the ladder's and the pair door's margins discharge"
+                );
+                let (over_a_box, _) = geom_core::sym::with_session(budget, || {
+                    type S = Sym<Interval>;
+                    let at = |name, lo, hi| S::param(symbol(name), Interval::from_bounds(lo, hi));
+                    let [a, b] = ordered(
+                        walls_spelled_two_ways(
+                            [at("w", 1.9, 2.1), at("v", 1.9, 2.1), at("h", 0.9, 1.1)],
+                            literal,
+                        ),
+                        exchanged,
+                    );
+                    let extent = ConsumedExtent::arm(S::from_f64(1.0));
+                    let ladder = plane_ladder(&a, &b, &extent, band).map(CarrierVerdict::relation);
+                    let door = pair_door_reading(
+                        &CarrierDesc::Plane(a),
+                        &CarrierDesc::Plane(b),
+                        &extent,
+                        band,
+                    )
+                    .map(|read| read.verdict().relation());
+                    [ladder.ok(), door.ok()]
+                });
+                assert_eq!(
+                    over_a_box,
+                    [Some(CarrierRelation::SameOpposite); 2],
+                    "{what}: one plane over the box"
+                );
+            }
+        }
     }
 
     /// **Zero glues, whatever the planes' descriptions** (D10): two

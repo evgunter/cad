@@ -604,10 +604,12 @@ pub fn pair_door_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     match ladder_reading(c1, c2, extent, band)? {
         PairDoorReading::Verdict(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent_as(c1, c2, extent, (relation, margin), band)
-                .map_err(|diag| CarrierEqError::Undecided {
-                    coincidence: CoincidenceMeasure::not_zero(diag),
-                    relation,
+            let margin =
+                coincident_over_extent_as(c1, c2, extent, margin, band).map_err(|diag| {
+                    CarrierEqError::Undecided {
+                        coincidence: CoincidenceMeasure::not_zero(diag),
+                        relation,
+                    }
                 })?;
             Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                 relation,
@@ -858,8 +860,9 @@ fn at_consumed_extent<T: geom_core::Real>(
 /// Per kind (`c` the ball's centre, `R` its radius, `t` the tilt as
 /// [`line_tilt`]'s chord, which bounds how far a unit offset turns):
 ///
-/// - plane — the offset `n̂₁·(o₁ − c) − σ·n̂₂·(o₂ − c)` read at `c`,
-///   plus `|n̂₁ − σ·n̂₂|·R`; σ is the decided orientation;
+/// - plane — with `dᵢ = n̂ᵢ·(oᵢ − c)`, the offset
+///   `d₁ − (n̂₁·n̂₂)·d₂` read at `c`, plus `‖n̂₁ × n̂₂‖·R`, plus
+///   `‖n̂₁ × n̂₂‖²·|d₂|` ([`reading`]);
 /// - sphere — the centre separation plus the radius difference;
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
 ///   axis) plus `t` times the reach from `p` or from its foot on the
@@ -877,15 +880,11 @@ fn coincident_over_extent_as<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
-    (relation, data): (CarrierRelation, MarginDiag),
+    data: MarginDiag,
     band: Band,
 ) -> Result<MarginDiag, Indeterminate> {
-    let sigma = match relation {
-        CarrierRelation::SameOpposite => -T::one(),
-        CarrierRelation::SameOriented | CarrierRelation::Distinct => T::one(),
-    };
     // Two tori's coincidence already stands on this bound.
-    let Some(((row, straddle), upper)) = reading(c1, c2, extent.reach, sigma) else {
+    let Some(((row, straddle), upper)) = reading(c1, c2, extent.reach) else {
         return Ok(data);
     };
     match decide_reported(row, Margin::of(upper), band) {
@@ -907,13 +906,28 @@ const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_stra
 
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
-/// ([`coincident_over_extent_as`]), the planes' orientation sign `sigma`
-/// decided; `None` for a kind mismatch or two tori.
+/// ([`coincident_over_extent_as`]); `None` for a kind mismatch or two
+/// tori.
+///
+/// The bound is of the distance from a point of either carrier in the
+/// ball to the other carrier. At `f64` it is that bound to rounding; at
+/// `Interval` its upper end is a certified bound for every pose the
+/// descriptions admit; at a symbolic scalar it is zero as an expression
+/// where the two descriptions are one carrier as formulas.
+///
+/// The plane arm, with `dᵢ = nᵢ·(oᵢ − c)` and `fᵢ = c + dᵢ·nᵢ` the
+/// centre's foot on plane `i`: a point `x` of the second plane in the
+/// ball stands `|n₁·(x − f₂) + n₁·(f₂ − f₁)|` off the first, and
+/// `x − f₂` lies in the second plane no longer than `R`, so that is at
+/// most `‖n₁ × n₂‖·R + |d₁ − (n₁·n₂)·d₂|`. A point of the first plane
+/// stands off the second by the same with the planes exchanged, and the
+/// exchanged offset is `(n₁·n₂)·(d₁ − (n₁·n₂)·d₂) − ‖n₁ × n₂‖²·d₂`, so
+/// the third term makes the one sum a bound both ways. No decided sign
+/// enters it: each normal appears twice in every term.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     reach: crate::ExtentBall<T>,
-    sigma: T,
 ) -> Option<((&'static str, &'static str), T)> {
     Some(match (*c1, *c2) {
         (
@@ -927,9 +941,14 @@ fn reading<T: Decide>(
             }),
         ) => {
             let centre = reach.center();
-            let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
-            let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
-            (PLANE_REACH, offset.abs() + swing)
+            let (d1, d2) = (n1.dot(o1 - centre), n2.dot(o2 - centre));
+            let cross = n1.cross(n2);
+            let offset = d1 - n1.dot(n2) * d2;
+            let swing = Margin::levered(cross.norm(), reach.lever()).value();
+            (
+                PLANE_REACH,
+                offset.abs() + swing + cross.norm_squared() * d2.abs(),
+            )
         }
         (
             CarrierDesc::Sphere {
@@ -1531,7 +1550,7 @@ mod tests {
         for (a, b) in [(&one, &other), (&other, &one)] {
             let arm = consumed_arm(a, b, ball).length();
             assert!((arm - 6.0).abs() < 1e-9, "{arm}");
-            let (_, upper) = reading(a, b, ball, 1.0).expect("two cones");
+            let (_, upper) = reading(a, b, ball).expect("two cones");
             let want = 34.0_f64.sqrt() + 0.01 * 6.0;
             assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
         }
@@ -1559,7 +1578,7 @@ mod tests {
         else {
             unreachable!("two cylinders")
         };
-        let (_, upper) = reading(&first, &second, ball, 1.0).expect("two cylinders");
+        let (_, upper) = reading(&first, &second, ball).expect("two cylinders");
         let want = 1.0 + line_tilt(a1.get(), a2.get()) * (5.0_f64.sqrt() + 1.0);
         assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
     }
@@ -1770,6 +1789,52 @@ mod tests {
             carrier_eq(&p, &c, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
+    }
+
+    /// **The plane pair's bound holds from either plane.** Two planes at
+    /// tilts up to past a right angle and offsets up to most of the
+    /// ball's radius from its centre, in both operand orders: every
+    /// sampled point of either plane's disc in the ball stands no
+    /// farther off the other plane than the bound. Red without the
+    /// second-order term, at the first plane through the centre and the
+    /// second half a radius off it, a radian apart.
+    #[test]
+    fn the_plane_bound_holds_from_either_plane() {
+        let ball = unit_ball([0.0; 3]);
+        let offsets = [0.0, 0.5, -0.7];
+        for theta in [1e-3, 0.3, 1.0, 2.5] {
+            let (s, c) = f64::sin_cos(theta);
+            for (d1, d2) in offsets.into_iter().flat_map(|a| offsets.map(|b| (a, b))) {
+                let flat = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0), d1);
+                let leant = (Vec3::new(s, 0.0, c), Vec3::new(c, 0.0, -s), d2);
+                for (first, second) in [(flat, leant), (leant, flat)] {
+                    // Each origin stated off the centre's foot, along its plane.
+                    let desc = |(n, u, d): (Vec3<f64>, Vec3<f64>, f64)| PlaneDesc {
+                        origin: Point3::origin() + n * d + u * 3.0,
+                        normal: n,
+                    };
+                    let (p1, p2) = (desc(first), desc(second));
+                    let (_, upper) =
+                        reading(&CarrierDesc::Plane(p1), &CarrierDesc::Plane(p2), ball)
+                            .expect("two planes");
+                    for ((n, u, d), other) in [(first, p2), (second, p1)] {
+                        let rho = (1.0 - d * d).sqrt();
+                        let v = n.cross(u);
+                        for k in 0..16 {
+                            let (sin, cos) =
+                                f64::sin_cos(f64::from(k) * std::f64::consts::TAU / 16.0);
+                            let x = Point3::origin() + n * d + (u * cos + v * sin) * rho;
+                            let off = other.normal.dot(x - other.origin).abs();
+                            assert!(
+                                off <= upper + 1e-12,
+                                "tilt {theta}, offsets ({d1}, {d2}): a point {off} off the \
+                                 other plane against a bound of {upper}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// The plane arm is the plane ladder's: `carrier_eq` on two plane

@@ -398,6 +398,87 @@ fn a_seat_between_two_constructions_of_one_carrier_proves() {
     );
 }
 
+/// A rectangle verb's block on a table polygon's block, each placed
+/// unturned: the rectangle's lower wall and the polygon's upper wall
+/// lie on the plane `y = -h/2`, the rectangle's side spanning `w` and
+/// the polygon's `v`, two variables of one value. Their one side seat.
+fn a_rectangle_on_a_table_polygon() -> Vec<Seat> {
+    let mut doc = ProfileDoc::empty_derived("g-rect-on-table", Tol::witness());
+    let mut params = BTreeMap::new();
+    for (name, value) in [("w", 2.0), ("v", 2.0), ("h", 1.0), ("t", 1.0)] {
+        doc = declare(doc, name, Dimension::Length, value);
+        params.insert(VarName::new(name).unwrap(), Dimension::Length);
+    }
+    let f = |text: &str| editor_core::parse_formula(text, &params).unwrap();
+    let zero = || Formula::zero(Dimension::Length);
+    let loops = [
+        LoopProgram::Rectangle {
+            centre: [f("w / 2"), zero()],
+            width: f("w"),
+            height: f("h"),
+        },
+        LoopProgram::Chain(vec![
+            ProgramStep::At([zero(), f("0 * h - h / 2 - t")]),
+            ProgramStep::LineTo(ProgramTarget::Point([f("v"), f("0 * h - h / 2 - t")])),
+            ProgramStep::LineTo(ProgramTarget::Point([f("v"), f("0 * h - h / 2")])),
+            ProgramStep::LineTo(ProgramTarget::Point([zero(), f("0 * h - h / 2")])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]),
+    ];
+    let mut members = Vec::new();
+    for loop_ in loops {
+        let (d, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (d, block) = insert(
+            d,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let body = d.output(block, 0).unwrap();
+        let placed = editor_core::Placed::of(
+            &d,
+            Vec::new(),
+            vec![(
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            )],
+        );
+        let node = fixture::place_node(
+            &d,
+            editor_core::BodyRead::plain(Operand::Var(body)),
+            placed.bundle(),
+        );
+        let (d, p) = insert(d, node);
+        doc = fixture::assemble_world_copies(d);
+        members.push(p);
+    }
+    side_seats(&doc, &members).0
+}
+
+/// **A rectangle verb's wall on a table polygon's wall is one plane by
+/// construction.** The two walls' normals are spelled through two
+/// different sides (`w` and `v`), so the seat proves only where the
+/// one-plane reading is zero whichever way each normal is spelled. Red
+/// if the reading multiplies a normal by the orientation it decided.
+#[test]
+fn a_rectangle_verbs_wall_on_a_table_polygons_wall_proves_its_seat() {
+    assert_eq!(
+        a_rectangle_on_a_table_polygon(),
+        [Seat {
+            members: (0, 1),
+            proven: true,
+        }]
+    );
+}
+
 /// **Unmeasured risk, measured**: a ring of 12 on a tilted axis — each
 /// member spun by `k/12` of a turn about z and then tilted by a seventh
 /// of a turn about x — so every seat's residual multiplies the tilt's
