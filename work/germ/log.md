@@ -1977,3 +1977,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Makes no finiteness claim.
   - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
 - 2026-11-24 00:20 — **Fable usage limit hit** (it resets 2026-11-29 14:00 UTC). It stopped PR 7658's review, whose drawn arm was Fable. Under rule 12 I asked the user whether to proceed on Opus or pause, and dispatch nothing in a Fable agent's place until answered. Work already running on Opus continues.
+- 2026-11-24 00:20 — **PR 7645 ([sizes]) merged** (`bafc8f3c97`) on Ev's approval. Ev's one change was the name: `quantity::Length` exists, so the type is `Size`. Fork log row 307 is complete. The build (`no-sign-decision-gives-a-conic-a-finite-size`) is next to spec. Its dispatch waits on the user's answer about the Fable outage, because draws are paused (rule 12).
