@@ -161,6 +161,8 @@ pub use spoken::{
     held_by, node_kind_noun, node_text, spoken_by, spoken_within, var_text,
 };
 
+#[cfg(debug_assertions)]
+pub use eval::halves_gathered_on_this_thread;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,

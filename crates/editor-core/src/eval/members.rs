@@ -9,8 +9,11 @@
 //! operation it reads as a member replaced by that member
 //! ([`overlay`]). A read of a family whole — a list entry spliced in,
 //! `…xs`, or an indexed read `xs[i]`, a selection's among them —
-//! reads the family the member stands for ([`super::NodeValue::whole`]),
-//! so one operation may read a family plainly at one seat and whole at
+//! reads the family the member stands for ([`super::NodeValue::whole`]):
+//! a family of bodies, which is one value, or a family of anything else,
+//! which is its members alone ([`super::Whole`]) and which each reader
+//! refuses or reads the members of, as `wire`'s operand door states. So
+//! one operation may read a family plainly at one seat and whole at
 //! another. A member that refuses
 //! refuses the family, naming the member.
 //!

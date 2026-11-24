@@ -389,7 +389,9 @@ impl ProductRefusal {
 /// One variant per [`ProductError`] arm, except [`ProductError::Read`],
 /// whose standing decides which refusal it is to a caller: one variant
 /// per state the feature tree draws that node in — no entry, failed,
-/// poisoned. [`ProductError::kind`] matches exhaustively, the standing
+/// poisoned — and a family that is no one value, which is the read
+/// refusing ([`ProductErrorKind::ReadRefused`], beside
+/// [`ProductError::ReadRefused`]'s own). [`ProductError::kind`] matches exhaustively, the standing
 /// included, so an arm added to the error or a state added to
 /// [`NodeStanding`] reds `kind` itself, here in this crate.
 ///
@@ -502,7 +504,8 @@ impl ProductError {
                 NodeStanding::Failed { .. } => ProductErrorKind::ReadFailed,
                 NodeStanding::Poisoned { .. } => ProductErrorKind::ReadPoisoned,
                 // A family that is no one value, and no split whose
-                // yielded half the gather reads: the read refuses.
+                // yielded half the gather reads (a family of measures,
+                // say): the read refuses.
                 NodeStanding::Members { .. } => ProductErrorKind::ReadRefused,
             },
             Self::ReadRefused { .. } => ProductErrorKind::ReadRefused,
@@ -1170,7 +1173,8 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // member's half, read as an evaluator reader outside the binder
     // reads it (D10 `[repetition]`): its bodies are the halves, named
     // per member in its own table.
-    let yielded = match evaluation.yielded_half(node, port) {
+    let split = matches!(doc.node(node), Some(crate::node::Node::Split { .. }));
+    let yielded = match split.then(|| evaluation.yielded_half(node, port)).flatten() {
         Some(Ok(family)) => Some(family),
         Some(Err(kind)) => {
             return Err(ProductError::ReadRefused {

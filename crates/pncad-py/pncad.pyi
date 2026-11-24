@@ -698,7 +698,10 @@ class ProductError(PncadError):
     Its message names each node as the evaluation's own document holds
     it (its label and tag, or its kind and tag with no label): the document the gather was taken of.
     `node` and `through` carry the full ids: a failed or poisoned
-    operation and the failed node that poisoned it. `empty_product` is
+    operation and the failed node that poisoned it, or, on
+    `read_refused`, the node whose read refused (a yielded split half
+    one of whose members' halves is empty, or a family that is no one
+    value). `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
     gone and `product_outside_world` one an edit moved out of the
     world, `read` then the variable it reads, and `None` on every other
@@ -792,7 +795,8 @@ class ReadbackError(PncadError):
     the name against the evaluation (`no_such_name`, `ambiguous`,
     `wrong_kind`, `whole_body`, `no_bodies`, `no_such_body`, and the
     node ladder `node_not_evaluated` / `node_failed` /
-    `node_poisoned`); the GEOMETRY half reads the carrier and arrives
+    `node_poisoned` / `node_members`, the last a node evaluated once
+    per member that is no one value); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
     `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
     or foreign handle.
@@ -825,9 +829,9 @@ class HitTestError(PncadError):
     typed, and an error is never flattened into it — so catching this
     class never means "nothing was there".
 
-    Three arms are the standing ladder, spelled exactly as
+    Four arms are the standing ladder, spelled exactly as
     `ReadbackError` spells it (`node_not_evaluated`, `node_failed`,
-    `node_poisoned`): a mesh displayed for a node this evaluation did
+    `node_poisoned`, `node_members`): a mesh displayed for a node this evaluation did
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
@@ -5718,8 +5722,8 @@ class Resolution:
 
     `variant` is WHICH arm, under the two states that have one:
     `vanished`, `ambiguous`, `read_gone` or `node_gone` on a failure;
-    `target_failed`, `target_poisoned` or `target_not_evaluated` on an
-    indeterminate; `None` when resolved. It is a second vocabulary
+    `target_failed`, `target_poisoned`, `target_members` or
+    `target_not_evaluated` on an indeterminate; `None` when resolved. It is a second vocabulary
     rather than a finer `status` because the two answer different
     questions — `status` is what a caller must HANDLE, `variant` is
     what a caller offering a REPAIR reads. A tie is refined among

@@ -17,9 +17,15 @@ use geom_core::Tol;
 /// split a quarter up, the binder yielding both halves. The document and
 /// the halves' variables, above then below.
 fn split_each() -> (ProfileDoc, [VarId; 2]) {
+    let (doc, halves, _) = split_each_along(TargetAxis::X);
+    (doc, halves)
+}
+
+/// [`split_each`] with the row along `axis`, and the row's index.
+fn split_each_along(axis: TargetAxis) -> (ProfileDoc, [VarId; 2], VarId) {
     let doc = ProfileDoc::empty_derived("binder-split-halves", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, _k, row) = fixture::row(doc, the_box, ("k", 3), TargetAxis::X, 2.0);
+    let (doc, k, row) = fixture::row(doc, the_box, ("k", 3), axis, 2.0);
     let tool = fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.25], [0.0, 0.0, 1.0]);
     let target = fixture::member_here(&doc, row.into());
     let (doc, split) = insert(doc, Node::Split { target, tool });
@@ -29,7 +35,7 @@ fn split_each() -> (ProfileDoc, [VarId; 2]) {
             .expect("a split defines a port per half")
     };
     let halves = [half(SplitHalf::Above), half(SplitHalf::Below)];
-    (doc, halves)
+    (doc, halves, k)
 }
 
 /// The union of every member of the yield `half`, `[…half]`.
@@ -228,4 +234,78 @@ fn a_yielded_half_with_an_empty_member_refuses_the_product_naming_it() {
         editor_core::ProductErrorKind::ReadRefused,
         "its class"
     );
+}
+
+/// **A union of a yielded half one member of which is empty refuses,
+/// naming that member**: a row stacked along z above the plane a quarter
+/// up leaves the lower half of members 1 and 2 empty, and the union over
+/// the lower halves refuses at the first, `k = 1`, its half empty.
+///
+/// *Breaks if* a reader of a yielded half skips an empty member's half,
+/// or refuses without naming the member.
+#[test]
+fn a_union_of_a_yielded_half_with_an_empty_member_refuses_naming_it() {
+    let (doc, [_, below], k) = split_each_along(TargetAxis::Z);
+    let (doc, union) = union_of(doc, below);
+    let ev = fixture::run(&doc, &Default::default());
+    let kind = match ev.result(union) {
+        Some(NodeResult::Failed(error)) => &error.kind,
+        other => panic!("the union refuses: {other:?}"),
+    };
+    match kind {
+        editor_core::NodeErrorKind::MemberRefused { at, source } => {
+            assert_eq!(at, &vec![(k, 1)], "the first member with no lower half");
+            assert!(
+                matches!(
+                    source.as_ref(),
+                    editor_core::NodeErrorKind::EmptyHalf {
+                        half: SplitHalf::Below,
+                        ..
+                    }
+                ),
+                "its half is empty: {source:?}"
+            );
+        }
+        other => panic!("the member's half, named: {other:?}"),
+    }
+}
+
+/// **One node's reads of a yielded half's members gather the family of
+/// halves once**: a union of `[above[0], above[1], above[2]]` reads three
+/// members of one family of halves, which its pass gathers once, not once
+/// per read.
+///
+/// *Breaks if* the pass's gather of a family of halves is not kept across
+/// its reads (each indexed read re-gathering every member's half).
+#[cfg(debug_assertions)]
+#[test]
+fn one_nodes_reads_of_a_yielded_half_gather_it_once() {
+    let (doc, [above, _]) = split_each();
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::spelled(
+                (0..3)
+                    .map(|i| {
+                        BodyRead::indexed(Operand::Var(above), vec![editor_core::Formula::count(i)])
+                    })
+                    .collect(),
+            ),
+        },
+    );
+    let before = editor_core::halves_gathered_on_this_thread();
+    let ev = fixture::run(
+        &doc,
+        &editor_core::EvalOptions {
+            parallel: false,
+            ..Default::default()
+        },
+    );
+    let gathered = editor_core::halves_gathered_on_this_thread() - before;
+    assert!(
+        matches!(ev.result(union), Some(NodeResult::Ok(_))),
+        "the union of the three members evaluates: {:?}",
+        ev.result(union)
+    );
+    assert_eq!(gathered, 1, "one family of halves, gathered once");
 }

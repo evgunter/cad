@@ -51,6 +51,8 @@ pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
+#[cfg(debug_assertions)]
+pub use wire::halves_gathered_on_this_thread;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -249,13 +251,12 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         self.output_names(var).map(OutputNames::table)
     }
 
-    /// [`Self::table_at`], shared: for a reader that keeps the table
-    /// beside the value it read (the product's gather).
     /// **The yielded half at `port` of the split `split`, where `split`
     /// is evaluated once per member**: the half of each member, a family
     /// of bodies named per member, as an evaluator reader outside the
     /// binder reads it (`wire`'s `yielded_half`, the one reading);
-    /// `None` where `split` is no family of splits.
+    /// `None` where `split` is no family evaluated once per member. Asked
+    /// of a split's node alone (`product`'s gather).
     pub(crate) fn yielded_half(
         &self,
         split: RecipeNodeId,
@@ -264,6 +265,8 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         wire::yielded_half(&self.nodes, split, port)
     }
 
+    /// [`Self::table_at`], shared: for a reader that keeps the table
+    /// beside the value it read (the product's gather).
     pub(crate) fn shared_table_at(&self, at: impl Into<At>) -> Option<Arc<NameTable>> {
         self.output_names(self.at_var(at)?)
             .map(OutputNames::shared_table)
@@ -665,12 +668,9 @@ impl crate::spoken::Say for NodeStanding {
                 f,
                 by.node(node),
                 format_args!(
-                    " is evaluated once per member, and its members are no bodies, so it \
-                 is no one value. {}",
-                    Recourse(
-                        "read one of its members inside its binder, or a yield of the binder \
-                     outside it"
-                    )
+                    " is evaluated once per member, and its members are not each one body, \
+                 so it is no one value. {}",
+                    Recourse("read its members, each one value, one at a time")
                 )
             ),
             Self::Failed { node } => say!(
@@ -770,8 +770,9 @@ pub enum NodeResult<T: topo::AtRestPolicy + Decide> {
     /// The node evaluated to a value.
     Ok(NodeValue<T>),
     /// **The node evaluated once per member, and is no one value** (D10
-    /// `[repetition]`): a node inside a binder whose members are no
-    /// bodies (a split, a measure, an assertion, a profile). It holds
+    /// `[repetition]`): a node inside a binder whose members are not each
+    /// one body (a split, which is two, a measure, an assertion, a
+    /// profile). It holds
     /// its members and nothing whole; a reader outside the binder reads
     /// a yield, and a yielded split half is a family of bodies like any
     /// other ([`NodeValue`]'s `Instances`).
@@ -1958,8 +1959,10 @@ pub enum NodeErrorKind {
         /// The index values as authored, one per index of the family.
         at: Vec<i64>,
     },
-    /// **A definer that refused at one value of its indices**: the
-    /// whole family refuses, naming the member (D10 `[repetition]`).
+    /// **A family that refused at one value of its indices**, naming
+    /// the member (D10 `[repetition]`): a definer that refused there, or
+    /// a member whose half a reader of the family's yielded half finds
+    /// empty ([`Self::EmptyHalf`]), which the member itself is not.
     MemberRefused {
         /// Each index the definer reaches, at the member's value.
         at: Vec<(crate::VarId, i64)>,
@@ -2693,7 +2696,14 @@ impl crate::spoken::Say for NodeErrorKind {
                     }),
                     ", ",
                 );
-                say!(f, "the member at ", at, " refused: ", Said(&**source, by))
+                match &**source {
+                    // The member evaluated; its half is what a reader of
+                    // the family's yielded half finds empty.
+                    Self::EmptyHalf { .. } => {
+                        say!(f, "at the member ", at, ": ", Said(&**source, by))
+                    }
+                    _ => say!(f, "the member at ", at, " refused: ", Said(&**source, by)),
+                }
             }
             Self::TwoBinders { a, b } => say!(
                 f,

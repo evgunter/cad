@@ -21,7 +21,7 @@ use topo::POSE_UNIT_NORM;
 
 use super::{
     AXIS_DIRECTION_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, frame_axes,
-    pose_direction_escalated, pose_unit, refusal, select_one, slots, value_of,
+    pose_direction_escalated, pose_unit, refusal, select_one, slots, value_as,
 };
 use crate::eval::{Frame, NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
@@ -308,11 +308,13 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     env: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Posed<T>, NodeErrorKind> {
-    let value = value_of(results, node)?;
+    let value = value_as(results, node, super::super::family::BODY)?;
     match (&value.payload, doc.node(node)) {
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
             let at = super::super::read_at(doc, OperandSlot::Profile, *profile)?;
-            let ValuePayload::Profile(drawn) = &value_of(results, at)?.payload else {
+            let ValuePayload::Profile(drawn) =
+                &value_as(results, at, super::super::family::PROFILE)?.payload
+            else {
                 return Err(NodeErrorKind::MissingInput { input: at });
             };
             let vals = slots::eval_slots(revolve, env)
@@ -499,7 +501,7 @@ fn definition<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
         PoseDef::Carried { copy, pose: read } => {
             let placement = super::super::read_at(doc, slot, *copy)?;
             let value = pose(read)?;
-            match value_of(results, placement)?.motion {
+            match value_as(results, placement, super::super::phrase::BODY_OR_INSTANCES)?.motion {
                 None => value,
                 Some(motion) => Posed {
                     frame: value.frame.moved(&motion).map_err(NodeErrorKind::Motion)?,

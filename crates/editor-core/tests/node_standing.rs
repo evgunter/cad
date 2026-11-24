@@ -492,7 +492,39 @@ fn reads(code: &str) -> usize {
 /// items are not read); a new reader reds, and the answer is to read
 /// through `Evaluation::usable` or to give the file its line here. A
 /// listed file that stops reading is not a red.
-const READERS: [(&str, &str); 14] = [
+const READERS: [(&str, &str); 19] = [
+    // A node evaluated once per member whose members are no one value
+    // (`NodeResult::Members`, D10 `[repetition]`) has no standing value,
+    // so these read its result for what a family carries.
+    (
+        "crates/editor-core/src/checks/at_rest.rs",
+        "a per-member gap assertion holds at each member: the rows read the result's \
+         members (`NodeResult::members`), or the one value of an assertion evaluated once",
+    ),
+    (
+        "crates/editor-core/src/checks.rs",
+        "the coincidence rows and the carried rows of every evaluated node, a family's \
+         among them: they read the result's coincidences and carry \
+         (`NodeResult::coincidences`, `NodeResult::carry`), which a family holds as its \
+         members' and a value as its own",
+    ),
+    (
+        "crates/editor-core/src/coincide/replay.rs",
+        "the replay reads the rows a node decided, a family's being its members' in member \
+         order (`NodeResult::coincidences`); a node with none answers why through its \
+         standing (`why_no_value`)",
+    ),
+    (
+        "crates/editor-core/src/names/select.rs",
+        "a selection is refused on a family read whole, of bodies or of anything else: it \
+         asks the result whether it holds members (`NodeResult::members`)",
+    ),
+    (
+        "crates/editor-core/src/resolve/vdiff.rs",
+        "the verdict diff, summary and vector read every evaluated node's logs, a family's \
+         being its members' (`NodeResult::verdicts`, `NodeResult::marks`), so a family's \
+         verdicts persist as its `Family` value's did",
+    ),
     (
         "crates/editor-core/src/eval/members.rs",
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \

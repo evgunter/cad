@@ -397,6 +397,9 @@ where
             | Node::Assertion(_)
             | Node::Place { .. }
     );
+    // One node's reads gather each family of halves they read once,
+    // however many of its members they read ([`Gathered`]).
+    let gathered = std::cell::RefCell::new(Gathered::new());
     let projected = if per_operand {
         None
     } else {
@@ -405,12 +408,21 @@ where
             &body_rows(node, doc),
             doc,
             (results, vals, env.lane.params),
+            &gathered,
         )?
     };
     let results = projected.as_ref().unwrap_or(results);
     let project_each = |rows: &[(O, crate::VarId)]| {
         rows.iter()
-            .map(|&row| reads_projected(node, &[row], doc, (unprojected, vals, env.lane.params)))
+            .map(|&row| {
+                reads_projected(
+                    node,
+                    &[row],
+                    doc,
+                    (unprojected, vals, env.lane.params),
+                    &gathered,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()
     };
     // An operand reads an output; the op reads the operation's value.
@@ -1033,16 +1045,6 @@ fn place<T: topo::AtRestPolicy + Decide>(
     }
 }
 
-/// **The value of an input node, read for its body or bodies**: a
-/// family that is no one value ([`super::NodeResult::Members`]) refuses
-/// as the operand a body read asks for ([`value_as`]).
-fn value_of<T: topo::AtRestPolicy + Decide>(
-    results: &Results<T>,
-    input: RecipeNodeId,
-) -> Result<&super::NodeValue<T>, NodeErrorKind> {
-    value_as(results, input, super::phrase::BODY_OR_INSTANCES)
-}
-
 /// **The members of the family a read takes one member out of**: a
 /// family of bodies' (its value's, or in a member's view its family's),
 /// or a family that is no one value's ([`super::NodeResult::Members`]),
@@ -1055,28 +1057,27 @@ fn family_members<T: topo::AtRestPolicy + Decide>(
     if let Some(super::NodeResult::Members(held)) = results.get(&family) {
         return Ok(&held.members);
     }
-    let value = value_of(results, family)?;
+    let value = value_as(results, family, super::family::INSTANCES)?;
     value
         .whole_members()
         .ok_or_else(|| wrong_operand(value, family, super::family::INSTANCES))
 }
 
-/// **The family of splits a read of one of its halves reads**: the
-/// split's members where `split` is evaluated once per member (D10
-/// `[repetition]`), read outside its binder or, in a member's view,
-/// whole; `None` where it is one split.
+/// **The family of splits an indexed read of one of its halves reads**:
+/// the split's family that is no one value (D10 `[repetition]`), as it
+/// stands outside its binder ([`super::NodeResult::family`]) or, in a
+/// member's view, read whole ([`super::NodeValue::whole`]); `None` where
+/// it is one split. [`yielded_half`] asks the first alone: a plain read
+/// of a half inside the binder is the reader's own member's half.
 fn split_family<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     split: RecipeNodeId,
 ) -> Option<&Arc<super::members::Members<T>>> {
-    match results.get(&split)? {
-        super::NodeResult::Members(family) => Some(&family.members),
-        super::NodeResult::Ok(value) => match &value.family {
-            Some(super::Whole::Members(family)) => Some(&family.members),
-            Some(super::Whole::Value(_)) | None => None,
-        },
-        super::NodeResult::Failed(_) | super::NodeResult::Poisoned { .. } => None,
-    }
+    let result = results.get(&split)?;
+    result
+        .family()
+        .or_else(|| result.value()?.whole().err())
+        .map(|family| &family.members)
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -1190,7 +1191,7 @@ fn read_body<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<super::Framed<T>, NodeErrorKind> {
-    let v = value_of(results, input)?;
+    let v = value_as(results, input, super::family::BODY)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
         Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
@@ -1209,7 +1210,7 @@ pub(super) fn read_named_body<T: topo::AtRestPolicy + Decide>(
     input: RecipeNodeId,
     body: u32,
 ) -> Result<super::Framed<T>, NodeErrorKind> {
-    let v = value_of(results, input)?;
+    let v = value_as(results, input, super::phrase::BODY_OR_INSTANCES)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Instances(bodies)) => {
             match usize::try_from(body).ok().and_then(|k| bodies.get(k)) {
@@ -2045,7 +2046,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .finished(tol)
         .map_err(NodeErrorKind::unfinished(target))?;
     let size = slot_scalar(vals, verb.slots.size_slot);
-    let target_value = value_of(results, target)?;
+    let target_value = value_as(results, target, super::family::BODY)?;
     let target_table = read_table(target_value);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
@@ -2149,7 +2150,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .finished(tol)
         .map_err(NodeErrorKind::unfinished(target))?;
     let thickness = slot_scalar(vals, verb.slots.size_slot);
-    let target_table = read_table(value_of(results, target)?);
+    let target_table = read_table(value_as(results, target, super::family::BODY)?);
     // Designation order: the first designated face of a chart carries
     // its rim.
     let faces: Vec<topo::FaceKey> = open.ents.iter().map(|&(_, face)| face).collect();
@@ -2168,7 +2169,10 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let carried = shelled
         .carry_contacts(
-            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            &value_as(results, target, super::family::BODY)?
+                .carry
+                .kept(doc, tol)
+                .contacts,
             band(tol)?,
             T::region_lane(),
         )
@@ -2408,7 +2412,7 @@ pub(crate) fn resolve_name<P: crate::ProfilePayload, T: Decide + topo::AtRestPol
     refuse: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
 ) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
     let at = super::read_at(doc, slot, read)?;
-    let table = read_table(value_of(results, at)?);
+    let table = read_table(value_as(results, at, super::phrase::BODY_OR_INSTANCES)?);
     Ok((at, resolve_in(name, doc, read, &table, refuse)?))
 }
 
@@ -2458,8 +2462,11 @@ pub(crate) fn reference_body<T: topo::AtRestPolicy + Decide>(
     var: crate::VarId,
     (at, ent): (RecipeNodeId, names::EntityRef),
 ) -> Result<&super::Framed<T>, NodeErrorKind> {
-    crate::names::interrogate::output_body(&value_of(results, at)?.payload, ent.body)
-        .map_err(|error| NodeErrorKind::MeasureRefUnreadable { slot, var, error })
+    crate::names::interrogate::output_body(
+        &value_as(results, at, super::phrase::BODY_OR_INSTANCES)?.payload,
+        ent.body,
+    )
+    .map_err(|error| NodeErrorKind::MeasureRefUnreadable { slot, var, error })
 }
 
 /// **A selection's names resolved in `table`**, the value read `at`:
@@ -2845,7 +2852,7 @@ impl Witnessing<'_> {
     /// The prose of what the rebuild could not read.
     fn bodies(&self, sides: [(RecipeNodeId, u32); 2]) -> Result<[topo::Seat<'_, f64>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
-            let value = value_of(self.results, at)
+            let value = value_as(self.results, at, super::phrase::BODY_OR_INSTANCES)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
             crate::names::interrogate::output_body(&value.payload, index)
                 .map_err(|e| format!("the f64 rebuild has no body for a seat: {e:?}"))
@@ -2951,7 +2958,10 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let (carried, _) = split
         .carry_contacts_across(
-            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            &value_as(results, target, super::family::BODY)?
+                .carry
+                .kept(doc, tol)
+                .contacts,
             band(tol)?,
             T::region_lane(),
         )
@@ -2975,7 +2985,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         SplitSide::Body(b) => Some(b.holding().clone()),
         SplitSide::Empty => None,
     };
-    let target_table = read_table(value_of(results, target)?);
+    let target_table = read_table(value_as(results, target, super::family::BODY)?);
     let (ab, bb) = (as_body(&above), as_body(&below));
     let emitted = (verb.emitter)(
         id,
@@ -3068,7 +3078,7 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
             topo::MoveError::Map(error) => NodeErrorKind::Mirror(error),
             topo::MoveError::NotFinished(findings) => NodeErrorKind::NotFinished { findings },
         })?;
-    let value = value_of(results, source)?;
+    let value = value_as(results, source, super::family::BODY)?;
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
@@ -3226,7 +3236,11 @@ fn selection_table<T: topo::AtRestPolicy + Decide>(
     at: RecipeNodeId,
 ) -> Result<Arc<NameTable>, NodeErrorKind> {
     let Some((family, at)) = member else {
-        return Ok(read_table(value_of(results, at)?));
+        return Ok(read_table(value_as(
+            results,
+            at,
+            super::phrase::BODY_OR_INSTANCES,
+        )?));
     };
     let members = family_members(results, *family)?;
     let (_, own) = member_at(*family, members, at)?;
@@ -3295,9 +3309,9 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
     rows: &[(crate::OperandSlot, crate::VarId)],
     doc: &crate::doc::Doc<ProfileProgram>,
     (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
+    gathered: &std::cell::RefCell<Gathered<T>>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
-    let mut gathered = Gathered::new();
     for &(seat, row) in rows {
         // A selection is read in the body it states, and a source as the
         // body it reads: a member read of a source by its own indices.
@@ -3340,12 +3354,12 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
         if let Some((family, at)) = member {
             // A member of a yielded half of a split of each member is
             // that member's half (D10 `[repetition]`), the family of
-            // halves gathered once per pass.
-            let halves = split_halves(var, doc, family, results, &mut gathered)?;
+            // halves gathered once per node.
+            let halves = split_halves(var, doc, family, results, &mut gathered.borrow_mut())?;
             let held = match halves {
                 // Outside its binder a family of splits is no one value.
                 Some(_) => results.get(&family).and_then(super::NodeResult::value),
-                None => Some(value_of(results, family)?),
+                None => Some(value_as(results, family, super::family::INSTANCES)?),
             };
             let whole = match (&halves, held) {
                 (Some((_, halves)), _) => halves,
@@ -3457,7 +3471,7 @@ fn pick_of<T: topo::AtRestPolicy + Decide>(
     seat: crate::OperandSlot,
     (results, vals): (&Results<T>, &SlotValues<T>),
 ) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
-    let value = value_of(results, placement)?;
+    let value = value_as(results, placement, super::phrase::BODY_OR_INSTANCES)?;
     let mut pieces = value.carry.pieces.as_ref();
     let mut reached: Option<&super::Piece<T>> = None;
     for (at, &step) in path.iter().enumerate() {
@@ -3528,7 +3542,11 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
             results,
             vec![member_projected(
                 family,
-                whole_as(value_of(results, family)?, family, super::family::INSTANCES)?,
+                whole_as(
+                    value_as(results, family, super::family::INSTANCES)?,
+                    family,
+                    super::family::INSTANCES,
+                )?,
                 &at,
             )?],
         )),
@@ -3594,28 +3612,51 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
 }
 
 /// **A yielded half of a family of splits, read outside its binder**:
-/// the half at `port` of each member of `split`, where `split` is
+/// the half at `port` of each member of the split `split`, where it is
 /// evaluated once per member (D10 `[repetition]`), as the family of
-/// those halves ([`half_of_each`]); `None` where `split` is no such
-/// family. The one reading of it, which every reader outside the binder
-/// reads, the product's gather among them.
+/// those halves ([`half_of_each`]); `None` where `split` is no family
+/// evaluated once per member. Its callers ask it of a split's node alone
+/// ([`split_port`], the product's gather): a family of anything else is
+/// refused as no split by its members. The one reading of a yielded
+/// half for a plain read of it and the product; an indexed read takes
+/// its member out of the same family ([`split_halves`]).
 pub(super) fn yielded_half<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     split: RecipeNodeId,
     port: u8,
 ) -> Option<Result<super::NodeValue<T>, NodeErrorKind>> {
-    let super::NodeResult::Members(family) = results.get(&split)? else {
-        return None;
-    };
+    let family = results.get(&split)?.family()?;
     let half = SplitHalf::of_output_body(u32::from(port))
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     Some(half_of_each(split, port, half, &family.members))
 }
 
-/// **The halves a pass has gathered**, by split and port: a family of
-/// halves is gathered over every member of its family of splits, so one
-/// pass reading several of its members gathers it once.
+/// **The halves one node's reads have gathered**, by split and port: a
+/// family of halves is gathered over every member of its family of
+/// splits, so one node reading several of its members
+/// (`[xs[0], xs[1], xs[2]]`), whether its reads are projected at once or
+/// read by read, gathers it once. Its scope is that node's indexed reads
+/// ([`reads_projected`]): a plain read of a split's port ([`split_port`])
+/// and the product's gather each gather the halves they read once more.
 type Gathered<T> = BTreeMap<(RecipeNodeId, u8), super::NodeValue<T>>;
+
+// Families of halves this thread has gathered, the debug-only witness
+// that one node's reads gather a family of halves once ([`Gathered`]).
+// Thread-local, as the product's gather count is, so two tests in one
+// process cannot read each other's.
+#[cfg(debug_assertions)]
+thread_local! {
+    static HALVES_GATHERED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// **How many families of halves this thread has gathered**
+/// ([`half_of_each`]): a caller reads a difference across the evaluation
+/// it asks about; the absolute value means nothing.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn halves_gathered_on_this_thread() -> u64 {
+    HALVES_GATHERED.with(std::cell::Cell::get)
+}
 
 /// **The family of halves a read of `var` reads off the split `split`**,
 /// with the split's port: `Some` where `var` is a half of `split` and
@@ -3664,6 +3705,8 @@ fn half_of_each<T: topo::AtRestPolicy + Decide>(
     half: SplitHalf,
     members: &super::members::Members<T>,
 ) -> Result<super::NodeValue<T>, NodeErrorKind> {
+    #[cfg(debug_assertions)]
+    HALVES_GATHERED.with(|gathered| gathered.set(gathered.get().saturating_add(1)));
     let halves = members
         .members
         .iter()
@@ -3676,10 +3719,9 @@ fn half_of_each<T: topo::AtRestPolicy + Decide>(
             let body = split_side(split, half, above, below).map_err(|source| {
                 NodeErrorKind::MemberRefused {
                     at: members
-                        .over
-                        .iter()
-                        .copied()
-                        .zip(at.iter().map(|&v| i64::from(v)))
+                        .member_at(at)
+                        .into_iter()
+                        .map(|(index, value)| (index, i64::from(value)))
                         .collect(),
                     source: Box::new(source),
                 }
@@ -4363,6 +4405,8 @@ fn member_reads<T: Decide + topo::AtRestPolicy>(
             .collect::<Result<Vec<_>, NodeErrorKind>>()
     };
     let mut members = Vec::new();
+    // The node's reads gather each family of halves once ([`Gathered`]).
+    let gathered = std::cell::RefCell::new(Gathered::new());
     match bodies {
         crate::Bodies::Family(family) => {
             // Every door refuses an indexed family argument
@@ -4376,7 +4420,7 @@ fn member_reads<T: Decide + topo::AtRestPolicy>(
             }
             let slot = seats.of(O::Members);
             let at = super::read_at(doc, slot, family.read)?;
-            let held = value_of(results, at)?;
+            let held = value_as(results, at, super::phrase::BODY_OR_INSTANCES)?;
             let value = if doc.yielding(family.read).is_some() {
                 whole_as(held, at, super::phrase::BODY_OR_INSTANCES)?
             } else {
@@ -4390,14 +4434,19 @@ fn member_reads<T: Decide + topo::AtRestPolicy>(
                 let read = member.read;
                 let slot = seats.of(O::Member(i));
                 let at = super::read_at(doc, slot, read)?;
-                let projected =
-                    reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
+                let projected = reads_projected(
+                    node,
+                    &[(slot, read)],
+                    doc,
+                    (results, vals, params),
+                    &gathered,
+                )?;
                 let results = projected.as_ref().unwrap_or(results);
                 // A yield is a family to every reader, and a member read
                 // takes its member out of it; any other read inside a
                 // binder is of the member at the reader's own values
                 // (D10 `[repetition]`).
-                let held = value_of(results, at)?;
+                let held = value_as(results, at, super::phrase::BODY_OR_INSTANCES)?;
                 let value = if member.is_member() || doc.yielding(read).is_some() {
                     whole_as(held, at, super::phrase::BODY_OR_INSTANCES)?
                 } else {
@@ -5159,7 +5208,7 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
     map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> OpResult<T> {
-    let value = value_of(results, of)?;
+    let value = value_as(results, of, super::phrase::BODY_OR_INSTANCES)?;
     let cites = crate::coincide::CitedInput::Read(read);
     let body = match (value.payload.one_body(), &value.payload) {
         (Some(None), _) => return Ok(OpOut::empty()),
@@ -5196,7 +5245,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let operands = members
         .iter()
         .map(|&(of, read, results, yielded)| {
-            let held = value_of(results, of)?;
+            let held = value_as(results, of, super::phrase::BODY_OR_INSTANCES)?;
             let value = if yielded {
                 whole_as(held, of, super::phrase::BODY_OR_INSTANCES)?
             } else {
