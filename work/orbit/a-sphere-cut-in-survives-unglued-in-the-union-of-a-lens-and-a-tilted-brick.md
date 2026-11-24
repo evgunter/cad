@@ -91,3 +91,14 @@ on it). How a chart cut that survives into the result should be treated
 reads a ratified clause, so it carries `design: true`: designers first.
 Moved from `work/hone/` (HONE is `ready`, with no orchestrator); id
 unchanged. (ORBIT orchestrator)
+
+## 2026-11-24 — every op names on `orbit/conventional-vertex-names`
+
+With PRs 7602 and 7664 beneath it and the conventional vertex named
+for its circle (`a-conventional-vertex-mints-no-edge-derived-name`),
+all six ops of `emit_sphere_cut_in_cap`'s document build and name, the
+union and the lens minus the brick included: no cut survives there. The
+pin named above is now
+`emit_sphere_cut_in_cap::every_op_over_a_sphere_cut_in_names_the_circles_vertex_for_the_circle`,
+which asserts each op names one conventional vertex on the seam between
+the lens and the brick. (orbit-cvname lane)

@@ -1604,7 +1604,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **The name of the member vertices finished vertex `v` sits at**,
     /// if any: each vertex `w` of a member `n` at `v`'s point that lies on
-    /// a face of `n` a face around `v` holds, the one such vertex
+    /// a face of `n` a face around `v` holds, and is no conventional
+    /// vertex of `n` (`names/README.md`), the one such vertex
     /// or `Merged` of the several; whether a member's table ties one of
     /// them, a tie its citing name descends from (N2); and the vertices,
     /// each by its member's index.
@@ -1639,7 +1640,9 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                         )
                     })
                     .start;
-                if !seen.insert((i, w)) {
+                // A member's conventional vertex has no identity of its
+                // own: its point is its closed edge's interior.
+                if !seen.insert((i, w)) || topo::is_conventional_vertex(m.body, w) {
                     continue;
                 }
                 let gap = Margin::of((vertex_point(m.body, w) - p).norm());
