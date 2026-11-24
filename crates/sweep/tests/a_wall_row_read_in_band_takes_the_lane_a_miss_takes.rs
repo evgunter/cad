@@ -35,7 +35,7 @@ fn wall_rows<T: AtRestPolicy + Bounds>(
     for h in wall_half_edges(body, wall) {
         match body.pcurve(h).map(|c| c.pcurve()) {
             Some(Pcurve::IsoArc { .. }) => rims.push(h),
-            Some(Pcurve::IsoLine { pl, .. }) if pl.x.lo() == 0.0 && pl.x.hi() == 0.0 => {
+            Some(Pcurve::IsoLine { line, .. }) if line.axis == geom_brep::ChartAxis::U => {
                 seams.push(h);
             }
             other => panic!("{h:?}: the wall's rows are exact iso images: {other:?}"),

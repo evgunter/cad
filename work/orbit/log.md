@@ -96,3 +96,4 @@ this container has 4 vCPUs):
   - **P1 `a-torus-near-a-tilted-cut-…`, PR 7617** (`orbit/tilted-torus-rim`, d8370849d). The dual review was APPROVE-WITH-FIXES ×2. The fix pass was dispatched (brief 2026-11-24 ~00:28) and had not pushed.
   - Parked, waiting on GERM's `the-line-torus-door-misses-silently-within-the-band`: the saddle and parallel touch units.
   (ORBIT orchestrator)
+- 2026-11-24 — **PR 7588 (pair doors read apart) merges.** Tier: single full review (APPROVE-WITH-FIXES: two unexercised hunks deleted, `walk_pairs` measured clean, volumes asserted), then a verify (APPROVE: an always-apart mutant leaves every meeting pose refused typed), then a last pass on my read: the torn row retargeted, and a held-pole door row that goes red under the pole-cut mutant. CI's one red is the filed 1e-12 prism-corner row (TESSLIE). No model-compare row (Fable outage). (ORBIT orchestrator)
