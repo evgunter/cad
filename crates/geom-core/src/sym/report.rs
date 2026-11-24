@@ -60,7 +60,11 @@ pub struct DecisionShape {
     pub outcome: ShapeOutcome,
     /// The residual's PLAIN normal form, for a decision that stayed
     /// numeric without a definite sign — `None` otherwise, and `None`
-    /// outside a session.
+    /// outside a session. This text, [`Self::early_form`] and
+    /// [`Self::explain`] together take at most [`RENDER_BUDGET`] bytes:
+    /// a form too large to spell names the atoms it leaves unspelled
+    /// (`sqrt#89abcdef‹12 terms›`: head, node, the argument's terms) and
+    /// counts the terms it leaves (`‹40 more terms›`).
     pub form: Option<String>,
     /// The same residual's EARLY form (the session's rules applied per
     /// node), rendered beside the plain one, so a reader can see what
@@ -137,7 +141,8 @@ pub fn explain_depth(levels: usize) {
 /// Sets the most characters of one rendered form the explanation
 /// prints (the default cuts at 1500, which is a page and is where an
 /// atom's argument gets cut open when the form carrying it is wide —
-/// a row that has to READ the argument raises it). Set it after
+/// a row that has to READ the argument raises it; the explanation as a
+/// whole still ends at its share of [`RENDER_BUDGET`]). Set it after
 /// [`start_shape_report`]: [`take_shape_report`] restores the default.
 pub fn explain_render_chars(chars: usize) {
     RENDER_CHARS.set(chars);
@@ -226,65 +231,71 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
         if seen.insert(id, ()).is_some() {
             continue;
         }
+        out.put(&explain_node(sess, id, depth));
         if out.dry {
-            // This node and what the stack still holds (a node the walk
-            // would reach twice is counted at each).
+            // The stack counts a node once per parent that pushed it.
             out.mark(&format!(
-                "‹{} nodes on the walk are not explained›\n",
-                stack.len() + 1
+                "‹not explained: node #{:08x} and {} more on the walk›\n",
+                id.bits() as u32,
+                stack.len()
             ));
             break;
         }
-        let pad = "  ".repeat(depth);
-        let Some(node) = sess.nodes.get(&id).copied() else {
-            out.put(&format!("{pad}[unrecorded #{:08x}]\n", id.bits() as u32));
-            continue;
-        };
-        let e = early_form(sess, id);
-        let frozen = e.den == Poly::one()
-            && e.num.terms().len() == 1
-            && e.num
-                .terms()
-                .first()
-                .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
-        let payload = match node.op {
-            SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
-            SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
-            _ => String::new(),
-        };
-        let shape = if frozen {
-            "FROZEN".to_owned()
-        } else {
-            let sz = size_of(&e);
-            format!("num {:?} den {:?}", sz.num, sz.den)
-        };
-        let mut lines = format!(
-            "{pad}{:?}{payload} #{:08x}: {shape}\n",
-            node.op,
-            id.bits() as u32
-        );
-        // A small form is worth reading in full: the two sides of a
-        // residual that does not cancel are usually a few dozen terms.
-        if !frozen && e.num.terms().len() <= EXPLAIN_RENDER_TERMS {
-            let text = render_form(sess, &e);
-            let cut = text
-                .char_indices()
-                .nth(RENDER_CHARS.get())
-                .map_or(text.len(), |(i, _)| i);
-            lines.push_str(&format!(
-                "{pad}  = {}{}\n",
-                &text[..cut],
-                if cut < text.len() { "…" } else { "" }
-            ));
-        }
-        out.put(&lines);
-        if depth < levels {
+        if depth < levels
+            && let Some(node) = sess.nodes.get(&id)
+        {
             for k in node.kids().iter().rev() {
                 stack.push((*k, depth + 1));
             }
         }
     }
     out.out
+}
+
+/// One node's lines of the explanation.
+fn explain_node(sess: &mut Session, id: SymId, depth: usize) -> String {
+    let pad = "  ".repeat(depth);
+    let Some(node) = sess.nodes.get(&id).copied() else {
+        return format!("{pad}[unrecorded #{:08x}]\n", id.bits() as u32);
+    };
+    let e = early_form(sess, id);
+    let frozen = e.den == Poly::one()
+        && e.num.terms().len() == 1
+        && e.num
+            .terms()
+            .first()
+            .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
+    let payload = match node.op {
+        SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
+        SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
+        _ => String::new(),
+    };
+    let shape = if frozen {
+        "FROZEN".to_owned()
+    } else {
+        let sz = size_of(&e);
+        format!("num {:?} den {:?}", sz.num, sz.den)
+    };
+    let mut lines = format!(
+        "{pad}{:?}{payload} #{:08x}: {shape}\n",
+        node.op,
+        id.bits() as u32
+    );
+    // A small form is worth reading in full: the two sides of a
+    // residual that does not cancel are usually a few dozen terms.
+    if !frozen && e.num.terms().len() <= EXPLAIN_RENDER_TERMS {
+        let text = render_form(sess, &e);
+        let cut = text
+            .char_indices()
+            .nth(RENDER_CHARS.get())
+            .map_or(text.len(), |(i, _)| i);
+        lines.push_str(&format!(
+            "{pad}  = {}{}\n",
+            &text[..cut],
+            if cut < text.len() { "…" } else { "" }
+        ));
+    }
+    lines
 }
 
 /// The size of a form — this report's and the cost profile's one
