@@ -69,9 +69,9 @@ The third row, `revalue_corpus::revalue_boss_union_apart_to_its_parting`,
 read `(2390, 3856)` after 7354. Later merges have re-cut its pin twice,
 to `(2399, 3856)` (`aca51efe7e`) and then to `(2372, 3856)` (PR 7396's
 least-turn re-pin), so 7354's part of the move is in that pin
-unjudged too. The row is red on main again for another reason, filed in
-`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9`'s
-closing section.
+unjudged too. The row is red on main again for another reason: PR
+7411's re-valuation drift,
+`work/green/main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411`.
 
 **Owed:** judge each move. Where the new answer is right, re-pin with
 the reason, and drop `pinned_red` where it is used. Where it is wrong,
