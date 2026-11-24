@@ -1910,6 +1910,17 @@ pub(crate) fn loop_reach<T: Decide>(
     Ok((anchor, extent_from(r#loop, anchor, &verts, &covers)?))
 }
 
+/// **The plane square to a ray, at its start**: on the loop's unit
+/// normal `normal` and the ray's direction `d`, which the walk's
+/// schedule decided in the loop's plane, levered over its extent
+/// (`point_in_arc_loop_arm`, [`walk_schedule`]): the frame they state
+/// ([`geom_core::RigidMotion::squared`]), its stated-point read at an
+/// enclosure scalar kept. The decision is the schedule's, so nothing is
+/// decided again here.
+fn ray_plane<T: geom_core::Real>(q: Point3<T>, normal: Vec3<T>, d: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(q, normal, d))
+}
+
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k`, an
 /// edge of the loop whose face's surface record is `face` — `None` for a
 /// graze. `on_carrier` says the pre-pass put `q` on the conic and off
@@ -1962,7 +1973,7 @@ pub(in crate::splitting) fn arc_crossings<T: Decide>(
     let plane = Charted::held(
         face,
         geom::Surface::Plane {
-            frame: geom::Frame::new(q, normal, d),
+            frame: ray_plane(q, normal, d),
         },
     );
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {

@@ -492,7 +492,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         retry: SymRetry::none(),
         ..editor_core::drive::SymbolicDials::default()
     });
-    let (line, human) = (shipped.serialize(), shipped.render(&doc, &analyzed));
+    let (line, human) = (
+        shipped.serialize(),
+        shipped.render(&doc, &analyzed).to_string(),
+    );
     println!("{line}\n{human}");
     assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
     assert_eq!(
@@ -541,5 +544,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         !bare.serialize().contains("retried="),
         "no ladder, no column"
     );
-    assert!(!bare.render(&doc, &analyzed).contains("second attempt"));
+    assert!(
+        !bare
+            .render(&doc, &analyzed)
+            .to_string()
+            .contains("second attempt")
+    );
 }

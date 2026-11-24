@@ -1520,9 +1520,7 @@ pub(crate) mod tests {
             let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
             let b = circle_box(
                 &crate::separating::Circle {
-                    center: c,
-                    u_ref: u,
-                    v_ref: v,
+                    frame: geom::Frame::new(c, u.cross(v), u),
                     radius: rho,
                 },
                 0.0,

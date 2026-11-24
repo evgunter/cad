@@ -125,6 +125,7 @@
 //! # run().unwrap();
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.
@@ -1498,18 +1499,19 @@ pub use boolean::{
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
     EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
     Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
-    NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
-    NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
-    PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
-    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
-    Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal, TorusConvention,
-    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed, boolean_reduce,
-    decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
-    nary_boolean_apart, nary_placed, overlap, subtract, tangent_pair_relation, union,
+    JudgedRow, JunctionEndGap, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun,
+    NaryStep, NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
+    OverlapRefusal, PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed,
+    PlacedBooleanError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
+    SelfCheck, SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode,
+    SlitFaceGap, SlitLineGap, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
+    ToolFuseRefusal, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_placed, boolean_reduce, decision_words, flush_pair_relation,
+    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
+    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, nary_placed, overlap, subtract,
+    tangent_pair_relation, union,
 };
 pub use contain::{
     ArcEndGaps, ContainDecision, ContainError, FaceContainment, contfp, curved_face_containment,

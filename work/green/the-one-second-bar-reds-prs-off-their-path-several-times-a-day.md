@@ -92,3 +92,12 @@ twice on each of two runners (run 45050967584, two attempts). Scripts in
   0.2-0.46 s alone.
 
 Left open: PR 7397 decides the policy.
+
+- 2026-11-23 (GERM, PR 7553): another row at the bar.
+  - **The red:** `topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path` read 1.116 s on PR 7553's hosted run.
+  - **The PR's own share:** its exact belly added about 15% (medians of four interleaved local runs: main 2.34 s, the PR before its filter 2.69 s). The PR removed that with a double-double filter (2.30 s).
+  - **Still at the bar:** main reads about 0.97 s by the same ratio, so the PR moves the row to the slow set with that measurement.
+- 2026-11-24 (GERM, PR 7553): another row at the bar, `sweep::all join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound`.
+  - **On CI:** 1.104 s on PR 7553's hosted run.
+  - **Locally,** medians of eight interleaved runs: 2.67 s on main `a7522805e0` and 2.70 s on the PR. That is within noise, so the row sits at the bar on main (about 1.09 s there).
+  - **What the PR does:** it moves the row to the slow set with that measurement.

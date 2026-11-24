@@ -307,6 +307,40 @@ impl Sentence {
         out
     }
 
+    /// **Its lines**, each without its line break, its mentions as they
+    /// were: a report written as one sentence, handed out a line at a
+    /// time. A final break ends the last line rather than opening an
+    /// empty one, so the text of the lines of a sentence that ends on a
+    /// break is its text.
+    #[must_use]
+    pub fn lines(&self) -> Lines {
+        let mut lines = vec![Sentence::new()];
+        for run in &self.0 {
+            match run {
+                Run::Words(words) => {
+                    let mut pieces = words.split('\n');
+                    if let (Some(first), Some(line)) = (pieces.next(), lines.last_mut()) {
+                        line.push_words(first);
+                    }
+                    for piece in pieces {
+                        let mut line = Sentence::new();
+                        line.push_words(piece);
+                        lines.push(line);
+                    }
+                }
+                mention @ Run::Mention(_) => {
+                    if let Some(line) = lines.last_mut() {
+                        line.0.push(mention.clone());
+                    }
+                }
+            }
+        }
+        if lines.last().is_some_and(Sentence::is_empty) {
+            lines.pop();
+        }
+        Lines::new(lines)
+    }
+
     /// Writes `other` after it, its mentions as they were.
     pub fn append(&mut self, other: Sentence) {
         for piece in other.0 {
@@ -396,6 +430,92 @@ impl Sentence {
         let mut key = String::new();
         let _ = self.spell_into(&mut key);
         key
+    }
+}
+
+/// **A report as lines**: one sentence per line, each without its
+/// break, its mentions kept. Its `Display` is the report's text, each
+/// line followed by its break — never inside a sentence being said
+/// ([`flattening`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Lines(Vec<Sentence>);
+
+impl Lines {
+    /// `lines`, one per line. A line's words hold no break — a break
+    /// inside one would be a line the report does not count, and its
+    /// text would not be its lines' — and a debug assertion (on in every
+    /// profile) refuses one; a report written as one sentence is split
+    /// with [`Sentence::lines`].
+    #[must_use]
+    pub fn new(lines: Vec<Sentence>) -> Self {
+        debug_assert!(
+            lines.iter().flat_map(Sentence::runs).all(|run| match run {
+                Run::Words(words) => !words.contains('\n'),
+                Run::Mention(_) => true,
+            }),
+            "a line of a report holds a line break: {lines:?}"
+        );
+        Self(lines)
+    }
+}
+
+impl core::ops::Deref for Lines {
+    type Target = [Sentence];
+
+    fn deref(&self) -> &[Sentence] {
+        &self.0
+    }
+}
+
+impl IntoIterator for Lines {
+    type Item = Sentence;
+    type IntoIter = std::vec::IntoIter<Sentence>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Lines {
+    type Item = &'a Sentence;
+    type IntoIter = core::slice::Iter<'a, Sentence>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<Sentence> for Lines {
+    fn from_iter<I: IntoIterator<Item = Sentence>>(lines: I) -> Self {
+        Self::new(lines.into_iter().collect())
+    }
+}
+
+/// Each line's text and its break.
+impl fmt::Display for Lines {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        flattening();
+        for line in &self.0 {
+            line.spell_into(f)?;
+            f.write_str("\n")?;
+        }
+        Ok(())
+    }
+}
+
+/// Its lines, each followed by its break, its mentions kept.
+impl Put for &Lines {
+    fn put(self, out: &mut Sentence) {
+        for line in &self.0 {
+            out.append(line.clone());
+            out.push_words("\n");
+        }
+    }
+}
+
+impl Put for Lines {
+    fn put(self, out: &mut Sentence) {
+        Put::put(&self, out);
     }
 }
 

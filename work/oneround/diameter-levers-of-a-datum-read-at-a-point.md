@@ -1,11 +1,13 @@
 ---
 id: diameter-levers-of-a-datum-read-at-a-point
-kind: issue
+kind: unit
 title: a datum read at a point is levered by a span's diameter or chord (edge_extent_inf/sup, or a two-point read through the point doors), not by its reach from that point
-status: open
+status: review
 opened: 2026-11-23
 priority: P1
 cost: H
+branch: oneround/reach-from-the-read-point
+pr: 7661
 ---
 
 Found by `oneround/unsourced-unions` (PR 7294). Its review found the router (`curve_pair::pose`) and the ring path's crossing levers (`ring_path::spline_crossings`) levering a datum read at one point by a diameter or a chord. That PR moved them to the span's reach from the point (`edge_reach_bounds`, `cover::piece_reach_bounds`):
