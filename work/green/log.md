@@ -742,3 +742,39 @@ had in the slow set (PR 7291). I should have grepped `.config/nextest.toml` firs
   - an indirect site not listed: `pcurves/sheet_apex_rows.rs: joint: DescribedChart::of(surface).unwrap()`. CHARTTAIL's file.
   - a listed indirect site the census no longer finds: `ring_path.rs: spline_crossings`.
   EMBED's second landing merges onto this and re-pins none of it (its first landing re-pinned main's drift and one such pin went stale in a clean merge); the landing's own roster lines (`definite_as`, `present_plane: x`) are in neither output.
+
+## 2026-11-24: the P0/P1 sweep (U17–U20)
+
+Merged:
+- **7671** (`c3990d22c5`, work-only): the python suite's Union red was
+  already fixed by FORMWORDS' 7660. The binding was wrong and the door
+  right, per D10 `[repetition]`.
+- **7670** (`d94deebf04`):
+  - the prose census for `BooleanError`'s `curve`/`surface`;
+  - the recourse roster, already fixed by 7408;
+  - the foot-seed scan, where both reads are `CertifiedRange::seed()`
+    windows and so are listed.
+- **7682** (`674ac5088e`):
+  - Of the eleven moved rows, seven pass on main.
+  - The two sweep rows are held with `pinned_red`, under SECTCONE's new
+    P1 for PR 7354's decision changes.
+  - The boss_union and m10 pins are re-pointed there.
+- **7678** (`9d9de17f0a`):
+  - the cones-apex rows are re-pinned at 1e-6 (GERM's 7299 seam-pose
+    refusal);
+  - `corpus_finish_count` is 398, the cost of OFFER's 7362;
+  - the ring-path flag was a false positive, already fixed by 7494.
+- **7676** (`67a2738f81`): `predicate_name_coverage`.
+  - geom-core's test-local `NAMES` is spelled at the call.
+  - The census now skips a `decide*` whose first argument is a closure,
+    per its own definition of a site, so quantity's `Exact::decide` is
+    no site.
+
+Left red, owned elsewhere: the ten `revalue_corpus` rows and m10's
+`at_sym_a_fixed_box_is_the_build` (PR 7411's Sym drift). They are filed
+as `work/sym/a-sym-posed-reading-carries-a-value-its-node-does-not-compute`
+(P1, `design: true`, a GERM/SYM call). They are left unheld, because a
+stop would skip every later check in each row.
+
+The conic-centre census red was fixed by EMBED's 7690 before we got to
+it.
