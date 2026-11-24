@@ -713,8 +713,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
-#[path = "the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut.rs"]
-mod the_tours_die_with_two_pips_run_together_refuses_their_surviving_cut;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]

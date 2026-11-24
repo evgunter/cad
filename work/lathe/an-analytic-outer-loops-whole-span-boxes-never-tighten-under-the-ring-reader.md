@@ -19,7 +19,7 @@ The ring door's analytic reader (`crates/topo/src/pcurves_rings.rs`, `Outer::sid
 - a `Fitted` or `General` image's box is its whole control net's;
 - a `Spiric` image's box is its whole period's in `f`.
 
-So a point inside such a box is never cleared. The reading spends `PIECE_VISITS` (16384 decides) and answers `Near`, and the door answers `RingPlacementError::Undecided`. The answer is typed, but no measured case produces it: the 24 measured outer loops (`crates/mesh/tests/lift_probes.rs`) are all `Harmonic`, whose boxes tighten.
+So a point inside such a box is never cleared. The reading spends `PIECE_VISITS` (16384 decides) and answers `Near`, and the door answers `RingPlacementError::Undecided`. The answer is typed. The 24 outer loops `crates/mesh/tests/lift_probes.rs` measures are all `Harmonic`, whose boxes tighten, but measured cases now produce it: the poses below, and the sphere rings a closed cut-in leaves (2026-11-24, ORBIT).
 
 ## What a tightening box takes
 
@@ -49,3 +49,37 @@ Moved here from TESSLANE by `git mv`, id unchanged. On LATHE's one-band stack (`
 - The pole-strut and nearest-hits unions accept an undecided ring by elimination, and the mesh then refuses `DomainUnread` on exactly that ring.
 
 So no decide-or-refuse rule over this reader can make the two orders agree, and the fix is this row: restriction-tight per-span boxes for the forms that lack them. A blocker inherits the band of what waits on it, so this row is P1. LATHE's lane `lathe/outline-by-decision` builds it on the one-band stack, and its PR lands with that stack. (LATHE orchestrator)
+
+## 2026-11-23 — sphere cut-ins now reach it as rings (ORBIT)
+
+Evidence from `orbit/transient-chart-cut`. The re-entered op's output
+stage now closes every sphere cut-in's meridian
+(`topo::boolean::slit::close_cuts`). A ball face that keeps the region
+round a section circle holds the circle as a ring. On the measured
+poses, the mesher then answers this row's `Undecided { cause: None }`:
+
+- **Ring beside a pole.** The outline is the ball's seam loop, its rows
+  iso arcs. In `sweep`'s `spheres_crossing_off_every_edge`:
+  - `a_circle_beside_a_pole_builds`: the `10⁻³` ball centred on the
+    unit sphere, under `a ∪ b`, `b ∪ a` and `b ∖ a`; and the `10⁻⁵`
+    circle, under `b ∪ a` and `b ∖ a`.
+  - `a_trimmed_face_cut_beside_its_pole_builds`, at δ `10⁻³` and `10⁻⁵`.
+
+  Before the closing, the three `10⁻³` ops drew.
+- **A band between two circles** (`a_band_between_two_circles_builds_under_every_boolean`,
+  the unit ball and a box `0.4 ≤ z ≤ 0.7`). The outline is the tilted
+  circle `z = 0.4`. `∩` and the box less the ball answer `Undecided`.
+  With the two loops' roles swapped, they answer `NoShift`, so the
+  roles are right.
+
+- **`snowman`**: `a_cut_ends_at_the_nearest_of_several_boundary_hits`
+  (the slab toward latitude −60°) and
+  `a_slab_cutting_a_cap_off_a_pole_strut_carve_builds` (the slab toward
+  `(0.866, 0.1, −0.5)`), under both unions and the carve less the slab
+  (`assert_ring_unread`). Both meshed before the closing.
+
+Each body is tier-3 valid, maximal, and at its closed-form volume. The
+pins are `Want::RingUnread` in `spheres_crossing_off_every_edge` and
+`assert_ring_unread` in `snowman`. The tour's die with two pips dragged
+together does not reach it: its kernel body meshes in all eight edits
+(`the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex`).

@@ -2528,9 +2528,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Emission {
-                what: "a chart cut survives in the result",
+                what: "a carried edge's group names no operand",
             },
-            vec!["a chart cut survives in the result"],
+            vec!["a carried edge's group names no operand"],
         ),
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),

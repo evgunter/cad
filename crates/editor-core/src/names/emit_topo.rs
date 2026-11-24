@@ -2481,11 +2481,6 @@ fn name_boolean_edges<T: Decide>(
             op.table.name_of(&ent(0, EntityKey::Edge(k))).is_some() && !joined_faces.contains(&e);
         if resolves {
             groups.entry(root).or_default().push(e);
-        } else if naming.chart_cuts[root.operand().index()].contains(&k) {
-            // The output stage glues a chart cut away with the two
-            // pieces of the face it divided; one left is a body the
-            // emitter cannot read.
-            return Err(bug("a chart cut survives in the result"));
         } else {
             match chord_kind(e)? {
                 ChordKind::Cross(fa, fb, one) => {
@@ -3558,11 +3553,8 @@ fn senses_at<T: Decide>(
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
-    // A chart cut is no edge of its operand, so no line of a vertex.
-    let cut =
-        |row: &topo::EdgePieceClass| naming.chart_cuts[row.operand.index()].contains(&row.edge);
     for row in &naming.edge_classes {
-        if keys.contains(&(row.operand, row.vertex)) && !cut(row) {
+        if keys.contains(&(row.operand, row.vertex)) {
             sides.entry((row.operand, row.edge)).or_default()[usize::from(row.starts)]
                 .insert(row.class != topo::SideCode::Out);
         }
@@ -3576,8 +3568,8 @@ fn senses_at<T: Decide>(
         let Some(name) = op.table.name_of(&ent(0, EntityKey::Edge(edge))) else {
             unreachable!(
                 "operand edge {edge:?} of {side:?}, classified at result vertex {v:?}, is not \
-                 named: `topo::EdgePieceClass` holds an operand's own edge key, chart cuts \
-                 aside, and an operand's table is total over its body"
+                 named: `topo::EdgePieceClass` holds an operand's own edge key, and an \
+                 operand's table is total over its body"
             )
         };
         let name = name.clone();

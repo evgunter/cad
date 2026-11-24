@@ -777,7 +777,6 @@ impl Through {
             uncut: _,
             edge_classes: _,
             unread_partners: _,
-            chart_cuts: _,
             null_copies: _,
             cone_splits: _,
             edge_joins: _,
@@ -841,9 +840,6 @@ impl Through {
                 *x = self.vertex(*x);
                 *y = self.vertex(*y);
             }
-        }
-        for e in &mut n.chart_cuts[1] {
-            *e = self.edge(*e);
         }
         n.fused_seams.clone_from(&self.seams);
         let carved = core::mem::take(&mut n.carved_lineage[1]);

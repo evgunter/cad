@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: M
+design: true
 ---
 
 
@@ -47,3 +48,25 @@ gate say the same thing:
 Moved from `work/issues/` to `work/restgate/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 Moved from RESTGATE to RESTFRONT on 2026-11-20, by `git mv`, when RESTGATE merged into RESTFRONT: RESTGATE held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one RESTFRONT carries.
+
+## 2026-11-23 — a second door's maximality rests on this (ORBIT)
+
+Filed again, as evidence, by `orbit/transient-chart-cut`. A sphere
+cut-in's chart cut survived into the result between two pieces of one
+ball face (the union of a lens and a tilted brick; the tour's die with two
+pips dragged together). Tier 3 passed it: check 11 reads maximal
+**edges** only, so a result with two faces on one surface across a
+cut-in's meridian was valid at rest. Naming, not validation, caught it,
+as an untyped `Emission`. That branch now deletes every such cut in the
+output stage, and asserts in debug builds that none survives
+(`topo::boolean::slit::close_cuts`). Checking maximal faces at rest would
+also catch the shape tier 3 cannot see today.
+
+**Design question (why `design: true`).** A maximal-faces check at rest
+collides with C12(5)'s shipped skips (`crates/geom-brep/README.md`; the
+merge door's `MergeCoplanarError::PeriodClosure`). A curved run that
+closes its period is left as two faces on one surface on purpose, and
+some naming leans on that
+(`work/topo/the-closed-run-skip-is-described-as-unfinished-and-as-the-design.md`).
+So the check either exempts those runs by name, or C12(5) changes. That
+is Ev's call.
