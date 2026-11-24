@@ -114,3 +114,7 @@ Round-6 replies (all three in by 13:15 UTC; raw on `boxfinish/briefs` `probe/bri
 ## Round 7 (dispatched 13:19 UTC to all three; statement `probe/briefs/fork-parted-path/round-7.md` at `a3a1db273b8`)
 
 The agreed list, the phrase with both arguments, and one question: which phrase each holds after reading the others, and whether a remaining difference should go to Ev or be ruled as a detail of the unit.
+
+Round-7 replies (all three in by 13:16 UTC; raw on `boxfinish/briefs` `probe/briefs/fork-parted-path/<label>-round-7.md`): **agreed.** B moved to "refused at once" (the principle it rested on is not in E6's text, and the measurement gives bisecting nothing to work on); A and C held it. All three say the phrase is a detail of the unit and not Ev's, and all three confirm the agreed list. Reserve, from all three: if a parting that a narrower box removes is ever measured, that kind alone gets a bisect arm.
+
+**Reconciliation ends with an agreed recommendation after seven rounds.** It changes E6's ratified text in three places (what a flip names, the new `Parted` refusal, the certified bullet's "topology"), so it goes to Ev on PR 7700, rewritten in place; the first version of that PR (certify on the build's record) was refuted by M13 and is withdrawn.
