@@ -6794,7 +6794,10 @@ mod self_check_rows {
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, pair_section_frame, section_unbuilt};
+    use super::{
+        FrameError, FrameExtent, one_loop, pair_section_frame, pair_section_frame_at,
+        section_unbuilt,
+    };
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
@@ -7014,7 +7017,9 @@ mod frame_dispatch_tests {
             Point3::new(-3.0, -3.0, -3.0),
             Point3::new(3.0, 3.0, 3.0),
         ));
-        let frame = |a, b, extent| one_loop(pair_section_frame_at(a, b, extent, band()));
+        let frame = |a: &geom::Surface<f64>, b: &geom::Surface<f64>, extent: FrameExtent<f64>| {
+            one_loop(pair_section_frame_at(a, b, extent, band()))
+        };
         let parallel = cone(Point3::new(1.0, 0.0, 0.0));
         let on_axis = ball(Point3::new(0.0, 0.0, 2.0));
         for (what, other, extent) in [
