@@ -1452,17 +1452,13 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // sides' windows read that one verdict; a body the battery
         // refuses is not asked.
         let strict_same = same_body && matches!(query.bound, ClearanceBound::StrictlyPositive);
-        let facts = |bare, body| {
-            engine
-                .reading_unfinished(bare, body, query.tol)
-                .map_err(|findings| {
-                    ClearanceReport::refused(ClearanceRefusal::NotValid { findings })
-                })
-        };
+        let facts = |bare, body| engine.reading_unfinished(bare, body, query.tol);
+        let not_valid =
+            |findings| ClearanceReport::refused(ClearanceRefusal::NotValid { findings });
         let windows_a = if strict_same {
             match facts(windows_a, body_a.body()) {
                 Ok(w) => w,
-                Err(refused) => return refused,
+                Err(findings) => return not_valid(findings),
             }
         } else {
             windows_a
@@ -1486,7 +1482,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             ) {
                 Ok(w) if strict_same => match facts(w, body_b.body()) {
                     Ok(w) => w,
-                    Err(refused) => return refused,
+                    Err(findings) => return not_valid(findings),
                 },
                 Ok(w) => w,
                 Err(r) => return ClearanceReport::refused(refused(r)),

@@ -1311,7 +1311,7 @@ impl<T: Real> Reach<T> {
 ///
 /// - **the stations** ([`BoundaryStations`]): each is a point of the
 ///   face's boundary, so of the face, and its distance from the locus
-///   read from below ([`locus_distance_below`]) is a distance the face
+///   read from below (`Locus::distance_below`) is a distance the face
 ///   reaches;
 /// - **the spanned curve** ([`centre_line`], [`oval_clearance`]), for a
 ///   face whose stations all lie on the shared closed curve.
@@ -1350,7 +1350,7 @@ impl<T: SpanLocate> BoundaryStations<T> {
 
     /// The face's run from the edge on `carrier` over `span`, from
     /// below: the farthest of its stations from the carrier's locus
-    /// ([`locus_distance_below`]). Zero for a face with no station.
+    /// (`Locus::distance_below`). Zero for a face with no station.
     pub fn run_from_edge(&self, carrier: &Curve3<T>, span: (T, T)) -> Lever<T> {
         let locus = Locus::of(carrier, span);
         Lever::of_consumed_extent(
