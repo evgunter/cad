@@ -163,6 +163,15 @@ jobs:
             --no-fail-fast || rc=$?
           scripts/nextest-failures.py "viewer app" "$rc"
           exit "$rc"
+      # full-suite-build's listing has no `app` feature and leaves viewer's
+      # slow-set entries to this one (`--elsewhere viewer`).
+      - name: the slow set's viewer entries name only tests that exist (the app-feature listing)
+        if: '!cancelled()'
+        run: |
+          set -o pipefail
+          members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
+          cargo nextest list --ignore-default-filter -p viewer --features app --message-format json \
+            | python3 scripts/check-slow-set-names.py --members "$members"
       - name: failing tests (name, panic, seed)
         if: failure()
         run: cat "$RUNNER_TEMP/nextest-failures.txt" 2>/dev/null || echo "no nextest row failed; the red is in another step"
@@ -639,7 +648,7 @@ jobs:
           set -o pipefail
           cargo nextest list --workspace --ignore-default-filter --message-format json \
             | tee "$RUNNER_TEMP/test-list.json" \
-            | python3 scripts/check-slow-set-names.py --complete
+            | python3 scripts/check-slow-set-names.py --complete --elsewhere viewer
       - name: upload the test listing for full-suite-coverage
         if: '!cancelled() && steps.build.outcome == ''success'''
         uses: actions/upload-artifact@v4
