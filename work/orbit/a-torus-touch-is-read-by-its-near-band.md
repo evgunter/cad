@@ -2,11 +2,14 @@
 id: a-torus-touch-is-read-by-its-near-band
 kind: unit
 title: A torus touch is read by its near band: every Zero tangency on a closed-form torus arm whose level function has only the forced critical points is a touch, saddles and parallels included
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: H
 refs: [a-torus-touch-along-a-whole-parallel-refuses-r-tan, a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan, 4159, 3978]
+closed: 2026-11-24
+pr: 7611
+branch: orbit/torus-touch-build
 ---
 
 
@@ -126,3 +129,15 @@ Parallels wait on the line × torus door with the saddles:
 ## Ev's ruling (2026-11-24, PR 7587)
 
 "if it's sound i'm happy with it": the near-band reading is approved in full, saddles and parallels included, wherever it is sound. Today it is sound at strict point extremes, which this unit builds (PR 7611). The saddle and parallel units stay parked on the line × torus door, because the door's silent answers are what stands between them and soundness.
+
+## Closed (2026-11-24, PR 7611)
+
+This unit builds strict point extremes:
+- The elliptic margin is gone.
+- `at` is read off the actual pose on every arm: exact for the plane and the sphere, first order in the tilt for the parallel wall.
+- One `Section::touch` constructor.
+- S′ is stated beside L1's S and pinned door by door, inside and outside. The line × torus silent rows name GERM's door row.
+
+Off-face touches build: a ball in the hole, a ball in the tube, a plane at the top point, a wall in the hole on the inner equator, a rod tilted within the band. Off-exact poses with the dip on the far side refuse.
+
+Review: dual, two reviewers. Round 1 was NOT-MERGEABLE: a parallel touch read off the exact pose built across a crossing, so parallels were withdrawn and are parked. Round 2 was APPROVE-WITH-FIXES from both, and a last pass followed on my read. Saddles and parallels wait on the door (`torus-saddle-touches-are-read-by-their-near-band`, `torus-parallel-touches-wait-on-the-line-torus-door`).
