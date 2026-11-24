@@ -80,7 +80,7 @@ fn review_r2_no_verb_stores_a_radius_reaching_zero_over_a_box() {
                         Ok(rs) => {
                             built += 1;
                             for (lo, hi) in rs {
-                                if !(lo > 0.0) {
+                                if lo <= 0.0 || lo.is_nan() {
                                     bad.push(format!(
                                         "{verb} {lane} q {centre}±{half}: radius [{lo:e}, {hi:e}]"
                                     ));
