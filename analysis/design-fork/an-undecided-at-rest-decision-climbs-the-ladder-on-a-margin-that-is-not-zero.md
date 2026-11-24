@@ -12,3 +12,10 @@ Protocol: ddd201f411f (`docs/DESIGN-FORK-PROTOCOL.md`, the last commit on `origi
 Mapping: **A = Fable 5.2, B = Opus 5.5**. Versions as configured at dispatch; confirmed from each session's served model when the reports are in.
 
 The statement of the problem (identical for both) is `probe/briefs/designer-the-climb.md` on `boxfinish/briefs` at `416eb1b3c5d`; it names no candidate solution. Exposures to a candidate, as hypotheses: the item and M11 report that leaving the tier unasked on four named margins changes no verdict (a scratch substitution, not a proposal).
+
+## Sessions (dispatched 09:16 UTC, concurrently, one statement of the problem; checkout `boxfinish/orchestrator` at `cbc9453b153`)
+
+| Label | Model (configured) | Session |
+|---|---|---|
+| A | Fable 5.2 (`claude-fable-5-2`) | session_013QoYWTzB9rBLberBxrJ5dT |
+| B | Opus 5.5 (`claude-opus-5-5`) | session_013QoYWXFZDL2yMboFxQ7x7a |
