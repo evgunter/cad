@@ -167,11 +167,15 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
-/// The funnel site of a plane face's convexity in a cell: how far one
-/// line edge, at its far end or over the cell's reach, stands on another's
-/// face side, metres. Each reading is a distance from a line along its
-/// unit normal: a corner's far end from the other edge, or the points of
-/// the base a strip's end caps from the cap.
+/// The funnel site of a plane face's corner in a cell, metres. Each
+/// reading is a distance from a line along its unit normal. At a corner
+/// of two line edges: how far, over an edge's length, the ray into the
+/// face stands on that edge's face side ([`ray_inside`]). At a strip's
+/// end: how far the corner's one line edge, at its far end, stands on
+/// the other's face side, and the points of the base the end's cap
+/// stands over from the cap. At a line meeting a curve: how far the
+/// second axis leans to the line's face side
+/// ([`present_vertex_corner`]).
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -1301,6 +1305,21 @@ enum Presentation<'a> {
     /// The face has no point in the cell.
     Vacuous,
     Of(Box<Presented<'a>>),
+    /// Two pieces that together hold the face's part of the cell: a
+    /// plane face's sector at a two-line corner, cut by a ray into the
+    /// face ([`present_plane`]).
+    Pair(Box<Presented<'a>>, Box<Presented<'a>>),
+}
+
+impl<'a> Presentation<'a> {
+    /// The pieces, none for a vacuous one.
+    fn pieces(&self) -> Vec<&Presented<'a>> {
+        match self {
+            Self::Vacuous => Vec::new(),
+            Self::Of(p) => vec![p],
+            Self::Pair(p, q) => vec![p, q],
+        }
+    }
 }
 
 /// Why a face is not presented in a cell.
@@ -3612,6 +3631,26 @@ fn partial_zero(
         .then(|| (c.side, Along::of(surface, b, &shared)))
 }
 
+/// **Whether the ray `m` into a plane face lies strictly on the face
+/// side of one of its corner's edges**, `u` that edge's unit toward-face
+/// normal and `l` its length: the sine of the angle from the edge to the
+/// ray, `m·u / |m|`, times `l`, metres, decided positive at
+/// [`SELF_INTERSECTION_CORNER`]. A sine levered at the edge's own
+/// length, a face's extent and not a cell's of the sweep, as the lean it
+/// replaces was. Both edges' answers together put
+/// the ray strictly inside the face's sector with each piece under a
+/// half turn; a spike or a slit (the two normals opposed, `m` vanishing)
+/// is not decided and refuses.
+fn rp(name: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("RP_MUTANT").unwrap_or_default()) == name
+}
+
+fn ray_inside(m: [Interval; 2], u: [Interval; 2], l: Interval, band: Band) -> bool {
+    let sine = (m[0] * u[0] + m[1] * u[1]) / (m[0].powi(2) + m[1].powi(2)).sqrt();
+    interval_sign_as(sine * l, SELF_INTERSECTION_CORNER, band) == Some(Sign::Positive)
+}
+
 fn rp_note(s: &str) {
     static T: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     if *T.get_or_init(|| std::env::var("RP_TRACE").is_ok()) {
@@ -3620,9 +3659,33 @@ fn rp_note(s: &str) {
 }
 
 /// The planar presentation: the plane's chart through an affine map in
-/// which one line edge is `y = 0` and the face `y ≥ 0`, or two line edges
-/// at a convex corner are the positive axes; at a strip's end, the end's
-/// other neighbour across the face caps the rectangle.
+/// which one line edge is `y = 0` and the face `y ≥ 0`, or, at a corner
+/// of two line edges, two of them.
+///
+/// **A two-line corner is two pieces** ([`Presentation::Pair`]). The
+/// face near the vertex is the sector from one edge round to the other
+/// on the face's side, whatever its angle: convex, straight, straight to
+/// a rounding, reflex. The ray `m` into the face, the sum of the two
+/// edges' unit toward-face normals, bisects it, and each piece is the
+/// cone of one edge and `m`, the image of `[0, x̄] × [0, ȳ]` with the
+/// vertex at the origin: a convex corner of its own, read as one. The
+/// two cover the sector and meet along `m`. Which side of straight the
+/// corner lies on is never asked.
+///
+/// A cell whose side lies on `m` leaves the far piece a rectangle a
+/// rounding wide. It is read as any other: the departure's margin is a
+/// sine at the faces' reach ([`arm_of`]), not the rectangle's extent.
+///
+/// Nothing else bounds the face in the cell: the cell's edges are these
+/// two, its only vertex theirs, and each piece's reach along its edge
+/// stays inside the edge's far end. A piece the cell lies wholly off is
+/// not presented, and the face is vacuous only where neither is. Each
+/// piece has its own zero: its edge where the pair shares it, else its
+/// corner where the vertex is on the shared cell, else none.
+///
+/// **A strip's end** is not a two-line corner: the cell holds a third
+/// line edge, the end's other neighbour across the face, which caps the
+/// rectangle of the end's convex corner.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -3812,9 +3875,10 @@ fn present_plane<'a>(
             cache: Cache::default(),
         })))
     };
-    // Two line edges at a convex corner `vtx` as the positive axes, `e1`
-    // along `x`; `cap`, the line at `e2`'s far end and that vertex,
-    // across the face from `e1` (a strip's end).
+    // A strip's end: two line edges at a convex corner `vtx` as the
+    // positive axes, `e1` along `x`, and `cap`, the line at `e2`'s far end
+    // and that vertex, across the face from `e1`. A corner with no cap is
+    // `pieces`'.
     //
     // The far corner, `e2`'s with the cap, is convex wherever the cap's
     // lean holds at `x = 0`: there it reads `vtx` on the cap's face side,
@@ -3825,12 +3889,12 @@ fn present_plane<'a>(
     let corner = |e1: usize,
                   e2: usize,
                   vtx: VertexKey,
-                  cap: Option<(usize, VertexKey)>|
+                  cap: (usize, VertexKey)|
      -> Result<Presentation<'a>, Unpresented> {
         let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
             return Err(Unpresented::Local);
         };
-        let at_a_corner = |w: VertexKey| w == vtx || cap.is_some_and(|(_, v)| w == v);
+        let at_a_corner = |w: VertexKey| w == vtx || w == cap.1;
         if !piece.local.vertices.iter().all(|&w| at_a_corner(w)) {
             return Err(Unpresented::Local);
         }
@@ -3877,34 +3941,20 @@ fn present_plane<'a>(
         let y = (a[0] * d[1] - a[1] * d[0]) / det;
         let z1 = near_edges.contains(&e1);
         let z2 = near_edges.contains(&e2);
-        let capped_at = match cap {
-            None => None,
-            Some((f, end)) => {
-                // A shared vertex at the far corner is on no zero side.
-                if near_vertices.contains(&end) && !z2 {
-                    return Err(Unpresented::Local);
-                }
-                let reach = iv((0.0, x.hi().max(0.0)));
-                Some(capped(f, (o, a, bv), reach)?)
-            }
-        };
+        let (f, end) = cap;
+        // A shared vertex at the far corner is on no zero side.
+        if near_vertices.contains(&end) && !z2 {
+            return Err(Unpresented::Local);
+        }
+        let capped_at = capped(f, (o, a, bv), iv((0.0, x.hi().max(0.0))))?;
         if x.hi() <= 0.0 || y.hi() <= 0.0 {
             return Ok(Presentation::Vacuous);
         }
         let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
-        let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
         if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
             return Err(Unpresented::Local);
         }
-        let top = match capped_at {
-            None => {
-                if !positive((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN) {
-                    return Err(Unpresented::Local);
-                }
-                y.hi()
-            }
-            Some(h) => h.min(y.hi()),
-        };
+        let top = capped_at.min(y.hi());
         // Each edge over its coordinate, 0 at the vertex and 1 at its
         // far end, out to `hi`. A side lies on its edge where `hi` is
         // decided not past the far end: a capped end's side runs to the
@@ -3940,6 +3990,149 @@ fn present_plane<'a>(
             cache: Cache::default(),
         })))
     };
+    // Two line edges at their vertex `vtx`, with nothing else in the
+    // cell: the corner's sector cut on the ray into the face into two
+    // convex pieces, whatever its angle.
+    let pieces = |e1: usize, e2: usize, vtx: VertexKey| -> Result<Presentation<'a>, Unpresented> {
+        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
+            return Err(Unpresented::Local);
+        };
+        if piece.local.vertices.iter().any(|&w| w != vtx) {
+            return Err(Unpresented::Local);
+        }
+        let ((p1, s1), (q1, f1)) = segment(e1)?;
+        let ((p2, s2), (q2, f2)) = segment(e2)?;
+        // Each edge's chart point at the vertex, its far point, and
+        // its traversal direction.
+        let start1 = if r1.uses[0].plus {
+            r1.ends[0]
+        } else {
+            r1.ends[1]
+        };
+        let start2 = if r2.uses[0].plus {
+            r2.ends[0]
+        } else {
+            r2.ends[1]
+        };
+        // Each edge's parameters at the vertex and its far end ride
+        // with its points.
+        let ((o, v1), (far1, w1)) = if start1 == vtx {
+            ((p1, s1), (q1, f1))
+        } else {
+            ((q1, f1), (p1, s1))
+        };
+        let ((_, v2), (far2, w2)) = if start2 == vtx {
+            ((p2, s2), (q2, f2))
+        } else {
+            ((q2, f2), (p2, s2))
+        };
+        let t1 = [q1.x - p1.x, q1.y - p1.y];
+        let t2 = [q2.x - p2.x, q2.y - p2.y];
+        let a = [far1.x - o.x, far1.y - o.y];
+        let bv = [far2.x - o.x, far2.y - o.y];
+        let n1 = toward_face(t1, orientation);
+        let n2 = toward_face(t2, orientation);
+        let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
+        let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
+        // The ray into the face: the sum of the two edges' unit
+        // toward-face normals.
+        let unit2 = |n: [Interval; 2]| {
+            let l = (n[0].powi(2) + n[1].powi(2)).sqrt();
+            [n[0] / l, n[1] / l]
+        };
+        let (u1, u2) = (unit2(n1), unit2(n2));
+        let m = if rp("R1") { u1 } else { [u1[0] + u2[0], u1[1] + u2[1]] };
+        if !rp("P1") && !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
+            return Err(Unpresented::Local);
+        }
+        let mh = unit2(m);
+        let d = [cell_u - o.x, cell_v - o.y];
+        // One piece: the cone of an edge's direction `e`, of length
+        // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
+        // where the cell lies wholly off it.
+        let cone = |e: [Interval; 2],
+                    l: Interval,
+                    r: [Interval; 2],
+                    zero: &dyn Fn(Interval) -> Zero|
+         -> Result<Option<Presented<'a>>, Unpresented> {
+            let r = [r[0] * l, r[1] * l];
+            let det = e[0] * r[1] - e[1] * r[0];
+            let x = (d[0] * r[1] - d[1] * r[0]) / det;
+            let y = (e[0] * d[1] - e[1] * d[0]) / det;
+            if !(x.is_certified() && y.is_certified()) {
+                return Err(Unpresented::Local);
+            }
+            if (!rp("P9") && (x.hi() <= 0.0 || y.hi() <= 0.0))
+                || (rp("R6") && (x.lo() <= 0.0 || y.lo() <= 0.0))
+            {
+                return Ok(None);
+            }
+            if !rp("P8")
+                && interval_sign_as((at(1.0) - x) * l, SELF_INTERSECTION_SPAN, band)
+                    != Some(Sign::Positive)
+            {
+                return Err(Unpresented::Local);
+            }
+            Ok(Some(Presented {
+                surface: piece.surface,
+                map: Map::Affine {
+                    o: [o.x, o.y],
+                    a: e,
+                    b: r,
+                },
+                x: (0.0, x.hi()),
+                y: (0.0, y.hi()),
+                zero: zero(x),
+                corner: false,
+                cache: Cache::default(),
+            }))
+        };
+        // A piece's zero: its edge where the pair shares it, else the
+        // vertex where the pair shares that, else none. The shared
+        // cell holds its edges' ends, so the vertex is shared where
+        // the other piece's edge is. The edge runs over its
+        // coordinate, 0 at the vertex and 1 at its far end.
+        let vertex_shared = near_vertices.contains(&vtx)
+            || (!rp("P4") && (near_edges.contains(&e1) || near_edges.contains(&e2)));
+        let zero = |e: usize, (v, w): (Interval, Interval)| {
+            move |hi: Interval| {
+                if near_edges.contains(&e) {
+                    Zero::Side(
+                        if rp("R8") { Side::XLo } else { Side::YLo },
+                        Along::over(piece.surface, b, e, true, || {
+                            segment_params(v, w, (0.0, hi.hi()))
+                        }),
+                    )
+                } else if vertex_shared && rp("R3") && (near_edges.contains(&e1) || near_edges.contains(&e2)) {
+                    let shared = if near_edges.contains(&e1) { e1 } else { e2 };
+                    Zero::Side(
+                        Side::YLo,
+                        Along::over(piece.surface, b, shared, true, || {
+                            segment_params(v, w, (0.0, hi.hi()))
+                        }),
+                    )
+                } else if vertex_shared {
+                    Zero::Point(Side::XLo, Side::YLo, vtx)
+                } else {
+                    Zero::None
+                }
+            }
+        };
+        let (zf, zs) = if rp("R2") {
+            (zero(e2, (v2, w2)), zero(e1, (v1, w1)))
+        } else {
+            (zero(e1, (v1, w1)), zero(e2, (v2, w2)))
+        };
+        let first = cone(a, la, mh, &zf)?;
+        let second = cone(bv, lb, mh, &zs)?;
+        Ok(match (first, second) {
+            (None, None) => Presentation::Vacuous,
+            (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
+            (Some(p), Some(_)) if rp("R4") => Presentation::Of(Box::new(p)),
+            (Some(_), Some(q)) if rp("R5") => Presentation::Of(Box::new(q)),
+            (Some(p), Some(q)) => Presentation::Pair(Box::new(p), Box::new(q)),
+        })
+    };
     let meet = |e: usize, f: usize| {
         let (r, s) = (b.edges.get(e)?, b.edges.get(f)?);
         r.ends.iter().find(|v| s.ends.contains(v)).copied()
@@ -3948,7 +4141,7 @@ fn present_plane<'a>(
         [e] => along(e),
         [e1, e2] => match meet(e1, e2) {
             Some(vtx) => {
-                let r = corner(e1, e2, vtx, None);
+                let r = pieces(e1, e2, vtx);
                 rp_note(match &r {
                     Ok(Presentation::Vacuous) => "2v",
                     Ok(_) => "2p",
@@ -3982,7 +4175,7 @@ fn present_plane<'a>(
                 if near_edges.contains(&cap.0) {
                     continue;
                 }
-                match corner(n, m, v, Some(cap)) {
+                match corner(n, m, v, cap) {
                     Err(Unpresented::Local) => last = Err(Unpresented::Local),
                     read => return read,
                 }
@@ -7701,6 +7894,14 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
 /// against the shared vertex on its stored chart only.
 ///
 /// A pair none of them parts is a [`cusp`] or splits.
+///
+/// A face presented in two pieces ([`Presentation::Pair`]) is read piece
+/// by piece: a carrier parts the pair only where it signs every piece of
+/// the other face, and the planes and the graph are asked of every piece
+/// of one face against every piece of the other, each pair under a
+/// separator of its own. The pieces cover each face's part of its cell,
+/// so a coincidence of the faces is one of some piece pair, and the pair
+/// is certified only where all of them are.
 fn departure(
     x: &Piece<'_>,
     y: &Piece<'_>,
@@ -7753,15 +7954,24 @@ fn departure(
     }
     // Read once a sign may be asked: the returns above never use it.
     let arm = arm_of(x, y, near);
-    // One face's carrier, the other departing it. Not between two faces
-    // of one face: the face is its own carrier.
+    // One face's carrier, the other departing it: every piece of the
+    // other. Not between two faces of one face: the face is its own
+    // carrier.
     if two {
         for (sep, other) in [(x, &py), (y, &px)] {
-            if let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other)
-                && sign_on(&Psi::Carrier(imp), None, p, None, arm, band).is_some()
-            {
-                rp_note("C");
-                return Outcome::Certified { corner: p.corner };
+            if let (Some(imp), Ok(other)) = (implicit_of(sep, band), other) {
+                let psi = Psi::Carrier(imp);
+                let pieces = other.pieces();
+                if if rp("P6") {
+                    pieces.iter().any(|p| sign_on(&psi, None, p, None, arm, band).is_some())
+                } else {
+                    pieces.iter().all(|p| sign_on(&psi, None, p, None, arm, band).is_some())
+                } {
+                    rp_note("C");
+                    return Outcome::Certified {
+                        corner: pieces.iter().any(|p| p.corner),
+                    };
+                }
             }
         }
     }
@@ -7773,7 +7983,7 @@ fn departure(
             arm: CertificateArm::Departure,
         });
     }
-    let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
+    let (Ok(px), Ok(py)) = (&px, &py) else {
         rp_note("N");
         return split;
     };
@@ -7784,15 +7994,27 @@ fn departure(
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
-    let opposite = |sep| apart(qx, qy, sep);
-    let corner = qx.corner || qy.corner;
-    if planes_through(x, near, qx, qy).into_iter().any(opposite) {
+    // Every piece of one face against every piece of the other, each
+    // pair under a separator of its own. A separator through a shared
+    // edge lists the edge's ends, so it holds the corner of a piece off
+    // that edge.
+    let (qxs, qys) = (px.pieces(), py.pieces());
+    let corner = |ps: &[&Presented<'_>]| ps.iter().any(|p| p.corner);
+    let parted = |qx: &Presented<'_>, qy: &Presented<'_>| {
+        planes_through(x, near, qx, qy)
+            .into_iter()
+            .any(|sep| apart(qx, qy, sep))
+            || graph_of(x, y, near, qx, qy, band).is_some_and(|sep| apart(qx, qy, sep))
+    };
+    if if rp("P5") {
+        qxs.iter().any(|qx| qys.iter().any(|qy| parted(qx, qy)))
+    } else {
+        qxs.iter().all(|qx| qys.iter().all(|qy| parted(qx, qy)))
+    } {
         rp_note("L");
-        return Outcome::Certified { corner };
-    }
-    if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
-        rp_note("L");
-        return Outcome::Certified { corner };
+        return Outcome::Certified {
+            corner: corner(&qxs) || corner(&qys),
+        };
     }
     // The pair's one shared vertex `v`, with shared edges near: the plane
     // through `v` alone, each face presented against `v` alone. Its own
@@ -7858,18 +8080,39 @@ fn departure(
             present(x, &[], &alone.vertices, band, &nx),
             present(y, &[], &alone.vertices, band, &ny),
         );
-        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
-            && planes_through(x, &alone, rx, ry)
-                .into_iter()
-                .any(|sep| apart(rx, ry, sep))
-        {
-            rp_note("A");
-            return Outcome::Certified {
-                corner: rx.corner || ry.corner,
-            };
+        if let (Ok(rx), Ok(ry)) = (&rx, &ry) {
+            let (rxs, rys) = (rx.pieces(), ry.pieces());
+            if !rxs.is_empty()
+                && !rys.is_empty()
+                && if rp("P10") {
+                    rxs.iter().any(|rx| {
+                        rys.iter().any(|ry| {
+                            planes_through(x, &alone, rx, ry)
+                                .into_iter()
+                                .any(|sep| apart(rx, ry, sep))
+                        })
+                    })
+                } else {
+                    rxs.iter().all(|rx| {
+                        rys.iter().all(|ry| {
+                            planes_through(x, &alone, rx, ry)
+                                .into_iter()
+                                .any(|sep| apart(rx, ry, sep))
+                        })
+                    })
+                }
+            {
+                rp_note("A");
+                return Outcome::Certified {
+                    corner: corner(&rxs) || corner(&rys),
+                };
+            }
         }
     }
-    if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
+    if let Some(shared) = qxs.iter().find_map(|qx| {
+        qys.iter()
+            .find_map(|qy| cusp(x, near, qx, qy, y.boundary.sense, band))
+    }) {
         rp_note("U");
         return Outcome::Cusp { shared };
     }
@@ -8970,6 +9213,8 @@ mod presentation_rows {
     enum Read {
         Vacuous,
         Of((f64, f64), (f64, f64)),
+        /// Two pieces.
+        Pair,
         Local,
         Structural,
         Collapsed,
@@ -8979,6 +9224,7 @@ mod presentation_rows {
         match p {
             Ok(Presentation::Vacuous) => Read::Vacuous,
             Ok(Presentation::Of(q)) => Read::Of(q.x, q.y),
+            Ok(Presentation::Pair(..)) => Read::Pair,
             Err(Unpresented::Local) => Read::Local,
             Err(Unpresented::Structural) => Read::Structural,
             Err(Unpresented::Collapsed(_)) => Read::Collapsed,
@@ -10521,11 +10767,14 @@ mod presentation_rows {
         ));
     }
 
-    /// **`present_plane`, two line edges**: a convex corner presents its
-    /// quadrant; the same corner run backward, or with the sense flipped,
-    /// is reflex (the face is the three other quadrants) and is not
-    /// presented as the wedge between its edges. Red if the lean gate
-    /// reads the face's side the wrong way, or not at all.
+    /// **`present_plane`, two line edges**: a corner is two pieces that
+    /// cover the face's sector and nothing else. A convex corner's cell
+    /// in its quadrant is presented and one in the opposite quadrant is
+    /// vacuous; the same corner run backward, or with the sense flipped,
+    /// is reflex (the face is the three other quadrants), and there the
+    /// two answers trade places: the wedge between the edges holds none
+    /// of the face. Red if the pieces are cut on the wrong side of an
+    /// edge, or a reflex corner is read as its wedge.
     #[test]
     fn a_planes_reflex_corner_of_two_lines_is_not_its_wedge() {
         let plane = Surface::Plane {
@@ -10563,34 +10812,43 @@ mod presentation_rows {
             edges: vec![0, 1],
             vertices: vec![vertex(1)],
         };
-        let read = |b: &Boundary| {
+        let read = |b: &Boundary, at: (f64, f64)| {
             let piece = Piece {
                 face: FaceKey::default(),
                 surface: &plane,
                 whole: false,
                 boundary: b,
-                u: (0.5, 1.0),
-                v: (0.5, 1.0),
+                u: at,
+                v: at,
                 local: &local,
                 ball: Ball::holding(origin(), origin()),
             };
             match present_plane(&piece, &[], &[], band()) {
-                Ok(Presentation::Of(_)) => "presented",
-                Err(Unpresented::Local) => "refused locally",
-                _ => "something else",
+                Ok(Presentation::Of(_) | Presentation::Pair(..)) => "presented",
+                Ok(Presentation::Vacuous) => "vacuous",
+                Err(_) => "refused",
             }
         };
-        assert!(
-            read(&corner(true, true)) == "presented",
-            "the convex corner presents its quadrant"
+        let (wedge, opposite) = ((0.5, 1.0), (-1.0, -0.5));
+        assert_eq!(
+            (
+                read(&corner(true, true), wedge),
+                read(&corner(true, true), opposite)
+            ),
+            ("presented", "vacuous"),
+            "the convex corner is its quadrant"
         );
         for (forward, sense, what) in [
             (false, true, "run backward"),
             (true, false, "sense flipped"),
         ] {
-            assert!(
-                read(&corner(forward, sense)) == "refused locally",
-                "{what}: the reflex corner is not presented as its wedge"
+            assert_eq!(
+                (
+                    read(&corner(forward, sense), wedge),
+                    read(&corner(forward, sense), opposite)
+                ),
+                ("vacuous", "presented"),
+                "{what}: the reflex corner is the other three quadrants"
             );
         }
     }
@@ -10724,6 +10982,211 @@ mod presentation_rows {
     const MY: [f64; 3] = [0.0, -1.0, 0.0];
     const PZ: [f64; 3] = [0.0, 0.0, 1.0];
     const MZ: [f64; 3] = [0.0, 0.0, -1.0];
+
+    /// **`present_plane`, two line edges: two pieces that cover the
+    /// sector.** The half `y ≥ 0` of [`floor`]'s plane, its edge the `x`
+    /// axis split at the origin (a straight corner). About the vertex it
+    /// is two pieces, each with its own zero: its edge where the pair
+    /// shares it, else its corner at the vertex where the pair shares the
+    /// vertex or the other piece's edge (whose end the vertex is), else
+    /// none. A cell on one edge's side, clear of the other piece's part,
+    /// is that edge's piece alone; a cell across the edges holds none of
+    /// the face. Red if a piece is dropped that the other does not cover,
+    /// kept where it is a sliver the other covers, or given a zero off
+    /// the shared cell.
+    #[test]
+    fn a_two_line_corner_is_two_pieces_that_cover_its_sector() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let local = both_rims_and_vertex_1();
+        let zeros = |u, v, edges: &[usize], vertices: &[VertexKey]| -> Vec<&'static str> {
+            match present_plane(&cell_of(&f, &local, u, v), edges, vertices, band()) {
+                Ok(p) => p
+                    .pieces()
+                    .iter()
+                    .map(|q| match &q.zero {
+                        Zero::None => "none",
+                        Zero::Side(Side::YLo, a) if a.edges.len() == 1 && a.whole => "edge",
+                        Zero::Point(Side::XLo, Side::YLo, _) => "corner",
+                        _ => "another",
+                    })
+                    .collect(),
+                Err(_) => vec!["refused"],
+            }
+        };
+        let about = (-0.5, 0.5);
+        let v1 = [vertex(1)];
+        assert_eq!(zeros(about, about, &[], &v1), ["corner", "corner"]);
+        assert_eq!(zeros(about, about, &[], &[]), ["none", "none"]);
+        assert_eq!(
+            zeros(about, about, &[1], &v1),
+            ["corner", "edge"],
+            "rim 1 shared: its piece's side, the other's corner"
+        );
+        assert_eq!(
+            zeros(about, about, &[1], &[]),
+            ["corner", "edge"],
+            "the partner's cell clear of the vertex: still the edge's end"
+        );
+        assert_eq!(zeros(about, about, &[0, 1], &v1), ["edge", "edge"]);
+        assert_eq!(
+            zeros((0.5, 1.0), (0.01, 0.1), &[], &v1),
+            ["corner"],
+            "a cell low along rim 1: that piece alone"
+        );
+        assert_eq!(
+            zeros((-1.0, -0.5), (0.01, 0.1), &[], &v1),
+            ["corner"],
+            "a cell low along rim 0: that piece alone"
+        );
+        assert_eq!(
+            zeros(about, (-0.5, -0.1), &[], &v1),
+            Vec::<&str>::new(),
+            "a cell across the edges: vacuous"
+        );
+        assert_eq!(
+            zeros((3.5, 4.5), (0.01, 0.1), &[], &v1),
+            ["refused"],
+            "a cell past rim 1's far end"
+        );
+    }
+
+    /// **The ray is decided strictly inside the sector, or the corner is
+    /// refused.** A spike (the two edges a nanoradian apart, the face
+    /// between them) and a slit (the face everything but that) have no
+    /// ray inside with both pieces under a half turn. A corner kinked off
+    /// straight by less than the band, either way, or inside it, is cut
+    /// as any other: its side of straight is never asked. Red if the ray
+    /// is not decided at the band, or a lean is.
+    #[test]
+    fn a_spike_or_a_slit_within_the_band_is_not_cut() {
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let read_of = |d2: [f64; 3]| {
+            let f = sector_at_vertex_1(PZ, PX, d2, (1, 2));
+            read(present_plane(
+                &cell_of(&f, &local, about, about),
+                &[],
+                &[vertex(1)],
+                band(),
+            ))
+        };
+        for angle in [1e-10, 1e-9, 3e-9] {
+            assert_eq!(
+                read_of([1.0, angle, 0.0]),
+                Read::Local,
+                "a spike of {angle} rad"
+            );
+            assert_eq!(
+                read_of([1.0, -angle, 0.0]),
+                Read::Local,
+                "a slit of {angle} rad"
+            );
+        }
+        // A spike 1.5 band-zeros of angle, in a cell one band-zero across:
+        // small enough that each piece's rectangle fits inside its edge,
+        // so only the ray's own decision refuses it (its sine over the
+        // edge's length is 3 band-zeros: in the band).
+        let zero = band().zero();
+        let spike = sector_at_vertex_1(PZ, PX, [1.0, 1.5 * zero, 0.0], (1, 2));
+        let tiny = (-zero, zero);
+        assert_eq!(
+            read(present_plane(
+                &cell_of(&spike, &local, tiny, tiny),
+                &[],
+                &[vertex(1)],
+                band()
+            )),
+            Read::Local,
+            "a spike in the band, in a cell that holds it"
+        );
+        for (d2, what) in [
+            ([-1.0, -0.225e-9, 0.0], "convex by 0.9 ε at the far end"),
+            ([-1.0, 0.225e-9, 0.0], "reflex by 0.9 ε"),
+            ([-1.0, -0.75e-9, 0.0], "convex by 3 ε"),
+            ([-1.0, 0.75e-9, 0.0], "reflex by 3 ε"),
+        ] {
+            assert_eq!(read_of(d2), Read::Pair, "{what}");
+        }
+    }
+
+    /// **Two faces that share a vertex alone are parted piece pair by
+    /// piece pair.** `F` lies in `x = 0`, from `+y` round through `-z` to
+    /// `far`: exactly straight, off straight by 1e-13 either way, reflex
+    /// at 207° and at 260°. Against the half `z ≥ 0` of `y = 0` and
+    /// against a reflex face there, it is certified; against the half
+    /// `x ≥ 0` of `y = 0`, whose edge runs down `F`, it is not.
+    /// Red if a face pair is certified with a piece pair unparted, or a
+    /// corner is read as one sector.
+    #[test]
+    fn faces_sharing_a_vertex_alone_are_parted_piece_by_piece() {
+        let g = sector_at_vertex_1(MY, PX, MX, (20, 21));
+        let reflex = sector_at_vertex_1(MY, PX, [-1.0, 0.0, -0.5], (20, 21));
+        let along = sector_at_vertex_1(PY, PZ, MZ, (20, 21));
+        for (what, far) in [
+            ("exactly straight", MY),
+            ("convex by 1e-13", [0.0, -1.0, -1e-13]),
+            ("reflex by 1e-13", [0.0, -1.0, 1e-13]),
+            ("reflex, 207 degrees", [0.0, -1.0, 0.5]),
+            ("reflex, 260 degrees", [0.0, -0.17, 1.0]),
+        ] {
+            let f = sector_at_vertex_1(MX, PY, far, (2, 3));
+            assert!(
+                parted_at_vertex_1(&f, &g, &[]),
+                "{what}: a straight partner"
+            );
+            assert!(
+                parted_at_vertex_1(&f, &reflex, &[]),
+                "{what}: a reflex partner"
+            );
+            assert!(
+                !parted_at_vertex_1(&f, &along, &[]),
+                "{what}: a partner whose edge runs down the face"
+            );
+        }
+    }
+
+    /// **Faces that share an edge of the corner.**
+    /// - A split shared edge: the half `y ≥ 0` of `z = 0` and the half
+    ///   `z ≤ 0` of `y = 0`, their common `x` axis split at the vertex:
+    ///   certified.
+    /// - The same partner folded onto the face: not certified.
+    /// - A reflex floor (three quadrants of `z = 0`) and a wall's
+    ///   quadrant standing on its edge `+x`: certified.
+    /// - The hazard: a wall, the half `z ≥ 0` of `y = 0`, on that floor,
+    ///   sharing `+x` only, its other edge `-x` lying in the floor's
+    ///   interior. The wall's carrier cannot sign the floor's pieces and
+    ///   the floor's carrier is zero along the wall's other edge: not
+    ///   certified. Red if a piece off the shared edge is read as clear
+    ///   of a carrier its own edge lies in.
+    #[test]
+    fn faces_sharing_an_edge_of_the_corner_are_parted_or_refused() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let g = sector_at_vertex_1(MY, MX, PX, (2, 1));
+        assert!(
+            parted_at_vertex_1(&f, &g, &[(1, 0), (0, 1)]),
+            "both halves near"
+        );
+        let folded = sector_at_vertex_1(MZ, MX, PX, (2, 1));
+        assert!(
+            !parted_at_vertex_1(&f, &folded, &[(1, 0), (0, 1)]),
+            "a partner folded onto the face"
+        );
+        let floor = sector_at_vertex_1(PZ, PX, MY, (1, 4));
+        let quadrant = sector_at_vertex_1(PY, PZ, PX, (5, 1));
+        assert!(
+            parted_at_vertex_1(&floor, &quadrant, &[(1, 0)]),
+            "a wall's quadrant on a reflex floor's edge"
+        );
+        assert!(
+            parted_near(&floor, &quadrant, &[(1, 0)], &[]),
+            "the same pair near the edge and not its end: the end is still the pieces' corner"
+        );
+        let wall = sector_at_vertex_1(PY, MX, PX, (3, 1));
+        assert!(
+            !parted_at_vertex_1(&floor, &wall, &[(1, 0)]),
+            "a wall whose other edge lies in the floor"
+        );
+    }
 
     // ------------------------------------------------ review probes (a3df17)
     mod review_probes {
@@ -12145,6 +12608,7 @@ mod presentation_rows {
                 );
             }
             Ok(Presentation::Vacuous) => panic!("the cell holds face points"),
+            Ok(Presentation::Pair(..)) => panic!("a strip's end is one piece"),
             Err(_) => {}
         }
     }
@@ -12356,33 +12820,35 @@ mod presentation_rows {
                             fail = Some(format!("Vacuous, yet {p:?} is a face point of the cell"));
                         }
                     }
-                    Ok(Presentation::Of(q)) => {
+                    // One piece, or a two-line corner's two: a face point
+                    // lies in some piece's rectangle.
+                    Ok(read) => {
                         match n {
                             3 => of3 += 1,
                             2 => of2 += 1,
                             _ => of1 += 1,
                         }
-                        if let Map::Affine { o, a, b: bv } = q.map {
-                            let m = |x: Interval| 0.5 * (x.lo() + x.hi());
+                        let m = |x: Interval| 0.5 * (x.lo() + x.hi());
+                        let holds = |q: &Presented<'_>, p: (f64, f64)| {
+                            let Map::Affine { o, a, b: bv } = q.map else {
+                                return true;
+                            };
                             let (o, a, bv) =
                                 ((m(o[0]), m(o[1])), (m(a[0]), m(a[1])), (m(bv[0]), m(bv[1])));
                             let det = cross(a, bv);
-                            for &p in &faced {
-                                let d = sub(p, o);
-                                let (x, y) = (cross(d, bv) / det, cross(a, d) / det);
-                                let (sx, sy) = (1e-7 * (1.0 + x.abs()), 1e-7 * (1.0 + y.abs()));
-                                if x < q.x.0 - sx
-                                    || x > q.x.1 + sx
-                                    || y < q.y.0 - sy
-                                    || y > q.y.1 + sy
-                                {
-                                    fail = Some(format!(
-                                        "presented x {:?} y {:?}, yet face point {p:?} is at ({x}, {y})",
-                                        q.x, q.y
-                                    ));
-                                    break;
-                                }
-                            }
+                            let d = sub(p, o);
+                            let (x, y) = (cross(d, bv) / det, cross(a, d) / det);
+                            let (sx, sy) = (1e-7 * (1.0 + x.abs()), 1e-7 * (1.0 + y.abs()));
+                            !(x < q.x.0 - sx || x > q.x.1 + sx || y < q.y.0 - sy || y > q.y.1 + sy)
+                        };
+                        let pieces = read.pieces();
+                        if let Some(p) =
+                            faced.iter().find(|&&p| !pieces.iter().any(|q| holds(q, p)))
+                        {
+                            fail = Some(format!(
+                                "presented in {} piece(s), none holding the face point {p:?}",
+                                pieces.len()
+                            ));
                         }
                     }
                     Err(_) => {
@@ -12755,8 +13221,9 @@ mod presentation_rows {
                 (-0.5, 0.5),
                 (-0.5, 0.5),
             );
+            // A corner of two lines is two pieces.
             assert!(
-                matches!(r, Read::Of(..)),
+                matches!(r, Read::Pair),
                 "two sound lines, {near:?} shared: {r:?}"
             );
             let r = ask(
@@ -14316,6 +14783,7 @@ mod presentation_rows {
             };
             match present_chart(&piece, &[], &[vertex(3)], band()) {
                 Ok(Presentation::Of(p)) => Ok((p.zero, p.y)),
+                Ok(Presentation::Pair(..)) => panic!("a chart presents one piece"),
                 Ok(Presentation::Vacuous) => panic!("vacuous"),
                 Err(e) => Err(e),
             }
@@ -15428,22 +15896,23 @@ mod presentation_rows {
             vertices: vec![vertex(3)],
         };
         let wedge = quadrant_piece(&plane, &pb, &wedge_local, 2, ((-0.02, 0.02), (-0.02, 0.02)));
-        let zero = |p: &Piece<'_>| match present(
-            p,
-            &[],
-            &near.vertices,
-            band(),
-            &Poses::of(&FacePoses::default()),
-        ) {
-            Ok(Presentation::Of(q)) => Some(q.zero.clone()),
-            _ => None,
+        let zeros = |p: &Piece<'_>| -> Vec<Zero> {
+            present(
+                p,
+                &[],
+                &near.vertices,
+                band(),
+                &Poses::of(&FacePoses::default()),
+            )
+            .map(|q| q.pieces().iter().map(|r| r.zero.clone()).collect())
+            .unwrap_or_default()
         };
         assert!(
-            matches!(zero(&cap), Some(Zero::Side(Side::YHi, _)))
-                && matches!(zero(&wedge), Some(Zero::Point(..))),
-            "the pole's side against the wedge's quadrant: {:?} {:?}",
-            zero(&cap),
-            zero(&wedge)
+            matches!(zeros(&cap).as_slice(), [Zero::Side(Side::YHi, _)])
+                && matches!(zeros(&wedge).as_slice(), [Zero::Point(..), Zero::Point(..)]),
+            "the pole's side against the wedge's two pieces: {:?} {:?}",
+            zeros(&cap),
+            zeros(&wedge)
         );
         let got = certify_pair(&cap, &wedge, &near, band());
         assert!(matches!(got, Outcome::Certified { .. }), "{got:?}");
@@ -15528,11 +15997,12 @@ mod presentation_rows {
             let b = quadrant_piece(&wedge, &wb, &local, 2, cb);
             let presented = |p: &Piece<'_>| {
                 matches!(present(p, &[], &near.vertices, band(), &Poses::of(&FacePoses::default())),
-                    Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(..)))
+                    Ok(Presentation::Pair(q, r))
+                        if matches!(q.zero, Zero::Point(..)) && matches!(r.zero, Zero::Point(..)))
             };
             assert!(
                 presented(&a) && presented(&b),
-                "{what}: both faces are their quadrants at the vertex"
+                "{what}: both faces are two pieces cornered at the vertex"
             );
             let got = certify_pair(&a, &b, &near, band());
             assert_eq!(
@@ -19187,12 +19657,12 @@ mod presentation_rows {
             local: &local,
             ball: Ball::holding(origin(), origin()),
         };
-        let Ok(Presentation::Of(q)) = present_plane(&piece, &[0], &[vertex(1)], band()) else {
-            panic!("the corner presented");
+        let Ok(Presentation::Pair(q, _)) = present_plane(&piece, &[0], &[vertex(1)], band()) else {
+            panic!("the corner presented as its two pieces");
         };
         assert!(
             matches!(q.zero, Zero::Side(..)),
-            "one side at the corner: {:?}",
+            "the piece on the shared edge has it for its side: {:?}",
             q.zero
         );
         assert!(
@@ -20691,6 +21161,7 @@ mod posed_rows {
         let poses = Poses::of(&face_poses);
         match present(&piece, near.0, near.1, band(), &poses)? {
             Presentation::Vacuous => panic!("the cell holds the face"),
+            Presentation::Pair(..) => panic!("a sphere is presented in one piece"),
             Presentation::Of(q) => {
                 let Surface::Sphere { frame, .. } = *q.surface else {
                     panic!("a sphere is presented on a sphere")
