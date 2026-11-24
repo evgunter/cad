@@ -1,0 +1,54 @@
+
+## f64 vs Interval, every top-level f64 evaluation: 95 distinct builds
+standing equal in both lanes: 90; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 56
+  box lane holds an escalation: 46
+box lane fully decided, standing equal: 44; whole log differs in 10 (22.7%), choices differ in 3, marks differ in 2
+         7  choices agree, check sequences part
+         2  a choice turned (first_turn)
+         1  parted elsewhere (step or end)
+  first difference (f64's entry, the box lane's, how):
+         9  ('props_circle_axis_class (Check)', 'positive_volume_exact', 'other predicate')
+         1  ('ssi_hull_sup (Choice)', 'pcurve_projected_lever', 'other predicate')
+standing differs: 5; first differing node (f64, box lane):
+         2  ('ok', 'failed Skin', 'escalation logged')
+         2  ('ok', 'failed Fillet', 'escalation logged')
+         1  ('ok', 'failed Chamfer', 'escalation logged')
+box lane's first escalated predicate at the nominal (51 builds): [('chart_singularity_nearer', 42), ('curve_carrier_gap', 6), ('ssi_hull_sup', 2), ('carrier_endpoint_end', 1)]
+f64 lane holds an escalation: 1
+
+## drive witnesses, zero-width box, Interval: 4 distinct builds
+standing equal in both lanes: 4; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 1
+  box lane holds an escalation: 0
+box lane fully decided, standing equal: 4; whole log differs in 1 (25.0%), choices differ in 0, marks differ in 1
+         1  choices agree, check sequences part
+  first difference (f64's entry, the box lane's, how):
+         1  ('props_circle_axis_class (Check)', 'positive_volume_exact', 'other predicate')
+standing differs: 0; first differing node (f64, box lane):
+box lane's first escalated predicate at the nominal (0 builds): []
+f64 lane holds an escalation: 0
+
+## drive witnesses, zero-width box, Sym<Interval>: 4 distinct builds
+standing equal in both lanes: 4; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 1
+  unnamed cells, either lane: 0
+  whole log differs: 1
+  box lane holds an escalation: 0
+box lane fully decided, standing equal: 4; whole log differs in 1 (25.0%), choices differ in 0, marks differ in 1
+         1  choices agree, check sequences part
+  first difference (f64's entry, the box lane's, how):
+         1  ('props_circle_axis_class (Check)', 'positive_volume_exact', 'other predicate')
+standing differs: 0; first differing node (f64, box lane):
+box lane's first escalated predicate at the nominal (0 builds): []
+f64 lane holds an escalation: 0

@@ -1,0 +1,44 @@
+witnesses: 8 (8 drives, the rest range searches); leaf replays: 339
+
+# leaf replays: today's fate x the record
+      131  budget               undecided
+       30  certified            same build
+       12  flip_crossing        same build
+        3  split                a node fails, no escalation logged
+      163  split                undecided
+
+# final leaves' mass (sum over the drives): today's class x the record
+      3.000000 ( 42.9%)  budget               undecided
+      3.666667 ( 52.4%)  certified            same build
+      0.333333 (  4.8%)  flip_crossing        same build
+
+# today's FlipCrossing leaves by what the log shows x the record
+       12  ('a choice turned', 'same build')
+  turned predicates named: [('path_junction_turn', 12), ('side_planes_cosurface', 12)]
+
+# every decided leaf, by what its log shows against the witness's x the record
+       30  ('logs equal', 'same build')
+       12  ('a choice turned', 'same build')
+
+# leaves whose record differs while every standing is equal: 12
+# groups of decided leaves (with the witness) of EQUAL choices and DIFFERENT records: 0
+# groups of EQUAL standing and name tables and DIFFERENT records: 0
+# decided leaves with the witness's record and other extras: {}
+# boxes split today because a node failed with no escalation logged, that hold certified mass below them: 0 boxes (certified mass counted once per ancestor: 0.0000)
+
+# per witness (those with any flip or refusal)
+  probe_build_record::probe_a_crease_turns_from_convex_to_concave
+           1 leaves    0.000000 mass  budget             undecided
+          12 leaves    0.666667 mass  certified          same build
+          12 leaves    0.333333 mass  flip_crossing      same build
+          24 leaves    0.000000 mass  split              undecided
+  probe_build_record::probe_a_tilted_plane_cuts_a_cone
+           2 leaves    1.000000 mass  budget             undecided
+           1 leaves    0.000000 mass  split              undecided
+  probe_build_record::probe_two_blocks_slide_apart
+          64 leaves    1.000000 mass  budget             undecided
+          63 leaves    0.000000 mass  split              undecided
+  probe_build_record::probe_two_blocks_slide_apart
+          64 leaves    1.000000 mass  budget             undecided
+           3 leaves    0.000000 mass  split              a node fails, no escalation logged
+          60 leaves    0.000000 mass  split              undecided

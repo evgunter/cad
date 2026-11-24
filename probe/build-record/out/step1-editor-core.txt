@@ -1,0 +1,95 @@
+
+## f64 vs Interval, every top-level f64 evaluation: 11028 distinct builds
+standing equal in both lanes: 10782; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 4068
+  box lane holds an escalation: 2153
+box lane fully decided, standing equal: 8629; whole log differs in 2301 (26.7%), choices differ in 2105, marks differ in 207
+      2105  parted elsewhere (step or end)
+       196  choices agree, check sequences part
+  first difference (f64's entry, the box lane's, how):
+      1348  ('pose_unit_norm (Choice)', 'session_box_reach', 'other predicate')
+       625  ('pose_unit_norm (Choice)', 'mate_chart_slides_span', 'other predicate')
+       186  ('props_circle_axis_class (Check)', 'positive_volume_exact', 'other predicate')
+        50  ('ssi_hull_sup (Choice)', 'pcurve_projected_lever', 'other predicate')
+        31  ('bool_point_in_solid_advance (Choice)', 'bool_point_in_solid_denom', 'other predicate')
+        18  ('pose_unit_norm (Choice)', '<end>', 'one log ends')
+        10  ('path_leg_length (Choice)', 'trace_plane_lead', 'other predicate')
+         9  ('path_leg_length (Choice)', 'trace_plane_misses', 'other predicate')
+         9  ('props_sphere_circle_on (Check)', 'positive_volume_exact', 'other predicate')
+         3  ('pose_unit_norm (Choice)', 'path_circle_radius', 'other predicate')
+         2  ('path_arc_center_radius (Choice)', 'trace_plane_lead', 'other predicate')
+         2  ('props_meridian_on_surface (Check)', 'positive_volume_exact', 'other predicate')
+         2  ('point_in_loop_side (Check)', 'point_in_loop_arm', 'other predicate')
+         2  ('path_leg_length (Choice)', 'trace_reaches', 'other predicate')
+standing differs: 246; first differing node (f64, box lane):
+       152  ('ok', 'failed Boolean', 'escalation logged')
+        59  ('ok', 'failed Split', 'escalation logged')
+        10  ('ok', 'failed Revolve', 'escalation logged')
+         5  ('ok', 'failed Skin', 'no escalation')
+         4  ('failed FoldStep', 'failed Boolean', 'escalation logged')
+         3  ('ok', 'failed Fillet', 'escalation logged')
+         3  ('ok', 'failed ProfileLaneReplay', 'escalation logged')
+         2  ('ok', 'failed Chamfer', 'escalation logged')
+         2  ('failed Boolean', 'failed UnfinishedLeaf', 'escalation logged')
+         2  ('failed ParamBox', 'ok', 'escalation logged')
+         1  ('ok', 'failed UnfinishedLeaf', 'escalation logged')
+         1  ('failed FoldStep', 'failed UnfinishedLeaf', 'escalation logged')
+box lane's first escalated predicate at the nominal (2393 builds): [('curve_pair_pose_parallel', 1314), ('germ_side', 409), ('chart_singularity_nearer', 216), ('curve_carrier_gap', 185), ('section_site_foot_bend', 74), ('pcurve_span_covered', 40), ('curve_pair_pose_clear', 25), ('seam_cover_crossing', 20)]
+f64 lane holds an escalation: 717
+
+## ... the subset from tests named *corpus*: 370 distinct builds
+standing equal in both lanes: 368; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 178
+  box lane holds an escalation: 164
+box lane fully decided, standing equal: 204; whole log differs in 17 (8.3%), choices differ in 15, marks differ in 4
+        15  parted elsewhere (step or end)
+         2  choices agree, check sequences part
+  first difference (f64's entry, the box lane's, how):
+        12  ('pose_unit_norm (Choice)', 'mate_chart_slides_span', 'other predicate')
+         2  ('props_circle_axis_class (Check)', 'positive_volume_exact', 'other predicate')
+         2  ('ssi_hull_sup (Choice)', 'pcurve_projected_lever', 'other predicate')
+         1  ('pcurve_envelope (Check)', 'pcurve_cylinder_chart_axial', 'other predicate')
+standing differs: 2; first differing node (f64, box lane):
+         2  ('ok', 'failed Boolean', 'escalation logged')
+box lane's first escalated predicate at the nominal (166 builds): [('curve_pair_pose_parallel', 126), ('curve_carrier_gap', 22), ('curve_pair_pose_clear', 6), ('chart_singularity_nearer', 5), ('curve_carrier_piece_clear_by', 2), ('link_offset_tie', 2), ('pcurve_span_covered', 1), ('plane_eq_offset', 1)]
+f64 lane holds an escalation: 18
+
+## drive witnesses, zero-width box, Interval: 63 distinct builds
+standing equal in both lanes: 59; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 0
+  box lane holds an escalation: 0
+box lane fully decided, standing equal: 59; whole log differs in 0 (0.0%), choices differ in 0, marks differ in 0
+  first difference (f64's entry, the box lane's, how):
+standing differs: 4; first differing node (f64, box lane):
+         3  ('ok', 'failed Skin', 'no escalation')
+         1  ('ok', 'failed Split', 'escalation logged')
+box lane's first escalated predicate at the nominal (1 builds): [('chart_singularity_nearer', 1)]
+f64 lane holds an escalation: 0
+
+## drive witnesses, zero-width box, Sym<Interval>: 63 distinct builds
+standing equal in both lanes: 59; of those
+  record differs: 0
+  name tables differ: 0
+  extras differ: 0
+  unnamed cells, either lane: 0
+  whole log differs: 0
+  box lane holds an escalation: 0
+box lane fully decided, standing equal: 59; whole log differs in 0 (0.0%), choices differ in 0, marks differ in 0
+  first difference (f64's entry, the box lane's, how):
+standing differs: 4; first differing node (f64, box lane):
+         3  ('ok', 'failed Skin', 'no escalation')
+         1  ('ok', 'failed Split', 'escalation logged')
+box lane's first escalated predicate at the nominal (1 builds): [('split_join_frame_axis', 1)]
+f64 lane holds an escalation: 0

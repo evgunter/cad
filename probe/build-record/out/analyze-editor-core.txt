@@ -1,0 +1,164 @@
+processes: 2303
+
+== parity [Interval]: 11028 distinct builds (9854 with every node built at f64)
+     2394  box lane undecided (escalations)
+     4086  choices differ
+      238  extras differ
+        0  extras differ, record equal
+      718  f64 escalations
+     2301  log differs, box lane decided, standing equal
+     1116  marks differ
+      246  names differ
+      246  record differs
+        0  record differs, box lane decided, standing equal
+        0  record differs, log equal
+        0  record differs, standing equal
+     4068  record equal, log differs
+      246  standing differs
+        0  unnamed cells (box lane)
+        0  unnamed cells (f64)
+     4314  whole log differs
+   log differences by first difference (class, how, f64's entry, box lane's entry):
+     1351  ('parting elsewhere', 'other predicate', 'pose_unit_norm', 'session_box_reach')   e.g. face_chart_and_signed_depth::a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band: first={"a": "pose_unit_norm Positive Choice", "at": 5, "b": "session_box_reach Positive Choice", "kind": "other predicate", "len_a": 9, "len_b": 6, "node": "RecipeNodeId(MintId { ordinal: 58, digest: 14308337054129932981 })"} standing=[]
+     1192  ('parting elsewhere', 'other predicate', 'curve_pair_pose_parallel', 'curve_pair_pose_gap')   e.g. emit_boolean_vertex_keys::a_covered_pair_is_named_alike_in_both_orders: first={"a": "curve_pair_pose_parallel Negative Choice", "at": 11253, "b": "curve_pair_pose_gap Negative Choice", "kind": "other predicate", "len_a": 13061, "len_b": 13047, "node": "RecipeNodeId(MintId { ordinal: 53, digest: 6314156523016282921 })"} standing=[]
+      626  ('parting elsewhere', 'other predicate', 'pose_unit_norm', 'mate_chart_slides_span')   e.g. intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame: first={"a": "pose_unit_norm Positive Choice", "at": 8, "b": "mate_chart_slides_span Negative Choice", "kind": "other predicate", "len_a": 15, "len_b": 12, "node": "RecipeNodeId(MintId { ordinal: 51, digest: 3169710169664315597 })"} standing=[]
+      188  ('check sequences part', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "props_circle_axis_class Positive Check", "at": 502, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 4371, "len_b": 4315, "node": "RecipeNodeId(MintId { ordinal: 36, digest: 9059785084517177759 })"} standing=[]
+      175  ('parting elsewhere', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "props_circle_axis_class Positive Check", "at": 1558, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 8263, "len_b": 8092, "node": "RecipeNodeId(MintId { ordinal: 49, digest: 13775318217655093993 })"} standing=[]
+      174  ('standing', None, '', '')   e.g. e6_drive_over_a_loft_at_interval::an_arc_loft_refuses_the_root_under_a_box_elsewhere: first=null standing=[["RecipeNodeId(MintId { ordinal: 16, digest: 13795147714378652003 })", "ok", "failed Skin"]]
+      119  ('parting elsewhere', 'other predicate', 'ssi_hull_sup', 'pcurve_projected_lever')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "ssi_hull_sup Zero Choice", "at": 213, "b": "pcurve_projected_lever Positive Choice", "kind": "other predicate", "len_a": 622, "len_b": 626, "node": "RecipeNodeId(MintId { ordinal: 5, digest: 10863745306597098212 })"} standing=[]
+       63  ('parting elsewhere', 'other predicate', 'pcurve_line_chart_incident', 'pcurve_cylinder_chart_axial')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "pcurve_line_chart_incident Zero Choice", "at": 7904, "b": "pcurve_cylinder_chart_axial Zero Choice", "kind": "other predicate", "len_a": 19264, "len_b": 18716, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12349400488760004433 })"} standing=[]
+       59  ('parting elsewhere', 'other predicate', 'bool_point_in_solid_advance', 'bool_point_in_solid_denom')   e.g. emit_boolean_vertex_keys::an_assembly_keeps_the_touched_edge_whole_in_either_order: first={"a": "bool_point_in_solid_advance Positive Choice", "at": 2561, "b": "bool_point_in_solid_denom Negative Choice", "kind": "other predicate", "len_a": 4981, "len_b": 4949, "node": "RecipeNodeId(MintId { ordinal: 51, digest: 13228485304490139327 })"} standing=[]
+       54  ('parting elsewhere', 'other predicate', 'props_sphere_circle_on', 'positive_volume_exact')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "props_sphere_circle_on Zero Check", "at": 1169, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 6902, "len_b": 6802, "node": "RecipeNodeId(MintId { ordinal: 86, digest: 7536473403099824726 })"} standing=[]
+       52  ('parting elsewhere', 'other predicate', 'chart_singularity_nearer', 'chart_singularity_at_vertex')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "chart_singularity_nearer Zero Check", "at": 14626, "b": "chart_singularity_at_vertex Positive Check", "kind": "other predicate", "len_a": 19238, "len_b": 18652, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12344979321328546819 })"} standing=[]
+       50  ('standing', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. emit_union_borders::a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does: first={"a": "props_circle_axis_class Positive Check", "at": 1313, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 6136, "len_b": 6022, "node": "RecipeNodeId(MintId { ordinal: 49, digest: 17092380614410936186 })"} standing=[["RecipeNodeId(MintId { ordinal: 88, digest: 18032478986434876609 })", "ok", "failed Boolean"]]
+       47  ('parting elsewhere', 'other predicate', 'pcurve_span_covered', 'pcurve_spline_chart_foot')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "pcurve_span_covered Zero Choice", "at": 1355, "b": "pcurve_spline_chart_foot Zero Choice", "kind": "other predicate", "len_a": 1376, "len_b": 1440, "node": "RecipeNodeId(MintId { ordinal: 49, digest: 4888352405684569566 })"} standing=[]
+       20  ('check sequences part', 'other predicate', 'chart_singularity_nearer', 'chart_singularity_at_vertex')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "chart_singularity_nearer Zero Check", "at": 14626, "b": "chart_singularity_at_vertex Positive Check", "kind": "other predicate", "len_a": 19238, "len_b": 18652, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12349400488760004433 })"} standing=[]
+       18  ('parting elsewhere', 'one log ends', 'pose_unit_norm', '<end>')   e.g. face_chart_and_signed_depth::a_boss_and_the_equal_placed_cube_agree_on_both_edges_of_the_band: first={"a": "pose_unit_norm Positive Choice", "at": 111, "b": "<end>", "kind": "one log ends", "len_a": 114, "len_b": 111, "node": "RecipeNodeId(MintId { ordinal: 45, digest: 14198579421630643687 })"} standing=[]
+       17  ('parting elsewhere', 'other predicate', 'path_leg_length', 'trace_plane_lead')   e.g. intent_s6_c_trace::a_boss_drawn_on_the_cylinder_continues_tangent_to_its_wall: first={"a": "path_leg_length Positive Choice", "at": 97, "b": "trace_plane_lead Positive Choice", "kind": "other predicate", "len_a": 151, "len_b": 183, "node": "RecipeNodeId(MintId { ordinal: 24, digest: 3531553781570054302 })"} standing=[]
+       15  ('check sequences part', 'other predicate', 'props_sphere_circle_on', 'positive_volume_exact')   e.g. emit_sphere_cut_in_cap::a_sphere_cut_in_refuses_only_where_its_rows_are_filed: first={"a": "props_sphere_circle_on Zero Check", "at": 350, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 12727, "len_b": 12526, "node": "RecipeNodeId(MintId { ordinal: 86, digest: 3919427544222499747 })"} standing=[]
+       15  ('standing', 'other predicate', 'path_leg_length', 'trace_plane_lead')   e.g. intent_s6_c_trace::the_union_records_the_constructed_tangency_proven_by_its_heading: first={"a": "path_leg_length Positive Choice", "at": 97, "b": "trace_plane_lead Positive Choice", "kind": "other predicate", "len_a": 151, "len_b": 183, "node": "RecipeNodeId(MintId { ordinal: 24, digest: 3531553781570054302 })"} standing=[["RecipeNodeId(MintId { ordinal: 37, digest: 4028717308003451471 })", "ok", "failed Boolean"]]
+       12  ('turned choice', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. emit_split_edge_lineage::a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep: first={"a": "props_circle_axis_class Positive Check", "at": 500, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 4050, "len_b": 3937, "node": "RecipeNodeId(MintId { ordinal: 31, digest: 1400656057356804455 })"} standing=[]
+       12  ('parting elsewhere', 'other predicate', 'path_leg_length', 'trace_plane_misses')   e.g. intent_s6_c_trace::a_cone_drawn_on_a_sphere_runs_tangent_to_it_along_its_rim: first={"a": "path_leg_length Positive Choice", "at": 112, "b": "trace_plane_misses Negative Choice", "kind": "other predicate", "len_a": 144, "len_b": 174, "node": "RecipeNodeId(MintId { ordinal: 44, digest: 5875307496636514867 })"} standing=[]
+        9  ('parting elsewhere', 'other predicate', 'pcurve_loop_branch', 'pcurve_cylinder_chart_axial')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "pcurve_loop_branch Negative Choice", "at": 7918, "b": "pcurve_cylinder_chart_axial Zero Choice", "kind": "other predicate", "len_a": 19264, "len_b": 18716, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12349400488760004433 })"} standing=[]
+        4  ('parting elsewhere', 'other predicate', 'pcurve_torus_chart_incident', 'pcurve_cylinder_chart_axial')   e.g. edit_set_program::a_fillet_inserted_after_a_kept_leg_reports_the_legs_wall: first={"a": "pcurve_torus_chart_incident Zero Choice", "at": 13543, "b": "pcurve_cylinder_chart_axial Zero Choice", "kind": "other predicate", "len_a": 38017, "len_b": 36942, "node": "RecipeNodeId(MintId { ordinal: 66, digest: 745938269996578643 })"} standing=[]
+        4  ('parting at a pruning query', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. edit_strip_mouth_cups::a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_where_the_blends_reach_parts: first={"a": "props_circle_axis_class Positive Check", "at": 1313, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 5800, "len_b": 5686, "node": "RecipeNodeId(MintId { ordinal: 48, digest: 18411535579005243953 })"} standing=[]
+        4  ('parting elsewhere', 'other predicate', 'pose_unit_norm', 'face_chart_selection_pole')   e.g. face_chart_and_signed_depth::a_profile_taking_a_traced_crossing_is_decided_as_its_placed_twin_is: first={"a": "pose_unit_norm Positive Choice", "at": 5, "b": "face_chart_selection_pole Positive Choice", "kind": "other predicate", "len_a": 142, "len_b": 150, "node": "RecipeNodeId(MintId { ordinal: 46, digest: 2782246421470884999 })"} standing=[]
+        4  ('parting elsewhere', 'other predicate', 'pcurve_envelope', 'pcurve_cylinder_chart_axial')   e.g. intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame: first={"a": "pcurve_envelope Zero Check", "at": 362, "b": "pcurve_cylinder_chart_axial Zero Check", "kind": "other predicate", "len_a": 4370, "len_b": 4332, "node": "RecipeNodeId(MintId { ordinal: 36, digest: 9059785084517177759 })"} standing=[]
+        3  ('parting elsewhere', 'other predicate', 'pose_unit_norm', 'path_circle_radius')   e.g. face_chart_and_signed_depth::a_traced_profile_is_decided_as_its_placed_twin_is: first={"a": "pose_unit_norm Positive Choice", "at": 3, "b": "path_circle_radius Positive Choice", "kind": "other predicate", "len_a": 67, "len_b": 61, "node": "RecipeNodeId(MintId { ordinal: 41, digest: 1224178368060340172 })"} standing=[]
+        3  ('turned check', 'turned', 'chart_singularity_nearer', 'chart_singularity_nearer')   e.g. lib_g17_shell_node::a_dual_evaluation_refuses_the_shell_typed: first={"a": "chart_singularity_nearer Zero Check", "at": 666, "b": "chart_singularity_nearer Positive Check", "kind": "turned", "len_a": 13115, "len_b": 12644, "node": "RecipeNodeId(MintId { ordinal: 31, digest: 7060295557483431302 })"} standing=[]
+        2  ('parting elsewhere', 'other predicate', 'point_in_loop_side', 'point_in_loop_arm')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "point_in_loop_side Zero Check", "at": 15086, "b": "point_in_loop_arm Positive Check", "kind": "other predicate", "len_a": 24916, "len_b": 24912, "node": "RecipeNodeId(MintId { ordinal: 495, digest: 15445057572734329906 })"} standing=[]
+        2  ('parting elsewhere', 'other predicate', 'link_offset_tie', 'link_plane')   e.g. gap_reads_vertex_and_edge_cells::real_bodies::interval_lane_encloses_the_f64_gap: first={"a": "link_offset_tie Positive Choice", "at": 198, "b": "link_plane Zero Choice", "kind": "other predicate", "len_a": 1370, "len_b": 1365, "node": "RecipeNodeId(MintId { ordinal: 70, digest: 16735758074619382367 })"} standing=[]
+        2  ('parting elsewhere', 'other predicate', 'link_offset_tie', 'link_wedge')   e.g. gap_reads_vertex_and_edge_cells::real_bodies::interval_lane_encloses_the_f64_gap: first={"a": "link_offset_tie Positive Choice", "at": 258, "b": "link_wedge Negative Choice", "kind": "other predicate", "len_a": 1410, "len_b": 1122, "node": "RecipeNodeId(MintId { ordinal: 70, digest: 965195118062810760 })"} standing=[]
+        2  ('parting elsewhere', 'other predicate', 'path_leg_length', 'trace_reaches')   e.g. intent_s6_c_trace::a_free_profile_runs_to_a_written_coordinate: first={"a": "path_leg_length Positive Choice", "at": 38, "b": "trace_reaches Positive Choice", "kind": "other predicate", "len_a": 68, "len_b": 71, "node": "RecipeNodeId(MintId { ordinal: 8, digest: 4349681087343387179 })"} standing=[]
+        2  ('parting elsewhere', 'other predicate', 'path_arc_center_radius', 'trace_plane_lead')   e.g. intent_s6_c_trace::an_arc_about_a_centre_runs_onto_the_trace: first={"a": "path_arc_center_radius Positive Choice", "at": 73, "b": "trace_plane_lead Positive Choice", "kind": "other predicate", "len_a": 100, "len_b": 140, "node": "RecipeNodeId(MintId { ordinal: 21, digest: 10194386121652725764 })"} standing=[]
+        2  ('standing', 'other predicate', 'curve_pair_pose_parallel', 'curve_pair_pose_gap')   e.g. name_invariance::a_far_feature_moves_no_other_name: first={"a": "curve_pair_pose_parallel Negative Choice", "at": 22166, "b": "curve_pair_pose_gap Negative Choice", "kind": "other predicate", "len_a": 24005, "len_b": 23991, "node": "RecipeNodeId(MintId { ordinal: 156, digest: 13607275126998553640 })"} standing=[["RecipeNodeId(MintId { ordinal: 160, digest: 4686781980140579793 })", "ok", "failed Boolean"]]
+        2  ('check sequences part', 'other predicate', 'props_meridian_on_surface', 'positive_volume_exact')   e.g. blend_carries_contacts::a_blend_clear_of_a_pinch_carries_the_unions_records: first={"a": "props_meridian_on_surface Zero Check", "at": 4456, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 4597, "len_b": 4569, "node": "RecipeNodeId(MintId { ordinal: 98, digest: 3654596411787646266 })"} standing=[]
+        1  ('standing', 'other predicate', 'chart_singularity_nearer', 'chart_singularity_at_vertex')   e.g. e6_split_reads_interval::moving_a_variable_moves_no_key_outside_its_readers: first={"a": "chart_singularity_nearer Zero Check", "at": 14626, "b": "chart_singularity_at_vertex Positive Check", "kind": "other predicate", "len_a": 19238, "len_b": 18652, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12344979321328546819 })"} standing=[["RecipeNodeId(MintId { ordinal: 1624, digest: 8744507144745752210 })", "failed FoldStep", "failed UnfinishedLeaf"]]
+        1  ('turned choice', 'turned', 'chart_singularity_at_vertex', 'chart_singularity_at_vertex')   e.g. intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame: first={"a": "chart_singularity_at_vertex Zero Choice", "at": 7582, "b": "chart_singularity_at_vertex Positive Choice", "kind": "turned", "len_a": 19319, "len_b": 18782, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12349400488760004433 })"} standing=[]
+        1  ('turned choice', 'other predicate', 'pose_unit_norm', 'session_box_reach')   e.g. intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame: first={"a": "pose_unit_norm Positive Choice", "at": 48, "b": "session_box_reach Positive Choice", "kind": "other predicate", "len_a": 52, "len_b": 49, "node": "RecipeNodeId(MintId { ordinal: 81, digest: 14710931221123657155 })"} standing=[]
+        1  ('standing', 'turned', 'chart_singularity_at_vertex', 'chart_singularity_at_vertex')   e.g. intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame: first={"a": "chart_singularity_at_vertex Zero Choice", "at": 7582, "b": "chart_singularity_at_vertex Positive Choice", "kind": "turned", "len_a": 19298, "len_b": 18760, "node": "RecipeNodeId(MintId { ordinal: 22, digest: 12344979321328546819 })"} standing=[["RecipeNodeId(MintId { ordinal: 1626, digest: 9744706633979538184 })", "ok", "failed Boolean"], ["RecipeNodeId(MintId { ordinal: 1630, digest
+        1  ('parting elsewhere', 'other predicate', 'session_box_reach', 'pose_unit_norm')   e.g. intent_s3_c_mates::a_drafted_wall_under_a_held_spin_turns_by_its_draft: first={"a": "session_box_reach Positive Choice", "at": 7, "b": "pose_unit_norm Positive Choice", "kind": "other predicate", "len_a": 8, "len_b": 12, "node": "RecipeNodeId(MintId { ordinal: 27, digest: 2801903563573182220 })"} standing=[]
+        1  ('standing', 'other predicate', 'pcurve_line_chart_incident', 'pcurve_cylinder_chart_axial')   e.g. intent_s6_d_tangency::a_boss_traced_on_one_cylinder_is_unproven_against_its_image: first={"a": "pcurve_line_chart_incident Zero Choice", "at": 15, "b": "pcurve_cylinder_chart_axial Zero Choice", "kind": "other predicate", "len_a": 133, "len_b": 141, "node": "RecipeNodeId(MintId { ordinal: 37, digest: 7700759189859984344 })"} standing=[["RecipeNodeId(MintId { ordinal: 65, digest: 8842062068324492704 })", "ok", "failed Boolean"]]
+   record differences (standing equal), by first line:
+   extras differences (record equal), by first line:
+   record cost us: median 1427, p90 5092, max 429292; box-lane eval us: median 30595, p90 368676; sum record 54.49s vs sum eval 1722.79s
+
+== zero [Interval]: 63 distinct builds (63 with every node built at f64)
+        1  box lane undecided (escalations)
+        4  choices differ
+        4  extras differ
+        0  extras differ, record equal
+        0  f64 escalations
+        0  log differs, box lane decided, standing equal
+        0  marks differ
+        4  names differ
+        4  record differs
+        0  record differs, box lane decided, standing equal
+        0  record differs, log equal
+        0  record differs, standing equal
+        0  record equal, log differs
+        4  standing differs
+        0  unnamed cells (box lane)
+        0  unnamed cells (f64)
+        4  whole log differs
+   log differences by first difference (class, how, f64's entry, box lane's entry):
+        3  ('standing', None, '', '')   e.g. e6_drive_over_a_loft_at_interval::an_arc_loft_refuses_the_root_under_a_box_elsewhere: first=null standing=[["RecipeNodeId(MintId { ordinal: 16, digest: 13795147714378652003 })", "ok", "failed Skin"]]
+        1  ('standing', 'other predicate', 'ssi_hull_sup', 'pcurve_projected_lever')   e.g. probe_build_record::probe_a_tilted_plane_cuts_a_cone: first={"a": "ssi_hull_sup Zero Choice", "at": 133, "b": "pcurve_projected_lever Positive Choice", "kind": "other predicate", "len_a": 392, "len_b": 394, "node": "RecipeNodeId(MintId { ordinal: 18, digest: 14557360487139938381 })"} standing=[["RecipeNodeId(MintId { ordinal: 215, digest: 15342644482814755368 })", "ok", "failed Split"], ["RecipeNodeId(MintId { ordinal: 225, digest: 124298202966573751…
+   record differences (standing equal), by first line:
+   extras differences (record equal), by first line:
+   record cost us: median 356, p90 779, max 1235; box-lane eval us: median 3736, p90 12196; sum record 0.03s vs sum eval 0.37s
+
+== zero [Sym<Interval>]: 63 distinct builds (63 with every node built at f64)
+        1  box lane undecided (escalations)
+        4  choices differ
+        4  extras differ
+        0  extras differ, record equal
+        0  f64 escalations
+        0  log differs, box lane decided, standing equal
+        0  marks differ
+        4  names differ
+        4  record differs
+        0  record differs, box lane decided, standing equal
+        0  record differs, log equal
+        0  record differs, standing equal
+        0  record equal, log differs
+        4  standing differs
+        0  unnamed cells (box lane)
+        0  unnamed cells (f64)
+        4  whole log differs
+   log differences by first difference (class, how, f64's entry, box lane's entry):
+        3  ('standing', None, '', '')   e.g. e6_drive_over_a_loft_at_interval::an_arc_loft_refuses_the_root_under_a_box_elsewhere: first=null standing=[["RecipeNodeId(MintId { ordinal: 16, digest: 13795147714378652003 })", "ok", "failed Skin"]]
+        1  ('standing', 'other predicate', 'ssi_hull_sup', 'pcurve_projected_lever')   e.g. probe_build_record::probe_a_tilted_plane_cuts_a_cone: first={"a": "ssi_hull_sup Zero Choice", "at": 133, "b": "pcurve_projected_lever Positive Choice", "kind": "other predicate", "len_a": 392, "len_b": 394, "node": "RecipeNodeId(MintId { ordinal: 18, digest: 14557360487139938381 })"} standing=[["RecipeNodeId(MintId { ordinal: 215, digest: 15342644482814755368 })", "ok", "failed Split"], ["RecipeNodeId(MintId { ordinal: 225, digest: 124298202966573751…
+   record differences (standing equal), by first line:
+   extras differences (record equal), by first line:
+   record cost us: median 422, p90 1205, max 17288; box-lane eval us: median 32841, p90 249610; sum record 0.05s vs sum eval 38.85s
+
+== witnesses with leaf lines: 339 (305 are drives; the rest are the range reading's and other callers of the leaf protocol)
+
+== leaves by today's fate x record x decidedness (count)
+     13958  ('bisect→budget', 'another build', 'decided')
+      1344  ('bisect→budget', 'another build', 'undecided')
+        82  ('bisect→budget', 'same build', 'decided')
+        22  ('bisect→budget', 'same build', 'undecided')
+         5  ('bisect→reads_no_variable', 'another build', 'decided')
+     13818  ('bisect→split', 'another build', 'decided')
+      3207  ('bisect→split', 'another build', 'undecided')
+       149  ('bisect→split', 'same build', 'decided')
+       578  ('bisect→split', 'same build', 'undecided')
+      1356  ('certified', 'same build', 'decided')
+       661  ('flip', 'same build', 'decided')
+       503  ('sliver_terminal', 'another build', 'undecided')
+
+== final mass by today's class x record x decidedness (drives only; sums over all drives)
+       0.447113  ('budget', 'another build', 'decided')
+      28.678009  ('budget', 'another build', 'undecided')
+       2.219229  ('budget', 'same build', 'decided')
+       0.002015  ('budget', 'same build', 'undecided')
+     245.392066  ('certified', 'same build', 'decided')
+      14.920538  ('flip_crossing', 'same build', 'decided')
+       2.750000  ('reads_no_variable', 'another build', 'decided')
+       4.394127  ('sliver_terminal', 'another build', 'undecided')
+
+== today's FlipCrossing leaves, by what their logs show
+       660  turned choice
+         1  check sequences part [evidence names nothing]
+   ... crossed with the record:
+         1  ('check sequences part [evidence names nothing]', 'same build')   e.g. docm9_range::the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot: detail=flip_crossing unnamed first={"a": "props_circle_axis_class Positive Check", "at": 2089, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 11918, "len_b": 11694, "node": "RecipeNodeId(MintId { ordinal: 64, digest: 10663605355072358302 })"} turned=[] parted=[] rec_first=null cells=[5, 5, 54, 66, 132, 88] measures=[]
+       660  ('turned choice', 'same build')   e.g. e6_split_reads_interval::a_variable_the_deciding_node_does_not_read_is_never_split: detail=flip_crossing 18:2fcd1640221e9542:extrusion_normal_component:Positive->Negative first={"a": "extrusion_normal_component Positive Choice", "at": 0, "b": "extrusion_normal_component Negative Choice", "kind": "turned", "len_a": 881, "len_b": 883, "node": "RecipeNodeId(MintId { ordinal: 18, digest: 3444433754714445122 })"} turned=[["RecipeNodeId(MintId { ordinal: 18, digest: 3444433754714445122 })", "extrusion_normal_component", "Positive", "Negative"]] part
+
+== decided leaves with the witness's record and a different log (certifying rows), by first difference
+       300  ('turned choice', 'turned', 'segment_gap', 'segment_gap')   e.g. m10_3_driver_interval::a_planted_flip_refuses_flip_crossing_and_names_what_flipped: verdict=flip first={"a": "segment_gap Negative Choice", "at": 106, "b": "segment_gap Positive Choice", "kind": "turned", "len_a": 164, "len_b": 154, "node": "RecipeNodeId(MintId { ordinal: 11, digest: 11795829841301604478 })"} check_parted=null cells=[1, 1, 7, 7, 15, 10] extras_eq=True measures=[]
+       220  ('turned choice', 'turned', 'path_junction_turn', 'path_junction_turn')   e.g. m10_3_driver_interval::a_planted_flip_refuses_flip_crossing_and_names_what_flipped: verdict=flip first={"a": "path_junction_turn Positive Choice", "at": 85, "b": "path_junction_turn Negative Choice", "kind": "turned", "len_a": 164, "len_b": 154, "node": "RecipeNodeId(MintId { ordinal: 11, digest: 11795829841301604478 })"} check_parted=null cells=[1, 1, 7, 7, 15, 10] extras_eq=True measures=[]
+       124  ('turned choice', 'turned', 'extrusion_normal_component', 'extrusion_normal_component')   e.g. e6_split_reads_interval::a_variable_the_deciding_node_does_not_read_is_never_split: verdict=flip first={"a": "extrusion_normal_component Positive Choice", "at": 0, "b": "extrusion_normal_component Negative Choice", "kind": "turned", "len_a": 881, "len_b": 883, "node": "RecipeNodeId(MintId { ordinal: 18, digest: 3444433754714445122 })"} check_parted=null cells=[2, 2, 12, 12, 24, 16] extras_eq=True measures=[]
+        18  ('turned choice', 'turned', 'carrier_line_circle', 'carrier_line_circle')   e.g. m10_3_driver_interval::a_band_parameter_certifies_normally_and_prices_nothing: verdict=flip first={"a": "carrier_line_circle Negative Choice", "at": 177, "b": "carrier_line_circle Positive Choice", "kind": "turned", "len_a": 203, "len_b": 211, "node": "RecipeNodeId(MintId { ordinal: 13, digest: 4528751089320139729 })"} check_parted=null cells=[1, 1, 8, 10, 18, 12] extras_eq=True measures=[]
+         1  ('check sequences part', 'other predicate', 'props_circle_axis_class', 'positive_volume_exact')   e.g. docm9_range::the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot: verdict=flip first={"a": "props_circle_axis_class Positive Check", "at": 2089, "b": "positive_volume_exact Positive Check", "kind": "other predicate", "len_a": 11918, "len_b": 11694, "node": "RecipeNodeId(MintId { ordinal: 64, digest: 10663605355072358302 })"} check_parted=["RecipeNodeId(MintId { ordinal: 64, digest: 10663605355072358302 })", 2089, "props_circle_axis_class", "positive_volume_exact"
+
+== converse hunt: groups of decided leaves (and the witness) with EQUAL choices and DIFFERENT records: 0
+
+== equal standing+name tables, different record (incidence says more than the names): 0
+
+== leaves with the witness's record whose EXTRAS differ, by first difference
+       220  ('[["assertion", "Holds"], ["assertion", "Unevaluated"]]', 'decided')   e.g. intent_s5_a_relation::equal_over_a_box_holds_only_on_a_structural_zero: ["RecipeNodeId(MintId { ordinal: 5, digest: 2016869127773824169 })", "assertion Holds", "assertion Unevaluated"] verdict=bisect
+         8  ('[["assertion", "Holds"], ["assertion", "Violated"]]', 'decided')   e.g. intent_s5_a_relation::equal_over_a_box_holds_only_on_a_structural_zero: ["RecipeNodeId(MintId { ordinal: 5, digest: 2016869127773824169 })", "assertion Holds", "assertion Violated"] verdict=certified
+
+== per-leaf cost over 35683 leaves: take the record median 8 us (p90 165, max 36649); compare median 353 ns (p90 1314); leaf evaluation median 360 us (p90 7035); record size median 929 bytes (max 643021); total record 1.8s vs total evaluation 847.1s = 0.21%

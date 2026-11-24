@@ -1,0 +1,48 @@
+witnesses: 14 (14 drives, the rest range searches); leaf replays: 2436
+
+# leaf replays: today's fate x the record
+      737  budget               undecided
+      488  certified            same build
+     1211  split                undecided
+
+# final leaves' mass (sum over the drives): today's class x the record
+      3.364132 ( 24.2%)  budget               undecided
+     10.557707 ( 75.8%)  certified            same build
+
+# today's FlipCrossing leaves by what the log shows x the record
+  turned predicates named: []
+
+# every decided leaf, by what its log shows against the witness's x the record
+      488  ('logs equal', 'same build')
+
+# leaves whose record differs while every standing is equal: 0
+# groups of decided leaves (with the witness) of EQUAL choices and DIFFERENT records: 0
+# groups of EQUAL standing and name tables and DIFFERENT records: 0
+# decided leaves with the witness's record and other extras: {('assertion', 'Holds', 'Violated'): 131}
+# boxes split today because a node failed with no escalation logged, that hold certified mass below them: 0 boxes (certified mass counted once per ancestor: 0.0000)
+
+# per witness (those with any flip or refusal)
+  main
+         301 leaves    0.045539 mass  budget             undecided
+         211 leaves    0.949069 mass  certified          same build
+         511 leaves    0.000000 mass  split              undecided
+  main
+           1 leaves    0.994607 mass  budget             undecided
+  chaintol::tests::the_drive_over_the_whole_study_splits_as_pinned
+          28 leaves    0.000014 mass  budget             undecided
+          36 leaves    0.994593 mass  certified          same build
+          63 leaves    0.000000 mass  split              undecided
+  chaintol::tests::the_drive_over_the_whole_study_splits_as_pinned
+          43 leaves    0.296713 mass  budget             undecided
+          21 leaves    0.695209 mass  certified          same build
+          63 leaves    0.000000 mass  split              undecided
+  chaintol::tests::the_drive_over_the_whole_study_splits_as_pinned
+          62 leaves    0.987113 mass  budget             undecided
+           2 leaves    0.002131 mass  certified          same build
+          63 leaves    0.000000 mass  split              undecided
+  main
+         301 leaves    0.045539 mass  budget             undecided
+         211 leaves    0.949069 mass  certified          same build
+         511 leaves    0.000000 mass  split              undecided
+  main
+           1 leaves    0.994607 mass  budget             undecided

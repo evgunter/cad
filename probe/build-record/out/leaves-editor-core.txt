@@ -1,0 +1,588 @@
+witnesses: 339 (305 drives, the rest range searches); leaf replays: 35683
+
+# leaf replays: today's fate x the record
+    13958  budget               a node fails, no escalation logged
+     1448  budget               undecided
+     1356  certified            same build
+      661  flip_crossing        same build
+        5  reads_no_variable    a node fails, no escalation logged
+      503  sliver_terminal      undecided
+    13818  split                a node fails, no escalation logged
+     3934  split                undecided
+
+# final leaves' mass (sum over the drives): today's class x the record
+      0.447113 (  0.1%)  budget               a node fails, no escalation logged
+     30.899253 ( 10.3%)  budget               undecided
+    245.392066 ( 82.1%)  certified            same build
+     14.920538 (  5.0%)  flip_crossing        same build
+      2.750000 (  0.9%)  reads_no_variable    a node fails, no escalation logged
+      4.394127 (  1.5%)  sliver_terminal      undecided
+
+# today's FlipCrossing leaves by what the log shows x the record
+      660  ('a choice turned', 'same build')
+        1  ('check sequences part [evidence names nothing]', 'same build')
+  turned predicates named: [('segment_gap', 300), ('path_junction_turn', 220), ('side_planes_cosurface', 220), ('extrusion_normal_component', 122), ('carrier_line_circle', 18)]
+
+# every decided leaf, by what its log shows against the witness's x the record
+     1356  ('logs equal', 'same build')
+      660  ('a choice turned', 'same build')
+        1  ('check sequences part', 'same build')
+
+# leaves whose record differs while every standing is equal: 0
+# groups of decided leaves (with the witness) of EQUAL choices and DIFFERENT records: 0
+# groups of EQUAL standing and name tables and DIFFERENT records: 0
+# decided leaves with the witness's record and other extras: {('assertion', 'Holds', 'Violated'): 8}
+# boxes split today because a node failed with no escalation logged, that hold certified mass below them: 13 boxes (certified mass counted once per ancestor: 2.0195)
+
+# per witness (those with any flip or refusal)
+  e6_drive_over_a_loft_at_interval::an_arc_loft_refuses_the_root_under_a_box_elsewhere
+           1 leaves    1.000000 mass  reads_no_variable  a node fails, no escalation logged
+  e6_split_reads_interval::a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_
+           1 leaves    1.000000 mass  reads_no_variable  a node fails, no escalation logged
+  e6_split_reads_interval::a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_
+           4 leaves    0.218750 mass  budget             undecided
+           3 leaves    0.750000 mass  reads_no_variable  a node fails, no escalation logged
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+           7 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::a_read_set_at_its_depth_budget_refuses_budget_and_splits_nothing_
+           1 leaves    0.500000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::a_read_through_a_definition_counts
+           1 leaves    0.500000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::a_tie_goes_to_the_earliest_variable_read_and_a_read_through_an_in
+           2 leaves    1.000000 mass  budget             undecided
+           1 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::a_tie_goes_to_the_earliest_variable_read_and_a_read_through_an_in
+           2 leaves    0.500000 mass  budget             undecided
+           2 leaves    0.500000 mass  certified          same build
+           3 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::a_variable_the_deciding_node_does_not_read_is_never_split
+           2 leaves    0.375000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+           3 leaves    0.000000 mass  split              undecided
+  e6_split_reads_interval::the_first_undecided_node_in_evaluation_order_chooses_the_axis
+           2 leaves    1.000000 mass  budget             undecided
+           1 leaves    0.000000 mass  split              undecided
+  intent_s5_a_relation::equal_over_a_box_holds_only_on_a_structural_zero
+          11 leaves    0.867902 mass  budget             undecided
+           5 leaves    0.126705 mass  certified          same build
+          15 leaves    0.000000 mass  split              undecided
+  m10_10_pins_interval::m10_10_the_plate_needs_no_door
+           1 leaves    0.994607 mass  budget             undecided
+  m10_3_driver_interval::a_band_parameter_certifies_normally_and_prices_nothing
+           1 leaves    0.000000 mass  budget             undecided
+           9 leaves    0.000000 mass  certified          same build
+           6 leaves    0.000000 mass  flip_crossing      same build
+          15 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::a_band_parameter_certifies_normally_and_prices_nothing
+           1 leaves    0.000031 mass  budget             undecided
+           9 leaves    0.962982 mass  certified          same build
+           6 leaves    0.036987 mass  flip_crossing      same build
+          15 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::a_planted_flip_refuses_flip_crossing_and_names_what_flipped
+           8 leaves    0.000000 mass  budget             undecided
+          66 leaves    0.488155 mass  certified          same build
+          84 leaves    0.511844 mass  flip_crossing      same build
+           2 leaves    0.000000 mass  split              a node fails, no escalation logged
+         155 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not
+        4047 leaves    0.024994 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000023 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          42 leaves    0.224983 mass  sliver_terminal    undecided
+        4035 leaves    0.000000 mass  split              a node fails, no escalation logged
+          60 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined
+           1 leaves    0.000000 mass  budget             undecided
+          13 leaves    0.833333 mass  certified          same build
+          11 leaves    0.166667 mass  sliver_terminal    undecided
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::an_exhausted_depth_budget_refuses_the_whole_box
+           1 leaves    1.000000 mass  budget             undecided
+  m10_3_driver_interval::an_exhausted_leaf_budget_refuses_typed_and_priced
+           2 leaves    0.375000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+           3 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect
+          50 leaves    0.083984 mass  budget             a node fails, no escalation logged
+           1 leaves    0.001953 mass  budget             undecided
+          10 leaves    0.832031 mass  certified          same build
+           3 leaves    0.082031 mass  flip_crossing      same build
+          55 leaves    0.000000 mass  split              a node fails, no escalation logged
+           8 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::containment_does_not_fire_while_a_boundary_leaf_certifies
+        4047 leaves    0.024994 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000023 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          42 leaves    0.224983 mass  sliver_terminal    undecided
+        4035 leaves    0.000000 mass  split              a node fails, no escalation logged
+          60 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::driving_writes_nothing
+          36 leaves    0.023926 mass  budget             a node fails, no escalation logged
+           4 leaves    0.002930 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          21 leaves    0.223145 mass  sliver_terminal    undecided
+          31 leaves    0.000000 mass  split              a node fails, no escalation logged
+          32 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon
+           1 leaves    0.000000 mass  budget             undecided
+          24 leaves    1.000000 mass  certified          same build
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_tier_off_reproduces_the_pre_e12_refusal
+          32 leaves    1.000000 mass  budget             undecided
+          31 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_two_parameter_drive_certifies_after_bisection_and_accounts_for_
+           1 leaves    0.000031 mass  budget             undecided
+           9 leaves    0.962982 mass  certified          same build
+           6 leaves    0.036987 mass  flip_crossing      same build
+          15 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_verdict_is_bit_identical_across_repeats_and_schedules
+         219 leaves    0.024902 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000366 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          30 leaves    0.224731 mass  sliver_terminal    undecided
+         211 leaves    0.000000 mass  split              a node fails, no escalation logged
+          44 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_verdict_is_bit_identical_across_repeats_and_schedules
+         219 leaves    0.024902 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000366 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          30 leaves    0.224731 mass  sliver_terminal    undecided
+         211 leaves    0.000000 mass  split              a node fails, no escalation logged
+          44 leaves    0.000000 mass  split              undecided
+  m10_3_driver_interval::the_verdict_is_bit_identical_across_repeats_and_schedules
+         219 leaves    0.024902 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000366 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          30 leaves    0.224731 mass  sliver_terminal    undecided
+         211 leaves    0.000000 mass  split              a node fails, no escalation logged
+          44 leaves    0.000000 mass  split              undecided
+  m10_3_r1_probes_interval::a_one_leaf_budget_still_covers_the_box_exactly
+           1 leaves    1.000000 mass  budget             undecided
+  m10_3_r1_probes_interval::a_wrapped_escalation_never_certifies_inside_the_band
+           1 leaves    0.000000 mass  budget             undecided
+          13 leaves    0.833333 mass  certified          same build
+          11 leaves    0.166667 mass  sliver_terminal    undecided
+          24 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::containment_fires_when_the_chamber_is_strictly_inside_the_box
+           8 leaves    0.000000 mass  budget             undecided
+          30 leaves    0.085786 mass  certified          same build
+         118 leaves    0.914213 mass  flip_crossing      same build
+         155 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::the_certification_width_threshold_is_no_longer_a_fraction_of_eps
+           1 leaves    1.000000 mass  budget             undecided
+  m10_3_r2_probes_interval::the_leaf_budget_prices_the_whole_unexamined_frontier
+           2 leaves    0.500000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           2 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::the_receipt_identity_holds_on_every_edge_drive
+           1 leaves    1.000000 mass  budget             undecided
+  m10_3_r2_probes_interval::the_receipt_identity_holds_on_every_edge_drive
+           1 leaves    1.000000 mass  budget             undecided
+  m10_3_r2_probes_interval::the_receipt_identity_holds_on_every_edge_drive
+           1 leaves    0.500000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::the_receipt_identity_holds_on_every_edge_drive
+         472 leaves    0.024933 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000183 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          33 leaves    0.224884 mass  sliver_terminal    undecided
+         463 leaves    0.000000 mass  split              a node fails, no escalation logged
+          48 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::the_receipt_identity_holds_on_every_edge_drive
+         472 leaves    0.024933 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000183 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          33 leaves    0.224884 mass  sliver_terminal    undecided
+         463 leaves    0.000000 mass  split              a node fails, no escalation logged
+          48 leaves    0.000000 mass  split              undecided
+  m10_3_r2_probes_interval::the_unresolved_budget_is_refused_mass_plus_tail
+           1 leaves    0.054584 mass  budget             undecided
+           2 leaves    0.931841 mass  certified          same build
+           1 leaves    0.010875 mass  flip_crossing      same build
+           3 leaves    0.000000 mass  split              undecided
+  m10_4_stackup_interval::a_band_contributor_refuses_the_rss_whole_naming_every_band
+           6 leaves    0.000000 mass  budget             undecided
+           9 leaves    0.000000 mass  certified          same build
+           1 leaves    0.000000 mass  flip_crossing      same build
+          15 leaves    0.000000 mass  split              undecided
+  m10_4_stackup_interval::no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing
+          32 leaves    1.000000 mass  budget             undecided
+          31 leaves    0.000000 mass  split              undecided
+  m10_6_ci_rows_interval::the_margin_thin_accounting_is_goldened_bit_exact
+           8 leaves    0.000000 mass  budget             undecided
+          66 leaves    0.488155 mass  certified          same build
+          84 leaves    0.511844 mass  flip_crossing      same build
+           2 leaves    0.000000 mass  split              a node fails, no escalation logged
+         155 leaves    0.000000 mass  split              undecided
+  m10_6_ci_rows_interval::the_margin_thin_accounting_is_goldened_bit_exact
+           1 leaves    0.000000 mass  budget             undecided
+          13 leaves    0.833333 mass  certified          same build
+          11 leaves    0.166667 mass  sliver_terminal    undecided
+          24 leaves    0.000000 mass  split              undecided
+  m10_6_clearance_assertion_interval::an_undecided_clearance_is_not_split_on_a_variable_besi
+           1 leaves    0.125000 mass  budget             undecided
+           3 leaves    0.875000 mass  certified          same build
+           3 leaves    0.000000 mass  split              undecided
+  m10_6_clearance_assertion_interval::the_drive_answers_each_certified_leaf_through_the_asse
+           1 leaves    0.015625 mass  budget             undecided
+           6 leaves    0.984375 mass  certified          same build
+           6 leaves    0.000000 mass  split              undecided
+  m10_6_r1_probes_interval::report_key_tells_two_budgets_apart
+           2 leaves    0.375000 mass  budget             undecided
+           1 leaves    0.500000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+           3 leaves    0.000000 mass  split              undecided
+  m10_6_r1_probes_interval::report_key_tells_two_budgets_apart
+        4047 leaves    0.024994 mass  budget             a node fails, no escalation logged
+           4 leaves    0.000023 mass  budget             undecided
+           2 leaves    0.625000 mass  certified          same build
+           1 leaves    0.125000 mass  flip_crossing      same build
+          42 leaves    0.224983 mass  sliver_terminal    undecided
+        4035 leaves    0.000000 mass  split              a node fails, no escalation logged
+          60 leaves    0.000000 mass  split              undecided
+  m10_7_r2_probes_interval::r2_a_zero_term_budget_reproduces_the_tier_off_verdict
+         512 leaves    0.994607 mass  budget             undecided
+         511 leaves    0.000000 mass  split              undecided
+  m10_7_r2_probes_interval::r2_a_zero_term_budget_reproduces_the_tier_off_verdict
+         512 leaves    0.994607 mass  budget             undecided
+         511 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           1 leaves    0.125000 mass  budget             undecided
+           2 leaves    0.750000 mass  certified          same build
+           1 leaves    0.125000 mass  sliver_terminal    undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           1 leaves    0.125000 mass  budget             undecided
+           2 leaves    0.750000 mass  certified          same build
+           1 leaves    0.125000 mass  sliver_terminal    undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.994607 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.994607 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    1.000000 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    1.000000 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.994607 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.994607 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.997300 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_9_r2_probes_interval::r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture
+           4 leaves    0.997300 mass  budget             undecided
+           3 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_schedules_and_the_dial
+           4 leaves    0.310815 mass  budget             undecided
+           4 leaves    0.683793 mass  certified          same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_schedules_and_the_dial
+           4 leaves    0.310815 mass  budget             undecided
+           4 leaves    0.683793 mass  certified          same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_schedules_and_the_dial
+           4 leaves    0.310815 mass  budget             undecided
+           4 leaves    0.683793 mass  certified          same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_d
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::the_plain_memo_moves_no_decision
+           8 leaves    0.015625 mass  budget             a node fails, no escalation logged
+           8 leaves    0.013672 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+           9 leaves    0.598633 mass  flip_crossing      same build
+          15 leaves    0.172852 mass  sliver_terminal    undecided
+           2 leaves    0.000000 mass  split              a node fails, no escalation logged
+          45 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::the_plain_memo_moves_no_decision
+           8 leaves    0.015625 mass  budget             a node fails, no escalation logged
+           8 leaves    0.013672 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+           9 leaves    0.598633 mass  flip_crossing      same build
+          15 leaves    0.172852 mass  sliver_terminal    undecided
+           2 leaves    0.000000 mass  split              a node fails, no escalation logged
+          45 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::the_plain_memo_moves_no_decision
+          26 leaves    0.139129 mass  budget             undecided
+          22 leaves    0.855479 mass  certified          same build
+          47 leaves    0.000000 mass  split              undecided
+  m10_sym_drive_memo_interval::the_plain_memo_moves_no_decision
+          26 leaves    0.139129 mass  budget             undecided
+          22 leaves    0.855479 mass  certified          same build
+          47 leaves    0.000000 mass  split              undecided
+  probe_build_record::probe_a_crease_turns_from_convex_to_concave
+           1 leaves    0.000000 mass  budget             undecided
+          12 leaves    0.666667 mass  certified          same build
+          12 leaves    0.333333 mass  flip_crossing      same build
+          24 leaves    0.000000 mass  split              undecided
+  contradiction_corpus::the_slabs_drives_contradict_nothing_leaf_by_leaf
+           5 leaves    0.437500 mass  budget             undecided
+           1 leaves    0.062500 mass  certified          same build
+           2 leaves    0.500000 mass  flip_crossing      same build
+           7 leaves    0.000000 mass  split              undecided
+  contradiction_corpus::the_slabs_drives_contradict_nothing_leaf_by_leaf
+           6 leaves    0.312500 mass  budget             undecided
+           2 leaves    0.125000 mass  certified          same build
+           3 leaves    0.531250 mass  flip_crossing      same build
+           1 leaves    0.031250 mass  sliver_terminal    undecided
+          11 leaves    0.000000 mass  split              undecided
+  contradiction_corpus::the_slabs_drives_contradict_nothing_leaf_by_leaf
+          19 leaves    0.018066 mass  budget             a node fails, no escalation logged
+           8 leaves    0.006836 mass  budget             undecided
+           8 leaves    0.199219 mass  certified          same build
+          10 leaves    0.599609 mass  flip_crossing      same build
+          19 leaves    0.176270 mass  sliver_terminal    undecided
+          10 leaves    0.000000 mass  split              a node fails, no escalation logged
+          53 leaves    0.000000 mass  split              undecided
+  docm9_range::a_boundary_past_undecided_ground_is_proven_different
+          13 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          26 leaves    0.000000 mass  split              undecided
+  docm9_range::a_depth_too_small_is_not_decided_and_never_a_bound
+          13 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          26 leaves    0.000000 mass  split              undecided
+  docm9_range::a_gap_between_two_lines_is_proven_different_below_the_crossing
+          16 leaves    0.000000 mass  certified          same build
+          14 leaves    0.000000 mass  flip_crossing      same build
+          34 leaves    0.000000 mass  split              undecided
+  docm9_range::every_value_inside_the_proof_decides_as_the_witness_did
+          13 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          26 leaves    0.000000 mass  split              undecided
+  docm9_range::every_value_inside_the_proof_decides_as_the_witness_did
+          28 leaves    0.000000 mass  certified          same build
+          24 leaves    0.000000 mass  flip_crossing      same build
+          70 leaves    0.000000 mass  split              undecided
+  docm9_range::one_side_does_not_starve_the_other
+          28 leaves    0.000000 mass  certified          same build
+          24 leaves    0.000000 mass  flip_crossing      same build
+          70 leaves    0.000000 mass  split              undecided
+  docm9_range::one_side_does_not_starve_the_other
+          29 leaves    0.000000 mass  certified          same build
+          23 leaves    0.000000 mass  flip_crossing      same build
+          70 leaves    0.000000 mass  split              undecided
+  docm9_range::stopping_after_n_steps_keeps_what_was_proven
+           4 leaves    0.000000 mass  certified          same build
+           2 leaves    0.000000 mass  flip_crossing      same build
+           6 leaves    0.000000 mass  split              undecided
+  docm9_range::stopping_after_n_steps_keeps_what_was_proven
+           4 leaves    0.000000 mass  certified          same build
+           2 leaves    0.000000 mass  flip_crossing      same build
+           6 leaves    0.000000 mass  split              undecided
+  docm9_range::the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot
+           1 leaves    0.000000 mass  flip_crossing      same build
+          25 leaves    0.000000 mass  split              undecided
+  docm9_range::the_first_boundary_stops_the_proof_and_a_search_on_the_island_proves_it
+          39 leaves    0.000000 mass  certified          same build
+          37 leaves    0.000000 mass  flip_crossing      same build
+          88 leaves    0.000000 mass  split              undecided
+  docm9_range::the_proof_is_inside_the_locally_valid_range
+          13 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          26 leaves    0.000000 mass  split              undecided
+  docm9_range::the_same_steps_give_the_same_answer
+           4 leaves    0.000000 mass  certified          same build
+           1 leaves    0.000000 mass  flip_crossing      same build
+           5 leaves    0.000000 mass  split              undecided
+  docm9_range::the_same_steps_give_the_same_answer
+           4 leaves    0.000000 mass  certified          same build
+           1 leaves    0.000000 mass  flip_crossing      same build
+           4 leaves    0.000000 mass  split              undecided
+  docm9_range::the_same_steps_give_the_same_answer
+           4 leaves    0.000000 mass  certified          same build
+           1 leaves    0.000000 mass  flip_crossing      same build
+           4 leaves    0.000000 mass  split              undecided
+  docm9_range::the_search_finishes_soon_after_its_answer_stops_moving
+          25 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          14 leaves    0.000000 mass  sliver_terminal    undecided
+          54 leaves    0.000000 mass  split              undecided
+  docm9_range::the_search_finishes_soon_after_its_answer_stops_moving
+          28 leaves    0.000000 mass  certified          same build
+          24 leaves    0.000000 mass  flip_crossing      same build
+          70 leaves    0.000000 mass  split              undecided
+  docm9_range::the_undecided_ground_contains_a_value_that_does_not_build
+          13 leaves    0.000000 mass  certified          same build
+          11 leaves    0.000000 mass  flip_crossing      same build
+          26 leaves    0.000000 mass  split              undecided
