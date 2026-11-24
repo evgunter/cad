@@ -2422,10 +2422,12 @@ fn mint_carrier<T: Decide>(
     if let Some((wall, cap)) = wall_and_cap {
         // Each refusal the section arm can return names its own cause.
         let section_refused = |error: geom_brep::SectionError| match error {
-            geom_brep::SectionError::Escalated(source)
-            | geom_brep::SectionError::Spiric(geom::SpiricInvalid::Escalated(source)) => {
-                ReplaceFaceError::Escalated { source }
-            }
+            // Every escalation the section carries, a constructor's frame
+            // among them ([`geom_brep::SectionError::escalation`]).
+            error if error.escalation().is_some() => match error.escalation() {
+                Some(source) => ReplaceFaceError::Escalated { source },
+                None => unreachable!("guarded on an escalation"),
+            },
             geom_brep::SectionError::DegenerateTorus(refusal) => {
                 ReplaceFaceError::DegenerateTorus { edge, refusal }
             }

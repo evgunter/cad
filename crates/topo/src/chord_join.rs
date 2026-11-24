@@ -926,16 +926,23 @@ impl JoinError {
             }
             // The join keeps the carrier constructor's subject and
             // offers its own door's levers.
+            // A frame's undecided length among them
+            // ([`geom::EllipseInvalid::escalation`]).
             Self::Section {
-                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                source: geom_brep::SectionError::Carrier(e),
                 ..
-            } => write!(
-                f,
-                "{} is undecided for the section through a curved face: {}. Recourse: \
-                 {JOIN_RECOURSE}",
-                geom::EllipseInvalid::escalated_subject(diag),
-                diag.payload()
-            ),
+            } if e.escalation().is_some() => {
+                let Some(diag) = e.escalation() else {
+                    unreachable!("guarded on an escalation")
+                };
+                write!(
+                    f,
+                    "{} is undecided for the section through a curved face: {}. Recourse: \
+                     {JOIN_RECOURSE}",
+                    geom::EllipseInvalid::escalated_subject(&diag),
+                    diag.payload()
+                )
+            }
             Self::Section { source, .. } => {
                 write!(
                     f,
@@ -2515,7 +2522,13 @@ fn chord_spec<T: Decide>(
                 Some(k) => k,
                 None => {
                     let k = body.add_surface(geom::Surface::Plane {
-                        frame: geom::Frame::new(ctx.origin, ctx.normal.get(), ruling_hat),
+                        // The ruling lies in the section plane, square to its
+                        // normal by construction: squared about it.
+                        frame: geom::Frame::of_motion(
+                            &geom_core::RigidMotion::squared_about_stated(
+                                ctx.origin, ctx.normal, ruling_hat,
+                            ),
+                        ),
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -2588,7 +2601,11 @@ fn chord_spec<T: Decide>(
         Some(k) => k,
         None => {
             let k = body.add_surface(geom::Surface::Plane {
-                frame: geom::Frame::new(ctx.origin, ctx.normal.get(), conic.in_plane()),
+                frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                    ctx.origin,
+                    ctx.normal,
+                    conic.in_plane(),
+                )),
             });
             ctx.plane_key = Some(k);
             k

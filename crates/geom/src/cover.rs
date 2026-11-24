@@ -717,8 +717,13 @@ impl<T: Real> Cover<T> {
         reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
     )]
     pub fn circle(core: Core<T>) -> Option<Self> {
-        let axis = core.axis.dir.get().normalize();
-        let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
+        // The axis the core holds, kept; a seam square to it by its basis.
+        let axis = core.axis.dir;
+        let frame = Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+            core.axis.origin,
+            axis,
+            axis.get().orthonormal_basis().0,
+        ));
         Self::arc(
             &frame,
             (core.radius, core.radius),

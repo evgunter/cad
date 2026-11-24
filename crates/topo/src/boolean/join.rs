@@ -4125,15 +4125,15 @@ fn conic_section_frame_at<T: Decide>(
 }
 
 /// A germ pair's section refusal that is not the table's verdict on the
-/// pair's locus: an undecided degeneracy, or a conic carrier whose
-/// minor semi-axis the constructor could not decide positive,
+/// pair's locus: an undecided degeneracy, or a carrier constructor's
+/// escalation (a minor semi-axis it could not decide positive, a frame
+/// whose length the band left open: [`geom_brep::SectionError::escalation`]),
 /// escalates; anything else is a desync.
 fn section_refusal(e: geom_brep::SectionError) -> FrameError {
+    if let Some(diag) = e.escalation() {
+        return FrameError::section(diag);
+    }
     match e {
-        geom_brep::SectionError::Escalated(diag)
-        | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)) => {
-            FrameError::section(diag)
-        }
         geom_brep::SectionError::DegenerateTorus(refusal) => match refusal.standing() {
             geom_brep::TorusStanding::Ranked(diag) => FrameError::Escalated {
                 decision: BooleanDecision::Torus(refusal.convention),

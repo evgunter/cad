@@ -788,6 +788,24 @@ impl From<EllipseInvalid> for SectionError {
 }
 
 impl SectionError {
+    /// **The undecided margin this refusal carries**: the section's own
+    /// escalation, a radius's, or a carrier constructor's
+    /// ([`EllipseInvalid::escalation`], [`SpiricInvalid::escalation`], a
+    /// frame's undecided length among them); `None` for every other cause,
+    /// and for a torus's undecided convention, which carries the
+    /// convention its callers route it by ([`Self::DegenerateTorus`]).
+    /// The one read a caller routing a section refusal as an escalation
+    /// takes.
+    #[must_use]
+    pub const fn escalation(&self) -> Option<Indeterminate> {
+        match self {
+            Self::Escalated(diag) | Self::RadiusEscalated { diag, .. } => Some(*diag),
+            Self::Carrier(e) => e.escalation(),
+            Self::Spiric(e) => e.escalation(),
+            _ => None,
+        }
+    }
+
     /// **What this refusal is to a ladder** ([`crate::ladder::Refusal`]),
     /// per cause and exhaustive, so a cause added here states its
     /// standing before it compiles: an escalation by its margin, a
@@ -816,6 +834,16 @@ impl SectionError {
             | Self::RadiusEscalated { diag, .. }
             | Self::Carrier(EllipseInvalid::Escalated(diag))
             | Self::Spiric(SpiricInvalid::Escalated(diag)) => Ok(Refusal::Margin(*diag)),
+            // A constructor's frame whose length the band left undecided
+            // is a margin, as the sizes' are ([`Self::escalation`]).
+            Self::Carrier(EllipseInvalid::Frame(geom_core::OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }))
+            | Self::Spiric(SpiricInvalid::Frame(geom_core::OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            })) => Ok(Refusal::Margin(*diag)),
             Self::DegenerateTorus(refusal) => refusal.refusal(),
             // A tighter band may part each.
             Self::CoincidentSurfaces | Self::Unordered { .. } | Self::ConeAtTheBand { .. } => {
@@ -834,7 +862,8 @@ impl SectionError {
             // its arm classified as its own: two readings that disagree.
             Self::WrongLane { .. }
             | Self::NoRegion { .. }
-            | Self::Carrier(EllipseInvalid::MinorNotPositive)
+            | Self::Carrier(EllipseInvalid::MinorNotPositive | EllipseInvalid::Frame(_))
+            | Self::Spiric(SpiricInvalid::Frame(_))
             | Self::Spiric(
                 SpiricInvalid::MinorNotPositive
                 | SpiricInvalid::NotARing
@@ -3079,9 +3108,11 @@ fn plane_torus_read<T: Decide>(
                     // of the plane's trace, and `(a, −n, −d)` the other
                     // (the variant's docs).
                     let oval = |u: Vec3<T>, offset: T| {
-                        Curve3::spiric(c, a, u, big_r, r, offset, band).map_err(|e| match e {
-                            geom::SpiricInvalid::Escalated(diag) => SectionError::Escalated(diag),
-                            other => SectionError::Spiric(other),
+                        Curve3::spiric(c, a, u, big_r, r, offset, band).map_err(|e| {
+                            match e.escalation() {
+                                Some(diag) => SectionError::Escalated(diag),
+                                None => SectionError::Spiric(e),
+                            }
                         })
                     };
                     Ok(PlaneTorusSection::SpiricOvals {
@@ -3915,11 +3946,15 @@ mod section_error_standing_rows {
     /// or a mixed cause an abort.
     #[test]
     fn each_section_refusal_stands_by_its_cause() {
+        let frame_error = |error| geom_core::OrthonormalizeError {
+            axis: geom_core::OrthoAxis::V,
+            error,
+        };
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
         let diag = crate::dihedral::decide("t", Margin::of(5e-9_f64), band)
             .expect_err("a margin between the band's edges is undecided");
         let torus = |refusal: TorusRefusal| SectionError::DegenerateTorus(refusal);
-        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 25] = [
+        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 29] = [
             (
                 "wrong lane",
                 SectionError::WrongLane { expected: "a pair" },
@@ -4061,9 +4096,49 @@ mod section_error_standing_rows {
                 SectionError::from(EllipseInvalid::Escalated(diag)),
                 Ok(Refusal::Margin(diag)),
             ),
+            (
+                "carrier frame escalated",
+                SectionError::Carrier(EllipseInvalid::Frame(frame_error(
+                    geom_core::UnitVec3Error::Escalated(diag),
+                ))),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "carrier frame degenerate",
+                SectionError::Carrier(EllipseInvalid::Frame(frame_error(
+                    geom_core::UnitVec3Error::Degenerate,
+                ))),
+                Err(Aborts),
+            ),
+            (
+                "spiric frame escalated",
+                SectionError::Spiric(SpiricInvalid::Frame(frame_error(
+                    geom_core::UnitVec3Error::Escalated(diag),
+                ))),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "spiric frame degenerate",
+                SectionError::Spiric(SpiricInvalid::Frame(frame_error(
+                    geom_core::UnitVec3Error::Degenerate,
+                ))),
+                Err(Aborts),
+            ),
         ];
         for (label, error, want) in rows {
             assert_eq!(error.refusal(), want, "{label}");
+            // The one escalation read a caller routes by agrees with the
+            // ladder: a margin exactly where the refusal is one, but for a
+            // torus's, which its callers route by its convention.
+            let torus = matches!(error, SectionError::DegenerateTorus(_));
+            assert_eq!(
+                error.escalation(),
+                match want {
+                    Ok(Refusal::Margin(d)) if !torus => Some(d),
+                    _ => None,
+                },
+                "{label}: escalation"
+            );
         }
     }
 }

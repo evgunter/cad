@@ -6793,7 +6793,20 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let Some(square) = surface.frame().map(|f| f.square()) else {
         unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
     };
-    let (axis, u_ref) = (square.axis, square.u_ref);
+    // The squared basis is unit and square by its own construction (an
+    // axis over its length, a seam `a × (u_ref × a)` over its length), so
+    // it is taken as it is: the axis held, the seam squared about it,
+    // nothing decided.
+    let (axis, u_ref) = (geom_core::UnitVec3::checked(square.axis), square.u_ref);
+    debug_assert!(
+        geom_core::RigidMotion::square_to_rounding(axis, u_ref),
+        "a squared frame's seam is square to its axis"
+    );
+    let twin = |origin| {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+            origin, axis, u_ref,
+        ))
+    };
     match *surface {
         Surface::Cylinder {
             frame: carrier_frame,
@@ -6802,7 +6815,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let origin = carrier_frame.origin();
             Surface::Cylinder {
-                frame: geom::Frame::new(origin, axis, u_ref),
+                frame: twin(origin),
                 radius,
             }
         }
@@ -6813,7 +6826,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let apex = carrier_frame.origin();
             Surface::Cone {
-                frame: geom::Frame::new(apex, axis, u_ref),
+                frame: twin(apex),
                 half_angle,
             }
         }
@@ -6824,7 +6837,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let center = carrier_frame.origin();
             Surface::Sphere {
-                frame: geom::Frame::new(center, axis, u_ref),
+                frame: twin(center),
                 radius,
             }
         }
@@ -6836,7 +6849,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let center = carrier_frame.origin();
             Surface::Torus {
-                frame: geom::Frame::new(center, axis, u_ref),
+                frame: twin(center),
                 major_radius,
                 minor_radius,
             }
@@ -6849,7 +6862,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let center = carrier_frame.origin();
             Surface::Spindle {
-                frame: geom::Frame::new(center, axis, u_ref),
+                frame: twin(center),
                 major_radius,
                 minor_radius,
             }
@@ -6860,7 +6873,7 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
         } => {
             let origin = carrier_frame.origin();
             Surface::Plane {
-                frame: geom::Frame::new(origin, axis, u_ref),
+                frame: twin(origin),
             }
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {

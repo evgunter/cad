@@ -294,7 +294,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                     );
                     match decide("bool_sphere_region_arm", arm, band) {
                         Ok(Sign::Positive) => {
-                            region::read_leg(self, &self.ray(foot, tangent(a, raw)), band)
+                            region::read_leg(self, &self.ray(foot, tangent(a, raw))?, band)
                         }
                         // Along the normal, or aimed at `p` or its antipode:
                         // no tangent direction to cast.
@@ -370,10 +370,10 @@ impl<T: Decide> SphereFaceRegion<T> {
 
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
-    fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
+    fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Result<Leg<T, Round<T>>, Fault> {
         let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t)
             .map(|c| c.starting_at(foot.at()));
-        Leg::whole(Round::on(region::built(curve)))
+        Ok(Leg::whole(Round::on(region::built(curve)?)))
     }
 
     /// The unit direction of `foot` from the centre.
@@ -426,7 +426,14 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T, Round<T>>), Fault> {
+    ) -> Result<
+        (
+            Round<T>,
+            End<T>,
+            impl FnOnce() -> Result<Leg<T, Round<T>>, Fault>,
+        ),
+        Fault,
+    > {
         if parallel_first {
             return Err(RayFault::Unread);
         }
@@ -451,7 +458,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         }
         let side = if first_forward { side } else { -side };
         let cos = a.dot(b);
-        let first = self.ray(p, side).course;
+        let first = self.ray(p, side)?.course;
         let corner = self.center + (a * cos + side * sin) * self.radius;
         let end = End {
             place: first.arc(corner),
@@ -463,7 +470,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let corner = QueryFoot::read(self.charted.surface(), corner, band);
         let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward)
             .map(|c| c.starting_at(corner.at()));
-        let then = move || Leg::whole(Round::on(region::built(curve)));
+        let then = move || Ok(Leg::whole(Round::on(region::built(curve)?)));
         Ok((first, end, then))
     }
 }
@@ -1407,10 +1414,12 @@ mod tests {
             for (az, end) in [(1.25 * pi, false), (pi, true)] {
                 let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
                 let at_pole = Point3::origin() + pole * region.radius;
-                let leg = region.ray(
-                    QueryFoot::read(Legs::charted(&region).surface(), at_pole, band),
-                    toward,
-                );
+                let leg = region
+                    .ray(
+                        QueryFoot::read(Legs::charted(&region).surface(), at_pole, band),
+                        toward,
+                    )
+                    .expect("the leg builds");
                 let got = region::landings(&region, &region.edges[1], &leg, band);
                 let Ok(landings) = got else {
                     panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")

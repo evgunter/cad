@@ -142,6 +142,8 @@ enum Ruled<T: geom_core::Real> {
         axis: Vec3<T>,
         radius: T,
         u_ref: Vec3<T>,
+        /// The frame the fields are read from, held as stored.
+        frame: geom::Frame<T>,
     },
     /// Generators through `apex` at `half_angle` to the axis.
     Cone {
@@ -149,6 +151,8 @@ enum Ruled<T: geom_core::Real> {
         axis: Vec3<T>,
         half_angle: T,
         u_ref: Vec3<T>,
+        /// The frame the fields are read from, held as stored.
+        frame: geom::Frame<T>,
     },
 }
 
@@ -174,6 +178,13 @@ impl<T: Decide> Ruled<T> {
         }
     }
 
+    /// The surface's frame, as it is stored.
+    fn frame(&self) -> geom::Frame<T> {
+        match *self {
+            Self::Cylinder { frame, .. } | Self::Cone { frame, .. } => frame,
+        }
+    }
+
     /// A cylinder's or a cone's own fields, or `None` on any other
     /// surface.
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
@@ -185,6 +196,7 @@ impl<T: Decide> Ruled<T> {
                     axis,
                     radius,
                     u_ref,
+                    frame,
                 }
             }
             geom::Surface::Cone { frame, half_angle } => {
@@ -194,6 +206,7 @@ impl<T: Decide> Ruled<T> {
                     axis,
                     half_angle,
                     u_ref,
+                    frame,
                 }
             }
             _ => return None,
@@ -495,40 +508,39 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The surface's frame.
+    /// The surface's frame, as the face's surface stores it: nothing
+    /// re-minted.
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(
-            self.surface.base(),
-            self.surface.axis(),
-            self.surface.u_ref(),
-        )
+        self.surface.frame()
     }
 
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
-    fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
+    fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Result<Leg<T>, Fault> {
         let curve =
             SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
-        Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
+        Ok(Leg::whole(LegShape::Parallel(Round::on(region::built(
+            curve,
+        )?))))
     }
 
     /// The ruling through `p`, a point clear of a cone's apex on the
     /// nappe `opening`, run `outward` or back; back toward a cone's apex
     /// it ends there.
-    fn ruling(&self, p: QueryFoot<T>, opening: bool, outward: bool) -> Leg<T> {
+    fn ruling(&self, p: QueryFoot<T>, opening: bool, outward: bool) -> Result<Leg<T>, Fault> {
         let end = match self.surface {
             Ruled::Cylinder { .. } => None,
             Ruled::Cone { apex, .. } => (!outward).then(|| (p.at() - apex).norm()),
         };
         let curve = SurfaceCurve::ruling(&self.charted, p.uv(), opening, outward);
-        Leg {
-            course: LegShape::Ruling(Line::on(region::built(curve))),
+        Ok(Leg {
+            course: LegShape::Ruling(Line::on(region::built(curve)?)),
             end: end.map(|place| End {
                 place,
                 row: END,
                 open: true,
             }),
-        }
+        })
     }
 
     /// From a `p` at the cone's apex, the generator through `target`: it
@@ -542,7 +554,9 @@ impl<T: Decide> RuledFaceRegion<T> {
         let surface = self.charted.surface();
         let target = QueryFoot::read(surface, target, band);
         let curve = SurfaceCurve::from_apex(&self.charted, target.uv(), opening);
-        Ok(Leg::whole(LegShape::Ruling(Line::on(region::built(curve)))))
+        Ok(Leg::whole(LegShape::Ruling(Line::on(region::built(
+            curve,
+        )?))))
     }
 }
 
@@ -587,11 +601,11 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         forward: bool,
         band: Band,
     ) -> Result<Leg<T>, Fault> {
-        Ok(if parallel {
+        if parallel {
             self.parallel(p, forward)
         } else {
             self.ruling(p, self.opening(p, band)?, forward)
-        })
+        }
     }
 
     /// A first leg from `p` to a corner on `target`'s ruling
@@ -608,7 +622,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(LegShape<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
+    ) -> Result<(LegShape<T>, End<T>, impl FnOnce() -> Result<Leg<T>, Fault>), Fault> {
         let surface = self.charted.surface();
         let opening = self.opening(p, band)?;
         let target = QueryFoot::read(surface, target, band);
@@ -617,7 +631,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         // the target lies: it only steers.
         let (first, end, corner) = if parallel_first {
             let corner = QueryFoot::of_chart(surface, geom_core::Point2::new(ut, vp));
-            let LegShape::Parallel(round) = self.parallel(p, first_forward).course else {
+            let LegShape::Parallel(round) = self.parallel(p, first_forward)?.course else {
                 unreachable!("a parallel leg is round")
             };
             (LegShape::Parallel(round), round.arc(corner.at()), corner)
@@ -643,7 +657,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                     Sign::Zero => return Err(RayFault::Unread),
                 };
             // The corner lies short of the apex: the leg ends there.
-            (self.ruling(p, opening, outward).course, gap.abs(), corner)
+            (self.ruling(p, opening, outward)?.course, gap.abs(), corner)
         };
         let then = move || {
             if parallel_first {

@@ -43,7 +43,9 @@
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
 use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion, Sign, Vec3,
+};
 
 use crate::curve_face::{CrossRefusal, Meeting, OnSpan, Pose};
 use crate::curve_pair::Place;
@@ -302,48 +304,36 @@ impl<T: Real> Charted<T> {
                 frame: carrier_frame,
                 radius,
                 ..
-            } => {
-                let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                geom::Surface::Cylinder {
-                    frame: geom::Frame::new(origin, axis, u_ref),
-                    radius,
-                }
-            }
+            } => geom::Surface::Cylinder {
+                frame: turned_to(&carrier_frame, u_ref),
+                radius,
+            },
             geom::Surface::Cone {
                 frame: carrier_frame,
                 half_angle,
                 ..
-            } => {
-                let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                geom::Surface::Cone {
-                    frame: geom::Frame::new(apex, axis, u_ref),
-                    half_angle,
-                }
-            }
+            } => geom::Surface::Cone {
+                frame: turned_to(&carrier_frame, u_ref),
+                half_angle,
+            },
             geom::Surface::Sphere {
                 frame: carrier_frame,
                 radius,
                 ..
-            } => {
-                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                geom::Surface::Sphere {
-                    frame: geom::Frame::new(center, axis, u_ref),
-                    radius,
-                }
-            }
+            } => geom::Surface::Sphere {
+                frame: turned_to(&carrier_frame, u_ref),
+                radius,
+            },
             geom::Surface::Torus {
                 frame: carrier_frame,
                 major_radius,
                 minor_radius,
                 ..
-            } => {
-                let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                geom::Surface::Torus {
-                    frame: geom::Frame::new(center, axis, u_ref),
-                    major_radius,
-                    minor_radius,
-                }
-            }
+            } => geom::Surface::Torus {
+                frame: turned_to(&carrier_frame, u_ref),
+                major_radius,
+                minor_radius,
+            },
             other => unreachable!("only a surface of revolution is turned: {:?}", other.kind()),
         };
         Self { surface, ..self }
@@ -378,6 +368,19 @@ impl<T: Real> Placed<T> {
     }
 }
 
+/// **`frame` turned about its own axis onto the seam `u_ref`**: the axis
+/// kept as the witness the frame holds and `u_ref`'s part square to it
+/// normalized ([`RigidMotion::squared_about_stated`]), the origin kept. For a
+/// seam the caller holds square to the axis already, so nothing is
+/// decided.
+fn turned_to<T: Real>(frame: &Frame<T>, u_ref: Vec3<T>) -> Frame<T> {
+    Frame::of_motion(&RigidMotion::squared_about_stated(
+        frame.origin(),
+        frame.axis_unit(),
+        u_ref,
+    ))
+}
+
 /// A surface kind a curve family is not built on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoSuchFamily {
@@ -385,6 +388,36 @@ pub struct NoSuchFamily {
     pub family: &'static str,
     /// The surface kind it was asked of.
     pub kind: geom::SurfaceKind,
+}
+
+/// **Why a circle family has no member through a point**: the surface
+/// has no such family, or the family's circle there has no frame, decided
+/// or not.
+#[derive(Clone, Copy, Debug)]
+pub enum FamilyRefusal {
+    /// The surface kind has no such family ([`NoSuchFamily`]).
+    NoSuchFamily(NoSuchFamily),
+    /// The circle through the point is decided a point: the point stands
+    /// on the circle's axis (a cone's apex, a sphere's pole on its own
+    /// axis), so it has no seam (`on_surface_circle_frame`, decided zero).
+    PointCircle {
+        /// The family asked for.
+        family: &'static str,
+    },
+    /// Whether the point stands off the circle's axis the band left
+    /// undecided (`on_surface_circle_frame`, in band).
+    Escalated {
+        /// The family asked for.
+        family: &'static str,
+        /// The undecided seam's length.
+        diag: Indeterminate,
+    },
+}
+
+impl From<NoSuchFamily> for FamilyRefusal {
+    fn from(refused: NoSuchFamily) -> Self {
+        Self::NoSuchFamily(refused)
+    }
 }
 
 impl<T: Decide> SurfaceCurve<T> {
@@ -406,27 +439,46 @@ impl<T: Decide> SurfaceCurve<T> {
         }
     }
 
+    /// The circle of the family about `center` in the plane of `normal`,
+    /// its seam toward `start`. Its frame is minted decided
+    /// ([`RigidMotion::from_axis_and_reference`] at the least band, under
+    /// `on_surface_circle_frame`), the seam read from `start − center`
+    /// itself, so a seam of any length the format holds decides: where
+    /// `start` stands on the axis through `center` (a cone's apex, a
+    /// sphere's pole on its own axis) the circle is a point and refuses
+    /// as one ([`FamilyRefusal::PointCircle`]), and where the band leaves
+    /// that open it escalates ([`FamilyRefusal::Escalated`]), never a
+    /// poisoned frame.
     #[allow(clippy::too_many_arguments)] // the chart, the family, the circle and its section
     fn circle(
+        name: &'static str,
         chart: Placed<T>,
         family: Family,
-        center: Point3<T>,
-        normal: Vec3<T>,
+        (center, normal): (Point3<T>, Vec3<T>),
         radius: T,
         start: Point3<T>,
         section: Section<T>,
-    ) -> Self {
-        let w = start - center;
-        Self {
+    ) -> Result<Self, FamilyRefusal> {
+        let frame = RigidMotion::from_axis_and_reference(
+            center,
+            normal,
+            start - center,
+            "on_surface_circle_frame",
+            Band::least(),
+        )
+        .map_err(|refused| match refused.error {
+            geom_core::UnitVec3Error::Escalated(diag) => {
+                FamilyRefusal::Escalated { family: name, diag }
+            }
+            _ => FamilyRefusal::PointCircle { family: name },
+        })?;
+        Ok(Self {
             chart,
             family,
-            shape: Shape::Circle(Circle::new(
-                Frame::new(center, normal, w.normalize()),
-                radius,
-            )),
+            shape: Shape::Circle(Circle::new(Frame::of_motion(&frame), radius)),
             plane: (center, normal),
             section,
-        }
+        })
     }
 
     /// **The parallel through `uv`** on a cylinder, a cone or a torus,
@@ -435,8 +487,9 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any other surface.
-    pub fn parallel(on: &Charted<T>, uv: Point2<T>, forward: bool) -> Result<Self, NoSuchFamily> {
+    /// [`FamilyRefusal::NoSuchFamily`] on any other surface, and the
+    /// circle's own refusal at a point on its axis ([`FamilyRefusal`]).
+    pub fn parallel(on: &Charted<T>, uv: Point2<T>, forward: bool) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "parallel")?;
         let f = *chart.frame();
@@ -472,11 +525,17 @@ impl<T: Decide> SurfaceCurve<T> {
                     },
                 )
             }
-            _ => return Err(Self::refused("parallel", surface)),
+            _ => return Err(Self::refused("parallel", surface).into()),
         };
-        Ok(Self::circle(
-            chart, family, center, normal, radius, start, section,
-        ))
+        Self::circle(
+            "parallel",
+            chart,
+            family,
+            (center, normal),
+            radius,
+            start,
+            section,
+        )
     }
 
     /// **A meridian through `uv`**: a torus's tube circle at `uv`'s
@@ -485,8 +544,9 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any other surface.
-    pub fn meridian(on: &Charted<T>, uv: Point2<T>, forward: bool) -> Result<Self, NoSuchFamily> {
+    /// [`FamilyRefusal::NoSuchFamily`] on any other surface, and the
+    /// circle's own refusal at a point on its axis ([`FamilyRefusal`]).
+    pub fn meridian(on: &Charted<T>, uv: Point2<T>, forward: bool) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "meridian")?;
         let f = *chart.frame();
@@ -502,17 +562,17 @@ impl<T: Decide> SurfaceCurve<T> {
         let (center, radius) = match chart.arm() {
             ChartArm::Torus { major, minor } => (f.origin() + radial * major, minor),
             ChartArm::Sphere { radius } => (f.origin(), radius),
-            _ => return Err(Self::refused("meridian", surface)),
+            _ => return Err(Self::refused("meridian", surface).into()),
         };
-        Ok(Self::circle(
+        Self::circle(
+            "meridian",
             chart,
             Family::Meridian,
-            center,
-            normal,
+            (center, normal),
             radius,
             start,
             section,
-        ))
+        )
     }
 
     /// **The ruling through `uv`** on a cylinder or a cone, on the nappe
@@ -521,13 +581,13 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any other surface.
+    /// [`FamilyRefusal::NoSuchFamily`] on any other surface.
     pub fn ruling(
         on: &Charted<T>,
         uv: Point2<T>,
         opening: bool,
         outward: bool,
-    ) -> Result<Self, NoSuchFamily> {
+    ) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "ruling")?;
         let f = *chart.frame();
@@ -538,7 +598,7 @@ impl<T: Decide> SurfaceCurve<T> {
                 let g = start - f.origin();
                 (UnitVec3::squared(g), Some(opening))
             }
-            _ => return Err(Self::refused("ruling", surface)),
+            _ => return Err(Self::refused("ruling", surface).into()),
         };
         let dir = if outward { dir } else { -dir };
         Ok(Self::line(
@@ -555,16 +615,16 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any surface but a cone.
+    /// [`FamilyRefusal::NoSuchFamily`] on any surface but a cone.
     pub fn from_apex(
         on: &Charted<T>,
         toward: Point2<T>,
         opening: bool,
-    ) -> Result<Self, NoSuchFamily> {
+    ) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "generator from the apex")?;
         if !matches!(chart.arm(), ChartArm::Cone { .. }) {
-            return Err(Self::refused("generator from the apex", surface));
+            return Err(Self::refused("generator from the apex", surface).into());
         }
         let apex = surface.eval(toward.x, T::zero());
         let g = surface.eval(toward.x, toward.y) - chart.frame().origin();
@@ -624,9 +684,12 @@ impl<T: Decide> SurfaceCurve<T> {
             },
             "a circle's start is a point the caller holds on it"
         );
+        // `p` is on the circle (the caller's, asserted above), so `w` is
+        // the radius, square to the axis: the circle's own frame turned
+        // about its axis onto it, nothing decided.
         Self {
             shape: Shape::Circle(Circle::new(
-                Frame::new(centre, axis, w.normalize()),
+                turned_to(&c.frame(), w.normalize()),
                 c.radius(),
             )),
             ..self
@@ -663,12 +726,12 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any surface but a plane.
-    pub fn u_line(on: &Charted<T>, uv: Point2<T>) -> Result<Self, NoSuchFamily> {
+    /// [`FamilyRefusal::NoSuchFamily`] on any surface but a plane.
+    pub fn u_line(on: &Charted<T>, uv: Point2<T>) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "u-line")?;
         if !matches!(chart.arm(), ChartArm::Plane) {
-            return Err(Self::refused("u-line", surface));
+            return Err(Self::refused("u-line", surface).into());
         }
         let f = *chart.frame();
         let start = surface.eval(uv.x, uv.y);
@@ -691,12 +754,13 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any surface but a sphere.
-    pub fn great_circle(on: &Charted<T>, uv: Point2<T>, t: Vec3<T>) -> Result<Self, NoSuchFamily> {
+    /// [`FamilyRefusal::NoSuchFamily`] on any surface but a sphere, and
+    /// the circle's own refusal ([`FamilyRefusal`]).
+    pub fn great_circle(on: &Charted<T>, uv: Point2<T>, t: Vec3<T>) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "great circle")?;
         let ChartArm::Sphere { radius } = chart.arm() else {
-            return Err(Self::refused("great circle", surface));
+            return Err(Self::refused("great circle", surface).into());
         };
         let center = chart.frame().origin();
         let start = surface.eval(uv.x, uv.y);
@@ -711,15 +775,15 @@ impl<T: Decide> SurfaceCurve<T> {
             !normal.x.is_poison(),
             "a great circle's direction runs through the sphere's centre"
         );
-        Ok(Self::circle(
+        Self::circle(
+            "great circle",
             chart,
             Family::GreatCircle,
-            center,
-            normal,
+            (center, normal),
             radius,
             start,
             Section::Whole,
-        ))
+        )
     }
 
     /// **A sphere's small circle about the axis through `pole`** (chart
@@ -728,17 +792,18 @@ impl<T: Decide> SurfaceCurve<T> {
     ///
     /// # Errors
     ///
-    /// [`NoSuchFamily`] on any surface but a sphere.
+    /// [`FamilyRefusal::NoSuchFamily`] on any surface but a sphere, and
+    /// the circle's own refusal at a point on its axis ([`FamilyRefusal`]).
     pub fn about(
         on: &Charted<T>,
         pole: Point2<T>,
         through: Point2<T>,
         forward: bool,
-    ) -> Result<Self, NoSuchFamily> {
+    ) -> Result<Self, FamilyRefusal> {
         let surface = &on.surface;
         let chart = Self::chart(on, "circle about a pole")?;
         if !matches!(chart.arm(), ChartArm::Sphere { .. }) {
-            return Err(Self::refused("circle about a pole", surface));
+            return Err(Self::refused("circle about a pole", surface).into());
         }
         let c = chart.frame().origin();
         let a = surface.eval(pole.x, pole.y) - c;
@@ -746,15 +811,15 @@ impl<T: Decide> SurfaceCurve<T> {
         let q = surface.eval(through.x, through.y);
         let center = c + a * a.dot(q - c);
         let normal = if forward { a } else { -a };
-        Ok(Self::circle(
+        Self::circle(
+            "circle about a pole",
             chart,
             Family::SmallCircle,
-            center,
-            normal,
+            (center, normal),
             (q - center).norm(),
             q,
             Section::Whole,
-        ))
+        )
     }
 
     /// The key of the record the curve's surface was charted from
@@ -1013,8 +1078,20 @@ impl<'a, T: Decide> OnSurface<'a, T> {
             Shape::Circle(c) => c.u_ref(),
             Shape::Line(l) => l.dir.get(),
         };
+        // A circle's seam and a line's direction lie in the curve's own
+        // plane, square to its normal by the curve's frame: squared about
+        // that normal, nothing decided.
         let plane = geom::Surface::Plane {
-            frame: geom::Frame::new(origin, normal, u_ref),
+            frame: {
+                // The plane's normal as it is held, a frame's axis in a
+                // bare vector, not squared again.
+                let normal = UnitVec3::checked(normal);
+                debug_assert!(
+                    RigidMotion::square_to_rounding(normal, u_ref),
+                    "a curve's seam or direction lies in its own plane"
+                );
+                Frame::of_motion(&RigidMotion::squared_about_stated(origin, normal, u_ref))
+            },
         };
         co_surface(&super::Span::new(self.carrier, self.span), &plane, band)
     }
@@ -1032,11 +1109,13 @@ impl<'a, T: Decide> OnSurface<'a, T> {
             Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
-                Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(
-                    center + u_ref * offset,
-                    frame.u_ref_unit(),
-                    frame.axis(),
-                )))
+                Some(Frame::of_motion(
+                    &geom_core::RigidMotion::squared_about_stated(
+                        center + u_ref * offset,
+                        frame.u_ref_unit(),
+                        frame.axis(),
+                    ),
+                ))
             }
             _ => None,
         }
@@ -1264,6 +1343,60 @@ mod tests {
         }
     }
 
+    /// **A circle through its own centre is a point circle, not a
+    /// poisoned carrier**: a cone's parallel at the apex (`v = 0`)
+    /// starts where it is centred, so its seam has no direction. The
+    /// circle's decided mint refuses it as a point
+    /// ([`FamilyRefusal::PointCircle`]), where the undecided square minted
+    /// a frame of poison; at `Interval`, a height straddling the apex
+    /// (`v ∈ [−1e-12, 1e-12]`) escalates under the circle's own predicate
+    /// ([`FamilyRefusal::Escalated`]), kept apart from both a point and a
+    /// surface with no such family. A parallel off the apex mints its
+    /// frame: the cone's axis, and its seam the unit radial toward its
+    /// start, square to it. Red with the undecided square in the circle's
+    /// mint (the apex parallel then answers `Ok`, its frame poisoned), and
+    /// with an escalation folded into the point.
+    #[test]
+    fn a_parallel_at_the_cones_apex_is_a_point_circle() {
+        let cone = cone();
+        let at_apex = SurfaceCurve::parallel(&on(&cone), Point2::new(0.3, 0.0), true);
+        assert!(
+            matches!(
+                at_apex,
+                Err(FamilyRefusal::PointCircle { family: "parallel" })
+            ),
+            "the apex holds no parallel: {:?}",
+            at_apex.as_ref().map(|c| c.carrier())
+        );
+        let off = SurfaceCurve::parallel(&on(&cone), Point2::new(0.3, 1.0), true).unwrap();
+        let geom::Curve3::Circle(c) = off.carrier() else {
+            panic!("a parallel is a circle")
+        };
+        let (axis, seam) = (c.frame().axis(), c.frame().u_ref());
+        let radial = Vec3::new(0.3f64.cos(), 0.3f64.sin(), 0.0);
+        assert!(
+            (axis - z()).norm() < 1e-15
+                && (seam - radial).norm() < 1e-15
+                && axis.dot(seam).abs() < 1e-15,
+            "a parallel off the apex is the cone's circle there, its seam toward its start: {c:?}"
+        );
+        let lifted = cone.map_scalar(geom_core::Interval::from_f64);
+        let straddle = Point2::new(
+            geom_core::Interval::from_f64(0.3),
+            geom_core::Interval::from_bounds(-1e-12, 1e-12),
+        );
+        match SurfaceCurve::parallel(&Charted::record(key(), &lifted), straddle, true) {
+            Err(FamilyRefusal::Escalated {
+                family: "parallel",
+                diag,
+            }) => assert_eq!(diag.predicate, Some("on_surface_circle_frame")),
+            other => panic!(
+                "a parallel straddling the apex escalates: {:?}",
+                other.map(|c| c.carrier())
+            ),
+        }
+    }
+
     fn cone() -> geom::Surface<f64> {
         geom::Surface::Cone {
             frame: geom::Frame::new(Point3::origin(), z(), x()),
@@ -1347,17 +1480,55 @@ mod tests {
 
     /// **A family is built only on a surface that has it**: no parallel of
     /// a sphere (its circles about a pole are [`SurfaceCurve::about`]), no
-    /// meridian of a cylinder, no ruling of a torus.
+    /// meridian of a cylinder, no ruling of a torus, each refused as no
+    /// such family under its own name. A circle family that has a member
+    /// at the point but whose member there is a point refuses apart from
+    /// them: a sphere's circle about a pole through that pole
+    /// ([`FamilyRefusal::PointCircle`]). A meridian and a great circle
+    /// through the pole are circles of the sphere's radius, and mint.
     #[test]
     fn a_family_is_refused_on_a_surface_without_it() {
         let uv = Point2::new(0.0, 0.5);
-        assert!(SurfaceCurve::parallel(&on(&sphere()), uv, true).is_err());
-        assert!(SurfaceCurve::meridian(&on(&cylinder()), uv, true).is_err());
-        assert!(SurfaceCurve::ruling(&on(&torus()), uv, true, true).is_err());
-        assert!(SurfaceCurve::from_apex(&on(&cylinder()), uv, true).is_err());
-        assert!(SurfaceCurve::great_circle(&on(&torus()), uv, z()).is_err());
-        assert!(SurfaceCurve::u_line(&on(&cylinder()), uv).is_err());
-        assert!(SurfaceCurve::parallel(&on(&plane()), uv, true).is_err());
+        let named = |r: Result<SurfaceCurve<f64>, FamilyRefusal>, want: &str| {
+            assert!(
+                matches!(r, Err(FamilyRefusal::NoSuchFamily(NoSuchFamily { family, .. })) if family == want),
+                "{want}: {:?}",
+                r.map(|c| c.family())
+            );
+        };
+        named(SurfaceCurve::parallel(&on(&sphere()), uv, true), "parallel");
+        named(
+            SurfaceCurve::meridian(&on(&cylinder()), uv, true),
+            "meridian",
+        );
+        named(
+            SurfaceCurve::ruling(&on(&torus()), uv, true, true),
+            "ruling",
+        );
+        named(
+            SurfaceCurve::from_apex(&on(&cylinder()), uv, true),
+            "generator from the apex",
+        );
+        named(
+            SurfaceCurve::great_circle(&on(&torus()), uv, z()),
+            "great circle",
+        );
+        named(SurfaceCurve::u_line(&on(&cylinder()), uv), "u-line");
+        named(SurfaceCurve::parallel(&on(&plane()), uv, true), "parallel");
+        let pole = Point2::new(0.0, FRAC_PI_2);
+        let about = SurfaceCurve::about(&on(&sphere()), pole, pole, true);
+        assert!(
+            matches!(
+                about,
+                Err(FamilyRefusal::PointCircle {
+                    family: "circle about a pole"
+                })
+            ),
+            "the circle about a pole through it is a point: {:?}",
+            about.map(|c| c.family())
+        );
+        assert!(SurfaceCurve::meridian(&on(&sphere()), pole, true).is_ok());
+        assert!(SurfaceCurve::great_circle(&on(&sphere()), pole, x()).is_ok());
     }
 
     /// **A cone's generator reads its own half-generator of its plane**:

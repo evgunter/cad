@@ -2149,11 +2149,9 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         let circle = geom::Circle::new(
-            geom::Frame::new(
-                center,
-                Vec3::unit_z(),
-                Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
-            ),
+            // The written frame `u = −x̂`, `w = ẑ`: the half turn about
+            // `ẑ`, exact at every scalar, placed at the centre.
+            geom::Frame::of_motion(&geom_core::RigidMotion::half_turn_z().with_origin(center)),
             T::one(),
         );
         Self {

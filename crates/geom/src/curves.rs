@@ -70,7 +70,10 @@ pub use conic::{Circle, Conic, Ellipse, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, UnitVec3, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, OrthonormalizeError, Point3, Real, RigidMotion, Sign,
+    UnitVec3, Vec3,
+};
 
 use crate::azimuth::{self, Azimuth};
 use crate::frame::Frame;
@@ -418,6 +421,9 @@ pub enum EllipseInvalid {
     /// poisoned: the configuration is too close to the degenerate
     /// segment to name soundly.
     Escalated(Indeterminate),
+    /// The ellipse's frame has no decided basis (`ellipse_frame`): its
+    /// normal has no direction, or its `u_ref` none square to it.
+    Frame(OrthonormalizeError),
 }
 
 impl EllipseInvalid {
@@ -430,7 +436,29 @@ impl EllipseInvalid {
     pub fn escalated_subject(diag: &Indeterminate) -> &'static str {
         match diag.predicate {
             Some("ellipse_minor_positive") => "whether the curve's minor semi-axis is positive",
+            Some("ellipse_frame") => "whether the ellipse's frame has a basis",
+            Some("spiric_frame") => "whether the spiric's frame has a basis",
             _ => geom_core::UNNAMED_DECISION,
+        }
+    }
+}
+
+impl EllipseInvalid {
+    /// **The undecided margin this refusal carries**: a constructor
+    /// predicate's escalation (`ellipse_minor_positive`), or the frame
+    /// mint's, its normal's or seam's length undecided in band
+    /// (`ellipse_frame`); `None` for a refusal decided. The one read every
+    /// route of a carrier refusal takes, so a frame escalation is a margin
+    /// wherever a size's is.
+    #[must_use]
+    pub const fn escalation(&self) -> Option<Indeterminate> {
+        match self {
+            Self::Escalated(diag)
+            | Self::Frame(OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }) => Some(*diag),
+            _ => None,
         }
     }
 }
@@ -455,6 +483,7 @@ impl core::fmt::Display for EllipseInvalid {
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
             ),
+            Self::Frame(e) => write!(f, "ellipse construction: the frame has no basis: {e}"),
         }
     }
 }
@@ -548,6 +577,26 @@ pub enum SpiricInvalid {
     /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_two_ovals_floor`,
     /// `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
+    /// The spiric's frame has no decided basis (`spiric_frame`): its axis
+    /// has no direction, or its `u_ref` none square to it.
+    Frame(OrthonormalizeError),
+}
+
+impl SpiricInvalid {
+    /// **The undecided margin this refusal carries**: a constructor
+    /// predicate's escalation, or the frame mint's (`spiric_frame`); `None`
+    /// for a refusal decided ([`EllipseInvalid::escalation`]).
+    #[must_use]
+    pub const fn escalation(&self) -> Option<Indeterminate> {
+        match self {
+            Self::Escalated(diag)
+            | Self::Frame(OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }) => Some(*diag),
+            _ => None,
+        }
+    }
 }
 
 impl core::fmt::Display for SpiricInvalid {
@@ -585,6 +634,7 @@ impl core::fmt::Display for SpiricInvalid {
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
             ),
+            Self::Frame(e) => write!(f, "spiric construction: the frame has no basis: {e}"),
         }
     }
 }
@@ -1398,8 +1448,8 @@ impl<T: Decide> Curve3<T> {
     /// semi-axis that is not bounded ([`EllipseInvalid::SemiAxisNotFinite`],
     /// [`Real::is_bounded`], no band) and a non-positive minor semi-axis
     /// through a named Q1 trilean, both before it builds the ellipse
-    /// ([`Ellipse::new`] panics on a definitely negative one), and nothing
-    /// else. Equal or near-equal semi-axes are a genuine
+    /// ([`Ellipse::new`] panics on a definitely negative one), and a frame
+    /// with no basis. Equal or near-equal semi-axes are a genuine
     /// `Ellipse`: the caller's pose decides the kind once (a square
     /// section is its `Circle`, a definitely-off-square one this door's
     /// `Ellipse`, however near-circular). The semi-axes come in either
@@ -1411,10 +1461,16 @@ impl<T: Decide> Curve3<T> {
     ///   (meters): Positive required; Zero/Negative ⇒
     ///   [`EllipseInvalid::MinorNotPositive`]; in-band/poison ⇒
     ///   [`EllipseInvalid::Escalated`].
+    /// - `ellipse_frame` — the normal's length and `u_ref`'s part square
+    ///   to it, decided dimensionless (at the least band): a direction
+    ///   each required; zero, underflowed or not finite ⇒
+    ///   [`EllipseInvalid::Frame`], its error
+    ///   [`UnitVec3Error::Escalated`](geom_core::UnitVec3Error::Escalated)
+    ///   where an enclosure straddles zero ([`EllipseInvalid::escalation`]).
     ///
-    /// Frame fields stay conventional data exactly as for `Circle`
-    /// (unit, orthogonal, unchecked here — tier-3 certification owns
-    /// them at rest).
+    /// The frame is minted unit and orthonormal from those directions, so
+    /// no tilt of `u_ref` off square is read here: its part square to the
+    /// normal is the seam.
     ///
     /// # Errors
     ///
@@ -1429,7 +1485,7 @@ impl<T: Decide> Curve3<T> {
     ) -> Result<Self, EllipseInvalid> {
         Self::ellipse_decided((semi_u, semi_v), band)?;
         Ok(Curve3::Ellipse(Ellipse::new(
-            Frame::new(center, axis, u_ref),
+            Self::conic_frame(center, axis, u_ref)?,
             semi_u,
             semi_v,
         )))
@@ -1451,9 +1507,32 @@ impl<T: Decide> Curve3<T> {
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
         Self::ellipse_decided((semi_u, semi_v), band)?;
-        Ok(Curve3::Ellipse(Ellipse::anchored(
-            anchor, axis, toward, semi_u, semi_v,
+        Ok(Curve3::Ellipse(Ellipse::anchored_on(
+            Self::conic_frame(anchor, axis, toward)?,
+            semi_u,
+            semi_v,
         )))
+    }
+
+    /// **An ellipse's frame, minted decided** (`ellipse_frame`): the
+    /// normal's direction and `u_ref`'s part square to it, each length
+    /// decided ([`RigidMotion::from_axis_and_reference`]). A direction
+    /// carries no metres, so its length is decided dimensionless, at the
+    /// least band ([`Band::least`]): any length the format holds is a
+    /// direction, a 1e-12-long axis among them, and only a zero (or one
+    /// under the format) refuses, or escalates where an enclosure
+    /// straddles it. It is [`Frame::new`]'s arithmetic step for step, so
+    /// a frame already unit and square keeps its bits; a degenerate one
+    /// refuses typed ([`EllipseInvalid::Frame`]) where the undecided
+    /// square poisoned it.
+    fn conic_frame(
+        origin: Point3<T>,
+        axis: Vec3<T>,
+        u_ref: Vec3<T>,
+    ) -> Result<Frame<T>, EllipseInvalid> {
+        RigidMotion::from_axis_and_reference(origin, axis, u_ref, "ellipse_frame", Band::least())
+            .map(|m| Frame::of_motion(&m))
+            .map_err(EllipseInvalid::Frame)
     }
 
     /// [`Curve3::ellipse`]'s two refusals, read off the sizes before
@@ -1492,9 +1571,16 @@ impl<T: Decide> Curve3<T> {
     ///   [`SpiricInvalid::FrameNotOrthogonal`].
     ///
     /// In-band or poison on any of them ⇒ [`SpiricInvalid::Escalated`].
-    /// The frame's unit lengths stay conventional data exactly as for
-    /// `Circle` (unchecked here — tier-3 certification owns them at
-    /// rest).
+    ///
+    /// - `spiric_frame` — the axis's length and `u_ref`'s part square to
+    ///   it, decided dimensionless (at the least band): a direction each
+    ///   required; zero, underflowed or not finite ⇒
+    ///   [`SpiricInvalid::Frame`], its error
+    ///   [`UnitVec3Error::Escalated`](geom_core::UnitVec3Error::Escalated)
+    ///   where an enclosure straddles zero ([`SpiricInvalid::escalation`]),
+    ///   not [`SpiricInvalid::Escalated`].
+    ///
+    /// The frame is minted unit and orthonormal from those directions.
     ///
     /// # Errors
     ///
@@ -1542,8 +1628,21 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Positive | Sign::Negative) => return Err(SpiricInvalid::FrameNotOrthogonal),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
+        // The frame minted decided (`spiric_frame`): `Frame::new`'s
+        // arithmetic step for step, refusing typed where it poisoned. Its
+        // directions' lengths are decided dimensionless, at the least band,
+        // as the ellipse's are ([`Self::conic_frame`]); the seam's tilt off
+        // square was decided in metres above (`spiric_frame_orthogonal`).
+        let frame = RigidMotion::from_axis_and_reference(
+            center,
+            axis,
+            u_ref,
+            "spiric_frame",
+            Band::least(),
+        )
+        .map_err(SpiricInvalid::Frame)?;
         Ok(Curve3::Spiric {
-            frame: crate::Frame::new(center, axis, u_ref),
+            frame: crate::Frame::of_motion(&frame),
             major_radius,
             minor_radius,
             offset,
@@ -1634,13 +1733,9 @@ impl<T: Real> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
+                // A translation keeps the frame's axes as they are.
                 Curve3::Spiric {
-                    frame: crate::Frame::new(center + by, axis, u_ref),
+                    frame: carrier_frame.translated(by),
                     major_radius,
                     minor_radius,
                     offset,
@@ -2804,6 +2899,126 @@ mod tests {
         ));
         let f = across.section_frame(axis).unwrap();
         assert_eq!((f.phase, (f.major_dir - Vec3::unit_x()).norm()), (0.0, 0.0));
+    }
+
+    /// **The deciding conic doors mint their frames decided**: an
+    /// ellipse ([`Curve3::ellipse`], [`Curve3::ellipse_anchored`]) or a
+    /// spiric ([`Curve3::spiric`]) with no seam square to its axis
+    /// refuses typed ([`EllipseInvalid::Frame`], [`SpiricInvalid::Frame`]),
+    /// where the undecided square minted a frame of poison; on a frame
+    /// already unit and square each reads, bit for bit, the frame the
+    /// door used to square ([`Frame::new`]). Red with the undecided square
+    /// back in either door (the degenerate frame then mints).
+    #[test]
+    fn the_conic_doors_refuse_a_frame_with_no_basis_and_keep_the_squared_bits() {
+        let b = band();
+        let (z, along) = (Vec3::unit_z(), Vec3::new(0.0, 0.0, 2.0));
+        assert!(matches!(
+            Curve3::ellipse(Point3::origin(), z, 2.0, 1.0, along, b),
+            Err(EllipseInvalid::Frame(_))
+        ));
+        assert!(matches!(
+            Curve3::ellipse_anchored(Point3::origin(), z, along, (2.0, 1.0), b),
+            Err(EllipseInvalid::Frame(_))
+        ));
+        // A spiric's `u_ref` along its axis is refused before the frame,
+        // as not square to it (`spiric_frame_orthogonal`); a zero seam
+        // passes that reading and reaches the frame's own.
+        assert!(matches!(
+            Curve3::spiric(Point3::origin(), z, along, 5.0, 1.0, 2.0, b),
+            Err(SpiricInvalid::FrameNotOrthogonal)
+        ));
+        assert!(matches!(
+            Curve3::spiric(Point3::origin(), z, Vec3::zero(), 5.0, 1.0, 2.0, b),
+            Err(SpiricInvalid::Frame(_))
+        ));
+        let bits = |f: &Frame<f64>| {
+            [f.origin() - Point3::origin(), f.axis(), f.u_ref()]
+                .map(|e| [e.x, e.y, e.z].map(f64::to_bits))
+        };
+        let (c, axis, seam) = (
+            Point3::new(0.3, -1.2, 4.0),
+            Vec3::new(0.48, 0.6, 0.64),
+            Vec3::new(0.6, -0.48, 0.0),
+        );
+        let squared = Frame::new(c, axis, seam);
+        let Ok(Curve3::Ellipse(e)) = Curve3::ellipse(c, axis, 2.0, 1.0, seam, b) else {
+            panic!("an ellipse on a square frame mints")
+        };
+        assert_eq!(bits(&e.frame()), bits(&squared), "the ellipse's frame");
+        let Ok(Curve3::Spiric { frame, .. }) = Curve3::spiric(c, axis, seam, 5.0, 1.0, 2.0, b)
+        else {
+            panic!("a spiric on a square frame mints")
+        };
+        assert_eq!(bits(&frame), bits(&squared), "the spiric's frame");
+    }
+
+    /// **The conic doors decide their frames dimensionless**
+    /// (`ellipse_frame`, `spiric_frame`, at the least band): an axis
+    /// 1e-12 long is a direction, so an ellipse and a spiric about it
+    /// mint, their frames unit and the axis `ẑ`; and at `Interval` an
+    /// axis whose enclosure straddles zero escalates, as the frame's own
+    /// typed refusal (its `Escalated` length, read as the constructor's
+    /// escalation, under its own predicate), never a poisoned frame. Red
+    /// against the frames decided at the metre band (the short axis then
+    /// refuses), and against an in-band axis read as a decided one.
+    #[test]
+    fn the_conic_doors_decide_their_frames_dimensionless() {
+        use geom_core::Interval;
+        let b = band();
+        let (short, seam) = (Vec3::new(0.0, 0.0, 1e-12), Vec3::new(1.0, 0.0, 0.0));
+        let unit_z = |f: &Frame<f64>| (f.axis() - Vec3::unit_z()).norm() < 1e-15;
+        let Ok(Curve3::Ellipse(e)) = Curve3::ellipse(Point3::origin(), short, 2.0, 1.0, seam, b)
+        else {
+            panic!("an ellipse about a 1e-12-long axis mints")
+        };
+        assert!(unit_z(&e.frame()), "{:?}", e.frame());
+        let Ok(Curve3::Spiric { frame, .. }) =
+            Curve3::spiric(Point3::origin(), short, seam, 5.0, 1.0, 2.0, b)
+        else {
+            panic!("a spiric about a 1e-12-long axis mints")
+        };
+        assert!(unit_z(&frame), "{frame:?}");
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
+        let straddle = Vec3::new(
+            Interval::from_bounds(-1e-30, 1e-30),
+            Interval::from_bounds(-1e-30, 1e-30),
+            Interval::from_bounds(-1e-30, 1e-30),
+        );
+        let (o, i) = (Point3::origin().map(Interval::from_f64), Interval::from_f64);
+        let ellipse = Curve3::ellipse(o, straddle, i(2.0), i(1.0), lift(seam), b);
+        match ellipse {
+            Err(
+                ref refused @ EllipseInvalid::Frame(OrthonormalizeError {
+                    error: geom_core::UnitVec3Error::Escalated(diag),
+                    ..
+                }),
+            ) => {
+                assert_eq!(diag.predicate, Some("ellipse_frame"));
+                assert_eq!(
+                    refused.escalation().map(|d| d.predicate),
+                    Some(Some("ellipse_frame"))
+                );
+                assert_ne!(
+                    EllipseInvalid::escalated_subject(&diag),
+                    geom_core::UNNAMED_DECISION
+                );
+            }
+            other => panic!("an in-band axis escalates the ellipse's frame: {other:?}"),
+        }
+        let spiric = Curve3::spiric(o, straddle, lift(seam), i(5.0), i(1.0), i(2.0), b);
+        match spiric {
+            Err(
+                ref refused @ SpiricInvalid::Frame(OrthonormalizeError {
+                    error: geom_core::UnitVec3Error::Escalated(diag),
+                    ..
+                }),
+            ) => {
+                assert_eq!(diag.predicate, Some("spiric_frame"));
+                assert!(refused.escalation().is_some());
+            }
+            other => panic!("an in-band axis escalates the spiric's frame: {other:?}"),
+        }
     }
 
     /// The constructor trilean trios (M5 PR 5 acceptance: each named
