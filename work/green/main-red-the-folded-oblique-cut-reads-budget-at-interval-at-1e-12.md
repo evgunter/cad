@@ -26,6 +26,9 @@ the identity alone, main's reading). The row passed at 1e-12 on that
 branch with main `1cf86c9e96` merged (23 Nov), so it moved between
 those two mains.
 
-**Not checked:** main alone at `83bbe105b6`, and which commit moved it
-(`git log 1cf86c9e96..83bbe105b6` touches the suite file in
-`ae95ea6c5` and `8c32db16b`).
+**Checked on bare main (EMBED's conic-symmetry lane, 24 Nov):** it
+passes at `1cf86c9e96` and fails at `83bbe105b6` (f64 `Violated`,
+`Interval` `Budget`), so a commit in that range turned it;
+`git log 1cf86c9e96..83bbe105b6` touches the suite file in `ae95ea6c5`
+and `8c32db16b`, and neither was bisected. It is still red at 1e-12 on
+main `17e78d9c90` (EMBED's landing runs).

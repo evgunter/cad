@@ -341,6 +341,76 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     );
 }
 
+/// The embedding ask on the `∩` of
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]:
+/// a sliver 10 m long and 1 mm wide whose top (a piece of the block's
+/// `z = 0`) and bottom (the wedge's tilted face) share its 1 mm tip
+/// edge and part at 5e-8 rad, so they are within ε of each other for
+/// about 20 mm from it and 500ε apart at the far end.
+///
+/// **This pins a reading known to be wrong.** It reads `Embedded`: an
+/// in-band pair certified by the reach lever. `[topology.tiers]` levers
+/// a departure at how far the narrower face runs from what the two
+/// share, which is the 20 mm these faces run within ε of each other, so
+/// the ratified reading is a refusal. The code still levers at the
+/// pair's reach (PR 7329's step), which over-reads a face inside the
+/// band. The row goes red when
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`
+/// levers at the narrower run, and that unit flips it to the refusal;
+/// `the-verifier-reads-a-separation-inside-the-band-as-a-coincidence-where-the-tiers-clause-says-ambiguous`
+/// holds the same move.
+///
+/// Before `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`
+/// it read `Budget(Pairs)` on the top against a long side wall, a face
+/// 10 m long and at most 500ε tall that no presentation read. That row
+/// presents the wall's end, so the walk now finishes, and its pair
+/// counts are pinned: they are the same at 1e-9, 1e-6 and 1e-12.
+#[test]
+fn the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_read() {
+    let tol = Tol::witness();
+    let dip = DIP * tol.eps();
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    let e = [[10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+    let meet = body_of(intersect(&block, &wedge, tol), "tilted wedge: ∩");
+    let side = topo::clearance::Side {
+        body: &meet,
+        faces: meet.faces().map(|(k, _)| k).collect(),
+    };
+    let report = topo::clearance::embedded(
+        &side,
+        Band::linear(tol).unwrap(),
+        topo::clearance::Budgets {
+            max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
+    );
+    assert!(
+        matches!(report.verdict, topo::clearance::Embedding::Embedded),
+        "the sector's sliver reads Embedded by the reach lever: {report:?}"
+    );
+    let r = report.receipt;
+    assert_eq!(
+        (
+            r.candidates,
+            r.discharged,
+            r.violated,
+            r.within,
+            r.refused,
+            r.splits,
+            r.certified
+        ),
+        (15, 24, 0, 0, 0, 9, 13),
+        "the sector's sliver's receipt: {report:?}"
+    );
+}
+
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a
 /// block's top (20 m square), its bottom tilted so the far end stands
 /// `5·K·ε` below: `0.5·Kε` at a one-metre arm, in band there, and

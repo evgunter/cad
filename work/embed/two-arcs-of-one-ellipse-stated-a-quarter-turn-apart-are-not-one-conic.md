@@ -2,11 +2,12 @@
 id: two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic
 kind: issue
 title: one_stated_conic reads two arcs of one section ellipse as two conics where they are stated a half turn apart (every plane cap a cone's split mints, since the anchored ellipse) or a quarter turn apart with the semi-axes exchanged, so the cap refuses at its two-arc corner and no cut cone is embedded
-status: dispatched
+status: parked
 opened: 2026-11-23
-priority: P0
+priority: P1
 cost: E
 branch: embed/conic-symmetry
+blocked_on: [a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart]
 ---
 
 
@@ -196,3 +197,21 @@ the arm admitting every pair of ellipses.
 whether the cut meets a cap (a reviewer's scan: 864 of 864 wall-alone
 cuts a half turn; of 66 two-arc cuts through a cap, 26 a quarter and 40
 a half). The conic row carries it.
+
+## Parked (24 Nov)
+
+PR 7640 landed the half of this row that is a symmetry: `one_stated_conic`
+admits an ellipse's exact restatements (its seam a half turn on, run
+back, both), so every cut through a cone's wall alone states one conic at
+its cap's two-arc corner. The other half is not a symmetry and stays
+open here: a cap whose two arcs are seamed a quarter turn apart states
+two ellipses a rounding apart (one ulp, at
+`Ellipse::quarter_turned_where`), and those stay two. Its cause is on the
+minting side, CONIC's row
+`a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart`
+(P1), and this row waits on it. Re-banded P0 to P1 with it: no verb on
+main is gated on the quarter turn, and what was broken on normal
+geometry (every wall cut) is fixed; it is P0 again the day the at-rest
+gate asks the embedding question in a split. The admission's body pins
+land with PR 7605 (cone-image), where a cut cone holds.
+
