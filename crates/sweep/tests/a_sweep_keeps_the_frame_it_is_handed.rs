@@ -993,11 +993,15 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// revolve's one reading of the side of its axis the profile lies on.
 /// Validation then stopped reading the four corners' shared vertices
 /// (`profile::seg`'s `line_line`), six decisions a corner, 20 symbolic
-/// and 4 numeric: 481 / 458 and 473 / 608.
+/// and 4 numeric: 481 / 458 and 473 / 608. Then a carrier's distance
+/// from its wall and a ruling's phase read the stored radius through the
+/// rationalized gap, and an arc's frame turned onto its recorded radial:
+/// 503 / 440 and 485 / 600, eighteen and eight decisions out of the
+/// numeric count and four more symbolic on each.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 481, 458), "the full washer");
-    assert_eq!(washer_counts(false), (true, 473, 608), "the partial washer");
+    assert_eq!(washer_counts(true), (true, 503, 440), "the full washer");
+    assert_eq!(washer_counts(false), (true, 485, 600), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world
@@ -1236,9 +1240,10 @@ fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
                     assert!(curved > 0, "{verb} sweeps a cylinder wall");
                     let mut rims = 0;
                     for (edge, _) in body.edges() {
-                        let circle = topo::readback::edge_carrier_ref(body, edge)
-                            .ok()
-                            .and_then(|carrier| carrier.as_circle());
+                        let circle = body
+                            .edge(edge)
+                            .and_then(topo::EdgeView::certified)
+                            .and_then(|c| c.carrier().as_circle());
                         if let Some(circle) = circle {
                             unit(
                                 &format!("{verb} rim {edge:?} u_ref"),
@@ -1275,35 +1280,29 @@ fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
     slab(SketchPlane::xy(), lp, T::one())
 }
 
-/// **A table's written radial reaches a wall's frame as it was written**
+/// **A table's written radial does not reach a wall's frame as written**
 /// (a fixture row: the table door, `RawLoop::new_directed`, is compiled
 /// for tests only, so no shipped build holds a written radial). A
 /// two-arc unit circle whose start radial is written too long by a part
 /// of ε: validation accepts it (`segment_direction` reads
-/// `‖c + r·d − p‖`, which bounds the stretch times the radius) and the
-/// extrude turns the wall's and the rims' frames onto it with no
-/// arithmetic (`geom_core::RigidMotion::spun_onto`).
+/// `‖c + r·d − p‖`, which bounds the stretch times the radius), and the
+/// extrude turns the wall's and the rims' frames onto it through
+/// `geom_core::RigidMotion::spun_onto`, which measures the frame it
+/// mints and squares one past its rounding. So the body builds, at a
+/// stretch of `0.1·ε` and of `0.4·ε` alike, and every `u_ref` it stores
+/// is a unit to rounding.
 ///
-/// - Stretched by `0.1·ε` the body builds, holding a `u_ref` that long.
-/// - Stretched by `0.4·ε` the extrude refuses: the rim's pcurve
-///   certificate charges the frame's defect in its envelope
-///   (`pcurve_envelope`, the `Frame` term), which reads `2·ε` there.
-///
-/// So the one reader of a written radial's length in a frame is that
-/// envelope term, at its own lever, and under it the stretch is stored
-/// (`work/boxfinish/a-recorded-direction-claims-a-unit-and-is-held-as-two-numbers.md`).
-///
-/// Red when the stretch stops reaching the frame (a door that
-/// normalizes a written radial, or a type no written radial inhabits),
-/// and when the envelope's frame term stops reading it.
+/// Red when a written stretch reaches a stored frame (a frame door that
+/// takes a direction for a unit without measuring it).
 #[test]
-fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
+fn a_tables_stretched_radial_is_squared_at_the_frame_door() {
     let half = geom_core::Arc2 {
         centre: Point2::new(0.0, 0.0),
         radius: 1.0,
         sweep: core::f64::consts::PI,
     };
-    let stretched = |stretch: f64| {
+    for part in [0.1, 0.4] {
+        let stretch = part * tol().eps();
         let lp: ProfileLoop<f64> = RawLoop::new_directed([
             (
                 Point2::new(1.0, 0.0),
@@ -1315,42 +1314,29 @@ fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
             ),
             (Point2::new(-1.0, 0.0), profile::Segment::Arc(half), None),
         ]);
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol())
-            .expect("validation accepts a radial stretched inside the band");
-        let side = ExtrudeSide::Along;
-        extrude(&profile, Extrusion::Distance { depth: 1.0, side }, tol())
-    };
-    let small = 0.1 * tol().eps();
-    let built = stretched(small).expect("a tenth of ε builds");
-    let body: &Body<f64> = &built.body;
-    let mut longest = 0.0_f64;
-    for (face, _) in body.faces() {
-        if let Surface::Cylinder { frame, .. } = body.face_surface(face).expect("a live face") {
-            longest = longest.max(frame.u_ref().norm() - 1.0);
+        let built = slab(SketchPlane::xy(), lp, 1.0);
+        let body: &Body<f64> = &built.body;
+        let mut longest = 0.0_f64;
+        for (face, _) in body.faces() {
+            if let Surface::Cylinder { frame, .. } = body.face_surface(face).expect("a live face") {
+                longest = longest.max((frame.u_ref().norm() - 1.0).abs());
+            }
         }
-    }
-    for (edge, _) in body.edges() {
-        let circle = topo::readback::edge_carrier_ref(body, edge)
-            .ok()
-            .and_then(|carrier| carrier.as_circle());
-        if let Some(circle) = circle {
-            longest = longest.max(circle.frame().u_ref().norm() - 1.0);
+        for (edge, _) in body.edges() {
+            let circle = body
+                .edge(edge)
+                .and_then(topo::EdgeView::certified)
+                .and_then(|c| c.carrier().as_circle());
+            if let Some(circle) = circle {
+                longest = longest.max((circle.frame().u_ref().norm() - 1.0).abs());
+            }
         }
+        println!("stretch {stretch:e}, longest u_ref defect {longest:e}");
+        assert!(
+            longest <= 4.0 * f64::EPSILON,
+            "a stretch of {stretch:e} is squared out of every frame: {longest:e}"
+        );
     }
-    println!("stretch {small:e}, longest u_ref defect {longest:e}");
-    assert!(
-        (longest - small).abs() <= 1e-3 * small,
-        "the written stretch {small:e} is the frame's: {longest:e}"
-    );
-    let refusal = match stretched(0.4 * tol().eps()) {
-        Ok(_) => panic!("four tenths of ε builds"),
-        Err(e) => format!("{e:?}"),
-    };
-    assert!(
-        refusal.contains("EnvelopeTerm(Frame)") && refusal.contains("pcurve_envelope"),
-        "the envelope's frame term refuses four tenths of ε: {refusal}"
-    );
 }
 
 /// A three-arc circle of radius `r` about the origin, its first vertex
@@ -1364,44 +1350,41 @@ fn split_circle<T: profile::ArcCarrierScalar>(r: f64) -> ProfileLoop<T> {
         .into_loop()
 }
 
-/// **A loft of arc sections at `Interval` turns its rims onto radials
-/// that enclose a unit.** Two three-arc circles drawn at `f64` and
-/// lofted at `Interval`: the sections are points (drawn at `Interval`
-/// their arcs' weights are not, and the skin refuses them), so the loft
-/// encloses its `f64` loft and
-/// builds its caps' rims from the `f64` canonical form lifted onto the
-/// lane's placements (`ValidatedProfile::lift_onto`). A lifted radial's
-/// two numbers are a unit to rounding, and an arc's rim frame is turned
-/// onto its radial with no arithmetic, so the lift normalizes them at
-/// `Interval`: every rim circle's `u_ref` has a width (it is an
-/// enclosure, not the `f64` point) and its length holds one.
+/// **An `f64` loft of arc sections held at `Interval` turns its rims
+/// onto radials that enclose a unit.** Two three-arc circles lofted at
+/// `f64` and held at `Interval` as points
+/// (`sweep::test_support::f64_body_held_as_points_construction`, a test
+/// door, the one caller of `ValidatedProfile::lift_onto`): the caps'
+/// rims are built from the `f64` canonical form lifted onto the held
+/// placements. A lifted radial's two numbers are a unit to rounding, and
+/// an arc's rim frame is turned onto its radial with no normalization,
+/// so the lift normalizes them at `Interval`: every rim circle's `u_ref`
+/// has a width (it is an enclosure, not the `f64` point) and its length
+/// holds one.
 ///
 /// Red under the lift carrying an arc's radials through `from_f64`
 /// alone (`ValidatedSegment::lift` without its `normalize`): each rim's
 /// `u_ref` is a point.
 #[test]
 fn a_loft_of_arc_sections_at_interval_turns_its_rims_onto_enclosed_units() {
-    let top = SketchPlane::<Interval>::xy_at(Point3::new(
-        Interval::from_f64(0.0),
-        Interval::from_f64(0.0),
-        Interval::from_f64(1.5),
-    ));
-    let lofted = loft_body(
+    let top = SketchPlane::<f64>::xy_at(Point3::new(0.0, 0.0, 1.5));
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<Interval>(
         &[
-            vec![split_circle::<f64>(1.0).map_scalar(Interval::from_f64)],
-            vec![split_circle::<f64>(0.6).map_scalar(Interval::from_f64)],
+            vec![split_circle::<f64>(1.0)],
+            vec![split_circle::<f64>(0.6)],
         ],
         &[SketchPlane::xy(), top],
         1,
         tol(),
     )
-    .expect("the loft of arc sections builds at Interval");
+    .expect("the f64 loft of arc sections is held at Interval");
     let body: &Body<Interval> = &lofted.body;
     let mut rims = 0;
     for (edge, _) in body.edges() {
-        let circle = topo::readback::edge_carrier_ref(body, edge)
-            .ok()
-            .and_then(|carrier| carrier.as_circle());
+        let circle = body
+            .edge(edge)
+            .and_then(topo::EdgeView::certified)
+            .and_then(|c| c.carrier().as_circle());
         let Some(circle) = circle else {
             continue;
         };

@@ -1705,8 +1705,8 @@ mod tests {
         /// Constructed at f64 and copied into `Sym<Interval>` field by
         /// field, as the pinned lift copies it: nothing registers its
         /// endpoint facts, its radials are its vertices' offsets over
-        /// the stored radius, and its rim is the radius only up to the
-        /// f64 rounding it was built with.
+        /// their rims (validation's mint), and its rim is the radius only
+        /// up to the f64 rounding it was built with.
         Copied,
     }
 
@@ -1800,7 +1800,16 @@ mod tests {
                         panic!("the first segment is the authored arc");
                     };
                     let (a, e) = (a.map(lit), e.map(lit));
-                    (a, e, arc_from(arc.map(lit), Sign::Positive, a, e))
+                    let arc = arc.map(lit);
+                    // Minted as validation mints a carrier that records
+                    // no radial: each vertex's offset over its own rim.
+                    let radials = [(a - arc.centre) / arc.rim(a), (e - arc.centre) / arc.rim(e)];
+                    let kind = SegmentKind::Arc {
+                        arc,
+                        turn: Sign::Positive,
+                        radials,
+                    };
+                    (a, e, kind)
                 }
             };
             let seg = SweptSeg {
