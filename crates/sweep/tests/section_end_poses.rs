@@ -705,9 +705,10 @@ const TORUS_SQUARE: [(f64, f64); 5] = [
 /// **A torus cut square to its axis is read square.** At each ε row the
 /// concentric circles the table stands in for the face refuse in every
 /// op and order as [`SectionEndReading::SquareToAxis`], with its
-/// question and lever. The face moved square builds; turned clearly off
-/// square it cuts the spiric quartic, which the kernel does not build
-/// yet (`GermSectionSpiric`).
+/// question and lever. The face moved square builds in every op and
+/// order; turned clearly off square it cuts the spiric quartic, which
+/// the section value marches, and the union and the intersection build
+/// valid bodies at their volumes.
 #[test]
 fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
     let tol = Tol::witness();
@@ -762,18 +763,46 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                 }
             }
         }
-        for t in [0.0, CLEARLY_TILTED, -CLEARLY_TILTED] {
-            let other = block(h, t);
-            for (order, a, b) in [("ab", &torus, &other), ("ba", &other, &torus)] {
-                for (op, f) in OPS {
-                    match (t == 0.0, f(a, b, tol)) {
-                        (true, Ok(_)) | (false, Err(BooleanError::GermSectionSpiric { .. })) => {}
-                        (_, got) => wrong.push(format!(
-                            "h{h} moved to t{t:e} {order} {op}: {:?}",
-                            got.err()
-                        )),
-                    }
+        let square = block(h, 0.0);
+        for (order, a, b) in [("ab", &torus, &square), ("ba", &square, &torus)] {
+            for (op, f) in OPS {
+                if let Err(e) = f(a, b, tol) {
+                    wrong.push(format!("h{h} moved square {order} {op}: {e:?}"));
                 }
+            }
+        }
+        // Each op marches the tilted face's section, so ∪ and ∩ in one
+        // order and at one tilt stand for the lever
+        // (`work/orbit/the-torus-square-lever-row-reads-one-tilt-one-order.md`
+        // names what they stand for), held to the block's volume and a
+        // quadrature of the torus past its face.
+        let tilted = block(h, CLEARLY_TILTED);
+        let (st, ct) = CLEARLY_TILTED.sin_cos();
+        let past = crate::germ_plane_torus_frame::torus_past_a_plane(
+            Point3::new(0.0, h, 0.0),
+            Vec3::new(-st, ct, 0.0),
+        );
+        let (torus_v, block_v) = (core::f64::consts::PI.powi(2), 64.0 * (h + 4.0));
+        for (op, got, want) in [
+            ("∪", topo::union(&torus, &tilted, tol), block_v + past),
+            ("∩", topo::intersect(&torus, &tilted, tol), torus_v - past),
+        ] {
+            match got {
+                Ok(r) => match r.body() {
+                    Some(b) => {
+                        if let Err(e) = topo::validate_geometric(&b.body, tol) {
+                            wrong.push(format!("h{h} turned off square, {op}: invalid {e:?}"));
+                        }
+                        let v = topo::test_support::pinned_volume(op, &b.body, tol).volume;
+                        if (v - want).abs() > 1e-5 * torus_v {
+                            wrong.push(format!(
+                                "h{h} turned off square, {op}: volume {v} against {want}"
+                            ));
+                        }
+                    }
+                    None => wrong.push(format!("h{h} turned off square, {op}: empty")),
+                },
+                Err(e) => wrong.push(format!("h{h} turned off square, {op}: {e:?}")),
             }
         }
     }
