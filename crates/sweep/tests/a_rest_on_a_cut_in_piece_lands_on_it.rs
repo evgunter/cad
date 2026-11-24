@@ -72,31 +72,42 @@ fn rested(what: &str, banded: &AtRestBody<f64>, cube: &AtRestBody<f64>) -> Boole
 }
 
 /// `rested` `op` `slab`, carrying `rested`'s records, which cuts the
-/// half-band in once.
+/// half-band in once: `rested` first, or second where `as_b`.
 fn cut_by(
     what: &str,
-    op: BooleanOp,
+    (op, as_b): (BooleanOp, bool),
     rested: &BooleanBody<f64>,
     slab: &AtRestBody<f64>,
 ) -> BooleanBody<f64> {
     topo::test_support::take_cut_ins();
-    let r = match topo::boolean_op_with(
-        op,
-        &rested.body,
-        slab,
-        &BooleanInputs {
-            records_a: rested.contacts.carried(),
-            ..BooleanInputs::default()
-        },
-        topo::SweepStrategy::Realized,
-        tol(),
-    ) {
+    let records = rested.contacts.carried();
+    let (x, y, inputs) = if as_b {
+        (
+            slab,
+            &rested.body,
+            BooleanInputs {
+                records_b: records,
+                ..BooleanInputs::default()
+            },
+        )
+    } else {
+        (
+            &rested.body,
+            slab,
+            BooleanInputs {
+                records_a: records,
+                ..BooleanInputs::default()
+            },
+        )
+    };
+    let r = match topo::boolean_op_with(op, x, y, &inputs, topo::SweepStrategy::Realized, tol()) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("{what}: builds: {:?}", other.map(|_| ())),
     };
     let cuts = topo::test_support::take_cut_ins();
+    let once = if as_b { [0, 1] } else { [1, 0] };
     assert!(
-        cuts == [[1, 0]],
+        cuts == [once],
         "{what}: the slab cuts the half-band in once: {cuts:?}"
     );
     r
@@ -157,9 +168,16 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
             "az {az}: the corner rests on the half-band: {:?}",
             rested.contacts
         );
-        for op in [BooleanOp::Union, BooleanOp::Subtract] {
-            let what = format!("az {az}, {op:?}");
-            let r = cut_by(&what, op, &rested, &slab);
+        // The ball second too: whichever piece of the half-band the
+        // closing keeps, a record on the other lands on it through the
+        // closing's row.
+        for (op, as_b) in [
+            (BooleanOp::Union, false),
+            (BooleanOp::Subtract, false),
+            (BooleanOp::Union, true),
+        ] {
+            let what = format!("az {az}, {op:?}, the ball second: {as_b}");
+            let r = cut_by(&what, (op, as_b), &rested, &slab);
             // Red on the carry that read the face by its key alone: at
             // azimuth 60 the record was dropped.
             let rests: Vec<_> = r.contacts.vertex_face().collect();
@@ -200,7 +218,7 @@ fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract] {
             let what = format!("az {az}, {op:?}");
-            let r = cut_by(&what, op, &rested, &slab);
+            let r = cut_by(&what, (op, false), &rested, &slab);
             assert_eq!(
                 r.contacts.len(),
                 1,
