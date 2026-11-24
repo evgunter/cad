@@ -38,3 +38,11 @@ Served models at first report: not yet read from the sessions.
 ## Round 1 (dispatched 09:32 UTC)
 
 All three shown the other two's first reports and `probe/briefs/fork-parted-path/round-1.md` (the table of where they stand, four questions, three facts they contradict each other on to check against the tree).
+
+Round-1 replies (all three in by 09:35 UTC; raw on `boxfinish/briefs` `probe/briefs/fork-parted-path/<label>-round-1.md` at `be616078d88`):
+- **A moved to B's gate** (the build): a lane choice is logged as a choice (`closed_form_shown`), so a gate on the log refuses a leaf whose cells are the witness's at any strictness; withdrew the fail-loud arm for a parting away from a pruning query. Found the check that passes with either sign it had not found (`edge_wedge_over_as`, `Role::Check`).
+- **B did not move**; its three facts (a crease's `DIHEDRAL_SIGN` at tier 3; `walk_pairs` handing pairs to `pair_verdict`; `pn_axis_normal` through `closed_form_shown`) strengthen it. Named the structural record (standing, cell names, bounding cells, glued coincidences) if name tables alone are not complete.
+- **C moved to B's gate**, withdrew the whole-record gate ("the stand-in kept after showing it is one") and its side-reader objection (`side_read` is recorded once as a choice), and added that the build be compared as standing plus named cells plus incidence.
+- All three name the same fallback (the gate on choices and standings; a parting bisects; nothing in the drive panics) and the same first measurement (the build's record is complete and scalar-independent).
+
+**Reconciled after one round: agreed.** Put to Ev as `[ev]` PR 7700 (`boxfinish/ev-leaf-certifies-on-the-build`) at 09:44 UTC with E6's two bullets as the diff and the three round-1 `For Ev` sections verbatim, labelled A, B, C. Row 7700 (three-designer table, the recommendation half) is on that branch. Tokens per label (first report / total) and the mapping are filled in once Ev decides.
