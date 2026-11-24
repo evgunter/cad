@@ -257,3 +257,5 @@ demos/tour/src/skinned.rs	test	2	oracle
 demos/tour/src/twopeg.rs	test	1	oracle
 interval-transcendentals/src/arith.rs	test	1	oracle
 tools/tess-meter/tests/derivations.rs	test	1	oracle
+crates/geom-brep/src/curve_pair/far_graze_rows.rs	test	2	oracle
+crates/topo/src/splitting/section_loops.rs	test	2	oracle

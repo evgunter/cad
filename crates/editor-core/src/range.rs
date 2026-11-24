@@ -549,7 +549,7 @@ impl CertifiedRange {
     /// starts), so a plain `f64` build at a proven value can record
     /// such a verdict differently from the witness, and build the same
     /// shape stated from another start
-    /// (`work/scalar/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
+    /// (`work/certread/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
     #[must_use]
     pub fn proven_offsets(&self) -> (f64, f64) {
         (self.lo.proven_to, self.hi.proven_to)

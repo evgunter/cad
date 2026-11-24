@@ -139,7 +139,7 @@
     reason = "the conic's own module: the centre is derived here and nowhere else"
 )]
 
-use geom_core::{Decide, Point3, Real, Rounded, UnitVec3, Vec3};
+use geom_core::{Decide, Point3, Real, Rounded, StoredHarmonic, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::cover::{Cover, ParamWindow};
@@ -370,6 +370,30 @@ pub trait Conic<T: Real>: core::fmt::Debug {
         (a * self.u_ref().dot(d), b * self.v_ref().dot(d))
     }
 
+    /// **The conic's belly across the plane through `o` with unit
+    /// normal `n`**: of its height there, `D + A cos θ + B sin θ`, the
+    /// reach `√(A² + B²) − |D|` of its extreme nearer the plane past it
+    /// (positive where the conic crosses the plane, negative where it
+    /// stands clear by that much). Read from the placement the conic
+    /// stores, which no reader sees: its stored point (its centre, or the
+    /// anchor of an ellipse held on its arc), axis, seam and semi-axes,
+    /// the across-seam direction crossed exactly rather than read rounded,
+    /// and posed so its digits are the belly's own
+    /// ([`Real::harmonic_belly`]); never as the difference of the swing
+    /// and the offset, which are each of the conic's size where the belly
+    /// is the band's (a far-centred conic grazing the plane).
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T;
+
+    /// **This conic's belly across the plane `other` lies in**
+    /// ([`Self::belly_along`]): the plane stated at the point `other` is
+    /// placed by and its stored axis, read here so no reader outside this
+    /// module takes `other`'s placement. Held at its centre, that point is
+    /// the stored centre, which lies in the plane exactly; held on its
+    /// arc, the derived centre (`work/oneround/an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre.md`).
+    fn belly_across(&self, other: &dyn Conic<T>) -> T {
+        self.belly_along(other.frame().origin(), other.axis())
+    }
+
     /// **The parameter of `p` within half a turn of `span`'s middle**:
     /// its [direction](Self::azimuth) read [near](Azimuth::near) the
     /// middle.
@@ -471,6 +495,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn along(&self, n: Vec3<T>) -> (T, T) {
         (**self).along(n)
+    }
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        (**self).belly_along(o, n)
     }
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         (**self).unit_in_plane(p)
@@ -742,9 +769,34 @@ impl<T: Real> Circle<T> {
     }
 }
 
+/// The placement `at` stores, with these semi-axes and phase, as
+/// [`Real::harmonic_belly`] reads it.
+fn stored_harmonic<T: Real>(at: &Frame<T>, semi: (T, T), phase: (T, T)) -> StoredHarmonic<T> {
+    StoredHarmonic {
+        at: point(at.origin()),
+        axis: vector(at.axis()),
+        u_ref: vector(at.u_ref()),
+        semi,
+        phase,
+    }
+}
+
+fn point<T: Real>(p: Point3<T>) -> [T; 3] {
+    [p.x, p.y, p.z]
+}
+
+fn vector<T: Real>(v: Vec3<T>) -> [T; 3] {
+    [v.x, v.y, v.z]
+}
+
 impl<T: Real> Conic<T> for Circle<T> {
     fn frame(&self) -> Frame<T> {
         self.at
+    }
+
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let curve = stored_harmonic(&self.at, (self.radius, self.radius), (T::zero(), T::zero()));
+        T::harmonic_belly(curve, point(o), vector(n))
     }
 
     fn axis(&self) -> Vec3<T> {
@@ -1197,6 +1249,15 @@ impl<T: Real> Ellipse<T> {
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
+    fn belly_along(&self, o: Point3<T>, n: Vec3<T>) -> T {
+        let phase = match self.held {
+            Held::Centre => (T::zero(), T::zero()),
+            Held::Arc { phase } => phase,
+        };
+        let curve = stored_harmonic(&self.at, (self.semi_u, self.semi_v), phase);
+        T::harmonic_belly(curve, point(o), vector(n))
+    }
+
     fn frame(&self) -> Frame<T> {
         match self.held {
             Held::Centre => self.at,
