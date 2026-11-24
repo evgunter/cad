@@ -210,11 +210,10 @@ impl SymRegistration {
 /// registered-identity door forwards the lane scalar's refusal arm —
 /// [`SymRegistration::Contradicted`] from an exact witness,
 /// [`SymRegistration::Disputed`] from an inexact one — and
-/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
-/// the same way: asserted at an exact witness, counted
-/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
-/// are the same question about the same channel, so they read one
-/// marker rather than two roster copies.
+/// `Sym<T>::sign_within` checks a symbolic `Zero` against its enclosure
+/// at an exact witness only, where the enclosure is a proof. Both are
+/// the same question about the same channel, so they read one marker
+/// rather than two roster copies.
 ///
 /// **That they cannot drift is a property of the PIN, not of the
 /// marker**, and the difference is one a first cut got wrong: a const
@@ -232,8 +231,11 @@ pub enum Witness {
     /// enclosure that excludes zero proves the margin is not zero.
     /// There is no slack in either test and no scale at which the
     /// answer is the arithmetic giving up, so a disagreement with a
-    /// form is a defect in one of the two channels and this codebase
-    /// fails loud on it.
+    /// form is a defect in one of the two channels: a proven zero whose
+    /// enclosure excludes zero fails a `debug_assert!` where the tier
+    /// returns it (`sym::discharge_checked`), and a zero the tier would
+    /// prove under a definite sign, which the decision does not ask, is
+    /// the test instrument's report (`sym::contradiction`).
     Exact,
     /// **A comparison here is a MEASUREMENT of one rounded number.**
     /// `f64` and [`crate::Probe`] evaluate at a point: at a far
@@ -241,8 +243,7 @@ pub enum Witness {
     /// error in a sign argument becomes a whole `2.0` at the margin,
     /// and at a pole the channel has no clause 1 to refuse with. None
     /// of those is a false claim by the form, so none of them may be
-    /// charged to the form: the numeric answer is kept and the
-    /// disagreement is counted.
+    /// charged to the form: the numeric answer is kept.
     Inexact,
 }
 
@@ -2529,8 +2530,8 @@ impl Real for f64 {
     /// **INEXACT**: `f64` compares one rounded number against another.
     /// Its [`Real::register_equal`] refuses with
     /// [`SymRegistration::Disputed`] for that reason, and the same
-    /// reason is why a theorem contradicted by this channel is a
-    /// dispute rather than a defect.
+    /// reason is why a symbolic zero is not checked against this
+    /// channel's reading.
     const WITNESS: Witness = Witness::Inexact;
 
     const NAME: &'static str = "f64";
@@ -2697,8 +2698,7 @@ impl Real for f64 {
     /// cannot tell a false claim from a true one the arithmetic lost at
     /// this scale, and `Contradicted` is reserved for the exact witness
     /// that can ([`crate::Interval`]'s meet). The same const is what
-    /// keeps a theorem this channel contradicts a counted dispute
-    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// keeps a symbolic zero unchecked against this channel's reading;
     /// a row pins the two together, so the door and the tier cannot
     /// drift apart.
     ///

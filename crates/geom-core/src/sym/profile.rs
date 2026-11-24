@@ -9,8 +9,8 @@
 //! CAUSE the ring or the budget refused for, noted at the refusal site
 //! itself ([`FreezeCause`]) rather than re-derived afterwards. Per walk
 //! ([`Walk`]) and per ORIGIN ([`Origin`] — the decision's own discharge,
-//! the contradiction check on a definite sign, or the shape
-//! report's rendering): how many forms each built and the wall time it
+//! the test instrument's walks after a build, or the shape report's
+//! rendering): how many forms each built and the wall time it
 //! took. For the coefficient ring: every `Rat` operation, every one
 //! that left the `i128` inline path, and the widest coefficient any
 //! form carried. Inside the early walk: the per-node rule A/B reduction
@@ -64,7 +64,8 @@ pub enum FreezeCause {
     Unnoted,
 }
 
-/// The normal-form walks (`plain_form`, `early_form`, `door_form`), and
+/// The normal-form walks (`plain_form`, `early_form`, and the door's,
+/// `walk` at `WalkKind::Door`), and
 /// the two a RETRY attempt runs in its own memos (`sym::SymRetry`).
 ///
 /// The retry buckets are SEPARATE and not summed into the first
@@ -116,20 +117,11 @@ impl Walk {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Origin {
     /// The decision's own discharge: the numeric channel could not
-    /// answer, and the form is what decides. The shipped release
-    /// check of a registered zero against a definite sign
-    /// (`door_zero`) counts here too — it is the decision path.
+    /// answer, and the form is what decides.
     Decision,
-    /// The contradiction CHECK on a definite sign: `Decide for Sym<T>`
-    /// runs `discharge` on every margin the numeric channel answered
-    /// definite, so those forms are built by the check and not by the
-    /// tier. At an EXACT witness the check is a `debug_assert!`, so it
-    /// runs under debug assertions only (dev, test, and this
-    /// workspace's release profile); at an INEXACT one it is the
-    /// dispute count (`SymCounts::theorems_disputed`) and runs in
-    /// every profile. Both are charged here, because what the column
-    /// measures is the walk and not the verdict.
-    Assertion,
+    /// The test instrument's walks over the margins a build decided
+    /// definite (`contradiction::check`), asked after the build.
+    Instrument,
     /// The shape report's rendering of a blocked residual
     /// (`report::render_node`), when the report is installed.
     Report,
@@ -215,7 +207,7 @@ pub struct FreezeSite {
 pub struct WalkProfile {
     /// Calls to the walk — one per discharge asked of it, memo hits
     /// included, whether the discharge was the decision's, the
-    /// assertion's or the report's ([`Origin`]).
+    /// instrument's or the report's ([`Origin`]).
     pub calls: u64,
     /// Forms the walk put in its memo, frozen ones included.
     pub forms: u64,
@@ -274,7 +266,7 @@ pub struct Timed {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecisionRecord {
     /// Why the walk was asked — the decision's own discharge, the
-    /// contradiction assertion, or the shape report.
+    /// test instrument, or the shape report.
     pub origin: Origin,
     /// The rung that answered and the ATTEMPT it answered on (0 the
     /// first, `k` the `k`th rung of the retry ladder); `None` where
@@ -1856,8 +1848,7 @@ mod tests {
     /// **The walks and the ring are counted, and a walk knows its
     /// origin**: a theorem asked of the plain form is one plain-walk
     /// call under `Decision` with its forms and no early walk; a
-    /// definite margin's forms are the ASSERTION's, under debug
-    /// assertions, and are charged to it.
+    /// definite margin walks nothing.
     #[test]
     fn the_walks_and_the_ring_are_counted_by_origin() {
         let out = profiled(budget(4096, 128), || {
@@ -1881,36 +1872,26 @@ mod tests {
         assert!(out.rat_ops > 0 && out.promotions == 0, "{}", out.render());
         assert_eq!(out.frozen(), 0);
 
-        // A definite sign: the decision path builds no form; the
-        // contradiction check does — here at `f64`, an INEXACT witness,
-        // where it is the dispute count and runs in every profile, so
-        // the `cfg!(debug_assertions)` guard below is looser than this
-        // arm needs (it is the EXACT arm that stops asking without
-        // them); kept so the row reads the same in every profile the
-        // workspace builds. The profile charges every walk it asks to
-        // `Assertion`.
+        // A definite sign asks the tier nothing: no walk, in any
+        // build, at either witness kind.
         let out = profiled(budget(4096, 128), || {
             let (x, y) = (p("x", 1.0), p("y", 2.0));
             ask(x * y + y * x);
         });
-        let decision = out.walks.keys().any(|(_, o)| *o == Origin::Decision);
-        assert!(!decision, "{}", out.render());
-        if cfg!(debug_assertions) {
-            assert_eq!(
-                out.walks[&(Walk::Plain, Origin::Assertion)].forms,
-                5,
-                "{}",
-                out.render()
-            );
-            assert_eq!(
-                out.walks[&(Walk::Early, Origin::Assertion)].calls,
-                1,
-                "{}",
-                out.render()
-            );
-        } else {
-            assert!(out.walks.is_empty(), "{}", out.render());
-        }
+        assert!(out.walks.is_empty(), "{}", out.render());
+        assert_eq!(out.frozen(), 0, "{}", out.render());
+        let out = profiled(budget(4096, 128), || {
+            let at = |name: &str, v: f64| {
+                Sym::param(
+                    ParamSymbol::new(test_utils::symbol_id(name)),
+                    crate::Interval::from_bounds(v, v),
+                )
+            };
+            let (x, y) = (at("x", 1.0), at("y", 2.0));
+            let band = crate::predicate::Band::linear(Tol::witness()).unwrap();
+            let _ = decide("sym_profile_test", Margin::of(x * y + y * x), band);
+        });
+        assert!(out.walks.is_empty(), "{}", out.render());
     }
 
     /// **A zero divisor is a noted cause**: the reciprocal of the zero

@@ -927,6 +927,11 @@ where
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         self.value.sign_within(band)
     }
+
+    /// The value channel's: the sign is decided on it.
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        self.value.enclosure_probe()
+    }
 }
 
 /// **The bracket is the value channel; the tangent is not in it.**
