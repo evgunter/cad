@@ -564,13 +564,16 @@ fn family_of_cylinders(tol: Tol) -> (ProfileDoc, editor_core::RecipeNodeId) {
     let grown =
         Formula::mul(crate::fixture::scalar_of(k), crate::fixture::len(0.5)).expect("a length");
     let distance = Formula::add(crate::fixture::len(1.0), grown).expect("a length");
-    crate::fixture::insert(
+    let (doc, family) = crate::fixture::insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance,
         },
-    )
+    );
+    // The binder yields the extrude: a binder that yields nothing is
+    // refused, and its node builds no members.
+    (crate::fixture::yielded(doc, family), family)
 }
 
 /// **A family whose members register carries their identities.** Three
