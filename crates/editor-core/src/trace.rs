@@ -240,6 +240,33 @@ impl core::fmt::Display for TraceStepFault {
                 f.write_str(&refusal.said("the face's", None))?;
                 refusal.convention.sized().lever
             }
+            // An arc's frame: its pen on its centre names no seam, and a
+            // sketch plane with no normal names no axis. An in-band length
+            // is the band's escalation, in its own words.
+            TraceStepFault::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis,
+                error,
+            })) => {
+                use geom_core::{OrthoAxis, UnitVec3Error};
+                if let UnitVec3Error::Escalated(diag) = error {
+                    return write!(f, "{}", TraceFault::Escalated(*diag));
+                }
+                let finite = matches!(error, UnitVec3Error::Degenerate);
+                match (axis, finite) {
+                    (OrthoAxis::V, true) => {
+                        f.write_str("the arc's pen stands on its centre, so it has no radius")?;
+                        "draw the arc from a pen off its centre"
+                    }
+                    (OrthoAxis::V, false) => {
+                        f.write_str("the arc's radius is not a finite length")?;
+                        "draw the arc from a pen a finite distance off its centre"
+                    }
+                    (OrthoAxis::U, _) => {
+                        f.write_str("the arc's sketch plane has no normal direction")?;
+                        "rebuild the frame the sketch is drawn on"
+                    }
+                }
+            }
             TraceStepFault::Carrier(fault) => {
                 write!(f, "{fault}")?;
                 "turn the piece so it crosses the face, or move the frame"
@@ -661,7 +688,7 @@ fn arc_to<T: Decide>(
 ) -> Result<(Point2<T>, Vec3<T>), TraceStepFault> {
     let surface = traced(face, band)?;
     let radial = pen - centre;
-    let (radial_hat, radius) = radial.direction_and_length();
+    let radius = radial.norm();
     let up = match winding {
         ArcSweep::Ccw => T::one(),
         ArcSweep::Cw => T::zero() - T::one(),
@@ -671,7 +698,10 @@ fn arc_to<T: Decide>(
         map.transform_point(lift(centre)),
         map.transform_vec(Vec3::new(T::zero(), T::zero(), up)),
         radius,
-        map.transform_vec(lift_vec(radial_hat)),
+        // The seam is the radial as drawn, not its direction: the
+        // kernel decides it a direction where it mints the circle's
+        // frame, so a pen on the centre refuses there.
+        map.transform_vec(lift_vec(radial)),
     );
     let crossings = kernel::circle_crossings_to(surface, face.sense, circle, band, taken(crossing))
         .map_err(carrier_fault)?;

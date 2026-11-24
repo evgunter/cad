@@ -2001,8 +2001,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count, a
-/// torus carrier its gate refused or left in band; or
-/// the face has no cover to lever the piece over.
+/// torus carrier its gate refused or left in band, a circle whose
+/// stated axis and seam name no frame; or the face has no cover to lever
+/// the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -2026,6 +2027,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
         F::Carrier(C::Torus(_)) => "torus",
+        F::Carrier(C::Frame(_)) => "circle_frame",
         F::Uncovered(_) => "uncovered",
     }
 }

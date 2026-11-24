@@ -52,6 +52,7 @@ expect_used = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
+# As [workspace.lints.clippy]'s `disallowed_methods` (Cargo.toml), which says why.
 disallowed_methods = "allow"
 
 [features]

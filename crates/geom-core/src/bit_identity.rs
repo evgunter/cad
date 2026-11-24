@@ -108,7 +108,7 @@ fn eq_sym<V: crate::Real, T: crate::Real>(a: &T, b: &T) -> Option<Option<bool>> 
         b.downcast_ref::<crate::Sym<V>>()?,
     );
     Some(if a.node() == b.node() {
-        eq_bits(&a.value, &b.value)
+        eq_bits(&a.value(), &b.value())
     } else {
         Some(false)
     })
