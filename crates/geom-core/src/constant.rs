@@ -1,6 +1,6 @@
 //! **A constant of the model enters by where it comes from** (the crate
 //! README, DL5.2, the table's last row). Two of its doors live here: the
-//! one a number written in the source enters by ([`Lit`], [`lit!`]) and
+//! one a number written in the source enters by ([`Lit`], [`lit!`](crate::lit)) and
 //! the one a count enters by ([`Count`]). A band enters as
 //! [`BandWidth`](crate::BandWidth), on the tolerance type, and an
 //! authored value through the document's parameter door.
@@ -70,7 +70,7 @@
 use crate::Real;
 
 /// A marker whose number is fixed when the crate is compiled: the one
-/// thing a [`Lit`] is built from. [`lit!`] writes the marker.
+/// thing a [`Lit`] is built from. [`lit!`](crate::lit) writes the marker.
 pub trait Constant {
     /// The number.
     const VALUE: f64;
