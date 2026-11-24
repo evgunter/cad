@@ -2904,9 +2904,9 @@ pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
     let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
     let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
     if matches!(
-        (sa, sb),
-        (geom::Surface::Plane { .. }, geom::Surface::Torus { .. })
-            | (geom::Surface::Torus { .. }, geom::Surface::Plane { .. })
+        (sa.kind(), sb.kind()),
+        (geom::SurfaceKind::Plane, geom::SurfaceKind::Torus)
+            | (geom::SurfaceKind::Torus, geom::SurfaceKind::Plane)
     ) {
         // The table holds the pose the value read closed. It holds none
         // of a pose the value read tilted, whose germs ride its carried
