@@ -4,6 +4,8 @@ kind: issue
 title: a certified leaf holds the witness's recorded representation choices, so a plain build inside it can record a canonical_order verdict differently
 status: open
 opened: 2026-11-22
+priority: P2
+cost: M
 ---
 
 

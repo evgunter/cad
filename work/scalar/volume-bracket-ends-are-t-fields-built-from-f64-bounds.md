@@ -4,6 +4,8 @@ kind: issue
 title: MassProperties' volume bracket ends and quadrature midpoints are T fields built from f64 bounds
 status: open
 opened: 2026-11-20
+priority: P2
+cost: M
 ---
 
 Found building `a-bound-to-decide-against-never-becomes-a-t`, whose scope names these fields as `f64` fields (DL5.2, `crates/geom-core/README.md`).

@@ -4,6 +4,8 @@ kind: issue
 title: The section certificate's witness on a sphere section circle is picked off the axes, so which point decides can follow the computing frame
 status: open
 opened: 2026-10-21
+priority: P2
+cost: E
 ---
 
 

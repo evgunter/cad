@@ -59,9 +59,11 @@ def row_of(doc, prototype, count=COUNT, pitch=PITCH, name="k"):
     """`count` copies of `prototype` in its own space, member `k` slid
     `k` pitches along x."""
     k = index(doc, name, count)
-    return doc.insert(
+    row = doc.insert(
         Node.linear_pattern(k, prototype, doc.space(prototype), [("x", Formula.length_in(pitch, m))])
     )
+    doc.apply(DocEdit.set_yields(k, [doc.output(row)]))
+    return row
 
 
 def slab(doc, x, y, z):
@@ -127,12 +129,14 @@ class TestTheRowIsAFamily(unittest.TestCase):
         self.assertEqual(len(ev.value(middle).bodies()), 1)
 
     def test_a_family_with_an_empty_member_lists_its_bodies(self):
-        """`row[k] - row[1]`: member 1 cuts itself away. The family is
+        """`{k: row[k] - row[1]}`: member 1 cuts itself away. The family is
         still a family of bodies, and `bodies()` is each present
         member's body, the empty member's place denoting none."""
         doc = Doc()
         family = row_of(doc, box(doc))
-        cut = doc.insert(Node.subtract(family, family[1]))
+        k = doc.var(VarName("k"))
+        cut = doc.insert(Node.subtract(family[k], family[1]))
+        doc.apply(DocEdit.set_yields(k, [doc.output(family), doc.output(cut)]))
         ev = evaluate(doc)
         value = ev.value(cut)
         self.assertEqual(value.kind, "instances")
@@ -145,11 +149,13 @@ class TestTheRowIsAFamily(unittest.TestCase):
             self.assertEqual(pinned(body).volume, 2.0 * 2.0 * 1.0)
 
     def test_a_family_every_member_of_which_is_empty_lists_no_body(self):
-        """`row[k] - row[k]`: every member cuts itself away. The family
+        """`{k: row[k] - row[k]}`: every member cuts itself away. The family
         is still a family of bodies, holding none."""
         doc = Doc()
         family = row_of(doc, box(doc))
-        cut = doc.insert(Node.subtract(family, family))
+        k = doc.var(VarName("k"))
+        cut = doc.insert(Node.subtract(family[k], family[k]))
+        doc.apply(DocEdit.set_yields(k, [doc.output(family), doc.output(cut)]))
         value = evaluate(doc).value(cut)
         self.assertEqual(value.kind, "instances")
         self.assertEqual(len(value.members()), COUNT)
@@ -318,7 +324,7 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         doc.apply(DocEdit.declare_var(VarName("n"), FreeVar.count(2)))
         for decl, inner, found in (
             (VarDecl.index(Formula.length_in(2, m)), "count_not_count", "length"),
-            (VarDecl.index(2, within=VarName("n")), "within_no_index", None),
+            (VarDecl.index(2, within=VarName("n")), "after_no_index", None),
         ):
             with self.subTest(case=inner):
                 with self.assertRaises(EditError) as caught:
@@ -328,7 +334,7 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
                 self.assertEqual(caught.exception.param, "q")
                 self.assertEqual(caught.exception.found, found)
 
-    def test_two_unrelated_indices_meet_in_no_reader(self):
+    def test_one_reader_of_two_binders_is_refused(self):
         doc = Doc()
         cube = box(doc)
         k, j = index(doc, "k", 2), index(doc, "j", 2)
@@ -341,7 +347,7 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
                     doc.space(cube),
                 )
             )
-        self.assertEqual(caught.exception.variant, "indices_unrelated")
+        self.assertEqual(caught.exception.variant, "two_binders")
 
     def test_a_pitch_is_a_length(self):
         doc = Doc()
@@ -410,6 +416,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
                 doc.space(cube),
             )
         )
+        doc.apply(DocEdit.set_yields(i, [doc.output(grid)]))
         corner = still(doc, grid[1, 2])
         ev = evaluate(doc)
         self.assertEqual(
@@ -429,6 +436,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
                 doc, k, block, doc.space(block), (axis, axis), step=Formula.angle_in(90, deg)
             )
         )
+        doc.apply(DocEdit.set_yields(k, [doc.output(ring)]))
         group = doc.insert(Node.union(ring))
         self.assertEqual(mass_of(evaluate(doc), group).volume, 4.0)
 
@@ -438,6 +446,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
         axis = z_axis(doc, block)
         k = index(doc, "k", 4)
         ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis)))
+        doc.apply(DocEdit.set_yields(k, [doc.output(ring)]))
         group = doc.insert(Node.union(ring))
         ev = evaluate(doc)
         self.assertEqual(len(ev.value(ring).bodies()), 4)
@@ -451,6 +460,7 @@ class TestTheGridAndTheRing(unittest.TestCase):
         axis = z_axis(doc, block)
         k = index(doc, "k", 4)
         ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), axis))
+        doc.apply(DocEdit.set_yields(k, [doc.output(ring)]))
         group = doc.insert(Node.union(ring))
         ev = evaluate(doc)
         self.assertEqual(len(ev.value(ring).bodies()), 4)
@@ -503,6 +513,7 @@ class TestTheReadSide(unittest.TestCase):
                 across=["y", "z"],
             )
         )
+        doc.apply(DocEdit.set_yields(k, [doc.output(row)]))
         group = doc.insert(Node.union(row))
         self.assertEqual(mass_of(evaluate(doc), group).volume, float(COUNT))
         seen = doc.recognise(row)
@@ -517,6 +528,7 @@ class TestTheReadSide(unittest.TestCase):
         axis = z_axis(doc, block)
         k = index(doc, "k", 4)
         ring = doc.insert(Node.bolt_circle(doc, k, 4, block, doc.space(block), (axis, axis)))
+        doc.apply(DocEdit.set_yields(k, [doc.output(ring)]))
         seen = doc.recognise(ring)
         self.assertEqual(seen.kind, "circular")
         self.assertEqual(seen.steps, [])
@@ -535,6 +547,7 @@ class TestTheReadSide(unittest.TestCase):
                 doc.space(cube),
             )
         )
+        doc.apply(DocEdit.set_yields(i, [doc.output(grid)]))
         seen = doc.recognise(grid)
         self.assertEqual(seen.kind, "grid")
         self.assertEqual(doc.var_name(seen.index), VarName("i"))

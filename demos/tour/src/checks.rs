@@ -99,10 +99,10 @@ fn boolean_doc(
         &mut doc,
         match op {
             BooleanOp::Union => Node::Union {
-                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                members: Bodies::spelled(vec![a.into(), b.into()]),
             },
             BooleanOp::Intersect => Node::Intersect {
-                members: Bodies::Spelled(vec![a.into(), b.into()]),
+                members: Bodies::spelled(vec![a.into(), b.into()]),
             },
             BooleanOp::Subtract => Node::Subtract {
                 from: a.into(),

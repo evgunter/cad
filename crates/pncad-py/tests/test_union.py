@@ -172,7 +172,7 @@ class TestTheUnion(unittest.TestCase):
         """A row of two copies of `a` in its own space under the index
         `k = index(2)`, member `k` slid `k` times B's offset."""
         doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(2)))
-        return doc.insert(
+        row = doc.insert(
             Node.linear_pattern(
                 VarName("k"),
                 a,
@@ -180,6 +180,8 @@ class TestTheUnion(unittest.TestCase):
                 [("x", Formula.length_in(1.0, m)), ("y", Formula.length_in(0.5, m)), ("z", Formula.length_in(0.25, m))],
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(row)]))
+        return row
 
     def test_one_read_of_a_family_is_its_members(self):
         """A single operand, not a list, reads a family whole: a
@@ -190,6 +192,34 @@ class TestTheUnion(unittest.TestCase):
         family = self.row(doc, a)
         folded = doc.insert(Node.union(family))
         self.assertAlmostEqual(measured(doc, folded).volume, AB_VOLUME, delta=1e-9)
+
+    def test_one_family_operand_reads_one_body_per_member(self):
+        """`Node.union(family)` splices the family in, `…family`: it reads
+        one body per member, so it is the union of its members spelled by
+        index, as much material as `[family[0], family[1]]`."""
+        doc = Doc()
+        a, _b, _c = self.members(doc)
+        family = self.row(doc, a)
+        whole = doc.insert(Node.union(family))
+        spelled = doc.insert(Node.union([family[0], family[1]]))
+        ev = evaluate(doc)
+        self.assertEqual(len(ev.value(family).bodies()), 2, "one body per member")
+        self.assertAlmostEqual(
+            measured(doc, whole).volume, measured(doc, spelled).volume, delta=1e-9
+        )
+
+    def test_one_plain_body_is_written_as_one_member(self):
+        """A plain body is one member, `Node.union([a])`, which is that
+        body. Alone, `Node.union(a)` would splice a body as if it were a
+        family, and the door refuses it, saying to write `[a]`."""
+        doc = Doc()
+        a, _b, _c = self.members(doc)
+        alone = doc.insert(Node.union([a]))
+        self.assertAlmostEqual(measured(doc, alone).volume, measured(doc, a).volume, delta=1e-9)
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.union(a))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
+        self.assertIn("write it as one member, `[", str(caught.exception))
 
     def test_a_family_spelled_by_index_is_the_family_read_whole(self):
         """`family[i]` reads one member of the family: the union of the

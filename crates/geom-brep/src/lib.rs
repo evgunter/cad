@@ -54,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
@@ -226,8 +227,8 @@ pub use intersect::{
     cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
     plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{

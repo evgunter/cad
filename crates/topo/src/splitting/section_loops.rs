@@ -129,6 +129,10 @@ fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) ->
 /// The principal direction (`u_ref`) of the section conic the cycle at
 /// `first` is, when that cycle is one edge on a section conic that is no
 /// placeholder ([`crate::chord_join::lone_site_placeholder`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn whole_conic_principal<T: Real>(
     body: &Body<T>,
     first: crate::entity::HalfEdgeKey,
@@ -616,6 +620,110 @@ mod edge_pair_rows {
         assert!(
             !clear(&arc(2.0, 1.0, (0.9, 1.3)), &arc(1.0, 2.0, (0.3, 0.6))),
             "arcs through one crossing"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod far_clear_rows {
+    use geom::{Curve3, Line};
+    use geom_core::test_support::stored_belly;
+    use geom_core::{Band, Point3, StoredHarmonic, Vec3};
+
+    use super::{Edge, edges_clear};
+
+    /// `(wrong, placed, clears)` over 2000 segments in the plane of an
+    /// ellipse held at its centre, semi-axes `far` and `far/3`, both in the
+    /// plane `z = 0` exactly. Each runs
+    /// ten metres along the tangent at a point at any angle round the turn,
+    /// that point in the box and inside the segment's run, set off it by a
+    /// gap within twice the band's escalation.
+    /// - **The judge.** A clear ([`edges_clear`]: the meeting reader finds
+    ///   no meeting and no run) is judged exactly on the stored data,
+    ///   across the plane through the segment's start along the reader's
+    ///   in-plane normal `m`. It is wrong unless the belly is definitely
+    ///   negative.
+    /// - **`placed`.** Among the wrong clears, `placed` counts those whose
+    ///   exact belly lies within the band's zero: there the touch is
+    ///   dropped by the carrier walk
+    ///   (`work/conic/a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre.md`),
+    ///   not by the belly.
+    fn far_segment_clears(far: f64) -> (usize, usize, usize) {
+        let band = Band::linear_at(geom_core::Tol::witness(), 1e-12).unwrap();
+        let mut rng = test_utils::fuzz::start("section_loops::far_segment_clears");
+        let (mut wrong, mut placed, mut clears) = (0, 0, 0);
+        for _ in 0..test_utils::fuzz::scaled(2000) {
+            // In the plane `z = 0` exactly: the axis is `z`, and every
+            // point and direction below has `z = 0`, so the segment lies
+            // in the ellipse's stored plane and the in-plane belly is the
+            // whole question.
+            let axis = Vec3::unit_z();
+            let turn = rng.range(0.0, core::f64::consts::TAU);
+            let u = Vec3::new(turn.cos(), turn.sin(), 0.0);
+            let v = axis.cross(u);
+            let (a, b) = (far, far / 3.0);
+            let theta = rng.range(0.0, core::f64::consts::TAU);
+            let crest = Point3::new(rng.range(-500.0, 500.0), rng.range(-500.0, 500.0), 0.0);
+            let centre = crest - (u * (a * theta.cos()) + v * (b * theta.sin()));
+            let outward = (u * (b * theta.cos()) + v * (a * theta.sin())).normalize();
+            let along = axis.cross(outward);
+            let frame = geom::Frame::new(centre, axis, u);
+            let ellipse = Edge {
+                carrier: Curve3::Ellipse(geom::Ellipse::new(frame, a, b)),
+                params: (0.0, core::f64::consts::TAU),
+                elliptic: true,
+            };
+            let gap = rng.range(-2.0, 2.0) * band.escalate();
+            let by = crest + outward * gap;
+            let p = by - along * rng.range(2.0, 8.0);
+            let q = p + along * 10.0;
+            let (line, length) = Line::chord(p, q);
+            let segment = Edge {
+                carrier: Curve3::Line(line),
+                params: (0.0, length),
+                elliptic: false,
+            };
+            if !edges_clear(&segment, &ellipse, band) {
+                continue;
+            }
+            clears += 1;
+            let arr = |w: Vec3<f64>| [w.x, w.y, w.z];
+            let at = frame.origin();
+            let stored = StoredHarmonic {
+                at: [at.x, at.y, at.z],
+                axis: arr(frame.axis()),
+                u_ref: arr(frame.u_ref()),
+                semi: (a, b),
+                phase: (0.0, 0.0),
+            };
+            let (o, n) = ([p.x, p.y, p.z], arr(frame.axis().cross(line.dir.get())));
+            let threshold = band.escalate() * (1.0 - 64.0 * f64::EPSILON);
+            if !stored_belly::below(stored, o, n, -threshold) {
+                wrong += 1;
+                let zero = band.zero() * (1.0 + 64.0 * f64::EPSILON);
+                let touch = !stored_belly::exceeds(stored, o, n, zero)
+                    && !stored_belly::below(stored, o, n, -zero);
+                placed += usize::from(touch);
+            }
+        }
+        (wrong, placed, clears)
+    }
+
+    /// **A segment clears a far-centred conic only where it is clear, past
+    /// the touch's placement** ([`edges_clear`]): no clear where the exact
+    /// belly is not definitely negative, but for a touch the carrier walk
+    /// drops ([`far_segment_clears`]'s `placed`).
+    #[test]
+    fn a_segment_clears_a_far_centred_conic_only_where_it_is_clear() {
+        let got: Vec<_> = [1e4, 1e5, 1e6]
+            .map(|far| (far, far_segment_clears(far)))
+            .to_vec();
+        println!("(far, (wrong, placed, clears)): {got:?}");
+        assert!(
+            got.iter().all(|g| g.1.0 == g.1.1),
+            "cleared wrongly past the touch's placement: {got:?}; {}",
+            test_utils::fuzz::replay()
         );
     }
 }
