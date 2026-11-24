@@ -7512,8 +7512,9 @@ pub(crate) fn face_reach_in<T: Decide>(
 ///   one of the caller's `axes`, or along the axis between the two
 ///   faces' anchors, each face read by its cover
 ///   ([`crate::separating::apart`]);
-/// - a gap along those directions and every one the pair's own geometry
-///   aims ([`depth_gap::proposed`]: the offset from an axis or centre
+/// - a gap along every direction the pair's own geometry aims, and
+///   along the first step's again where a face is a sphere, whose aimed
+///   cover is the sharper ([`depth_gap::proposed`]: the offset from an axis or centre
 ///   either face proposes to the other's nearest boundary segment point,
 ///   either face's arc chords' normals, the line between the two
 ///   carriers' axes or centres), each face's cover read along the
@@ -7568,9 +7569,18 @@ pub(crate) fn faces_apart<T: Decide>(
     let proposed = reads
         .as_ref()
         .map_or_else(Vec::new, |(rx, ry)| depth_gap::proposed(rx, ry, band));
+    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+    // The aimed cover differs from the plain one only on a sphere face
+    // (its pole-side cut), so the directions the first read tried are
+    // read again only where one face is a sphere.
+    let sphere = [(x, fa), (y, fb)]
+        .into_iter()
+        .any(|(body, f)| kind(body, f) == geom::SurfaceKind::Sphere);
+    if !sphere {
+        dirs.clear();
+    }
     dirs.extend(proposed.iter().copied());
-    let planar =
-        |body: &Body<T>, f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
+    let planar = |body: &Body<T>, f| kind(body, f) == geom::SurfaceKind::Plane;
     apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
         crate::cover::face_cover_toward(body, f, band, aim).ok()
     }) || reads
@@ -7581,10 +7591,10 @@ pub(crate) fn faces_apart<T: Decide>(
             && in_plane::apart_in_plane((x, fa), (y, fb), &proposed, band))
 }
 
-/// [`face_reach_in`] read along `aim`, in the frame aimed at it
-/// ([`geom::cover::BoxAxes::aimed`]): the face's cover with a sphere
-/// face's pole-side cut along `aim` ([`crate::cover::face_cover_toward`]),
-/// its box there. The first coordinate is the reach along `aim`.
+/// **How far a face reaches along `aim`**: bounds on `x·â` over the
+/// face, its cover read along the aim, with a sphere face's pole-side
+/// cut ([`crate::cover::face_cover_toward`]). `None` for a face with no
+/// cover.
 ///
 /// # Panics
 ///
@@ -7594,10 +7604,10 @@ pub(crate) fn face_reach_toward<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
     aim: geom_core::UnitVec3<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
+) -> Option<(T, T)> {
     crate::cover::face_cover_toward(body, f, band, aim)
         .ok()
-        .map(|cover| cover.box_in(&geom::cover::BoxAxes::aimed(aim)))
+        .map(|cover| cover.range_along(aim.get()))
 }
 
 /// The touch lane's recourse for a designed contact it cannot read yet.

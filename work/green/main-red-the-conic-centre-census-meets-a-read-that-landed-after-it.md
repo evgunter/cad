@@ -2,10 +2,12 @@
 id: main-red-the-conic-centre-census-meets-a-read-that-landed-after-it
 kind: issue
 title: main red: the lint job's conic-centre census fires on curve_face/end_root.rs, a circle-centre read that landed 26 minutes after the gate
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: E
+closed: 2026-11-23
+pr: 7648
 ---
 
 
@@ -20,3 +22,9 @@ Not confirmed on a hosted run when filed: the lint job that read the new step gr
 **The fix, asked of the lane that built the gate** (`oneround/conic-census-main-red`): the census run on main's tip and every file it names; each new read converted through the conic's own readings where that is plainly right (in `end_root` the unit radial and tangent at a parameter are the conic's own directions, so no `p − c` is needed), or pinned at main's count with an `#[expect]` and a line on CONIC's row for a circle's centre read as a datum; and plain clippy made to agree with CI's block, so a lane's habitual spelling cannot pass or fail apart from CI's.
 
 P1 (a red main on every PR whose lint job selects geom-brep).
+
+## Closed (2026-11-23)
+
+Fixed on main by PR 7648 (`orbit/end-root-centre`, merged 23:09Z; commit `59892b0ee7`): `end_root`'s circle arm reads its unit radial as `d.cross(circle.axis()) / r`, through the conic's axis and its own tangent, and no longer reads the centre frame. It landed two minutes after this row was filed. Confirmed on main's tip `a7522805e0` by the lane that built the gate: the lint job's clippy block, run as `ci.yml` spells it, exits 0 with "203 production reads … in 58 files, each at its pin (18 crates checked)", and plain `cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings` exits 0. The red lasted from 22:13Z to 23:09Z.
+
+On whether plain clippy and CI's block can disagree: on every read that exists they agree (each pinned read sits under an `#[expect]`, so plain clippy passes and `--force-warn` still reports it), and a new unlisted read fails both. They differ only on a read hidden under an attribute, which is what the census is for.
