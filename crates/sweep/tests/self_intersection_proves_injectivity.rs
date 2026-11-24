@@ -2581,10 +2581,17 @@ fn generic_turn() -> geom_core::Affine3<f64> {
 
 /// **A flush union holds across its straight and its reflex corners, at
 /// a dyadic placement.** Each wall's cell at the split vertex is two
-/// pieces, and the two walls depart piece pair by piece pair. Red if a
-/// two-line corner is read by its leans (both are zero on the walls and
-/// negative on the top face, and the pair refuses
-/// `Uncertified { Departure }` at the vertex at every depth).
+/// pieces, and the two walls depart piece pair by piece pair.
+///
+/// What this row and the nine holding rows after it pin is the reading
+/// as a whole: each is red on the landing branch without it (measured
+/// with this file copied onto `8d34076a9e`: a two-line corner read by
+/// its leans, both zero on the walls and negative on the top face,
+/// refuses `Uncertified { Departure }` at the vertex or runs out of
+/// depth). None of them sees a rule of the pieces on its own (which
+/// piece pairs are asked, a piece's zero): those are pinned by
+/// `injective::presentation_rows` and by
+/// [`a_flap_through_a_reflex_face_off_its_ray_never_holds`].
 #[test]
 fn a_flush_union_holds_across_its_straight_corners() {
     embedded_at_both(
@@ -2595,8 +2602,10 @@ fn a_flush_union_holds_across_its_straight_corners() {
 }
 
 /// **The same union off the dyadic grid**: built at `(0.1, 0.2, 0.3)`,
-/// where no chart operation on its edges is exact. Red if the corner is
-/// read only where its leans are exactly zero.
+/// where no chart operation on its edges is exact. Red on a reading
+/// that needs the leans exactly zero, and on the departure metered at
+/// a cell's width (the L-shaped top face's cell across a shared edge is
+/// a strip a rounding wide there).
 #[test]
 fn a_flush_union_built_off_the_dyadic_grid_holds() {
     let at = [0.1, 0.2, 0.3];
@@ -2651,6 +2660,11 @@ fn a_flush_union_at_the_session_boxs_wall_holds() {
                 tol().eps()
             );
             let float = flush_union::<f64>(at, 1.0, false).into_body();
+            assert_eq!(
+                embedding(&float).verdict,
+                topo::clearance::Embedding::Embedded,
+                "the flush union at the wall, f64 alone: the door"
+            );
             let report = injective(&float, None, BUDGET);
             assert_holds("the flush union at the wall, f64 alone", &report, &float);
             return;
@@ -2666,8 +2680,9 @@ fn a_flush_union_at_the_session_boxs_wall_holds() {
 
 /// **Turned about a generic axis.** A straight corner's two edges are
 /// then two stored lines a rounding off one line, convex or reflex by
-/// that rounding: the corner's side of straight is never asked. Red if
-/// it is (the turned walls split at their vertex down to the depth
+/// that rounding. Red on a reading by the leans' signs, which the
+/// rounding decides either way (measured on the landing branch without
+/// the pieces: the turned walls split at their vertex down to the depth
 /// floor).
 #[test]
 fn a_turned_flush_union_holds() {
@@ -2741,103 +2756,148 @@ fn a_flush_union_of_profiles_turned_in_their_sketch_plane_holds() {
     );
 }
 
+/// **The flush union with a triangle hung from one of its vertices**:
+/// the vertex at `v`, the face the flap is asked against (the one at
+/// the vertex normal to axis `target`), the horizontal or upright face
+/// whose loop the two struts hang in (normal to `strut`, so the target
+/// keeps its two edges at the vertex), and the flap's two far points.
+/// The body, the target face and the flap.
+fn flapped<T: Scalar>(
+    v: [f64; 3],
+    target: usize,
+    strut: usize,
+    far: [[f64; 3]; 2],
+) -> (Body<T>, FaceKey, FaceKey) {
+    use geom_brep::EdgeCurveSpec;
+    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+    use topo::test_support::plane;
+
+    let mut body = flush_union::<T>([0.0; 3], 1.0, false).into_body();
+    let at = |[x, y, z]: [f64; 3]| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let v_at = at(v);
+    let v = body
+        .vertices()
+        .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+        .unwrap()
+        .0;
+    // The half-edges that start at the vertex, each with its face and
+    // the axis its face's plane is normal to.
+    let face_of = |body: &Body<T>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let normal_to = |body: &Body<T>, f: FaceKey| {
+        let Surface::Plane { frame } = surface(body, f) else {
+            panic!("a brick's face is a plane");
+        };
+        let n = frame.axis();
+        [mid(n.x), mid(n.y), mid(n.z)]
+            .iter()
+            .position(|c| c.abs() > 0.5)
+            .unwrap()
+    };
+    let starts: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|&he| body.get_half_edge(he).unwrap().start == v)
+        .collect();
+    let on = |axis: usize| {
+        starts
+            .iter()
+            .copied()
+            .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
+            .unwrap()
+    };
+    let face = face_of(&body, on(target));
+    let h = on(strut);
+    let (a0, a1) = (at(far[0]), at(far[1]));
+    let fan = MevSite::Fan { he1: h, he2: h };
+    let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+    let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+    let flap = body
+        .mef(
+            MefSite::Chords {
+                he1: strut0.he_minus,
+                he2: strut1.he_minus,
+            },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New {
+                surface: plane(&[a0, v_at, a1], tol()),
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    (body, face, flap)
+}
+
+/// The face and the flap of [`flapped`] cross: `Violated` at both
+/// scalars.
+fn a_flap_crosses(what: &str, v: [f64; 3], target: usize, strut: usize, far: [[f64; 3]; 2]) {
+    let (body, face, flap) = flapped::<f64>(v, target, strut, far);
+    let report = injective(&body, Some(vec![face, flap]), BUDGET);
+    let (twin, tf, tfl) = flapped::<Interval>(v, target, strut, far);
+    let ireport = injective(&twin, Some(vec![tf, tfl]), BUDGET);
+    same_class(what, &report, &ireport);
+    println!("[pieces] {what}: {:?} {:?}", report.verdict, report.receipt);
+    for r in [&report, &ireport] {
+        assert!(
+            matches!(r.verdict, BoundVerdict::Violated(_)),
+            "{what}: the flap crosses the face at the vertex: {:?} {:?}",
+            r.verdict,
+            r.receipt
+        );
+    }
+}
+
 /// **A flap through a wall's run at its vertex never holds.** On the
 /// flush union's wall `x = 1`, whose top edge the vertex `(1, 0.25, 1)`
 /// splits, hangs a triangle from that vertex to `(1.3, 0.15, 0.2)` and
 /// `(0.7, 0.35, 0.2)`. It shares the vertex alone with the wall and
 /// crosses it along the segment from the vertex down to `(1, 0.25, 0.2)`.
-/// The wall's two pieces at the vertex and the flap's share the ray down
-/// that segment, so no plane parts the pieces that hold it. Red if a
-/// face pair is certified while one of its piece pairs is not, or a
-/// piece is dropped that the other does not cover.
+///
+/// This is the negative row of a straight corner as a whole, and it
+/// does NOT turn on a rule of the pieces: the crossing lies exactly on
+/// the ray that cuts the corner, which both pieces hold, and it runs on
+/// clear of the vertex, where it is found whatever the vertex's cells
+/// read. It stays `Violated` with one piece pair asked for all, with the
+/// carrier arm reading one piece, and with either piece dropped
+/// (measured). The row that turns on those is
+/// [`a_flap_through_a_reflex_face_off_its_ray_never_holds`].
 #[test]
 fn a_flap_through_a_run_at_its_vertex_never_holds() {
-    fn flapped<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
-        use geom_brep::EdgeCurveSpec;
-        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
-        use topo::test_support::plane;
-
-        let mut body = flush_union::<T>([0.0; 3], 1.0, false).into_body();
-        let at =
-            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
-        let v_at = at(1.0, 0.25, 1.0);
-        let v = body
-            .vertices()
-            .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
-            .unwrap()
-            .0;
-        // The half-edges that start at the vertex, each with its face and
-        // the axis its face's plane is normal to.
-        let face_of = |body: &Body<T>, he| {
-            body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-                .unwrap()
-                .face
-        };
-        let normal_to = |body: &Body<T>, f: FaceKey| {
-            let Surface::Plane { frame } = surface(body, f) else {
-                panic!("a brick's face is a plane");
-            };
-            let n = frame.axis();
-            [mid(n.x), mid(n.y), mid(n.z)]
-                .iter()
-                .position(|c| c.abs() > 0.5)
-                .unwrap()
-        };
-        let starts: Vec<_> = body
-            .edges()
-            .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-            .filter(|&he| body.get_half_edge(he).unwrap().start == v)
-            .collect();
-        let on = |axis: usize| {
-            starts
-                .iter()
-                .copied()
-                .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
-                .unwrap()
-        };
-        let wall = face_of(&body, on(0));
-        // The struts hang in a horizontal face's loop, so the wall keeps
-        // its two edges at the vertex.
-        let h = on(2);
-        let (a0, a1) = (at(1.3, 0.15, 0.2), at(0.7, 0.35, 0.2));
-        let fan = MevSite::Fan { he1: h, he2: h };
-        let strut0 = body.mev_line(fan, a0, tol()).unwrap();
-        let strut1 = body.mev_line(fan, a1, tol()).unwrap();
-        let flap = body
-            .mef(
-                MefSite::Chords {
-                    he1: strut0.he_minus,
-                    he2: strut1.he_minus,
-                },
-                EdgeCurveSpec::line_between(a0, a1),
-                FaceSurface::New {
-                    surface: plane(&[a0, v_at, a1], tol()),
-                    sense: true,
-                },
-                tol(),
-            )
-            .unwrap()
-            .face;
-        topo::mint_pcurves(&mut body, tol()).unwrap();
-        (body, wall, flap)
-    }
-    let (body, wall, flap) = flapped::<f64>();
-    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
-    let (twin, tw, tf) = flapped::<Interval>();
-    same_class(
+    a_flap_crosses(
         "the wall and the flap through its run",
-        &report,
-        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+        [1.0, 0.25, 1.0],
+        0,
+        2,
+        [[1.3, 0.15, 0.2], [0.7, 0.35, 0.2]],
     );
-    println!(
-        "[straight] the wall and the flap through its run: {:?} {:?}",
-        report.verdict, report.receipt
-    );
-    assert!(
-        matches!(report.verdict, BoundVerdict::Violated(_)),
-        "the flap crosses the wall below the vertex: {:?} {:?}",
-        report.verdict,
-        report.receipt
+}
+
+/// **A flap through the reflex top face, off its ray, never holds.** The
+/// lower cube's top face is L-shaped, reflex at `(0.5, 0.25, 1)`. A
+/// triangle from that vertex to `(0.4, 0.05, 1.3)` and `(0.5, 0.05, 0.7)`
+/// crosses it toward `-y`, inside one piece of the corner and off the
+/// ray. Every cell pair at the vertex has to refuse for the walk to
+/// reach the crossing: a wrong certificate there hides it, and the pair
+/// then runs out of depth with no witness.
+///
+/// Red (`Refused(Budget { Depth })` in place of `Violated`, measured)
+/// if one piece pair parted certifies the face pair, if a carrier that
+/// signs one piece of the other face certifies it, or if either piece
+/// of a two-piece corner is dropped.
+#[test]
+fn a_flap_through_a_reflex_face_off_its_ray_never_holds() {
+    a_flap_crosses(
+        "the reflex top face and the flap toward -y",
+        [0.5, 0.25, 1.0],
+        2,
+        0,
+        [[0.4, 0.05, 1.3], [0.5, 0.05, 0.7]],
     );
 }
 
