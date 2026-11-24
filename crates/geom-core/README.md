@@ -208,9 +208,31 @@ stored parameter reads one way on an analytic carrier and the other
 on a spline.
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
-and its measurements run, and passes through decisions on its value
-alone (DL1, DL3). Code that certifies is closed to it by type, on its
-interior as well as at its doors:
+and its measurements run. Whether it reaches a read is said by what the
+read's verdict ends in:
+
+- **A certificate the body holds, or a finding** (the build refuses).
+  This is certification. It is closed to a dual by type, on its
+  interior as well as at its doors, and on the dual's value as well as
+  its tangent: the finding is the base evaluation's (DL3), and a dual
+  pass does not make it again.
+- **A selection** (which of two constructions is built, or a place the
+  construction is built at). This is a decision, and a dual takes the
+  one its base build took, on its value alone (DL1, DL3). Where a
+  selection rests on arithmetic of its own (pads, a hull, a
+  subdivision, a solve), that interior is declared over `Certifies` and
+  a dual reaches it only by handing it its value view; no finding and
+  no certificate is reached that way.
+
+A certificate's verdict never selects a construction: its refusal is a
+finding, or the gap of its lane. A door that both builds and certifies
+is two functions (derive, generic over every deciding scalar; certify,
+over `Certifies`), so a dual derives and holds no certificate. What only
+a certifying lane can derive is, at a dual, not built: a typed value of
+derive's return that names the lane, never a refusal a predicate then
+excuses.
+
+Code that certifies is closed to a dual by these:
 
 - `Certifies` is the bound that says a scalar certifies and nothing
   else. It grants no bracket read, so it is free to write: no list,
