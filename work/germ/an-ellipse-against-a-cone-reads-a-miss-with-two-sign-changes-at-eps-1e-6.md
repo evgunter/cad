@@ -33,3 +33,10 @@ miss: the class the band must refuse or escalate.
 
 The seed's case refuses or answers its two crossings, pinned as a
 deterministic row beside the fix.
+
+**A second seed (`boxfinish/wall-roots`, 2026-11-24).** At the default
+ε, `CAD_FUZZ_SEED=0xb015d658e225e724 CAD_FUZZ_EFFORT=1` reds the same
+row at its ε 1e-6 case 373: an ellipse of semi-axes 1.08 mm × 0.196 mm
+against a cone of half-angle 0.397 reads a Miss `7.3e-11` from the cone
+with 2 sign changes. Red on main at `1e5b1ce503` and on that branch
+alike; the branch's diff does not reach the conic × quadric door.
