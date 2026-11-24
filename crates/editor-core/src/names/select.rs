@@ -1070,7 +1070,7 @@ fn matching(table: &super::NameTable, sel: &Selector) -> Vec<StableName> {
     let mut out: Vec<StableName> = table
         .iter()
         .map(|(name, _)| name)
-        .filter(|name| sel.matches(name))
+        .filter(|name| super::binds(name) && sel.matches(name))
         .cloned()
         .collect();
     out.sort();

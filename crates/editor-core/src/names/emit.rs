@@ -1707,6 +1707,13 @@ pub(crate) fn resolves_as(name: &StableName) -> &StableName {
     }
 }
 
+/// Whether a reference may hold `name`: every name but a conventional
+/// vertex's, which resolves to its edge ([`resolves_as`]), so a listing
+/// or a selector hands out the edge's row and never the vertex's.
+pub(crate) fn binds(name: &StableName) -> bool {
+    core::ptr::eq(resolves_as(name), name)
+}
+
 /// **Names every conventional vertex of `body` (output body `ix`) for
 /// its closed edge**, replacing whatever row the emission gave it: the
 /// vertex has no identity of its own, so no member, position or fold
@@ -1749,10 +1756,7 @@ pub(crate) fn name_conventional_vertices<T: geom_core::Real>(
         let pairs: Vec<_> = row.pairs().collect();
         match pairs.as_slice() {
             [(_, e)] if renamed.contains_key(e) => {
-                by_name
-                    .entry(renamed[e].clone())
-                    .or_default()
-                    .push(*e);
+                by_name.entry(renamed[e].clone()).or_default().push(*e);
             }
             _ if pairs.iter().any(|(_, e)| renamed.contains_key(e)) => {
                 return Err(NamingError::Emission {

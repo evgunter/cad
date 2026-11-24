@@ -567,6 +567,22 @@ A two-member union or intersect is the union with one step, and the subtract
 names its faces by the same rule over its two operands: a tool face lying over
 a face of `from` is held by that face.
 
+**A conventional vertex.** A closed edge's conventional vertex
+(`topo::is_conventional_vertex`: its only edge is that edge, at both its
+ends) has no identity of its own (`crates/topo/README.md`, maximal edges): its
+position is the kernel's convention, so no member, position or fold step it
+was met at may stand in its name. It is named for its edge alone,
+`ConventionalVertex(edge)` under the edge's node, which every emitter writes
+once its edges are named and before its totality check
+(`emit::name_conventional_vertices`); vertices on two edges sharing one tied
+name tie. Nothing cites it: a piece's `Ends` skip it, so a closed piece's name
+reads none of its vertex. A reference to its name, and a pick at it, resolve
+to the edge (`names::resolves_as`). A construction's own rim self-loop vertex,
+`MeridianVertex` at the seam, is that construction's and keeps its name. So a
+table names alike in every member order, up to which point of each closed edge
+holds its vertex, and an order row compares a conventional vertex by its
+edge, not its point.
+
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses
 (`NamingError::Escalated`), never a silent pick. An ambient tolerance that

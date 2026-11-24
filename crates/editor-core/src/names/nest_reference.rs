@@ -232,5 +232,6 @@ pub(super) enum RoleSeg {
     HostFoot {
         vertex: NameRef,
         edge: NameRef,
-    },    ConventionalVertex(NameRef),
+    },
+    ConventionalVertex(NameRef),
 }

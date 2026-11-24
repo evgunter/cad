@@ -23,7 +23,12 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("ball_cut_by_brick", Tol::witness());
     let (doc, revolve) = ball(doc, 1.0, 0.0);
     let (doc, brick, stands) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);
-    let (doc, b) = world_in_brick(doc, brick, &stands, editor_core::Operand::output(revolve, 0));
+    let (doc, b) = world_in_brick(
+        doc,
+        brick,
+        &stands,
+        editor_core::Operand::output(revolve, 0),
+    );
     let ball_body = editor_core::Operand::from(b);
     let brick_body = editor_core::Operand::from(brick);
     let (x, y) = if ball_first {

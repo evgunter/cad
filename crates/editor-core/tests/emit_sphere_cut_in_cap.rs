@@ -186,7 +186,7 @@ fn every_op_over_a_sphere_cut_in_names_the_circles_vertex_for_the_circle() {
 /// `out`'s table names one conventional vertex, for a seam edge whose
 /// name derives from both of `operands`, the nodes minting the names of
 /// the faces it runs between; the vertex's name, and a pick at the
-/// vertex, resolve to that edge.
+/// vertex, resolve to that edge, and no listing hands the name out.
 pub(crate) fn circle_vertex_cites(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -228,6 +228,10 @@ pub(crate) fn circle_vertex_cites(
         editor_core::vertex_name(ev, out, 0, *vertex).expect("a pick at the vertex names"),
         &**edge,
         "{what}: a pick at the vertex is a pick of its edge"
+    );
+    assert!(
+        !editor_core::all_vertices(ev, out).contains(name),
+        "{what}: no listing hands out the vertex's name for a reference to hold"
     );
 }
 

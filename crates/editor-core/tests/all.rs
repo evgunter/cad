@@ -866,6 +866,8 @@ mod emit_split_duplicate;
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_conventional_vertex_orders.rs"]
+mod emit_union_conventional_vertex_orders;
 #[path = "emit_union_curved_flush.rs"]
 mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]

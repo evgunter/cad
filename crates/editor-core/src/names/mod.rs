@@ -60,7 +60,7 @@ pub use emit::{
     SeamVertexShape, UnionNameShape, WayShape,
 };
 pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
-pub(crate) use emit::{check_total, empty, name_family, narrow, resolves_as, to_u32};
+pub(crate) use emit::{binds, check_total, empty, name_family, narrow, resolves_as, to_u32};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -173,7 +173,7 @@ fn all_of_kind<T: topo::AtRestPolicy + geom_core::Decide>(
     };
     let mut out: Vec<StableName> = table
         .iter()
-        .filter(|(name, _)| name.kind == kind)
+        .filter(|(name, _)| name.kind == kind && binds(name))
         .map(|(name, _)| name.clone())
         .collect();
     out.sort();
