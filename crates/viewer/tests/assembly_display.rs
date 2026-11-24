@@ -270,7 +270,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
     let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: Bodies::Spelled(members),
+            members: Bodies::spelled(members),
         },
         tol,
     );

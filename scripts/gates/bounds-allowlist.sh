@@ -515,55 +515,43 @@ BOUNDS_ALLOWLIST=(
   'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
   # are one driver seam: each reads the certified face boxes the sweep
-  # built and decides on them, the amendment's funnel shape. The
-  # section certificate (the section-certificate unit) carries it in
-  # four: `section_pairs`, the scan over box-overlapping pairs; its two
-  # callers, `interior_loop_verdict` (crossings) and
-  # `section_extent_pass` (no crossings), which replaced the torus and
-  # cylinder extent gates; and `section_report`, the test door over the
-  # same scan (since left, below). With the eight pre-existing seams (the six public and
-  # pipeline doors, `sphere_extent_scan` and `apply_recuts`; the three
-  # declaring doors `union_with`, `intersect_with` and `subtract_with`
-  # went with the declaration channel, INTENT stage 4 F) the count is
-  # 12. Four more ride the same seam: `face_rows`, which builds each
-  # face's certified box once; `walk_pairs`, the one walker over
-  # box-overlapping row pairs that `section_pairs` and the extent
-  # scan's face-scoped reading both take; `pair_verdict`, the per-pair
-  # rule's driver, which builds the pair's reach from the two boxes;
-  # and `sphere_faces_apart`, that face-scoped reading of a crossing
-  # or touching sphere pair. 12 + 4 = 16. One more reads the edge boxes
-  # of one face against a region and decides on them:
-  # `face_boundary_meets`, the walk the plane arm's whole-circle
-  # membership takes. 16 + 1 = 17. `section_cert.rs` itself, the
+  # built and decides on them, the amendment's funnel shape. Its
+  # members, by what they do (the pin below counts them; this list
+  # names them and keeps no sum):
+  # - the public and pipeline doors: `union`, `intersect`, `subtract`
+  #   and `boolean_op_with`, `boolean_door` (the front door's
+  #   body, split from `boolean_op_with` so the door can time and meter
+  #   the call around it), `boolean_op_given` (that body with a fold
+  #   step's given pairs, which the n-ary door calls), `boolean_placed`
+  #   (the pair door over placed operands, fork 288 stage 1, which
+  #   `boolean_op_with` is with no motion), `boolean_pipeline` and
+  #   `through_the_join`;
+  # - the section certificate (the section-certificate unit):
+  #   `section_pairs`, the scan over box-overlapping pairs, and its
+  #   callers split so each path and its test door read one walk:
+  #   `interior_loop_verdict` and `crossings_section_pairs` (crossings),
+  #   `section_extent_pass`, `fallback_section_pairs` and
+  #   `no_crossings_pass` (no crossings: the extent scan, then the
+  #   section pass);
+  # - the extent scan, `sphere_extent_scan`, and what rides its seam:
+  #   `face_rows` (each face's certified box, built once), `walk_pairs`
+  #   (the one walker over box-overlapping row pairs), `pair_verdict`
+  #   (the per-pair rule's driver, which builds the pair's reach from
+  #   the two boxes), `sphere_faces_apart` (the face-scoped reading of a
+  #   crossing or touching sphere pair) and `face_boundary_meets` (the
+  #   edge boxes of one face against a region, the plane arm's
+  #   whole-circle membership);
+  # - the result gate's box read (the finished-body door, PR 3987):
+  #   `gate`, which sorts the result into pieces through each face's
+  #   certified box before tier 3 finishes it, and `fallback` and
+  #   `finish_fallback`, the fallback sites that hand it a result;
+  # - ∖'s reading of its operand's coincident edges through
+  #   `census::collinear_overlaps`: `coincident_wedges_disjoint` (the
+  #   seamed result's lines) and `no_unjoined_line` (the fallbacks').
+  # Most of these forward and read no bracket of their own; without
+  # `Bounds` their calls do not compile. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
-  # compound bound. Four more carry the result gate's box read (the
-  # finished-body door, PR 3987): `gate`, which sorts the result into
-  # pieces through each face's certified box (`boxes::face_box`) before
-  # tier 3 finishes it; `fallback` and `finish_fallback`, the two
-  # fallback sites that build a result and hand it to `gate`; and
-  # `boolean_door`, the front door's body, split from `boolean_op_with`
-  # so the door can time and meter the call around it. 17 + 4 = 21.
-  # Two more carry ∖'s reading of its operand's coincident edges to
-  # `census::collinear_overlaps`, the edge-edge pass's tree over the
-  # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
-  # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
-  # bracket of its own. 21 + 2 = 23. One more is `boolean_op_given`,
-  # `boolean_op_with`'s body with a fold step's given pairs, which the
-  # n-ary door (`nary.rs`) calls; it forwards to `boolean_door` and
-  # reads no bracket of its own. 23 + 1 = 24. `section_report` left
-  # the seam: it runs at `f64` only, a concrete scalar. 24 − 1 = 23.
-  # Three more are the section certificate's callers split out so
-  # each path and its test door read one walk: `crossings_section_pairs`
-  # (the guard's and `section_report`'s), `fallback_section_pairs` (the
-  # no-crossings pass's and its report's), and `no_crossings_pass`, the
-  # extent scan then the section pass, as the path and its test door
-  # run them. None reads a bracket of its own. 23 + 3 = 26. One more is
-  # `boolean_placed`, the pair door over placed operands (fork 288 stage
-  # 1), which `boolean_op_with` now is with no motion: it takes each
-  # operand into the computing frame (`Placed::taken`) and runs the cut
-  # by material and the pipeline (`boolean_op_given`), and reads no
-  # bracket of its own (without `Bounds` neither call compiles).
-  # 26 + 1 = 27.
+  # compound bound, and `section_report` runs at `f64` only.
   'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,

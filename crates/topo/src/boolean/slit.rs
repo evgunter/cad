@@ -126,7 +126,7 @@
 //! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
 //! meridian through a section circle no edge reaches, so that the
 //! re-entered op's crossing layer meets the circle, and the re-entered op
-//! is handed each cut (`ops::Recut::Closing`). The output stage reads
+//! is handed each cut (`ops::CutIn::Closing`). The output stage reads
 //! every edge of the result split off one ([`CutRoots`]) and
 //! [`close_cuts`] deletes each, after the struts and before the
 //! coplanar merge: `kef` where it lies between two faces, `kev` where an
@@ -906,6 +906,7 @@ pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
     pieces: &[EdgeKey],
     held: &BTreeSet<FaceKey>,
     section: &BTreeSet<EdgeKey>,
+    band: Band,
     tol: Tol,
 ) -> Result<Vec<ClosedStrut>, BooleanError> {
     let mut closed = Vec::new();
@@ -988,7 +989,7 @@ pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         let face = one_face(first);
-        part_cut(body, first, section, tol)?;
+        part_cut(body, first, (section, pieces), band, tol)?;
         closed.push(ClosedStrut {
             face,
             edge: first,
@@ -1004,26 +1005,33 @@ fn half<T: geom_core::Real>(body: &Body<T>, h: HalfEdgeKey) -> &crate::entity::H
     proven(&body.half_edges, h, EntityId::HalfEdge)
 }
 
-/// **Deletes a cut's piece between a section circle and the rest of its
+/// **Deletes a cut's piece between section circles and the rest of its
 /// face**: `edge`, both of whose halves bound one face in one loop and
 /// neither of whose ends is free, deleted with `kemr`. The loop parts in
 /// two, and `kemr` makes one part a new ring of the face: the part every
-/// edge of which is in `section`, the circle, where only one part is.
-/// Where the loop is a ring, both parts are rings whichever is new, so
-/// a circle is taken where there is none. No edge is minted, so the
+/// edge of which is in `section` or is another of the cut's `pieces`,
+/// the circles a cut ran through and the pieces between them, where only
+/// one part is. Where both are, the face holds no edge of its own
+/// boundary there, so its chart's seam and poles lie outside it, beyond
+/// one loop: the part with the chart's pole beyond one of its circles
+/// keeps the outline ([`pole_beyond`]). Where the loop is a ring, both
+/// parts are rings whichever is new. No edge is minted, so the
 /// face's surface does not matter.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where the halves lie in two loops, or
-/// where of the outline both parts or neither are a circle: a cut runs
-/// through the circles that crossed it to the face's boundary, so the
-/// last of its pieces on one face joins one circle to the rest;
+/// [`BooleanError::Escalated`] where the pole's side of a circle is in
+/// band ([`pole_beyond`]); [`BooleanError::JoinDesync`] where the halves
+/// lie in two loops, where of the outline neither part is circles, or
+/// where both are and not one has the pole beyond it: a cut runs
+/// through the circles that crossed it to the face's boundary, so a
+/// piece left with one face on both sides joins circles to the rest;
 /// `kemr`'s refusals.
 fn part_cut<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
-    section: &BTreeSet<EdgeKey>,
+    (section, pieces): (&BTreeSet<EdgeKey>, &[EdgeKey]),
+    band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let e = proven(&body.edges, edge, EntityId::Edge);
@@ -1049,16 +1057,33 @@ fn part_cut<T: Decide + crate::props::AtRestPolicy>(
     // `next` order.
     let (after_plus, after_minus) = (&cycle[1..at], &cycle[at + 1..]);
     let circle = |hs: &[HalfEdgeKey]| {
-        !hs.is_empty() && hs.iter().all(|&h| section.contains(&half(body, h).edge))
+        !hs.is_empty()
+            && hs.iter().all(|&h| {
+                let e = half(body, h).edge;
+                section.contains(&e) || pieces.contains(&e)
+            })
     };
     let (he1, he2) = match (circle(after_plus), circle(after_minus)) {
         (true, false) => (plus, minus),
         (false, true) => (minus, plus),
         _ if lp != outline => (plus, minus),
+        (true, true) => match (
+            pole_beyond(body, face, (after_plus, after_minus), section, band)?,
+            pole_beyond(body, face, (after_minus, after_plus), section, band)?,
+        ) {
+            (false, true) => (plus, minus),
+            (true, false) => (minus, plus),
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "of a chart cut's two circle-bounded parts, not one keeps the face's \
+                           chart pole beyond it",
+                });
+            }
+        },
         _ => {
             return Err(BooleanError::JoinDesync {
-                what: "a chart cut's last piece on its face joins no one section circle to the \
-                       rest of the face's outline",
+                what: "a chart cut's piece with one face on both sides joins no section \
+                       circles to the rest of the face's outline",
             });
         }
     };
@@ -1125,6 +1150,77 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
     };
     body.kemr_minting(he1, he2, tol)?;
     Ok(())
+}
+
+/// **Whether the chart's pole of `face`'s sphere lies beyond `part`**:
+/// beyond one of its circles (each edge of `part` in `section` on a
+/// circle), on the far side of the circle's plane from `other`, the
+/// rest of the face's loop. The face lies on `other`'s side of each of
+/// `part`'s circles, which it does not cross, so a pole beyond one lies
+/// in the region that circle cuts off the face.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the pole or `other`'s first
+/// vertex lies in band of a circle's plane, and no other circle has the
+/// pole beyond it.
+fn pole_beyond<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (part, other): (&[HalfEdgeKey], &[HalfEdgeKey]),
+    section: &BTreeSet<EdgeKey>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let &geom::Surface::Sphere { frame, radius, .. } = body.proven_face(face).surface() else {
+        return Ok(false);
+    };
+    let pole = frame.origin() + frame.axis() * radius;
+    let Some(&first) = other.first() else {
+        return Ok(false);
+    };
+    let inside = body.resolve_vertex_point(half(body, first).start, crate::live::Proven);
+    let side = |p: Point3<T>, at: Point3<T>, normal: geom_core::Vec3<T>| {
+        crate::validate::decide(
+            "bool_cut_close_pole_side",
+            Margin::of(normal.dot(p - at)),
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(super::SphereQuestion::CutIn),
+            diag,
+        })
+    };
+    // A circle read in band may not be the one the pole lies beyond, so
+    // its reading is kept until every other circle has been read.
+    let mut in_band = None;
+    for &h in part {
+        let e = half(body, h).edge;
+        if !section.contains(&e) {
+            continue;
+        }
+        let Some(geom::Curve3::Circle(circle)) = body
+            .get_edge(e)
+            .and_then(|d| body.curves.get(d.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .map(|c| c.carrier().clone())
+        else {
+            continue;
+        };
+        let (at, normal) = (
+            body.resolve_vertex_point(half(body, h).start, crate::live::Proven),
+            circle.axis(),
+        );
+        match (side(inside, at, normal), side(pole, at, normal)) {
+            (Ok(Sign::Positive), Ok(Sign::Negative)) | (Ok(Sign::Negative), Ok(Sign::Positive)) => {
+                return Ok(true);
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                in_band.get_or_insert(e);
+            }
+            _ => {}
+        }
+    }
+    in_band.map_or(Ok(false), Err)
 }
 
 /// A face an edge lies in ([`riders`]).

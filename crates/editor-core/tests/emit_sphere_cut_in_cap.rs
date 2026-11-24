@@ -137,7 +137,7 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, lens) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
+            members: editor_core::Bodies::spelled(vec![b1.into(), b2.into()]),
         },
     );
     let (x, y) = if lens_first {
@@ -151,10 +151,10 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
             tool: y.into(),
         },
         "union" => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
         _ => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
     };
     let (doc, out) = insert(doc, node);

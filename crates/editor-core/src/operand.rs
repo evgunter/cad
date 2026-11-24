@@ -355,8 +355,10 @@ impl OperandSlot {
             Self::About { .. } => SlotKind::Is(VarKind::Axis),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Cleared(_) => SlotKind::Cleared,
-            // A placement copies a body, or a family read whole.
-            Self::Input | Self::Source => SlotKind::Placeable,
+            // A placement copies one body (D10 `[repetition]`): a family
+            // is placed member by member, `{k in xs: place(xs[k])}`.
+            Self::Source => SlotKind::Is(VarKind::Body),
+            Self::Input => SlotKind::Placeable,
         }
     }
 }
@@ -482,17 +484,150 @@ impl From<crate::SitedFace> for Operand {
 /// **A `Bodies` argument** (REFERENCES DM4; D10): the one argument a
 /// union, an intersect and an assemble take, and a subtract's tool,
 /// defined by index or by enumeration.
-/// Every reader of a `Bodies` takes either form, and a mix cannot be
-/// written: a `Bodies` read in a member's place is ill-typed at the door
+/// Every reader of a `Bodies` takes either form. A family inside a
+/// spelled list is written as a splice, `[a, …xs]` ([`Spell::All`]); a
+/// family read in a member's place is ill-typed at the door
 /// (`SlotVarKind`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Bodies<R> {
     /// A family, read whole: its members in index order, each named by
     /// its index under the one read.
     Family(R),
-    /// Independent reads spelled at the slot, in the order written, each
-    /// member named by its own read.
-    Spelled(Vec<R>),
+    /// Reads spelled at the slot, in the order written, each member
+    /// named by its own read.
+    Spelled(Vec<Spell<R>>),
+}
+
+/// **One entry of a spelled list** ([`Bodies::Spelled`]): one body, or
+/// a family spliced in whole, `…xs` (D10 `[repetition]`), its members in
+/// index order at the splice's place.
+///
+/// Serialized and debug-printed as the bare read for one body, and as
+/// `{"All": …}` (debug `…read`) for a splice, so a list of single bodies
+/// is spelled as a list of reads.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Spell<R> {
+    /// One body.
+    One(R),
+    /// A family's every member, `…xs`.
+    All(R),
+}
+
+impl<R> Spell<R> {
+    /// **The entry for `read`**: the splice `…read` where `splice`, the
+    /// read itself otherwise. The one spelling of "a yield is spliced,
+    /// anything else is read" ([`crate::Doc::spell`] decides `splice`).
+    pub fn of(read: R, splice: bool) -> Self {
+        if splice {
+            Self::All(read)
+        } else {
+            Self::One(read)
+        }
+    }
+
+    /// The read, whichever entry it is.
+    pub fn read(&self) -> &R {
+        match self {
+            Self::One(read) | Self::All(read) => read,
+        }
+    }
+
+    /// [`Self::read`], writable.
+    pub fn read_mut(&mut self) -> &mut R {
+        match self {
+            Self::One(read) | Self::All(read) => read,
+        }
+    }
+
+    /// Whether this entry splices a family in.
+    #[must_use]
+    pub fn is_splice(&self) -> bool {
+        matches!(self, Self::All(_))
+    }
+
+    /// The same entry over `f(read)`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses.
+    pub fn try_map<Q, E>(&self, f: impl FnOnce(&R) -> Result<Q, E>) -> Result<Spell<Q>, E> {
+        Ok(match self {
+            Self::One(read) => Spell::One(f(read)?),
+            Self::All(read) => Spell::All(f(read)?),
+        })
+    }
+}
+
+impl<R: core::fmt::Debug> core::fmt::Debug for Spell<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::One(read) => read.fmt(f),
+            Self::All(read) => write!(f, "…{read:?}"),
+        }
+    }
+}
+
+impl<R: serde::Serialize> serde::Serialize for Spell<R> {
+    fn serialize<Z: serde::Serializer>(&self, ser: Z) -> Result<Z::Ok, Z::Error> {
+        use serde::ser::SerializeMap as _;
+        match self {
+            Self::One(read) => read.serialize(ser),
+            Self::All(read) => {
+                let mut map = ser.serialize_map(Some(1))?;
+                map.serialize_entry("All", read)?;
+                map.end()
+            }
+        }
+    }
+}
+
+/// One forward pass, no retry (`persist::refusal`'s premise): a string
+/// is the bare read, handed whole to the read's own deserializer; a map
+/// whose first key is `All` is a splice, its value the read; any other
+/// map is the bare read spelled out, handed on whole with its first key
+/// ([`Prepended`]).
+impl<'de, R: serde::Deserialize<'de>> serde::Deserialize<'de> for Spell<R> {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        use serde::de::value::MapAccessDeserializer;
+        use serde::de::{Error as _, MapAccess, Visitor};
+
+        struct Entry<R>(core::marker::PhantomData<R>);
+
+        impl<'de, R: serde::Deserialize<'de>> Visitor<'de> for Entry<R> {
+            type Value = Spell<R>;
+            fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("a read, or a splice of one (`{\"All\": …}`)")
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                R::deserialize(Spelled::<E>(v, core::marker::PhantomData)).map(Spell::One)
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let Some(first) = map.next_key::<String>()? else {
+                    return R::deserialize(MapAccessDeserializer::new(map)).map(Spell::One);
+                };
+                if first != "All" {
+                    let rest = Prepended {
+                        first: Some(first),
+                        rest: map,
+                    };
+                    return R::deserialize(MapAccessDeserializer::new(rest)).map(Spell::One);
+                }
+                let all = map.next_value::<R>()?;
+                match map.next_key::<String>()? {
+                    None => Ok(Spell::All(all)),
+                    Some(other) => Err(A::Error::unknown_field(&other, &["All"])),
+                }
+            }
+        }
+
+        de.deserialize_any(Entry(core::marker::PhantomData))
+    }
+}
+
+impl<R> From<R> for Spell<R> {
+    fn from(read: R) -> Self {
+        Self::One(read)
+    }
 }
 
 /// **The seats a [`Bodies`] argument's reads sit in**: the one a family
@@ -528,10 +663,17 @@ impl Seats {
 }
 
 impl<R> Bodies<R> {
-    /// One read spelled on its own: a body, or a family read whole as
-    /// its every member.
+    /// **A list of single bodies**, spelled in the order given.
+    #[must_use]
+    pub fn spelled(reads: Vec<R>) -> Self {
+        Self::Spelled(reads.into_iter().map(Spell::One).collect())
+    }
+
+    /// One body spelled on its own; a family is spliced with
+    /// [`Spell::All`].
+    #[must_use]
     pub fn one(read: R) -> Self {
-        Self::Spelled(vec![read])
+        Self::Spelled(vec![Spell::One(read)])
     }
 
     /// The reads, with the operand slot each sits in, in list order,
@@ -548,7 +690,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| ((seats.each)(i), read))
+                .map(|(i, read)| ((seats.each)(i), read.read()))
                 .collect(),
         }
     }
@@ -565,7 +707,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| ((seats.each)(i), read))
+                .map(|(i, read)| ((seats.each)(i), read.read_mut()))
                 .collect(),
         }
     }
@@ -576,7 +718,7 @@ impl<R> Bodies<R> {
             Self::Family(read) => (Some(read), &[][..]),
             Self::Spelled(reads) => (None, reads.as_slice()),
         };
-        family.into_iter().chain(spelled)
+        family.into_iter().chain(spelled.iter().map(Spell::read))
     }
 
     /// The same argument, each read mapped through `f` with its member
@@ -608,7 +750,7 @@ impl<R> Bodies<R> {
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| f((seats.each)(i), read))
+                    .map(|(i, read)| read.try_map(|r| f((seats.each)(i), r)))
                     .collect::<Result<_, _>>()?,
             ),
         })

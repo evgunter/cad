@@ -90,8 +90,10 @@ crates/topo/src/boolean/section_cert/ruling.rs 1
 # sectors: closed_reach (2), which face holds the reach: WHICH.
 # (crescent climbs its bound pairs, rays_within its sectors.)
 crates/topo/src/boolean/sectors.rs 2
-# slit: slot_from_far_end, which slot: WHICH.
-crates/topo/src/boolean/slit.rs 1
+# slit: slot_from_far_end, which slot: WHICH; close_cuts' part_cut (1),
+# every piece of a cut is closed, so a refusal on one is the op's: NOT A
+# SEARCH.
+crates/topo/src/boolean/slit.rs 2
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves/site.rs 1
 # containment: place_off (WHICH, ruled). arc_crossings reads its roots

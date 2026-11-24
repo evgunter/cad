@@ -143,6 +143,7 @@
 //! overflows its radius, which is a sub-tolerance arc that validation
 //! classifies a line before any carrier is checked.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // Double-double residuals for the test oracles.
 #[cfg(test)]
 mod dd;

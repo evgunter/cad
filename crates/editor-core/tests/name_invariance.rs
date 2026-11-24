@@ -790,7 +790,7 @@ impl Nary {
     }
 
     fn node(self, members: &[RecipeNodeId]) -> editor_core::AuthoredNode {
-        let members = Bodies::Spelled(members.iter().map(|&m| m.into()).collect());
+        let members = Bodies::spelled(members.iter().map(|&m| m.into()).collect());
         match self {
             Self::Union => Node::Union { members },
             Self::Intersect => Node::Intersect { members },

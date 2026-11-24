@@ -4,8 +4,10 @@ kind: issue
 title: A sphere cut-in's meridian survives unglued in the union of a lens and a tilted brick, leaving two pieces of one face
 status: open
 opened: 2026-10-13
-priority: P2
-cost: M
+priority: P0
+cost: H
+design: true
+parent: closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut
 ---
 
 
@@ -65,3 +67,27 @@ ground.
 Where the cut survives, measured on two radius-0.09 balls 0.08 apart (z-poled, offset along y). The union keeps one live chart cut per ball, and its naming lists `merge_skipped: PeriodClosure` for each ball's run. The run's faces meet across both the cut and the ball's own seam, so merging the whole run would close the sphere's period. `merge_faces` refuses curved runs that close the period (`crates/geom-brep/README.md` C12(5)), and it refuses the whole run rather than merging across the cut while the seam stays as the period's edge. `a - b` keeps its cut for the same reason. The intersect glues both cuts away. The same skip already leaves operand seams unmerged on balls that need no cut-in, for example y-poled balls offset along y. There the edges are operand edges, which names read.
 
 Two ways through, each on other ground. One is a partial merge: kill the chart cut and keep one period edge, the operand's seam. The question there is whether C12(5)'s "a run that closes its period refuses" allows a sub-period merge of the same run. The other is to name a surviving chart cut. By the blocker rule (`work/README.md`, Priority), the part of this row that unblocks the die is P0 work.
+
+## 2026-11-23 — claimed by ORBIT, re-banded P0 (the die)
+
+ORBIT's P0 (`closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`,
+PR 7602) retires the rotation re-chart: every sphere escape is now cut
+along a meridian, closed balls included. The tour's die with two pips
+dragged together (`editor-core` `the_tours_die_with_two_pips_run_together_…`,
+eight edits of `die_composed_tour`) no longer refuses at the turned
+seam. All eight now refuse at the same `Node::Union` with
+`Emission("a chart cut survives in the result")`, which is this row.
+The kernel body is reported sound. Measured on a two-pip union by the
+P0 lane: `merge_faces` skips each ball's run with `PeriodClosure`. The
+cut's pieces meet across both the cut and the ball's own seam, and C12(5)
+(`crates/geom-brep/README.md`, ratified) refuses a curved run that closes
+its period. It refuses the whole run rather than killing the cut and
+keeping the seam.
+
+This row now stands between a normal verb and normal geometry (a valid
+part a user gets by dragging a pip), so it takes the P0 band
+(`work/README.md`, Priority: a blocker inherits the band of what waits
+on it). How a chart cut that survives into the result should be treated
+reads a ratified clause, so it carries `design: true`: designers first.
+Moved from `work/hone/` (HONE is `ready`, with no orchestrator); id
+unchanged. (ORBIT orchestrator)
