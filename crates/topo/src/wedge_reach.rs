@@ -189,20 +189,20 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         }
         let body = self.body;
         let view = body.proven_face(face);
-        let (mut edges, mut lone) = (std::collections::BTreeSet::new(), Vec::new());
+        let (mut edges, mut lone) = (std::collections::BTreeMap::new(), Vec::new());
         for (_, members, _) in view.boundary_by_loop() {
             for member in members {
                 match member {
                     BoundaryMember::Isolated { point, .. } => lone.push(point),
                     BoundaryMember::Edge { edge, .. } => {
-                        edges.insert(edge.key());
+                        edges.insert(edge.key(), edge);
                     }
                 }
             }
         }
         let stations = Rc::new(geom_brep::BoundaryStations::of_boundary(
-            edges.into_iter().filter_map(|ek| {
-                let curve = body.curves.get(body.edges[ek].curve)?.certified()?;
+            edges.into_values().filter_map(|edge| {
+                let curve = edge.certified()?;
                 Some((curve.carrier(), curve.params()))
             }),
             lone,
