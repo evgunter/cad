@@ -6931,3 +6931,36 @@ fn two_thin_slabs_through_each_other_cross() {
         );
     }
 }
+
+/// REVIEW PROBE (embed/verdict-read-review-ed8dc0): which of the uneven
+/// plate's two mirrors tier 3's battery passes, and what each reads on
+/// fixture facts against real ones. A measurement, no assertion.
+#[test]
+fn review_probe_mirrored_plate_facts() {
+    use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
+    use geom_core::Vec3;
+    let body = prism::<f64>(&rect(1.0, 0.6, [0.3, 0.26, 0.34, 0.28]), 0.0, 0.5);
+    let body = rounded("the uneven plate", &body, &every_edge(&body), 0.1).expect("f64 fillets");
+    for (name, point, n) in [
+        ("x = 0", Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        ("generic", Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81)),
+    ] {
+        let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
+        let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
+        match topo::geometric(&mirrored, tol()) {
+            Ok(of) => println!(
+                "[review-mirror] {name}: tier 3 passes; real facts read {}",
+                door_on(&of, mirrored.faces().map(|(k, _)| k).collect())
+            ),
+            Err(e) => println!(
+                "[review-mirror] {name}: tier 3 REFUSES ({} findings: {:?}); fixture facts read {}",
+                e.len(),
+                e.first(),
+                door_on(
+                    &topo::Geometric::fixture(&mirrored),
+                    mirrored.faces().map(|(k, _)| k).collect()
+                )
+            ),
+        }
+    }
+}

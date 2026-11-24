@@ -491,7 +491,10 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     // (two open cylinders on an ellipse, a disk and its annulus) are
     // construction state tier 3 refuses, and are asked on fixture facts:
     // the runs tier 3 would keep, no class.
-    let geometric = topo::geometric(body, tol).unwrap_or_else(|_| topo::Geometric::fixture(body));
+    let geometric = topo::geometric(body, tol).unwrap_or_else(|e| {
+        println!("[review-fixture] pipe file: tier 3 refuses ({} findings, first {:?}); asked on fixture facts", e.len(), e.first());
+        topo::Geometric::fixture(body)
+    });
     let windows =
         Side::windows_of(&geometric, faces, Which::First).expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;

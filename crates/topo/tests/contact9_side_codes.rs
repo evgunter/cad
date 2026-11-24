@@ -726,3 +726,74 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
         );
     }
 }
+
+/// REVIEW PROBE (embed/verdict-read-review-ed8dc0): the sector sliver's
+/// neighbours. `scale` shortens the sliver's length (and its far end's
+/// drop with it, so the angle holds); `dip_eps` is the far end's drop in
+/// ε at `scale = 1`. Prints the verdict, each edge's class and each
+/// face's run from it, and the receipt. No assertion: a measurement.
+fn review_sliver_probe(name: &str, scale: f64, dip_eps: f64) {
+    let tol = Tol::witness();
+    let dip = dip_eps * tol.eps() * scale;
+    let block = common::finished(
+        "block",
+        common::brick::<f64>((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        tol,
+    );
+    let e = [[10.0 * scale, 1.0 * scale, -dip], [0.2e-3, 1e-3, 0.0], [0.0, 0.0, 1e-3]];
+    let corner = Vec3::new(5.0, 5.0, 0.0);
+    let point = move |u, v, w| at(e, u, v, w) + corner;
+    let wedge = common::finished("wedge", common::mapped_cube(point, tol), tol);
+    let meet = match intersect(&block, &wedge, tol) {
+        Ok(r) => match r.body() {
+            Some(b) => b.body.clone().into_body(),
+            None => {
+                println!("[review-sliver] {name}: no body");
+                return;
+            }
+        },
+        Err(e) => {
+            println!(
+                "[review-sliver] {name}: boolean refuses: {}",
+                e.render(geom_brep::recourse::Reading::Build)
+            );
+            return;
+        }
+    };
+    let geometric = match topo::geometric(&meet, tol) {
+        Ok(g) => g,
+        Err(e) => {
+            println!("[review-sliver] {name}: tier 3 refuses: {e:?}");
+            return;
+        }
+    };
+    for (edge, _) in meet.edges() {
+        let runs: Vec<_> = topo::edge_faces(&meet, edge)
+            .into_iter()
+            .map(|f| geometric.facts().edge_run(f, edge).map(|r| r.length()))
+            .collect();
+        println!(
+            "[review-sliver] {name}: edge {edge:?} class {:?} runs {runs:?}",
+            geometric.facts().class(edge)
+        );
+    }
+    let report = topo::clearance::embedded(
+        &geometric,
+        meet.faces().map(|(k, _)| k).collect(),
+        Band::linear(tol).unwrap(),
+        topo::clearance::Budgets {
+            max_cell_depth: topo::clearance::DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 65_536,
+        },
+    );
+    println!("[review-sliver] {name}: {:?} {:?}", report.verdict, report.receipt);
+}
+
+#[test]
+fn review_probe_sliver_neighbours() {
+    review_sliver_probe("as pinned, 10 m, 500ε", 1.0, 500.0);
+    review_sliver_probe("100 mm, same angle (5ε at the far end)", 0.01, 500.0);
+    review_sliver_probe("10 m, 2ε at the far end", 1.0, 2.0);
+    review_sliver_probe("10 m, 20ε at the far end", 1.0, 20.0);
+    review_sliver_probe("1 m, same angle (50ε at the far end)", 0.1, 500.0);
+}
