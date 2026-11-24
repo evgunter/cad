@@ -2,12 +2,11 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [6371]
-blocked_on: [the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision]
 design: true
 ---
 
@@ -264,3 +263,8 @@ a design question being weighed. The a0 row's 1.6 s is four finishes
 per leaf on a plate whose blank no leaf changes; the revolved circle's
 1.3 s is SYM's row above. This row stays parked until SYM's unit lands
 and its tables are re-taken on main.
+
+**Un-parked (2026-11-24).** PR 7394 is on main: a definite decision no
+longer walks the tier's ladder. What this row waited for can now be
+measured: the plate's and the tour's leaf cost on main with the
+switch's box arm off, against M4's and M9's figures.
