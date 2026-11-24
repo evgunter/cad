@@ -4224,7 +4224,7 @@ fn pierce_inside<T: Decide>(
         return None;
     }
     let door = magnitude_door("pm_census_ef_pierce_place", band);
-    let reach = length + T::from_f64(band.zero());
+    let reach = length + band.zero_width().at::<T>();
     if let Err(cause) = enclosure_reading(
         [T::zero(), reach],
         "pm_census_ef_pierce_straddle",
@@ -4469,7 +4469,7 @@ fn span_reach<T: Real>(e: &EdgeGeo<T>, [lo, hi]: [T; 2], lever: T, band: Band) -
         (e.p0 - Point3::origin()).norm() + e.len * lo.abs().max(hi.abs()),
     );
     let height = lever * (hi - lo) + c * T::from_f64(2.0);
-    let reach = (height + T::from_f64(band.zero())) * (T::one() + lever / e.len);
+    let reach = (height + band.zero_width().at::<T>()) * (T::one() + lever / e.len);
     reach + geom_core::rounding_charge(reach)
 }
 
@@ -6060,7 +6060,7 @@ fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
     // span length through the charge's own rate: a margin the band can
     // read, since the room itself, `(K − 1)·ε`, never passes `Kε`.
     let per_metre = geom_core::rounding_charge(T::one());
-    let room = (T::from_f64(band.escalate() - band.zero()) - noise) / per_metre;
+    let room = ((band.escalate_width() - band.zero_width()).at::<T>() - noise) / per_metre;
     match geom_core::k_stats::check_unlogged("pm_census_span_precision", room, band, "F25") {
         Ok(Sign::Positive) => None,
         _ => Some(noise),

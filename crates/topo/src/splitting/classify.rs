@@ -141,7 +141,7 @@ fn reach_clears<T: Decide>(reach: Option<(T, T)>, plane: &SplitPlane<T>, band: B
     let Some((lo, hi)) = reach else {
         return false;
     };
-    let pad = T::from_f64(crate::boxes::sweep_pad(band));
+    let pad = crate::boxes::sweep_pad_width(band).at::<T>();
     // The reach is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
     let origin = geom::plane_offset(

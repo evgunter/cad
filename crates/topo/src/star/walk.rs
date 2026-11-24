@@ -274,17 +274,23 @@ impl<T: Decide> Orbit<T> {
                 let unit_next = next.normalize();
                 // A whole turn is quartered, a window over a half-turn
                 // halved; the fractions run from the own bound.
-                let fractions: &[f64] = if read.whole_turn {
-                    &[0.75, 0.5, 0.25]
+                const QUARTERS: [geom_core::Lit; 3] = [
+                    geom_core::lit!(0.75),
+                    geom_core::lit!(0.5),
+                    geom_core::lit!(0.25),
+                ];
+                const HALF: [geom_core::Lit; 1] = [geom_core::lit!(0.5)];
+                let fractions: &[geom_core::Lit] = if read.whole_turn {
+                    &QUARTERS
                 } else if apex_over_half_turn(&apex, read.window, read.arm, band).map_err(shape)? {
-                    &[0.5]
+                    &HALF
                 } else {
                     &[]
                 };
                 let arm = metering_arm(read.arm);
                 push(edge.dir, edge.reach, true, at, arm);
                 for &k in fractions {
-                    let r = apex.ruling_from(unit_next, read.window * T::from_f64(k));
+                    let r = apex.ruling_from(unit_next, read.window * T::lit(k));
                     push(r, BoundSupport::straight_bisector(arm), false, at, arm);
                 }
             }

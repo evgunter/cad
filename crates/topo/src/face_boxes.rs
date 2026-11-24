@@ -64,6 +64,12 @@ impl FaceBoxes {
         sweep_pad(band)
     }
 
+    /// [`FaceBoxes::pad`] as the width a scalar enters it by.
+    #[must_use]
+    pub fn pad_width(band: Band) -> geom_core::BandWidth {
+        crate::boxes::sweep_pad_width(band)
+    }
+
     /// The faces whose box meets the closed box `[lo, hi]`, each with its
     /// own box, in arena order, its candidates marked under the caller's
     /// `site`. A poison query box meets every face.

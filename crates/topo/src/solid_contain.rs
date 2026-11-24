@@ -1100,7 +1100,7 @@ fn past_every_reach<T: Decide>(
     let mut dirs = separating::face_axes(faces.iter().map(|&f| (body, f)), band, None);
     let anchor = separating::mean(items().filter_map(|i| separating::anchor(body, i)));
     dirs.extend(anchor.and_then(|a| geom_core::UnitVec3::new(q - a, POINT_AXIS, band).ok()));
-    let pad = T::from_f64(crate::boxes::sweep_pad(band));
+    let pad = crate::boxes::sweep_pad_width(band).at::<T>();
     dirs.into_iter().any(|dir| {
         let Some((lo, hi)) = separating::support_along(body, items(), dir, band) else {
             return false;

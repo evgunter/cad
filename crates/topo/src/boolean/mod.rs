@@ -8871,7 +8871,7 @@ fn route_rim<T: Decide>(
 /// The pad a face's reach along a witness line is widened by: the
 /// band's sweep pad, a tolerance.
 fn witness_pad<T: Real>(band: Band) -> T {
-    T::from_f64(crate::boxes::sweep_pad(band))
+    crate::boxes::sweep_pad_width(band).at::<T>()
 }
 
 /// The parameter spans of the line `origin + t·dir` (`dir` unit) the

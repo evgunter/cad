@@ -2561,7 +2561,7 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     for p in poly {
         sum = Point2::new(sum.x + p.x, sum.y + p.y);
     }
-    let count = T::from_f64(n as f64);
+    let count = T::count(n);
     let mut out = vec![Point2::new(sum.x / count, sum.y / count)];
     for i in 0..n {
         let prev = poly[(i + n - 1) % n];

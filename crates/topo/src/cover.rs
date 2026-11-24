@@ -204,9 +204,9 @@ pub fn face_nearest<T: Decide>(
 pub(crate) fn meet_within<T: Real>(
     a: &FaceCovered<T>,
     b: &FaceCovered<T>,
-    tolerance: f64,
+    tolerance: geom_core::BandWidth,
 ) -> geom_brep::ExtentBall<T> {
-    let within = |c: &Cover<T>| geom_brep::ExtentBall::of_cover_within(c, T::from_f64(tolerance));
+    let within = |c: &Cover<T>| geom_brep::ExtentBall::of_cover_within(c, tolerance.at::<T>());
     match (a, b) {
         (Ok(a), Ok(b)) => within(&a.clone().meet(b.clone())),
         (Ok(one), Err(_)) | (Err(_), Ok(one)) => within(one),

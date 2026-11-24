@@ -1936,7 +1936,7 @@ impl Orbit {
     pub(crate) fn step<T: Real>(self, period: Period<T>) -> Period<T> {
         match self.steps() {
             1 => period,
-            n => Period::new(period.length() * T::from_f64(1.0 / f64::from(n))),
+            n => Period::new(period.length() * T::count_ratio(1_u32, n)),
         }
     }
 }

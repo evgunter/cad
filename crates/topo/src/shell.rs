@@ -4191,7 +4191,7 @@ fn chart_read<T: Decide>(
         if us.is_empty() {
             continue;
         }
-        let mean = us.iter().fold(T::zero(), |sum, &u| sum + u) / T::from_f64(us.len() as f64);
+        let mean = us.iter().fold(T::zero(), |sum, &u| sum + u) / T::count(us.len());
         let shift = match reference {
             None => {
                 reference = Some(mean);
@@ -4241,7 +4241,7 @@ fn centroid_of<T: Real>(runs: &[&[geom_core::Point3<T>]]) -> geom_core::Point3<T
     if n == 0 {
         return base;
     }
-    base + sum / T::from_f64(n as f64)
+    base + sum / T::count(n)
 }
 
 /// The mean distance of a point run from `centre`.
@@ -4250,7 +4250,7 @@ fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Poin
     for p in points {
         sum = sum + (*p - centre).norm();
     }
-    sum / T::from_f64(points.len() as f64)
+    sum / T::count(points.len())
 }
 
 /// Which offset door moves a body's charts — ONE decision, read on a
@@ -4998,7 +4998,7 @@ fn walls_cross<T: Decide>(
     // close at the vertex they share, so a margin inside the band there
     // is the joint, not a sliver; at twice the width, a piece left
     // beside it is decided rather than borderline.
-    let w = T::from_f64(2.0 * band.escalate());
+    let w = band.escalate_width().times(geom_core::lit!(2.0)).at::<T>();
     let joined: Vec<(T, T)> = a
         .edges
         .iter()

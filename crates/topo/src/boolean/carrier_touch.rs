@@ -110,7 +110,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
             return Rung::Answers(Ok(()));
         };
         let radius =
-            geom_core::bisect::reach(speed, (a, b)) + dist.abs() + T::from_f64(band.escalate());
+            geom_core::bisect::reach(speed, (a, b)) + dist.abs() + band.escalate_width().at::<T>();
         Rung::holds(
             ball_off_face(y, face, foot, radius, rho, band).map(|off| !off),
             (),
@@ -237,7 +237,7 @@ fn clusters<T: Decide + Bounds>(
         MedialDistance::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
         MedialDistance::Unbounded => T::zero(),
     };
-    let floor = geom_core::bisect::tangency_floor(parting, band.escalate()).hi();
+    let floor = geom_core::bisect::tangency_floor(parting, band.escalate_width()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.

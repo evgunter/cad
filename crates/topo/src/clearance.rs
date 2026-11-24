@@ -4400,12 +4400,7 @@ fn harmonic_of<T: CertifiedBounds>(
     let channel = |ch: Channel<T>| match ch {
         Channel::Angle { phase, winding } => {
             let zero = Interval::from_f64(0.0);
-            [
-                lift.of(phase),
-                zero,
-                zero,
-                Interval::from_f64(f64::from(winding)),
-            ]
+            [lift.of(phase), zero, zero, Interval::count(winding)]
         }
         Channel::Free { c, a, b, l } => [c, a, b, l].map(|x| lift.of(x)),
     };

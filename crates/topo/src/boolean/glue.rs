@@ -465,7 +465,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     let region = match (box_hull(&a_boxes), box_hull(&b_boxes)) {
         (Some(ha), Some(hb)) if ha.overlaps(&hb) => hull(a_covers)
             .zip(hull(b_covers))
-            .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, pad)),
+            .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, boxes::sweep_pad_width(band))),
         _ => None,
     };
     let served = |body: &Body<T>,

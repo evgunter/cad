@@ -374,7 +374,7 @@ pub(crate) fn mean<T: Real>(points: impl IntoIterator<Item = Point3<T>>) -> Opti
         n += 1;
     }
     (n > 0).then(|| {
-        let k = T::one() / T::from_f64(f64::from(n));
+        let k = T::one() / T::count(n);
         Point3::new(sum.x * k, sum.y * k, sum.z * k)
     })
 }

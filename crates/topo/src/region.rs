@@ -40,7 +40,11 @@ use crate::validate::decide;
 
 /// Where along each edge an aimed path's target lies, as shares of its
 /// span.
-pub(crate) const TARGET_SHARES: [f64; 3] = [0.5, 0.25, 0.75];
+pub(crate) const TARGET_SHARES: [geom_core::Lit; 3] = [
+    geom_core::lit!(0.5),
+    geom_core::lit!(0.25),
+    geom_core::lit!(0.75),
+];
 
 /// Why a region reading gave no answer. Each door that reads a region
 /// names the face it read.
@@ -528,7 +532,7 @@ pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item 
     edges.iter().flat_map(|edge| {
         TARGET_SHARES
             .into_iter()
-            .map(|share| edge.at(edge.t0 + (edge.t1 - edge.t0) * T::from_f64(share)))
+            .map(|share| edge.at(edge.t0 + (edge.t1 - edge.t0) * T::lit(share)))
     })
 }
 
