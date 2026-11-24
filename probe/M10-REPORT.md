@@ -1,8 +1,8 @@
 # BOXFINISH M10 — the cost row's tables re-taken on main after PR 7394, switch's box arm off (2026-11-24)
 
 ## What contradicts the row, first (all measured)
-1. **The tour no longer refuses at the holes, and it got six times dearer, not cheaper.** With PR 7384 the holes' `u_ref`
-   refusal is gone: the box-arm-off tour certifies 211 leaves, 94.9069%, as the switch-on tour does. But each hole extrude
+1. **The tour no longer refuses at the holes, and it got seven times dearer, not cheaper.** With PR 7384 the holes' `u_ref`
+   refusal is gone: the box-arm-off tour certifies 211 leaves, 94.9069%, as the switch-on tour did at M4 (not re-run today). But each hole extrude
    now FINISHES in every leaf (520 ms average, was a 40 ms refusal at check 1), so summed leaf time is 1,304.9 s against M9's
    177.6 s. The time is on the decision path: `curve_face_pose_disc`, 8 decisions per hole finish, about 1.0 to 1.3 s of a
    traced finish, every one indeterminate after a ladder climb (12,000 to 28,000 forms, largest 173 terms).
