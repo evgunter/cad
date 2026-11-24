@@ -50,3 +50,7 @@ Respell the verdicts through the same cut and re-chart maps the rows
 go through, or rebuild them from the respelled rows (with the tangent
 lines re-keyed alike); a pin needs a glue row on a re-cut face, found
 first.
+
+## Evidence (2026-11-23, `orbit/one-sphere-escape-cut`)
+
+That branch retires the re-chart: every escape, closed group or trimmed, is cut in, so `apply_recuts`, the `Recharts` map and the turned-face arm of `respell_through_cuts` are gone. The re-chart half of this row goes with them. The cut-in half stands unchanged: `respell_through_cuts` still respells the rows through the cuts' division rows and not the verdicts, so a verdict on a cut piece would still name the piece's key. The row stays open on that half, and stays unmeasured.
