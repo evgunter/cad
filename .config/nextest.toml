@@ -528,6 +528,8 @@ not (
   (binary_id(sweep::all) & (test(=snowman::a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds) | test(=snowman::a_slab_tilted_across_the_lens_seams_builds) | test(=snowman::the_near_tangent_family_builds_to_1e_6_at_the_finer_bands) | test(=snowman::a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior))) |
   (binary_id(sweep::all) & (test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece) | test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece))) |
   (binary_id(sweep::all) & test(=a_cone_on_a_torus_meridian_in_every_order::the_meridian_triangle_and_its_torus_build_in_every_order)) |
+  (binary_id(sweep::all) & test(=a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size::a_plane_nearly_through_a_torus_axis_cuts_it_at_any_face_size)) |
+  (binary_id(topo) & (test(=chord_join::cone_ring_rows::a_cone_ring_run_winds_its_island_as_the_oracle_does) | test(=chord_join::cone_ring_rows::a_path_escalating_by_a_corner_hands_re_homing_to_the_next) | test(=chord_join::torus_ring_rows::a_ring_on_the_runs_planes_off_its_arcs_stays))) |
   (binary_id(geom-brep::all) & test(=cone_torus_pose::the_meridian_triangles_cone_crosses_its_torus_certified)) |
   (binary_id(geom-brep::all) & (test(=pair_section::a_tilted_plane_carries_its_loops_through_the_march) | test(=pair_section::the_count_is_the_morse_count_at_every_pose_near_every_critical_height) | test(=pair_section::no_pose_off_the_band_moves_from_the_retired_formulas))) |
   (binary_id(sweep::all) & test(=band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes)) |
