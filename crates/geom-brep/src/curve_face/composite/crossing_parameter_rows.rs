@@ -127,7 +127,7 @@ fn settle_and_the_splits_interiority_answer_alike_on_admitted_parameters() {
             band(),
             &[],
             vec![Meeting::Crossing(t)],
-            &residual,
+            &|p: Point3<f64>| Margin::of(crate::implicit_residual(&ground(), p)),
         );
         (
             settled,

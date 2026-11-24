@@ -292,12 +292,10 @@ they are correctly outside the 255 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - two through `predicate: Some("…")`: `contact_tangent_independent`,
   `tangency_sides_mixed`;
-- four through a helper that fills that field for its caller:
+- three through a helper that fills that field for its caller:
   `contact_rest_senses_opposed` and `contact_rest_one_carrier`
-  (`rest_pair_verdict`'s `definite`), `tangency_conformal`
-  (`verify_tangency`'s `label`), and
-  `bool_join_torus_section_touching_under_a_germ`
-  (`invalid_margin::invalid`, through a `const`);
+  (`rest_pair_verdict`'s `definite`), and `tangency_conformal`
+  (`verify_tangency`'s `label`);
 - the name argument of each shipped `k_stats::straddle` call, two
   decided bounds on one quantity straddling the band (the call sites
   are the list: `grep -rn 'straddle(' crates/ --include=*.rs`, outside

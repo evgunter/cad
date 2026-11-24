@@ -1119,9 +1119,6 @@ fn section_reach<T: Decide>(
             crate::cover::cone_face_reach(body, face, p, (wall, within), band)
                 .map_err(uncovered)?,
         ),
-        geom::Surface::Torus { .. } => SectionReach::Torus(
-            crate::cover::face_reach_from(body, face, p, band).map_err(uncovered)?,
-        ),
         _ => SectionReach::Unmeasured,
     })
 }
@@ -1651,11 +1648,7 @@ pub(crate) enum SectionReach<T: Real> {
     Cone(geom_brep::Reach<T>),
     /// A cylinder wall's face, as the plane×cylinder arm reads it.
     Cylinder(WallReach<T>),
-    /// A torus wall's face, or a plane face against a torus: the
-    /// divided face's farthest distance from the chord's site, which the
-    /// plane×torus arm levers its axis tilt by.
-    Torus(geom_core::Lever<T>),
-    /// Any other wall: the sphere lane reads no reach.
+    /// Any other wall: the sphere and torus lanes read no reach.
     Unmeasured,
 }
 
@@ -1792,11 +1785,10 @@ fn plane_wall_case<T: Decide>(
     // concentric circles and the spiric ovals are two loops, a chord an
     // arc of the one its sites lie on,
     // told apart by the boolean join's own split for the section
-    // ([`LoopSplit::plane_torus`]). The lever is the divided face's reach
-    // (a torus face, or the plane face against it), which bounds where
-    // that side's chord is consumed. It enters only the axis tilt's fork:
-    // each served row decides its circles' own displacement off the cut
-    // beside its position datum, at any lever.
+    // ([`LoopSplit::plane_torus`]). The section is the closed form's as
+    // the section value reads it, over the torus's ball
+    // ([`geom_brep::plane_torus_closed_form`]), so a chord takes the
+    // closed form exactly where the value and the join's frame do.
     if let geom::Surface::Torus {
         frame,
         major_radius,
@@ -1804,16 +1796,10 @@ fn plane_wall_case<T: Decide>(
     } = *wall
     {
         let (center, axis) = (frame.origin(), frame.axis());
-        let SectionReach::Torus(reach) = reach else {
-            return Err(invariant(
-                "a torus wall's chord reached the section table with no reach measured of the \
-                 divided face",
-            ));
-        };
         let Some((_, normal)) = plane_s.site() else {
             return Err(invariant("the pair normalization put no plane first"));
         };
-        let section = geom_brep::plane_torus_section(plane_s, wall, reach, band).map_err(table)?;
+        let section = geom_brep::plane_torus_closed_form(plane_s, wall, band).map_err(table)?;
         let carried = || {
             invariant(
                 "a plane×torus classification carried a carrier that is not the circle or the \
@@ -1884,7 +1870,7 @@ fn plane_wall_case<T: Decide>(
     // of another kind as its own wrong lane.
     let reach = match reach {
         SectionReach::Cylinder(reach) => reach,
-        SectionReach::Unmeasured | SectionReach::Torus(_) => {
+        SectionReach::Unmeasured => {
             return Err(invariant(
                 "a cone or cylinder wall's chord reached the section table with no reach \
                  measured of its face",
