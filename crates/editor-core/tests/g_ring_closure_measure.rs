@@ -184,7 +184,8 @@ struct Seat {
 
 /// The ring's side seats (its `SameOpposite` rows), member pair
 /// ordered, with the door's verdict on each, and the seconds the door
-/// took over all of them.
+/// took over all of them. Each seat is asked twice, its two cells
+/// exchanged the second time: red if the verdict follows the order.
 fn side_seats(doc: &ProfileDoc, members: &[RecipeNodeId]) -> (Vec<Seat>, f64) {
     let ev = fixture::run(doc, &Default::default());
     let product = editor_core::product_recorded(doc, &ev, Tol::witness()).expect("gathers");
@@ -202,19 +203,28 @@ fn side_seats(doc: &ProfileDoc, members: &[RecipeNodeId]) -> (Vec<Seat>, f64) {
         }
         let (a, b) = &r.copies;
         let node = doc.operation_of(a.var).expect("a copy's placement");
-        let rows = [r.row.clone()];
-        let proof = editor_core::coincide::prove(
-            doc,
-            &[(node, &rows[..])],
-            None,
-            Tol::witness(),
-            &editor_core::Stop::default(),
-        )
-        .expect("door");
+        // The row as recorded, then with its two cells exchanged.
+        let mut exchanged = r.row.clone();
+        exchanged.cells.reverse();
+        let [proven, proven_exchanged] = [r.row.clone(), exchanged].map(|row| {
+            let proof = editor_core::coincide::prove(
+                doc,
+                &[(node, &[row][..])],
+                None,
+                Tol::witness(),
+                &editor_core::Stop::default(),
+            )
+            .expect("door");
+            matches!(proof[0][0], editor_core::Proof::Structural(_))
+        });
         let (x, y) = (at(a.var), at(b.var));
+        assert_eq!(
+            proven, proven_exchanged,
+            "members {x} and {y}: the seat proves alike whichever cell is read first"
+        );
         seats.push(Seat {
             members: (x.min(y), x.max(y)),
-            proven: matches!(proof[0][0], editor_core::Proof::Structural(_)),
+            proven,
         });
     }
     seats.sort();

@@ -44,6 +44,17 @@ fn cube(r: &mut Recorder) -> editor_core::RecipeNodeId {
 
 /// The blocks-on-one-floor corpus document.
 pub fn document() -> CorpusDoc {
+    scene(false)
+}
+
+/// The document with the union's two members named in the other order,
+/// so every pair the union reads is read with its operands exchanged.
+pub fn members_exchanged() -> CorpusDoc {
+    scene(true)
+}
+
+/// The scene, its union's members in placement order or `exchanged`.
+fn scene(exchanged: bool) -> CorpusDoc {
     let mut r = Recorder::new();
     let ((x0, x1), (y0, y1)) = FLOOR;
     let floor_p = r.insert(Node::Profile(desc(vec![vec![
@@ -78,6 +89,9 @@ pub fn document() -> CorpusDoc {
             ],
         );
         copies.push(placed);
+    }
+    if exchanged {
+        copies.reverse();
     }
     let both = r.insert(Node::Union {
         members: editor_core::Bodies::spelled(copies.iter().map(|&c| c.into()).collect()),
