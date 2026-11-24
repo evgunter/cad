@@ -39,3 +39,18 @@ of one body on the other's wall at the rim, or a v–v site whose
 flanking faces are the two walls), pinned so each mutant goes red; or,
 if no geometry reaches the arms, the argument why, and the arms
 reduced to it.
+
+## 2026-11-24 — Re-measured on the merged stack; the arms refuse until reached
+
+On `heldrecords/elbow-seams` with elbow-ends cfd7b08f3a and main merged,
+the same three mutants survive all 219 topo, sweep and editor-core rows
+matching `elbow|junction|mate7a|g1_tube|rim_wedge|sectors|recl|vtxfac`
+and the rod-cap rows. R1's candidate (a rod with a cone tip, unioned
+with an elbow off its z = 2 disc) was not built: read either way, it
+puts the cylinder–cone crease away from the junction's rim, where no
+junction-glued sector pair meets. So, on the orchestrator's ruling,
+`sectors::junction_lump` now refuses typed (`CurvedBooleanUnsupported`
+on the sector's face) at a site its certificate would answer `Out`, and
+`junction_bound_side` with it. The certificate's argument stays in the
+doc. What is owed is unchanged: a pose that reaches the arms, pinned, and
+the `Out` answer restored with it.
