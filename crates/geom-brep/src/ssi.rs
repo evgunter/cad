@@ -3392,6 +3392,9 @@ pub fn march_cylinder_torus(
     )
 }
 
+/// The plane × torus march's lane, as its wrong-lane refusal names it.
+const PLANE_TORUS_LANE: &str = "a plane tilted against a torus's axis in ℝ³ on their implicit pair";
+
 /// **plane × torus** — the ℝ³ implicit-pair arm, as
 /// [`sphere_torus_ssi`]: the pose decided once
 /// ([`crate::PlaneTorusPose::decide`]), a plane the closed form serves
@@ -3412,7 +3415,7 @@ pub fn plane_torus_ssi(
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
     let wrong = || SsiError::WrongLane {
-        expected: "a plane tilted against a torus's axis in ℝ³ on their implicit pair",
+        expected: PLANE_TORUS_LANE,
     };
     let pose = crate::PlaneTorusPose::decide(a, b, band)
         .ok_or_else(wrong)?
@@ -3435,7 +3438,7 @@ pub fn march_plane_torus(
 ) -> Result<SsiOutcome, SsiError> {
     if matches!(pose.stance(), crate::PtStance::Closed) {
         return Err(SsiError::WrongLane {
-            expected: "a plane tilted against a torus's axis in ℝ³ on their implicit pair",
+            expected: PLANE_TORUS_LANE,
         });
     }
     checked([("plane", pose.plane()), ("torus", pose.torus())], domain)?;

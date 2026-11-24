@@ -128,7 +128,7 @@ pub use cones::{ConeDecision, ConeRead, ConeRuledPose, ConeStance};
 pub use conic_pairs::{PlaneCylinderPose, PlaneSpherePose, SphereSpherePose};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
-pub use plane_torus::{PlaneTorusPose, PtCut, PtStance};
+pub use plane_torus::{PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance};
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{

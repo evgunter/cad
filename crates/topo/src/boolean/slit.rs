@@ -895,7 +895,7 @@ struct LiesIn {
 /// vertex of them on the edge. A closed edge is asked as an open one is:
 /// its ends are one vertex, so the faces both its ends lie on are the
 /// faces that vertex lies on.
-fn riders<T: Decide + crate::props::AtRestPolicy>(
+fn riders<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -1053,7 +1053,7 @@ struct Names {
 /// where an unread carrier's edge has both its faces going into `f`'s
 /// material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
-fn holding<T: Decide + crate::props::AtRestPolicy>(
+fn holding<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     named: &[&Contact],
     e: EdgeKey,
@@ -1344,7 +1344,7 @@ pub(super) enum Placed {
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
 /// offset, or the torus's bound between them, is in band.
-pub(super) fn carrier_on_surface<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -1356,7 +1356,7 @@ pub(super) fn carrier_on_surface<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// [`carrier_on_surface`] on `surface` itself.
-fn conic_or_line_on<T: Decide + crate::props::AtRestPolicy>(
+fn conic_or_line_on<T: crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -1551,7 +1551,7 @@ fn clears_plane<T: Decide>(
 /// clear of the surface or monotone across it, so no piece lies on it. A
 /// touch, or a piece within the band of the surface, refuses there, and
 /// is no reading that the carrier is on.
-fn spline_crosses<T: Decide + crate::props::AtRestPolicy>(
+fn spline_crosses<T: crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,

@@ -1250,12 +1250,50 @@ fn joined_spec<T: Decide>(
                 closed: false,
             },
         )?;
-        // A join that is not closed spans less than a turn of a loop, so
-        // a far end read a turn on is the rounding of the walk, held to
-        // the turn.
+        // A join that is not closed spans less than a turn of a loop. A
+        // far end read past a turn is held to the turn only where it is
+        // the kept edge's own far end, the rounding of a walk that came
+        // round to it; anything else read past a turn refuses.
         match carrier.period() {
-            Some(period) if backward => read.max(t1 - period.length()),
-            Some(period) => read.min(t0 + period.length()),
+            Some(period) => {
+                let (turn, past) = if backward {
+                    let turn = t1 - period.length();
+                    (turn, turn - read)
+                } else {
+                    let turn = t0 + period.length();
+                    (turn, read - turn)
+                };
+                let back_at_start = || {
+                    let start = carrier.eval(if backward { t1 } else { t0 });
+                    matches!(
+                        geom_core::k_stats::decide(
+                            "edge_join_far_a_turn_on",
+                            Margin::of((far - start).norm()),
+                            band
+                        ),
+                        Ok(geom_core::Sign::Zero)
+                    )
+                };
+                let short = matches!(
+                    geom_core::k_stats::decide(
+                        "edge_join_far_short_of_a_turn",
+                        Margin::of(past),
+                        band
+                    ),
+                    Ok(geom_core::Sign::Negative)
+                );
+                if short {
+                    read
+                } else if back_at_start() {
+                    turn
+                } else {
+                    return Err(BooleanError::JoinCarrierUnsupported {
+                        edge: join.kept,
+                        carrier: carrier.kind(),
+                        closed: false,
+                    });
+                }
+            }
             None => read,
         }
     };

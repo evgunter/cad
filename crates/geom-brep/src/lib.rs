@@ -256,14 +256,15 @@ pub use pair_section::{
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
     CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
     KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
-    NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusPose, PoseRefusal, PtCut, PtStance,
-    RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
-    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
-    spline_pair_section, square_part, tori_coincide,
+    NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
+    PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
+    SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
+    SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
+    TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
+    TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose,
+    coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.

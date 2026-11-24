@@ -643,14 +643,6 @@ impl Refusal {
 
 use geom_brep::square_part as perp_to;
 
-/// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
-/// norm `s` of `v`'s part square to `a`, and the map from `Π`'s
-/// coordinates — `x` along that part, `y` along `a` — to space.
-fn meridian<T: Real>(c: Point3<T>, a: Vec3<T>, v: Vec3<T>) -> (T, impl Fn(T, T) -> Point3<T>) {
-    let (perp, s) = perp_to(v, a);
-    (s, move |x: T, y: T| c + perp / s * x + a * y)
-}
-
 /// A margin's sign, `None` when undecided.
 fn sign_as<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
     decide(name, m, band).ok()
@@ -951,7 +943,12 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
     }
 }
 
-/// **Torus × plane**, the plane through `p0` with unit normal `n`.
+/// **Torus × plane**, the plane through `p0` with unit normal `n`, read
+/// in the meridian half-plane through the normal by the section value's
+/// own reading ([`geom_brep::PlaneTorusMeridian`]): its rows count the
+/// loops, a null loop carries its witness, and a tangency on a tube
+/// circle is a touch at its foot where that is an elliptic point and a
+/// tangency otherwise.
 fn torus_plane<T: Decide>(
     axis: geom::Line<T>,
     big_r: T,
@@ -960,97 +957,38 @@ fn torus_plane<T: Decide>(
     n: Vec3<T>,
     band: Band,
 ) -> Section<T> {
-    let geom::Line { origin: c, dir: a } = axis;
-    let h = n.dot(p0 - c);
-    let na = n.dot(a.get());
-    let (s, in_pi) = meridian(c, a.get(), n);
-    // In Π, with x along ê = n⊥/s and y along a: the tube circle T_σ is
-    // centred (σR, 0), radius r, and the plane is the line
-    // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
-    // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
-    let offset = |sigma: T| h - sigma * s * big_r;
-    match plane_cut(big_r, r, h, s, band) {
-        // Tangent to T_σ at the foot, an elliptic point when the foot
-        // stands on the tube's outer half: the extreme `σ(sR + r)` of
-        // the height `n·(x − c)`, whose other critical values `±(sR − r)`
-        // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
-        PlaneCut::Pinch(tan) if tan.name == NEAR || tan.name == FAR => {
-            let sigma = if tan.name == NEAR {
-                T::one()
-            } else {
-                -T::one()
-            };
-            let d = offset(sigma);
-            if sign_as(
-                "section_torus_plane_touch_elliptic",
-                Margin::of(sigma * d * s),
-                band,
-            ) != Some(Sign::Positive)
-            {
-                return tan.into();
-            }
-            touch(tan, &[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
+    let meridian =
+        geom_brep::PlaneTorusMeridian::new((axis.origin, axis.dir.get(), [big_r, r]), (p0, n));
+    match meridian.cut(band) {
+        Ok(geom_brep::PtCut::AroundAxis | geom_brep::PtCut::AroundTube) => {
+            essential_pair(true, false)
         }
-        PlaneCut::Pinch(tan) => tan.into(),
-        PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
-        PlaneCut::Empty => none(),
-        PlaneCut::Null { near } => {
-            let sigma = if near { T::one() } else { -T::one() };
-            let d = offset(sigma);
-            let (fx, fy) = (sigma * big_r + d * s, d * na);
-            let half = ((r - d.abs()) * (r + d.abs())).sqrt();
-            lone(in_pi(fx - na * half, fy + s * half))
-        }
-    }
-}
-
-/// [`torus_plane`]'s near-tube margin: the plane cuts the tube circle
-/// `T₊` of `Π`.
-const NEAR: &str = "section_torus_plane_near_tube";
-/// [`torus_plane`]'s far-tube margin: the plane cuts `T₋`.
-const FAR: &str = "section_torus_plane_far_tube";
-
-/// **How a plane cuts a ring torus**, by [`torus_plane`]'s margins in
-/// the meridian half-plane `Π` toward the plane's normal: the plane at
-/// height `h` over the centre, `s` the norm of its normal's part square
-/// to the axis.
-enum PlaneCut {
-    /// It cuts both tube circles of `Π`, so it crosses every meridian:
-    /// two loops, each round the axis.
-    AroundAxis,
-    /// It passes between the tube circles: two loops, each round the
-    /// tube.
-    AroundTube,
-    /// It cuts one tube circle, `T₊` where `near`: one null oval.
-    Null { near: bool },
-    /// It misses the torus.
-    Empty,
-    /// A margin decided `Zero` or undecided: a tangency.
-    Pinch(Pinch),
-}
-
-fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
-    let [near, far] = match signs_as(
-        [
-            (NEAR, r - (h - s * big_r).abs()),
-            (FAR, r - (h + s * big_r).abs()),
-        ],
-        band,
-    ) {
-        Ok(x) => x,
-        Err(tan) => return PlaneCut::Pinch(tan),
-    };
-    match (near, far) {
-        (true, true) => PlaneCut::AroundAxis,
-        (false, false) => match signs_as(
-            [("section_torus_plane_between", s * big_r - r - h.abs())],
-            band,
-        ) {
-            Ok([true]) => PlaneCut::AroundTube,
-            Ok([false]) => PlaneCut::Empty,
-            Err(tan) => PlaneCut::Pinch(tan),
+        Ok(geom_brep::PtCut::Empty) => none(),
+        Ok(geom_brep::PtCut::Null { near }) => match meridian.null_witness(near) {
+            Some(witness) => lone(witness),
+            None => Section::Components {
+                parts: vec![Component::closed_form(false, [false, false], None)],
+                single: true,
+            },
         },
-        (true, false) | (false, true) => PlaneCut::Null { near },
+        Err(geom_brep::PtPinch::Zero {
+            row,
+            near: Some(near),
+            ..
+        }) => match meridian.touch(near, band) {
+            Some(at) => Section::Touch(Touch {
+                name: row,
+                at,
+                apex: false,
+            }),
+            None => Section::Tangent(row),
+        },
+        Err(geom_brep::PtPinch::Zero {
+            row, near: None, ..
+        }) => Section::Tangent(row),
+        Err(geom_brep::PtPinch::Undecided(diag)) => {
+            Section::Tangent(diag.predicate.unwrap_or("pt_tube_rows"))
+        }
     }
 }
 
@@ -1065,14 +1003,13 @@ pub(super) fn torus_plane_loops<T: Decide>(
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (axis.dir.get().normalize(), n.normalize());
-    let (_, s) = perp_to(n, a);
-    match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
-        PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
-        PlaneCut::AroundTube => Ok(Some(super::SpiricLoops::AroundTube)),
-        PlaneCut::Null { .. } => Ok(Some(super::SpiricLoops::Null)),
-        PlaneCut::Empty => Ok(None),
-        PlaneCut::Pinch(tan) => tan.undecided.map_or(Ok(None), Err),
+    let a = axis.dir.get().normalize();
+    match geom_brep::PlaneTorusMeridian::new((axis.origin, a, [big_r, r]), (p0, n)).cut(band) {
+        Ok(geom_brep::PtCut::AroundAxis) => Ok(Some(super::SpiricLoops::AroundAxis)),
+        Ok(geom_brep::PtCut::AroundTube) => Ok(Some(super::SpiricLoops::AroundTube)),
+        Ok(geom_brep::PtCut::Null { .. }) => Ok(Some(super::SpiricLoops::Null)),
+        Ok(geom_brep::PtCut::Empty) | Err(geom_brep::PtPinch::Zero { .. }) => Ok(None),
+        Err(geom_brep::PtPinch::Undecided(diag)) => Err(diag),
     }
 }
 

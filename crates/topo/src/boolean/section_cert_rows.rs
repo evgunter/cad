@@ -230,11 +230,11 @@ fn a_scrape_oval_is_one_null_component_witnessed_on_its_own_side() {
 #[test]
 fn a_plane_tangent_to_the_tube_off_its_outer_half_refuses_as_a_tangency() {
     let s = classify(&donut(), &plane(p(1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
-    assert_eq!(tangent(&s), "section_torus_plane_near_tube");
+    assert_eq!(tangent(&s), "pt_near_tube");
     let s = classify(&donut(), &plane(p(-1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
-    assert_eq!(tangent(&s), "section_torus_plane_far_tube");
+    assert_eq!(tangent(&s), "pt_far_tube");
     let s = classify(&donut(), &plane(p(0.0, 0.0, 0.5), v(0.0, 0.0, 1.0)));
-    assert!(tangent(&s).starts_with("section_torus_plane_"));
+    assert!(tangent(&s).starts_with("pt_"));
 }
 
 /// A length strictly inside the run's band sliver — past `zero`, short
@@ -1114,7 +1114,7 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
     let d_far = 2.5f64.hypot(0.3);
     let in_tube = p(2.2, 0.0, 0.1);
     let d_near = 0.2f64.hypot(0.1);
-    const PLANE_NEAR: &str = "section_torus_plane_near_tube";
+    const PLANE_NEAR: &str = "pt_near_tube";
     // A sphere's or a wall's touch is decided by its pair's critical gap.
     const SPHERE_NEAR: &str = "st_critical_gap";
     const WALL: &str = "ct_critical_gap";
@@ -1137,7 +1137,7 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
         ),
         (
             "plane on the far tube's outer equator",
-            "section_torus_plane_far_tube",
+            "pt_far_tube",
             plane(p(-2.5, 0.0, 0.0), x),
             plane(p(-2.5 + push, 0.0, 0.0), x),
             p(-2.5, 0.0, 0.0),
@@ -1213,11 +1213,7 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
     ] {
         let n = v(s, 0.0, (1.0 - s * s).sqrt());
         let pl = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
-        assert_eq!(
-            tangent(&classify(&donut(), &pl)),
-            "section_torus_plane_near_tube",
-            "{label}"
-        );
+        assert_eq!(tangent(&classify(&donut(), &pl)), "pt_near_tube", "{label}");
     }
     // The ball on the axis is a coaxial pose, its tangency the closed
     // form's tube row; the ball on the core circle has every point of a

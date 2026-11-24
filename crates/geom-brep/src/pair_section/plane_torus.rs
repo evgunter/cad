@@ -128,9 +128,25 @@ impl<T: Decide> PlaneTorusPose<T> {
                     });
                 }
                 Err(SectionError::DegenerateTorus(t)) => return Err(TorusPoseRefusal::Torus(t)),
-                // The closed form classified the pose; what it mints is
-                // its own reader's to refuse.
-                Ok(_) | Err(_) => true,
+                // The closed form classified the pose; a spiric it does
+                // not mint is its own reader's to refuse.
+                Ok(_) | Err(SectionError::Spiric(_)) => true,
+                // No plane × torus reading raises these; the closed
+                // form's reader meets whatever it does raise.
+                Err(
+                    SectionError::WrongLane { .. }
+                    | SectionError::RadiusEscalated { .. }
+                    | SectionError::NoRegion { .. }
+                    | SectionError::DegenerateOperand { .. }
+                    | SectionError::ConeAtTheBand { .. }
+                    | SectionError::BeyondOperandExtent { .. }
+                    | SectionError::CoincidentSurfaces
+                    | SectionError::Carrier(_)
+                    | SectionError::Pinched { .. }
+                    | SectionError::Unordered { .. }
+                    | SectionError::NoMarch { .. }
+                    | SectionError::Unaccounted { .. },
+                ) => true,
             };
             let (stance, gap) = if closed {
                 (PtStance::Closed, TorusGap::Transverse)
@@ -193,113 +209,179 @@ impl<T: Decide> PlaneTorusPose<T> {
     }
 }
 
-/// A gap row's reading, or the pose's refusal on it.
-fn row<T: Decide>(
-    name: &'static str,
-    datum: T,
-    band: Band,
-) -> Result<(Sign, MarginDiag), TorusPoseRefusal> {
-    decide_reported(name, Margin::of(datum), band)
-        .map(|d| (d.sign, d.margin))
-        .map_err(|diag: Indeterminate| TorusPoseRefusal::Undecided {
-            question: TorusQuestion::Gap,
-            diag,
+/// **A plane against a ring torus in the meridian half-plane `Π`
+/// through the plane's normal**, the one reading every plane × torus
+/// reader of the tube rows takes (module docs, the critical gap): the
+/// count's rows, the null loop's witness and the touch point. In `Π`,
+/// with `x` along `ê`, the unit part of the normal `n` square to the
+/// axis, and `y` along the axis, the tube circle `T_σ` about the core
+/// point `k_σ` is centred `(σR, 0)` with radius `r`, and the plane is the
+/// line `s·x + (n·a)·y = h`, whose unit normal is `(s, n·a)`; `d_σ = h −
+/// σsR` is its offset from `T_σ`'s centre and `(σR + d_σ·s, d_σ·(n·a))`
+/// its foot.
+#[derive(Clone, Copy, Debug)]
+pub struct PlaneTorusMeridian<T: Real> {
+    center: Point3<T>,
+    axis: geom_core::Vec3<T>,
+    across: geom_core::Vec3<T>,
+    radii: [T; 2],
+    h: T,
+    s: T,
+    na: T,
+}
+
+/// **Where a plane meets a ring torus at a tube row's `Zero` or in its
+/// band** ([`PlaneTorusMeridian::cut`]).
+#[derive(Clone, Copy, Debug)]
+pub enum PtPinch {
+    /// A row decided `Zero`: a tangency on the tube circle about `k₊`
+    /// where `near` is `Some(true)`, about `k₋` where `Some(false)`, and
+    /// along the plane's pass between them where `None`.
+    Zero {
+        /// The row.
+        row: &'static str,
+        /// Its `Zero` margin.
+        margin: MarginDiag,
+        /// Which tube circle.
+        near: Option<bool>,
+    },
+    /// A row in the band.
+    Undecided(Indeterminate),
+}
+
+impl<T: Decide> PlaneTorusMeridian<T> {
+    /// The torus about the unit `axis` through `center` with radii
+    /// `[R, r]`, against the plane through `q` with normal `n` (any
+    /// length).
+    #[must_use]
+    pub fn new(
+        (center, axis, radii): (Point3<T>, geom_core::Vec3<T>, [T; 2]),
+        (q, n): (Point3<T>, geom_core::Vec3<T>),
+    ) -> Self {
+        let n = n.normalize();
+        let (perp, s) = square_part(n, axis);
+        Self {
+            center,
+            axis,
+            across: perp / s,
+            radii,
+            h: n.dot(q - center),
+            s,
+            na: n.dot(axis),
+        }
+    }
+
+    /// **The count, or where it pinches** (module docs, the section):
+    /// `pt_near_tube`, `pt_far_tube`, then `pt_between_tubes` where the
+    /// plane cuts neither tube circle.
+    ///
+    /// # Errors
+    ///
+    /// [`PtPinch`]: a row decided `Zero`, or one in the band.
+    pub fn cut(&self, band: Band) -> Result<PtCut, PtPinch> {
+        let ([big_r, r], h, s) = (self.radii, self.h, self.s);
+        let read = |row: &'static str, datum: T, near: Option<bool>| match decide_reported(
+            row,
+            Margin::of(datum),
+            band,
+        ) {
+            Ok(d) if d.sign == Sign::Zero => Err(PtPinch::Zero {
+                row,
+                margin: d.margin,
+                near,
+            }),
+            Ok(d) => Ok(d.sign == Sign::Positive),
+            Err(diag) => Err(PtPinch::Undecided(diag)),
+        };
+        let near = read(NEAR, r - (h - s * big_r).abs(), Some(true))?;
+        let far = read(FAR, r - (h + s * big_r).abs(), Some(false))?;
+        Ok(match (near, far) {
+            (true, true) => PtCut::AroundAxis,
+            (true, false) => PtCut::Null { near: true },
+            (false, true) => PtCut::Null { near: false },
+            (false, false) => match read(BETWEEN, s * big_r - r - h.abs(), None)? {
+                true => PtCut::AroundTube,
+                false => PtCut::Empty,
+            },
         })
+    }
+
+    fn sigma(near: bool) -> T {
+        if near { T::one() } else { T::zero() - T::one() }
+    }
+
+    fn in_pi(&self, x: T, y: T) -> Option<Point3<T>> {
+        let p = self.center + self.across * x + self.axis * y;
+        [p.x, p.y, p.z]
+            .into_iter()
+            .all(geom_core::is_finite_length)
+            .then_some(p)
+    }
+
+    /// **A point of the null loop** on `T_σ` (`σ = +1` where `near`): the
+    /// point `√(r² − d_σ²)` from the foot along the plane's line in `Π`,
+    /// on both surfaces. `None` where it is not finite.
+    #[must_use]
+    pub fn null_witness(&self, near: bool) -> Option<Point3<T>> {
+        let ([big_r, r], sigma) = (self.radii, Self::sigma(near));
+        let d = self.h - sigma * self.s * big_r;
+        let half = ((r - d.abs()) * (r + d.abs())).sqrt();
+        self.in_pi(
+            sigma * big_r + d * self.s - self.na * half,
+            d * self.na + self.s * half,
+        )
+    }
+
+    /// **The touch on `T_σ`, where it is a point of the section**: the
+    /// foot, where it stands on the tube's outer half, an elliptic point
+    /// (`σ·d_σ·s` positive, `pt_touch_elliptic`). On the inner half the
+    /// torus is a saddle and the section a node there, which no point
+    /// stands for: `None`, as where the reading is in band or not finite.
+    #[must_use]
+    pub fn touch(&self, near: bool, band: Band) -> Option<Point3<T>> {
+        let ([big_r, _], sigma) = (self.radii, Self::sigma(near));
+        let d = self.h - sigma * self.s * big_r;
+        let elliptic = matches!(
+            geom_core::k_stats::decide("pt_touch_elliptic", Margin::of(sigma * d * self.s), band),
+            Ok(Sign::Positive)
+        );
+        if !elliptic {
+            return None;
+        }
+        self.in_pi(sigma * big_r + d * self.s, d * self.na)
+    }
 }
 
 /// The tilted pose's gap and count (module docs), the plane through `q`
 /// with normal `n`.
 fn tilted<T: Decide>(
     ring: Ring<T>,
-    (q, n): (Point3<T>, geom_core::Vec3<T>),
+    site: (Point3<T>, geom_core::Vec3<T>),
     band: Band,
 ) -> Result<(PtStance, TorusGap<T>), TorusPoseRefusal> {
-    let n = n.normalize();
-    let (c, [big_r, r]) = (ring.center(), ring.radii());
-    let (perp, s) = square_part(n, ring.axis());
-    let h = n.dot(q - c);
-    let tangent = |row: &'static str, margin, sigma: Option<T>| {
-        // The touch is on the tube circle about the core point toward
-        // `σ·m`, `r` from it along the plane's normal. It is a point of
-        // the section only where it stands on the tube's outer half, an
-        // elliptic point: the plane on the far side of `k_σ` from the
-        // axis, `σ·(n·(k_σ − q)) < 0`. On the inner half the torus is a
-        // saddle and the section a node there, which no point stands
-        // for: the tangent component is then a loop, classification
-        // only.
-        let at = sigma.and_then(|sigma| {
-            let k = c + perp / s * (sigma * big_r);
-            let above = n.dot(k - q);
-            let elliptic = matches!(
-                geom_core::k_stats::decide(
-                    "pt_touch_elliptic",
-                    Margin::of(T::zero() - sigma * above),
-                    band
-                ),
-                Ok(Sign::Positive)
-            );
-            if !elliptic {
-                return None;
-            }
-            let p = k - n * (above.select_le_zero(T::zero() - r, r));
-            [p.x, p.y, p.z]
-                .into_iter()
-                .all(geom_core::is_finite_length)
-                .then_some(p)
-        });
-        Ok((
+    let meridian = PlaneTorusMeridian::new((ring.center(), ring.axis(), ring.radii()), site);
+    match meridian.cut(band) {
+        Ok(cut) => Ok((PtStance::Tilted(Some(cut)), TorusGap::Transverse)),
+        Err(PtPinch::Zero { row, margin, near }) => Ok((
             PtStance::Tilted(None),
-            TorusGap::Tangent { row, margin, at },
-        ))
-    };
-    let near = row(NEAR, r - (h - s * big_r).abs(), band)?;
-    if near.0 == Sign::Zero {
-        return tangent(NEAR, near.1, Some(T::one()));
+            TorusGap::Tangent {
+                row,
+                margin,
+                at: near.and_then(|near| meridian.touch(near, band)),
+            },
+        )),
+        Err(PtPinch::Undecided(diag)) => Err(TorusPoseRefusal::Undecided {
+            question: TorusQuestion::Gap,
+            diag,
+        }),
     }
-    let far = row(FAR, r - (h + s * big_r).abs(), band)?;
-    if far.0 == Sign::Zero {
-        return tangent(FAR, far.1, Some(T::zero() - T::one()));
-    }
-    let cut = match (near.0 == Sign::Positive, far.0 == Sign::Positive) {
-        (true, true) => PtCut::AroundAxis,
-        (true, false) => PtCut::Null { near: true },
-        (false, true) => PtCut::Null { near: false },
-        (false, false) => {
-            let between = row(BETWEEN, s * big_r - r - h.abs(), band)?;
-            match between.0 {
-                Sign::Positive => PtCut::AroundTube,
-                Sign::Negative => PtCut::Empty,
-                Sign::Zero => return tangent(BETWEEN, between.1, None),
-            }
-        }
-    };
-    Ok((PtStance::Tilted(Some(cut)), TorusGap::Transverse))
 }
 
-/// **A point of the null loop**: where the plane cuts the tube circle
-/// `T_σ` about `k_σ` it cuts, in the meridian half-plane `Π` through it.
-/// With `x` along `ê`, the unit part of `n` square to the axis, and `y`
-/// along the axis, `T_σ` is centred `(σR, 0)` with radius `r`, and the
-/// plane is the line `s·x + (n·a)·y = h`, whose unit normal is
-/// `(s, n·a)`: `d = h − σsR` is its offset from the centre, `(σR + ds,
-/// d·(n·a))` its foot, and the point `√(r² − d²)` from the foot along the
-/// line lies on both surfaces. `None` where it is not finite.
-fn null_witness<T: Decide>(pose: &PlaneTorusPose<T>, near: bool) -> Option<Point3<T>> {
-    let (q, n) = crate::intersect::SectionPlane::site(&pose.plane)?;
+/// The pose's meridian reading.
+fn meridian_of<T: Decide>(pose: &PlaneTorusPose<T>) -> Option<PlaneTorusMeridian<T>> {
     let ring = pose.ring;
-    let (c, a, [big_r, r]) = (ring.center(), ring.axis(), ring.radii());
-    let n = n.normalize();
-    let (perp, s) = square_part(n, a);
-    let (h, na) = (n.dot(q - c), n.dot(a));
-    let sigma = if near { T::one() } else { T::zero() - T::one() };
-    let d = h - sigma * s * big_r;
-    let half = ((r - d.abs()) * (r + d.abs())).sqrt();
-    let (x, y) = (sigma * big_r + d * s - na * half, d * na + s * half);
-    let p = c + perp / s * x + a * y;
-    [p.x, p.y, p.z]
-        .into_iter()
-        .all(geom_core::is_finite_length)
-        .then_some(p)
+    crate::intersect::SectionPlane::site(&pose.plane)
+        .map(|site| PlaneTorusMeridian::new((ring.center(), ring.axis(), ring.radii()), site))
 }
 
 /// **The plane × torus section over its tilted pose** (module docs, the
@@ -337,7 +419,7 @@ pub(super) fn plane_torus<T: Decide>(
         }
         PtStance::Tilted(Some(PtCut::AroundAxis | PtCut::AroundTube)) => loops(2, true),
         PtStance::Tilted(Some(PtCut::Null { near })) => {
-            let witness = null_witness(&pose, near);
+            let witness = meridian_of(&pose).and_then(|m| m.null_witness(near));
             Components::Counted(vec![SectionComponent::closed_form(
                 ComponentShape::Loop,
                 [false, false],
