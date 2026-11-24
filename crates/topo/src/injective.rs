@@ -8350,14 +8350,17 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
-/// **The normal of a plane through a vertex that parts two faces each
-/// presented there as a quadrant** ([`Zero::Point`]): each face leaves
+/// **The normal of a plane through a vertex that parts two parts each
+/// presented there as a corner** ([`Zero::Point`]: a chart's corner of
+/// two clips, or one piece of a plane's two-line corner, a pointed cone
+/// under a half turn): each leaves
 /// the vertex into the cone of its two corner axes, `a₁, a₂` and
 /// `b₁, b₂`, read over its rectangle ([`Presented::corner_axes`]). A
 /// plane through the vertex parts them, `n·aᵢ > 0 > n·bⱼ`, exactly where
 /// the hull of `{a₁, a₂, −b₁, −b₂}` misses the origin (Gordan): where the
 /// cones share no ray and neither is a straight corner, whose
-/// antiparallel axes put the origin in the hull whatever the other is.
+/// antiparallel axes put the origin in the hull whatever the other is
+/// (a plane's straight corner is never one cone: it is two pieces).
 /// The hull's point nearest the origin is then the normal whose least
 /// cosine to the four axes is greatest
 /// ([`geom_core::linalg::min_norm::min_norm_point`], at `f64`). On a
@@ -8397,11 +8400,11 @@ fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<
 ///   their stored directions' cross product, `q` a point of the first.
 ///   It lists both and their ends;
 /// - at a shared vertex alone, through the vertex, listing the vertex:
-///   where both faces are presented as quadrants there, `n` the plane
+///   where both parts are presented as corners there, `n` the plane
 ///   leaning furthest from both wedges ([`wedges_apart`]); against any
 ///   other presentation (a sphere's pole read as its chart's collapsed
 ///   side, a curve through the vertex), where a face has no corner
-///   axes, `n` across the faces' two headings. Two quadrants the wedge
+///   axes, `n` across the faces' two headings. Two corners the wedge
 ///   plane does not part get no plane: any plane [`sign_on`] reads
 ///   departing both of their rectangles parts their axes, so the wedge
 ///   plane is missing only where those axes part by a least cosine
@@ -11620,9 +11623,10 @@ mod presentation_rows {
     /// `δ` thin. The piece on the shared edge departs the partner's plane
     /// along the ray, so the sine it is read at is `sin δ · sin(θ/2)`
     /// where the one quadrant this replaces read `sin δ · sin θ` along
-    /// the other edge: at a right corner the least certified `δ` is 3.2e-9
-    /// here, 1.41 times the quadrant's. The head refuses more, never
-    /// less
+    /// the other edge: at a right corner, rims 4 long, the least certified
+    /// `δ` is 3.2e-9 here (the review measured the rise against the
+    /// quadrant at 1.16 to 1.41 across corner angles). The head refuses
+    /// more, never less
     /// (`work/embed/a-convex-corner-across-a-shared-edge-is-read-at-the-rays-sine-and-in-smaller-cells.md`).
     /// Red if the threshold moves either way.
     #[test]
@@ -22869,10 +22873,11 @@ mod margin_rows {
         );
     }
 
-    /// **A quadrant of no width departs at its arm.** A plane face read
-    /// as its quadrant at a vertex its pair shares alone, in a cell that
-    /// holds it only along one of its edges: the rectangle is `2.4e-15`
-    /// across one axis. Under a plane through the vertex that both edges
+    /// **A quadrant of no width departs at its arm.** A corner
+    /// presentation at a vertex its pair shares alone (built by hand: a
+    /// plane's quadrant, as a chart's corner or one piece of a two-line
+    /// corner is), in a cell that holds it only along one of its edges:
+    /// the rectangle is `2.4e-15` across one axis. Under a plane through the vertex that both edges
     /// leave to one side, at sines of about `0.05` and `0.24`, the
     /// quadrant is signed at a metre's arm; under a plane one edge lies
     /// on the other side of, it is not.
