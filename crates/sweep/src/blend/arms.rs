@@ -183,12 +183,16 @@ impl<T: Real> BallSection<T> {
 /// unit, so two links' feet on one support coincide where their bands
 /// share their section, the generator between the two feet. `None` for
 /// a trim that is neither a line nor a circle.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn chamfer_setback_point<T: Real>(trim: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match trim {
         Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle(c) => Some(
-            c.frame().origin() + perp_unit(p - c.frame().origin(), c.frame().axis()) * c.radius(),
-        ),
+        Curve3::Circle(c) => {
+            Some(c.frame().origin() + perp_unit(p - c.frame().origin(), c.axis()) * c.radius())
+        }
         _ => None,
     }
 }
@@ -1582,6 +1586,10 @@ pub fn chamfer_frustum<T: Real>(
 /// off its generator, so the sign is definite on any exact frustum.
 /// `None` for a band that is not a cone or trims that are not circles.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option<T> {
     let Surface::Cone {
         frame: carrier_frame,
