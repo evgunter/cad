@@ -91,3 +91,9 @@ Another draw, from CI's slow set on lane `orbit-onelever`'s PR 7713
 `R ≈ 31.15`, `r ≈ 11.50`, tilt 0, read
 `Tangent("section_torus_square_wall_fold_half")` at `top ≈ 8.8·10⁻⁹`.
 It reproduces on main `68af2aa3e` (a local replay).
+The next run of that PR drew `CAD_FUZZ_SEED=0xb09da3f2f11b9405` (CI run
+45405107980): three more strips crossing at a tube circle's top, each
+read `Tangent("section_torus_square_wall_fold_half")` at `top` between
+`1.4·10⁻⁹` and `7.2·10⁻⁹`. Two consecutive random draws failing says
+the class is dense at `CAD_FUZZ_EFFORT=1`, so any PR that edits
+`section_cert.rs` meets it.
