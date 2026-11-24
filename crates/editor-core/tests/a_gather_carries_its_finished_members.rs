@@ -177,21 +177,34 @@ fn a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished() {
     }
 }
 
-/// **Every lane logs the same gather**: the product's verdict log is the
-/// same at `f64` and at `Interval` on the nominal, so a drive's witness
-/// and its leaf compare equal there. Red if one lane carried what the
-/// other derived.
+/// **Every lane logs the same gather**: what the product's node logs,
+/// then what a door that takes its body logs taking it, is the same at
+/// `f64` and at `Interval` on the nominal, so a drive's witness and its
+/// leaf compare equal there. Red if one lane carried what the other
+/// derived: the derived lane's body is finished again where it is taken.
 #[test]
 fn a_gather_of_finished_members_logs_one_vector_at_every_lane() {
     let tol = Tol::witness();
     let (doc, gather) = product(true, -0.03);
-    let opts = EvalOptions::default();
-    let point: Evaluation<f64> = evaluate(&doc, None, &CancelToken::new(), &opts, tol);
-    let enclosed: Evaluation<Interval> = evaluate(&doc, None, &CancelToken::new(), &opts, tol);
-    let a = point.value(gather).map(|v| v.verdicts.to_vec());
-    let b = enclosed.value(gather).map(|v| v.verdicts.to_vec());
-    assert!(a.is_some(), "the gather builds at f64");
-    assert_eq!(a, b, "the gather's verdict log at f64 and at Interval");
+    macro_rules! logged {
+        ($t:ty) => {{
+            let ev: Evaluation<$t> =
+                evaluate(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+            let mut log = ev
+                .value(gather)
+                .map(|v| v.verdicts.to_vec())
+                .expect("the gather builds");
+            let bracket = geom_core::k_stats::Bracket::open();
+            held(&ev, gather).finished(tol).expect("its body is taken");
+            log.extend(bracket.finish().verdicts);
+            log
+        }};
+    }
+    assert_eq!(
+        logged!(f64),
+        logged!(Interval),
+        "the gather's and its taker's verdict log at f64 and at Interval"
+    );
 }
 
 /// **What lies between members is still asked**: two finished copies
