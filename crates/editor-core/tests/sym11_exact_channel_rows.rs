@@ -66,13 +66,13 @@ use crate::m10_9_pins_interval::measured_studies;
 /// the link 786 → 785, the bracket 1337 → 1329, the pad 1471 → 1455,
 /// each a reading no longer taken. The link's and the pad's frozen
 /// ceilings fell with the arcs after an axis hop departing along the
-/// literal axis: 2600 → 1987 and 1963 → 130.
+/// literal axis: 2175 → 1501 and 1303 → 127.
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
     ("two_hole_plate", None, 951, 36),
     ("r1_annulus", None, 511, 36),
-    ("r2_link", None, 785, 1987),
+    ("r2_link", None, 785, 1501),
     ("r2_filleted_bracket", None, 1329, 53),
-    ("r2_rounded_pad", None, 1455, 130),
+    ("r2_rounded_pad", None, 1455, 127),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
