@@ -42,6 +42,8 @@ mod mcplate;
 mod projectbox;
 #[path = "review_blend2_r1_probes.rs"]
 mod review_blend2_r1_probes;
+#[path = "review_signed_radius_r2.rs"]
+mod review_signed_radius_r2;
 #[path = "scene_body_delta.rs"]
 mod scene_body_delta;
 #[path = "skinned.rs"]
