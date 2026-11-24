@@ -132,7 +132,7 @@ pub(crate) struct PendingArc<T: Real> {
     /// The captured resolution machinery (see [`ArcResolver`]).
     pub resolver: ArcResolver<T>,
     /// The side circle's radius as its mode spells it: the authored
-    /// `|r|` where the mode authors one (`Radius`, `Sweep`, `ArcLen`),
+    /// radius where the mode authors one (`Radius`, `Sweep`, `ArcLen`),
     /// and otherwise the distance from `centre` to `anchor`.
     pub circle_radius: T,
     /// Whether the chain head the side's run leaves lies on the side's
@@ -393,8 +393,8 @@ pub(crate) fn via_carrier<T: Decide>(
 /// The endpoint-free legs' shared derivation ([`Sweep`] / [`ArcLen`]):
 /// carrier centre from the directed start (as [`radius_carrier`]), the
 /// endpoint by rotating the start about it through the swept angle θ in
-/// the side's travel sense, and the leg's arc — the authored radius as
-/// its magnitude `|r|`, and Δθ = 4·atan(X) with X = tan(θ/4) of the
+/// the side's travel sense, and the leg's arc — the authored radius,
+/// gated positive, and Δθ = 4·atan(X) with X = tan(θ/4) of the
 /// signed angle, the authored angle's own quarter-tangent. The swept
 /// angle is gated definitely positive (`path_arc_sweep`, on the arc
 /// length `r·θ`) and definitely short of a full turn
@@ -403,16 +403,16 @@ pub(crate) fn via_carrier<T: Decide>(
 ///
 /// **The arc's endpoint facts are theorems** (the leg registers them):
 /// the centre is the authored radius off the start along the unit
-/// normal and the end is the start rotated about it through θ, so the
-/// rim at each end is the radius and the sweep turns each end onto the
-/// other, over the reals at every value of the directed start and the
+/// normal and the end is the start rotated about it through θ, so each
+/// end is the centre plus the radius along its radial and the sweep
+/// turns each end onto the other, over the reals at every value of the directed start and the
 /// authored data.
 pub struct TangentArcLeg<T: Real> {
     /// The derived endpoint.
     pub end: Point2<T>,
     /// The travel sense (from the side bit).
     pub winding: ArcSweep,
-    /// The leg's arc: the derived centre, the authored radius (as `|r|`) and the
+    /// The leg's arc: the derived centre, the authored radius and the
     /// signed sweep.
     pub arc: geom_core::Arc2<T>,
     /// The end tangent (departure rotated by the signed sweep).

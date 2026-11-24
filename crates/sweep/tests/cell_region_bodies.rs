@@ -84,7 +84,7 @@ fn arc_of(s: &Seg) -> ((f64, f64), f64, f64, f64) {
         Point2::new(ax, ay),
         Point2::new(s.b.0, s.b.1),
         s.bulge,
-        s.bulge.signum(),
+        geom_core::ArcSweep::of_constant(s.bulge),
     );
     let c = (arc.centre.x, arc.centre.y);
     let start = (ay - c.1).atan2(ax - c.0);

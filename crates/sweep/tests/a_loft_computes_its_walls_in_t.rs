@@ -1009,7 +1009,7 @@ fn strip_skin<T: geom_core::spline::ProjectiveScalar>(b: T) -> geom::NurbsSurfac
     let arc = |x: T| SketchSegment::Arc {
         a,
         b: e,
-        arc: Arc2::from_chord(a, e, x, T::one()),
+        arc: Arc2::from_chord(a, e, x, geom_core::ArcSweep::Ccw),
     };
     let segs = [arc(b), SketchSegment::Line { a, b: e }, arc(b + b), arc(b)];
     let curves: Vec<geom::NurbsCurve3<T>> = segs

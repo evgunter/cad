@@ -782,48 +782,34 @@ pub(crate) fn turn_negates(turn: Sign) -> bool {
 /// ([`geom_core::Real::register_equal`]), per component, at the
 /// carrier's start and at its span.
 ///
-/// **The proof.** The carrier is the circle about `place(centre)` with
-/// radius `radius`, its frame the station's turned onto the arc's
-/// recorded unit radial `radial` ([`Placing::frame_onto`]) and run back
-/// where the turn negates the axis. At parameter 0 it is `place(centre)
-/// + radius·L·radial`, which is `place(centre + radius·radial)` for a
-/// placement with linear part `L`: [`Arc2::on_radial`]. A rigid
-/// placement maps the sketch plane's rotation about `centre` by the
-/// signed sweep onto the 3-space rotation about that axis by `|Δθ|`, so
-/// the carrier at its span is `place` of the sketch point the sweep
-/// turns `radial` to, [`Arc2::on_turned_radial`]. Each is one function
-/// of the centre, the radius, the direction and the sweep at every
-/// value of them, the radius's sign included: neither takes a root, and
-/// neither reads whether `radial` points at a vertex or the radius is
-/// one's distance, so both hold for every carrier, a copied or table
-/// one included. Where the placement is not rigid the door's own
-/// witness refuses typed (`Disputed` at an inexact witness, and at
-/// [`geom_core::Interval`] the exact witness's `Contradicted`, which
-/// `SymRegistration::handle` turns into an assertion).
+/// **The invariant, and its premise.** For a unit `radial` and a rigid
+/// placement, the carrier (the circle about `place(centre)` of radius
+/// `radius`, its frame turned onto `radial`, [`Placing::frame_onto`])
+/// is `place(centre + radius·radial)` at parameter 0
+/// ([`Arc2::on_radial`]) and `place` of that radial turned by the sweep
+/// at its span ([`Arc2::on_turned_radial`]). Neither takes a root or
+/// reads a vertex, so each is one function of the centre, the radius,
+/// the radial and the sweep at every value of them, either sign of the
+/// radius included.
 ///
-/// **Why they are stated and not left to the algebra.** A frame's axes
-/// claim that they are a rotation; the symbolic tier holds them as
-/// atoms and does not know they are orthonormal, so the carrier's
-/// `u·cos + v·sin` at a span that is no half turn does not meet the
-/// placed sketch point as a form; and a start whose radial is a
-/// rational function of a bulge can outrun the tier's coefficient ring
-/// before it folds.
+/// The premise is that `radial` is a unit: the frame mint keeps a
+/// radial as its `u` only where it is one. Every radial a verb records
+/// or validation mints is. A table's written radial need not be, and
+/// off unit these ends are not the stored carrier's
+/// (`work/boxfinish/a-recorded-direction-claims-a-unit-and-is-held-as-two-numbers.md`).
+/// Where the placement is not rigid the door's own witness refuses
+/// typed.
+///
+/// **Why they are stated.** A frame's axes are atoms to the symbolic
+/// tier, which does not know they are orthonormal, so the carrier at a
+/// span that is no half turn does not meet the placed sketch point as a
+/// form.
 ///
 /// `radial` is carried by `place` everywhere but one site: a full
 /// revolve's sphere meridian whose start is pinned on the axis takes
 /// its frame from the unturned placement (`revolve::full`). That radial
-/// lies along the axis, which the half turn fixes, so the two placings
-/// carry it to the same direction over the reals and the identities
-/// registered here, against `place`, hold there too.
-///
-/// **What they chain through.** A construction that records radials
-/// registers the sketch facts at its vertices: `centre + radius·radial`
-/// IS the vertex each radial points at, and the turned start radial IS
-/// the far vertex (`Arc2::register_radials`). The tier's alias applies
-/// inside the early walk, so the placed carrier's ends take the placed
-/// vertices' forms. A carrier whose radial was minted from its points
-/// claims nothing past rigidity, and its ends discharge numerically or
-/// escalate.
+/// lies along the axis, which the half turn fixes, so both placings
+/// carry it to the same direction.
 ///
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
 /// own carrier and span is the node the certifier evaluates; the
@@ -1605,9 +1591,10 @@ mod tests {
     }
 
     /// An arc from `a` to `b` with the radials validation mints from its
-    /// points where no axis is proven: each vertex's offset over the
-    /// stored radius. A second spelling of `profile`'s private mint, for
-    /// the reason [`line_from`] gives.
+    /// points where no axis is proven: each vertex's offset over its own
+    /// length, a unit by construction (`seg::mint_radial`'s quotient).
+    /// A second spelling of `profile`'s private mint, for the reason
+    /// [`line_from`] gives.
     pub(super) fn arc_from<T: Real>(
         arc: Arc2<T>,
         turn: Sign,
@@ -1617,7 +1604,7 @@ mod tests {
         SegmentKind::Arc {
             arc,
             turn,
-            radials: [(a - arc.centre) / arc.radius, (b - arc.centre) / arc.radius],
+            radials: [(a - arc.centre).normalize(), (b - arc.centre).normalize()],
         }
     }
 
@@ -2025,7 +2012,11 @@ mod tests {
     /// [`placed_segment_spec`] at the identity placement.
     fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
         let lit = T::from_f64;
-        let sigma = lit(if turn_negates(turn) { -1.0 } else { 1.0 });
+        let sigma = if turn_negates(turn) {
+            geom_core::ArcSweep::Cw
+        } else {
+            geom_core::ArcSweep::Ccw
+        };
         let (a, b) = (
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),

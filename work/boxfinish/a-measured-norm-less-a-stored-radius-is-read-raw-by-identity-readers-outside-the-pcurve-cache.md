@@ -76,6 +76,11 @@ function and usually one caller; only the first is measured):
   `√(h² + (ρ − radius)²)`, read by `Foot::on_carrier`; whether a Zero
   is asked of it there was not traced.
 
+- `topo/src/boolean/reduce.rs`: `junction_end_held` reads
+  `(w − axis·h).norm() − rim.radius` into `junction_end_on_rim`, asked
+  for a Zero of an edge's end on a junction's rim. The signed-radius
+  unit's sweep did not list it; its review found it (2026-11-24).
+
 Not this class (real margins, each a point that is off in general):
 `sweep`'s `blend/reach.rs` region functions and `blend/surgery.rs`
 distances, `topo`'s `carrier_touch`, `carrier_pair::torus_distance`,

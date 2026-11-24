@@ -86,6 +86,8 @@ gates! {
     ArcDiameterClearance => "arc_diameter_clearance", Sized(COINCIDENCE_RECOURSE), "whether an arc stops short of a full circle";
     /// How far a table arc's start, turned by its sweep, lands from its end.
     ArcLanding => "arc_landing", Sized(COINCIDENCE_RECOURSE), "whether an arc's sweep carries its start onto its end";
+    /// A table arc's stored radius, against zero.
+    ArcRadius => "arc_radius", Sized(COINCIDENCE_RECOURSE), "whether a table arc's radius is positive";
     /// An arc's span, as the clearance between its chord's reach and its apex.
     ArcSpan => "arc_span", Sized(COINCIDENCE_RECOURSE), "whether a point falls inside an arc's span";
     /// How far a table arc's start lies off its carrier circle.

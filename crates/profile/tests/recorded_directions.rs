@@ -912,7 +912,8 @@ fn each_verb_records_what_it_holds_on_the_loop() {
     // Bulge and via: the lowering's own radials at the literal sign.
     let (a, b) = (Point2::new(4.0, 0.0), Point2::new(4.0, 4.0));
     let lowered = |bulge: f64| {
-        let [s, e] = Arc2::from_chord_radials(a, b, bulge, bulge.signum()).1;
+        let [s, e] =
+            Arc2::from_chord_radials(a, b, bulge, geom_core::ArcSweep::of_constant(bulge)).1;
         arc_rec(s, e)
     };
     for bulge in [0.4, -0.3] {

@@ -188,7 +188,12 @@ fn sagitta(
     bulge: Sym<Interval>,
     turn: f64,
 ) -> Sagitta {
-    let arc = Arc2::from_chord(Point2::new(ax, ay), Point2::new(bx, by), bulge, lit(turn));
+    let arc = Arc2::from_chord(
+        Point2::new(ax, ay),
+        Point2::new(bx, by),
+        bulge,
+        geom_core::ArcSweep::of_constant(turn),
+    );
     let (cx, cy) = (arc.centre.x, arc.centre.y);
     let (vx, vy) = (ax - cx, ay - cy);
     let norm = (vx * vx + vy * vy).sqrt();

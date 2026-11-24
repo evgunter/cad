@@ -27,6 +27,6 @@ pub(crate) fn lowered_arc<T: Real>(
     SketchSegment::Arc {
         a,
         b,
-        arc: Arc2::from_chord(a, b, bulge, T::from_f64(turn)),
+        arc: Arc2::from_chord(a, b, bulge, geom_core::ArcSweep::of_constant(turn)),
     }
 }

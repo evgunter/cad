@@ -761,7 +761,7 @@ number.
   may assert on it and the swept and revolve registrants do.
 
   The "same-OBJECT" limit in this bullet is exactly what M10-9
-  measured, and it BINDS: the swept arc's rim and span identities
+  measured, and it BINDS: the swept arc's endpoint and span identities
   discharge because the registrant builds the very nodes the consumer
   asks about; the `Fillet` step's declared tangency does not, because
   the CENTRE the joint classifier asks about is re-derived inside the

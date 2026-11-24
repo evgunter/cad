@@ -69,8 +69,9 @@
 //! carrier's span is the pushforward's own sweep signed by a decided
 //! `Sign`, never `atan|b|`. At a bulge that is not `1` what stands is
 //! not this module's: at `bulge = 2` every trig atom folds and the
-//! residue is the carrier's `abs(signed_radius)` (which no rule squares
-//! away) over the coefficient ring's width (`m10_10_evidence_interval`
+//! residue is the coefficient ring's width, the carrier's radius being
+//! spelled with its decided literal sign and no `abs`
+//! (`m10_10_evidence_interval`
 //! at `CAD_M10_10_DOC=r1_segment_boss` and the `r2_d_tab_*` documents;
 //! the pins in `m10_bulge_interval`).
 //!

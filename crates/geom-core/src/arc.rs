@@ -47,27 +47,68 @@ pub struct Arc2<T: Real> {
     pub sweep: T,
 }
 
+/// **Which way an arc winds about its centre**: the one type of a
+/// decided turn. Its [`ArcSweep::sign`] is the literal ±1 every stored
+/// form multiplies by, so `sign² = 1` is a fact of the type and not of
+/// a number a caller passed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ArcSweep {
+    /// Counterclockwise sweep (positive included angle; positive bulge).
+    Ccw,
+    /// Clockwise sweep (negative included angle; negative bulge).
+    Cw,
+}
+
+impl ArcSweep {
+    /// The other sense: the same arc traversed backwards.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        match self {
+            Self::Ccw => Self::Cw,
+            Self::Cw => Self::Ccw,
+        }
+    }
+
+    /// The sense as the literal ±1: `+1` counterclockwise, `−1`
+    /// clockwise.
+    #[must_use]
+    pub fn sign<T: Real>(self) -> T {
+        match self {
+            Self::Ccw => T::one(),
+            Self::Cw => -T::one(),
+        }
+    }
+
+    /// The sense an authored `f64` constant names: counterclockwise
+    /// where it is positive. For a fixture's literal; a computed value's
+    /// sense is a decision, taken by its gate.
+    #[must_use]
+    pub fn of_constant(x: f64) -> Self {
+        if x > 0.0 { Self::Ccw } else { Self::Cw }
+    }
+}
+
 impl<T: Real> Arc2<T> {
     /// **The arc on the chord `a → b` whose quarter-tangent is `x`**
-    /// (x = tan(Δθ/4), the bulge), `sign` the literal ±1 of `x`'s sign
-    /// as the caller decided the turn: the centre at apothem
+    /// (x = tan(Δθ/4), the bulge), turning as `turn`, the sense of `x`
+    /// as the caller decided it: the centre at apothem
     /// `L·(1 − x²)/(4x)` along the chord's unit left normal from its
-    /// midpoint, the radius `sign·L·(1 + x²)/(4x)`, and Δθ =
+    /// midpoint, the radius `σ·L·(1 + x²)/(4x)` (`σ` the turn's literal ±1), and Δθ =
     /// `4·atan(x)`. The one spelling of the chord lowering, shared by
     /// the sketch layers; pure arithmetic in a fixed order (D9), so it
     /// is the same expression at every scalar. Total: `x = 0` puts the
     /// centre at infinity and a zero chord poisons the normal, for the
-    /// caller's own rule to have kept out; a `sign` against `x`'s
+    /// caller's own rule to have kept out; a `turn` against `x`'s
     /// stores a negative radius and negates both radials, which is the
     /// caller's turn decision to have right.
     #[must_use]
-    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> Self {
-        Self::from_chord_radials(a, b, x, sign).0
+    pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T, turn: ArcSweep) -> Self {
+        Self::from_chord_radials(a, b, x, turn).0
     }
 
     /// [`Arc2::from_chord`], with the unit radials at its two ends that
     /// the lowering holds: with `û` the chord's unit direction, `n̂` its
-    /// left normal and `s` the `sign`,
+    /// left normal and `s` the `turn`'s literal ±1,
     ///
     /// - at `a`: `s·(−2x·û − (1 − x²)·n̂)/(1 + x²)`,
     /// - at `b`: `s·( 2x·û − (1 − x²)·n̂)/(1 + x²)`.
@@ -80,7 +121,13 @@ impl<T: Real> Arc2<T> {
     /// (1 + x²)²`. Both are rational in `x` and the chord's own unit, so
     /// no further length is read.
     #[must_use]
-    pub fn from_chord_radials(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> (Self, [Vec2<T>; 2]) {
+    pub fn from_chord_radials(
+        a: Point2<T>,
+        b: Point2<T>,
+        x: T,
+        turn: ArcSweep,
+    ) -> (Self, [Vec2<T>; 2]) {
+        let sign: T = turn.sign();
         let len = a.distance(b);
         let unit = (b - a) / len;
         let mid = a.mid(b);
@@ -589,8 +636,8 @@ mod tests {
     fn from_chord_radials_are_the_centre_to_vertex_units() {
         let (a, b) = (Point2::new(0.3, -0.7), Point2::new(1.9, 0.4));
         for x in [1e-3, 0.2, 0.5, 1.0, 3.0, -1e-3, -0.4, -1.0, -2.5] {
-            let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x, x.signum());
-            let plain = Arc2::from_chord(a, b, x, x.signum());
+            let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x, ArcSweep::of_constant(x));
+            let plain = Arc2::from_chord(a, b, x, ArcSweep::of_constant(x));
             assert_eq!(
                 [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
                 [plain.centre.x, plain.centre.y, plain.radius, plain.sweep].map(f64::to_bits),

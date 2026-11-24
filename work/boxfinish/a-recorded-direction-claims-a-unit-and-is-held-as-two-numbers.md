@@ -223,6 +223,28 @@ table door normalizes what it accepts.
 - `spun_onto`'s argument is a type no written direction inhabits.
 
 **Measured since:** a written radial is read today by the pcurve certificate's envelope, its `Frame` term, not by check 1. `sweep`'s `a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written`: stretched by `0.1·ε` the slab builds holding a `u_ref` that long; by `0.4·ε` the extrude refuses under `pcurve_envelope` reading `2·ε`.
+**From the signed-radius review (2026-11-24): the sweep door's
+registered ends rest on the same premise.** `sweep::swept`'s
+`register_placed_carrier_ends` states that the placed carrier at 0 and
+at its span is the placed sketch point `c + r·radial`. That is an
+identity of the stored expressions only where the frame's `u` is the
+recorded radial placed, which the frame mint keeps only for a radial
+that is a unit. For a table's radial off unit the reviewers' probes
+(`boxfinish/review-signed-radius-r1`,
+`p6_a_tables_stretched_radial_at_the_enclosure_scalars`) read:
+
+- at `Interval`, a written radial off by `1e-15` (inside the frame
+  mint's charge) stores a `u_ref` whose enclosure holds no unit; past
+  the charge the frame poisons and the door refuses typed at
+  `EndpointStart`;
+- at `Sym<f64>`, the frame mint squares the stretched radial, so the
+  frame's `u` is no longer the recorded radial placed and the
+  registered end is false of the stored carrier.
+
+Every radial a verb or validation's mint records is a unit, so no
+shipped door registers a false end; the table door is the one that can,
+and removing it (below) removes the premise.
+
 ## One point reopened by the line-directions weighing (2026-11-24): the test-only table door goes
 
 This row's weighing kept the test-only table door that writes

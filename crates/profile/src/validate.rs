@@ -111,6 +111,7 @@
 //! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4) | half-chord (tan(Δθ/4) → meters) |
 //! | `full_turn_reach` | a full turn's reach 2r·\|Δθ\|/2π | diameter |
 //! | `full_turn_sense` | a full turn's signed reach 2r·Δθ/2π | diameter |
+//! | `arc_radius` | a table arc's stored radius r, definitely positive | direct |
 //! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
 //! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
@@ -971,9 +972,11 @@ impl ValidatedSegment<f64> {
     /// Nothing is re-derived but an arc's radials, which are normalized
     /// at `U`: a radial's two `f64` numbers are a unit to rounding, so
     /// lifted as they stand they are a point that holds no unit, and a
-    /// sweep turns an arc's frame onto its radial with no arithmetic
+    /// sweep's frame mint keeps the bits of an enclosure it is handed
     /// (`geom_core::RigidMotion::spun_onto`). Normalized at `U` they
-    /// enclose the unit they round. See [`ValidatedProfile::lift_onto`].
+    /// enclose the unit they round; at a point scalar they are that
+    /// unit to rounding, as they were. See
+    /// [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
         let kind = match self.kind.map(U::from_f64) {
             SegmentKind::Arc {
@@ -1461,7 +1464,9 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
-    /// each arc's carrier and sweep — through [`Real::from_f64`]; the
+    /// each arc's carrier and sweep — through [`Real::from_f64`], and an
+    /// arc's recorded radials normalized there
+    /// ([`ValidatedSegment::lift`]); the
     /// plane taken as given once it is finite (validation is 2-D and
     /// decides nothing of it — [`ValidatedProfile::plane`]); everything
     /// else carried. No
@@ -2662,8 +2667,9 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
                 // doubled here since we accumulate 2A, the difference read
                 // conditioned (`Real::less_sin`). `r²` is the tight
                 // square, and here it is the tight square of something
-                // already known nonnegative: `Seg::radius` is
-                // `signed_radius.abs()`, so at `Interval` the enclosure
+                // already known nonnegative: a stored radius is positive
+                // in value (`Arc2::radius`; a table's is decided so at
+                // its door, `arc_radius`), so at `Interval` the enclosure
                 // has `lo >= 0` and the plain product's four-corner
                 // minimum IS the tight square. The conversion changes no
                 // bound at any instantiation — it is here so the file

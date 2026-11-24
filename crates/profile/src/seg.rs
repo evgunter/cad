@@ -618,9 +618,18 @@ pub fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
     T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
-/// Validation's two difference checks of a stored arc against its
-/// endpoints `a → b`, `arc_start_on_carrier` then `arc_landing`,
-/// decided at the run's band ([`build_seg`] states each margin).
+/// Validation's checks of a stored arc against its endpoints `a → b`,
+/// decided at the run's band: `arc_radius`, then the two difference
+/// checks `arc_start_on_carrier` and `arc_landing` ([`build_seg`]
+/// states each margin).
+///
+/// **The radius is read first** (`arc_radius`, margin the stored
+/// radius, meters): a table is the one door a radius enters by that no
+/// gate decided, and one that is not definitely positive is no carrier
+/// for the start to lie on, refused as that check's
+/// ([`ArcCheck::OnCarrier`]). Every reader past this line holds
+/// [`Arc2::radius`]'s "positive in value" as a decided fact, so the
+/// gap's `‖w‖ + radius` is not zero at a point of the carrier.
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
@@ -631,6 +640,11 @@ fn check_carrier<T: Decide>(
     // A difference check's definite answer is a statement about the
     // input only where the scene's `f64` can read a difference that
     // small at the magnitude it was taken at ([`resolves`]).
+    let radius = decide_reported(Gate::ArcRadius, Margin::of(arc.radius), band)
+        .map_err(SegIssue::escalated)?;
+    if radius.sign != Sign::Positive {
+        return refuse(ArcCheck::OnCarrier);
+    }
     let scale = arc.radius.max(reach(arc.centre));
     let on_carrier = arc.off_carrier(a);
     let read = decide_reported(Gate::ArcStartOnCarrier, Margin::of(on_carrier), band)
@@ -679,7 +693,11 @@ const DIRECTION_ULPS: f64 = 8.0;
 /// length from its start, and an arc's radial walked its stored radius
 /// from the centre, each must land on the vertex it points at — the
 /// **`segment_direction`** predicate, margin ‖o + ℓ·d − p‖ (meters,
-/// direct), which is Zero exactly when `d` is the unit `(p − o)/ℓ`. A
+/// direct), which is Zero exactly when `d` is `(p − o)/ℓ`. For an arc
+/// that is the reading its readers make of a recorded radial (the
+/// centre plus the stored radius along it is the vertex), not a mint of
+/// one: a radial minted from the points is the offset over its own
+/// length ([`mint_radial`]), and passes here to the carrier band. A
 /// definite miss is refused typed where the scene resolves it
 /// (**`segment_direction_resolution`**, [`resolves`]'s margin).
 ///
@@ -848,17 +866,18 @@ pub(crate) struct AxisUnsigned<T: Real> {
     pub(crate) source: Escalation,
 }
 
-/// **`x`'s sign as the literal ±1**, where it reads definite: a choice
+/// **`x`'s sign as a sense**, where it reads definite: a choice
 /// between sound spellings ([`geom_core::k_stats::choose`],
 /// `segment_direction_sign`, audit row F43), one reading per call;
-/// `None` at a tie, for the caller's other spelling. A literal rather
-/// than a `copysign` of one, so the symbolic tier reads a constant where
-/// the sign is known, not an opaque atom.
-pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
+/// `None` at a tie, where the caller has no arc to spell and refuses.
+/// A sense ([`geom_core::ArcSweep`], whose sign is a literal ±1) rather
+/// than a `copysign`, so the symbolic tier reads a constant where the
+/// sign is known, not an opaque atom.
+pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<geom_core::ArcSweep> {
     use geom_core::k_stats::{Pick, choose};
     match choose(Gate::SegmentDirectionSign.predicate(), Margin::of(x), "F43") {
-        Pick::Positive => Some(T::one()),
-        Pick::Negative => Some(-T::one()),
+        Pick::Positive => Some(geom_core::ArcSweep::Ccw),
+        Pick::Negative => Some(geom_core::ArcSweep::Cw),
         Pick::Tie => None,
     }
 }

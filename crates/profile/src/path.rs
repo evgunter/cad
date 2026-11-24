@@ -4035,7 +4035,7 @@ fn via_arc<T: Real>(
     b: Point2<T>,
     sense: ArcSweep,
 ) -> Option<BuiltArc<T>> {
-    crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b), Some(sense.sign()))
+    crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b), sense)
         .map(|built| built.through(Some(q)).sensed(sense))
 }
 
@@ -4044,9 +4044,8 @@ fn via_arc<T: Real>(
 /// [`tangent_arc_geom`]'s decision, not this function's). Its carrier is
 /// the circle tangent to `u` at `a` through `b`: the centre `a + n̂·ρ`
 /// (n̂ the left normal of `u`) at the signed offset
-/// `ρ = |d|² / (2·across)`, the radius `σ·ρ` for `side` = σ, the
-/// literal ±1 of the side of the departure the caller decided `b` lies
-/// on, with `d = b − a` resolved
+/// `ρ = |d|² / (2·across)`, the radius `σ·ρ`, σ the literal ±1 of `side`,
+/// the side of the departure the caller decided `b` lies on, with `d = b − a` resolved
 /// along and across `u` — no root. Δθ = 4·atan(X) with X the tangent of
 /// half the angle δ from `u` to the chord (the arc turns 2δ, so X is
 /// tan(θ/4)), [`crate::sugar::split_half_tan`]`(across, along, |d|)`.
@@ -4059,7 +4058,7 @@ fn via_arc<T: Real>(
 /// [`tangent_arc_geom`] records, are `σ·(t.y, −t.x)` for the tangent `t`
 /// at each end: `c + σρ·σ·(u.y, −u.x) = a + n̂·(ρ − σ²ρ) = a` at every
 /// value of `ρ`, by `σ² = 1`, and the end's by the chord's reflection.
-fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>, side: T) -> BuiltArc<T> {
+fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>, side: ArcSweep) -> BuiltArc<T> {
     let d = b - a;
     // The unit read is the consistent one for this construction. With
     // `c = a + perp(u)·ρ` and `ρ = |d|²/(2·u×d)` read on the same stored
@@ -4075,7 +4074,7 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>, side: T) -> Buil
     BuiltArc::new(
         Arc2 {
             centre: a + Vec2::new(-u.y, u.x) * rho,
-            radius: side * rho,
+            radius: side.sign::<T>() * rho,
             sweep: T::from_f64(4.0) * x.atan(),
         },
         crate::Facts::Registered,
@@ -4140,7 +4139,7 @@ fn tangent_arc_geom<T: Decide>(
     // away from the centre, which lies on the side the sense decided.
     let away = |t: Vec2<T>| Vec2::new(t.y, -t.x) * sense.sign::<T>();
     let arc = (!on_line).then(|| {
-        tangent_arc(at, u, p, sense.sign())
+        tangent_arc(at, u, p, sense)
             .sensed(sense)
             .radial([away(u), away(end_ang.unit)])
     });
@@ -6494,21 +6493,44 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
 
     /// The `Bulge` mode's arc: the mode's one conversion,
     /// [`crate::bulge_leg`], on the chord from the tip. The bulge is the
-    /// authored datum and this leg decides nothing about it, so its turn
-    /// is the bulge's own sign where that reads definite
-    /// ([`seg::literal_sign`]) and nothing where it does not.
+    /// authored datum, so its turn is the bulge's own sign as a literal
+    /// ([`seg::literal_sign`]).
+    ///
+    /// # Errors
+    ///
+    /// A bulge whose sign does not read as a literal (one boxed across
+    /// zero) names no arc: the leg stores nothing for it and refuses on
+    /// the `path_arc_bulge` reading of it, an escalation where that is
+    /// undecided and [`PathError::DegenerateArcSpec`] where it is zero
+    /// at tolerance.
     pub(super) fn arc_bulge(
         &self,
         end: Point2<T>,
         bulge: T,
+        tol: Tol,
     ) -> Result<Option<BuiltArc<T>>, PathError<T>> {
+        let at = self.tip_pos()?.at;
+        if crate::is_exact_zero(bulge) {
+            return Ok(None);
+        }
+        let turn = match seg::literal_sign(bulge) {
+            Some(turn) => turn,
+            None => match decide(Gate::PathArcBulge, Margin::of(bulge), linear_band(tol)?) {
+                Ok(Sign::Positive) => ArcSweep::Ccw,
+                Ok(Sign::Negative) => ArcSweep::Cw,
+                Ok(Sign::Zero) => {
+                    return Err(PathError::DegenerateArcSpec {
+                        value: authored_ratio(bulge),
+                    });
+                }
+                Err(source) => return Err(PathError::escalated(source)),
+            },
+        };
         Ok(
-            crate::bulge_leg(self.tip_pos()?.at, end, bulge, seg::literal_sign(bulge)).map(
-                |built| BuiltArc {
-                    bulge_authored: true,
-                    ..built
-                },
-            ),
+            crate::bulge_leg(at, end, bulge, turn).map(|built| BuiltArc {
+                bulge_authored: true,
+                ..built
+            }),
         )
     }
 
@@ -7429,8 +7451,11 @@ mod tests {
             if bulge == 0.0 {
                 core.push_line(to).expect("step 1's line");
             } else {
-                core.push_arc(to, BuiltArc::lowered(head, to, bulge, Some(bulge.signum())))
-                    .expect("step 1's arc");
+                core.push_arc(
+                    to,
+                    BuiltArc::lowered(head, to, bulge, ArcSweep::of_constant(bulge)),
+                )
+                .expect("step 1's arc");
             }
             core.pieces[1].expect("step 1's segment is named")
         };
@@ -7500,7 +7525,7 @@ mod tests {
                             if u.perp_dot(b - at).abs() <= 1e-11 {
                                 continue;
                             }
-                            let side = u.perp_dot(b - at).signum();
+                            let side = ArcSweep::of_constant(u.perp_dot(b - at));
                             let f = tangent_arc(at, u, b, side).arc;
                             let lift = Interval::from_f64;
                             let (ci, cj) = (lift(cx), lift(cy));
@@ -7509,7 +7534,7 @@ mod tests {
                                 Point2::new(lift(at.x), lift(at.y)),
                                 Vec2::new(ci, cj) / ni,
                                 Point2::new(lift(b.x), lift(b.y)),
-                                lift(side),
+                                side,
                             )
                             .arc;
                             println!(
@@ -8084,7 +8109,7 @@ mod stored_arc_landing {
     fn cancelling_via(a: Point2<f64>, q: Point2<f64>, b: Point2<f64>) -> BuiltArc<f64> {
         let (d1, d2) = (q - a, b - q);
         let x = split_half_tan_near(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm());
-        BuiltArc::lowered(a, b, x, Some(x.signum())).through(Some(q))
+        BuiltArc::lowered(a, b, x, ArcSweep::of_constant(x)).through(Some(q))
     }
 
     fn band() -> Band {
@@ -8189,7 +8214,7 @@ mod stored_arc_landing {
             "the refusal reports the miss it read"
         );
         assert!(
-            read(tangent_arc(a, u, b, 1.0), a, b, verb).is_ok(),
+            read(tangent_arc(a, u, b, ArcSweep::Ccw), a, b, verb).is_ok(),
             "the door's tangent arc at r = {r:e} passes"
         );
     }
@@ -8366,7 +8391,7 @@ mod stored_arc_landing {
     fn a_miss_the_scene_cannot_resolve_refuses_as_the_scene_resolution_sibling() {
         let r = 4.0 * resolvable(seg::LANDING_ULPS);
         let (a, u, b) = tangent_probe(r);
-        let arc = tangent_arc(a, u, b, 1.0).arc;
+        let arc = tangent_arc(a, u, b, ArcSweep::Ccw).arc;
         let verb = program::Verb::TangentArcTo;
         let off = Point2::new(b.x, b.y + 1.5 * band().escalate());
         let b = off;
@@ -8419,7 +8444,7 @@ mod stored_arc_landing {
     #[test]
     fn an_authored_bulge_that_reads_as_a_line_is_not_read_back() {
         let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
-        let flat = BuiltArc::lowered(a, b, 1e-320, Some(1.0));
+        let flat = BuiltArc::lowered(a, b, 1e-320, ArcSweep::Ccw);
         let authored = BuiltArc {
             bulge_authored: true,
             ..flat
@@ -8447,7 +8472,7 @@ mod stored_arc_landing {
             Point2::new(10.0, 0.0),
             Point2::new(5.0, 1.0),
         );
-        let flat = BuiltArc::lowered(a, b, 1e-12, Some(1.0))
+        let flat = BuiltArc::lowered(a, b, 1e-12, ArcSweep::Ccw)
             .through(Some(q))
             .sensed(ArcSweep::Cw);
         let verb = program::Verb::ArcTo;
@@ -8721,7 +8746,7 @@ mod stored_arc_landing {
     fn an_in_band_or_poisoned_read_escalates_and_zero_passes() {
         let verb = program::Verb::TangentArcTo;
         let (a, u, b) = tangent_probe(10.0);
-        let arc = tangent_arc(a, u, b, 1.0);
+        let arc = tangent_arc(a, u, b, ArcSweep::Ccw);
         assert!(read(arc, a, b, verb).is_ok(), "the door's arc passes");
         let gap = 0.5 * (band().zero() + band().escalate());
         let off = Point2::new(b.x, b.y + gap);

@@ -307,27 +307,42 @@ impl<T: Real> SegmentDirections<T> {
 /// a [`Segment::Line`] exactly when the bulge is exactly zero (either
 /// sign), and otherwise the arc [`bulge_leg`] stores, its turn read
 /// off the bulge as the `Bulge` leg reads it ([`seg::literal_sign`]).
+///
+/// A bulge whose sign does not read ([`seg::literal_sign`]'s tie: one
+/// boxed across zero, or poison) names no arc. The fixture door is
+/// total, so it stores the chord's carrier with a poisoned radius,
+/// which validation refuses typed; the path door refuses the same
+/// bulge itself ([`path::PathError`]).
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn lower_to<T: geom_core::Decide>(
     start: Point2<T>,
     bulge: T,
     end: Point2<T>,
 ) -> Segment<T> {
-    bulge_leg(start, end, bulge, seg::literal_sign(bulge))
-        .map_or(Segment::Line, |built| Segment::Arc(built.arc))
+    if is_exact_zero(bulge) {
+        return Segment::Line;
+    }
+    match seg::literal_sign(bulge) {
+        Some(turn) => bulge_leg(start, end, bulge, turn)
+            .map_or(Segment::Line, |built| Segment::Arc(built.arc)),
+        None => Segment::Arc(Arc2 {
+            radius: geom_core::poison(),
+            ..lower_arc(start, end, bulge, ArcSweep::Ccw)
+        }),
+    }
 }
 
 /// **The bulge mode's one conversion** in the lattice: `None`, a line,
 /// exactly at a zero bulge (either sign), and otherwise the arc
 /// [`BuiltArc::lowered`] builds with its endpoint facts, turning as
-/// `turn` says: the literal ±1 of the bulge's sign, from whatever the
-/// caller holds that fixed it, or `None` where it holds nothing that
-/// did.
+/// `turn` says: the bulge's sense, from whatever the caller holds that
+/// decided it. A caller that holds nothing which did has no arc to ask
+/// for, and refuses.
 pub(crate) fn bulge_leg<T: Real>(
     start: Point2<T>,
     end: Point2<T>,
     bulge: T,
-    turn: Option<T>,
+    turn: ArcSweep,
 ) -> Option<BuiltArc<T>> {
     (!is_exact_zero(bulge)).then(|| BuiltArc::lowered(start, end, bulge, turn))
 }
@@ -369,7 +384,12 @@ pub(crate) fn lower_chain<T: geom_core::Decide>(
 /// included angle θ whose quarter-tangent the bulge is by definition
 /// (crate docs), and `4·atan(b)` is that θ for every finite `b`
 /// (|θ| < 2π).
-pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T, turn: T) -> Arc2<T> {
+pub(crate) fn lower_arc<T: Real>(
+    start: Point2<T>,
+    end: Point2<T>,
+    bulge: T,
+    turn: ArcSweep,
+) -> Arc2<T> {
     Arc2::from_chord(start, end, bulge, turn)
 }
 
@@ -441,33 +461,13 @@ impl<T: Real> BuiltArc<T> {
         }
     }
 
-    /// The arc the chord `start → end` and `x` lower to, with its
-    /// endpoint facts — theorems of that lowering.
-    ///
-    /// With `turn`, the literal ±1 of `x`'s sign, it is [`lower_arc`]'s
-    /// and records the lowering's radials
+    /// The arc the chord `start → end` and `x` lower to, turning as
+    /// `turn`, `x`'s decided sense, with its endpoint facts — theorems
+    /// of that lowering ([`lower_arc`]) — and the lowering's radials
     /// ([`Arc2::from_chord_radials`], whose doc carries their proof).
-    /// With none, nothing fixed the turn, so no sign is spelled: the
-    /// carrier is the lowering's, the radius is the start's measured
-    /// distance from its centre, and the arc records no radials, for
-    /// validation to decide.
-    pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T, turn: Option<T>) -> Self {
-        match turn {
-            Some(turn) => {
-                let (arc, radials) = Arc2::from_chord_radials(start, end, x, turn);
-                Self::new(arc, Facts::Registered).radial(radials)
-            }
-            None => {
-                let arc = lower_arc(start, end, x, T::one());
-                Self::new(
-                    Arc2 {
-                        radius: arc.rim(start),
-                        ..arc
-                    },
-                    Facts::Registered,
-                )
-            }
-        }
+    pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T, turn: ArcSweep) -> Self {
+        let (arc, radials) = Arc2::from_chord_radials(start, end, x, turn);
+        Self::new(arc, Facts::Registered).radial(radials)
     }
 
     /// The same arc, with the unit radials at its two ends its
