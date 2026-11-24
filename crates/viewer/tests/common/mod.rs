@@ -356,7 +356,7 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 /// its first operand's root, a mirror's image, a `⊔` over a family),
 /// takes over what read its input (a source, a `⊔` operand, the product
 /// slot) or withdraws a copy, writes a bundle, or declares the index a
-/// pattern's placement reads.
+/// pattern's placement reads and names what its binder yields.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -384,6 +384,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                     | DocEdit::SetProduct { .. }
                     | DocEdit::DeleteNode { .. }
                     | DocEdit::DeclareVar { .. }
+                    | DocEdit::SetYields { .. }
                     | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::RemoveConstraint { .. }
@@ -393,6 +394,34 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
         );
     }
     outcome.made.expect("an authoring op made a node")
+}
+
+/// **A boss drawn on `face` and extruded `depth` off it**: `chain` drawn
+/// on the face's chart (`SessionOp::DrawOnFace`), then extruded
+/// (`SessionOp::AddExtrude`), each its own action ([`session_insert`])
+/// and neither landed. Answers the profile and the extrude.
+pub fn drawn_boss(
+    session: &mut DocSession,
+    face: FaceSelection,
+    chain: pncad::trace::Chain,
+    depth: f64,
+) -> (RecipeNodeId, RecipeNodeId) {
+    let profile = session_insert(
+        session,
+        SessionOp::DrawOnFace {
+            face,
+            traced: Vec::new(),
+            chains: vec![chain],
+        },
+    );
+    let boss = session_insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(depth),
+        },
+    );
+    (profile, boss)
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -470,7 +499,7 @@ fn mate_elsewhere(
     match op {
         SessionOp::AddMate {
             placement, mate, ..
-        } => off(*placement, &mate.to),
+        } => off(*placement, &mate.to.read),
         SessionOp::SetBundle {
             placement,
             target,
@@ -479,7 +508,7 @@ fn mate_elsewhere(
         } => constraints
             .iter()
             .filter_map(|c| c.mate())
-            .find_map(|mate| off(*placement, &mate.to))
+            .find_map(|mate| off(*placement, &mate.to.read))
             .filter(|&(_, space)| *target != viewer::session::PlaceTarget::space(space)),
         _ => None,
     }
@@ -677,8 +706,8 @@ pub fn cut_across(
             Some(Node::Union {
                 members: pncad::document::Bodies::Spelled(members),
             }) => {
-                on = Operand::Var(members[0].read);
-                members[0].read
+                on = Operand::Var(members[0].read().read);
+                members[0].read().read
             }
             _ => break,
         };

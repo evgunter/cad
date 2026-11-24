@@ -110,11 +110,12 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::say;
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload, held_by,
-    node_kind_noun,
+    ProfileProgram, RecipeNodeId, Say, Sentence, Speaker, SplitSide, SpokenNode, ValuePayload,
+    held_by, node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -125,7 +126,7 @@ use pncad::select::{
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{Computed, Notation};
-use crate::session::{EdgeSelection, FaceSelection, Selection, VersionOffer};
+use crate::session::{EdgeSelection, FaceSelection, Selection};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -136,8 +137,10 @@ pub struct CarriedLine {
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
     /// The node's refusal exactly as its own tree draws it
-    /// (`CarriedLevel::line_in`).
-    pub line: String,
+    /// (`CarriedLevel::line_in`), its nodes mentioned in the document
+    /// that holds them: a part's are not this document's, so they are
+    /// no link on its screen.
+    pub line: Sentence,
 }
 
 /// The label of a carried level whose node is in the document the tree
@@ -152,8 +155,9 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError::spoken` over the tree's document.
-        message: String,
+        /// `NodeError::spoken` over the tree's document, its nodes
+        /// mentioned there.
+        message: Sentence,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
         /// its own recourse, drawn under this row exactly as that
@@ -226,11 +230,11 @@ impl RowStatus {
     /// The line drawn under the row, when it has one: the typed
     /// payload's own words on a failing row, and on a downstream row
     /// the pointer at the row that has them.
-    pub fn message(&self) -> Option<&str> {
+    pub fn message(&self) -> Option<Sentence> {
         match self {
             Self::Ok | Self::Unevaluated => None,
-            Self::Failed { message, .. } => Some(message),
-            Self::Poisoned { message, .. } => message.as_deref(),
+            Self::Failed { message, .. } => Some(message.clone()),
+            Self::Poisoned { message, .. } => message.as_deref().map(Sentence::from),
         }
     }
 
@@ -255,7 +259,7 @@ impl RowStatus {
 }
 
 /// One line of the feature tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TreeRow {
     /// The recipe node this row is.
     pub id: RecipeNodeId,
@@ -289,12 +293,11 @@ pub struct TreeRow {
     /// value that says nothing beyond `Ok`, and on every other row,
     /// whose status says why there is none.
     pub readout: Option<Readout>,
-    /// **The accept a [`RowStatus::Failed`] instance row offers**, when
-    /// its failure is a pin that no longer holds
-    /// ([`crate::frame::version_offer`]); `None` on every other row, and
-    /// on every row while a newer document's run is outstanding
-    /// (`DocSession::tree_rows`).
-    pub version_offer: Option<VersionOffer>,
+    /// **The acts a [`RowStatus::Failed`] row's own failure offers**
+    /// ([`crate::recourse::offers`]), read off the landed run only while
+    /// it is the committed document's (`DocSession::tree_rows`). Empty on
+    /// every other row.
+    pub offers: Vec<crate::recourse::Offer>,
     /// **A placement's constraints, its children** ([`ConstraintRow`]):
     /// a `Place`'s or an instance's bundle, in bundle order. Empty on
     /// every other row. A constraint is no node, so it has no row of its
@@ -347,12 +350,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
 pub fn numbered_constraints(
     node: &Node<ProfileProgram>,
 ) -> impl Iterator<Item = (usize, &Constraint)> {
-    let bundle = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            constraints.as_slice()
-        }
-        _ => &[],
-    };
+    let bundle = node.bundle().unwrap_or(&[]);
     bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 
@@ -536,7 +534,7 @@ pub enum Certified {
     /// `sentence` says so, with the recourse.
     OutOfBudget {
         /// What the row says under it.
-        sentence: String,
+        sentence: pncad::document::Sentence,
     },
     /// The answer, in plain numbers. At `f64` it is the third state,
     /// naming the lane that certifies.
@@ -632,16 +630,16 @@ impl Cleared {
     /// **The sentence drawn under the row**: a refusal said with its
     /// recourse, why the assertion did not evaluate, or that nothing is
     /// certifying it.
-    pub fn sentence(&self) -> Option<&str> {
+    pub fn sentence(&self) -> Option<pncad::document::Sentence> {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
             Certified::Answered(
                 O::Refused { sentence, .. }
                 | O::OverMembers { sentence }
                 | O::Unanswered { sentence },
-            ) => Some(sentence),
-            Certified::Stopped => Some(CERTIFY_STOPPED),
-            Certified::OutOfBudget { sentence } => Some(sentence),
+            ) => Some(sentence.clone()),
+            Certified::Stopped => Some(CERTIFY_STOPPED.into()),
+            Certified::OutOfBudget { sentence } => Some(sentence.clone()),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }
@@ -690,20 +688,22 @@ fn cleared(
             canonical,
             dimension: pncad::document::Dimension::Length,
         }),
-        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
+        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var).to_string()),
     };
     // A face seat is its face, said; a body seat its read — a copy's
     // as the body it places ([`crate::world::copy_source`]), the
     // part the author picked.
     let seat = |var: pncad::document::VarId| match doc.selection(var).and_then(|s| s.names.first())
     {
-        Some(face) => by.name(face).to_string(),
-        None => by.read(
-            doc.defined_by(var)
-                .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
-                .filter(|source| !source.member)
-                .map_or(var, |source| source.body_var),
-        ),
+        Some(face) => pncad::document::sentence!(by.name(face)).to_string(),
+        None => by
+            .read(
+                doc.defined_by(var)
+                    .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
+                    .filter(|source| !source.member)
+                    .map_or(var, |source| source.body_var),
+            )
+            .to_string(),
     };
     Cleared {
         a: seat(a),
@@ -729,14 +729,19 @@ pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles
     named(&doc.spoken(id), which.as_deref())
 }
 
+/// **A spoken node as text**, and a variable: the kernel's own
+/// ([`pncad::document::node_text`]), under the names the chrome reads
+/// them by.
+pub use pncad::document::{node_text as spelled, var_text as spelled_var};
+
 /// A spoken node and which one of its kind it is, as [`node_label`]
 /// draws them: `InstantiatePart 000000000002 — bracket.pncad`, or
-/// `InstantiatePart "left" (000000000002) — bracket.pncad` when the
-/// node is labelled.
+/// `"left" (000000000002) — bracket.pncad` when the node is labelled.
 pub fn named(spoken: &SpokenNode, which: Option<&str>) -> String {
+    let spoken = spelled(spoken);
     match which {
         Some(which) => format!("{spoken} — {which}"),
-        None => spoken.to_string(),
+        None => spoken,
     }
 }
 
@@ -752,20 +757,15 @@ pub struct Headline {
 }
 
 /// **What a feature-tree row's headline says** (DESIGN.md Band 1,
-/// "Node labels"): a labelled node leads with its label, with its kind
-/// and tag muted beside it (`base plate` · `Extrude 3fa9c1d2a0b1`); an
-/// unlabelled one reads as [`named`] says it, kind, tag and which.
+/// "Node labels"): the node as every sentence spells it ([`spelled`]),
+/// `"base plate" (3fa9c1d2a0b1)` or `Extrude 3fa9c1d2a0b1`, with which
+/// one of its kind it is (an instance's part file) muted beside it, as
+/// [`named`] joins them (`— bracket.pncad`).
 #[must_use]
 pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
-    match (spoken.label(), spoken.kind()) {
-        (Some(label), Some(kind)) => Headline {
-            lead: label.to_string(),
-            muted: Some(format!("{kind} {}", spoken.id())),
-        },
-        _ => Headline {
-            lead: named(spoken, which),
-            muted: None,
-        },
+    Headline {
+        lead: spelled(spoken),
+        muted: which.map(|which| format!("— {which}")),
     }
 }
 
@@ -832,19 +832,19 @@ impl DrawnBody {
 /// grew a third component while the sentence still named two would
 /// name the wrong scope.
 impl Say for DrawnBody {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { node, body } = *self;
         if body != 0 {
             write!(f, "body {body} of ")?;
         }
-        write!(f, "{}", by.node(node))
+        say!(f, by.node(node))
     }
 }
 
 /// The sentence where no document is at hand: the node by its tag.
 impl core::fmt::Display for DrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -910,11 +910,11 @@ impl<'a> PickedName<'a> {
 }
 
 impl Say for PickedName<'_> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self { name, on } = *self;
-        write!(f, "{}", by.name(name))?;
+        say!(f, by.name(name))?;
         if on.body != 0 || !leaf_role(name).nodes(by).contains(&on.node) {
-            write!(f, ", on {}", pncad::document::Said(&on, by))?;
+            say!(f, ", on ", pncad::document::Said(&on, by))?;
         }
         Ok(())
     }
@@ -923,7 +923,7 @@ impl Say for PickedName<'_> {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickedName<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -1045,7 +1045,7 @@ impl<P: PickedEntity + crate::session::select::Follows> crate::session::select::
 /// The pick as the chrome says one ([`PickedName`]), on the body kept at
 /// the pick; a node `by` does not hold, as the pick kept it.
 impl<P: PickedEntity> Say for HeldPick<P> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         PickedName::new(self.pick.name(), self.on).say(f, by.or_held(&self.said))
     }
 }
@@ -1053,7 +1053,7 @@ impl<P: PickedEntity> Say for HeldPick<P> {
 /// The sentence where no document is at hand: each node as kept.
 impl<P: PickedEntity> core::fmt::Display for HeldPick<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::held(&self.said))
+        pncad::document::display_said(self, Speaker::held(&self.said), f)
     }
 }
 
@@ -1110,20 +1110,16 @@ pub fn rows(
             continue;
         };
         let status = status_of(doc, id, evaluation, files);
-        let (repair_at, readout, version_offer) = match status {
+        let (repair_at, readout) = match status {
             RowStatus::Failed { .. } => (
                 evaluation.and_then(|ev| repair_of(id, ev).map(|at| doc.spoken(at))),
                 None,
-                evaluation
-                    .and_then(|ev| own_error(id, ev))
-                    .and_then(|error| crate::frame::version_offer(&error.kind, files)),
             ),
             RowStatus::Ok => (
                 None,
                 evaluation.and_then(|ev| readout_of(doc, id, node, ev)),
-                None,
             ),
-            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
             id,
@@ -1133,7 +1129,7 @@ pub fn rows(
             status,
             repair_at,
             readout,
-            version_offer,
+            offers: Vec::new(),
             constraints: constraint_rows(id, node),
         });
     }
@@ -1187,6 +1183,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Instances(_) => None,
     }
 }
@@ -1508,14 +1505,17 @@ pub fn interrogation_as_drawn(
 /// The row pointed at is named as the document speaks it
 /// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
 pub fn downstream_wording(through: &SpokenNode) -> String {
-    format!("upstream failure at {through} — that row carries the cause")
+    format!(
+        "upstream failure at {through} — that row carries the cause",
+        through = crate::tree::spelled(through)
+    )
 }
 
 /// **What a link to a node says**: the node as the document speaks it,
 /// and nothing about why — the why is drawn elsewhere, so this names
 /// only WHERE to go.
 pub fn link_wording(at: &SpokenNode) -> String {
-    format!("see {at}")
+    format!("see {at}", at = crate::tree::spelled(at))
 }
 
 /// Another node whose own slot refused, when a `Failed` row's error
@@ -1574,7 +1574,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
         // repair: the refusal is the union's.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::PoseRead { .. }
@@ -1612,7 +1612,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::IndexCount { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
@@ -1663,6 +1664,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::Backwards { mate, .. }
@@ -1750,17 +1752,6 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'s
 /// document is building, and a poisoned row says it is not. Collapsing
 /// the two would make a document whose only fault is downstream report
 /// clean.
-///
-/// **And the opposite reading from [`crate::bounds::Verdict`]**, which
-/// excludes poisoning for a reason argued at its own site — *"counting
-/// it would make one failure register as many"*. Both readings are
-/// right for their question: a verdict is a SET whose size decides
-/// whether a value got worse, and a poisoned node inflates it; this is
-/// a boolean, which nothing inflates. Where they can actually differ
-/// is the one state that has a poisoned row with no failed row behind
-/// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
-/// document not building, and a verdict over it is empty. `Verdict`'s
-/// own doc names this reading back, so each site states the other.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
     rows.iter().any(|row| match row.status {
         RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,
@@ -1822,14 +1813,14 @@ mod picked_name {
         let (doc, union) = insert(
             &doc,
             Node::Union {
-                members: Bodies::Spelled(vec![read(block_copy), read(place)]),
+                members: Bodies::spelled(vec![read(block_copy), read(place)]),
             },
         );
         let (doc, subtract) = insert(
             &doc,
             Node::Subtract {
                 from: read(place),
-                tool: read(block_copy),
+                tool: read(block_copy).into(),
             },
         );
         let evaluation = evaluated(&doc);
@@ -1851,7 +1842,9 @@ mod picked_name {
             }],
         };
         let said = |name: &StableName, node, body| {
-            Said(&PickedName::new(name, DrawnBody::new(node, body)), by).to_string()
+            Said(&PickedName::new(name, DrawnBody::new(node, body)), by)
+                .sentence()
+                .to_string()
         };
         let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
         let (b, p, u, s) = (tag(boss), tag(place), tag(union), tag(subtract));
@@ -1877,7 +1870,7 @@ mod picked_name {
         let on_copy = PickedName::new(&end, DrawnBody::new(place, 0));
         assert_eq!(
             on_copy.to_string(),
-            Said(&on_copy, Speaker::TAG).to_string(),
+            Said(&on_copy, Speaker::TAG).sentence().to_string(),
             "with no document at hand, each node by its tag"
         );
         assert_eq!(

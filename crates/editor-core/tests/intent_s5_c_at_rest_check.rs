@@ -556,7 +556,7 @@ fn every_assemble_is_checked_against_nothing_outside_it() {
     let (doc, both) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let (doc, far) = block(doc, 0.2, 0.2);
@@ -616,7 +616,7 @@ fn one_body_assembled_twice_refuses_nothing() {
     let (doc, twice) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![read.clone(), read]),
+            members: editor_core::Bodies::spelled(vec![read.clone(), read]),
         },
     );
     let doc = crate::fixture::step(
@@ -663,7 +663,7 @@ fn one_body_assembled_twice_refuses_nothing() {
     // second, and no carrier pair of the two arrivals is one a signed
     // `Gap` can be written over. Outside what the document can say, it
     // refuses at no severity (DS6).
-    assert!(!overlap.quietable, "{overlap:?}");
+    assert!(overlap.quieting.is_none(), "{overlap:?}");
     assert!(
         enforce_checks(&report, &error).is_ok(),
         "and Error refuses nothing"
@@ -914,7 +914,8 @@ fn sunk_corner(label: &str, pose: &Frame) -> ProfileDoc {
 fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
     let (finding, refused) = at_error(&in_band_l("s5c-unlocalized"));
     assert!(
-        matches!(finding.overlap, editor_core::Overlap::Unlocalized(_)) && !finding.quietable,
+        matches!(finding.overlap, editor_core::Overlap::Unlocalized(_))
+            && finding.quieting.is_none(),
         "{finding:?}"
     );
     assert!(!refused, "an unlocalized overlap refused at Error");
@@ -924,7 +925,8 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
     ));
     let (finding, refused) = at_error(&sunk_corner("s5c-skew-corner", &skew));
     assert!(
-        matches!(finding.overlap, editor_core::Overlap::Bounded { .. }) && !finding.quietable,
+        matches!(finding.overlap, editor_core::Overlap::Bounded { .. })
+            && finding.quieting.is_none(),
         "a skew corner is bounded and no Gap covers it: {finding:?}"
     );
     assert!(!refused, "an overlap no Gap covers refused at Error");
@@ -932,7 +934,10 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
         "s5c-square-corner",
         &Frame::translation([0.5, 0.5, 0.85]),
     ));
-    assert!(finding.quietable && finding.is_loud(), "{finding:?}");
+    assert!(
+        finding.quieting.is_some() && finding.is_loud(),
+        "{finding:?}"
+    );
     assert!(refused, "a loud overlap a Gap covers refuses at Error");
 }
 
@@ -997,7 +1002,7 @@ fn shafts_side_by_side_quiet_under_a_holding_gap_at_every_bearing() {
         );
         found += bare.len();
         assert!(
-            bare.iter().all(|f| f.is_loud() && f.quietable),
+            bare.iter().all(|f| f.is_loud() && f.quieting.is_some()),
             "bearing {k}/8, no assertion: loud and quietable: {bare:?}"
         );
         assert_eq!(
@@ -1100,7 +1105,7 @@ fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
         let (doc, seat) = insert(
             doc,
             Node::Assemble {
-                members: Bodies::Spelled(vec![bolt.into(), plate.into()]),
+                members: Bodies::spelled(vec![bolt.into(), plate.into()]),
             },
         );
         let (doc, copy) = place(doc, seat);

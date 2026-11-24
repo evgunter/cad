@@ -211,7 +211,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(cut_node),
             none(),
             id(kept_node),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
         ),
@@ -225,7 +225,10 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(cut_node),
             none(),
             id(kept_node),
-            text(&space.to_string()),
+            text(
+                &pncad::document::sentence!(pncad::document::Speaker::TAG.mention(space))
+                    .to_string(),
+            ),
             none(),
             none(),
         ),
@@ -233,7 +236,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
         ),
@@ -241,7 +244,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
         ),
@@ -249,7 +252,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(n),
             none(),
             none(),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
         ),
@@ -273,7 +276,14 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     let (moving, staying) = match err {
         E::DefinitionStraddlesCut {
             moving, staying, ..
-        } => (text(&moving.to_string()), text(&staying.to_string())),
+        } => (
+            text(
+                &pncad::document::sentence!(pncad::document::Speaker::TAG.var(moving)).to_string(),
+            ),
+            text(
+                &pncad::document::sentence!(pncad::document::Speaker::TAG.var(staying)).to_string(),
+            ),
+        ),
         _ => (none(), none()),
     };
     typed_err(
@@ -519,7 +529,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&failure.message),
+            text(&failure.message.to_string()),
             none(),
             none(),
         ),
@@ -534,7 +544,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::UnreadPose { var } => (
             none(),
             none(),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
             none(),
@@ -542,7 +552,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
             none(),
-            text(&var.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(var)).to_string()),
             none(),
             none(),
             none(),

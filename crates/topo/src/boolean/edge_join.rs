@@ -114,7 +114,7 @@ use super::{BooleanError, Cell};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::readback::edge_sides_of;
 
 /// A joinable vertex's two edges: `gone` dies with the vertex, `kept`
@@ -307,17 +307,12 @@ impl JoinUndecided {
 
 geom_brep::ended_by_write!(JoinUndecided);
 
-/// `e`'s certified curve, where it is a line: the one home of "a
-/// certified line edge", read by the join and by the carried-record
-/// door, whose edge-edge lineage reads an edge as its two ends.
+/// `d`'s certified curve, where it is a line: the one home of "a
+/// certified line edge".
 pub(super) fn certified_line<'a, T: Real>(
-    body: &'a Body<T>,
-    e: EdgeKey,
-    d: &crate::entity::Edge,
+    d: crate::live::EdgeView<'a, T>,
 ) -> Option<&'a geom_brep::EdgeCurve<T>> {
-    body.edge_curve_linked(e, d)
-        .certified()
-        .filter(|c| !c.carrier().is_curved())
+    d.certified().filter(|c| !c.carrier().is_curved())
 }
 
 /// Whether `v` is a **conventional vertex**: its only edge is one
@@ -462,11 +457,10 @@ enum Crease {
 /// parameter straddles a crease and none is decided equal.
 fn crease_at<T: Decide>(
     body: &Body<T>,
-    e: EdgeKey,
-    d: &crate::entity::Edge,
+    d: crate::live::EdgeView<'_, T>,
     w: VertexKey,
 ) -> Result<Crease, Indeterminate> {
-    let Some(c) = body.edge_curve_linked(e, d).certified() else {
+    let Some(c) = d.certified() else {
         return Ok(Crease::No);
     };
     // The stored carrier: an edge on a periodic cubic reads a clamped
@@ -476,7 +470,7 @@ fn crease_at<T: Decide>(
         return Ok(Crease::No);
     };
     let (t0, t1) = c.params();
-    let starts_at_w = body.get_half_edge(d.he_plus).map(|h| h.start) == Some(w);
+    let starts_at_w = body.get_half_edge(d.record().he_plus).map(|h| h.start) == Some(w);
     let t = if starts_at_w { t0 } else { t1 };
     let knots = n.knot_values();
     let (a, b) = knots.domain();
@@ -558,15 +552,7 @@ fn joinable<T: Decide>(
     if e1 == e2 {
         return Ok(None);
     }
-    let link = |e: EdgeKey, h: HalfEdgeKey| {
-        linked(
-            &body.edges,
-            e,
-            EntityId::Edge,
-            EntityId::HalfEdge(h),
-            "edge",
-        )
-    };
+    let link = |e: EdgeKey, h: HalfEdgeKey| body.linked_edge(e, EntityId::HalfEdge(h), "edge");
     // The joined edge runs on the kept carrier through `w` (module docs,
     // [`kept_edge`]): two decided creases pick the kept edge, or that `w`
     // is not joined. A crease the band leaves undecided is the join's
@@ -574,7 +560,7 @@ fn joinable<T: Decide>(
     // otherwise joinable: the tests below run in arena order, and the
     // refusal stands where a join would be built (`join`, below).
     let crease = |e, h| {
-        crease_at(body, e, link(e, h), w).map_err(|diag| JoinUndecided {
+        crease_at(body, link(e, h), w).map_err(|diag| JoinUndecided {
             vertex: w,
             reading: JoinReading::Crease(diag),
         })
@@ -593,7 +579,10 @@ fn joinable<T: Decide>(
         _ => Ok(()),
     };
     let (d1, d2) = (link(e1, *h1), link(e2, *h2));
-    let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
+    let (s1, s2) = (
+        edge_sides_of(body, e1, d1.record()),
+        edge_sides_of(body, e2, d2.record()),
+    );
     let pair = |s: crate::readback::EdgeSides| {
         let (f, g) = s.faces();
         if f <= g { (f, g) } else { (g, f) }
@@ -636,8 +625,8 @@ fn joinable<T: Decide>(
         // One carrier by structure: both edges certified as the
         // intersection of these two planes, which is one line (planes
         // that do not cross certify no intersection).
-        let on_the_pair = |e: EdgeKey, d| {
-            certified_line(body, e, d).is_some_and(|c| {
+        let on_the_pair = |d| {
+            certified_line(d).is_some_and(|c| {
                 matches!(
                     c.description(),
                     geom_brep::EdgeDescription::Intersection { pair, .. }
@@ -645,12 +634,12 @@ fn joinable<T: Decide>(
                 )
             })
         };
-        let joins = sf != sg && on_the_pair(e1, d1) && on_the_pair(e2, d2);
+        let joins = sf != sg && on_the_pair(d1) && on_the_pair(d2);
         return if joins { join(true, None) } else { Ok(None) };
     }
     let undecided = |reading| JoinUndecided { vertex: w, reading };
-    let locus_of = |e: EdgeKey, d| {
-        let Some(c) = body.edge_curve_linked(e, d).certified() else {
+    let locus_of = |d: crate::live::EdgeView<'_, T>| {
+        let Some(c) = d.certified() else {
             return Ok(None);
         };
         Ok(match c.description() {
@@ -698,10 +687,10 @@ fn joinable<T: Decide>(
     };
     // Each iso reading's Zero rides beside its locus, which alone is
     // compared.
-    let Some((locus, gone_zero)) = locus_of(e1, d1)? else {
+    let Some((locus, gone_zero)) = locus_of(d1)? else {
         return Ok(None);
     };
-    let Some((kept_locus, kept_zero)) = locus_of(e2, d2)? else {
+    let Some((kept_locus, kept_zero)) = locus_of(d2)? else {
         return Ok(None);
     };
     if kept_locus != locus {
@@ -735,7 +724,7 @@ fn joinable<T: Decide>(
     let regular = match (locus, class) {
         (Locus::Transverse, geom_brep::DihedralClass::Transverse) => true,
         (Locus::Tangent, geom_brep::DihedralClass::Smooth) => {
-            let Some(tangent) = tangent_at(body, e2, d2, w) else {
+            let Some(tangent) = tangent_at(body, d2, w) else {
                 return Ok(None);
             };
             let verdict =
@@ -750,13 +739,12 @@ fn joinable<T: Decide>(
 /// `e`'s carrier tangent at its end `w`.
 fn tangent_at<T: Decide>(
     body: &Body<T>,
-    e: EdgeKey,
-    d: &crate::entity::Edge,
+    d: crate::live::EdgeView<'_, T>,
     w: VertexKey,
 ) -> Option<geom_core::Vec3<T>> {
-    let c = body.edge_curve_linked(e, d).certified()?;
+    let c = d.certified()?;
     let (t0, t1) = c.params();
-    let start = body.get_half_edge(d.he_plus)?.start;
+    let start = body.get_half_edge(d.record().he_plus)?.start;
     Some(c.carrier().ders1(if start == w { t0 } else { t1 }).1)
 }
 
@@ -1199,8 +1187,8 @@ fn joined_spec<T: Decide>(
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let curve = |e: EdgeKey| {
-        let d = body.get_edge(e)?;
-        Some((body.edge_curve_linked(e, d).certified()?, d))
+        let d = body.edge(e)?;
+        Some((d.certified()?, d))
     };
     let ((kept, kd), (gone, gd)) = curve(join.kept)
         .zip(curve(join.gone))
@@ -1209,14 +1197,14 @@ fn joined_spec<T: Decide>(
     // one: on a periodic cubic the loop, which runs on through `w`.
     let carrier = kept.stored_carrier();
     let (t0, t1) = kept.params();
-    let backward = body.get_half_edge(kd.he_plus).map(|h| h.start) == Some(w);
+    let backward = body.get_half_edge(kd.record().he_plus).map(|h| h.start) == Some(w);
     let (g0, g1) = gone.params();
     let far = *body
         .get_vertex(join.far)
         .and_then(|v| body.get_point(v.point))
         .ok_or(desync("a joined edge's far end does not resolve"))?;
     let tw = if backward { t0 } else { t1 };
-    let gone_from_w = body.get_half_edge(gd.he_plus).map(|h| h.start) == Some(w);
+    let gone_from_w = body.get_half_edge(gd.record().he_plus).map(|h| h.start) == Some(w);
     let at_w = if gone_from_w { (g0, g1) } else { (g1, g0) };
     let carried = carried_far(carrier, tw, backward, gone.stored_carrier(), at_w);
     let tx = if let Some(tx) = carried {
@@ -1611,10 +1599,13 @@ mod carry {
         vec![
             (
                 "line",
-                Curve3::Line(geom::Line { origin: o, dir: x }),
+                Curve3::Line(geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(x),
+                }),
                 Curve3::Line(geom::Line {
                     origin: Point3::new(o.x, up(o.y), o.z),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 }),
             ),
             (
@@ -2590,7 +2581,7 @@ mod class_zero_rows {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line(geom::Line {
                 origin: from + Vec3::new(c(c0 * off), c(s0 * off), c(0.0)),
-                dir,
+                dir: geom_core::UnitVec3::checked(dir),
             }),
             param_start: c(0.0),
             param_end: length,
@@ -2661,7 +2652,7 @@ mod class_zero_rows {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
             carrier: geom::Curve3::Line(geom::Line {
                 origin,
-                dir: (toward - origin) / length,
+                dir: geom_core::UnitVec3::chord(toward - origin).0,
             }),
             param_start: c(0.0),
             param_end: length,

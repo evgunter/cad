@@ -62,7 +62,7 @@ Each of those is the same curve with no frame in it. But README C5 says, at `cra
 
 These were measured on a scratch build, which is not kept. Neither A nor B moves any row of topo, sweep or editor-core at either ε.
 
-The pins are `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation` (24 since PR 7226, 35 before) and `torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation` (31). Each reads 141 or 142 without the start.
+The pins are `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation` (25 since PR 7411, a rim query at the escalation; 24 since PR 7226, 35 before) and `torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation` (31). Each reads 141 or 142 without the start.
 
 **What remains on this row:**
 - B, the rulings' origin;
@@ -71,7 +71,7 @@ The pins are `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_
 
 ## Closed on the measurement (2026-11-10)
 
-**What is left is the band's edge, not a frame reaching a decision.** Every disagreement the pins count is a query at `±1e-8`, the band's escalation. There one frame decides and another escalates: the reading flips between decided and escalated at the edge of the band, as any band does. None of them is at the band's zero or off the band, so no frame turns one decided answer into another. `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation` (24 since PR 7226, 35 before) and `torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation` (31) pin the counts, so a regression shows as a count that rises.
+**What is left is the band's edge, not a frame reaching a decision.** Every disagreement the pins count is a query at `±1e-8`, the band's escalation. There one frame decides and another escalates: the reading flips between decided and escalated at the edge of the band, as any band does. None of them is at the band's zero or off the band, so no frame turns one decided answer into another. `ruled_region_rows::a_cones_circle_legs_read_no_chart_frame_at_the_escalation` (25 since PR 7411, a rim query at the escalation; 24 since PR 7226, 35 before) and `torus_region::tests::a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation` (31) pin the counts, so a regression shows as a count that rises.
 
 **Measured on main before closing**, on the two pins' queries (scratch edits, not kept):
 

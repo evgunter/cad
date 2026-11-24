@@ -1242,6 +1242,10 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn transport_curve<T: Decide>(
     old: &Surface<T>,
     nappe: Nappe,
@@ -1284,7 +1288,7 @@ fn transport_curve<T: Decide>(
             half_angle,
             ..
         } => {
-            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis_unit());
             // ONE derivation, read from `geom_brep`: the apex slide,
             // the parameter shift and the pointwise displacement are
             // three faces of the mint's own action, and this door reads
@@ -1312,11 +1316,11 @@ fn transport_curve<T: Decide>(
                 // the slide the mint applies and this arm used to omit.
                 Curve3::Circle(circle_k) => {
                     let frame = &circle_k.frame();
-                    let v = (frame.origin() - apex).dot(axis) / cos_a;
+                    let v = (frame.origin() - apex).dot(axis.get()) / cos_a;
                     let v_new = v + action.shift();
                     Some((
                         Curve3::Circle(geom::Circle::new(
-                            frame.with_origin(action.apex() + axis * (v_new * cos_a)),
+                            frame.with_origin(action.apex() + axis.get() * (v_new * cos_a)),
                             (v_new * sin_a).abs(),
                         )),
                         None,
@@ -1445,6 +1449,10 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
 /// offset's own map.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
@@ -2095,7 +2103,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             frame, half_angle, ..
         } = old_surface
         {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let (v_min, v_max) = group_cone_v_window(
                 body,
                 faces,
@@ -2212,7 +2220,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         else {
             continue;
         };
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         let face = chart.faces[0];
         let own = group_boundary(body, chart.faces);
         let mut window: Option<(T, T)> = None;
@@ -2432,7 +2440,7 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             geom_brep::ConeOffset::new(
                 geom::Line {
                     origin: apex,
@@ -2471,8 +2479,8 @@ fn group_cone_v_window<T: Decide>(
     } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
-        let edge_data = proven(&body.edges, edge, EntityId::Edge);
-        let curve = body.edge_curve_linked(edge, edge_data).certified()?;
+        let edge_data = body.proven_edge(edge);
+        let curve = edge_data.certified()?;
         let (t0, t1) = curve.params();
         let (lo, hi) = cone_v_range(
             curve.carrier(),
@@ -2494,6 +2502,10 @@ fn group_cone_v_window<T: Decide>(
 
 /// The `v`-range of one carrier on a cone chart (see
 /// [`group_cone_v_window`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -2505,7 +2517,7 @@ fn cone_v_range<T: Decide>(
         origin: apex,
         dir: axis,
     } = axis;
-    let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    let v_of = |p: Point3<T>| (p - apex).dot(axis.get()) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
         Curve3::Line(_) => {
@@ -2517,29 +2529,23 @@ fn cone_v_range<T: Decide>(
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
         Curve3::Circle(circle) => {
-            let (center, ca, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis) * radius).powi(2) + (v_ref.dot(axis) * radius).powi(2))
-                .sqrt()
+            let amp = ((u_ref.dot(axis.get()) * radius).powi(2)
+                + (v_ref.dot(axis.get()) * radius).powi(2))
+            .sqrt()
                 / cos_a;
             let c = v_of(center);
             (c - amp, c + amp)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, ca, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);
-            let amp = ((u_ref.dot(axis) * semi_u).powi(2) + (v_ref.dot(axis) * semi_v).powi(2))
-                .sqrt()
+            let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2)
+                + (v_ref.dot(axis.get()) * semi_v).powi(2))
+            .sqrt()
                 / cos_a;
             let c = v_of(center);
             (c - amp, c + amp)
@@ -2632,9 +2638,9 @@ fn plan_edge<'s, T: Decide>(
     // A moved chart's slot is its place among the operation's charts.
     let moved_slot = |key: SurfaceKey| walls.and_then(|w| w.moved(*slots.get(&key)?));
     let moved_of = |key: SurfaceKey| slots.get(&key).and_then(|&slot| charts.get(slot));
-    let edge_data = proven(&body.edges, edge, EntityId::Edge);
-    let sides = edge_side_keys(body, edge, edge_data);
-    let he_plus = edge_data.he_plus;
+    let edge_data = body.proven_edge(edge);
+    let sides = edge_side_keys(body, edge, edge_data.record());
+    let he_plus = edge_data.record().he_plus;
     let start = linked(
         &body.half_edges,
         he_plus,
@@ -2644,7 +2650,7 @@ fn plan_edge<'s, T: Decide>(
     )
     .start;
     let end = body.proven_half_edge_end(he_plus);
-    let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+    let Some(curve) = edge_data.certified() else {
         return Err(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
             what: "it has no curve to move",
@@ -2656,7 +2662,7 @@ fn plan_edge<'s, T: Decide>(
                 (edge, start, end, sides),
                 (
                     curve,
-                    region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
+                    region_reach(edge, crate::cover::edge_cover_linked(body, edge_data)),
                 ),
                 crate::wedge_reach(
                     body,
@@ -2701,7 +2707,7 @@ fn plan_edge<'s, T: Decide>(
         && c.surface == old_key
         && matches!(c.pcurve, geom_brep::Pcurve::IsoLine { .. })
     {
-        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
+        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data.record()).faces();
         let other = if group.contains(&fa) { fb } else { fa };
         let self_shared = group.contains(&other);
         // The image's own line, read as a row only where it holds a
@@ -2831,7 +2837,7 @@ fn plan_edge<'s, T: Decide>(
             return derive_edge(
                 (edge, start, end, sides),
                 (curve, &description, (t0, t1)),
-                region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
+                region_reach(edge, crate::cover::edge_cover_linked(body, edge_data)),
                 (old_key, other_key, new_surface, held),
                 (
                     extent,
@@ -3813,8 +3819,8 @@ fn plan_reanchors<T: Decide>(
         if on_boundary.contains(&edge) {
             continue;
         }
-        let edge_data = proven(&body.edges, edge, EntityId::Edge);
-        let he_plus = edge_data.he_plus;
+        let edge_data = body.proven_edge(edge);
+        let he_plus = edge_data.record().he_plus;
         let start = linked(
             &body.half_edges,
             he_plus,
@@ -3850,7 +3856,7 @@ fn plan_reanchors<T: Decide>(
             .and(distance_at(start, true))
             .or_else(|| distance_at(end, false))
             .unwrap_or_else(|| unreachable!("{edge:?} ends at a moved corner, read off its group"));
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = edge_data.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to re-attach",
@@ -4723,7 +4729,8 @@ fn incident_edges<T: Decide>(
     old_point: Point3<T>,
 ) -> Result<Vec<Incident<T>>, ReplaceFaceError<T>> {
     let mut out = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         let he_plus = edge_data.he_plus;
         let start = linked(
             &body.half_edges,
@@ -4784,7 +4791,7 @@ fn incident_edges<T: Decide>(
                 derived: plan.ends.is_none(),
             });
         } else {
-            let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+            let Some(curve) = view.certified() else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "it has no curve to re-attach",
@@ -5178,7 +5185,10 @@ mod pose_reach_rows {
             ),
             half_angle: alpha,
         };
-        let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let edge = Curve3::line(
+            Point3::new(2.0, -2.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+        );
         let tight = 8.0_f64.sqrt();
         let reach = span(&edge, (0.0, 4.0));
         assert!((reach.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
@@ -5238,7 +5248,7 @@ mod pose_reach_rows {
             ),
             radius: 0.1,
         };
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), geom_core::UnitVec3::exact_z());
         let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
         for (label, a, b) in [
             ("cyl, torus", &general, &torus),
@@ -5280,6 +5290,65 @@ mod pose_reach_rows {
         }
     }
 
+    /// **A cone × torus pose is served at the neighbour gate, coaxial
+    /// or not**, since `route(Cone, Torus)` is implemented. Past the gate
+    /// the offset door derives the coaxial pose's edge in closed form, a
+    /// crossing circle of `cone_torus_section`; an off-axis pose has no
+    /// closed form, and its refusal names none of the doors the offset
+    /// cannot reach. Red where a coaxial neighbour stops being derived,
+    /// or where the off-axis refusal sends the caller to the march.
+    #[test]
+    fn a_cone_torus_neighbour_is_served_and_derived_coaxial_alone() {
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: core::f64::consts::FRAC_PI_4,
+        };
+        let torus = |x: f64| Surface::Torus {
+            frame: geom::Frame::new(Point3::new(x, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+        };
+        // On the coaxial pose's outer crossing circle, `λ = 2√2 + 1` from
+        // the apex: radius and height `λ/√2`.
+        let at = (2.0 * 2.0_f64.sqrt() + 1.0) / 2.0_f64.sqrt();
+        let edge = Curve3::line(Point3::new(at, 0.0, at), geom_core::UnitVec3::exact_y());
+        for x in [0.0, 0.5] {
+            let got = pose_route(&cone, &torus(x), &span(&edge, (0.0, 0.1)), band());
+            assert!(
+                matches!(got, Ok(ref r) if r.implemented),
+                "the pose with the torus {x} off the axis is served, got {got:?}"
+            );
+        }
+        let derive = |x: f64| {
+            crate::offset_derive::section_closed(
+                &cone,
+                &torus(x),
+                (&edge, (0.0, 0.1)),
+                &span(&edge, (0.0, 0.1)),
+                super::corner_arm(&edge, 0.0, 0.1),
+                band(),
+            )
+        };
+        let coaxial = derive(0.0);
+        assert!(
+            matches!(
+                &coaxial,
+                Ok(Ok(Curve3::Circle(c))) if (c.radius() - at).abs() < 1e-12
+            ),
+            "the coaxial edge is the crossing circle, got {coaxial:?}"
+        );
+        let off = derive(0.5);
+        assert!(
+            matches!(
+                &off,
+                Ok(Err(crate::offset_derive::SectionVerdict::Closed(
+                    geom_brep::SectionError::RoutesToGeneralRung { why, .. }
+                ))) if !why.contains("ssi")
+            ),
+            "the off-axis edge refuses as no closed form, got {off:?}"
+        );
+    }
+
     #[test]
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
@@ -5295,7 +5364,7 @@ mod pose_reach_rows {
         let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
         let off = 1000.0 * theta.sin();
         let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), geom_core::UnitVec3::exact_z());
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
@@ -5333,7 +5402,7 @@ mod pose_reach_rows {
     /// refuses both.
     #[test]
     fn a_cone_cylinder_tilt_is_levered_at_the_edges_distance_from_the_apex() {
-        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), geom_core::UnitVec3::exact_z());
         let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
         let cone = Surface::Cone {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -5461,7 +5530,7 @@ mod pose_reach_rows {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
         };
-        let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
+        let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), geom_core::UnitVec3::exact_z());
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let theta: f64 = k * eps / 2.0_f64.sqrt();
             let c2 = Surface::Cylinder {
@@ -5614,7 +5683,7 @@ mod torn_body_rows {
 mod read_ends_rows {
     use geom::Curve3;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol};
 
     use super::{EdgePlan, ReplaceFaceError, read_ends};
     use crate::entity::{EdgeKey, VertexKey};
@@ -5647,7 +5716,7 @@ mod read_ends_rows {
     fn a_corner_off_the_derived_carrier_is_a_disagreement() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let off = Point3::new(0.5, 1e-3, 0.0);
         let mut p = plan(line.clone());
         let got = read_ends(
@@ -5734,7 +5803,7 @@ mod pair_over_its_span_rows {
         let Curve3::Line(geom::Line { dir, .. }) = l1 else {
             unreachable!("a line of the pair")
         };
-        let to = 1.0 / dir.z;
+        let to = 1.0 / dir.get().z;
         for (label, from, kept) in [
             ("from twice the start", 2.0 * start, true),
             ("from the apex", 0.0, false),
@@ -5820,7 +5889,7 @@ mod pair_over_its_span_rows {
                     },
                     carrier: l1.clone(),
                     param_start: 0.0,
-                    param_end: 1.0 / dir.z,
+                    param_end: 1.0 / dir.get().z,
                 },
                 start: VertexKey::default(),
                 end: VertexKey::default(),

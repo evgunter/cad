@@ -108,7 +108,8 @@ from pncad import (
     Ray,
     Selector,
     Severity,
-    SketchedOnFace,
+    Chain,
+    Orientation,
     Start,
     AuthoredStep,
     Piece,
@@ -119,6 +120,9 @@ from pncad import (
     Workspace,
     StationMove,
     InterferenceFinding,
+    FaceSite,
+    Quieting,
+    QuietingRef,
     CarriedCoincidence,
     CarriedInterference,
     canonical_bytes,
@@ -586,8 +590,8 @@ mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor)
 between: Mate = Mate(
     PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name"))
 )
-mate_on: PoseDef = mate.on
-mate_to: PoseDef = mate.to
+mate_on: PoseDef | RoleRead = mate.on
+mate_to: PoseDef | RoleRead = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
 placer: Node = Node.place(
     sideways, doc.world, [mate, MateValue(Coord.slide("x"), 0.1 * m)]
@@ -650,17 +654,28 @@ outward: tuple[float, float, float] = (
 # not a string.
 carrier: SurfaceKind = seamed.face_carrier_kind(upright, cap_name)
 is_flat: bool = carrier == SurfaceKind.Plane
-# A sketch on that face: the body, an opaque name, the outline, the
-# depth and a DIMENSIONED spin, written as one action that answers its
-# four nodes.
-on_the_face: SketchedOnFace = doc.sketch_on_face(
-    upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m, Formula.angle_in(0.3, rad), label="boss"
+# A profile drawn on that face: the body, an opaque name and the
+# outline, with a DIMENSIONED spin and two slides, answering the one
+# profile node; the boss and the pocket are ordinary extrudes of it, by
+# a signed depth.
+boss_profile: NodeId = doc.draw_on_face(
+    upright,
+    cap_name,
+    circle((0 * m, 0 * m), 0.1 * m),
+    spin=Formula.angle_in(0.3, rad),
+    slides=(0.1 * m, Formula.length_in(0, m)),
+    label="boss",
 )
-boss_profile: NodeId = on_the_face.profile
-boss_extrude: NodeId = on_the_face.extrude
-boss_placement: NodeId = on_the_face.placement
-boss_union: NodeId = on_the_face.union
-on_the_face_level: SketchedOnFace = doc.sketch_on_face(upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m)
+boss_extrude: NodeId = doc.insert(Node.extrude(boss_profile, 0.1 * m))
+pocket_tool: NodeId = doc.insert(Node.extrude(boss_profile, -0.1 * m))
+# The orientation written, and a traced chain beside a closed loop.
+on_the_face_level: NodeId = doc.draw_on_face(
+    upright,
+    cap_name,
+    [Chain.at(0 * m, 0 * m).line(1 * m).line_to(Start), circle((0 * m, 0 * m), 0.1 * m)],
+    orient=Orientation.identity(),
+    traced=[(upright, cap_name)],
+)
 # The advisory checks: a report out of one door, a gate the caller
 # opens at the other, and the subject a finding names.
 report: ChecksReport = run_checks(doc, seamed)
@@ -678,6 +693,24 @@ at_rest: list[CheckFinding] = [f for f in findings if f.check == CheckId.AtRest]
 census: Var | None = at_rest[0].census
 quieted_by: NodeId | None = at_rest[0].quiet
 overlap: InterferenceFinding | None = at_rest[0].evidence.interference
+# What an assertion recourse determines, as data: the pair of faces a
+# quieting `gap` is written over, and the claim an unproven coincidence
+# carries, authored as one action.
+gap_over: tuple[FaceSite, FaceSite] | None = overlap.quieting if overlap is not None else None
+gap_refs: tuple[QuietingRef, QuietingRef] | None = (
+    overlap.quieting_references if overlap is not None else None
+)
+claim: Quieting | None = findings[0].evidence.quieting
+if claim is not None:
+    claim_measure: str = claim.measure
+    claim_refs: tuple[QuietingRef, QuietingRef] = claim.references
+    claim_cell: tuple[Var, str | None, str | None] = (
+        claim_refs[0].read,
+        claim_refs[0].name,
+        claim_refs[0].pose,
+    )
+    claim_same: bool = claim == claim and hash(claim) == hash(claim)
+    claim_authored: NodeId = doc.assert_quieting(claim)
 carried_overlap: CarriedInterference | None = at_rest[0].evidence.carried_interference
 carried_glue: CarriedCoincidence | None = at_rest[0].evidence.carried_coincidence
 could_not_look: AtRestEvidence | None = at_rest[0].evidence.at_rest

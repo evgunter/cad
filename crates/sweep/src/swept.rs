@@ -86,9 +86,9 @@ pub(crate) struct Placing<T: Real> {
 /// placement.
 ///
 /// It holds the axis as a decided unit direction ([`UnitVec3`]) beside its
-/// point, not as a [`geom::Line`]: the rotation reads a unit axis, and a
-/// `Line` reads any nonzero direction, so the unit is minted once where
-/// the turn is built and carried here as the value the rotation takes.
+/// point, minted once where the turn is built and carried here as the
+/// value the rotation takes; a [`geom::Line`] would hold the same pair
+/// with an arc-length parameter the turn has no use for.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,
@@ -133,11 +133,6 @@ impl<T: Real> Placing<T> {
         })
     }
 
-    /// A direction turned by the turn, `None` when there is none.
-    pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
-        self.turn.map(|turn| turn.anchored.transform_vec(v))
-    }
-
     /// Whether a turn follows the placement.
     pub(crate) fn is_turned(self) -> bool {
         self.turn.is_some()
@@ -152,21 +147,24 @@ impl<T: Real> Placing<T> {
         }
     }
 
-    /// A sketch direction carried by the station's frame: `(d, 0)`
-    /// through the placement's linear part, then turned. The placement
-    /// and the turn are rigid, so a unit direction comes out unit, and
-    /// the result carries that as its type ([`Unit3`]); nothing is
-    /// re-derived from placed points.
+    /// A sketch direction carried by the station's frame: the `u` of
+    /// the station's frame turned onto `d` ([`RigidMotion::spun_onto`],
+    /// then carried by the turn), so it is [`Self::frame_toward`]'s `u`
+    /// by one rule: within its rounding `(d, 0)` through the
+    /// placement's linear part, then turned, bit for bit; past it,
+    /// squared with its frame. The placement and the turn are rigid, so
+    /// a unit direction comes out unit, and the result carries that as
+    /// its type ([`Unit3`]); nothing is re-derived from placed points.
     pub(crate) fn direction(self, d: Unit2<T>) -> Unit3<T> {
         let Unit2(d) = d;
-        Unit3(self.carry(self.place.linear * Vec3::new(d.x, d.y, T::zero())))
+        Unit3(self.carry_frame(self.motion.spun_onto(d)).u())
     }
 
     /// **The station's frame**: the rigid frame this placing's
     /// placement is ([`RigidMotion::to_affine`] of it), carried by the
     /// turn where there is one ([`RigidMotion::carried_by`]). A rigid
-    /// image of a rigid frame, so nothing is decided and nothing is
-    /// re-squared.
+    /// image of a rigid frame, so nothing is decided; the image is
+    /// measured, and re-squared only past its rounding.
     pub(crate) fn frame(self) -> RigidMotion<T> {
         self.carry_frame(self.motion)
     }
@@ -176,8 +174,9 @@ impl<T: Real> Placing<T> {
     /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
     /// normalizes `d` once, as [`sketch_chord`] does), then carried
     /// by the turn. Its `u` is [`Self::direction`] of that sketch
-    /// direction, its `w` the station's normal, and nothing is decided
-    /// or re-squared.
+    /// direction by one rule (both read the frame [`RigidMotion::spun_onto`]
+    /// turns, `d` normalized first here), its `w` the station's normal, and nothing is decided:
+    /// the frame is measured, and re-squared only past its rounding.
     pub(crate) fn frame_toward(self, d: Vec2<T>) -> RigidMotion<T> {
         self.carry_frame(self.motion.spun_toward(d))
     }
@@ -189,12 +188,6 @@ impl<T: Real> Placing<T> {
             None => frame,
             Some(turn) => frame.carried_by(turn.anchored),
         }
-    }
-
-    /// A placed direction turned by the turn, or as it is when there is
-    /// none.
-    pub(crate) fn carry(self, v: Vec3<T>) -> Vec3<T> {
-        self.turn_vec(v).unwrap_or(v)
     }
 
     /// A sketch point placed, then turned.
@@ -652,20 +645,26 @@ impl<T: Real> Unit2<T> {
 /// sketch plane's own normal
 /// ([`Unit3::from_frame`]), or, on the vector arm alone, the user's
 /// vector normalized once ([`Unit3::normalized`]). It is unwrapped where
-/// a [`Surface`] or [`Curve3`] stores it: those carriers take bare
-/// vectors, so the witness stops at the sweep doors' seam.
+/// a [`Surface`] stores it, and carried on as the kernel's witness where
+/// a line does ([`Unit3::unit`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Unit3<T: Real>(Vec3<T>);
+pub(crate) struct Unit3<T: Real>(UnitVec3<T>);
 
 impl<T: Real> Unit3<T> {
     /// The direction, for a carrier that stores bare vectors.
     pub(crate) fn get(self) -> Vec3<T> {
+        self.0.get()
+    }
+
+    /// **The direction as the kernel's witness**, for a carrier that
+    /// stores one (a line's direction): the one this type holds.
+    pub(crate) fn unit(self) -> UnitVec3<T> {
         self.0
     }
 
     /// A frame's decided axis.
     pub(crate) fn from_frame(u: UnitVec3<T>) -> Self {
-        Self(u.get())
+        Self(u)
     }
 
     /// **The vector arm's one normalization**: a vector the extrude was
@@ -674,7 +673,7 @@ impl<T: Real> Unit3<T> {
     /// at `f64`; over a box it carries the box's width
     /// (`work/boxfinish/a-boxed-vector-extrusions-walls-carry-the-vectors-width.md`).
     pub(crate) fn normalized(v: Vec3<T>) -> Self {
-        Self(v.normalize())
+        Self(UnitVec3::squared(v))
     }
 
     /// The opposite direction.
@@ -684,7 +683,7 @@ impl<T: Real> Unit3<T> {
 
     /// `self × other`, normalized: the vector arm's wall normal.
     pub(crate) fn cross_normalized(self, other: Self) -> Self {
-        Self::normalized(self.0.cross(other.0))
+        Self::normalized(self.get().cross(other.get()))
     }
 }
 
@@ -829,6 +828,10 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
 /// own carrier and span is the node the certifier evaluates; the
 /// placed carrier end is built here and thrown away.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
@@ -884,7 +887,8 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 ///
 /// An arc's carrier is `place`'s frame turned onto the arc's start
 /// radial ([`Placing::frame_toward`]) and run back where the turn
-/// negates the axis: rigid by construction, nothing re-squared. Where
+/// negates the axis: rigid by construction, re-squared only past its
+/// rounding. Where
 /// `radial` is given the copy is the fixed one turned a half turn about
 /// an axis through its centre and its start radial, which turns its
 /// plane's normal over and keeps the radial: its carrier is the fixed
@@ -914,7 +918,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             let (dir, span) = sketch_chord(seg);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::line(q_from, place.direction(dir).get()),
+                carrier: Curve3::line(q_from, place.direction(dir).unit()),
                 param_start: T::zero(),
                 param_end: span,
             }
@@ -997,8 +1001,8 @@ pub(crate) enum CapEnd {
 /// [`Placing::frame`]), and the cap is that frame as it stands, run back
 /// ([`RigidMotion::reversed`]) where the normal is negated: every cap
 /// vertex, being a sketch point placed by that frame, lies on the
-/// plane. Nothing is fitted to the vertices and the frame is not
-/// re-squared, so nothing is decided here.
+/// plane. Nothing is fitted to the vertices and the frame is taken as it
+/// stands, so nothing is decided here.
 pub(crate) fn cap_plane<T: Real>(
     station: RigidMotion<T>,
     reversed: bool,
@@ -1542,13 +1546,12 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         })
         .collect();
     for edge in edges {
-        let curve = match body.stored_curve(edge) {
-            Ok(curve) => curve,
-            // Null scaffolding carries no description at all.
-            Err(EulerOpError::NullScaffoldCurve { .. }) => continue,
-            Err(e) => {
-                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}: {e}")
-            }
+        let Some(view) = body.edge(edge) else {
+            unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+        };
+        // Null scaffolding carries no description at all.
+        let Some(curve) = view.certified() else {
+            continue;
         };
         if !curve.description().is_scaffold() {
             continue;
@@ -2137,9 +2140,9 @@ mod tests {
         );
         let scale = q_to.x.abs().max(q_to.y.abs()).max(q_to.z.abs());
         assert!(
-            (line.dir.norm() - 1.0).abs() <= 4.0 * f64::EPSILON,
+            (line.dir.get().norm() - 1.0).abs() <= 4.0 * f64::EPSILON,
             "the direction is unit: {}",
-            line.dir.norm()
+            line.dir.get().norm()
         );
         let miss = (line.at(spec.param_end) - q_to).norm();
         assert!(
@@ -2239,7 +2242,7 @@ pub(crate) mod must_carry_fixtures {
     }
 
     fn z_axis() -> Curve3<f64> {
-        Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
+        Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z())
     }
 }
 

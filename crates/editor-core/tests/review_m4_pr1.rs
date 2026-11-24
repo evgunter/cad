@@ -530,7 +530,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let res = doc.apply(
         &Edit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![extrude.into(), next_would_be.into()]),
+                members: editor_core::Bodies::spelled(vec![extrude.into(), next_would_be.into()]),
             }),
             fresh: Vec::new(),
         },
@@ -826,7 +826,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 name: VarName::from_static("k"),
                 def: editor_core::VarDecl::Index {
                     count: Formula::count(8),
-                    within: None,
+                    after: None,
                 },
             },
             Tol::witness(),
@@ -853,6 +853,17 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         }],
     );
     let family = ids[0];
+    // The index's binder yields the row (D10 `[repetition]`).
+    let doc = doc
+        .apply(
+            &Edit::SetYields {
+                binder: k.into(),
+                yields: vec![doc.output(family, 0).unwrap().into()],
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
     let pattern = |at: Formula| Edit::InsertNode {
         node: Box::new(Node::place(
             BodyRead::indexed(family, vec![at]),

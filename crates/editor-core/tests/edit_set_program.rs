@@ -1965,7 +1965,9 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
             "a kept step is said at its row in the new program, {is}, never its old {was}: {row}"
         );
         assert!(
-            row.contains(&applied.doc.spoken_name(&up).to_string()),
+            row.contains(&editor_core::test_support::said_text(
+                &applied.doc.spoken_name(&up)
+            )),
             "the name reads as the new program says it: {row}"
         );
     }

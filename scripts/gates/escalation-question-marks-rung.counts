@@ -30,7 +30,7 @@ rung:crates/topo/src/rim_wedge.rs:at 1
 # already decided on the plane; and `spline_crossings` alone in its arm:
 # PREMISE. Both arms that read a segment's two ends read them together,
 # since an end decided on the cylinder or the plane answers alone.
-rung:crates/topo/src/ring_path.rs:path_parity 5
+rung:crates/topo/src/ring_path.rs:path_parity 4
 # ruled_region's apex walk, a reader `ray_walk::walk` reads through its
 # parameter: `apex_generator` builds the generator `read_leg` reads:
 # PREMISE.

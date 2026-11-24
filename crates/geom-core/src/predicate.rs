@@ -759,6 +759,18 @@ impl Band {
         }
         Self::new(self.zero + pad, self.escalate + pad)
     }
+
+    /// **The band one K-step finer**, `(ε/K, ε)` for this band's
+    /// `(ε, K·ε)`: a length decided Zero in it lies within the `ε/K`
+    /// share of this band's zero, and one decided past it reaches that
+    /// zero itself. Where `ε/K` underflows to zero (a subnormal band or
+    /// an unbounded `K`, which no run's is) it is [`Band::least`], the
+    /// finest band there is: a length decided Zero there is zero to the
+    /// last subnormal.
+    #[must_use]
+    pub fn a_step_finer(self) -> Self {
+        Self::new(self.zero / (self.escalate / self.zero), self.zero).unwrap_or(Self::least())
+    }
 }
 
 /// **A verdict's lever arm**: the length at which a dimensionless
@@ -3455,7 +3467,33 @@ impl Indeterminate {
     /// which only an escalation with a tolerance to offer can be.
     #[must_use]
     pub fn offers_tolerance(&self) -> bool {
-        matches!(self.margin.shows(self.band, self.passes()), Shows::Offer(_))
+        self.offer().is_some()
+    }
+
+    /// The tolerance [`Indeterminate::ending`] offers, as it tells it:
+    /// the one reading of whether this refusal offers one.
+    fn offer(&self) -> Option<Told> {
+        match self.margin.shows(self.band, self.passes()) {
+            Shows::Offer(offer) => Some(offer),
+            _ => None,
+        }
+    }
+
+    /// **The band at the tolerance this refusal offers**: `(ε′, K·ε′)`,
+    /// `ε′` the tolerance [`Indeterminate::ending`] offers to tighten
+    /// below, the float its sentence spells, and `K` this escalation's
+    /// band's. At it the refused margin stands at or past the
+    /// escalation edge, so a reading decided in it is decided as a run
+    /// at the offered tolerance decides it. `None` where the refusal
+    /// offers no tolerance ([`Indeterminate::offers_tolerance`]).
+    #[must_use]
+    pub fn offered_band(&self) -> Option<Band> {
+        let k = self.band.escalate / self.band.zero;
+        self.offer()?.spelled().map(|eps| {
+            Band::from_thresholds(eps, k).unwrap_or_else(|e| {
+                unreachable!("an offered tolerance is above the least a run admits: {e:?}")
+            })
+        })
     }
 }
 
@@ -3761,6 +3799,93 @@ mod tests {
     // never land a margin on an exact boundary — so they corroborate the
     // structure but do not, and cannot, pin the boundary semantics.
 
+    /// **A refusal's offered band is the band at the tolerance its
+    /// sentence spells**, at the refused band's own K: the told offer,
+    /// not the raw `|m|/K`; off an enclosure, the end nearer zero; and
+    /// none where the refusal offers none. The refused margin decides
+    /// in it, at both lanes.
+    #[test]
+    fn the_offered_band_stands_at_the_spelled_offer_with_the_refused_bands_k() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let k = band.escalate() / band.zero();
+        let refused = |margin: MarginDiag| Indeterminate {
+            margin,
+            terminal_sliver: false,
+            band,
+            predicate: None,
+        };
+        let m = 3.456_789_012_345e-9;
+        let offered = refused(MarginDiag::value(m)).offered_band().unwrap();
+        let spelled = band.offer_deciding(m).unwrap();
+        assert_eq!(offered.zero(), spelled, "the told offer");
+        assert!(
+            spelled < band.tolerance_deciding(m),
+            "the fixture's offer is told below the raw one: {spelled:e}"
+        );
+        assert_eq!(offered.escalate(), k * spelled, "the refused band's K");
+        assert!(
+            refused(MarginDiag::value(m))
+                .ending("L")
+                .contains(&format!("{spelled:e} m")),
+            "the sentence spells the band's zero: {}",
+            refused(MarginDiag::value(m)).ending("L")
+        );
+        assert_eq!(m.sign_within(offered).map(|d| d.sign), Ok(Sign::Positive));
+        let (lo, hi) = (2.345_678_901_2e-9, 6.5e-9);
+        let boxed = refused(MarginDiag::enclosure(lo, hi))
+            .offered_band()
+            .unwrap();
+        assert_eq!(
+            boxed.zero(),
+            band.offer_deciding(lo).unwrap(),
+            "the end nearer zero"
+        );
+        assert_eq!(
+            crate::Interval::from_bounds(lo, hi)
+                .sign_within(boxed)
+                .map(|d| d.sign),
+            Ok(Sign::Positive)
+        );
+        for none in [
+            MarginDiag::value(0.0),
+            MarginDiag::value(f64::NAN),
+            MarginDiag::enclosure(-2e-9, 3e-9),
+            MarginDiag::value(0.5 * EPS_MIN),
+        ] {
+            assert_eq!(refused(none).offered_band(), None, "{none}");
+        }
+    }
+
+    /// **The band one K-step finer is `(ε/K, ε)`**, its escalation the
+    /// coarser band's zero to the bit, and a band whose `ε/K` underflows
+    /// gets the least band.
+    #[test]
+    fn a_step_finer_ends_at_the_bands_own_zero() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let finer = band.a_step_finer();
+        assert_eq!(finer.zero(), 1e-9 / (7e-9 / 1e-9));
+        assert_eq!(finer.escalate(), 1e-9);
+        // `ε/K` underflows to zero: the least band, in which only a zero
+        // to the last subnormal reads Zero.
+        let wide = Band::new(1e-300, 1e300).unwrap();
+        for underflowing in [Band::least(), wide] {
+            assert_eq!(
+                underflowing.a_step_finer(),
+                Band::least(),
+                "{underflowing:?}"
+            );
+        }
+        assert_eq!(
+            f64::from_bits(1).sign_within(Band::least()).map(|d| d.sign),
+            Ok(Sign::Zero)
+        );
+        assert!(
+            f64::from_bits(2)
+                .sign_within(Band::least())
+                .is_ok_and(|d| d.sign == Sign::Positive)
+        );
+    }
+
     /// The fixed band used by the boundary table: exactly the default
     /// tolerance's linear band, but constructed purely.
     fn band_1e9() -> Band {
@@ -3957,7 +4082,15 @@ mod tests {
             (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
-            assert_eq!(margin.shows(band, pass), want, "{pass:?} over {margin:e}");
+            // An offer is pinned by what the person reads.
+            match (margin.shows(band, pass), want) {
+                (Shows::Offer(got), Shows::Offer(want)) => assert_eq!(
+                    crate::Tell::told_in(&got, quantity::Notation::CANONICAL).to_string(),
+                    crate::Tell::told_in(&want, quantity::Notation::CANONICAL).to_string(),
+                    "{pass:?} over {margin:e}"
+                ),
+                (got, want) => assert_eq!(got, want, "{pass:?} over {margin:e}"),
+            }
         }
     }
 

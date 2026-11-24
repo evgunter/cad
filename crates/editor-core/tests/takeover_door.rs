@@ -70,7 +70,7 @@ fn union(doc: ProfileDoc, members: Vec<RecipeNodeId>) -> (ProfileDoc, RecipeNode
     insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
+            members: Bodies::spelled(members.into_iter().map(Into::into).collect()),
         },
     )
 }

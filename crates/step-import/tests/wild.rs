@@ -90,14 +90,12 @@ const WILD_REFUSALS: [(&str, &str); 5] = [
     // Its two records of one cylinder are one; its cylinder × sphere
     // section edges then refuse by ε, each pinned in its `tier_gate` cell.
     ("stepcode/TAIL_TURBINE.stp", TAIL_TURBINE_BY_EPS),
-    // Its five fillets read tangent at the file's band (ε_in ≈ 34 µm) and
-    // crossing at the run's; the snap catalogue makes each tangency
-    // exact, and the edges the writer printed as crossing lines,
-    // √(2·r·gap) off the ruling, then read off their description in the
-    // file's band: the file's ambiguity, at every ε.
+    // Its cylinder #5130 bites parallel planes #5116 and #5144 by 56.8 µm, in
+    // the band of the file's ε_in ≈ 34 µm: whether it is tangent is the
+    // file's ambiguity, refused at the snap at every ε.
     (
         "nist/nist_ftc_09_asme1_rd.stp",
-        "(step_edge_on_description), in the band",
+        "(step_snap_relation) lies in the band",
     ),
     // A `\X2\` string control directive (Japanese annotation text).
     ("stepcode/io1-cm-214.stp", r"\X2\"),
@@ -177,9 +175,9 @@ fn solid(name: &str) -> (topo::Body<f64>, f64) {
 
 /// The ambient-ε window in which this corpus can CERTIFY, measured
 /// end to end on the committed files. The table below was measured
-/// with `nist_ftc_09` among the imports-class fixtures; since the build
-/// it refuses at every ε, its tangencies waiting on D7 step 3's snap
-/// catalogue ([`WILD_REFUSALS`]).
+/// with `nist_ftc_09` among the imports-class fixtures; it now refuses
+/// at every ε, on a tangency its file's band leaves undecided
+/// ([`WILD_REFUSALS`]).
 ///
 /// The wild corpus is bounded on both sides, and each bound is a fact
 /// about the files rather than about the kernel (re-measured
@@ -832,10 +830,10 @@ fn eps_in_scales_through_the_conversion_factor_and_the_override_wins() {
         Err(StepImportError::Interpretation { file, .. }) => file.eps_in(),
         other => panic!("{name}: refuses at the build, got {other:?}"),
     };
-    // 1.331353158630e-3 inch x 2.54e1 mm/inch x 1e-3 m/mm, in the
-    // order the resolver multiplies (the factor folds into the unit
-    // first, then scales the measure).
-    let expected = 1.331_353_158_630e-3 * (2.54e1 * 1e-3);
+    // 1.331353158630e-3 inch x 2.54e1 mm/inch x 1e-3 m/mm, exactly, and
+    // rounded once (the file's decimals through the unit door), by exact
+    // arithmetic outside this tree (Python's `Fraction`).
+    let expected = 3.381_637_022_920_2e-5;
     assert_eq!(eps_in, expected, "ε_in is a length like any other");
     assert!(
         (eps_in - 3.381_637e-5).abs() < 1e-11,

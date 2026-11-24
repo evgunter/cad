@@ -2,10 +2,11 @@
 id: four-freecad-frames-drifted-between-the-renders-of-11-13-and-11-15
 kind: issue
 title: Four committed freecad-lane frames (klein, lily, twisted_tube, the montage) differ from a hosted render of 2026-11-15, with the runner image changed in the same window: look before a nightly re-baselines them
-status: open
+status: closed
 opened: 2026-11-15
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -55,3 +56,7 @@ kernels differ (GREEN's at `31639630c`, this one with the sweeps'
 sketch frames) is more weight on the image's
 rasteriser than on the geometry; it is still not a check of the image, and
 GREEN's run's bytes were not compared with these.
+
+## Closed
+
+2026-11-22, CIW triage (stale). The row was a look-before-re-baseline, and the re-baseline has happened: commit 80ee27d843 (2026-11-16, "render(freecad): re-baseline committed cells") committed the frames on main. The open question it leaves (`runs-on: ubuntu-latest` floats) is already recorded on tool-versions-outside-the-env-block-have-no-source-of-truth.
