@@ -44,9 +44,11 @@ After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
   counts to the leaf's receipt, and the record's roots to the roots
   the leaf's `frozen` column is read over (`sym::leaf_need` reads the
   root scope's, which holds the roots of the nodes that ran).
-- A node's scope is opened over its upstream nodes' records
-  (`eval::upstream_records`, by node id). A served upstream node's
-  record is read the same way, so nothing else is owed there.
+- A node's scope reads the records of the values its reads see
+  (`eval::read_records` over `wire::seen_reads`, in field order), and
+  each record names the records it was itself built over
+  (`NodeRecord`'s `over`). A served upstream node's record is read the
+  same way, so nothing else is owed there.
 - The parameter brackets stay the leaf's input (`Sym::param_over`,
   recorded as the environment is built, before any node). A node's
   decision read takes the brackets of the parameters its forms reach,

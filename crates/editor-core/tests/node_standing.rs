@@ -505,8 +505,7 @@ const READERS: [(&str, &str); 14] = [
     (
         "crates/editor-core/src/eval/mod.rs",
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; \
-         `eval_node` writes what a node left in the symbolic session onto the result it made, \
-         and hands the result map to `upstream_records`, which reads through `usable_in`; \
+         `eval_node` writes what a node left in the symbolic session onto the result it made; \
          `chains_of` reads each node's reach (`Reach::node`), no result; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \

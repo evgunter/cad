@@ -2548,6 +2548,12 @@ struct NodeState {
     /// is counted over their closure ([`leaf_need`]). Kept only while a
     /// drive memo is installed.
     plain_roots: IdSet,
+    /// The records this scope has read ([`reads`]): what
+    /// [`NodeRecord`] carries as `over`.
+    over: Vec<Arc<NodeRecord>>,
+    /// `over`'s records by address, so that a record reached through
+    /// two reads enters once.
+    over_held: std::collections::HashSet<*const NodeRecord>,
 }
 
 impl NodeState {
@@ -2583,6 +2589,14 @@ pub struct NodeRecord {
     identities: Vec<(SymId, SymId)>,
     counts: SymCounts,
     roots: Vec<SymId>,
+    /// **The records the node read that registered an identity**
+    /// ([`reads`]), each once, in the order read, with the records each
+    /// of those read before it: what the node's registry was built
+    /// from. A reader of this node's value reads these before the
+    /// node's own, so what reaches a node through another is what that
+    /// other's value was built over, and not what stands in a results
+    /// map when the reader runs.
+    over: Vec<Arc<NodeRecord>>,
 }
 
 impl NodeRecord {
@@ -2603,11 +2617,17 @@ impl NodeRecord {
     #[must_use]
     pub fn gather<'a>(records: impl IntoIterator<Item = &'a NodeRecord>) -> Self {
         let mut all = Self::default();
+        let mut held = std::collections::HashSet::new();
         for record in records {
             all.brackets.extend(record.brackets.iter().copied());
             all.identities.extend(record.identities.iter().copied());
             all.counts.absorb(record.counts);
             all.roots.extend(record.roots.iter().copied());
+            for over in &record.over {
+                if held.insert(Arc::as_ptr(over)) {
+                    all.over.push(Arc::clone(over));
+                }
+            }
         }
         all.roots.sort_unstable_by_key(|id| id.bits());
         all.roots.dedup();
@@ -2630,6 +2650,13 @@ impl NodeRecord {
     #[must_use]
     pub fn registrations(&self) -> usize {
         self.identities.len()
+    }
+
+    /// How many identities the node read: the registrations of every
+    /// record it was opened over, each record once.
+    #[must_use]
+    pub fn read(&self) -> usize {
+        self.over.iter().map(|record| record.identities.len()).sum()
     }
 }
 
@@ -2727,9 +2754,39 @@ impl NodeGuard {
                     ..inner.counts
                 },
                 roots,
+                over: inner.over,
             })
         })
     }
+}
+
+/// **The open node scope reads `records`**, the records of the values
+/// it reads, in the order given: each record that registered an
+/// identity enters the scope's registry once, after the records that
+/// record itself read ([`NodeRecord`]'s `over`). Nothing outside a
+/// session or outside a node scope's work.
+///
+/// **The order is part of the answer.** Records merge one after
+/// another, and which identity a cycle drops and which node an alias
+/// chain ends at follow that order. The caller's order has to be the
+/// document's (a node's reads in field order), the same in every
+/// replay.
+pub fn reads<'a>(records: impl IntoIterator<Item = &'a Arc<NodeRecord>>) {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else { return };
+        for record in records {
+            for read in record.over.iter().chain([record]) {
+                if read.identities.is_empty() || !sess.node.over_held.insert(Arc::as_ptr(read)) {
+                    continue;
+                }
+                for &(a, b) in &read.identities {
+                    let _ = sess.record_identity(a, b);
+                }
+                sess.node.over.push(Arc::clone(read));
+            }
+        }
+    });
 }
 
 impl Drop for NodeGuard {

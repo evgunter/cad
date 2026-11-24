@@ -532,6 +532,11 @@ fn a_prior_built_under_another_table_is_not_read() {
     let (prior, alone) = one_leaf(&doc, None, None, &table(), tol);
     let (ev, session) = one_leaf(&doc, None, Some(&prior), &table(), tol);
     assert_eq!(ev.reused, 0, "nothing of the foreign prior is reused");
+    assert_eq!(
+        ev.prior_refused,
+        Some(editor_core::PriorRefusal::Table),
+        "and the run says why"
+    );
     assert_eq!(session, alone, "the leaf decides as it does with no prior");
     // Another leaf of the SAME table is another session, and its prior
     // is read.
@@ -602,6 +607,44 @@ fn a_family_whose_members_register_carries_their_identities() {
         "the family holds them all"
     );
     assert_eq!(session, carried(&ev).0, "the receipt is the sum");
+}
+
+/// **A node reads the records of what its reads see.** Over the family
+/// of three registering cylinders: a placement of member 1 alone reads
+/// that member's identities and no other member's; a union that splices
+/// the family in whole reads every member's.
+///
+/// Mutant: a scope fed from the results map, where the family's entry
+/// stands for every read of it, hands the member's reader all three
+/// members' identities.
+#[test]
+fn a_reader_of_a_member_reads_that_members_record_and_a_reader_of_the_family_all() {
+    let tol = Tol::witness();
+    let (doc, family) = family_of_cylinders(tol);
+    let (doc, one) = crate::fixture::member(doc, family, 1);
+    let (doc, all) = crate::fixture::union_of_families(doc, &[family]);
+    let (ev, _) = one_leaf(&doc, None, None, &table(), tol);
+    let Some(NodeResult::Ok(value)) = ev.result(family) else {
+        panic!("the family builds");
+    };
+    let members = value.members.as_ref().expect("the extrude is a family");
+    let of: Vec<usize> = members
+        .members
+        .iter()
+        .map(|(_, member)| member.sym.registrations())
+        .collect();
+    assert!(of.iter().all(|&n| n > 0), "each member registered: {of:?}");
+    let read = |id| match ev.result(id) {
+        Some(NodeResult::Ok(v)) => v.sym.read(),
+        Some(NodeResult::Failed(e)) => e.sym.read(),
+        _ => panic!("the reader ran"),
+    };
+    assert_eq!(read(one), of[1], "the member's reader reads the member");
+    assert_eq!(
+        read(all),
+        of.iter().sum::<usize>(),
+        "the family's reader reads every member"
+    );
 }
 
 /// **Two instances of one part in one document read one run.** The

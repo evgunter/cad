@@ -60,11 +60,15 @@ The extent is honest: the edge's span really is that wide at
 - A wall row's `v` ends are read off its neighbours' ends (its `v` is
   monotone). This is tolerance-dependent, which is also an ε.
 
-**The line-corner sliver absorbs the same overshoot.** On the klein
+**A line-corner cell meets the same overshoot.** On the klein
 elbow's cavity at `Interval`, the same wide extent clips a line-corner
 cell beside a torus half's parallel to a zero-width rectangle.
-`present_line_corner`'s sliver (SPIRIC, #6159) reads that rectangle
-vacuous; without it the cavity refuses `Departure` at the parallel. A fix
-here changes what reaches that sliver, so re-check that site and its row
-`a_line_corner_cell_reaching_the_line_from_outside_reads_vacuous` when
-this row is fixed.
+`present_line_corner`'s sliver (SPIRIC, #6159) used to read that
+rectangle vacuous. The sliver is retired (`embed/remeter`, PR 7329):
+the rectangle is presented on the line and read at the faces' reach,
+and the cavity holds
+(`the_klein_elbows_cavity_holds_across_its_spiric_caps`, at default ε,
+1e-6 and 1e-12). A fix here changes what reaches that reading, so
+re-check its row
+`a_line_corner_cell_reaching_the_line_from_outside_is_read_on_the_line`
+when this row is fixed.
