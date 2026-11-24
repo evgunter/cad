@@ -300,10 +300,11 @@ pub(crate) struct Rim {
     pub(crate) arc: Option<(Curve3<Interval>, (Interval, Interval))>,
     /// The carrier as the body stores it, where the body's scalar is a
     /// point scalar (`f64`): the claim its lift encloses. Two edges whose
-    /// stored carriers are one conic as values, their frames one up to the
-    /// signs of their axes ([`one_stated_plane`]), name one exact conic,
-    /// which their lifts, enclosures of it a rounding wide, cannot show
-    /// as one value ([`one_conic`]). `None` on a body held as enclosures,
+    /// stored carriers are one conic as values ([`one_stated_conic`]: two
+    /// circles' frames one up to the signs of their axes, two ellipses
+    /// one the other's exact restatement) name one exact conic, which
+    /// their lifts, enclosures of it a rounding wide, cannot show as one
+    /// value ([`one_conic`]). `None` on a body held as enclosures,
     /// and for null scaffolding.
     pub(crate) stated: Option<Curve3<f64>>,
     /// The vertices at the curve's start and end.
@@ -5407,13 +5408,18 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
 
 /// [`one_conic`] on two carriers as a point-scalar body stores them: two
 /// circles whose stored frames place one plane ([`one_stated_plane`]) and
-/// whose radii are one; two ellipses stated alike
-/// ([`Curve3::same_content`]: one placement, held at one point and phase,
-/// one pair of semi-axes) with one `v` beside, which that comparison does
-/// not read. An ellipse held on its arc derives its centre from its
-/// anchor, rounded, so two of them may round to one centre from two
-/// anchors whose true centres differ: their frames, read at the centre,
-/// are no stored fact, and only their stored content is.
+/// whose radii are one; two ellipses of which one is the other restated
+/// ([`geom::Ellipse::restatements`]: its seam a half turn on, run back,
+/// or both, each an exact negation of stored numbers that keeps the
+/// point set), read as stated alike ([`Curve3::same_content`]: one
+/// placement, held at one point and phase, one pair of semi-axes) with
+/// one `v` beside, which that comparison does not read. Nothing a
+/// rounding apart is one: an ellipse held on its arc derives its centre
+/// from its anchor, rounded, so two of them may round to one centre from
+/// two anchors whose true centres differ, and a seam turned a quarter
+/// turn is rounded ([`geom::Ellipse::quarter_turned_where`]). Their
+/// frames, read at the centre, are no stored fact, and only their stored
+/// content is.
 #[expect(
     clippy::disallowed_methods,
     reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
@@ -5424,12 +5430,12 @@ fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
             one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            e.same_content(o)
-                && a.frame()
-                    .motion()
-                    .v()
-                    .get()
-                    .equals_exactly(b.frame().motion().v().get())
+            // The stored `v`, which no reading of the conic hands out:
+            // the centre frame carries the stored axes as they are.
+            let v = |e: &geom::Ellipse<f64>| e.frame().motion().v().get();
+            a.restatements()
+                .into_iter()
+                .any(|r| Curve3::Ellipse(r).same_content(o) && v(&r).equals_exactly(v(b)))
         }
         _ => false,
     }
@@ -16470,16 +16476,7 @@ mod presentation_rows {
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
-        let rim = |e: geom::Ellipse<f64>| {
-            let c = Curve3::Ellipse(e);
-            Rim {
-                key: edge(1),
-                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
-                stated: Some(c),
-                ends: [vertex(1), vertex(2)],
-                uses: Vec::new(),
-            }
-        };
+        let rim = |e| ellipse_rim(e, (0.0, 1.0), [1, 2]);
         let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
         let off = 2f64.powi(-60);
         let far = geom::Ellipse::anchored(Point3::new(off, 0.0, 0.0), z, x, 100.0, 1.0);
@@ -16511,6 +16508,294 @@ mod presentation_rows {
             ),
             "v a rounding off is another ellipse"
         );
+    }
+
+    /// A stored ellipse as an edge's rim, over the parameters `span`
+    /// between `ends`, with one use.
+    fn ellipse_rim(e: geom::Ellipse<f64>, span: (f64, f64), ends: [u64; 2]) -> Rim {
+        let c = Curve3::Ellipse(e);
+        Rim {
+            key: edge(1),
+            arc: Some((c.map_scalar(Interval::from_f64), (iv0(span.0), iv0(span.1)))),
+            stated: Some(c),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+                wall: None,
+            }],
+        }
+    }
+
+    /// An ellipse held on its arc in a generic plane, its seam turned a
+    /// quarter from its anchor: phase `(0, −1)`.
+    fn generic_arc_held() -> geom::Ellipse<f64> {
+        geom::Ellipse::anchored(
+            Point3::new(0.3, -1.1, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+            0.75,
+            0.4,
+        )
+        .seamed_near(core::f64::consts::FRAC_PI_2)
+    }
+
+    /// `x` with its seam a half turn on, written out apart from the door
+    /// that states it ([`geom::Ellipse::restatements`]'s and a re-seam's
+    /// shared half turn), for an ellipse whose phase has a zero cosine:
+    /// run back, which negates the axis and the phase's sine, then the
+    /// frame run back again and half-turned with the phase kept, which
+    /// leaves the axis as it was, `u_ref` negated and the sine negated.
+    /// No public door states the half turn of a phase with a cosine
+    /// otherwise; `geom`'s own rows pin it there.
+    fn half_turn_written_out(x: geom::Ellipse<f64>) -> geom::Ellipse<f64> {
+        x.reversed().mapped(|f| f.reversed().half_turned())
+    }
+
+    /// **An ellipse held on its arc is one with each exact restatement
+    /// of itself, and with nothing one pairing short of one**
+    /// ([`one_stated_conic`], [`geom::Ellipse::restatements`]). Its seam
+    /// a half turn on negates `u_ref` and both phase components; run
+    /// back, the axis and the phase's sine; both, `u_ref`, the axis and
+    /// the phase's cosine. Each negative keeps the frame's part and
+    /// leaves a phase component that is not zero as it was, which states
+    /// the ellipse mirrored or turned about its anchor. Red on the first three if a restatement
+    /// is not admitted; on a negative if a frame's negation is admitted
+    /// without its phase component.
+    #[test]
+    fn an_arc_held_ellipse_is_one_with_its_exact_restatements_alone() {
+        use core::f64::consts::PI;
+        let one = |a: geom::Ellipse<f64>, b: geom::Ellipse<f64>| {
+            let (a, b) = (
+                ellipse_rim(a, (0.0, 1.0), [1, 2]),
+                ellipse_rim(b, (0.0, 1.0), [1, 2]),
+            );
+            assert_eq!(one_conic(&a, &b), one_conic(&b, &a), "symmetric");
+            one_conic(&a, &b)
+        };
+        // Phase `(0, −1)`, and seamed back at the anchor, `(1, 0)`.
+        for (what, e) in [
+            ("off its seam", generic_arc_held()),
+            ("at its seam", generic_arc_held().seamed_near(-PI / 2.0)),
+        ] {
+            let half = if what == "off its seam" {
+                half_turn_written_out(e)
+            } else {
+                e.seamed_near(PI)
+            };
+            assert!(one(e, half), "{what}: its seam a half turn on");
+            assert!(one(e, e.reversed()), "{what}: run back");
+            assert!(one(e, half.reversed()), "{what}: both");
+            assert!(
+                !one(e, e.mapped(geom::Frame::half_turned)),
+                "{what}: u_ref negated and the phase kept"
+            );
+        }
+        // A negation whose phase component is a zero changes nothing by
+        // keeping it, so each of these is asked where its component is
+        // not: the sine off the seam, the cosine at it.
+        let e = generic_arc_held();
+        assert!(
+            !one(e, e.mapped(geom::Frame::reversed)),
+            "the axis negated and the phase's sine kept"
+        );
+        let e = e.seamed_near(-PI / 2.0);
+        assert!(
+            !one(e, e.mapped(|f| f.half_turned().reversed())),
+            "u_ref and the axis negated and the phase's cosine kept"
+        );
+    }
+
+    /// **Two ellipses mirrored across their common tangent are two**
+    /// ([`one_stated_conic`]): an ellipse held on its arc at phase
+    /// `(0, 1)`, and the statement with its axis, its `u_ref` and both
+    /// phase components all negated, which keeps `v` and puts the centre
+    /// on the other side of the anchor. The two share the anchor and
+    /// their tangent there and nothing else, so a corner of one arc of
+    /// each is a tangent corner of two conics. Beside it the first is one
+    /// with each of its three restatements. Red if the frame's axes and
+    /// the phase are admitted sign by sign.
+    #[test]
+    fn two_ellipses_mirrored_across_their_tangent_at_one_anchor_are_two() {
+        let one = |a: geom::Ellipse<f64>, b: geom::Ellipse<f64>| {
+            one_conic(
+                &ellipse_rim(a, (0.0, 1.0), [1, 2]),
+                &ellipse_rim(b, (0.0, 1.0), [1, 2]),
+            )
+        };
+        let e = generic_arc_held().reversed();
+        let mirrored = e.reversed().mapped(geom::Frame::half_turned);
+        let (m, n) = (e.frame().motion(), mirrored.frame().motion());
+        assert!(
+            n.w().get().equals_exactly(-m.w().get())
+                && n.u().get().equals_exactly(-m.u().get())
+                && n.v().get().equals_exactly(m.v().get()),
+            "the axis and u_ref negated, v kept: {e:?} {mirrored:?}"
+        );
+        let apart = (e.frame().origin() - mirrored.frame().origin()).norm();
+        assert!(apart > 0.5, "the centres lie apart: {apart}");
+        assert!(!one(e, mirrored), "mirrored across the tangent");
+        let half = half_turn_written_out(e);
+        for (what, r) in [
+            ("a half turn on", half),
+            ("run back", e.reversed()),
+            ("both", half.reversed()),
+        ] {
+            assert!(one(e, r), "{what}");
+        }
+    }
+
+    /// **An ellipse held at its centre is one with each exact
+    /// restatement of itself** ([`one_stated_conic`]), in a frame whose
+    /// lift is no point, so the stored reading alone can say so; with its
+    /// semi-axes exchanged and its vectors kept it is another ellipse,
+    /// and with `v` a rounding off under a half turn it is not one. Red
+    /// if a restatement is not admitted, or `v` is read only where the
+    /// two are stated alike.
+    #[test]
+    fn a_centre_held_ellipse_is_one_with_its_exact_restatements_alone() {
+        let frame = geom::Frame::new(
+            Point3::new(0.3, -1.1, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+        );
+        let rim = |e| ellipse_rim(e, (0.0, 1.0), [1, 2]);
+        let e = geom::Ellipse::new(frame, 0.75, 0.4);
+        for (what, f) in [
+            ("its seam a half turn on", frame.half_turned()),
+            ("run back", frame.reversed()),
+            ("both", frame.half_turned().reversed()),
+        ] {
+            assert!(
+                one_conic(&rim(e), &rim(geom::Ellipse::new(f, 0.75, 0.4))),
+                "{what}"
+            );
+        }
+        assert!(
+            !one_conic(&rim(e), &rim(geom::Ellipse::new(frame, 0.4, 0.75))),
+            "the semi-axes exchanged and the vectors kept"
+        );
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let stored = |u: Vec3<f64>, v: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(u, v, z),
+                translation: Vec3::new(0.3, -1.1, 2.9),
+            };
+            geom::Ellipse::new(
+                geom::Frame::of_motion(
+                    &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+                ),
+                2.0,
+                1.0,
+            )
+        };
+        assert!(
+            one_stated_conic(
+                &Curve3::Ellipse(stored(x, y)),
+                &Curve3::Ellipse(stored(-x, -y))
+            ),
+            "a half turn of stored axes"
+        );
+        assert!(
+            !one_conic(
+                &rim(stored(x, y)),
+                &rim(stored(-x, Vec3::new(-y.x, -y.y, -y.z - 1e-17)))
+            ),
+            "a half turn with v a rounding off"
+        );
+    }
+
+    /// **A seam turned a quarter turn states another ellipse, and an
+    /// ellipse held at its centre is stated otherwise than one held on
+    /// its arc** ([`one_stated_conic`], [`one_conic`]). The quarter turn
+    /// rounds ([`geom::Ellipse::quarter_turned_where`]): in a generic
+    /// frame the turned `v` is no negation of the old `u_ref`, asserted
+    /// here, and the two are not one by either reading. On axis-aligned
+    /// frames, where the turn is exact, the stated reading still says
+    /// two, and so do the lifts, whose `u_ref` lie a quarter turn apart.
+    /// An ellipse about the origin and the same ellipse anchored at its
+    /// vertex, whose derived centre is the origin to the bit, are two by
+    /// the stated reading and ONE by the lifts: there every lifted
+    /// component is a point, the derived centre among them, so the two
+    /// lifts are one curve. Anchored `2⁻⁶⁰` apart the lifted centre is a
+    /// bracket, and they are two
+    /// (`two_stored_ellipses_are_one_only_where_stated_alike`). Red if
+    /// the stated reading admits a quarter turn or a derived centre, or
+    /// the lifts stop reading an exact derived centre as the centre.
+    #[test]
+    fn a_quarter_turned_seam_and_a_derived_centre_state_other_ellipses() {
+        use core::f64::consts::FRAC_PI_2;
+        let rim = |e| ellipse_rim(e, (0.0, 1.0), [1, 2]);
+        let stated = |a, b| one_stated_conic(&Curve3::Ellipse(a), &Curve3::Ellipse(b));
+        let e = generic_arc_held();
+        let q = e.seamed_near(FRAC_PI_2);
+        let (m, n) = (e.frame().motion(), q.frame().motion());
+        assert!(
+            !n.v().get().equals_exactly(-m.u().get()),
+            "the turned v is a rounding off the old u_ref's negation: {m:?} {n:?}"
+        );
+        assert!(!one_conic(&rim(e), &rim(q)), "a quarter turn, rounded");
+        let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let on_grid = geom::Ellipse::anchored(Point3::new(2.0, 0.0, 0.0), z, x, 2.0, 1.0);
+        let turned = on_grid.seamed_near(FRAC_PI_2);
+        assert!(!stated(on_grid, turned), "a quarter turn, exact, as stated");
+        assert!(
+            !one_conic(&rim(on_grid), &rim(turned)),
+            "a quarter turn, exact, by the lifts"
+        );
+        let centred = geom::Ellipse::new(geom::Frame::new(Point3::origin(), z, x), 2.0, 1.0);
+        assert!(
+            centred
+                .frame()
+                .origin()
+                .equals_exactly(on_grid.frame().origin()),
+            "one centre to the bit"
+        );
+        assert!(
+            !stated(centred, on_grid),
+            "held at the centre against held on the arc, as stated"
+        );
+        assert!(
+            one_conic(&rim(centred), &rim(on_grid)),
+            "held at the centre against held on the arc, by lifts that are points"
+        );
+    }
+
+    /// **`continues` reads each arc's direction off its own statement**
+    /// ([`continues`]): an arc of an ellipse over `[0, 1]` ends at a
+    /// vertex, and the arc over `[1, 2]` of the same ellipse runs on from
+    /// it, stated a half turn on (its parameters `[1 − π, 2 − π]`) or
+    /// run back (`[−2, −1]`, ending at the vertex). Each continues. The
+    /// arc `[0, 1]` itself restated the same two ways lies back over the
+    /// first and does not. Red if the restated arc's direction is read at
+    /// the first statement's parameters or with its sense.
+    #[test]
+    fn continues_reads_a_restated_arcs_direction_off_its_own_statement() {
+        use core::f64::consts::PI;
+        let e = generic_arc_held();
+        let first = ellipse_rim(e, (0.0, 1.0), [1, 2]);
+        let half = half_turn_written_out(e);
+        for (what, on, back) in [
+            (
+                "a half turn on",
+                ellipse_rim(half, (1.0 - PI, 2.0 - PI), [2, 3]),
+                ellipse_rim(half, (-PI, 1.0 - PI), [3, 2]),
+            ),
+            (
+                "run back",
+                ellipse_rim(e.reversed(), (-2.0, -1.0), [3, 2]),
+                ellipse_rim(e.reversed(), (-1.0, 0.0), [2, 3]),
+            ),
+        ] {
+            assert!(continues(&first, &on, vertex(2)), "{what}: runs on");
+            assert!(!continues(&first, &back, vertex(2)), "{what}: lies back");
+        }
     }
 
     /// **A plane through a line edge answers nothing at a shared vertex
