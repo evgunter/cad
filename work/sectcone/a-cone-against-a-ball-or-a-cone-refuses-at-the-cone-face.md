@@ -2,10 +2,11 @@
 id: a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face
 kind: issue
 title: A cone against a ball or another cone in general pose refuses CurvedBooleanUnsupported at the cone face before its marched section is read
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P0
 cost: M
+branch: sectcone/cone-face-refusal
 ---
 
 

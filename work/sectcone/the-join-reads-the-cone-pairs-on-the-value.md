@@ -2,11 +2,12 @@
 id: the-join-reads-the-cone-pairs-on-the-value
 kind: unit
 title: The join reads cone × oblique cylinder and cone × cone on the section value: the carried lane, the apex node, GermFrameUnsupported retired
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: cone-germ-pairs-against-a-curved-face-have-no-section-frame
+branch: sectcone/join-cone-pairs
 ---
 
 

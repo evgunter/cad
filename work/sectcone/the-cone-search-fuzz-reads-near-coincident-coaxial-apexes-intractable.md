@@ -2,10 +2,11 @@
 id: the-cone-search-fuzz-reads-near-coincident-coaxial-apexes-intractable
 kind: issue
 title: The cone search fuzz reads two coaxial cones whose apexes stand just past the band apart as Intractable
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: M
+branch: sectcone/cone-search-coaxial-apexes
 ---
 
 

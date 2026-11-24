@@ -2,9 +2,10 @@
 id: a-carried-sites-foot-escalates-where-its-polish-stalls-or-clamps-at-a-run-end
 kind: issue
 title: A carried site's foot escalates where the polish stalls short of the foot or clamps at an interior run end, though the site is correctly placed
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P0
+branch: sectcone/foot-bend-escalation
 ---
 
 

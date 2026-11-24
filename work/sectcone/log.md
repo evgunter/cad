@@ -74,3 +74,20 @@ The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (o
   - r1 M2: the boolean witness's ball has a pole on the cone face, which is the likely vertex-on-face refusal site.
   - A reachable `unreachable!` in `replace_face`, plus minors.
   The fix pass went to the implementer, and both reviewers will re-verify.
+
+## 2026-11-24: 7457 merged, which closes the last original P0; dispatches
+- **7457.** The fix pass fixed both reviews' MAJORs. Re-verification gave APPROVE (r1) and APPROVE-WITH-FIXES (r2). A last minors pass (`044bda71c4`) added:
+  - two touches listed only with the centre decided between the nappes;
+  - the two-cone frame guard deciding by pose;
+  - one typed `RadiusNotPositive`;
+  - the whole witness refusal pinned.
+  I read that pass myself. Then I merged main (geom-brep lever count 515), and merged over the kernel job once lint was green. Inherited red: `square_search`.
+- **Closed.** P0 `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door` (on the branch). Also `main-red-cone-torus-pose-matches-unit-apex-variants-with-struct-patterns`, which 7591 had already fixed.
+- **Main red from 7637.** topo `cone_search` reads coaxial cones whose apexes are about 1e-9 apart as `Intractable`, on about half of all runs. It also fails on an unrelated branch (orbit, run 45398921416), and every nightly predates 7637's merge. Lane `sectcone/cone-search-coaxial-apexes` dispatched.
+- **Dispatched, all Opus, each single FULL unless noted:**
+  - P0 `a-carried-sites-foot-escalates-…` (`sectcone/foot-bend-escalation`). It is a regression from 7408: a rod cut by a slab, and the ring lane, refuse on `section_site_foot_bend`.
+  - P0 `a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face` (`sectcone/cone-face-refusal`).
+  - U3 (`sectcone/join-cone-pairs`).
+  - P1 main red `endpoint-census … ruling.rs` (`sectcone/endpoint-census-ruling`), reviewed by the orchestrator's read.
+  The common lane rules are in the private `lane-common.md`.
+- **Held.** `the-cone-stores-its-slope` waits until these land, because it touches every cone site.
