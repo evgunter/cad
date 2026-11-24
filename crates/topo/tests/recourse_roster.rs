@@ -193,6 +193,7 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     // names the boolean's, the first to raise them.
     ("spline_trim_arm", &BOOLEAN),
     ("spline_trim_clear", &BOOLEAN),
+    ("spline_trim_weight", &BOOLEAN),
     ("stands_across_meeting", &BOOLEAN),
     ("tangent_lump_senses", &BOOLEAN),
     ("vertex_section_clear", &BOOLEAN),
@@ -238,6 +239,10 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    // `geom_core::running::dehomogenized` and `Tracked::dehomogenized`
+    // hand their caller's name to `Rounded::divisor` in geom-core.
+    NameCarrier::Call("dehomogenized"),
+    NameCarrier::Const("SPLINE_TRIM_WEIGHT"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).

@@ -45,6 +45,10 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 /// An entry that matches nothing in `src` now is not a red: it reads
 /// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
+    // `geom_core::running::dehomogenized` and `Tracked::dehomogenized`
+    // hand their caller's name to `Rounded::divisor` in geom-core.
+    NameCarrier::Call("dehomogenized"),
+    NameCarrier::Const("WEIGHT"),
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
     NameCarrier::Const("OVAL_IN_BAND"),
