@@ -4,6 +4,8 @@ kind: issue
 title: A node's op and its keys walk its reads separately: run_op re-resolves each member read that wire::seen_reads already resolved, and rows hold the two equal
 status: open
 opened: 2026-11-23
+priority: P1
+cost: H
 ---
 
 

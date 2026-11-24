@@ -4,6 +4,8 @@ kind: issue
 title: A clearance served over a prior is held to the rebuild's point, not its bodies: an expression edited to another of the same enclosure and nominal rebuilds other bodies under the same keys
 status: open
 opened: 2026-11-23
+priority: P1
+cost: M
 ---
 
 

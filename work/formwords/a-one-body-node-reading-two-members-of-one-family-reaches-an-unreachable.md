@@ -4,6 +4,8 @@ kind: issue
 title: A one-body node reading two members of one family reaches an unreachable!: mirror(xs[k], plane(xs[i].f)) projects both into one map
 status: open
 opened: 2026-11-24
+priority: P1
+cost: M
 ---
 
 
