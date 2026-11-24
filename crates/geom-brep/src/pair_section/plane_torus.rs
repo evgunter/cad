@@ -116,7 +116,7 @@ impl<T: Decide> PlaneTorusPose<T> {
         let ring = Ring::of(torus, band)?;
         Some((|| {
             let ring = ring?;
-            let read = asked(plane, torus, ring, band);
+            let read = plane_torus_closed_form(plane, torus, band);
             let closed = match &read {
                 Err(SectionError::RoutesToGeneralRung { .. }) => false,
                 Err(SectionError::Escalated(diag)) => {
@@ -131,10 +131,8 @@ impl<T: Decide> PlaneTorusPose<T> {
                 // The closed form classified the pose; a spiric it does
                 // not mint is its own reader's to refuse.
                 Ok(_) | Err(SectionError::Spiric(_)) => true,
-                // No plane × torus reading raises these; the closed
-                // form's reader meets whatever it does raise.
                 Err(
-                    SectionError::WrongLane { .. }
+                    e @ (SectionError::WrongLane { .. }
                     | SectionError::RadiusEscalated { .. }
                     | SectionError::NoRegion { .. }
                     | SectionError::DegenerateOperand { .. }
@@ -145,8 +143,12 @@ impl<T: Decide> PlaneTorusPose<T> {
                     | SectionError::Pinched { .. }
                     | SectionError::Unordered { .. }
                     | SectionError::NoMarch { .. }
-                    | SectionError::Unaccounted { .. },
-                ) => true,
+                    | SectionError::Unaccounted { .. }),
+                ) => unreachable!(
+                    "the plane × torus closed form raises its ring guard, its axis rows' \
+                     escalation, its general-rung routing and its spiric's refusal alone, \
+                     and raised {e:?}"
+                ),
             };
             let (stance, gap) = if closed {
                 (PtStance::Closed, TorusGap::Transverse)
@@ -228,47 +230,19 @@ impl<T: Decide> PlaneTorusPose<T> {
             }),
         }
     }
-
-    /// **The section value's reading of the pose**: a closed pose is read
-    /// elsewhere, by [`Self::closed_form`]; a tilted one is built.
-    ///
-    /// # Errors
-    ///
-    /// The tilted section's refusal.
-    pub fn read(self) -> Result<super::SectionRead<T>, SectionError> {
-        match self.stance {
-            PtStance::Closed => {
-                let (a, b) = self.operands();
-                Ok(super::SectionRead::Elsewhere(crate::route(
-                    a.kind(),
-                    b.kind(),
-                )))
-            }
-            PtStance::Tilted(_) => plane_torus(self).map(super::SectionRead::Built),
-        }
-    }
 }
 
 /// Why a tilted pose is not the closed form's.
 const TILTED: &str = "a plane tilted against the torus's axis cuts a spiric quartic, which the \
                       section value marches (crate::PlaneTorusPose)";
 
-/// **The closed form's question, asked where the section value asks
-/// it**: the axis rows levered from the torus's centre over its ball
-/// (module docs, the readings).
-fn asked<T: Decide>(
-    plane: &impl crate::intersect::SectionPlane<T>,
-    torus: &Surface<T>,
-    ring: Ring<T>,
-    band: Band,
-) -> Result<PlaneTorusSection<T>, SectionError> {
-    crate::intersect::plane_torus_section(plane, torus, lever(ring.center(), ring.ball()), band)
-}
-
-/// **The closed form's section of a plane against a torus, read as the
-/// section value reads it** ([`PlaneTorusPose::closed_form`]), for a
-/// reader holding a plane's site rather than its surface: the same rows
-/// at the same lever, so it answers as the pose does.
+/// **The closed form's section of a plane against a torus, as the
+/// section value reads it**: [`crate::plane_torus_section`]'s axis rows
+/// levered from the torus's centre over its ball (module docs, the
+/// readings). The one spelling of the question: [`PlaneTorusPose::decide`]
+/// reads it here and holds the answer ([`PlaneTorusPose::closed_form`]),
+/// and a reader holding a plane's site rather than its surface asks it
+/// here too.
 ///
 /// # Errors
 ///
@@ -279,12 +253,15 @@ pub fn plane_torus_closed_form<T: Decide>(
     torus: &Surface<T>,
     band: Band,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
-    match Ring::of(torus, band) {
-        Some(ring) => asked(plane, torus, ring?, band),
-        None => Err(SectionError::WrongLane {
-            expected: "plane×torus",
-        }),
-    }
+    let ring = match Ring::of(torus, band) {
+        Some(ring) => ring?,
+        None => {
+            return Err(SectionError::WrongLane {
+                expected: "plane×torus",
+            });
+        }
+    };
+    crate::intersect::plane_torus_section(plane, torus, lever(ring.center(), ring.ball()), band)
 }
 
 /// **A plane against a ring torus in the meridian half-plane `Π`

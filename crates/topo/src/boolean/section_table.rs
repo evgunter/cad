@@ -256,19 +256,17 @@ impl<T: crate::props::AtRestPolicy> SectionReader<T> {
         match self.table.pairs.entry(key) {
             Entry::Occupied(held) => Some(held.into_mut().read(lane)),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::PlaneTorusPose::decide(sa, sb, band) {
-                    Some(Ok(pose)) if matches!(pose.stance(), geom_brep::PtStance::Closed) => {
+                let read = match geom_brep::pair_section_held(sa, sb, region, lane, band) {
+                    Ok(geom_brep::HeldRead::ClosedPlaneTorus(pose)) => {
                         self.table.plane_torus.insert(key, pose);
                         return None;
                     }
-                    Some(pose) => pose
-                        .map_err(SectionError::from)
-                        .and_then(|pose| pose.read()),
-                    None => geom_brep::pair_section(sa, sb, region, lane, band),
-                };
-                let read = match read {
-                    Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
-                    Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
+                    Ok(geom_brep::HeldRead::Read(geom_brep::SectionRead::Elsewhere(_))) => {
+                        return None;
+                    }
+                    Ok(geom_brep::HeldRead::Read(geom_brep::SectionRead::Built(section))) => {
+                        Ok(section)
+                    }
                     Err(e) => Err(e),
                 };
                 Some(

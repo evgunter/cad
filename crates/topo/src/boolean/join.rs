@@ -163,7 +163,6 @@
 use geom_brep::SectionPick;
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use super::shell_witness::{Reading, complex_side};
@@ -2904,52 +2903,24 @@ pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
     }
     let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
     let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
-    if let Some(pose) = plane_torus_pose(sections, (body_a, face_a), (body_b, face_b), band)? {
-        return pt_germ_frame(pose.map_err(refused)?.as_ref()).map_err(refused);
-    }
-    let extent = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
-    pair_section_frame_at(sa, sb, extent, band).map_err(refused)
-}
-
-/// **The plane×torus pose a face pair's frame reads**: the one the
-/// operation's section table holds, which the section value read closed
-/// ([`super::section_table::SectionTable::plane_torus`]). A glue door's
-/// table holds every plane×torus pair whose faces meet, as a closed pose
-/// or as the section of a tilted one, whose germs ride its components;
-/// so a pair it holds no closed pose of reaching a frame is a desync. A
-/// table no glue door read (`Default`) holds none, and the pose is
-/// decided here, as the value decides it. `None` off a plane×torus pair;
-/// the inner `Err` is the pose's refusal.
-#[allow(clippy::type_complexity)] // a borrowed or decided pose, or its refusal
-fn plane_torus_pose<'t, T: crate::props::AtRestPolicy>(
-    sections: &'t super::section_table::SectionTable<T>,
-    a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
-    band: Band,
-) -> Result<Option<Result<Cow<'t, geom_brep::PlaneTorusPose<T>>, FrameError>>, BooleanError> {
-    let ((_, sa), (_, sb)) = (keyed_surface(a.0, a.1), keyed_surface(b.0, b.1));
-    if !matches!(
+    if matches!(
         (sa, sb),
         (geom::Surface::Plane { .. }, geom::Surface::Torus { .. })
             | (geom::Surface::Torus { .. }, geom::Surface::Plane { .. })
     ) {
-        return Ok(None);
+        // The table holds the pose the value read closed. It holds none
+        // of a pose the value read tilted, whose germs ride its carried
+        // components, nor any where no glue door read it; the pose is
+        // then decided as the value decides it, so the frame reads one
+        // answer either way: served where closed, a desync where tilted.
+        return match sections.plane_torus((body_a, face_a), (body_b, face_b)) {
+            Some(pose) => pt_germ_frame(pose),
+            None => plane_torus_frame(sa, sb, band),
+        }
+        .map_err(refused);
     }
-    if let Some(pose) = sections.plane_torus(a, b) {
-        return Ok(Some(Ok(Cow::Borrowed(pose))));
-    }
-    if sections.held(a, b).is_some() || sections.unheld_is_desync() {
-        return Err(BooleanError::JoinDesync {
-            what: "a plane×torus pair the section table holds no closed pose of reached a frame",
-        });
-    }
-    match geom_brep::PlaneTorusPose::decide(sa, sb, band) {
-        Some(pose) => Ok(Some(
-            pose.map(Cow::Owned)
-                .map_err(|refusal| section_refusal(refusal.into())),
-        )),
-        None => unreachable!("a plane and a torus have a plane × torus pose"),
-    }
+    let extent = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    pair_section_frame_at(sa, sb, extent, band).map_err(refused)
 }
 
 /// **What a face pair's frame is levered at**: the consumed region's
@@ -4387,8 +4358,7 @@ fn pt_germ_frame<T: Decide>(
 }
 
 /// [`pt_germ_frame`] on the pose of `sa` against `sb`, decided as the
-/// section value decides it: the frame a table no glue door read takes.
-#[cfg(test)]
+/// section value decides it ([`face_pair_section_loops`]).
 pub(super) fn plane_torus_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,

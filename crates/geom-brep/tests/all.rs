@@ -56,6 +56,8 @@ mod shared;
 mod a_blend_section_is_a_shared_row_of_its_bands;
 #[path = "a_plane_against_a_torus_routes_as_its_pose_reads.rs"]
 mod a_plane_against_a_torus_routes_as_its_pose_reads;
+#[path = "a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever.rs"]
+mod a_plane_torus_closed_form_serves_its_circles_within_the_band_at_any_lever;
 #[path = "a_shared_row_is_certified_per_wall.rs"]
 mod a_shared_row_is_certified_per_wall;
 #[path = "an_iso_family_reads_the_edges_span.rs"]

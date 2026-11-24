@@ -445,47 +445,11 @@ fn a_tangent_circle_or_no_section_is_the_desync() {
     }
 }
 
-/// **The frame reads the pose as the section value reads it**: a plane
-/// through the centre, tilted off the axis by `k·zero/(2(R + r))` for a
-/// run of `k` across the value's band, is served the meridian pair
-/// exactly where the value reads the pose closed, and is a desync
-/// exactly where the value reads it tilted; the run holds both. A
-/// plane×torus pair is never framed by its kinds, at any extent.
+/// **A plane×torus pair is never framed by its kinds**, at any extent:
+/// its frame is read on the pose the section value decides.
 #[test]
-fn the_frame_reads_the_pose_the_value_reads() {
-    let b = band();
-    let torus = donut();
-    let mut seen = (false, false);
-    for k in [0.1, 0.3, 0.6, 1.0, 1.5, 3.0, 6.0, 30.0] {
-        let sine = k * b.zero() / (2.0 * (BIG_R + SMALL_R));
-        let p = plane(
-            [0.0, 0.0, 0.0],
-            Vec3::new((1.0 - sine * sine).sqrt(), sine, 0.0),
-        );
-        let closed = match geom_brep::PlaneTorusPose::decide(&p, &torus, b) {
-            Some(Ok(pose)) => matches!(pose.stance(), geom_brep::PtStance::Closed),
-            other => panic!("k = {k}: the value decides the pose, got {other:?}"),
-        };
-        let got = frame(&p);
-        let agrees = if closed {
-            seen.0 = true;
-            matches!(got, Ok(Some(_)))
-        } else {
-            seen.1 = true;
-            matches!(got, Err(FrameError::Desync(_)))
-        };
-        assert!(
-            agrees,
-            "k = {k}: the value reads the pose {}, the frame {}",
-            if closed { "closed" } else { "tilted" },
-            shape(&got)
-        );
-    }
-    assert_eq!(
-        seen,
-        (true, true),
-        "the run holds a closed pose and a tilted one"
-    );
+fn a_plane_torus_pair_is_never_framed_by_its_kinds() {
+    let (b, torus) = (band(), donut());
     let p = plane([0.0, 0.0, 0.0], Vec3::unit_x());
     for extent in [
         FrameExtent::Radii,
@@ -536,7 +500,8 @@ fn plane_face(n: Vec3<f64>, to: Point3<f64>) -> (crate::Body<f64>, FaceKey) {
 /// table holds its section, whose germs ride its components, so a frame
 /// asked of it is a desync. A table no door read decides the pose as the
 /// value does, and reads it the same way. Both member orders; the run
-/// holds both poses.
+/// holds both poses, and a tilted one the closed form reads closed at the
+/// torus face's own reach, where a frame levered there would serve it.
 #[test]
 fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
     use super::join::face_pair_section_loops;
@@ -553,7 +518,12 @@ fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
         (view.record().surface, view.surface().clone())
     };
     let azimuth = Vec3::new(1.0, -1.0, 0.0).normalize();
+    let surface = |body: &crate::Body<f64>, f: FaceKey| body.proven_face(f).surface().clone();
+    let cover = || crate::cover::face_cover(&torus, face, b);
+    let at = super::join::frame_reading(&surface(&torus, face), cover, cover).unwrap();
+    let face_reach = crate::cover::face_reach_from(&torus, face, at, b).unwrap();
     let mut seen = (false, false);
+    let mut straddled = false;
     for k in [0.3, 0.8, 1.5, 6.0, 15.0] {
         let s = k * b.zero() / (2.0 * (big_r + r));
         let n = azimuth * (1.0 - s * s).sqrt() + Vec3::unit_z() * s;
@@ -568,6 +538,7 @@ fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
             seen.0 = true;
         } else {
             seen.1 = true;
+            straddled |= geom_brep::plane_torus_section(&sp, &st, face_reach, b).is_ok();
         }
         for (label, (body_a, fa, ka, sa), (body_b, fb, kb, sb)) in [
             (
@@ -609,8 +580,8 @@ fn the_frame_takes_the_section_tables_answer_through_the_production_path() {
         }
     }
     assert_eq!(
-        seen,
-        (true, true),
-        "the run holds a closed pose and a tilted one"
+        (seen, straddled),
+        ((true, true), true),
+        "the run holds a closed pose, a tilted one, and a tilted one closed at the face's reach"
     );
 }
