@@ -438,7 +438,8 @@ mod tests {
     /// mutant that reads the value as 0.
     #[test]
     fn values_with_no_expression_decline() {
-        let rows: [(&str, fn() -> S); 4] = [
+        type Row = (&'static str, fn() -> S);
+        let rows: [Row; 4] = [
             ("free identity", || {
                 use crate::Decide;
                 param("x", -1.0, 1.0).free_identity(|free| free(lit(0.0)) + lit(0.5))
