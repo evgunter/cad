@@ -342,7 +342,8 @@ pub(crate) fn name_split<T: Decide>(
     }
 
     for s in &sides {
-        super::emit::check_total(&halves[s.slot()].t, s.body, 0)?;
+        let h = &mut halves[s.slot()];
+        h.t = super::emit::finish(std::mem::take(&mut h.t), s.body, 0)?;
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
@@ -1313,10 +1314,13 @@ fn name_split_edges_vertices<T: Decide>(
                         target_node,
                     )
                 })?;
-            if target_table
-                .name_of(&ent(0, EntityKey::Vertex(src)))
-                .is_some()
-            {
+            let src_name = target_table.name_of(&ent(0, EntityKey::Vertex(src)));
+            // The plane through the target's conventional vertex crosses
+            // its closed edge's interior there, as a plane a hair away
+            // would: the vertex has no identity of its own.
+            let through_conventional =
+                super::emit::cut_through_conventional(target_body, src, src_name, body, v);
+            if src_name.is_some() && through_conventional.is_none() {
                 // The plane passed THROUGH an operand vertex: its
                 // copies in this half, named below. Its own birth
                 // record, if any, is the operation that made the
@@ -1336,14 +1340,16 @@ fn name_split_edges_vertices<T: Decide>(
             }
             // A vertex the split minted: the original's record lives in
             // whichever side kept it.
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_split_edge_to_table(sides, target_table, *edge))
-                    }
-                    _ => None,
-                });
+            let parent_edge = through_conventional.or_else(|| {
+                sides
+                    .iter()
+                    .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+                        Some(Provenance::SplitEdge { edge }) => {
+                            Some(chase_split_edge_to_table(sides, target_table, *edge))
+                        }
+                        _ => None,
+                    })
+            });
             let Some(parent_edge) = parent_edge else {
                 unreachable!(
                     "split vertex {v:?} (standing for {src:?}) has neither a `SplitEdge` record \
@@ -1882,7 +1888,7 @@ pub(crate) fn name_boolean<T: Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
 
-    super::emit::check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Emitted::new(t, rec))
 }
 
@@ -2806,16 +2812,25 @@ fn name_boolean_vertices<T: Decide>(
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
     // An operand vertex's upstream name, if that operand's table names
-    // it. A key the table does not name (a vertex the reduction minted)
-    // yields nothing; a table that names a key and then fails to resolve
-    // it is corrupt, and says so.
-    let named_in = |side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
-        let (op, k) = side.of(a, b);
-        if op.table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
-            return Ok(None);
-        }
-        upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
-    };
+    // it, for result vertex `v`. A key the table does not name (a vertex
+    // the reduction minted) yields nothing; a table that names a key and
+    // then fails to resolve it is corrupt, and says so. An operand's
+    // conventional vertex yields nothing at a result vertex that is no
+    // longer one: it has no identity of its own, so the vertex a cut
+    // leaves at its point is named as a point of its edge's interior, as
+    // one a hair away would be. Where the result vertex is still one, its
+    // edge names it (`emit::finish`).
+    let named_in_at =
+        |v: VertexKey, side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
+            let (op, k) = side.of(a, b);
+            let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
+            if name.is_none()
+                || super::emit::cut_through_conventional(op.body, k, name, body, v).is_some()
+            {
+                return Ok(None);
+            }
+            upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
+        };
     // The vertex named as operand vertex `side`, its upstream `u`.
     let identity_of = |side: OpSide<VertexKey>, u: Upstream| {
         let parent = side.map(EntityKey::Vertex).parent();
@@ -2861,6 +2876,7 @@ fn name_boolean_vertices<T: Decide>(
             order.push(operand_key(naming, inv_vertices, fused.origin(k)).0);
         }
         order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
+        let named_in = |side| named_in_at(v, side);
         for side in order {
             if let Some(u) = named_in(side)? {
                 identity = Some(identity_of(side, u));
@@ -4963,7 +4979,13 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         let (v0, v1) = edge_ends(body, e);
         let mut ends = Vec::with_capacity(2);
         for v in [v0, v1] {
-            let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
+            let end = t.name_of(&ent(ix, EntityKey::Vertex(v)));
+            // A closed edge's conventional vertex is named for the edge,
+            // so the edge's name cites none of it.
+            if super::emit::conventional_edge(body, v, end).is_some() {
+                continue;
+            }
+            let Some(end) = end else {
                 unreachable!(
                     "edge piece {e:?} under {base:?} ends at vertex {v:?}, which the table does \
                      not name: every caller (split, boolean, shell, union) names each vertex of \

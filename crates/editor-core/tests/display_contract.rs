@@ -2350,7 +2350,6 @@ test_utils::f6_variants! {
         SharedRim,
         ChordOffRim,
         MemberEdgeTied,
-        ConventionalVertex,
         ClosedCarrierUnread,
         CarrierUnplaced,
         PartnerUnread,
@@ -2679,17 +2678,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 reached: topo::Cell::Vertex(topo::VertexKey::default()),
             }),
             vec!["a vertex of a Boolean's result settles on a cell the result does not hold"],
-        ),
-        (
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 3,
-            },
-            vec![
-                "conventional vertex",
-                "output body 3",
-                "a-conventional-vertex",
-            ],
         ),
         (
             NamingError::MemberEdgeTied {

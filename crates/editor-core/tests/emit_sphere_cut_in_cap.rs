@@ -9,8 +9,7 @@
 //!
 //! The output stage closes the cut again (`topo::boolean::slit`, closing
 //! a cut), so every op builds, and the circle keeps one vertex with no
-//! identity of its own, which the table refuses typed until its
-//! edge-derived name is built ([`CONVENTIONAL`]).
+//! identity of its own, named for the circle.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
@@ -120,11 +119,6 @@ pub(crate) fn world_in_brick(
     against(doc, brick, body, &at)
 }
 
-/// A section circle no edge reached keeps one conventional vertex, which
-/// no name reads yet.
-pub(crate) const CONVENTIONAL: &str =
-    "work/borders/a-conventional-vertex-mints-no-edge-derived-name.md";
-
 /// The document: the lens, the brick, and `op` over them, lens first or
 /// not.
 fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
@@ -161,14 +155,14 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     (doc, [lens, brick, out])
 }
 
-/// **The lens and the brick name, and every op over them refuses only
-/// where a row is filed**: at the circle's conventional vertex, which
-/// the totality check reaches only once every face and edge is named
-/// ([`CONVENTIONAL`]). No op over them publishes a table yet, so none is
-/// read here for the lens entities its names cite; the
-/// conventional-vertex row's fix makes them name, and asserts that here.
+/// **Every op over the lens and the brick names**, in both orders. The
+/// circle the brick's near face meets the lens's top face in keeps one
+/// conventional vertex, named for the circle alone: a seam between a
+/// face of the lens and one of the brick, so its name cites both
+/// operands and nothing else of the op (`names/README.md`, "A
+/// conventional vertex").
 #[test]
-fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
+fn every_op_over_a_sphere_cut_in_names_the_circles_vertex_for_the_circle() {
     for (op, lens_first) in [
         ("intersect", true),
         ("intersect", false),
@@ -182,12 +176,72 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
         let ev = run(&doc);
         assert!(failure(&ev, lens).is_none(), "{what}: the lens names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
-        let e = format!("{:?}", failure(&ev, out).expect("refuses"));
-        assert!(
-            e.starts_with("Naming(ConventionalVertex"),
-            "{what}: refused other than at the conventional vertex ({CONVENTIONAL}): {e}"
-        );
+        if let Some(e) = failure(&ev, out) {
+            panic!("{what}: the op names: {e}");
+        }
+        circle_vertex_cites(&doc, &ev, out, [lens, brick], &what);
     }
+}
+
+/// `out`'s table names one conventional vertex, for a seam edge whose
+/// name derives from both of `operands`, the nodes minting the names of
+/// the faces it runs between; the vertex's name, and a pick at the
+/// vertex, resolve to that edge, and no listing hands the name out.
+pub(crate) fn circle_vertex_cites(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    out: RecipeNodeId,
+    operands: [RecipeNodeId; 2],
+    what: &str,
+) {
+    use editor_core::{EntityKey, EntityKind, Entry, RoleSeg};
+    let t = crate::fixture::table(ev, out);
+    let vertices: Vec<_> = t
+        .iter()
+        .filter_map(|(n, entry)| match (n.path.as_slice(), entry) {
+            ([RoleSeg::ConventionalVertex(edge)], Entry::Unique(v)) => {
+                Some((n.clone(), edge.clone(), v.key))
+            }
+            _ => None,
+        })
+        .collect();
+    let [(name, edge, EntityKey::Vertex(vertex))] = vertices.as_slice() else {
+        panic!("{what}: one conventional vertex, not {vertices:?}");
+    };
+    let Some(Entry::Unique(on)) = t.lookup(edge) else {
+        panic!("{what}: the vertex's edge is one row of the table: {edge:?}");
+    };
+    let from = editor_core::derivation_nodes(edge);
+    assert!(
+        matches!(edge.path.as_slice(), [RoleSeg::Seam { .. }])
+            && operands.iter().all(|o| from.contains(o)),
+        "{what}: the circle is the seam between the two operands: {edge:?}"
+    );
+    match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: ev }, name) {
+        editor_core::Resolution::Resolved(r) => assert_eq!(
+            r.entity.key, on.key,
+            "{what}: the vertex's name resolves to its edge"
+        ),
+        other => panic!("{what}: the vertex's name resolves, not {other:?}"),
+    }
+    assert_eq!(
+        editor_core::vertex_name(ev, out, 0, *vertex).expect("a pick at the vertex names"),
+        &**edge,
+        "{what}: a pick at the vertex is a pick of its edge"
+    );
+    assert!(
+        !editor_core::all_vertices(ev, out).contains(name),
+        "{what}: no listing hands out the vertex's name for a reference to hold"
+    );
+    assert!(
+        !editor_core::select(
+            ev,
+            out,
+            &editor_core::Selector::of(editor_core::NamePat::of_kind(EntityKind::Vertex)),
+        )
+        .contains(name),
+        "{what}: no selector hands out the vertex's name"
+    );
 }
 
 /// **The cap states its meridian crossings as meetings**: the kernel

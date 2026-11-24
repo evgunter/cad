@@ -713,8 +713,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
-#[path = "the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex.rs"]
-mod the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex;
+#[path = "the_tours_die_with_two_pips_run_together_builds.rs"]
+mod the_tours_die_with_two_pips_run_together_builds;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
@@ -818,6 +818,8 @@ mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
 
+#[path = "a_cut_through_a_conventional_vertex_reads_its_edge.rs"]
+mod a_cut_through_a_conventional_vertex_reads_its_edge;
 #[path = "a_datum_is_a_placed_frame.rs"]
 mod a_datum_is_a_placed_frame;
 #[path = "a_keel_ring_names_its_two_edges.rs"]
@@ -868,6 +870,8 @@ mod emit_split_duplicate;
 mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
+#[path = "emit_union_conventional_vertex_orders.rs"]
+mod emit_union_conventional_vertex_orders;
 #[path = "emit_union_curved_flush.rs"]
 mod emit_union_curved_flush;
 #[path = "emit_union_flush_names.rs"]
