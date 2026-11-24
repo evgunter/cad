@@ -3019,9 +3019,12 @@ pub(super) fn frame_extent<T: Decide>(
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             cone_reach((body_a, face_a), (body_b, face_b), at, cone, band)
         }
-        // Every other pair: the ball of both faces' covers, where both
-        // have one, the region a pose the value reads elsewhere is read
-        // over ([`conic_section_frame_at`]); else its radii.
+        // Two cones: the ball of both faces' covers, where both have one,
+        // the region a pose the value reads elsewhere is read over
+        // ([`conic_section_frame_at`]); every other pair, its radii.
+        _ if sa.kind() != geom::SurfaceKind::Cone || sb.kind() != geom::SurfaceKind::Cone => {
+            Ok(FrameExtent::Radii)
+        }
         _ => {
             let ball = |body, face| {
                 crate::cover::face_cover(body, face, band)
