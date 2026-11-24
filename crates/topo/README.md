@@ -366,6 +366,43 @@ side. It is never read from values: a root verdict of "tangent" is a
 band decision, so a graze within the band refuses, and an exact tangency
 is reached only through structure or a glue.
 
+*An end on a junction's rim.* Where an edge's parent face and the
+target face were glued a junction on a rim (C4's `Junction` row: both
+end on it, leaving it on opposite sides) and the edge's end lies on that
+rim (decided Zero, `junction_end_on_rim`) inside the stretch the two
+faces were glued over (`junction_end_in_extent`), the end's root on the
+target's carrier is the junction's, and no cover is claimed. The
+end-root door (`geom_brep::curve_face::end_root`) reads a line or a
+circle against a plane, a cylinder, a sphere, a cone or a torus; it
+composes the carrier from the end with the target's canonical form and
+decides the root's order: the least coefficient decided nonzero, a
+coefficient decided Zero stepped past and charged at the zero band's
+width, one in band refused (`BooleanDecision::JunctionEndOrder`). It
+then certifies a window past the end that holds no root but those the
+dropped terms can move, within the window's spread of the end.
+
+*The junction's side.* A root inside the spread is off the target face
+once the edge stands on its own face's side of the rim beyond the band,
+since the target face lies on the other side. The edge's departure from
+the rim is signed, its component along its face's inward conormal there,
+and the side margin (`junction_end_side`) is that departure's lead over
+the spread less the edge's and the rim's bends over it, decided Positive
+(in band, `BooleanDecision::JunctionEndSide`). A root nearer the end
+than where that margin clears the band lies within the band of the
+target face's boundary, not necessarily at the vertex, and is the touch
+the vertex's own placement records. No window, or a side not held,
+refuses `JunctionEndUnread` with `Window`. An end where the glued
+stretch stops is read only where the target face's corner there is
+decided within π (`junction_end_corner`), since only then does that face
+lie on its own side of the rim's tangent; a reflex or undecided corner
+refuses with `ReflexCorner`, and an end where two stretches ridden
+opposite ways meet with `OpposedStretches`. The rest of the span is the
+root doors' as any span's, so a root of the carrier there is found and
+placed in the trim: a straight tube leaving a bend G1 does meet the
+bend's carrier again, off its face. A carrier or a surface the door has
+no lane for refuses `JunctionEndUnread` with `NoLane`, and a closed edge
+with `Closed`.
+
 *Touches inside the edge.* A covered LINE touching a cylinder or a
 sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the

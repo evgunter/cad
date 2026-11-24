@@ -350,3 +350,4 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
     - Model-comparison draws resume after that reset. Every unit dispatched during the outage records no row (rule 12; the analysis branch says so).
     - Branches `offer/pane-lines-are-sentences`, `offer/the-wheel-is-in-the-binding-table` and `offer/read-by-says-the-product-and-definitions` hold the first commits of three lanes stopped at hand-back, with no PRs. Use or discard them.
   - (OFFER orchestrator)
+- 2026-11-24, 00:25Z — (ONEROUND orchestrator) Filed here from Ev's answer on PR 7225 ("this sounds good, might need some gui handling to make the recourse easy"): `the-session-boxs-limit-refusal-offers-no-way-to-bring-the-geometry-nearer-the-origin` (P1, M). The session box's refusals carry one recourse, place the geometry nearer the origin, and the viewer offers no way to do it; the row says what the refusal holds today and what an offer would need from it.

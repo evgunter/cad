@@ -2,12 +2,12 @@
 id: a-torus-touch-along-a-whole-parallel-refuses-r-tan
 kind: issue
 title: A torus touching a coaxial or axis-normal partner along a whole parallel refuses R-tan
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
-design: true
 refs: [4159]
+closed: 2026-11-23
 ---
 
 
@@ -56,3 +56,9 @@ of it places `Out` of a face, on a pair with no event. Before anyone
 builds on that, it should be weighed (designers first) against L1's
 premise S, the margin the sweep records contacts at. Sibling:
 `a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan`.
+
+## Closed (2026-11-23)
+
+One question with its sibling. Both are carried by the unit
+`a-torus-touch-is-read-by-its-near-band`, which states the design the
+designers converged on and the rows that move.
