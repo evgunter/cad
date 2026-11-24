@@ -46,7 +46,15 @@ mod tests {
             })
             .0
         };
-        println!("WHOLE: {}", run(whole.clone()));
+        let over_the_box = run(whole.clone());
+        println!("WHOLE: {over_the_box}");
+        // Red under the door's arc arm turned onto the start vertex's
+        // normalized offset (run in review): both hole extrudes refuse
+        // and the assertion has no value.
+        assert!(
+            !over_the_box.starts_with("no value") && !over_the_box.starts_with("not an assertion"),
+            "the cut plate's assertion has a verdict over the whole box: {over_the_box}"
+        );
         for s in [
             [0.0, 0.0, 0.0],
             [1.0, 1.0, 1.0],
