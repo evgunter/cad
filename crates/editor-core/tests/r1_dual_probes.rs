@@ -178,6 +178,13 @@ where
                 d.u64(2);
                 d.s(&format!("{through:?}"));
             }
+            // A family of no bodies digests as its `Family` value did,
+            // its members its own nodes' values, digested where each is
+            // read.
+            Some(NodeResult::Members(_)) => {
+                d.u64(3);
+                d.u64(19);
+            }
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
@@ -218,7 +225,6 @@ where
                             }
                         }
                     }
-                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Datum(_) => d.u64(20),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);

@@ -1816,6 +1816,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     {
         let (escalations, failure) = match result {
             NodeResult::Ok(v) => (&v.escalations, None),
+            NodeResult::Members(family) => (&family.escalations, None),
             NodeResult::Failed(e) => (&e.escalations, Some(e)),
             NodeResult::Poisoned { .. } => continue,
         };
@@ -1873,7 +1874,11 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                 node_keys: leaf
                     .order
                     .iter()
-                    .filter_map(|&id| leaf.value(id).map(|v| (id, v.content_key)))
+                    .filter_map(|&id| {
+                        leaf.result(id)
+                            .and_then(NodeResult::content_key)
+                            .map(|key| (id, key))
+                    })
                     .collect(),
             },
         });

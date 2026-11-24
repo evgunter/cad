@@ -4951,6 +4951,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_boolean",
             "node_failed",
             "not_a_body",
+            "not_a_body",
             "poisoned",
             "step_refused",
             "unknown_node",
@@ -5412,7 +5413,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_standing_tag",
-        values: &["node_failed", "node_not_evaluated", "node_poisoned"],
+        values: &[
+            "node_failed",
+            "node_members",
+            "node_not_evaluated",
+            "node_poisoned",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5600,6 +5606,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_outside_world",
             "read_failed",
             "read_poisoned",
+            "read_refused",
             "stranded_product",
             "unknown_node",
         ],
@@ -5748,7 +5755,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "resolve_indeterminate_tag",
-        values: &["target_failed", "target_not_evaluated", "target_poisoned"],
+        values: &[
+            "target_failed",
+            "target_members",
+            "target_not_evaluated",
+            "target_poisoned",
+        ],
         delegates: &[],
     },
     TagEntry {

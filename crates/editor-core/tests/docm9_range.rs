@@ -274,7 +274,7 @@ fn standings_and_names(
             (
                 *id,
                 match r {
-                    NodeResult::Ok(_) => "ok",
+                    NodeResult::Ok(_) | NodeResult::Members(_) => "ok",
                     NodeResult::Failed(_) => "failed",
                     NodeResult::Poisoned { .. } => "poisoned",
                 },

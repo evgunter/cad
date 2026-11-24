@@ -75,7 +75,7 @@
 
 use std::collections::BTreeMap;
 
-use editor_core::{BooleanValue, EntityKey, Evaluation, SplitSide, ValuePayload};
+use editor_core::{BooleanValue, EntityKey, Evaluation, NodeResult, SplitSide, ValuePayload};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 
 /// FNV-1a 64, the one mixer every digest in these suites uses.
@@ -499,6 +499,12 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
     let mut feed = |bytes: &[u8]| h.feed(bytes);
     for (place, id) in ev.order.iter().enumerate() {
         feed(format!("@node{place}").as_bytes());
+        // A family of no bodies names nothing and is fed its family word
+        // alone, as its `Family` value was.
+        if let Some(NodeResult::Members(_)) = ev.result(*id) {
+            feed(b"family");
+            continue;
+        }
         let Some(value) = ev.value(*id) else { continue };
         for row in name_rows(ev, *id) {
             feed(row.as_bytes());
@@ -535,8 +541,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             | ValuePayload::Instances(_)
             | ValuePayload::Measure { .. }
             | ValuePayload::Assertion(_)
-            | ValuePayload::Datum(_)
-            | ValuePayload::Family => {}
+            | ValuePayload::Datum(_) => {}
         }
     }
     h.finish()

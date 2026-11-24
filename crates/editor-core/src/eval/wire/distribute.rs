@@ -65,7 +65,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         doc: &crate::doc::Doc<crate::program::ProfileProgram>,
         tol: Tol,
     ) -> Result<Self, NodeErrorKind> {
-        let value = super::value_of(results, node)?;
+        let value = super::value_as(results, node, crate::eval::phrase::BODY_OR_INSTANCES)?;
         Ok(Self {
             node,
             read,

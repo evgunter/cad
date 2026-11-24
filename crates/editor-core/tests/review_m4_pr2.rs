@@ -463,6 +463,9 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
                     }
                 }
             }
+            NodeResult::Members(f) => {
+                let _ = writeln!(s, "{id:?} Ok key={:?} family", f.content_key);
+            }
             NodeResult::Failed(e) => {
                 let _ = writeln!(s, "{id:?} Failed {:?}", std::mem::discriminant(&e.kind));
             }

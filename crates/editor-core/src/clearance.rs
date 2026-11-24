@@ -988,6 +988,9 @@ impl SelectionRefusal {
                 let (word, node, through) = match *standing {
                     NodeStanding::NotEvaluated { node } => ("not_evaluated", node, None),
                     NodeStanding::NotInDocument { node } => ("not_in_document", node, None),
+                    NodeStanding::Members { .. } => {
+                        unreachable!("a family that is no one value refuses as `NoBodies`")
+                    }
                     NodeStanding::Failed { node } => ("failed", node, None),
                     NodeStanding::Poisoned { node, through } => ("poisoned", node, Some(through)),
                 };
@@ -1827,9 +1830,15 @@ fn framed_of<'e, T: topo::AtRestPolicy + geom_core::Decide>(
     sel: &Selection,
 ) -> Result<&'e crate::eval::Framed<T>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
-    let value = ev
-        .usable(sel.at)
-        .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
+    let value = ev.usable(sel.at).map_err(|standing| match standing {
+        // A family evaluated once per member built, and is no one value:
+        // it carries no body a selection's index reads.
+        NodeStanding::Members { node } => refuse(SelectionRefusal::NoBodies {
+            node,
+            payload: crate::eval::family::FAMILY,
+        }),
+        standing => refuse(SelectionRefusal::NodeDidNotBuild(standing)),
+    })?;
     crate::names::interrogate::output_body(&value.payload, sel.body)
         .map_err(|e| refuse(SelectionRefusal::no_body(sel, e)))
 }

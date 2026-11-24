@@ -119,16 +119,19 @@ pub(crate) fn verdicts(ev: &Evaluation<f64>, assertion: RecipeNodeId) -> Vec<boo
             ValuePayload::Assertion(AssertionVerdict::Holds { .. })
         )
     };
-    let Some(value) = ev.value(assertion) else {
+    // A per-member assertion is no one value: its members are its
+    // result's.
+    let Some(result) = ev.result(assertion) else {
         return vec![false];
     };
-    match &value.members {
-        Some(family) => family
+    match (result.members(), result.value()) {
+        (Some(family), _) => family
             .members
             .iter()
             .map(|(_, m)| holds(&m.payload))
             .collect(),
-        None => vec![holds(&value.payload)],
+        (None, Some(value)) => vec![holds(&value.payload)],
+        (None, None) => vec![false],
     }
 }
 

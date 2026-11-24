@@ -2446,6 +2446,8 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
             }
             NodeStanding::Failed { .. } => "node_failed",
             NodeStanding::Poisoned { .. } => "poisoned",
+            // A family of anything but bodies exports no body.
+            NodeStanding::Members { .. } => "not_a_body",
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
@@ -2464,6 +2466,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::UnknownNode => "unknown_node",
         K::ReadFailed => "read_failed",
         K::ReadPoisoned => "read_poisoned",
+        K::ReadRefused => "read_refused",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",
@@ -2858,9 +2861,9 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
         EvalReason::Standing(standing) => match standing {
             NodeStanding::NotInDocument { .. } => "unknown_node",
             NodeStanding::Poisoned { .. } => "poisoned",
-            NodeStanding::NotEvaluated { .. } | NodeStanding::Failed { .. } => {
-                node_standing_tag(&standing)
-            }
+            NodeStanding::NotEvaluated { .. }
+            | NodeStanding::Members { .. }
+            | NodeStanding::Failed { .. } => node_standing_tag(&standing),
         },
     }
 }
@@ -2922,6 +2925,7 @@ pub fn node_standing_tag(standing: &NodeStanding) -> &'static str {
         NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
             "node_not_evaluated"
         }
+        NodeStanding::Members { .. } => "node_members",
         NodeStanding::Failed { .. } => "node_failed",
         NodeStanding::Poisoned { .. } => "node_poisoned",
     }
@@ -3075,6 +3079,7 @@ pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
     match cause.standing {
         NodeStanding::Failed { .. } => "target_failed",
         NodeStanding::Poisoned { .. } => "target_poisoned",
+        NodeStanding::Members { .. } => "target_members",
         NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
             "target_not_evaluated"
         }

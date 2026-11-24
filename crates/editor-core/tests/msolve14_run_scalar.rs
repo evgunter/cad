@@ -1935,7 +1935,9 @@ fn fault_class<T: topo::AtRestPolicy + geom_core::Decide>(r: &NodeResult<T>) -> 
             other => variant(format!("{other:?}")),
         },
         NodeResult::Poisoned { .. } => "Poisoned".to_string(),
-        NodeResult::Ok(_) => unreachable!("an Ok result has a value, not a fault class"),
+        NodeResult::Ok(_) | NodeResult::Members(_) => {
+            unreachable!("an evaluated result has no fault class")
+        }
     }
 }
 

@@ -107,8 +107,13 @@ pub(crate) fn read_of(
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
         _ => return Err(PinRefusal::NoNode),
     };
-    let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
-        return Err(PinRefusal::Unevaluated { node });
+    let value = match evaluation.result(node) {
+        Some(NodeResult::Ok(value)) => value,
+        // A family of anything but bodies holds no body to pin to.
+        Some(NodeResult::Members(_)) => return Err(PinRefusal::NotABody { node }),
+        Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
+            return Err(PinRefusal::Unevaluated { node });
+        }
     };
     // A family is read through its first member that is a body, in that
     // member's own names: the names a reader evaluated once per member

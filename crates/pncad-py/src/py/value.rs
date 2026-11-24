@@ -162,7 +162,8 @@ fn standing_raise(
         (
             d::NodeStanding::Failed { .. }
             | d::NodeStanding::NotEvaluated { .. }
-            | d::NodeStanding::NotInDocument { .. },
+            | d::NodeStanding::NotInDocument { .. }
+            | d::NodeStanding::Members { .. },
             _,
         ) => eval_err(
             py,
@@ -1231,8 +1232,9 @@ impl Value {
     /// **A family's members** (D10 `[repetition]`), in index order: each
     /// member's index values (one per index the family reaches,
     /// outermost first) and its value. Empty for a node evaluated once.
-    /// A family of bodies also answers them flat (`bodies`); a family
-    /// of anything else (`kind == "family"`) answers them here only.
+    /// A family of bodies also answers them flat (`bodies`). A family
+    /// of anything else is no one value: `Evaluation.value` raises
+    /// `node_members` for it.
     fn members(&self) -> Vec<(Vec<u32>, Value)> {
         self.members.clone()
     }
@@ -1553,6 +1555,8 @@ impl Evaluation {
     /// A node with no ENTRY at all is two states, kept apart:
     /// `unknown_node` for an id this document does not have, and
     /// `node_not_evaluated` for a node a canceled run never reached.
+    /// A node evaluated once per member whose members are no bodies is
+    /// no one value, and raises `node_members`.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
         let standing = match self.inner.usable(node.0) {
             Ok(node_value) => {

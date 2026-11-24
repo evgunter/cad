@@ -2929,6 +2929,10 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::EmptyProduct
         | ProductErrorKind::StrandedProduct
         | ProductErrorKind::ProductOutsideWorld
+        // The node the slot reads evaluated (a split whose yielded half
+        // holds an empty member's half, or a family that is no one
+        // value); the read alone refuses, so the tree has no row to badge.
+        | ProductErrorKind::ReadRefused
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
         | ProductErrorKind::ProductInvalid

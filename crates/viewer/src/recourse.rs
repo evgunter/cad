@@ -356,6 +356,7 @@ fn product_offers(current: Current<'_>, fault: &ProductError) -> Vec<Offer> {
         | ProductErrorKind::UnknownNode
         | ProductErrorKind::ReadFailed
         | ProductErrorKind::ReadPoisoned
+        | ProductErrorKind::ReadRefused
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
         | ProductErrorKind::ProductInvalid

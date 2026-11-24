@@ -3378,6 +3378,7 @@ fn the_body_seats_admissions_evaluate_as_bodies() {
     let said = |result: Option<&NodeResult<f64>>| {
         result.map(|result| match result {
             NodeResult::Ok(_) => "Ok".to_string(),
+            NodeResult::Members(_) => "Members".to_string(),
             NodeResult::Failed(error) => format!("{:?}", error.kind),
             NodeResult::Poisoned { through } => format!("poisoned through {through:?}"),
         })

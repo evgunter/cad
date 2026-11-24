@@ -415,9 +415,9 @@ pyo3::create_exception!(
      A MISS is not this. The ray hitting no offered triangle is \
      `None`, typed, and an error is never flattened into it — so \
      catching this class never means \"nothing was there\".\n\n\
-     Three arms are the standing ladder, spelled exactly as \
+     Four arms are the standing ladder, spelled exactly as \
      `ReadbackError` spells it (`node_not_evaluated`, `node_failed`, \
-     `node_poisoned`): a mesh displayed for a node this evaluation did \
+     `node_poisoned`, `node_members`): a mesh displayed for a node this evaluation did \
      not produce cannot belong to it. `unnamed` is a KERNEL BUG \
      report — the node evaluated and the entity has no name in its \
      table — and it carries the entity's `kind` and `body`, never its \

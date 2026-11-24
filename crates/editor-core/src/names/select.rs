@@ -1090,7 +1090,7 @@ pub fn one_body<T: topo::AtRestPolicy + Decide>(
     else {
         return Ok(());
     };
-    match ev.value(node).and_then(|value| value.members.as_ref()) {
+    match ev.result(node).and_then(crate::eval::NodeResult::members) {
         Some(_) => Err(SelectRefusal::Family { node }),
         None => Ok(()),
     }

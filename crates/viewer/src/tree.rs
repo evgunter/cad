@@ -1148,7 +1148,28 @@ fn readout_of(
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
 ) -> Option<Readout> {
-    match &evaluation.usable(id).ok()?.payload {
+    let value = match evaluation.result(id)? {
+        NodeResult::Ok(value) => value,
+        // A node evaluated once per member is one row: a clearance whose
+        // seat reads a pattern's members is lifted over the family, in
+        // the certifying door's words; any other family's row is its
+        // `Ok` alone.
+        NodeResult::Members(_) => {
+            return match node {
+                Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
+                    Some(Readout::Clearance(cleared(
+                        doc,
+                        [*a, *b],
+                        bounds,
+                        pncad::analysis::ClearanceOutcome::over_members(doc, id),
+                    )))
+                }
+                _ => None,
+            };
+        }
+        NodeResult::Failed(_) | NodeResult::Poisoned { .. } => return None,
+    };
+    match &value.payload {
         ValuePayload::Measure { value, dim } => Some(Readout::Value(Computed {
             canonical: *value,
             dimension: *dim,
@@ -1165,19 +1186,6 @@ fn readout_of(
             )),
             _ => Readout::Asserted(asserted(doc, node, verdict)),
         }),
-        // A clearance whose seat reads a pattern's members, lifted over
-        // the family: the row says so in the certifying door's words.
-        ValuePayload::Family => match node {
-            Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
-                Some(Readout::Clearance(cleared(
-                    doc,
-                    [*a, *b],
-                    bounds,
-                    pncad::analysis::ClearanceOutcome::over_members(doc, id),
-                )))
-            }
-            _ => None,
-        },
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
@@ -1298,7 +1306,8 @@ fn standing(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Standing<
     };
     match ev.result(id) {
         None => Standing::Unevaluated,
-        Some(NodeResult::Ok(_)) => Standing::Ok,
+        // A family evaluated once per member ran, as a value did.
+        Some(NodeResult::Ok(_) | NodeResult::Members(_)) => Standing::Ok,
         Some(NodeResult::Failed(error)) => {
             downstream_of_mate(id, error).unwrap_or(Standing::Failed(error, ev))
         }
@@ -1402,7 +1411,9 @@ pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -
                 None => standing,
             }
         }
-        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => standing,
+        NodeStanding::NotEvaluated { .. }
+        | NodeStanding::NotInDocument { .. }
+        | NodeStanding::Members { .. } => standing,
     }
 }
 

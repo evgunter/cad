@@ -51,6 +51,8 @@ pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub(crate) use topo::Seat;
 pub use wire::DirectionRefusal;
+#[cfg(debug_assertions)]
+pub use wire::halves_gathered_on_this_thread;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -247,6 +249,20 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
     /// axis).
     pub fn table(&self, var: crate::VarId) -> Option<&NameTable> {
         self.output_names(var).map(OutputNames::table)
+    }
+
+    /// **The yielded half at `port` of the split `split`, where `split`
+    /// is evaluated once per member**: the half of each member, a family
+    /// of bodies named per member, as an evaluator reader outside the
+    /// binder reads it (`wire`'s `yielded_half`, the one reading);
+    /// `None` where `split` is no family evaluated once per member. Asked
+    /// of a split's node alone (`product`'s gather).
+    pub(crate) fn yielded_half(
+        &self,
+        split: RecipeNodeId,
+        port: u8,
+    ) -> Option<Result<NodeValue<T>, NodeErrorKind>> {
+        wire::yielded_half(&self.nodes, split, port)
     }
 
     /// [`Self::table_at`], shared: for a reader that keeps the table
@@ -528,6 +544,13 @@ pub enum NodeStanding {
         /// The id asked about.
         node: RecipeNodeId,
     },
+    /// **The node is a family of members and no one value**
+    /// ([`NodeResult::Members`]): a reader outside its binder reads a
+    /// yield ([`Evaluation::result`] holds the members).
+    Members {
+        /// The node.
+        node: RecipeNodeId,
+    },
     /// The node itself failed ([`Evaluation::node_error`] answers the
     /// typed cause).
     Failed {
@@ -550,6 +573,7 @@ impl NodeStanding {
         match self {
             Self::NotEvaluated { node }
             | Self::NotInDocument { node }
+            | Self::Members { node }
             | Self::Failed { node }
             | Self::Poisoned { node, .. } => node,
         }
@@ -560,7 +584,10 @@ impl NodeStanding {
     pub fn through(self) -> Option<RecipeNodeId> {
         match self {
             Self::Poisoned { through, .. } => Some(through),
-            Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
+            Self::NotEvaluated { .. }
+            | Self::NotInDocument { .. }
+            | Self::Members { .. }
+            | Self::Failed { .. } => None,
         }
     }
 
@@ -572,7 +599,7 @@ impl NodeStanding {
     pub fn failed_node(self) -> Option<RecipeNodeId> {
         match self {
             Self::Failed { node } | Self::Poisoned { through: node, .. } => Some(node),
-            Self::NotEvaluated { .. } | Self::NotInDocument { .. } => None,
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Members { .. } => None,
         }
     }
 
@@ -637,6 +664,15 @@ impl crate::spoken::Say for NodeStanding {
                     )
                 )
             ),
+            Self::Members { node } => say!(
+                f,
+                by.node(node),
+                format_args!(
+                    " is evaluated once per member, and its members are not each one body, \
+                 so it is no one value. {}",
+                    Recourse("read its members, each one value, one at a time")
+                )
+            ),
             Self::Failed { node } => say!(
                 f,
                 by.node(node),
@@ -686,6 +722,7 @@ pub(crate) fn usable_in<T: topo::AtRestPolicy + Decide>(
 ) -> Result<&NodeValue<T>, NodeStanding> {
     match nodes.get(&node) {
         Some(NodeResult::Ok(value)) => Ok(value),
+        Some(NodeResult::Members(_)) => Err(NodeStanding::Members { node }),
         Some(NodeResult::Failed(_)) => Err(NodeStanding::Failed { node }),
         Some(NodeResult::Poisoned { through }) => Err(NodeStanding::Poisoned {
             node,
@@ -732,6 +769,14 @@ pub enum EvalOutcome {
 pub enum NodeResult<T: topo::AtRestPolicy + Decide> {
     /// The node evaluated to a value.
     Ok(NodeValue<T>),
+    /// **The node evaluated once per member, and is no one value** (D10
+    /// `[repetition]`): a node inside a binder whose members are not each
+    /// one body (a split, which is two, a measure, an assertion, a
+    /// profile). It holds
+    /// its members and nothing whole; a reader outside the binder reads
+    /// a yield, and a yielded split half is a family of bodies like any
+    /// other ([`NodeValue`]'s `Instances`).
+    Members(FamilyResult<T>),
     /// The node itself failed — the typed root cause.
     Failed(NodeError),
     /// An ancestor failed; this node never ran (GQ2: descendants
@@ -750,6 +795,87 @@ impl<T: topo::AtRestPolicy + Decide> NodeResult<T> {
     pub fn value(&self) -> Option<&NodeValue<T>> {
         match self {
             Self::Ok(v) => Some(v),
+            Self::Members(_) | Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The members, if the node was evaluated once per member**: a
+    /// family of bodies' (its value's) or a family of anything else's
+    /// ([`Self::Members`]).
+    pub fn members(&self) -> Option<&Arc<members::Members<T>>> {
+        match self {
+            Self::Ok(v) => v.members.as_ref(),
+            Self::Members(family) => Some(&family.members),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// The family of members, if the node is no one value
+    /// ([`Self::Members`]).
+    pub fn family(&self) -> Option<&FamilyResult<T>> {
+        match self {
+            Self::Members(family) => Some(family),
+            Self::Ok(_) | Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The node's coincidences**, if it evaluated: its value's, or a
+    /// family's, its members' in member order
+    /// ([`NodeValue::coincidences`]).
+    pub fn coincidences(&self) -> Option<&Arc<[crate::coincide::NamedCoincidence]>> {
+        match self {
+            Self::Ok(v) => Some(&v.coincidences),
+            Self::Members(family) => Some(&family.coincidences),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **What the node carries**, if it evaluated: its value's, or a
+    /// family's, each member's its own ([`Carry::of_family`]).
+    pub fn carry(&self) -> Option<&Carry<T>> {
+        match self {
+            Self::Ok(v) => Some(&v.carry),
+            Self::Members(family) => Some(&family.carry),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The node's content key**, if it evaluated: its value's, or a
+    /// family's, over its members' ([`NodeValue::content_key`]).
+    pub fn content_key(&self) -> Option<ContentKey> {
+        match self {
+            Self::Ok(v) => Some(v.content_key),
+            Self::Members(family) => Some(family.content_key),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The node's verdict log**, if it evaluated: its value's, or a
+    /// family's, its members' in member order ([`NodeValue::verdicts`]).
+    pub fn verdicts(&self) -> Option<&Arc<VerdictLog>> {
+        match self {
+            Self::Ok(v) => Some(&v.verdicts),
+            Self::Members(family) => Some(&family.verdicts),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The node's escalation log**, if it evaluated, as
+    /// [`Self::verdicts`] ([`NodeValue::escalations`]).
+    pub fn escalations(&self) -> Option<&Arc<EscalationLog>> {
+        match self {
+            Self::Ok(v) => Some(&v.escalations),
+            Self::Members(family) => Some(&family.escalations),
+            Self::Failed(_) | Self::Poisoned { .. } => None,
+        }
+    }
+
+    /// **The node's marks**, if it evaluated, as [`Self::verdicts`]
+    /// ([`NodeValue::marks`]).
+    pub fn marks(&self) -> Option<&Arc<MarkLog>> {
+        match self {
+            Self::Ok(v) => Some(&v.marks),
+            Self::Members(family) => Some(&family.marks),
             Self::Failed(_) | Self::Poisoned { .. } => None,
         }
     }
@@ -761,7 +887,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeResult<T> {
     pub fn error(&self) -> Option<&NodeError> {
         match self {
             Self::Failed(e) => Some(e),
-            Self::Ok(_) | Self::Poisoned { .. } => None,
+            Self::Ok(_) | Self::Members(_) | Self::Poisoned { .. } => None,
         }
     }
 
@@ -769,7 +895,7 @@ impl<T: topo::AtRestPolicy + Decide> NodeResult<T> {
     pub fn poisoned_through(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Poisoned { through } => Some(*through),
-            Self::Ok(_) | Self::Failed(_) => None,
+            Self::Ok(_) | Self::Members(_) | Self::Failed(_) => None,
         }
     }
 }
@@ -831,6 +957,49 @@ impl OutputNames {
     }
 }
 
+/// **A family of members that is no one value** (D10 `[repetition]`,
+/// [`NodeResult::Members`]): each member's value, and what the family
+/// carries of them together. It has no payload and no output: a reader
+/// outside its binder reads a yield.
+#[derive(Debug, Clone)]
+pub struct FamilyResult<T: topo::AtRestPolicy + Decide> {
+    /// Each member's value, in index order.
+    pub members: Arc<members::Members<T>>,
+    /// Its members' carries, each its own ([`Carry::of_family`]).
+    pub carry: Carry<T>,
+    /// Its members' coincidences, in member order.
+    pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// Its members' verdict logs, in member order.
+    pub verdicts: Arc<VerdictLog>,
+    /// Its members' escalation logs, in member order.
+    pub escalations: Arc<EscalationLog>,
+    /// Its members' marks, in member order.
+    pub marks: Arc<MarkLog>,
+    /// Its content key, over its members' ([`NodeValue::content_key`]).
+    pub content_key: ContentKey,
+    /// Its naming key, over its members' ([`NodeValue::naming_key`]).
+    pub naming_key: NamingKey,
+}
+
+impl<T: topo::AtRestPolicy + Decide> FamilyResult<T> {
+    /// The family word it lands in, for typed operand mismatches, as
+    /// [`ValuePayload::kind_name`] says a value's: `family`.
+    pub fn kind_name(&self) -> &'static str {
+        family::FAMILY
+    }
+}
+
+/// **The family a member stands for**, in one member's view of it
+/// ([`NodeValue::family`]): a family of bodies, which is one value, or
+/// a family of anything else, which is only its members.
+#[derive(Debug, Clone)]
+pub enum Whole<T: topo::AtRestPolicy + Decide> {
+    /// A family of bodies, its value (`Instances`).
+    Value(Arc<NodeValue<T>>),
+    /// A family of anything else ([`NodeResult::Members`]).
+    Members(Arc<FamilyResult<T>>),
+}
+
 /// A successful node value (spec D2): the op-appropriate payload plus
 /// the reserved witness slot and the node's content key.
 #[derive(Debug, Clone)]
@@ -873,7 +1042,7 @@ pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// family ([`members`]): what a seat that reads the family whole
     /// reads ([`Self::whole`]). `None` on every value an evaluation
     /// keeps.
-    pub family: Option<Arc<NodeValue<T>>>,
+    pub family: Option<Whole<T>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -935,9 +1104,26 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// **This value read whole**: in a member's view of its family, the
     /// family; else this. A read of a family whole (a list entry spliced
     /// in, `…xs`, or an indexed read `xs[i]`) and a selection of one
-    /// member read it so.
-    pub(crate) fn whole(&self) -> &Self {
-        self.family.as_deref().unwrap_or(self)
+    /// member read it so. `Err` is a family that is no one value
+    /// ([`NodeResult::Members`]), which each reader refuses or reads the
+    /// members of, as it states ([`wire`]'s operand door).
+    pub(crate) fn whole(&self) -> Result<&Self, &FamilyResult<T>> {
+        match &self.family {
+            Some(Whole::Value(family)) => Ok(family),
+            Some(Whole::Members(family)) => Err(family),
+            None => Ok(self),
+        }
+    }
+
+    /// **The members of the family this value is read out of**: in a
+    /// member's view, its family's; else this value's own, if it is a
+    /// family of bodies.
+    pub(crate) fn whole_members(&self) -> Option<&Arc<members::Members<T>>> {
+        match &self.family {
+            Some(Whole::Value(family)) => family.members.as_ref(),
+            Some(Whole::Members(family)) => Some(&family.members),
+            None => self.members.as_ref(),
+        }
     }
 }
 
@@ -1156,11 +1342,6 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// target's axes moved by the motion its bundle solved to
     /// ([`NodeValue::motion`]). Not body-denoting.
     Datum(geom_core::RigidMotion<T>),
-    /// **A family of anything but bodies** (D10 `[repetition]`):
-    /// profiles, measures, splits, assertions, a family of families. Its
-    /// members are the value's ([`NodeValue::members`]); it has no
-    /// output.
-    Family,
 }
 
 /// **One family word, as a literal** — so [`concat!`] can compose a
@@ -1323,7 +1504,6 @@ impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
             Self::Instances(_) => family::INSTANCES,
             Self::Measure { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
-            Self::Family => family::FAMILY,
             Self::Datum(_) => family::DATUM,
         }
     }
@@ -1779,8 +1959,10 @@ pub enum NodeErrorKind {
         /// The index values as authored, one per index of the family.
         at: Vec<i64>,
     },
-    /// **A definer that refused at one value of its indices**: the
-    /// whole family refuses, naming the member (D10 `[repetition]`).
+    /// **A family that refused at one value of its indices**, naming
+    /// the member (D10 `[repetition]`): a definer that refused there, or
+    /// a member whose half a reader of the family's yielded half finds
+    /// empty ([`Self::EmptyHalf`]), which the member itself is not.
     MemberRefused {
         /// Each index the definer reaches, at the member's value.
         at: Vec<(crate::VarId, i64)>,
@@ -2514,7 +2696,14 @@ impl crate::spoken::Say for NodeErrorKind {
                     }),
                     ", ",
                 );
-                say!(f, "the member at ", at, " refused: ", Said(&**source, by))
+                match &**source {
+                    // The member evaluated; its half is what a reader of
+                    // the family's yielded half finds empty.
+                    Self::EmptyHalf { .. } => {
+                        say!(f, "at the member ", at, ": ", Said(&**source, by))
+                    }
+                    _ => say!(f, "the member at ", at, " refused: ", Said(&**source, by)),
+                }
             }
             Self::TwoBinders { a, b } => say!(
                 f,
@@ -5278,7 +5467,7 @@ where
             parts::instantiated(doc, id)
                 .is_none_or(|part| op_env.parts.carried_from(&p.parts, &part, tol))
         })
-        .and_then(|p| p.value(id));
+        .and_then(|p| p.result(id));
     let step = match chains.get(&id) {
         Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
@@ -5303,7 +5492,7 @@ where
                 id,
                 chain,
                 results,
-                prior,
+                prior.and_then(NodeResult::members),
                 cancel,
                 op_env,
                 |env, results, prior, op_env, at| {
@@ -5314,7 +5503,16 @@ where
                 },
             )?
         }
-        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+        _ => eval_node(
+            doc,
+            env,
+            id,
+            results,
+            prior.and_then(NodeResult::value),
+            op_env,
+            &[],
+            tol,
+        ),
     };
     #[cfg(debug_assertions)]
     own_bodies(id, &step);
@@ -5356,7 +5554,7 @@ fn bookkeep<T: topo::AtRestPolicy + Decide>(
     reused: &mut usize,
 ) {
     match &step.result {
-        NodeResult::Ok(_) | NodeResult::Failed(_) => {
+        NodeResult::Ok(_) | NodeResult::Members(_) | NodeResult::Failed(_) => {
             if step.reused {
                 *reused += 1;
             } else {
@@ -5435,6 +5633,16 @@ where
         }) {
             Ok(v) => {
                 keys.insert(input, (v.content_key, v.naming_key));
+            }
+            // A family that is no one value is read through a yield of
+            // its binder (a split's half, `split_halves`), and keys by
+            // its members' keys, which its own are over.
+            Err(NodeStanding::Members { .. }) => {
+                let family = results
+                    .get(&input)
+                    .and_then(NodeResult::family)
+                    .unwrap_or_else(|| unreachable!("`usable_in` reads the family it names"));
+                keys.insert(input, (family.content_key, family.naming_key));
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });

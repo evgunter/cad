@@ -65,7 +65,7 @@
 //! exhaustible, and the thing whose repairs are opposite ends of the
 //! document. `variant` is the arm underneath it: `vanished` /
 //! `ambiguous` / `node_gone` under a failure, `target_failed` /
-//! `target_poisoned` / `target_not_evaluated` under an
+//! `target_poisoned` / `target_members` / `target_not_evaluated` under an
 //! indeterminate. A caller that only branches on the state never has
 //! to learn the second vocabulary; one offering a repair does, because
 //! a tie is refined among candidates and a stranded name is rebound.
@@ -97,7 +97,8 @@ pub(crate) struct Resolution {
     status: &'static str,
     /// WHICH failure, under the two states that have arms: the
     /// kernel's own `vanished` / `ambiguous` / `node_gone` and
-    /// `target_failed` / `target_poisoned` / `target_not_evaluated`.
+    /// `target_failed` / `target_poisoned` / `target_members` /
+    /// `target_not_evaluated`.
     /// `None` when resolved, which is the state with nothing to say
     /// here.
     ///

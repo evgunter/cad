@@ -80,6 +80,9 @@ fn described(session: &DocSession, node: RecipeNodeId, tol: Tol) -> String {
     if let Some(err) = eval.node_error(node) {
         return format!("ERROR {:?}", err.kind);
     }
+    if let Some(editor_core::NodeResult::Members(_)) = eval.result(node) {
+        return "Family".into();
+    }
     let Some(value) = eval.value(node) else {
         return "no value".into();
     };
@@ -100,7 +103,6 @@ fn described(session: &DocSession, node: RecipeNodeId, tol: Tol) -> String {
                 .join(", ")
         ),
         ValuePayload::Split { .. } => "Split".into(),
-        ValuePayload::Family => "Family".into(),
         ValuePayload::Assertion(v) => format!("Assertion {v:?}").chars().take(80).collect(),
         other => format!("{:?}", std::mem::discriminant(other)),
     }

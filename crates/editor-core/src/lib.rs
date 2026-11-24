@@ -145,10 +145,10 @@ pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
-    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped,
-    ValuePayload, evaluate, traced_faces,
+    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FamilyResult, Framed, Held,
+    NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding,
+    NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop,
+    Stopped, ValuePayload, Whole, evaluate, traced_faces,
 };
 pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
@@ -161,6 +161,8 @@ pub use spoken::{
     held_by, node_kind_noun, node_text, spoken_by, spoken_within, var_text,
 };
 
+#[cfg(debug_assertions)]
+pub use eval::halves_gathered_on_this_thread;
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,

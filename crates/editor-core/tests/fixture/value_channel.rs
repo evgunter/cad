@@ -194,6 +194,12 @@ fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
         None => d.u64(0),
         Some(NodeResult::Failed(_)) => d.u64(1),
         Some(NodeResult::Poisoned { .. }) => d.u64(2),
+        // A family of no bodies, as its `Family` value was digested: its
+        // members are its own nodes' values, digested where each is read.
+        Some(NodeResult::Members(_)) => {
+            d.u64(3);
+            d.u64(25);
+        }
         Some(NodeResult::Ok(v)) => {
             d.u64(3);
             match &v.payload {
@@ -290,9 +296,6 @@ fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
                         }
                     }
                 }
-                // A family of no bodies: its members are its own nodes'
-                // values, digested where each is read.
-                ValuePayload::Family => d.u64(25),
                 ValuePayload::Datum(_) => d.u64(26),
             }
         }

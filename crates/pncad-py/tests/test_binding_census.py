@@ -2609,6 +2609,12 @@ NOT_BOUND = {
     "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
+    # A family of members that is no one value (`NodeResult::Members`),
+    # and a member's view of its family (`NodeValue::family`): Python
+    # reads a family through its members (`Value.members`), never as a
+    # result shape of its own.
+    "FamilyResult": SHAPE,
+    "Whole": SHAPE,
     # The display-unit CODE a `FreeVar` carries. A one-byte index into
     # the unit table has no Python spelling and should not get one: a
     # notation reaches Python as its SYMBOL, which is what
@@ -3267,6 +3273,9 @@ NOT_BOUND = {
     # produces carries it; cargo's own release defaults are what strip
     # it. Either way it is not a Python door.
     "gathers_on_this_thread": INTERIOR,
+    # The evaluator's debug witness beside it: how many families of
+    # split halves this thread gathered, read by the Rust rows alone.
+    "halves_gathered_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
     # reason is not "no binding was written" — `wire_sweep` refuses
@@ -4002,6 +4011,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",
+    "ProductError::ReadRefused": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
