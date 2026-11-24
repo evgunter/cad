@@ -650,3 +650,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - an indirect site not listed: `pcurves/sheet_apex_rows.rs: joint: DescribedChart::of(surface).unwrap()`. CHARTTAIL's file.
   - a listed indirect site the census no longer finds: `ring_path.rs: spline_crossings`.
   EMBED's second landing merges onto this and re-pins none of it (its first landing re-pinned main's drift and one such pin went stale in a clean merge); the landing's own roster lines (`definite_as`, `present_plane: x`) are in neither output.
+- 2026-11-23 — (GREEN, U20) `main-red-the-python-suite-errors-on-a-union-that-reads-a-family-whole` closed. FORMWORDS' own PR 7660 had fixed it before the lane started. The cause was PR 7426's `MembersArg::bodies` change meeting PR 7506's kind door. The tests were right (D10 `[repetition]`). Evidence is in the row's closing section. FORMWORDS' log has the note.
