@@ -384,19 +384,33 @@ decides the root's order: the least coefficient decided nonzero, a
 coefficient decided Zero stepped past and charged at the zero band's
 width, one in band refused (`BooleanDecision::JunctionEndOrder`). It
 then certifies a window past the end that holds no root but those the
-dropped terms can move, within the window's spread of the end.
+dropped terms can move, within the window's spread of the end. The
+window is read against a pivot term from the order up, the first that
+holds: every term below the pivot is dropped, a coefficient past the
+order charged at its value plus the band's width at its power, so no
+verdict is read on it. A higher pivot is reached only where the order's
+term is small against its tail, as near a point where the two carriers
+curve alike across the rim: there the edge meets the target's carrier
+again close to the end and stands within the band of it in between, so
+no window short of that root clears, and the spread holds it instead.
 
 *The junction's side.* A root inside the spread is off the target face
 once the edge stands on its own face's side of the rim beyond the band,
 since the target face lies on the other side. The edge's departure from
 the rim is signed, its component along its face's inward conormal there,
 and the side margin (`junction_end_side`) is that departure's lead over
-the spread less the edge's and the rim's bends over it, decided Positive
-(in band, `BooleanDecision::JunctionEndSide`). A root nearer the end
+the spread less the edge's and the rim's bends over it, the rim's read
+where it reaches the root's tangent coordinate, decided Positive (in band,
+`BooleanDecision::JunctionEndSide`). The margin is read under two
+premises, each proven over the spread: the target's carrier is one graph
+over the junction's tangent plane there (`junction_end_reach`: the
+spread at most half its least radius of curvature, a cone's taken within
+the reach and short of its other nappe), and the rim turns by at most
+half a radian over it (`junction_end_chord`). A root nearer the end
 than where that margin clears the band lies within the band of the
 target face's boundary, not necessarily at the vertex, and is the touch
-the vertex's own placement records. No window, or a side not held,
-refuses `JunctionEndUnread` with `Window`. An end where the glued
+the vertex's own placement records. No window, a premise not proven or a
+side not held refuses `JunctionEndUnread` with `Window`. An end where the glued
 stretch stops is read only where the target face's corner there is
 decided within π (`junction_end_corner`), since only then does that face
 lie on its own side of the rim's tangent; a reflex or undecided corner

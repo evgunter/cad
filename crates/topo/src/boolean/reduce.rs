@@ -2535,16 +2535,11 @@ fn junction_end_window<T: Decide>(
     let conormal = q.normal.cross(ridden);
     let departure = along.dot(conormal.normalize());
     let bend_rim = T::one() / q.rim.radius;
-    let reach = junction_reach_radius(q.surface, q.p, window.spread);
+    let reach = geom_brep::curve_face::end_root::one_sheet_radius(q.surface, q.p, window.spread);
     if !junction_reach_held(window.spread, bend_rim, reach) {
         return Err(no_window);
     }
-    match junction_side(
-        departure,
-        (bend_e, bend_rim),
-        window.spread,
-        band,
-    ) {
+    match junction_side(departure, (bend_e, bend_rim), window.spread, band) {
         Ok(Sign::Positive) => Ok(Some(window)),
         Ok(Sign::Zero | Sign::Negative) => Err(no_window),
         Err(diag) => Err(in_band(BooleanDecision::JunctionEndSide, diag)),
@@ -2576,7 +2571,7 @@ fn junction_side<T: Decide>(
 /// **The side's premises over the spread `σ`**, each proven: the other
 /// face's carrier is one graph over the junction's tangent plane within
 /// `σ` of the end (`junction_end_reach`: `σ ≤ reach/2`, `reach` from
-/// [`junction_reach_radius`]), and the rim turns by at most half a
+/// [`geom_brep::curve_face::end_root::one_sheet_radius`]), and the rim turns by at most half a
 /// radian over it (`junction_end_chord`: `κ_rim·σ ≤ ½`).
 ///
 /// The projection along the normal at the end keeps every point's
@@ -2589,32 +2584,10 @@ fn junction_side<T: Decide>(
 /// its offset is at most `κ_rim·u²/2`: [`junction_side`]'s chord factor.
 fn junction_reach_held<T: Decide>(spread: T, bend_rim: T, reach: T) -> bool {
     let half = T::from_f64(0.5);
-    let proven = |name, m: T| {
-        geom_core::k_stats::prove(name, Margin::sign_of(m)) == Ok(Sign::Positive)
-    };
+    let proven =
+        |name, m: T| geom_core::k_stats::prove(name, Margin::sign_of(m)) == Ok(Sign::Positive);
     proven("junction_end_reach", reach * half - spread)
         && proven("junction_end_chord", half - bend_rim * spread)
-}
-
-/// **The radius within which `surface` is one graph over its tangent
-/// plane at `p`, out to `σ`**: its least radius of curvature
-/// ([`geom_brep::min_radius_of_curvature`], global for a plane, cylinder,
-/// sphere or torus, whose other sheets lie at least twice that away). A
-/// cone's is its parallel's radius at `p` less `σ`, the least within the
-/// reach, and no more than `p`'s distance from its other nappe, at least
-/// `|p − apex|·min(1, sin 2α)`.
-fn junction_reach_radius<T: Decide>(surface: &geom::Surface<T>, p: Point3<T>, spread: T) -> T {
-    let radius = geom_brep::min_radius_of_curvature(surface, p);
-    match *surface {
-        geom::Surface::Cone {
-            frame, half_angle, ..
-        } => {
-            let nappe = (p - frame.origin()).norm()
-                * (T::from_f64(2.0) * half_angle).sin().min(T::one());
-            (radius - spread).min(nappe)
-        }
-        _ => radius,
-    }
 }
 
 /// The rest of `[t0, t1]` past the window at `end`, which ends at `at`.
@@ -10565,7 +10538,7 @@ mod junction_end_rows {
         };
         let a = 89.0_f64.to_radians();
         let p = Point3::new(a.sin(), 0.0, a.cos());
-        let reach = junction_reach_radius(&cone, p, 0.0);
+        let reach = geom_brep::curve_face::end_root::one_sheet_radius(&cone, p, 0.0);
         let nappe = 2.0_f64.to_radians().sin();
         assert!(
             (reach - nappe).abs() < 1e-12,
