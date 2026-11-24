@@ -834,17 +834,6 @@ fn served_pair(
     extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
-    // A pair the value classifies but carries no component of refuses by
-    // that cause before any classification: neither the file nor the
-    // tolerance is what stops it.
-    if let Some(why) = geom_brep::pair_section::uncarried(sa.kind(), sb.kind()) {
-        return Err(unbuilt(
-            file,
-            id,
-            format!("the section of {}: {why}", pair_names(sa, sb)),
-            SECTION_LANE,
-        ));
-    }
     let ball = Some(region.ball());
     let classified =
         |band, at_file: bool| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {

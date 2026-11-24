@@ -2,10 +2,12 @@
 id: cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door
 kind: issue
 title: Cone × sphere and cone × cone in general pose route to rung 3 and refuse: no pair door with its gate, tangency decision and certified pose
-status: open
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: M
+closed: 2026-11-24
+pr: 7457
 ---
 
 
@@ -18,3 +20,10 @@ Filed 2026-11-21 by the SECTCONE orchestrator. The P0's designers noted that no 
 - **Both:** an apex on the partner is C5's node or touch margin, decided before rung 3 (`[ev]` PR 6432).
 
 This row is P0 for the reason its cone × torus sibling (`cone-torus-rung-three-arm-waits-on-the-cone`) is: a union of a cone and a ball or another cone on everyday geometry refuses.
+
+
+## Closed (2026-11-24, PR 7457)
+
+Its one child, `the-cone-sphere-and-cone-cone-pair-doors`, gave both pairs
+their rung-3 doors; the boolean's own refusal at the cone face is
+`a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face`.

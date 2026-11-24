@@ -61,6 +61,7 @@ const CARRIERS: &[NameCarrier] = &[
     // no name table and is not declared.
     NameCarrier::Table("CsDecision"),
     NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("ConeDecision"),
     NameCarrier::Table("Row"),
     NameCarrier::Table("TorusDatum"),
     NameCarrier::Table("Meter"),
