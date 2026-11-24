@@ -45,7 +45,7 @@ crates/topo/src/boolean/trace.rs 1
 crates/topo/src/census/depth_gap.rs 1
 crates/topo/src/chart_iso.rs 1
 crates/topo/src/contain.rs 2
-crates/topo/src/injective.rs 12
+crates/topo/src/injective.rs 11
 crates/topo/src/offset_axial.rs 8
 crates/topo/src/readback.rs 2
 crates/topo/src/region.rs 3
