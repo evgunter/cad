@@ -2,11 +2,10 @@
 id: an-iso-arc-rims-end-reads-through-its-map-at-interval
 kind: issue
 title: An IsoArc rim's chart end is read through its map, which at Interval may not be a point
-status: parked
+status: open
 opened: 2026-11-14
 priority: P1
 cost: M
-blocked_on: [an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends]
 ---
 
 

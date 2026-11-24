@@ -2,10 +2,12 @@
 id: a-seam-column-moved-a-period-reads-lo-plus-the-period
 kind: issue
 title: A seam column the lift moves one period of a closed spline chart is held at lo + (hi − lo), computed, which has width at Interval on a domain not starting at 0
-status: open
+status: closed
 opened: 2026-11-15
 priority: P3
 cost: M
+closed: 2026-11-24
+pr: 7393
 ---
 
 
@@ -70,3 +72,10 @@ What is left, and is by design: a column that is NOT at an end, moved by
 periods, is held at the computed sum, and at `Interval` the rectangle
 certificate still refuses it, naming the move. No construction lifts
 such a column: a lift moves a seam, and a seam is at an end.
+
+## Closed
+
+PR 7393 (2026-11-24): the section above. One period up is
+`hi + (x − lo)` and one down `lo + (x − hi)` (`Period::moved`), so a
+seam column at an end is held at the other end itself at every scalar,
+and the four pinned domains read the rectangle `[lo, hi]`.
