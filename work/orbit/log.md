@@ -96,3 +96,4 @@ this container has 4 vCPUs):
   - **P1 `a-torus-near-a-tilted-cut-…`, PR 7617** (`orbit/tilted-torus-rim`, d8370849d). The dual review was APPROVE-WITH-FIXES ×2. The fix pass was dispatched (brief 2026-11-24 ~00:28) and had not pushed.
   - Parked, waiting on GERM's `the-line-torus-door-misses-silently-within-the-band`: the saddle and parallel touch units.
   (ORBIT orchestrator)
+- 2026-11-24 — **Usage back; the five stalled lanes were resumed** (7602 fix pass, 7664's report, 7588's verify, 7589's fold, 7617's fix pass). (ORBIT orchestrator)
