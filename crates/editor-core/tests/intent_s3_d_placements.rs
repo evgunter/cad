@@ -420,8 +420,8 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     // first spin about z stay, now on the plane's chart.
     let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let mate = Mate {
-        on: start_cap(b),
-        to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])),
+        on: start_cap(b).into(),
+        to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let mated = stood
@@ -552,7 +552,7 @@ fn a_boolean_copy_stands_over_its_bodys_reach() {
     let (doc, whole) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let own = vertices(&doc, whole);
@@ -578,33 +578,35 @@ fn a_construction_is_in_its_own_space() {
     assert_eq!(doc.node_space(copy), Some(editor_core::VarId::WORLD));
 }
 
-/// **"Sketch on this face" is one action** (spec §5, DM1): a boss drawn
-/// on its own plane, extruded, placed on the box's top face by a mate
-/// that names the face, and fused with the box. The boss stands on the
-/// face, and raising the box raises it.
+/// **A sketch on a face stands on the face it names** (DM1): a square
+/// drawn on the box's top face's chart ([`editor_core::draw_on_face`])
+/// and extruded. The boss stands on the face, and raising the box
+/// raises it.
 #[test]
 fn a_sketch_on_a_face_stands_on_the_face_it_names() {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
     let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
-    let boss = fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)]);
-    let sketched = editor_core::sketch_on_face(
+    let drawn = editor_core::draw_on_face(
         &doc,
         Operand::from(b).into(),
         top,
-        boss,
-        len(0.5),
-        Formula::zero(editor_core::Dimension::Angle),
-        None,
+        fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)]).loops,
+        editor_core::OnFace::nearest(),
         &EvalOptions::default(),
         &editor_core::CancelToken::new(),
         Tol::witness(),
     )
-    .expect("the gesture lands");
-    let doc = sketched.doc;
-    let union = sketched.sketched.union;
+    .expect("the profile is drawn");
+    let (doc, boss) = insert(
+        drawn.doc,
+        Node::Extrude {
+            profile: drawn.profile.into(),
+            distance: len(0.5),
+        },
+    );
     let top_z = |doc: &ProfileDoc| {
-        vertices(doc, union)
+        vertices(doc, boss)
             .into_iter()
             .map(|p| p[2])
             .fold(f64::NEG_INFINITY, f64::max)
@@ -826,8 +828,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         .doc;
 
     let mate = |to: Operand| Mate {
-        on: start_cap(b),
-        to,
+        on: start_cap(b).into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
@@ -879,8 +881,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         lined,
         b,
         Mate {
-            on: edge,
-            to: line,
+            on: edge.into(),
+            to: line.into(),
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![
@@ -1048,8 +1050,8 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
         ]
     };
     let mate = |on: Operand, to: Operand| Mate {
-        on,
-        to,
+        on: on.into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());

@@ -44,8 +44,10 @@ enum SpokenFrom {
 impl SpokenFrom {
     fn say<T: d::Say>(&self, value: &T) -> String {
         match self {
-            Self::Doc(doc) => d::spoken_by(value, doc),
-            Self::Held(held) => d::Said(value, d::Speaker::held(held)).to_string(),
+            Self::Doc(doc) => d::spoken_by(value, doc).to_string(),
+            Self::Held(held) => d::Said(value, d::Speaker::held(held))
+                .sentence()
+                .to_string(),
         }
     }
 }
@@ -222,7 +224,7 @@ pub(crate) fn product_named(
 pub(super) fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
     let of = PyString::new(py, &route.of.to_string()).unbind().into_any();
     let via = core::iter::once(route.through)
-        .chain(route.via.iter().map(d::SpokenNode::id))
+        .chain(route.via.iter().map(|hop| hop.node.id()))
         .map(NodeId)
         .collect::<Vec<_>>()
         .into_pyobject(py)
@@ -470,7 +472,8 @@ pub(crate) struct InterferenceFinding {
     unlocalized: Option<&'static str>,
     quiet_by: Option<NodeId>,
     quiet_at: Vec<(Var, u32)>,
-    quietable: bool,
+    quieting: Option<(FaceSite, FaceSite)>,
+    quieting_references: Option<(super::checks::QuietingRef, super::checks::QuietingRef)>,
 }
 
 impl InterferenceFinding {
@@ -495,20 +498,16 @@ impl InterferenceFinding {
         finding: &d::InterferenceFinding,
     ) -> PyResult<Self> {
         let copy = |c: &d::CopyRef| (var(c.var), c.member);
+        let face = |site: &d::FaceSite| {
+            Ok::<_, PyErr>(FaceSite {
+                copy: var(site.copy.var),
+                member: site.copy.member,
+                face: name_text(py, &site.face)?,
+            })
+        };
         let (faces, unlocalized) = match &finding.overlap {
             d::Overlap::Bounded { faces } => (
-                Some(
-                    faces
-                        .iter()
-                        .map(|site| {
-                            Ok(FaceSite {
-                                copy: var(site.copy.var),
-                                member: site.copy.member,
-                                face: name_text(py, &site.face)?,
-                            })
-                        })
-                        .collect::<PyResult<Vec<_>>>()?,
-                ),
+                Some(faces.iter().map(face).collect::<PyResult<Vec<_>>>()?),
                 None,
             ),
             d::Overlap::Unlocalized(why) => (None, Some(unlocalized_tag(why))),
@@ -524,7 +523,22 @@ impl InterferenceFinding {
                 .iter()
                 .map(|&(k, at)| (var(k), at))
                 .collect(),
-            quietable: finding.quietable,
+            quieting: finding
+                .quieting
+                .as_ref()
+                .map(|pair| Ok::<_, PyErr>((face(&pair.outer)?, face(&pair.inner)?)))
+                .transpose()?,
+            quieting_references: finding
+                .quieting
+                .as_ref()
+                .map(|pair| {
+                    let [outer, inner] = &pair.references;
+                    Ok::<_, PyErr>((
+                        super::checks::QuietingRef::of(py, var, outer)?,
+                        super::checks::QuietingRef::of(py, var, inner)?,
+                    ))
+                })
+                .transpose()?,
         })
     }
 }
@@ -591,13 +605,26 @@ impl InterferenceFinding {
         self.quiet_by.is_none()
     }
 
-    /// Whether an assertion the quieting rule accepts could quiet it, as
-    /// the rule itself answers: some holding `gap` assertion over two of
-    /// its bounding faces would quiet it. One no assertion could quiet
-    /// refuses at no severity.
+    /// The two faces a `gap` that would quiet it is written over, outer
+    /// then inner, as the quieting rule itself answers: a holding
+    /// `gap(outer, inner)` related to a negative bound by `<=` or `=`
+    /// quiets it, and the bound is the author's. `None` where no
+    /// assertion could quiet it, which refuses at no severity.
     #[getter]
-    fn quietable(&self) -> bool {
-        self.quietable
+    fn quieting(&self) -> Option<(FaceSite, FaceSite)> {
+        self.quieting.clone()
+    }
+
+    /// The two references an author writes that `gap` over, outer then
+    /// inner, each a selection of one name in its copy's read: a family
+    /// member's face by the name its member wraps, so the assertion
+    /// reaches the family's index and each member reads its own face.
+    /// `None` exactly where `quieting` is.
+    #[getter]
+    fn quieting_references(
+        &self,
+    ) -> Option<(super::checks::QuietingRef, super::checks::QuietingRef)> {
+        self.quieting_references.clone()
     }
 
     fn __repr__(&self) -> String {

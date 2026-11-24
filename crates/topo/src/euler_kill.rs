@@ -982,11 +982,7 @@ impl<T: Decide> Body<T> {
         };
         // A null edge is a point: crossing one of its halves whole moves
         // nothing.
-        let turns = if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_some()
-        {
+        let turns = if self.proven_edge(edge).curve().null_scaffold().is_some() {
             [Some(JointElement::IDENTITY); 2]
         } else {
             [None; 2]
@@ -1413,12 +1409,8 @@ impl<T: Decide> Body<T> {
         site: impl Fn(&Self, FaceKey) -> SiteFace<T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_none()
-        {
+        let edge_data = self.proven_edge(edge);
+        if edge_data.curve().null_scaffold().is_none() {
             return Ok(Vec::new());
         }
         self.plan_site_mint_of(
@@ -3633,7 +3625,7 @@ mod tests {
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
         let counts = euler_counts(&body);
-        assert_eq!((counts.r, counts.f, counts.genus()), (1, 11, Ok(0)));
+        assert_eq!((counts.r, counts.f, counts.h()), (1, 11, Ok(0)));
         let plug = body.kfmrh(bottom_face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, t.plug.ring);

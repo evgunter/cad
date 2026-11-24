@@ -74,7 +74,7 @@
 //!
 //! Dragging a slot that is DRIVEN — by a document variable or by
 //! arithmetic — is refused, with an affordance (G4's micro-decision,
-//! which names a drag); a range probe of one is refused the same way.
+//! which names a drag).
 //! A number TYPED there is not refused: it replaces the expression, as
 //! the same number typed with its unit as text does. [`SlotDriver`] is
 //! how a slot says which it is, using only public expression API: a
@@ -142,14 +142,9 @@ use pncad::document::{
 };
 use pncad::quantity::{LengthUnit, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
 
-/// **Which way [`one_figure_length`] rounds.**
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Rounding {
-    /// To the nearest figure.
-    Nearest,
-    /// To the least figure whose length is at least the one measured.
-    Up,
-}
+/// **Which way [`one_figure_length`] rounds**: the unit door's own
+/// vocabulary.
+pub use pncad::quantity::Rounding;
 
 /// **`metres` written in `unit` at one significant figure**, rounded
 /// as `rounding` says, so a default a form inserts reads as a round
@@ -157,10 +152,11 @@ pub enum Rounding {
 /// home of that rounding: a blend's size and a pattern row's spacing
 /// are written through it.
 ///
-/// [`Rounding::Up`] holds exactly: the figure is the least whose length,
-/// read back in metres, is at least `metres`, so a measure already
-/// round to within float noise stays as it is and none comes out
-/// below.
+/// The figure is the exact number of the unit that `metres` is, rounded
+/// at one figure ([`UnitDef::decimal`]). [`Rounding::Up`]
+/// holds exactly: the figure is the least whose length, read back in
+/// metres, is at least `metres`, so a measure already round to within
+/// float noise stays as it is and none comes out below.
 ///
 /// # Errors
 ///
@@ -170,29 +166,24 @@ pub fn one_figure_length(
     unit: LengthUnit,
     rounding: Rounding,
 ) -> Result<Formula, DimensionError> {
-    let at = metres / WrittenLength::in_unit(1.0, unit).meters();
-    // `digit · 10^-places`, divided rather than multiplied so `0.04` is
-    // the double nearest four hundredths.
-    let places = -at.log10().floor();
-    let figure = |digit: f64| {
-        if places >= 0.0 {
-            digit / 10f64.powf(places)
-        } else {
-            digit * 10f64.powf(-places)
-        }
-    };
-    let scaled = at * 10f64.powf(places);
-    let value = match rounding {
-        Rounding::Nearest => figure(scaled.round()),
+    let row = unit.def();
+    if !metres.is_finite() {
+        return Formula::written_length(WrittenLength::canonical_in(metres, unit));
+    }
+    let figure = match rounding {
+        // The least figure whose length is at least `metres`: the one
+        // below the exact number where that already reads back so.
         Rounding::Up => {
-            let mut digit = scaled.floor().max(1.0);
-            while WrittenLength::in_unit(figure(digit), unit).meters() < metres {
-                digit += 1.0;
+            let below = row.decimal(metres, 1, Rounding::Down);
+            if row.canonical(&below) >= metres {
+                below
+            } else {
+                row.decimal(metres, 1, Rounding::Up)
             }
-            figure(digit)
         }
+        Rounding::Nearest | Rounding::Down => row.decimal(metres, 1, rounding),
     };
-    Formula::written_length(WrittenLength::in_unit(value, unit))
+    Formula::written_length(WrittenLength::canonical_in(row.canonical(&figure), unit))
 }
 
 /// What is in a slot right now.
@@ -393,11 +384,10 @@ pub fn rendering_unit(
     remembered.or_else(|| notation.unit(dimension))
 }
 
-/// A canonical value as it is WRITTEN in `unit` — one divide, the
-/// inverse of the text door's one multiply.
-///
+/// A canonical value as it is WRITTEN in `unit`: the float nearest its
+/// exact number of the unit ([`UnitDef::quotient`]).
 pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
-    canonical / unit.factor()
+    unit.quotient(canonical)
 }
 
 /// [`in_written`] where that value IS a number, and `None` where the
@@ -411,7 +401,8 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// is `inf`, which [`render_number`] spells `inf`. A text reading
 /// infinity names no value, and the value it was asked about is one
 /// the document holds perfectly well. ([`crate::readout::computed`]
-/// is handed the canonical value and tells such a length in metres.)
+/// is handed the canonical value and tells such a length in the unit,
+/// as a decimal no float of the unit holds: `1e309 mm`.)
 ///
 /// **The other end is the same question and is not symmetric.** One
 /// row's factor is above one — `pi rad`, at π — so a canonical angle
@@ -434,9 +425,9 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// value is a number and the unit is a unit, and the value written in
 /// that unit is neither.
 pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
-    // The unit's own question (`UnitDef::number_of`, which a told
-    // quantity asks too), and this door's addition: a value that is
-    // not finite is no number to show in any unit.
+    // The unit's own question (`UnitDef::number_of`), and this door's
+    // addition: a value that is not finite is no number to show in any
+    // unit.
     unit.number_of(canonical)
         .filter(|written| written.is_finite())
 }
@@ -460,11 +451,9 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// carrying its symbol.
 ///
 /// **The crate's render of a value nobody wrote
-/// ([`crate::readout::computed`])**: told on the grid in `unit`, and
-/// in the canonical unit, under its own word, where `unit` cannot say
-/// the value at all ([`written`]'s `None`). A value that is not
-/// finite names no quantity in any unit and is [`no_reading`], never
-/// `inf`.
+/// ([`crate::readout::computed`])**: told on the grid in `unit`, which
+/// says every finite value. A value that is not finite names no
+/// quantity in any unit and is [`no_reading`], never `inf`.
 ///
 /// `render_number` is deliberately not the render here. That one is a
 /// FIELD's — exact round-tripping digits, because the text a
@@ -478,12 +467,18 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
     }
 }
 
-/// A written value back to canonical — `n * factor`, which is exactly
-/// the literal semantics `parse_formula` applies to `n <symbol>`, so a
-/// number typed into a panel field and the same number typed into the
-/// expression field land on the same bits.
+/// A written value back to canonical — the number read as its shortest
+/// decimal, through the unit's one door ([`UnitDef::canonical_of_float`]),
+/// which is the literal semantics `parse_formula` applies to
+/// `n <symbol>`. A number typed into a panel field reaches this as the
+/// float its text parses to, so it lands on the bits the same text
+/// typed into the expression field does where that float's shortest
+/// decimal is the text, as it is for every text of at most fifteen
+/// significant figures; from sixteen the field's float may have lost a
+/// digit the expression field keeps
+/// (`work/told/a-float-door-loses-what-the-text-door-keeps.md`).
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
-    written * unit.factor()
+    unit.canonical_of_float(written)
 }
 
 /// [`in_written`] over a field that may name NO unit — one canonical
@@ -541,6 +536,61 @@ pub fn shown_text(unit: Option<UnitDef>, canonical: f64) -> String {
         || pncad::geom_core::Readable(canonical).to_string(),
         |unit| written_text(canonical, unit),
     )
+}
+
+/// **[`shown_text`], its number rounded TOWARD `toward`**: the text
+/// names a value between `canonical` and `toward`, never one past
+/// `canonical` on the far side. A proven end is shown toward the
+/// current value, so the text never claims more than was proven, and a
+/// point proven different is shown away from it (`toward` infinite),
+/// so the text never lands inside the proof.
+///
+/// The grid is [`shown_text`]'s: a number the grid rounded the wrong
+/// way is moved one rounding further, until the text reads back on the
+/// right side. A value the grid cannot place there is shown as
+/// `toward`, which is on the right side by construction.
+pub fn shown_text_toward(unit: Option<UnitDef>, canonical: f64, toward: f64) -> String {
+    // A count or a bare scalar is told by `Readable`, whose text reads
+    // back to the same bits: nothing to round.
+    let Some(unit) = unit else {
+        return shown_text(None, canonical);
+    };
+    if !canonical.is_finite() || canonical == toward {
+        return written_text(canonical, unit);
+    }
+    let up = toward > canonical;
+    // What the shown number types back as: its decimal through the
+    // unit's door (a number of the unit past the float format, `1e309`
+    // in millimetres, reads back too).
+    let reads_back = |value: f64| {
+        pncad::quantity::Decimal::parse(&crate::readout::computed_number(value, unit))
+            .map(|number| unit.canonical(&number))
+            .filter(|back| back.is_finite())
+    };
+    let on_side = |back: f64| (up && back >= canonical) || (!up && back <= canonical);
+    let Some(back) = reads_back(canonical) else {
+        return written_text(toward, unit);
+    };
+    if on_side(back) {
+        return written_text(canonical, unit);
+    }
+    // The text rounded past `canonical`: move toward `toward` by a step
+    // that doubles until the grid rounds the other way. The first step
+    // is the miss itself, which is not zero, since the text read back
+    // on the wrong side; so the answer is within two grid steps.
+    let direction = if up { 1.0 } else { -1.0 };
+    let mut step = (canonical - back).abs();
+    for _ in 0..128 {
+        let candidate = canonical + direction * step;
+        if (up && candidate > toward) || (!up && candidate < toward) {
+            break;
+        }
+        if reads_back(candidate).is_some_and(on_side) {
+            return written_text(candidate, unit);
+        }
+        step *= 2.0;
+    }
+    written_text(toward, unit)
 }
 
 /// [`from_written`] over a field that may name no unit — one number
@@ -626,8 +676,8 @@ pub enum SlotFault {
 /// listed** ([`SlotFault::Members`]).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MemberFault {
-    /// It reads two indices neither of which is within the other, which
-    /// no member binds together.
+    /// It reads the indices of two binders, which no member binds
+    /// together.
     Unrelated(VarId, VarId),
     /// An index's count did not evaluate, or is no count an index admits.
     Count(MemberCountFault),
@@ -639,13 +689,13 @@ impl MemberFault {
     #[must_use]
     pub fn node_error(self) -> NodeErrorKind {
         match self {
-            Self::Unrelated(a, b) => NodeErrorKind::IndicesUnrelated { a, b },
+            Self::Unrelated(a, b) => NodeErrorKind::TwoBinders { a, b },
             Self::Count(fault) => fault.node_error(),
         }
     }
 
     fn slot_fault(self, doc: &Doc<ProfileProgram>) -> SlotFault {
-        let said = spoken_by(&self.clone().node_error(), doc);
+        let said = spoken_by(&self.clone().node_error(), doc).to_string();
         SlotFault::Members {
             fault: Box::new(self),
             said,
@@ -726,7 +776,7 @@ impl MemberValues {
 
     /// The indices, as a sentence names them.
     fn indices(&self) -> String {
-        let names: Vec<String> = self.over.iter().map(SpokenVar::to_string).collect();
+        let names: Vec<String> = self.over.iter().map(crate::tree::spelled_var).collect();
         names.join(", ")
     }
 
@@ -736,7 +786,9 @@ impl MemberValues {
             .over
             .iter()
             .zip(at)
-            .map(|(index, value)| format!("{index} = {value}"))
+            .map(|(index, value)| {
+                format!("{index} = {value}", index = crate::tree::spelled_var(index))
+            })
             .collect();
         at.join(", ")
     }
@@ -1019,7 +1071,7 @@ fn reading(
                 .map_err(SlotFault::Eval);
         }
         Reached::Chain(chain) => chain,
-        Reached::Unrelated(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
+        Reached::TwoBinders(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
     };
     let members = doc
         .member_envs::<f64>(&chain)
@@ -1395,7 +1447,7 @@ pub fn source_rows(doc: &Doc<ProfileProgram>) -> Vec<SourceRow> {
                 var,
                 label: doc.spoken_var(var),
                 body: doc.spoken_var(body.read),
-                copies: crate::world::placements_of_var(doc, var).len(),
+                copies: doc.placements_of_var(var).len(),
             })
         })
         .collect()
@@ -1574,7 +1626,7 @@ pub struct Offered {
     /// The variable accepting the offer makes the slot read.
     pub var: VarId,
     /// How the offer names it: its name, or for an anonymous variable
-    /// the slot that reads it (`the depth of Extrude "base"`), as VR2
+    /// the slot that reads it (`the depth of "base" (3fa9c1d2a0b1)`), as VR2
     /// says an unnamed variable reads; its tag where no slot reads it.
     pub label: String,
 }
@@ -1677,10 +1729,10 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
             Some(format!(
                 "the {} of {}",
                 doc.node(node)?.slot_label(slot),
-                doc.spoken(node)
+                crate::tree::spelled(&doc.spoken(node))
             ))
         })
-        .unwrap_or_else(|| doc.spoken_var(var).to_string())
+        .unwrap_or_else(|| crate::tree::spelled_var(&doc.spoken_var(var)))
 }
 
 /// The `FreeVar` a dimension, a value and a NOTATION mint — the
@@ -1786,8 +1838,8 @@ pub fn index_count_edit(
         var: var.into(),
         def: pncad::document::VarDecl::Index {
             count,
-            within: index
-                .within
+            after: index
+                .after()
                 .map(|w| Formula::var(w, pncad::document::Dimension::Count)),
         },
         fresh: Vec::new(),
@@ -2044,14 +2096,16 @@ impl core::fmt::Display for SlotUnitFault {
                 write!(
                     f,
                     "{node} carries no expression in its {} slot",
-                    slot.label()
+                    slot.label(),
+                    node = crate::tree::spelled(node)
                 )
             }
             Self::NotALiteral { node, slot } => write!(
                 f,
                 "the {} slot on {node} is computed, so it has no written unit to change — set \
                  an expression to change what it says",
-                slot.label()
+                slot.label(),
+                node = crate::tree::spelled(node)
             ),
             Self::Dimension { slot, source } => {
                 write!(
@@ -2145,18 +2199,18 @@ mod written_tests {
         );
     }
 
-    /// **A value the notation cannot name reads in the canonical unit,
-    /// under its own word, and never spells `inf`**: `inf` is a text
-    /// that reads back as no value at all, offered for a value the
-    /// document holds perfectly well.
+    /// **A value whose number of the unit no float holds reads in the
+    /// unit, and never spells `inf`**: `inf` is a text that reads back
+    /// as no value at all, offered for a value the document holds
+    /// perfectly well.
     #[test]
     fn a_render_of_an_unnameable_value_is_not_an_infinity() {
         let mm = MM.def();
         assert_eq!(no_reading(mm), "no mm reading");
-        assert_eq!(written_text(1.0e306, mm), "1e306 m");
+        assert_eq!(written_text(1.0e306, mm), "1e309 mm");
         assert_eq!(
             written_text(5.0e-324, PI.def()),
-            "5e-324 rad",
+            "2e-324 pi rad",
             "and the other end is told the same way, not as a zero"
         );
         // The ordinary case is a number and its symbol.
@@ -2235,10 +2289,9 @@ mod written_tests {
         );
         assert_eq!(
             super::field_text(&row(1.0e304), super::Notation::DEFAULT),
-            "9.999999999999999e306",
+            "1e307",
             "and one decade below the overflow is an ordinary field, spelled \
-             by `{{:?}}`'s exact round-tripping digits — the quotient's, \
-             which is not `1e307`"
+             by `{{:?}}`'s exact round-tripping digits of the exact quotient"
         );
     }
 }

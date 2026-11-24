@@ -7,7 +7,7 @@
 # RE-TAKES ANY OF THEM. There is no register for them and there cannot
 # usefully be one: the subject is a machine nobody else runs, the readings
 # are wall clock and disk on that machine, and this repo reports timings
-# rather than gating them (docs/PERF-PLAN.md). They are here as the dated
+# rather than gating them (work/perf/plan.md). They are here as the dated
 # REASON a knob is set or was reverted — enough to stop the reverted ones
 # being re-adopted from first principles — and not as facts about the box
 # you are reading this on. Re-take before arguing from one; a number that

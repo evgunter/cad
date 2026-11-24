@@ -101,6 +101,6 @@ choice and this sign are one question, this row's.
 - The least turn's identity shortcut is gone: the Rodrigues arm is `v + k × v + k × (k × v)/(1 + c)`, so a pair that is one direction turns by the identity through `k = 0`.
 - `Chart::charted` reads no identity.
 - `UnitVec3::is_exactly` is `f64`-only; its one caller is the sweep skin's still step, at `f64`. That step still gates a step on bit-equality, which this row's class 3 keeps.
-- `mate::turn::zero` reads `SolveScalar::zero_everywhere`, which answers false at `Sym`. `SolveScalar::exactly_zero` answers false at `Sym`.
+- `mate::turn::zero` reads `SolveScalar::zero_everywhere`. At `Sym<f64>` that answers false. At `Sym<Interval>` it answers the box's point zero, `[0, 0]`, which holds over the box the lane claims over. `SolveScalar::exactly_zero` at `Sym` forwards to its value the same way: false at `Sym<f64>`, the box's point zero at `Sym<Interval>`.
 
 The `is_exact_zero` callers listed above (classes 1–3) are unchanged.

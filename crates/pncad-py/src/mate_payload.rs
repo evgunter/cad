@@ -206,7 +206,9 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             found_document: Some(*found),
             ..none
         },
-        MateFault::NotOnTheCopy { mate } | MateFault::Unoriented { mate } => MateFaultPayload {
+        MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
+        | MateFault::Unoriented { mate } => MateFaultPayload {
             mate: Some(*mate),
             ..none
         },

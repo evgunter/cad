@@ -284,7 +284,7 @@ pub(crate) fn apex_extrema_inside<T: Decide>(
     band: Band,
 ) -> Result<Vec<Vec3<T>>, SectorFault> {
     let rung = |diag| straight(false, diag);
-    let axis = apex.axis;
+    let axis = apex.axis().get();
     let n_r = across - axis * across.dot(axis);
     if decide(
         SECTOR_APEX_TILT,
@@ -361,7 +361,7 @@ pub(crate) fn tangent_extrema_inside<T: Decide>(
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Option<Vec3<T>>, geom_core::Indeterminate> {
-    let tilt = partner.axis - n * partner.axis.dot(n);
+    let tilt = partner.axis().get() - n * partner.axis().get().dot(n);
     if decide(
         "bool_sector_partner_tilt",
         Margin::levered(tilt.norm(), arm),
@@ -417,13 +417,13 @@ mod tests {
     /// corner of its face.
     #[test]
     fn an_apex_window_of_no_width_is_a_slit_tips_whole_turn() {
-        let apex = crate::sector_face::ConeApex {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        };
+        let apex = crate::sector_face::ConeApex::stated(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::UnitVec3::exact_z(),
+            core::f64::consts::FRAC_PI_4,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        );
         let across = Vec3::new(0.3, 1.0, -0.2);
         let read = |own, next, bounds| apex_corner_shape((own, next), &apex, bounds, band());
         let inside = |next: Vec3<f64>, shape: ApexShape<f64>| {

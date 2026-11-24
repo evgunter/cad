@@ -2,11 +2,12 @@
 id: a-cone-face-with-a-split-side-has-no-worst-triangle-theorem
 kind: issue
 title: a ruled face whose straight side holds a point meshes on the chart lane at the unproved headroom, and no theorem sizes it
-status: open
+status: closed
 priority: P3
 cost: M
 opened: 2026-10-26
 refs: [the-trimmed-cylinder-lane-has-no-worst-triangle-theorem]
+closed: 2026-11-17
 ---
 
 Found in PR 5717's fix pass (PRED). That pass drops the curved cone's
@@ -64,3 +65,16 @@ ruling's re-chorded rim can reach a thin planar neighbour's refusal
 the face without the split, with no interior rows, plus one triangle
 per split vertex.
 
+
+## Closed (2026-11-17, TESSLANE, unit 4c, `tesslane/ruled-density`)
+
+The chart lane walks such a face (`tessellate::Lane::Walked`, `crate::ruled_walk`):
+no lattice and no triangulation step, its triangles written along its two
+rows (its rims, or a rim and the apex) in order of angle, a split side's
+points fanned from the corner opposite. Each walked triangle spans at most
+one rim chord in angle, so the theorems at `sizing::sagitta_step` and
+`sizing::cone_grid_step` bound it, and the face sizes at δ. The count is
+the face without the split plus one triangle per point its sides gained,
+pinned by `split_rulings::a_split_side_adds_one_triangle_per_point`. A
+cone face whose sides pass through its apex onto the other nappe is not
+walked and keeps the CDT, which refuses it.

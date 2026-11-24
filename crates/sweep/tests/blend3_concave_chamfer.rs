@@ -90,7 +90,7 @@ fn the_chamfered_cavity() {
     // ringed face is not a disk, so each costs the alternating sum one.
     assert_eq!(counts.r, 2, "the vent's two mouths");
     assert_eq!(
-        (counts.s, counts.genus()),
+        (counts.s, counts.h()),
         (1, Ok(0)),
         "Euler–Poincaré, ring-corrected"
     );

@@ -119,7 +119,7 @@ fn ruling<T: Decide>(place: Place) -> Curve3<T> {
     let (c, r) = (T::from_f64, place.radius());
     Curve3::line(
         Point3::new(c(r * RULING.cos()), c(r * RULING.sin()), c(0.0)),
-        Vec3::new(c(0.0), c(0.0), c(1.0)),
+        geom_core::UnitVec3::exact_z(),
     )
 }
 
@@ -506,7 +506,12 @@ fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
         ),
         radius: 1.0,
     };
-    let line = |r: f64| Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let line = |r: f64| {
+        Curve3::line(
+            Point3::new(r, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        )
+    };
     let general = |r| {
         PcurveCache::certify_general(
             column_curve::<f64>(),

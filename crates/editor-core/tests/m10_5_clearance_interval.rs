@@ -243,7 +243,11 @@ pub(crate) fn slid_by(
         }
     };
     let Some(editor_core::Mate {
-        to: Operand::Pose(def),
+        to:
+            editor_core::pose::RoleRead {
+                read: Operand::Pose(def),
+                role: None,
+            },
         ..
     }) = placed.mates.first_mut()
     else {
@@ -582,15 +586,18 @@ fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
 ///
 /// The question has to be one the engine cannot ANSWER cheaply, which
 /// since the exhibit arm landed is no longer "find a violation": a
-/// violation is witnessed at the root and costs one cell. What still
-/// costs is a bound that HOLDS only by refining — the tube's coaxial
-/// walls at 0.45 m, which are 0.5 m apart.
+/// violation is witnessed at the root and costs one cell, and neither
+/// is a bound under the walls' gap: the tube's coaxial walls are 0.5 m
+/// apart, the root reads that off their depths about the axis, and
+/// 0.45 m holds in one cell. What still costs is the gap itself: at
+/// 0.5 m the depths less their pads fall short of the bound, and the
+/// bound is decided only by refining.
 #[test]
 fn a_starved_cell_budget_refuses_typed() {
     let (doc, minted, _at) = tube();
     let (fa, fb) = tube_walls(&doc, minted);
     let q = query(
-        0.45,
+        0.5,
         ClearanceConfig {
             budgets: Budgets {
                 max_cell_pairs: 1,
@@ -602,7 +609,11 @@ fn a_starved_cell_budget_refuses_typed() {
     let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(CellBudget::Pairs { max_cell_pairs }),
+            refusal:
+                EngineRefusal::Budget {
+                    stop: CellBudget::Pairs { max_cell_pairs },
+                    ..
+                },
             ..
         }) => assert_eq!(*max_cell_pairs, 1),
         other => panic!("expected a priced budget refusal, got {other:?}"),
@@ -619,7 +630,7 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let (doc, minted, _at) = tube();
     let (fa, fb) = tube_walls(&doc, minted);
     let q = query(
-        0.45,
+        0.5,
         ClearanceConfig {
             budgets: Budgets {
                 max_cell_depth: 0,
@@ -631,7 +642,11 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
     let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(CellBudget::Depth { max_cell_depth }),
+            refusal:
+                EngineRefusal::Budget {
+                    stop: CellBudget::Depth { max_cell_depth },
+                    ..
+                },
             ..
         }) => assert_eq!(*max_cell_depth, 0),
         other => panic!("expected a depth refusal, got {other:?}"),
@@ -866,33 +881,50 @@ fn the_answer_is_deterministic_across_repeats() {
     let (wa, wb) = neck_walls(&doc, minted, minted);
     let leaf = box_of(&doc, "place");
     // The stable answer is the claim, and the run that has to be stable
-    // is the EXPENSIVE one: a bound that holds only by refining, which
-    // is the tube's walls at 0.3 against their 0.5 — thousands of cell
-    // pairs classified in a level-synchronous order that must not
-    // drift.
-    let first = clearance(&tube, &leaf, &fa, &fb, 0.3, Tol::witness());
+    // is the EXPENSIVE one: thousands of cell pairs classified in a
+    // level-synchronous order that must not drift. A bound under the
+    // walls' 0.5 gap is answered at the root, off the walls' depths, so
+    // the run is the gap itself, refined until 4,096 pairs are spent.
+    let deep = |tube: &ProfileDoc| {
+        clearance_at_dials(
+            tube,
+            &leaf,
+            &fa,
+            &fb,
+            &query(
+                0.5,
+                ClearanceConfig {
+                    budgets: Budgets {
+                        max_cell_pairs: 4096,
+                        ..ClearanceConfig::default().budgets
+                    },
+                    ..ClearanceConfig::default()
+                },
+            ),
+        )
+    };
+    let first = deep(&tube);
     let r = first.receipt();
-    let cells = r.discharged + r.violated + r.refused;
-    // PINNED at what main reads, short of what
-    // `the_answer_is_deterministic_across_repeats` wants. The row wants
-    // a run of several thousand cell pairs, and held `cells > 1_000`
-    // until the support test came to read an analytic cell's support
-    // rather than its box (PR 6902), which discharged this pair in 992,
-    // and 978 since the extrudes' walls and caps are their sketch frames
-    // (BOXFINISH's `boxfinish/sweep-frames`), at every ε row: fourteen
-    // fewer cells, the answer and the determinism unchanged.
-    // The wanted answer is a bound that still refines that deep, on
-    // `work/clear/the-clearance-determinism-row-runs-under-a-thousand-cells-since-6902.md`;
-    // the pin reds on the next change of the count, a kernel improvement
-    // included: that red is this pin, not a defect, and a count has no
-    // place in a determinism row beyond holding it until then.
-    assert_eq!(
-        cells, 978,
-        "the determinism row's subdivision moved (it wants thousands of cells): {r:?}"
+    assert!(
+        matches!(
+            first.verdict(),
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::Budget {
+                    stop: CellBudget::Pairs { .. },
+                    ..
+                },
+                ..
+            })
+        ),
+        "the gap itself is refined to the budget: {}",
+        first.serialize()
+    );
+    assert!(
+        r.splits > 1_000,
+        "the determinism row runs over thousands of cell pairs: {r:?}"
     );
     for _ in 0..3 {
-        let again = clearance(&tube, &leaf, &fa, &fb, 0.3, Tol::witness());
-        assert_eq!(again.serialize(), first.serialize());
+        assert_eq!(deep(&tube).serialize(), first.serialize());
     }
     // And a violated run is stable too, witness and all — the goldening
     // form carries the witness's points and chart, so a drift in WHERE
@@ -1208,14 +1240,20 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
 ///   first verified witness and the exhibit arm finds one at the root,
 ///   so every bound the geometry breaks costs a handful of cell pairs
 ///   whether it is broken by a millimetre or by a metre.
-/// - **A held bound is cheap when the tree or a support can separate
-///   the pair and expensive when neither can** — the tube's curved walls
-///   below are discharged only by refining, and that is where the
-///   budget goes.
+/// - **A held bound is cheap where the tree, the faces' depths or a
+///   support can separate the pair at its root** — the tube's coaxial
+///   walls below are 0.5 m apart, their depths about the axis say so,
+///   and a bound under that holds in one cell.
 /// - **The frontier between them is what no budget settles**: a bound
-///   strictly inside a pair's own separation range leaves a set of cell
-///   pairs whose enclosures straddle it at every depth, and those
-///   refuse.
+///   at the pair's own separation, within the depths' pads of it,
+///   leaves cell pairs whose enclosures straddle it at every depth, and
+///   those refuse.
+///
+/// No row here shows the engine's limit on a bound that is true with
+/// room: every such bound on these fixtures is answered at the root,
+/// and the frontier below is a bound at the separation itself
+/// (`work/embed/nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance.md`
+/// says what fixture would show one).
 ///
 /// Nothing here is a baseline to preserve: the counts are a fact about
 /// these fixtures. What is asserted is the shape — and each assertion
@@ -1252,10 +1290,9 @@ fn the_cost_curve_is_measured_at_both_ends() {
         "a witnessed violation costs a handful of cells at any slack: {violated_cells:?}"
     );
 
-    // The second regime: a bound that HOLDS, on a pair neither the tree
-    // nor a support can separate at its root — the tube's coaxial walls,
-    // 0.5 m apart. Every cell of it is classified, so this is what a
-    // budget actually buys.
+    // The second regime: a bound that HOLDS. The tube's coaxial walls
+    // are 0.5 m apart, which no box and no support along a direction
+    // shows at the root and the walls' depths about their axis do.
     let (tube, minted, _at) = tube();
     let (fa, fb) = tube_walls(&tube, minted);
     let leaf = box_of(&doc, "place");
@@ -1270,32 +1307,45 @@ fn the_cost_curve_is_measured_at_both_ends() {
     assert!(hr.holds());
     let held_cells = hr.discharged + hr.violated + hr.refused;
     println!(
-        "[limit] held by refining at c = 0.2: cells = {held_cells}, splits = {}, widths = {:?}",
+        "[limit] held at the root at c = 0.2: cells = {held_cells}, splits = {}, widths = {:?}",
         hr.splits,
         held.widths()
     );
     assert!(
-        held_cells > violated_cells.iter().max().copied().unwrap_or(0),
-        "a held bound costs more than a witnessed one: {held_cells} against {violated_cells:?}"
+        held_cells <= 8,
+        "a bound the walls' depths clear costs a handful of cells, as a witnessed one does: \
+         {held_cells} against {violated_cells:?}"
+    );
+    // And it is flat in the slack too, down to a bound eight of the
+    // band's escalation widths under the gap (the pads are under three).
+    let step = geom_core::Band::linear(Tol::witness())
+        .expect("the witness tolerance forms a band")
+        .escalate();
+    let near = clearance(&tube, &leaf, &fa, &fb, 0.5 - 8.0 * step, Tol::witness());
+    assert_eq!(
+        (near.verdict(), near.receipt().splits),
+        (&ClearanceVerdict::Holds, 0),
+        "{}",
+        near.serialize()
     );
 
-    // The third regime, and the one no budget settles: a bound strictly
-    // inside the pair's own separation range leaves cell pairs whose
-    // enclosures straddle it at EVERY depth. 0.499 against a 0.5 m
-    // separation spends the whole dial and refuses, priced.
-    let frontier = clearance(&tube, &leaf, &fa, &fb, 0.499, Tol::witness());
+    // The third regime, and the one no budget settles: the walls' own
+    // separation. The depths less their pads fall short of 0.5, and the
+    // cell pairs' enclosures straddle it at EVERY depth, so it spends
+    // the whole dial and refuses, priced.
+    let frontier = clearance(&tube, &leaf, &fa, &fb, 0.5, Tol::witness());
     let fr = frontier.receipt();
     assert!(fr.holds());
     match frontier.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-            refusal: EngineRefusal::Budget(_),
+            refusal: EngineRefusal::Budget { .. },
             ..
         }) => {}
         other => panic!("expected the frontier to exhaust its budget, got {other:?}"),
     }
     let frontier_cells = fr.discharged + fr.violated + fr.refused;
     println!(
-        "[limit] the frontier at c = 0.499: cells = {frontier_cells}, splits = {}, widths = {:?}",
+        "[limit] the frontier at c = 0.5: cells = {frontier_cells}, splits = {}, widths = {:?}",
         fr.splits,
         frontier.widths()
     );
@@ -1457,13 +1507,15 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
     );
 }
 
-/// **A band is one subdivision** (the fused sweep). On the tube,
-/// `≥ 0.1` is cleared within a few splits while `≤ 0.4` (the walls are
-/// 0.5 apart) is exceeded only deep down. Asked as one band, the sweep
-/// splits as often as its costlier bound alone, not as often as both
-/// together.
+/// **A band is one subdivision** (the fused sweep). The tube's walls
+/// are 0.5 apart, and a bound under that by more than the depths' pads
+/// is answered at the root, so the two bounds here sit inside the pads:
+/// `≥ 0.5 − 2·escalate` and `≤ 0.5 − escalate`, each undecided at every
+/// cell pair down to a depth of six, where each refuses. Asked as one
+/// band, the sweep splits as often as either bound alone, not as often
+/// as both together.
 #[test]
-fn a_band_costs_its_costlier_bound() {
+fn a_band_costs_the_larger_of_its_bounds_not_their_sum() {
     let (doc, minted, _) = tube();
     let (outer, inner) = tube_walls(&doc, minted);
     let leaf = box_of(&doc, "place");
@@ -1473,44 +1525,55 @@ fn a_band_costs_its_costlier_bound() {
             &leaf,
             &outer,
             &inner,
-            &ClearanceQuery::at_dials(bound, crate::fixture::no_stop(), Tol::witness()),
+            &ClearanceQuery {
+                config: ClearanceConfig {
+                    budgets: Budgets {
+                        max_cell_depth: 6,
+                        ..ClearanceConfig::default().budgets
+                    },
+                    ..ClearanceConfig::default()
+                },
+                ..ClearanceQuery::at_dials(bound, crate::fixture::no_stop(), Tol::witness())
+            },
         )
     };
     let at = |c: f64| geom_core::Interval::from_bounds(c, c);
-    let lower = run(ClearanceBound::AtLeast(at(0.1)));
-    let upper = run(ClearanceBound::AtMost(at(0.4)));
+    let step = geom_core::Band::linear(Tol::witness())
+        .expect("the witness tolerance forms a band")
+        .escalate();
+    let (lo, hi) = (0.5 - 2.0 * step, 0.5 - step);
+    let lower = run(ClearanceBound::AtLeast(at(lo)));
+    let upper = run(ClearanceBound::AtMost(at(hi)));
     let band = run(ClearanceBound::Within {
-        lo: at(0.1),
-        hi: at(0.4),
+        lo: at(lo),
+        hi: at(hi),
     });
-    assert_eq!(
-        lower.verdict(),
-        &ClearanceVerdict::Holds,
-        "{}",
-        lower.render()
-    );
-    assert_eq!(
-        upper.verdict(),
-        &ClearanceVerdict::Exceeded,
-        "{}",
-        upper.render()
-    );
-    assert_eq!(
-        band.verdict(),
-        &ClearanceVerdict::Exceeded,
-        "{}",
-        band.render()
-    );
+    for (what, report) in [("lower", &lower), ("upper", &upper), ("band", &band)] {
+        assert!(
+            matches!(
+                report.verdict(),
+                ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                    refusal: EngineRefusal::Budget {
+                        stop: CellBudget::Depth { .. },
+                        ..
+                    },
+                    ..
+                })
+            ),
+            "the {what} bound runs out of depth: {}",
+            report.render()
+        );
+    }
     let splits = |r: &ClearanceReport| r.receipt().splits;
     assert!(
-        splits(&lower) < splits(&upper),
-        "the fixture's point: the upper bound is the costlier ({} against {})",
+        splits(&lower) > 0 && splits(&upper) > 0,
+        "the fixture's point: each bound costs splits of its own ({} and {})",
         splits(&lower),
         splits(&upper)
     );
     assert_eq!(
         splits(&band),
-        splits(&upper),
+        splits(&lower).max(splits(&upper)),
         "a band splits as its costlier bound does: lower {}, upper {}, band {}",
         splits(&lower),
         splits(&upper),

@@ -4,6 +4,8 @@ kind: issue
 title: Lever arms read as f64 bounds still enter Lever<T>, where a door's other callers lever at a T arm
 status: open
 opened: 2026-11-20
+priority: P2
+cost: M
 ---
 
 Found building `a-bound-to-decide-against-never-becomes-a-t` (DL5.2, `crates/geom-core/README.md`: "a lever arm ... never becomes a `T`").

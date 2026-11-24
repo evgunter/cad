@@ -2,10 +2,13 @@
 id: a-placement-and-its-part-do-not-link-to-each-other
 kind: unit
 title: viewer: a placement does not link to the part it places, nor a part to its placements
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
+pr: 7356
+branch: offer/a-node-shows-what-it-reads-and-what-reads-it
+closed: 2026-11-23
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "unclear how to go from a placement to its part, or a part to its placement(s)".

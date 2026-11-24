@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::r2_turn_probes::{sin_cos_at, speed_enclosure};
 use geom::Curve3;
 use geom::carrier_speed::{turn_defect_speed_hi, turn_defect_speed_lo};
 use geom_core::period::{Bounded, Extent, Period, Turn, TurnRows};
@@ -41,20 +42,8 @@ fn spiric(major: f64, minor: f64, offset: f64) -> Curve3<f64> {
     }
 }
 
-/// `(sin, cos)` of `t0 + d`, `t0` an exact f64, `d` a small interval.
-fn sc_at(t0: f64, d: Interval) -> (Interval, Interval) {
-    let (s0, c0) = Interval::from_f64(t0).sin_cos();
-    let (sd, cd) = d.sin_cos();
-    (s0 * cd + c0 * sd, c0 * cd - s0 * sd)
-}
-
-fn ellipse_speed(a: f64, b: f64, t0: f64, d: Interval) -> Interval {
-    let (s, c) = sc_at(t0, d);
-    ((Interval::from_f64(a) * s).powi(2) + (Interval::from_f64(b) * c).powi(2)).sqrt()
-}
-
 fn spiric_speed(major: f64, minor: f64, offset: f64, t0: f64, d: Interval) -> Interval {
-    let (s, c) = sc_at(t0, d);
+    let (s, c) = sin_cos_at(t0, d);
     let (major, minor, offset) = (
         Interval::from_f64(major),
         Interval::from_f64(minor),
@@ -65,7 +54,9 @@ fn spiric_speed(major: f64, minor: f64, offset: f64, t0: f64, d: Interval) -> In
 }
 
 /// The true defect `D = (t1 − t0) − 2π` (signed, an enclosure): the defect
-/// is `t0 + hull(0, D)` modulo 2π.
+/// is `t0 + hull(0, D)` modulo 2π. A window here is `[t0, t1]`, both
+/// stored, so `t1 − t0` is read exactly by two-sum; `r2_turn_probes`'
+/// windows are `[0, x]` and need no such step.
 fn true_defect(t0: f64, t1: f64) -> Interval {
     // `t1 − t0 = s + e` exactly (two-sum), `2π = τ + τ_lo` to ~1e-32.
     let s = t1 - t0;
@@ -244,7 +235,7 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
             for shift in shifts {
                 for &c in &centres {
                     let centre = shift + c;
-                    let s_c = ellipse_speed(a, b, centre, Interval::zero()).lo();
+                    let s_c = speed_enclosure(a, b, centre, Interval::zero()).lo();
                     let mut widths: Vec<f64> = (0..=30)
                         .map(|i| 10f64.powf(-16.0 + 0.5 * f64::from(i)))
                         .collect();
@@ -280,7 +271,7 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
                                 turn_defect_speed_hi(&civ, Interval::from_f64(t0), ext_iv);
                             let (lo_iv, hi_iv) = (lo_iv_v.get().lo(), hi_iv_v.get().hi());
                             let d = true_defect(t0, t1);
-                            let tr = truth(|x| ellipse_speed(a, b, t0, x), d);
+                            let tr = truth(|x| speed_enclosure(a, b, t0, x), d);
                             tally.cases += 1;
                             let case = format!("a {a} b {b} t0 {t0:e} t1 {t1:e} hf {hf:e} m {m:e}");
                             if lo > tr.min_hi {

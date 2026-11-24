@@ -193,7 +193,7 @@ fn assert_consumed(
     );
     let c = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c.s, c.genus()),
+        (c.s, c.h()),
         (1, Ok(0)),
         "{what}: one genus-0 shell, the through-hole gone"
     );
@@ -1015,7 +1015,7 @@ fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
         v0 - v1
     );
     let c = topo::readback::euler_counts(&out.body);
-    assert_eq!(c.genus(), Ok(1), "the fillet keeps the bore");
+    assert_eq!(c.h(), Ok(1), "the fillet keeps the bore");
 }
 
 /// **A bore in kept material just past a support's plane, in `Ω` but

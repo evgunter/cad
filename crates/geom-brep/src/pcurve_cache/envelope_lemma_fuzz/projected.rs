@@ -1556,8 +1556,10 @@ fn line_near_a_ruling_sweep(mut s: fuzz::Rng) -> usize {
         let mid = if s.below(2) == 0 { 1.0 } else { -1.0 } * s.range(1.0, 2.0);
         let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
         let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
-        let carrier = Curve3::line(at_mid - dir * mid, dir);
-        let (t0, t1) = (mid - h, mid + h);
+        // The same segment on its unit direction, its span in metres.
+        let len = dir.norm();
+        let carrier = Curve3::line(at_mid - dir * mid, geom_core::UnitVec3::squared(dir));
+        let (t0, t1) = ((mid - h) * len, (mid + h) * len);
         let what = format!("{carrier:?} [{t0}, {t1}] on {surf:?} — {}", fuzz::replay());
         let image = super::super::chart_pcurve_over(&carrier, t0, t1, &surf, b)
             .unwrap_or_else(|e| panic!("{what}: the derivation refused: {e:?}"));

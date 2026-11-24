@@ -129,10 +129,10 @@ miss in units of `u·a`, with the point read three ways:
   conic's frame and its origin are; an anchored form changes what that
   origin is.
 - Readers that need the anchor exact, measured on a far-centred conic:
-  `work/oneround/a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding.md`,
+  `work/conic/a-far-centred-conics-point-is-decided-against-an-in-box-point-at-the-centres-rounding.md`,
   `work/select/an-endpoint-pin-passes-on-a-far-centred-conics-own-rounded-point.md`.
 - A circle has no re-seaming door:
-  `work/oneround/a-far-circle-has-no-re-seaming-door.md`.
+  `work/conic/a-far-circle-has-no-re-seaming-door.md`.
 
 ## Claimed by ONEROUND (2026-11-19)
 

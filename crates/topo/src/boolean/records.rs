@@ -986,7 +986,12 @@ mod tests {
         assert_eq!(
             cited,
             [0, 1]
-                .map(|record| vec![Backing::Carried { input: 1, record }])
+                .map(|record| {
+                    vec![Backing::Carried {
+                        input: crate::Operand::B.input(),
+                        record,
+                    }]
+                })
                 .to_vec()
         );
         assert_eq!(

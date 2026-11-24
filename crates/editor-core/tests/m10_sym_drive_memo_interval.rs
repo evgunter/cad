@@ -395,7 +395,7 @@ struct Racing {
     certifies: bool,
     /// How many distinct NEEDS its leaves must show — the row's guard
     /// against a column collapsed to one value, as strong as each drive
-    /// supports (`work/scalar/the-race-rows-leaves-need-two-amounts-\
+    /// supports (`work/certread/the-race-rows-leaves-need-two-amounts-\
     /// where-they-needed-six.md`). Since an edge's wedge is levered at
     /// its faces' extent (`topo::wedge_reach`), every leaf's replay
     /// reads every face's boundary, so the slab's refused leaves all
