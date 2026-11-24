@@ -5491,11 +5491,18 @@ fn settle_in_band<T: Decide>(
 /// sin(angle of the unit dirs) × the shorter span's own length: the
 /// displacement the angular deviation induces over it. The sine has no
 /// point of its own: its Zero claims the two within the band over their
-/// overlap, which the shorter span's length bounds from above, and its
-/// definite sign hands the pair to the crossing reading over that same
-/// length ([`settle_in_band`]'s argument). A span's length is exact (a
-/// line's extent is its chord, both bounds one value), so each sign
-/// reads the bound it is owed.
+/// overlap, which the shorter span's length bounds from above. Its
+/// definite sign is acted on too: it hands the pair to the crossing
+/// reading, never to the overlap's, and that reading's question is over
+/// both whole spans, so it is levered at the shorter span's length, from
+/// below ([`settle_in_band`]'s argument), not at the overlap: two spans
+/// that cross square have projections that overlap over a point, and the
+/// overlap would read them parallel. A span's length is exact (a line's
+/// extent is its chord, both bounds one value). On a short partial
+/// overlap of two near-collinear spans, the definite sign sends to the
+/// crossing reading a pair that stands within the band over that
+/// overlap; that reading then meets them at a point
+/// (`parallel_reading_rows`).
 fn parallel_reading<T: Decide>(
     a: &impl Spans<T>,
     b: &impl Spans<T>,
@@ -23509,5 +23516,36 @@ mod parallel_reading_rows {
             "Zero at the shorter span's length"
         );
         assert_eq!(read(1.6e-9), None, "in band at the shorter span's length");
+    }
+
+    /// **The definite sign is levered at the shorter span too**, the
+    /// crossing reading's question being over both spans. A metre-long span
+    /// overlapping the 10-long one over its last `0.05` at the sine
+    /// `2·10⁻⁸` reads definite (`2·10⁻⁸` over the metre), and goes to the
+    /// crossing reading, though the two stand within `10⁻⁹` over the
+    /// overlap. And a span crossing the long one square, whose projection
+    /// on it is a point, reads definite: an arm the length of the overlap
+    /// would read every square crossing parallel.
+    #[test]
+    fn the_parallel_screens_definite_sign_reads_the_shorter_span() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let long = span(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 10.0);
+        let s = 2e-8_f64;
+        let tail = span(
+            Point3::new(9.95, 0.0, 0.0),
+            Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+            1.0,
+        );
+        assert_eq!(
+            parallel_reading(&long, &tail, band, &mut Vec::new()),
+            Some(false),
+            "a short partial overlap reads definite over the shorter span"
+        );
+        let square = span(Point3::new(5.0, -0.5, 0.0), Vec3::new(0.0, 1.0, 0.0), 1.0);
+        assert_eq!(
+            parallel_reading(&long, &square, band, &mut Vec::new()),
+            Some(false),
+            "a square crossing reads definite"
+        );
     }
 }

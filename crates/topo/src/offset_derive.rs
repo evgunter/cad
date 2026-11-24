@@ -1140,7 +1140,7 @@ fn plane_plane<T: Decide>(
 /// sine moves that edge by. The reading acted on as a claim is the
 /// definite sign, which takes the point as transversal (and, at an
 /// iterate, lets the step divide by `g·d`), so the reach is read from
-/// below ([`geom_brep::span_reach_bounds`]). Along the Newton every other
+/// below ([`crate::cover::piece_reach_bounds`]). Along the Newton every other
 /// reading, Zero or in band, is served as a graze, at every iterate and
 /// at the root alike; the line × plane closed form serves only a Zero as
 /// one and escalates in band. An edge whose reach cannot be read (no
@@ -1152,8 +1152,9 @@ pub(crate) fn analytic_root<T: Decide>(
     (edge, span): (&Curve3<T>, (T, T)),
     band: Band,
 ) -> Result<Result<T, CornerVerdict<T>>, Indeterminate> {
+    let ends = (edge.eval(span.0), edge.eval(span.1));
     let read = |sine: T, at: Point3<T>| {
-        let arm = geom_brep::span_reach_bounds(edge, span, at).below();
+        let arm = crate::cover::piece_reach_bounds(edge, span, ends, at).below();
         (
             decide("offset_corner_graze", Margin::levered(sine, arm), band),
             geom_core::is_finite_length(arm.length()),

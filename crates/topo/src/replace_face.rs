@@ -1755,10 +1755,13 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         .collect()
 }
 
-/// **The lever each derived section hands its corners' roots** for
-/// moving one non-cone `face` by `d`: every boundary edge the move
-/// derives, once, with its planned carrier and the arm
-/// [`incident_edges`] gives the lane ([`corner_arm`]).
+/// **The lever each derived spline section hands its corners' roots**
+/// for moving one non-cone `face` by `d`: every boundary edge the move
+/// derives, once, with its planned carrier and the arm the spline lane
+/// reads off the span [`incident_edges`] gives it ([`corner_arm`]). An
+/// analytic carrier's root reads no such arm: it is levered at the
+/// span's reach from each point its sine is read at
+/// ([`crate::offset_derive::analytic_root`]).
 ///
 /// # Panics
 ///

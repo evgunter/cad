@@ -543,6 +543,14 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// times the edge's reach from that point, which can be half of `D`, so
 /// `D` from below bounds nothing of it: such a datum reads
 /// [`span_reach_bounds`] (or [`edge_reach_bounds`]) from its point.
+/// The callers that still lever such a datum here are the spline lanes,
+/// which make their read points from the one lever handed in
+/// ([`crate::certify`]'s residual × NURBS lane and its tube,
+/// `edge_nurbs`, and `topo`'s `replace_face::corner_arm` into the
+/// spline section lane: `work/oneround/spline-lanes-lever-their-per-sample-reads-at-the-spans-diameter.md`),
+/// and [`crate::conic_bend`]'s departure, whose bound packs a direction
+/// with its lever
+/// (`work/oneround/sector-bounds-pack-a-direction-and-its-lever-into-one-vector.md`).
 ///
 /// A reading of a whole-edge datum that acts on its Zero and only
 /// refuses on a definite sign levers at [`edge_extent_sup`]: an arm

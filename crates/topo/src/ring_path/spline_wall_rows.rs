@@ -521,6 +521,15 @@ fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
 /// point of the turn stands at most `1.3` from the stop, while the turn's
 /// diameter is 2, its reach from its start 2, and its chord `√1.09`. The
 /// stop is on the straight run, whose bend leaves the reach the arm.
+///
+/// This pins the arm, on a piece built by hand, not the lean it levers.
+/// No row reaches `chord_join`'s `split_ring_path_lean` with this arm
+/// deciding: the lean is the cosine of the arriving piece against the
+/// closing chord's left normal, and a door body reads it between its
+/// arm's thresholds only where an island's boundary arrives at the wall
+/// path within about `ε / arm` of tangent, which no suite builds; the
+/// slow set's six spline-wall booleans read it definite. No suite builds
+/// a spline-wall ring at `Interval`, so that lane is unreached.
 #[test]
 fn an_iso_pieces_lean_is_levered_at_its_reach_from_its_stop() {
     let s = std::f64::consts::FRAC_1_SQRT_2;
