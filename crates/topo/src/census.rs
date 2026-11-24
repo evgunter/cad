@@ -7663,9 +7663,10 @@ impl Undecided {
             }
             // Neither this nor `Unclaimable` is gated by distance: a
             // face with no sound reach bound is refused at ANY
-            // separation, so moving the parts is no way through. A
-            // placeholder surface is also reported on its own, as the
-            // kernel defect it is (`UncertifiableSurface`).
+            // separation, so moving the parts is no way through. At
+            // rest a placeholder surface never reaches here: the session
+            // box refuses its face first (`SessionBoxUncovered`, "no
+            // surface described yet").
             Self::NoSoundReach => {
                 "one face has no extent the check can bound (a placeholder surface, or an \
                  edge whose curve has no bounds), so no distance clears it. There is no way \
@@ -10339,9 +10340,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // excluded from the backstop. What licenses the exclusion is a
         // named check, not an accident: the census's only production
         // caller is [`crate::validate::validate_pseudomanifold`], and
-        // it runs `census_and_certify` ONLY when `tier3_local_checks`
-        // came back empty, whose check 1 pushes `UncertifiableSurface`
-        // for every placeholder face. So no body reaching this arm
+        // it runs `census_and_certify` ONLY when the session box admitted
+        // the body, which it does for no placeholder face (its cover
+        // refuses: `SessionBoxUncovered`), and `tier3_local_checks` came
+        // back empty, whose check 1 pushes `UncertifiableSurface` for
+        // every placeholder face. So no body reaching this arm
         // through the public door carries one. The unsound direction is
         // a SECOND caller of `census_and_certify` that does not gate on
         // tier 3 — this skip would go quiet on faces the arm can say

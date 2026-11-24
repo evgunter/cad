@@ -7832,7 +7832,7 @@ mod cone_window_rows {
     /// (`boxes::tests::cone_wall`), read from a corner: the window is
     /// `[z0, z1]` to rounding at every span, past three quarters of a turn
     /// too, since the patch's loop closes in the chart and so leaves the
-    /// apex out (`cover::cone_may_hold_apex`). A window that
+    /// apex out (`cover::cone_hull_may_miss_apex`). A window that
     /// misses any of the face lets the arm serve a line pair over points
     /// nearer the apex than it reads.
     #[test]

@@ -761,10 +761,12 @@ fn a_cone_relabelled_brick_clear_of_the_other_operand_is_refused_at_rest() {
 
 /// Shape (iii) READINESS at the operand: a brick with one face
 /// relabelled to the placeholder NURBS net does not finish. The
-/// at-rest gate refuses it on that face and nothing else: one
-/// `UncertifiableSurface` naming the face (the placeholder net), and
-/// one `DescriptionNotAdjacent` for each of its four boundary edges,
-/// whose lines lie on no surface the net describes.
+/// at-rest gate refuses it on that face and nothing else: the session
+/// box, which cannot bound a face whose net bounds no region, names the
+/// face, alone, before tier 3's checks run, and says it has no surface
+/// described yet. What the checks then say of it (the placeholder, and a
+/// `DescriptionNotAdjacent` for each of its four edges) is
+/// `tier3_tests::a_placeholder_wall_draws_its_surface_and_its_four_edges`.
 #[test]
 fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -778,17 +780,17 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
         },
     )
     .unwrap();
-    let (edges, _) = face_boundary(&b, face);
-    assert_eq!(edges.len(), 4);
     let errors =
         topo::finish(b, Tol::witness()).expect_err("a placeholder NURBS wall does not finish");
-    assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
-    assert_eq!(
-        errors[0],
-        topo::ValidationError::UncertifiableSurface { face },
-        "the placeholder net is named on its face: {errors:?}"
+    let [topo::ValidationError::SessionBoxUncovered { face: named, .. }] = &errors[..] else {
+        panic!("the box names the wall, alone: {errors:?}");
+    };
+    assert_eq!(*named, face, "the placeholder net is named on its face");
+    assert!(
+        errors[0].to_string().contains("no surface described yet"),
+        "{}",
+        errors[0]
     );
-    assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
 }
 
 /// The two DERIVATION-CORRECTED ∖-column cells, executed geometrically

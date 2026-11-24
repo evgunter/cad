@@ -313,6 +313,7 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
         .filter_map(|family| geom_core::k_stats::checking(|| family.asked_again(image, band)).err())
+        .flatten()
         .collect();
     if findings.is_empty() {
         Ok(())
@@ -680,8 +681,11 @@ impl std::error::Error for NotFinished {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum FindingFamily {
-    /// The body reaches past the session box (D4 ¶4), so nothing
-    /// geometric is read on it.
+    /// The body reaches past the session box (D4 ¶4), or the kernel
+    /// cannot show it inside, so nothing geometric is read on it. Each
+    /// member ends in its own recourse: the box's (move the geometry)
+    /// where the body or its cover reaches past it, its cause's where a
+    /// face has no cover.
     SessionBox,
     /// The run's tolerance forms no band, so nothing geometric is read.
     Tolerance,
@@ -772,13 +776,13 @@ impl FindingFamily {
     }
 
     /// **This family's question, asked of an isometry's image**
-    /// ([`Self::under_isometry`]): its finding where it finds one, and
+    /// ([`Self::under_isometry`]): its findings where it finds any, and
     /// nothing asked of a family up to isometry.
     pub(crate) fn asked_again<T: geom_core::Decide>(
         self,
         image: &Body<T>,
         band: geom_core::Band,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), Vec<ValidationError>> {
         match self.under_isometry() {
             None => Ok(()),
             Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
@@ -827,7 +831,7 @@ impl FindingFamily {
     #[must_use]
     pub const fn text(self) -> &'static str {
         match self {
-            Self::SessionBox => "the body reaches past the session box",
+            Self::SessionBox => "the body is past the session box, or not shown inside it",
             Self::Tolerance => "the tolerance forms no band",
             Self::Structure => "the topology is broken",
             Self::Scaffolding => "construction scaffolding is left at rest",
@@ -848,16 +852,17 @@ impl FindingFamily {
 
     /// The family's one recourse, where it is one sentence whatever the
     /// finding; `None` where the family is one decision whose ending
-    /// reads the finding's verdict and margin.
+    /// reads the finding's verdict and margin, or (the session box) where
+    /// a member's recourse is its cause's.
     #[must_use]
     pub const fn recourse(self) -> Option<&'static str> {
         match self {
-            Self::SessionBox => Some(crate::validate::SESSION_BOX),
             Self::Tolerance => Some(crate::validate::TOLERANCE),
             Self::Structure | Self::Scaffolding | Self::Description => {
                 Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
-            Self::Convention
+            Self::SessionBox
+            | Self::Convention
             | Self::Certificate
             | Self::Planar
             | Self::Dihedral
@@ -879,7 +884,9 @@ impl ValidationError {
     pub const fn family(&self) -> FindingFamily {
         use FindingFamily as F;
         match self {
-            Self::OutsideSessionBox { .. } => F::SessionBox,
+            Self::OutsideSessionBox { .. }
+            | Self::SessionBoxUnshown { .. }
+            | Self::SessionBoxUncovered { .. } => F::SessionBox,
             Self::Band { .. } => F::Tolerance,
             Self::DanglingTopology { .. }
             | Self::DanglingGeometry { .. }

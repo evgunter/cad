@@ -922,12 +922,17 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
     }
 }
 
+/// **The session box's recourse** where the body or its cover reaches
+/// past the box: the geometry moves.
+pub const SESSION_BOX_RECOURSE: &str =
+    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+
 /// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
 /// answer on a body whose largest `|coordinate|` is `reach`, past the
 /// 1 km box, is its refusal by the box: its finding `OutsideSessionBox`,
 /// its margin the box's extent less `reach` (to a part in 1e9 of
-/// `reach`), and its sentence the box's one recourse
-/// (`topo::FindingFamily::SessionBox`). `what` names the body.
+/// `reach`), and its sentence the box's recourse
+/// ([`SESSION_BOX_RECOURSE`]). `what` names the body.
 ///
 /// # Panics
 ///
@@ -940,9 +945,7 @@ pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
     let Err(e) = got else {
         panic!("{what}: past the session box, yet the door builds it");
     };
-    let recourse = topo::FindingFamily::SessionBox
-        .recourse()
-        .expect("the box has one recourse");
+    let recourse = SESSION_BOX_RECOURSE;
     let (said, debug) = (e.to_string(), format!("{e:?}"));
     let margin = debug
         .split_once("OutsideSessionBox { margin: MarginDiag(Value(")
@@ -957,6 +960,36 @@ pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
     assert!(
         said.contains(recourse),
         "{what}: the box's refusal says its recourse: {said}"
+    );
+}
+
+/// **A fixture inside the session box whose cover alone reaches past it,
+/// refused as a limit** (`ValidationError::SessionBoxUnshown`): the
+/// margin is the box's extent less `cover_reach`, the reach of the cover
+/// that bounds it, and the refusal says the box's recourse.
+pub fn refused_as_a_session_box_limit<T, E: core::fmt::Display + core::fmt::Debug>(
+    what: &str,
+    cover_reach: f64,
+    got: Result<T, E>,
+) {
+    let Err(e) = got else {
+        panic!("{what}: its cover reaches past the session box, yet the door builds it");
+    };
+    let (said, debug) = (e.to_string(), format!("{e:?}"));
+    let margin = debug
+        .split_once("SessionBoxUnshown { margin: MarginDiag(Value(")
+        .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
+        .unwrap_or_else(|| panic!("{what}: the door refuses as the box's limit: {debug}"));
+    let want = geom_core::tolerance::SESSION_BOX_EXTENT - cover_reach;
+    assert!(
+        (margin - want).abs() <= 1e-9 * cover_reach,
+        "{what}: the limit's margin is the box's extent less the cover's reach {cover_reach}, \
+         {want}, got {margin}"
+    );
+    let recourse = SESSION_BOX_RECOURSE;
+    assert!(
+        said.contains(recourse) && said.contains("not built yet"),
+        "{what}: the limit says it and the box's recourse: {said}"
     );
 }
 
