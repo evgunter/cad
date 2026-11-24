@@ -296,10 +296,12 @@ fn a_foreign_prior_is_refused_not_mined() {
     assert_eq!(ev_b.recomputed, b.len(), "every node ran its op");
     assert_eq!(
         ev_b.prior_refused,
-        Some(editor_core::Mispaired {
-            expected: b.id(),
-            found: a.id(),
-        })
+        Some(editor_core::PriorRefusal::Document(
+            editor_core::Mispaired {
+                expected: b.id(),
+                found: a.id(),
+            }
+        ))
     );
 }
 
@@ -331,10 +333,12 @@ fn a_twin_recipe_collides_on_every_key_and_is_still_refused() {
     assert_eq!(ev_b.recomputed, b.len());
     assert_eq!(
         ev_b.prior_refused,
-        Some(editor_core::Mispaired {
-            expected: b.id(),
-            found: a.id(),
-        })
+        Some(editor_core::PriorRefusal::Document(
+            editor_core::Mispaired {
+                expected: b.id(),
+                found: a.id(),
+            }
+        ))
     );
 }
 
@@ -450,6 +454,231 @@ fn a_matched_pair_gathers_bit_identically() {
         "the assembly's product"
     );
     crate::fixture::could_look(&asm, &warm).expect("the matched pair is at rest");
+}
+
+// ---- A2, the options: a prior is a prior UNDER its run's options ----
+
+/// A second computing frame: a turn by an irrational angle about an
+/// irrational axis, then a translation off every axis.
+fn twist() -> editor_core::ComputingTwist {
+    let n = 6.0_f64.sqrt();
+    editor_core::ComputingTwist {
+        axis: [1.0 / n, 2.0_f64.sqrt() / n, 3.0_f64.sqrt() / n],
+        angle: std::f64::consts::FRAC_1_SQRT_2,
+        by: [0.37, -1.25, 2.5],
+    }
+}
+
+/// Every node's result, as text: what a run over a prior is held to a
+/// fresh run by, node for node.
+fn results(ev: &Evaluation<f64>) -> Vec<String> {
+    ev.order
+        .iter()
+        .map(|id| format!("{:?}", ev.result(*id)))
+        .collect()
+}
+
+/// **`doc` at `opts` over a prior run at `prior_opts` is the fresh run
+/// at `opts`**, node for node, the prior refused for its options and
+/// nothing reused; and the fresh run differs from the prior, so the row
+/// sees a node served from it. The run over the prior.
+fn refused_for_its_options(
+    doc: &ProfileDoc,
+    prior_opts: &EvalOptions,
+    opts: &EvalOptions,
+    what: &str,
+) -> Evaluation<f64> {
+    let prior = run(doc, None, prior_opts);
+    let fresh = run(doc, None, opts);
+    assert_ne!(
+        results(&prior),
+        results(&fresh),
+        "{what}: the two runs differ, or the row sees nothing"
+    );
+    let served = run(doc, Some(&prior), opts);
+    assert_eq!(
+        results(&served),
+        results(&fresh),
+        "{what}: the run over the prior is the fresh run"
+    );
+    assert_eq!(served.reused, 0, "{what}: nothing is served");
+    assert_eq!(
+        served.prior_refused,
+        Some(editor_core::PriorRefusal::Options),
+        "{what}: the prior is refused for its options"
+    );
+    served
+}
+
+/// **A prior built in another computing frame is refused**
+/// (`EvalOptions::computing_twist`): a construction's body is built in
+/// the frame the run's twist turns and no key hashes the twist, so every
+/// key of the untwisted run is the twisted run's. Red if the memo's door
+/// compares no frame: the extrude is then served as the prior built it,
+/// in its own frame.
+#[test]
+fn a_prior_built_in_another_computing_frame_is_refused() {
+    let doc = part("docm4-options-twist", 1.0);
+    let twisted = EvalOptions {
+        computing_twist: Some(twist()),
+        ..EvalOptions::default()
+    };
+    refused_for_its_options(&doc, &EvalOptions::default(), &twisted, "a second frame");
+    let again = run(&doc, Some(&run(&doc, None, &twisted)), &twisted);
+    assert_eq!(again.prior_refused, None, "a prior in this run's frame");
+    assert_eq!(again.reused, doc.len(), "and it is all memo");
+}
+
+/// **A prior whose booleans ran the other candidate generation is
+/// refused** (`EvalOptions::boolean_sweep`): the bodies are the same
+/// bits and the keys the same, by design, while a boolean's verdict log
+/// is the predicates its strategy ran. Red if the memo's door compares
+/// no strategy: the subtract is then served with the pruned run's log
+/// in a brute-force run.
+#[test]
+fn a_prior_whose_booleans_ran_the_other_sweep_is_refused() {
+    let (doc, cube) = crate::eval6_placers_over_instances::cube_doc("docm4-options-sweep");
+    let (doc, _, xs) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, 2);
+    let member = |i| editor_core::BodyRead::indexed(xs, vec![editor_core::Formula::count(i)]);
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: member(1),
+            tool: member(0).into(),
+        },
+    );
+    let ideal = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..EvalOptions::default()
+    };
+    let served = refused_for_its_options(&doc, &EvalOptions::default(), &ideal, "brute force");
+    let pruned = run(&doc, None, &EvalOptions::default());
+    let log = |ev: &Evaluation<f64>| ev.value(cut).expect("the subtract builds").verdicts.len();
+    assert!(
+        log(&served) > log(&pruned),
+        "the brute-force sweep decides pairs the tree pruned: {} against {}",
+        log(&served),
+        log(&pruned)
+    );
+}
+
+/// **A prior's part rows are its run's** (`eval::parts`): a part is
+/// evaluated under the run's frame, strategy and symbols, and its row
+/// is keyed by its reference and ε alone. Here the frame differs; the
+/// strategy and the symbols have a row each below. Red if the memo's
+/// door compares no frame: the instance is then served, or rebuilt over
+/// the part as the prior's frame built it, and the part is not
+/// evaluated.
+#[test]
+fn a_prior_under_other_options_carries_no_part_row() {
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part("docm4-options-part", 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (asm, _) = assembly_of(DocumentId::derive("docm4-options-asm"), part_ref, &opts);
+    let twisted = EvalOptions {
+        computing_twist: Some(twist()),
+        ..opts.clone()
+    };
+    let served = refused_for_its_options(&asm, &opts, &twisted, "a part under a second frame");
+    assert_eq!(
+        served.part_evaluations,
+        run(&asm, None, &twisted).part_evaluations,
+        "the part is evaluated in this run's frame"
+    );
+    assert!(served.part_evaluations > 0, "and it is evaluated");
+}
+
+/// **`asm`'s part rows are not carried from a prior under `prior_opts`
+/// into a run at `opts`**: the prior is refused for its options, nothing
+/// is served, and the part is evaluated in this run as often as a fresh
+/// run evaluates it. The two runs differ in the one option the caller
+/// varies.
+fn carries_no_part_row(asm: &ProfileDoc, prior_opts: &EvalOptions, opts: &EvalOptions, what: &str) {
+    let prior = run(asm, None, prior_opts);
+    assert!(
+        prior.part_evaluations > 0,
+        "{what}: the prior built the part"
+    );
+    let served = run(asm, Some(&prior), opts);
+    assert_eq!(
+        served.prior_refused,
+        Some(editor_core::PriorRefusal::Options),
+        "{what}: the prior is refused for its options"
+    );
+    assert_eq!(served.reused, 0, "{what}: nothing is served");
+    assert_eq!(
+        served.part_evaluations,
+        run(asm, None, opts).part_evaluations,
+        "{what}: the part is evaluated in this run"
+    );
+    assert!(served.part_evaluations > 0, "{what}: and it is evaluated");
+}
+
+/// **A prior's part rows are its run's, under the other sweep too**: a
+/// part's booleans run the strategy its instancing run does. Red if the
+/// memo's door compares no strategy: the row is carried and the part is
+/// not evaluated.
+#[test]
+fn a_prior_under_the_other_sweep_carries_no_part_row() {
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part("docm4-options-part-sweep", 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (asm, _) = assembly_of(
+        DocumentId::derive("docm4-options-asm-sweep"),
+        part_ref,
+        &opts,
+    );
+    let ideal = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..opts.clone()
+    };
+    carries_no_part_row(&asm, &opts, &ideal, "a part under the other sweep");
+}
+
+/// **A prior run with every variable a symbol is refused by a run with
+/// none, and the other way** (`EvalOptions::symbols`): a part's own run
+/// binds its variables by it, and its row is keyed by its reference and
+/// ε alone. At `Sym<f64>`, in one replay session. Red if the memo's door
+/// compares no `symbols`: the prior is read, and its part row carried.
+#[test]
+fn a_prior_under_the_other_symbols_setting_is_refused() {
+    type S = geom_core::Sym<f64>;
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part("docm4-options-part-symbols", 1.0), Tol::witness());
+    let plain = with_resolver(store);
+    let (asm, _) = assembly_of(
+        DocumentId::derive("docm4-options-asm-symbols"),
+        part_ref,
+        &plain,
+    );
+    let symbols = EvalOptions {
+        symbols: true,
+        ..plain.clone()
+    };
+    let at = |prior: Option<&Evaluation<S>>, o: &EvalOptions| -> Evaluation<S> {
+        evaluate(&asm, prior, &CancelToken::new(), o, Tol::witness())
+    };
+    let ((), _) = editor_core::coincide::with_replay_session(symbols.clone(), |symbols| {
+        for (prior_opts, opts) in [(&plain, symbols), (symbols, &plain)] {
+            let prior = at(None, prior_opts);
+            let served = at(Some(&prior), opts);
+            assert_eq!(
+                served.prior_refused,
+                Some(editor_core::PriorRefusal::Options),
+                "symbols {} over a prior at {}",
+                opts.symbols,
+                prior_opts.symbols
+            );
+            assert_eq!(served.reused, 0, "nothing is served");
+            assert_eq!(
+                served.part_evaluations,
+                at(None, opts).part_evaluations,
+                "the part is evaluated under this run's setting"
+            );
+            let again = at(Some(&served), opts);
+            assert_eq!(again.prior_refused, None, "a prior under this setting");
+        }
+    });
 }
 
 // ---- A4: the memo still works ----
