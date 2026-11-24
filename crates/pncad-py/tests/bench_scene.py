@@ -347,6 +347,7 @@ def layout(store, post_ref, shelf_ref, posts="members"):
             [("y", Formula.length_in(PATTERN_SPACING, m))],
         )
     )
+    doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(family)]))
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     doc.set_constraints(
         shelf_i,

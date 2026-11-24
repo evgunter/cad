@@ -181,7 +181,7 @@ fn join_drawn(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 pipe.into(),
                 BodyRead::plain(Operand::output(built, 0)),
             ]),
@@ -382,6 +382,43 @@ fn an_elbow_whose_neutral_points_sit_in_the_end_gaps_unions() {
     }
 }
 
+/// **A hooked elbow that comes back into its pipe is never a wrong body**
+/// (R1's guard on PR 7432's second review): the axis 1.5 off the pipe's,
+/// turned −3π/2 and −5π/4 off the End cap, the rod and the pipe. The
+/// torus wall leaves the rim G1, so every wall pair on the rim glues a
+/// junction, then comes back round into the pipe's wall away from the
+/// rim. The arcs ending on the rim turn past a quarter turn, so their
+/// windows are not the whole span and the crossing is the root doors'.
+/// The union passes the crossing layer and stops at the finish (the
+/// seams' descriptions); once the finish builds, the row owes a typed
+/// refusal or the hand-checked body, never a wrong one.
+#[test]
+fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
+    use topo::boolean::RimDoor;
+    for hollow in [false, true] {
+        for angle in [-1.5 * PI, -1.25 * PI] {
+            let what = format!("hollow {hollow}, turned {angle}");
+            let off = OffCap::Elbow {
+                axis_x: 1.5,
+                axis_y: 0.0,
+                heading: -FRAC_PI_2,
+                angle,
+            };
+            let j = join(hollow, CapEnd::End, off);
+            let (walls, rest) = door(&j);
+            assert!(
+                !walls.is_empty() && walls.iter().all(|d| *d == RimDoor::Junction),
+                "{what}: every wall pair on the rim a junction: {walls:?}"
+            );
+            assert!(
+                rest.iter().all(|d| *d == RimDoor::NotTangent),
+                "{what}: every other pair meets at a corner: {rest:?}"
+            );
+            println!("PROBE hooked {what}: {}", outcome(&j, 0.0));
+        }
+    }
+}
+
 /// The door's row for a pose bent away: `walls` pairs of a cylinder and a
 /// torus sharing a rim, each glued a junction, and no other pair glued.
 #[track_caller]
@@ -478,88 +515,6 @@ fn built(j: &Joined) -> Built {
         tier3_prime: topo::validate_pseudomanifold(&body, contacts, Tol::witness()),
         volume: topo::test_support::pinned_volume("the union", &finished, Tol::witness()).volume,
     }
-}
-
-/// What the union came to: its refusal, or its volume against the
-/// closed form and tier 3 and 3′ on the result.
-fn outcome(j: &Joined, expect: f64) -> String {
-    if let Some(e) = j.ev.node_error(j.union) {
-        return format!("REFUSES {}", e.kind);
-    }
-    let body = crate::corpus::body_of(&j.ev, j.union);
-    let none = ContactRecords::default();
-    let value = j.ev.value(j.union).expect("a value");
-    let contacts = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
-        _ => &none,
-    };
-    let t3 = topo::validate_geometric(&body, Tol::witness()).map_err(|e| format!("{e:?}"));
-    let t3p = topo::validate_pseudomanifold(&body, contacts, Tol::witness())
-        .map_err(|e| format!("{e:?}"));
-    let vol = match &t3 {
-        Ok(()) => {
-            let f = topo::test_support::finished("the union", body.clone(), Tol::witness());
-            format!(
-                "{:.12}",
-                topo::test_support::pinned_volume("the union", &f, Tol::witness()).volume
-            )
-        }
-        Err(_) => "-".into(),
-    };
-    format!(
-        "BUILDS solids {} volume {vol} expect {expect:.12} records {} t3 {t3:?} t3' {t3p:?}",
-        body.solids().count(),
-        contacts.len()
-    )
-}
-
-/// **A probe, asserting nothing**: what every pose, the rod's, the
-/// turned axes' and the extrude's unions come to, printed. Run with
-/// `cargo nextest run -p editor-core --test all --run-ignored only zz_probe_outcomes --no-capture`
-/// (`probes/heldrecords-elbow/` for the instrumented runs).
-#[test]
-#[ignore = "a probe: prints, asserts nothing"]
-fn zz_probe_outcomes() {
-    for (end, off) in the_eight_poses() {
-        let j = join(true, end, off);
-        let pipe_b = crate::corpus::body_of(&j.ev, j.built);
-        let zs: Vec<f64> = pipe_b.points().map(|(_, p)| p.to_array()[2]).collect();
-        println!(
-            "PROBE elbow z range {:?}",
-            (
-                zs.iter().cloned().fold(f64::MAX, f64::min),
-                zs.iter().cloned().fold(f64::MIN, f64::max)
-            )
-        );
-        println!(
-            "PROBE pipe {end:?} {off:?}: {}",
-            outcome(&j, closed_form(true, off))
-        );
-    }
-    for (end, off) in the_eight_poses() {
-        println!(
-            "PROBE rod {end:?} {off:?}: {}",
-            outcome(&join(false, end, off), closed_form(false, off))
-        );
-    }
-    for k in [0.5, 1.0, 2.0, 5.0, 20.0, 1e3, 1e6] {
-        let d = k * Tol::witness().eps();
-        let off = OffCap::Elbow {
-            axis_x: BEND,
-            axis_y: 0.0,
-            heading: -FRAC_PI_2 + d,
-            angle: -FRAC_PI_2,
-        };
-        println!(
-            "PROBE near-neutral k={k}: {}",
-            outcome(&join(true, CapEnd::End, off), closed_form(true, off))
-        );
-    }
-    let off = OffCap::Extrude(1.0);
-    println!(
-        "PROBE extrude: {}",
-        outcome(&join(true, CapEnd::End, off), closed_form(true, off))
-    );
 }
 
 /// The elbow bent away about the line through `3·(−sin δ, cos δ)`

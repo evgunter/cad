@@ -125,6 +125,7 @@
 //! # run().unwrap();
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 // A comment on a `mod` declaration below is `//`, never `///`: an outer
 // doc comment merges into the module's own `//!` docs and makes rustdoc
 // resolve their intra-doc links in this file's scope instead of theirs.
@@ -875,7 +876,10 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
-        let line = geom::Line { origin, dir };
+        let line = geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
             let off = line.distance(p);

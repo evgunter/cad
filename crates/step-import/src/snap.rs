@@ -70,7 +70,7 @@
 use std::collections::BTreeMap;
 
 use geom::{Line, Surface};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, UnitVec3, Vec3};
 
 use crate::entities::SolidSpec;
 use crate::error::{BuiltEntity, StepImportError};
@@ -349,9 +349,7 @@ fn candidates(
 /// ([`Surface::axis_line`]); a sphere's centre has no axis of its own.
 fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
     match s {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
-            s.axis_line().map(Line::unit)
-        }
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => s.axis_line(),
         _ => None,
     }
 }
@@ -387,7 +385,7 @@ fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
 /// Where `line` meets the plane through `p` with normal `n`; `None` where
 /// the line runs nearer along the plane than across it.
 fn meets(line: Line<f64>, (p, n): (Point3<f64>, Vec3<f64>)) -> Option<Point3<f64>> {
-    let across = n.dot(line.dir);
+    let across = n.dot(line.dir.get());
     (across.abs() > std::f64::consts::FRAC_1_SQRT_2)
         .then(|| line.at(n.dot(p - line.origin) / across))
 }
@@ -419,7 +417,7 @@ fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, reach: &Reach) ->
                 return far;
             };
             meets(line, plane).map_or(far, |pivot| {
-                plane.1.cross(line.dir).norm() * reach.from(pivot)
+                plane.1.cross(line.dir.get()).norm() * reach.from(pivot)
             })
         }
         SnapRelation::Coaxial => match (axis(a), axis(b)) {
@@ -658,7 +656,7 @@ fn tangent(
         }
     };
     // Square to the axis, so the move is a translation across it.
-    let delta = delta - line.dir * delta.dot(line.dir);
+    let delta = delta - line.dir.get() * delta.dot(line.dir.get());
     Ok((
         Surface::Cylinder {
             frame: cylinder_frame.with_origin(origin + delta),
@@ -746,16 +744,18 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
             // Turned onto the kept direction about the moved axis's point
             // at its faces, and carried onto the kept line there.
             let pivot = from.foot(faces.centre());
-            let dir = if from.dir.dot(onto.dir) < 0.0 {
+            let dir = if from.dir.get().dot(onto.dir.get()) < 0.0 {
                 -onto.dir
             } else {
                 onto.dir
             };
             let to = onto.foot(pivot);
-            carry(&mut out, from, (pivot, to), dir);
+            if carry(&mut out, from, (pivot, to), dir).is_none() {
+                return (moved.clone(), f64::INFINITY);
+            }
             (
                 out,
-                (to - pivot).norm() + (dir - from.dir).norm() * faces.from(pivot),
+                (to - pivot).norm() + (dir.get() - from.dir.get()).norm() * faces.from(pivot),
             )
         }
         (Some(onto), None) => {
@@ -771,7 +771,9 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
                 return (out, f64::INFINITY);
             };
             let delta = c - from.foot(c);
-            carry(&mut out, from, (from.origin, from.origin + delta), from.dir);
+            if carry(&mut out, from, (from.origin, from.origin + delta), from.dir).is_none() {
+                return (moved.clone(), f64::INFINITY);
+            }
             (out, delta.norm())
         }
         (None, None) => {
@@ -809,50 +811,83 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Sur
         return (moved.clone(), f64::INFINITY);
     };
     if matches!(moved, Surface::Plane { .. }) {
-        let normal = if n.dot(line.dir) < 0.0 {
+        let normal = if n.dot(line.dir.get()) < 0.0 {
             -line.dir
         } else {
             line.dir
         };
-        let u_ref = geom::Frame::new(pivot, normal, u_ref).square().u_ref;
+        // The plane keeps its roll, squared to its new normal: the
+        // decided mint ([`snapped_frame`]), which refuses a roll along
+        // the normal rather than poisoning the frame.
+        let Some(frame) = snapped_frame(pivot, normal, u_ref) else {
+            return (moved.clone(), f64::INFINITY);
+        };
         (
-            Surface::Plane {
-                frame: geom::Frame::new(pivot, normal, u_ref),
-            },
-            (normal - n).norm() * faces.from(pivot),
+            Surface::Plane { frame },
+            (normal.get() - n).norm() * faces.from(pivot),
         )
     } else {
-        let dir = if line.dir.dot(n) < 0.0 { -n } else { n };
+        let dir = if line.dir.get().dot(n) < 0.0 { -n } else { n };
         let mut out = moved.clone();
-        carry(&mut out, line, (pivot, pivot), dir);
-        (out, (dir - line.dir).norm() * faces.from(pivot))
+        // `dir` is the plane's unit normal, either way round: checked,
+        // its bits kept, so the carry squares it once, as it did.
+        if carry(&mut out, line, (pivot, pivot), UnitVec3::checked(dir)).is_none() {
+            return (moved.clone(), f64::INFINITY);
+        }
+        (out, (dir - line.dir.get()).norm() * faces.from(pivot))
     }
 }
 
 /// `s`, whose axis is `from`, moved rigidly: turned to run along unit
 /// `dir` about the axis point `pivot`, and carried so `pivot` lands at
 /// `to`. Its datum keeps its place along the axis from `pivot`; its seam
-/// is squared to the new axis.
+/// is squared to the new axis ([`snapped_frame`]). `None` where the seam
+/// has no part square to the new axis, a typed refusal of the decided
+/// mint, with `s` left as it was.
 fn carry(
     s: &mut Surface<f64>,
     from: Line<f64>,
     (pivot, to): (Point3<f64>, Point3<f64>),
-    dir: Vec3<f64>,
-) {
+    dir: UnitVec3<f64>,
+) -> Option<()> {
     match s {
         Surface::Cylinder { frame, .. }
         | Surface::Torus { frame, .. }
         | Surface::Cone { frame, .. } => {
-            let along = from.dir.dot(frame.origin() - pivot);
-            let at = to + dir * along;
-            // The seam squared to the new axis, as the frame door squares it.
-            *frame = geom::Frame::new(at, dir, frame.u_ref());
+            let along = from.dir.get().dot(frame.origin() - pivot);
+            let at = to + dir.get() * along;
+            *frame = snapped_frame(at, dir, frame.u_ref())?;
         }
         Surface::Sphere { frame, .. } => {
             *frame = frame.with_origin(frame.origin() + (to - pivot));
         }
         _ => {}
     }
+    Some(())
+}
+
+/// **A snapped carrier's frame, minted decided**: the new axis `dir`
+/// squared as the frame door squares it, and the part of the `seam` it
+/// keeps square to it decided at the least band
+/// ([`RigidMotion::from_aim_and_reference`](geom_core::RigidMotion::from_aim_and_reference), under
+/// [`STEP_SNAP_FRAME`](crate::interpret::STEP_SNAP_FRAME)). It is
+/// [`geom::Frame::new`]'s arithmetic step for step, so the bits are the
+/// squared frame's; a seam along the axis is `None`, where the undecided
+/// square would have poisoned the frame.
+fn snapped_frame(
+    origin: Point3<f64>,
+    dir: UnitVec3<f64>,
+    seam: Vec3<f64>,
+) -> Option<geom::Frame<f64>> {
+    geom_core::RigidMotion::from_aim_and_reference(
+        origin,
+        UnitVec3::squared(dir.get()),
+        seam,
+        crate::interpret::STEP_SNAP_FRAME,
+        geom_core::Band::least(),
+    )
+    .ok()
+    .map(|m| geom::Frame::of_motion(&m))
 }
 
 /// `s`'s centre set to `at`.
@@ -1196,5 +1231,72 @@ mod tests {
             }
             other => panic!("the in-band pair's ambiguity at #5130, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod snapped_frame_rows {
+    use super::*;
+
+    /// **A carried surface keeps the frame door's bits, and a seam along
+    /// the new axis refuses the carry**: a cylinder turned onto a new
+    /// axis reads, bit for bit, the frame [`geom::Frame::new`] squares
+    /// from the same seam; turned onto its own seam it has no seam left
+    /// square to the axis, so the carry is `None` and the surface is left
+    /// as it was, where the undecided square would have poisoned its
+    /// frame. Red with the undecided square in [`snapped_frame`] (the
+    /// degenerate carry then mints a poisoned frame and answers `Some`).
+    #[test]
+    fn a_carry_keeps_the_doors_bits_and_refuses_a_seam_along_its_new_axis() {
+        let cylinder = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 0.5,
+        };
+        let from = Line {
+            origin: Point3::new(1.0, 2.0, 0.0),
+            dir: UnitVec3::exact_z(),
+        };
+        let pivot = Point3::new(1.0, 2.0, 0.0);
+        let dir = Vec3::new(0.1, -0.2, 1.0).normalize();
+        let mut carried = cylinder.clone();
+        carry(&mut carried, from, (pivot, pivot), UnitVec3::checked(dir)).unwrap();
+        let Surface::Cylinder { frame, .. } = carried else {
+            panic!("a cylinder stays one")
+        };
+        let at = pivot + dir * 3.0;
+        let squared = geom::Frame::new(at, dir, Vec3::unit_x());
+        let bits = |f: &geom::Frame<f64>| {
+            [f.origin() - Point3::origin(), f.axis(), f.u_ref()]
+                .map(|e| [e.x, e.y, e.z].map(f64::to_bits))
+        };
+        assert_eq!(
+            bits(&frame),
+            bits(&squared),
+            "the carry is the door's square"
+        );
+        let mut along = cylinder.clone();
+        assert!(
+            carry(&mut along, from, (pivot, pivot), UnitVec3::exact_x()).is_none(),
+            "a seam along the new axis refuses"
+        );
+        let Surface::Cylinder { frame: kept, .. } = along else {
+            panic!("a cylinder stays one")
+        };
+        let Surface::Cylinder { frame: was, .. } = cylinder else {
+            panic!("a cylinder")
+        };
+        assert_eq!(
+            bits(&kept),
+            bits(&was),
+            "a refused carry leaves the surface as it was"
+        );
+        assert!(
+            geom::Frame::<f64>::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_x())
+                .u_ref()
+                .x
+                .is_nan(),
+            "the undecided square poisons that seam"
+        );
     }
 }

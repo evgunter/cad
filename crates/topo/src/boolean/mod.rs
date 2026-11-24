@@ -195,6 +195,7 @@ pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
+use geom_core::UnitVec3;
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
     NOT_YET_ENDING, Point3, Real, Sign, Tol,
@@ -535,6 +536,16 @@ pub enum BooleanOp {
 }
 
 impl BooleanOp {
+    /// **Whether this operation's result holds `operand`'s faces turned
+    /// inside out**: a subtract's holds its tool's (B's), since the cut
+    /// keeps the tool's boundary with its material on the other side.
+    /// The one rule every reading of a subtract's faces against a tool's
+    /// follows: the pair's holdings, and the n-ary fold's holdings and
+    /// given verdicts (`nary::NaryOp::holds_turned`).
+    pub(in crate::boolean) fn holds_turned(self, operand: Operand) -> bool {
+        self == Self::Subtract && operand == Operand::B
+    }
+
     /// **Every operation this enum names**, in declaration order — the
     /// one enumeration, owned where the exhaustive matches live.
     ///
@@ -1209,6 +1220,19 @@ pub(crate) enum GivenDecision<T: Real> {
 }
 
 impl<T: Real> GivenDecision<T> {
+    /// The same decision with one face's sense reversed: a one-carrier
+    /// pair's senses swap between opposed and aligned; a tangency reads
+    /// no sense. A rim junction has none: it is two faces whose outward
+    /// normals are aligned on the rim, which one face turned is not.
+    pub(in crate::boolean) fn reversed(self) -> Option<Self> {
+        match self {
+            Self::Rest => Some(Self::Continuation),
+            Self::Continuation => Some(Self::Rest),
+            tangent @ Self::Tangent { .. } => Some(tangent),
+            Self::Junction { .. } => None,
+        }
+    }
+
     /// The class the decision glues under.
     pub(crate) fn class(&self) -> GlueClass {
         match self {
@@ -1749,8 +1773,12 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 /// is tangent to it along an equator and is a global side. A kind row
 /// cannot tell the coaxial cylinder from the tube chain, and admitting
 /// the chain would cover a crossing, so the row stays out and the
-/// coaxial case keeps its typed frontier. A cone's tangent plane leaves its second nappe on the
-/// other side. A spline (STEP adoption, blends) carries no global
+/// coaxial case keeps its typed frontier. A cone's tangent plane leaves
+/// its second nappe on the other side. While (Sphere, Cylinder) is
+/// covered, a junction's end on that pair never reaches the end-root
+/// door's side check (`reduce::junction_end_window`); if it ever leaves
+/// the cover, a hemisphere cap's great circle leaving its rim becomes a
+/// real-geometry pin for that check. A spline (STEP adoption, blends) carries no global
 /// convexity. Two planes, two spheres or a plane and a sphere are never
 /// tangent along a curve on distinct carriers.
 ///
@@ -5541,6 +5569,31 @@ impl BooleanError {
             ),
             Self::JunctionEndUnread {
                 operand,
+                gap: JunctionEndGap::OpposedStretches,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at a point where two stretches of that join meet running opposite \
+                 ways, and the Boolean cannot read which side of the rim the edge leaves on. There \
+                 is no way through this in the kernel yet",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::ReflexCorner,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at the point where that join stops, and the other face turns \
+                 there through more than a straight angle (or not clearly less), so the Boolean \
+                 cannot read that the edge leaves it. Moving the edge's end off that corner, or \
+                 the corner off the rim, may let it through",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
                 gap: JunctionEndGap::Closed,
                 ..
             } => write!(
@@ -8152,6 +8205,13 @@ pub enum JunctionEndGap {
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,
+    /// The end lies where two stretches of the junction meet, ridden
+    /// opposite ways: the rim names no side of it.
+    OpposedStretches,
+    /// The end lies where the junction's touch stops, at a corner of the
+    /// other face not decided within π: the face may hold a sector on the
+    /// edge's own side of the rim.
+    ReflexCorner,
 }
 
 /// What the door's tangency check certified of a pair.
@@ -8507,7 +8567,7 @@ pub(in crate::boolean) fn verify_distinct<T: Decide>(
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         crate::rim_wedge::Locus::Line(geom::Line {
                             origin,
-                            dir: dir.normalize(),
+                            dir: UnitVec3::squared(dir.get()),
                         })
                     }
                     _ => {
@@ -8546,7 +8606,7 @@ pub(in crate::boolean) fn verify_distinct<T: Decide>(
                     return Ok(DistinctGlue::Junction(junction));
                 }
                 (
-                    geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref),
+                    geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref),
                     T::zero(),
                     // The rim's whole turn, its circle's period, read where
                     // rim_wedge reads it.
@@ -8707,7 +8767,7 @@ fn junction_of<T: Decide>(
     margin: MarginDiag,
     band: Band,
 ) -> Option<GluedJunction<T>> {
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8791,7 +8851,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8871,7 +8931,7 @@ fn witness_span<T: Decide>(
             .ok_or(invalid("declared face's boundary is unwalkable"))?;
         let cover = crate::cover::face_cover(body, f, band)
             .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
-        let (lo, hi) = cover.range_along(line.dir / line.dir.norm_squared());
+        let (lo, hi) = cover.range_along(line.dir.get() / line.dir.get().norm_squared());
         Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
@@ -9507,7 +9567,7 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
@@ -9554,7 +9614,7 @@ mod tests {
         };
         let a = sheet(Point3::origin(), -Vec3::unit_y());
         let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         let got = locus_through_both_faces(
             [

@@ -1043,6 +1043,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             let lump = super::sectors::junction_lump(
                 declared.junction_at(piercing, s.face, pierced_op, contact.face),
                 p,
+                (pierced_body, contact.face),
                 piercing,
                 s.face,
                 orbit_body.proven_face(s.face).surface().kind(),
@@ -1337,7 +1338,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             {
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
-                        .frame()
                         .axis()
                         .normalize()
                         .cross(datum.vec().normalize())

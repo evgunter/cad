@@ -205,8 +205,8 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
     let span = (t_other - t_end).abs();
     match carrier {
         Curve3::Line(line) => {
-            let p = line.origin + line.dir * t_end;
-            let d = line.dir * toward;
+            let p = line.origin + line.dir.get() * t_end;
+            let d = line.dir.get() * toward;
             Some(Local {
                 x: [vec![p.x, d.x], vec![p.y, d.y], vec![p.z, d.z]],
                 w: vec![T::one()],
@@ -484,7 +484,7 @@ mod rows {
     fn ruling(theta: f64) -> Curve3<f64> {
         Curve3::Line(geom::Line {
             origin: Point3::new(theta.cos(), theta.sin(), 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         })
     }
 
@@ -627,7 +627,7 @@ mod rows {
     fn a_transverse_end_is_a_simple_root() {
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 1.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let w = end_window(&line, (0.0, 1.0), SpanEnd::End, &pipe(), band())
             .expect("a window past the end");
@@ -690,14 +690,15 @@ mod rows {
     /// far end lies about `3e-9` off the bend, in band at the witness
     /// band; the door does not hand that end to the root doors as the rest
     /// of the span's start, and no nearer window holds its spread. The
-    /// pose is placed by hand for that band's `ε = 1e-9`.
+    /// pose is placed by hand for `ε = 1e-9`, so the row reads that band
+    /// whatever the run's ε.
     #[test]
     fn a_window_whose_far_end_reads_in_band_is_not_returned() {
-        let b = band();
-        if b.zero() != 1e-9 {
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        if b.escalate() != 1e-8 {
             test_utils::vacuity::stood_down(
-                "ε ≠ 1e-9",
-                "the far end's clearance is not driven in band: the pose is placed for ε = 1e-9",
+                "K ≠ 10",
+                "the far end's clearance is not driven in band: the pose is placed for K = 10",
             );
             return;
         }

@@ -654,7 +654,7 @@ pub(super) fn certified<T: geom_core::Real>(
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`crate::separating::planar_axis`]), and a
+/// over the face's extent ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -668,14 +668,14 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = crate::separating::planar_axis(
-            y,
-            face,
-            || crate::census::face_reach(y, face, band),
-            band,
-        )
-        .ok_or(VertexRefusal::Plane(
-            "the face's outward normal does not read as a unit direction over its reach",
+        // The normal is levered by the face's extent from below, its
+        // certified boundary edges': a face with none has no extent to
+        // read it over, which is what failed, not the normal.
+        crate::cover::face_extent_below(y, face).ok_or(VertexRefusal::Plane(
+            "the face has no certified boundary edge to read its normal over",
+        ))?;
+        let normal = crate::separating::planar_axis(y, face, band).ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its extent",
         ))?;
         Ok(SectionPlane {
             origin: plane.origin,
@@ -2132,7 +2132,7 @@ fn edge_covers<T: crate::props::AtRestPolicy>(
 #[allow(clippy::too_many_arguments)]
 fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
-    face: FaceKey,
+    (y, face): (&Body<T>, FaceKey),
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -2179,11 +2179,15 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
                 diag,
             ))
         };
-        let Some(a_rides) = junction_end_held(rim, touch, p, band).map_err(in_band)? else {
-            continue;
-        };
-        held = Some((parent, rim, a_rides));
-        break;
+        let on = junction_end_held(rim, touch, p, band).map_err(in_band)?;
+        match end_on_touch(on, || face_corner_within_pi(y, face, p, rim.radius, band)) {
+            Ok(None) => continue,
+            Ok(Some(sign)) => {
+                held = Some((parent, rim, sign));
+                break;
+            }
+            Err(gap) => return Err(refused(JunctionEndUnsettled::Gap(gap))),
+        }
     }
     let Some((parent, rim, a_rides)) = held else {
         return Ok(None);
@@ -2228,10 +2232,155 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         .map(|window| (end, window)))
 }
 
+/// **Whether an end on a junction's rim is read, and the side the
+/// touch's A rides it with**, from where it lies against the touch
+/// ([`junction_end_held`]): off it, not read; where two stretches meet
+/// ridden opposite ways, refused; where the touch stops, read only at a
+/// corner of the other face `corner` decides within π, else refused; on
+/// a stretch, read.
+///
+/// # Errors
+///
+/// The gap that refuses the end.
+fn end_on_touch(
+    on: crate::rim_wedge::OnTouch,
+    corner: impl FnOnce() -> Result<bool, geom_core::Indeterminate>,
+) -> Result<Option<Sign>, super::JunctionEndGap> {
+    match on {
+        crate::rim_wedge::OnTouch::Off => Ok(None),
+        crate::rim_wedge::OnTouch::Opposed => Err(super::JunctionEndGap::OpposedStretches),
+        crate::rim_wedge::OnTouch::Inside { sign, stops } => {
+            if stops && corner() != Ok(true) {
+                return Err(super::JunctionEndGap::ReflexCorner);
+            }
+            Ok(Some(sign))
+        }
+    }
+}
+
+/// **Whether `face`'s corner at `p` is no wider than π**
+/// (`junction_end_corner`), in its own surface: the turn from the
+/// half-edge leaving the vertex at `p` to the edge arriving there, about
+/// `face`'s outward normal (its interior lies left of each half-edge),
+/// levered at `lever`. A left turn is a corner within π, and so is no
+/// turn with the two going opposite ways (`face`'s boundary straight
+/// through `p`); a right turn is reflex, and no turn with the two going
+/// the same way is a cusp, both false. Where no vertex of `face` lies at
+/// `p` its boundary runs straight through it: true.
+///
+/// # Errors
+///
+/// The first reading in band.
+fn face_corner_within_pi<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    lever: T,
+    band: Band,
+) -> Result<bool, geom_core::Indeterminate> {
+    let Some(view) = y.face(face) else {
+        return Ok(false);
+    };
+    let normal = geom_brep::implicit_outward_normal(view.surface(), view.sense(), p).vec();
+    for (_, members, _) in view.boundary_by_loop() {
+        let n = members.len();
+        for i in 0..n {
+            let at_p = |q: Point3<T>| {
+                geom_core::k_stats::decide(
+                    "junction_end_corner_vertex",
+                    Margin::of((q - p).norm()),
+                    band,
+                )
+                .map(|s| s == Sign::Zero)
+            };
+            // A lone vertex of `face` at `p`: `face` holds the whole
+            // neighbourhood round it, no corner within π.
+            let (he, half) = match &members[i] {
+                crate::live::BoundaryMember::Isolated { point, .. } => {
+                    if at_p(*point)? {
+                        return Ok(false);
+                    }
+                    continue;
+                }
+                crate::live::BoundaryMember::Edge { he, half, .. } => (he, half),
+            };
+            let Some(at) = y.get_vertex(half.start).and_then(|v| y.get_point(v.point)) else {
+                return Ok(false);
+            };
+            if !at_p(*at)? {
+                continue;
+            }
+            // A cycle's members are its half-edges, each loop's own.
+            let prev = match &members[(i + n - 1) % n] {
+                crate::live::BoundaryMember::Edge { he, .. } => he,
+                crate::live::BoundaryMember::Isolated { .. } => return Ok(false),
+            };
+            let Some(record) = y.get_half_edge(*prev).and_then(|h| y.get_edge(h.edge)) else {
+                return Ok(false);
+            };
+            let back_he = if record.he_plus == *prev {
+                record.he_minus
+            } else {
+                record.he_plus
+            };
+            let (Ok((out, _)), Ok((back, _))) = (
+                crate::star::departure(y, half.start, *he),
+                crate::star::departure(y, half.start, back_he),
+            ) else {
+                return Ok(false);
+            };
+            return corner_within_pi(out.normalize(), back.normalize(), normal, lever, band);
+        }
+    }
+    Ok(true)
+}
+
+/// [`face_corner_within_pi`]'s turn: from `out`, the unit direction
+/// leaving the vertex, to `back`, the arriving edge's unit direction away
+/// from it, about the face's outward `normal`.
+///
+/// # Errors
+///
+/// The turn's or the straightness's reading in band.
+fn corner_within_pi<T: Decide>(
+    out: Vec3<T>,
+    back: Vec3<T>,
+    normal: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<bool, geom_core::Indeterminate> {
+    let turn = out.cross(back).dot(normal);
+    Ok(
+        match geom_core::k_stats::decide("junction_end_corner", Margin::of(turn * lever), band)? {
+            Sign::Positive => true,
+            Sign::Negative => false,
+            Sign::Zero => {
+                geom_core::k_stats::decide(
+                    "junction_end_corner_straight",
+                    Margin::of(out.dot(back) * lever),
+                    band,
+                )? == Sign::Negative
+            }
+        },
+    )
+}
+
 /// **Whether `p` lies on a junction's rim, inside the stretch it was
-/// glued over** (`junction_end_on_rim`, then the touch's own reading):
-/// the sign A's riding half-edge runs the rim with there, or `None` where
-/// `p` is decided off the rim or outside the touch.
+/// glued over** (`junction_end_on_rim`, then the touch's own reading,
+/// [`crate::rim_wedge::Touch::holds`]): `Off` where `p` is decided off
+/// the rim or the touch, and `Opposed` where two stretches meeting at `p`
+/// are ridden opposite ways, which names no side and refuses the window.
+///
+/// **An end where the touch stops** is read only at a corner of `face`
+/// no wider than π ([`face_corner_within_pi`], in [`junction_window`]).
+/// There `face`'s boundary turns off the rim, and `face`'s interior
+/// starts on its own side of its riding edge; within π of it, `face`
+/// lies in the closed half-plane on its own side of the rim's tangent,
+/// so a root of the spread standing beyond the band on `P`'s side is off
+/// it, as along the touch. A reflex corner (where `face` holds the rim on
+/// past the touch: its departures read only the pieces both faces hold)
+/// covers a sector on `P`'s side, and refuses
+/// ([`super::JunctionEndGap::ReflexCorner`]).
 ///
 /// # Errors
 ///
@@ -2241,14 +2390,15 @@ fn junction_end_held<T: Decide>(
     touch: &crate::rim_wedge::Touch<T>,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<Sign>, geom_core::Indeterminate> {
+) -> Result<crate::rim_wedge::OnTouch, geom_core::Indeterminate> {
     let w = p - rim.center;
-    let height = w.dot(rim.axis);
-    let radial = (w - rim.axis * height).norm() - rim.radius;
+    let axis = rim.axis.get();
+    let height = w.dot(axis);
+    let radial = (w - axis * height).norm() - rim.radius;
     let off = (radial.powi(2) + height.powi(2)).sqrt();
     match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band)? {
         Sign::Zero => touch.holds(rim, p, band),
-        Sign::Positive | Sign::Negative => Ok(None),
+        Sign::Positive | Sign::Negative => Ok(crate::rim_wedge::OnTouch::Off),
     }
 }
 
@@ -2298,6 +2448,20 @@ enum JunctionEndUnsettled {
 /// decided Positive is the side held at the spread's end. `g` is concave
 /// in `σ` and zero at the end, so it stays above the band over `[σ*, σ]`,
 /// `σ*` where `g` meets the band's width `ε`.
+///
+/// **The margin carries no charge.** A root inside the spread lies ON
+/// `face`'s carrier: what is asked of it is only its side of the rim,
+/// which is the edge's own offset along the conormal, `g(s)`. The
+/// end-root door's charge prices how far the carrier may stand from the
+/// surface, not which side of the rim a point of it lies on, so it never
+/// belongs in this margin, whatever the band's `K`.
+///
+/// **The two outward normals are aligned along the rim.** The glue
+/// routes a junction only where the routing reads the π seam all round
+/// (`RimRouting::Seam`: outward normals aligned); antiparallel normals
+/// are a cusp, which no junction is glued on. So `n_P` is `face`'s
+/// outward normal too at the rim, and `P`'s conormal names the side
+/// `face` is not on.
 ///
 /// **Below `σ*`** a root of the spread stands within the band of the
 /// rim, which is `face`'s boundary: band-coincident with that boundary,
@@ -2350,7 +2514,7 @@ fn junction_end_window<T: Decide>(
     };
     let (_, d) = q.carrier.ders1(t_end);
     let along = (d * toward).normalize();
-    let rim_tangent = q.rim.axis.cross(q.p - q.rim.center);
+    let rim_tangent = q.rim.axis.get().cross(q.p - q.rim.center);
     let ridden = match q.rides {
         Sign::Positive => rim_tangent.normalize(),
         Sign::Negative => -rim_tangent.normalize(),
@@ -3142,7 +3306,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let on = if s1 == Sign::Zero { pu } else { pv };
             let window = junction_window(
                 (x, x_is, edge_key, edge),
-                face,
+                (y, face),
                 &surface,
                 curve.carrier(),
                 (t0, t1),
@@ -3282,7 +3446,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let window = |p| {
                 junction_window(
                     (x, x_is, edge_key, edge),
-                    face,
+                    (y, face),
                     &surface,
                     curve.carrier(),
                     (t0, t1),
@@ -3503,10 +3667,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let f2 = match surface {
                 geom::Surface::Cylinder { frame, radius, .. } => {
                     let axis = frame.axis();
-                    let d_ax = dir.dot(axis);
-                    (dir.norm_squared() - d_ax.powi(2)) / radius
+                    let d_ax = dir.get().dot(axis);
+                    (dir.get().norm_squared() - d_ax.powi(2)) / radius
                 }
-                geom::Surface::Sphere { radius, .. } => dir.norm_squared() / radius,
+                geom::Surface::Sphere { radius, .. } => dir.get().norm_squared() / radius,
                 // Post-gate/pre-check unreachable kinds keep the
                 // frontier door.
                 _ => return Err(frontier()),
@@ -3645,7 +3809,7 @@ fn conic_clearance<T: Decide>(
         frame, half_angle, ..
     } = *surface
     {
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         let h = geom_brep::conic_cone_harmonics(
             conic,
             geom::Line {
@@ -7033,7 +7197,7 @@ mod declaration_order_rows {
         );
         let witness = geom::Curve3::line(
             Point3::new(profile[3].0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom::stated_direction(geom_core::Vec3::new(0.0, 0.0, 1.0)),
         );
         contact_door(
             (&prism.body, prism.side_faces[3]),
@@ -7666,7 +7830,7 @@ mod wall_root_tests {
         let got = line_quadric_roots(
             geom::Line {
                 origin: Point3::new(d, -2.0, 0.5),
-                dir: Vec3::new(0.0, 1.0, 0.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
             },
             (0.0, 4.0),
             &wall,
@@ -7725,7 +7889,10 @@ mod edge_span_tests {
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
-            let line = geom::Curve3::line(Point3::new(2.0, 0.0, 0.0), Vec3::new(delta, 0.0, 1.0));
+            let line = geom::Curve3::line(
+                Point3::new(2.0, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(delta, 0.0, 1.0)),
+            );
             wall_crossing(
                 &y,
                 FaceKey::default(),
@@ -8878,7 +9045,7 @@ mod arc_end_rows {
         };
         let line = geom::Curve3::line(
             geom_core::Point3::origin(),
-            (q - geom_core::Point3::origin()) / reach,
+            geom_core::UnitVec3::chord(q - geom_core::Point3::origin()).0,
         );
         let got = wall_crossing(
             &body,
@@ -9759,7 +9926,8 @@ mod spline_face_rows {
         let tol = Tol::witness();
         let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let pt = |k| p.body.resolve_vertex_point(k, crate::live::Proven);
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, (b - a).normalize());
+        let line =
+            |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, geom_core::UnitVec3::squared(b - a));
         let (a, b, c) = (pt(p.bottom[0]), pt(p.bottom[1]), pt(p.bottom[2]));
         let ends = |q, r| [(p.bottom[0], q), (p.bottom[0], r)];
         let edge = line(a, b);
@@ -9879,7 +10047,7 @@ mod line_root_lane_tests {
         };
         let line = geom::Line {
             origin: Point3::new(d, -2.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
         };
         assert_eq!(
             escalated_as(line, (0.0, 4.0), &sphere, band),
@@ -9902,7 +10070,7 @@ mod line_root_lane_tests {
         };
         let line = geom::Line {
             origin: Point3::new(in_the_gap(band), -1.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
         };
         assert_eq!(
             escalated_as(line, (0.0, 2.0), &cone, band),
@@ -10055,7 +10223,10 @@ mod review_5993_rows {
         for eps in [1e-12, 1e-9, 1e-6] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let got = geom_brep::curve_face::line_quadric::line_quadric_roots(
-                geom::Line { origin: o, dir: d },
+                geom::Line {
+                    origin: o,
+                    dir: geom::stated_direction(d),
+                },
                 (-2.0, 0.0),
                 &torus(),
                 band,
@@ -10122,7 +10293,7 @@ mod junction_end_rows {
     fn rim(center: Point3<f64>, radius: f64) -> crate::rim_wedge::Rim<f64> {
         crate::rim_wedge::Rim {
             center,
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom_core::UnitVec3::exact_z(),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -10134,7 +10305,7 @@ mod junction_end_rows {
     fn elbow(rides: Sign) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
         let ruling = geom::Curve3::Line(geom::Line {
             origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         });
         let bend = geom::Surface::Torus {
             frame: geom::Frame::new(
@@ -10162,17 +10333,26 @@ mod junction_end_rows {
 
     use geom_brep::curve_face::end_root::EndWindow;
 
-    const H: f64 = 0.5;
-
     /// The small circle of the unit sphere through the rim point
-    /// `(ρ, 0, ½)` leaving it at `beta` from the rim's tangent toward the
-    /// sphere's side, against the cone, its face the sphere (whose riding
-    /// half-edge runs the rim backward), over a quarter of a radian.
-    fn ice_cream(beta: f64) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
-        let rho = (1.0 - H * H).sqrt();
-        let p = Point3::new(rho, 0.0, H);
-        let n = Vec3::new(rho, 0.0, H);
-        let conormal = Vec3::new(H, 0.0, -rho);
+    /// `(ρ, 0, h)` on the latitude `z = h` (`ρ = √(1 − h²)`), leaving it at
+    /// `beta` from the rim's tangent toward the sphere's side below the
+    /// latitude, against the cone tangent to the sphere along it (apex on
+    /// the axis at `1/h`, opening down), over a quarter of a radian. The
+    /// edge's face is the sphere, whose riding half-edge runs the rim
+    /// backward. Returns the window alone, then the junction's reading.
+    #[allow(clippy::type_complexity)]
+    fn ice_cream_at(
+        h: f64,
+        beta: f64,
+        b: Band,
+    ) -> (
+        Result<EndWindow<f64>, geom_brep::curve_face::end_root::EndRootRefusal>,
+        Result<Option<EndWindow<f64>>, JunctionEndUnsettled>,
+    ) {
+        let rho = (1.0 - h * h).sqrt();
+        let p = Point3::new(rho, 0.0, h);
+        let n = Vec3::new(rho, 0.0, h);
+        let conormal = Vec3::new(h, 0.0, -rho);
         let d = Vec3::new(0.0, 1.0, 0.0) * beta.cos() + conormal * beta.sin();
         let m = d.cross(n).normalize();
         let center = Point3::new(0.0, 0.0, 0.0) + m * m.dot(p - Point3::new(0.0, 0.0, 0.0));
@@ -10180,30 +10360,69 @@ mod junction_end_rows {
         let u = (p - center) / radius;
         let normal = if m.cross(u).dot(d) > 0.0 { m } else { -m };
         let circle = geom::Curve3::circle(center, normal, radius, u);
-        // The cone tangent to the sphere along the latitude: its apex on
-        // the axis at `1/h`, opening down.
-        let apex = 1.0 / H;
+        let apex = 1.0 / h;
         let cone = geom::Surface::Cone {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, apex),
                 Vec3::new(0.0, 0.0, -1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
-            half_angle: (rho / (apex - H)).atan(),
+            half_angle: (rho / (apex - h)).atan(),
         };
-        junction_end_window(
+        let span = (0.0, 0.25);
+        let window =
+            geom_brep::curve_face::end_root::end_window(&circle, span, SpanEnd::Start, &cone, b);
+        let read = junction_end_window(
             &JunctionEnd {
                 carrier: &circle,
-                span: (0.0, 0.25),
+                span,
                 end: SpanEnd::Start,
                 p,
                 surface: &cone,
-                rim: rim(Point3::new(0.0, 0.0, H), rho),
+                rim: rim(Point3::new(0.0, 0.0, h), rho),
                 normal: n,
                 rides: Sign::Negative,
             },
-            band(),
-        )
+            b,
+        );
+        (window, read)
+    }
+
+    /// [`ice_cream_at`]'s junction reading at the latitude `½`.
+    fn ice_cream(beta: f64) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
+        ice_cream_at(0.5, beta, band()).1
+    }
+
+    /// **The side refuses where the window holds**, on real rim data: a
+    /// small circle of the sphere leaving the cone–sphere rim near the
+    /// sphere's equator (`h = 0.02`) at `β = 5e-3`. The window past its end
+    /// is certified, but the side margin charges the edge's and the rim's
+    /// full bends (`κ_e + 1/R ≈ 2`) over the spread, more than the
+    /// departure gains: a refusal (`Window`), loud and conservative, where
+    /// the true offset across the rim is set by their geodesic curvatures
+    /// (filed: `the-junction-side-margin-charges-full-bends-and-refuses-a-held-side`).
+    /// The pose is measured at `ε = 1e-9`, so the row reads that band.
+    #[test]
+    fn a_small_circle_near_the_equator_refuses_on_its_side_where_the_window_holds() {
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        if b.escalate() != 1e-8 {
+            test_utils::vacuity::stood_down(
+                "K ≠ 10",
+                "the side gate is not driven on the cone–sphere rim: the pose is placed for K = 10",
+            );
+            return;
+        }
+        let (window, read) = ice_cream_at(0.02, 5e-3, b);
+        assert!(window.is_ok(), "the window holds: {window:?}");
+        assert!(
+            matches!(
+                read,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
+            "the side refuses: {read:?}"
+        );
     }
 
     /// **A ruling leaving the rim square to it holds its side**: the
@@ -10241,7 +10460,7 @@ mod junction_end_rows {
     fn a_rim_tighter_than_the_spread_holds_no_side() {
         let ruling = geom::Curve3::Line(geom::Line {
             origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         });
         let bend = geom::Surface::Torus {
             frame: geom::Frame::new(
@@ -10279,11 +10498,11 @@ mod junction_end_rows {
     }
 
     /// **A small circle of the sphere holds its side leaving the rim at a
-    /// right angle and refuses at a shallow one.** Both carriers turn about the rim's
-    /// axis, so their relative curvature across it falls as `sin²β` and
-    /// the window refuses before the side does: the side check is what
-    /// [`a_ruling_leaving_the_rim_into_the_other_side_holds_none`] and
-    /// [`a_rim_tighter_than_the_spread_holds_no_side`] pin.
+    /// right angle and refuses at a shallow one**, at the latitude `½`.
+    /// Both carriers turn about the rim's axis, so their relative curvature
+    /// across it falls as `sin²β` and here the window refuses first; near
+    /// the equator the side does
+    /// ([`a_small_circle_near_the_equator_refuses_on_its_side_where_the_window_holds`]).
     #[test]
     fn a_small_circle_leaving_the_rim_steeply_holds_its_side_and_shallowly_refuses() {
         let steep = ice_cream(core::f64::consts::FRAC_PI_2)
@@ -10298,17 +10517,21 @@ mod junction_end_rows {
     /// off it by a millimetre, and off it within the band's escalation.
     #[test]
     fn an_end_is_read_only_on_the_rim() {
+        use crate::rim_wedge::OnTouch;
         let b = band();
         let r = rim(Point3::new(0.0, 0.0, 2.0), 1.0);
         let all = crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::TAU, Sign::Positive)]);
         assert_eq!(
             junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.0), b),
-            Ok(Some(Sign::Positive)),
-            "on the rim"
+            Ok(OnTouch::Inside {
+                sign: Sign::Positive,
+                stops: false
+            }),
+            "on the rim, where a touch all round has no end"
         );
         assert_eq!(
             junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.001), b),
-            Ok(None),
+            Ok(OnTouch::Off),
             "a millimetre above it"
         );
         let mid = 0.5 * (b.zero() + b.escalate());
@@ -10318,38 +10541,127 @@ mod junction_end_rows {
         );
     }
 
-    /// **The end is read only inside the stretch the junction was glued
-    /// over**: a quarter of the rim, closed at its ends.
+    /// **The end is read only on the stretch the junction was glued
+    /// over**, a quarter of the rim here, and its ends are told from its
+    /// inside: where the stretch stops (and where a touch that is a point
+    /// lies) the corner of the other face is read before the end is
+    /// ([`face_corner_within_pi`]); where one stretch hands on to the next
+    /// ridden the same way, nothing stops; two ridden opposite ways name
+    /// no side.
     #[test]
-    fn an_end_is_read_only_inside_the_glued_stretch() {
+    fn an_end_is_read_only_on_the_glued_stretch() {
+        use crate::rim_wedge::{OnTouch, Touch};
+        use core::f64::consts::{FRAC_PI_2, PI};
         let b = band();
         let r = rim(Point3::new(0.0, 0.0, 0.0), 1.0);
-        let quarter =
-            crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::FRAC_PI_2, Sign::Negative)]);
         let at = |phi: f64| Point3::new(phi.cos(), phi.sin(), 0.0);
+        let quarter = Touch::of(vec![(0.0, FRAC_PI_2, Sign::Negative)]);
+        let read = |t: &Touch<f64>, phi| junction_end_held(r, t, at(phi), b);
+        let on = |stops| {
+            Ok(OnTouch::Inside {
+                sign: Sign::Negative,
+                stops,
+            })
+        };
+        assert_eq!(read(&quarter, 0.5), on(false), "inside");
+        assert_eq!(read(&quarter, 0.0), on(true), "where it starts");
+        assert_eq!(read(&quarter, FRAC_PI_2), on(true), "where it stops");
+        assert_eq!(read(&quarter, 2.0), Ok(OnTouch::Off), "past it");
+        assert_eq!(read(&quarter, -0.5), Ok(OnTouch::Off), "before it");
+        let two = Touch::of(vec![
+            (0.0, FRAC_PI_2, Sign::Negative),
+            (FRAC_PI_2, PI, Sign::Negative),
+        ]);
         assert_eq!(
-            junction_end_held(r, &quarter, at(0.5), b),
+            read(&two, FRAC_PI_2),
+            on(false),
+            "handed on to the next stretch"
+        );
+        let opposed = Touch::of(vec![
+            (0.0, FRAC_PI_2, Sign::Negative),
+            (FRAC_PI_2, PI, Sign::Positive),
+        ]);
+        assert_eq!(
+            read(&opposed, FRAC_PI_2),
+            Ok(OnTouch::Opposed),
+            "two stretches ridden opposite ways"
+        );
+        let point = Touch::of(vec![(1.0, 1.0, Sign::Negative)]);
+        assert_eq!(read(&point, 1.0), on(true), "a touch at a point");
+        assert_eq!(read(&point, 1.5), Ok(OnTouch::Off), "beside it");
+    }
+
+    /// **Where the touch stops, the other face's corner is read**: a
+    /// corner of a quarter turn (the elbow's), a boundary running straight
+    /// through, a reflex corner of three quarters (a face that holds the
+    /// rim on past the touch), a cusp, and a turn in band. The vertex's
+    /// departing and arriving directions are the corner's data; the face's
+    /// outward normal is `+z`.
+    #[test]
+    fn a_corner_where_the_touch_stops_is_read_within_pi() {
+        let b = band();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let dir = |deg: f64| {
+            let a = deg.to_radians();
+            Vec3::new(a.cos(), a.sin(), 0.0)
+        };
+        let corner = |out, back| corner_within_pi(dir(out), dir(back), n, 1.0, b);
+        assert_eq!(corner(0.0, 90.0), Ok(true), "a quarter turn");
+        assert_eq!(corner(0.0, 180.0), Ok(true), "straight through");
+        assert_eq!(corner(0.0, 270.0), Ok(false), "reflex");
+        assert_eq!(corner(0.0, 0.0), Ok(false), "a cusp");
+        let mid = 0.5 * (b.zero() + b.escalate());
+        assert!(
+            corner_within_pi(dir(0.0), dir(180.0 - mid.to_degrees()), n, 1.0, b).is_err(),
+            "a turn in band"
+        );
+    }
+
+    /// **The touch's reading decides whether the end is read**: a corner
+    /// not decided within π where the touch stops refuses, reflex or in
+    /// band; inside a stretch the corner is not asked; opposed stretches
+    /// refuse under their own name.
+    #[test]
+    fn an_end_where_the_touch_stops_is_read_only_at_a_corner_within_pi() {
+        use super::super::JunctionEndGap;
+        use crate::rim_wedge::OnTouch;
+        let stops = OnTouch::Inside {
+            sign: Sign::Negative,
+            stops: true,
+        };
+        let inside = OnTouch::Inside {
+            sign: Sign::Negative,
+            stops: false,
+        };
+        let b = band();
+        let mid = 0.5 * (b.zero() + b.escalate());
+        let diag = || geom_core::k_stats::decide("junction_end_corner", Margin::of(mid), b);
+        assert_eq!(
+            end_on_touch(stops, || Ok(true)),
+            Ok(Some(Sign::Negative)),
+            "a corner within π"
+        );
+        assert_eq!(
+            end_on_touch(stops, || Ok(false)),
+            Err(JunctionEndGap::ReflexCorner),
+            "a reflex corner"
+        );
+        assert!(diag().is_err(), "the in-band reading is one");
+        assert_eq!(
+            end_on_touch(stops, || diag().map(|_| true)),
+            Err(JunctionEndGap::ReflexCorner),
+            "a corner in band"
+        );
+        assert_eq!(
+            end_on_touch(inside, || panic!(
+                "the corner is not asked inside a stretch"
+            )),
             Ok(Some(Sign::Negative))
         );
         assert_eq!(
-            junction_end_held(r, &quarter, at(0.0), b),
-            Ok(Some(Sign::Negative)),
-            "its start"
+            end_on_touch(OnTouch::Opposed, || Ok(true)),
+            Err(JunctionEndGap::OpposedStretches)
         );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(core::f64::consts::FRAC_PI_2), b),
-            Ok(Some(Sign::Negative)),
-            "its end"
-        );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(2.0), b),
-            Ok(None),
-            "past it"
-        );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(-0.5), b),
-            Ok(None),
-            "before it"
-        );
+        assert_eq!(end_on_touch(OnTouch::Off, || Ok(true)), Ok(None));
     }
 }

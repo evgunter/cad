@@ -382,6 +382,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_core::UnitVec3;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
@@ -866,7 +867,9 @@ fn cavity_refusal_said(
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } => "a separation sits wholly inside the ambiguity band".into(),
-        R::Budget(_) => "the search spent its budget with pairs of walls still undecided".into(),
+        R::Budget { .. } => {
+            "the search spent its budget with pairs of walls still undecided".into()
+        }
         R::Unsupported { carrier, .. } => {
             format!("a wall is {carrier}, which the certificate does not read").into()
         }
@@ -904,7 +907,7 @@ fn cavity_refusal_ending(
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
-        R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
+        R::Sliver { .. } | R::Budget { .. } | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         // A torus off its ring convention ends in its half's lever, in band
@@ -4978,7 +4981,7 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross.normalize();
+    let d = UnitVec3::squared(cross);
     let k = a.normal.dot(b.normal);
     let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
@@ -5191,6 +5194,10 @@ impl<T: Decide> MovedWall<T> {
 
     /// [`Self::cut`] with a point on `L` (a Zero side) counted with the
     /// positive side when `zero_up`, else with the negative one.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn cut_counting(
         &self,
         line: geom::Line<T>,
@@ -5202,7 +5209,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(line.dir);
+        let m = self.normal.cross(line.dir.get());
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -5830,7 +5837,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 0.6, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5842,7 +5849,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 1.5, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5871,7 +5878,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: y,
+                    dir: geom::stated_direction(y),
                 },
                 band,
             )
@@ -5883,7 +5890,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: -y,
+                    dir: geom::stated_direction(-y),
                 },
                 band,
             )
@@ -5909,7 +5916,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.0, 0.0, 0.0),
-                        dir: y,
+                        dir: geom::stated_direction(y),
                     },
                     band,
                 )
@@ -6424,7 +6431,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(c, 0.0, 0.0),
-                            dir: up,
+                            dir: geom::stated_direction(up),
                         },
                         band,
                     )
@@ -6440,7 +6447,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.5, 0.0, 0.0),
-                        dir: up,
+                        dir: geom::stated_direction(up),
                     },
                     band,
                 )
@@ -6556,7 +6563,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(d, c, 0.0),
-                            dir: Vec3::new(0.0, 0.0, 1.0),
+                            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                         },
                         band,
                     )

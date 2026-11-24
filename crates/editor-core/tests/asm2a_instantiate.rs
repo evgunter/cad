@@ -55,7 +55,7 @@ impl PartResolver for StubStore {
     fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
-            message: message.to_string(),
+            message: message.into(),
         };
         if self.eps_seam.contains_key(&doc_ref.id) {
             return Err(fail(
@@ -146,7 +146,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     crate::fixture::place(doc, fused).0
@@ -390,7 +390,7 @@ impl PartResolver for PinBlind {
             .cloned()
             .ok_or_else(|| ResolveFailure {
                 fault: ResolveFault::Unresolved,
-                message: "no such document".to_string(),
+                message: "no such document".into(),
             })
     }
 }
@@ -1820,7 +1820,7 @@ fn two_cubes_glued_on_a_wall() -> (
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 copy_in(&part_doc, ids[0]),
                 copy_in(&part_doc, ids[1]),
             ]),

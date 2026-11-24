@@ -452,21 +452,18 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// Two halves. A datum that is not a number (NaN or `±∞`), or a stored
 /// direction (`normal`, `axis`, `u_ref`) that is the zero vector, is
 /// `PoisonedSurfaceDatum`; a finite datum outside its variant's
-/// convention — a frame off unit or off `u_ref ⊥ axis` by more than ε
-/// of locus movement at the kind's radius included — is
-/// `UnrepresentableSurfaceDatum`. The first six rungs are the
+/// convention is `UnrepresentableSurfaceDatum`. The first six rungs are the
 /// measurement the carried row took before check 1 read any analytic
 /// datum, when every one of them was refused only by checks 3–5's
 /// escalations.
 #[test]
 fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
-    use geom::ConventionMeasure::Value;
     use geom::SurfaceDatum as D;
     use geom::SurfaceKind as K;
     enum Verdict {
         Poisoned,
-        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
+        Unrepresentable(geom::ConventionEnd),
     }
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -504,7 +501,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(0.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, NaN half-angle",
@@ -534,7 +531,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             cylinder(-1.0),
             K::Cylinder,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cylinder, infinite radius",
@@ -548,35 +545,35 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(-2.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, zero half-angle",
             cone(0.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, half-angle pi/2",
             cone(core::f64::consts::FRAC_PI_2),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Upper),
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "cone, half-angle past pi/2",
             cone(2.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Value, Upper),
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "torus, zero tube",
             torus(2.0, 0.0),
             K::Torus,
             D::MinorRadius,
-            Verdict::Unrepresentable(Value, Lower),
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "torus, NaN tube",
@@ -721,12 +718,11 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
                 },
             ],
             Verdict::Poisoned => vec![ValidationError::PoisonedSurfaceDatum { face, kind, datum }],
-            Verdict::Unrepresentable(measure, end) => {
+            Verdict::Unrepresentable(end) => {
                 vec![ValidationError::UnrepresentableSurfaceDatum {
                     face,
                     kind,
                     datum,
-                    measure,
                     end,
                 }]
             }
@@ -932,7 +928,6 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     use crate::validate::{DatumVerdict as V, analytic_datum_verdicts, poisoned_curve_datums};
     use geom::ConventionEnd::Lower;
-    use geom::ConventionMeasure::Value;
     use geom::Curve3;
     use geom::CurveDatum as D;
     let nan = f64::NAN;
@@ -955,30 +950,33 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(
-            poisoned_curve_datums(c),
-            c.representability_margins(band),
-            band,
-        )
+        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(), band)
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
         (
             "honest line",
-            Curve3::Line(geom::Line { origin: o, dir: x }),
+            Curve3::Line(geom::Line {
+                origin: o,
+                dir: geom::stated_direction(x),
+            }),
             None,
         ),
         (
-            "line, zero dir",
+            // A zero vector has no direction: squared, it is poison.
+            "line, zero dir squared",
             Curve3::Line(geom::Line {
                 origin: o,
-                dir: zero,
+                dir: geom_core::UnitVec3::squared(zero),
             }),
             Some(V::Poisoned(vec![D::Dir])),
         ),
         (
-            "line, NaN origin and infinite dir",
-            Curve3::line(Point3::new(nan, 0.0, 0.0), Vec3::new(inf, 0.0, 0.0)),
+            "line, NaN origin and infinite dir squared",
+            Curve3::line(
+                Point3::new(nan, 0.0, 0.0),
+                geom_core::UnitVec3::squared(Vec3::new(inf, 0.0, 0.0)),
+            ),
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
@@ -995,12 +993,12 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Value, Lower)),
+            Some(V::Unrepresentable(D::Radius, Lower)),
         ),
         (
             "ellipse, zero minor",
             Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.0)),
-            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
+            Some(V::Unrepresentable(D::SemiV, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1011,7 +1009,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "spiric, zero tube",
             spiric(0.0, 0.3),
-            Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
+            Some(V::Unrepresentable(D::MinorRadius, Lower)),
         ),
         (
             "finite NURBS carrier",
@@ -1047,7 +1045,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),
-                lifted.representability_margins(band),
+                lifted.representability_margins(),
                 band,
             ),
             expected,
@@ -1089,11 +1087,15 @@ fn the_carrier_poison_read_reads_every_scalar() {
             .into_iter()
             .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
             .collect();
-        // A frame is squared where it is stated, so its datums read the
-        // squared axes, not the builder's scalars; every other datum reads
-        // its scalars as given.
-        let frame =
-            |d: geom::CurveDatum| matches!(d, geom::CurveDatum::Axis | geom::CurveDatum::URef);
+        // A frame and a line's direction are squared where they are
+        // stated, so their datums read the squared axes, not the
+        // builder's scalars; every other datum reads its scalars as given.
+        let frame = |d: geom::CurveDatum| {
+            matches!(
+                d,
+                geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir
+            )
+        };
         assert_eq!(
             walked.len(),
             kind.scalars,
@@ -1609,7 +1611,7 @@ fn a_drafted_chord_refused_its_span_is_typed() {
             pair: geom_brep::SurfacePair::new(own, theirs),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         },
-        carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+        carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -1882,7 +1884,11 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     let (carrier, t0, t1) = match kind {
         Carrier::Segment => {
             let len = p0.distance(p1);
-            (geom::Curve3::line(p0, (p1 - p0) / len), 0.0, len)
+            (
+                geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / len)),
+                0.0,
+                len,
+            )
         }
         // θ = 0 is placed at the start point and the axis is chosen so
         // that `v_ref = axis × u_ref` points at +x: the half turn from
@@ -2291,7 +2297,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         ),
         radius,
     };
-    let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y());
+    let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
     // The pillow's two faces are bounded by its two coincident seams, so
     // each reaches half a seam from the seam's middle: the wedge's
     // reach tier 3 reads (`crate::wedge_reach`).
@@ -2704,7 +2710,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         let wall = leaning(degrees);
         // Both planes hold the y axis: the walk along it reads every
         // station tangent, and the pairing stops it.
-        let axis = geom::Curve3::line(origin, Vec3::unit_y());
+        let axis = geom::Curve3::line(origin, geom_core::UnitVec3::exact_y());
         let side = |surface| geom_brep::SideFace {
             surface,
             sense: true,
@@ -3568,7 +3574,7 @@ pub(crate) fn half_disc(
         let (v0, v1) = body.edge_vertices(edge).unwrap();
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let (p0, p1) = (at(v0), at(v1));
-        geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
+        geom::Curve3::line(p0, geom::stated_direction((p1 - p0) / p0.distance(p1)))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
         let is_arc = e == p.et[0] || e == p.eb[0];

@@ -175,12 +175,11 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
 /// post `[1, 3]² × [−0.8, 1.2]` put back inside it, less the trench,
 /// whose keel lies on the post. The section at `z = 0` is the ellipse
 /// with the pocket's square as a hole and the post's square as an
-/// island in it. Tilted, the nesting rule leaves the square hole on a
-/// face of its own (no segment is decided clear of an ellipse), and the
-/// ring goes to the island, the innermost outline holding it that no
-/// hole takes it out of. Each side passes tiers 1, 2 and 3 and holds its
-/// closed-form volume; tier 3′ passes untilted, and tilted refuses, as it
-/// refuses the same split without the trench, a filed finding.
+/// island in it. The square hole nests as a ring of the ellipse's face,
+/// tilted or not, and the ring goes to the island, the innermost
+/// outline holding it that no ring takes it out of. Each side passes
+/// tiers 1, 2, 3 and 3′ with no records and holds its closed-form
+/// volume, as each side of the same split without the trench does.
 ///
 /// Above the plane: the half cylinder, `13.5π`, less the pocket under
 /// the cap, `3 · 3 · 1.5 / c`, plus the post, `2 · 2 · 1.2`, less the
@@ -216,11 +215,10 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 tol(),
             );
             for (side, half) in halves_at_rest(&what, &posted, &plane).iter().enumerate() {
-                let pseudo = topo::validate_pseudomanifold(half, &ContactRecords::default(), tol());
                 assert_eq!(
-                    pseudo.is_ok(),
-                    tilt == 0.0,
-                    "{what}, no trench, side {side}: tier 3′ {pseudo:?}"
+                    topo::validate_pseudomanifold(half, &ContactRecords::default(), tol()),
+                    Ok(()),
+                    "{what}, no trench, side {side}: tier 3′"
                 );
             }
             let [below, above] = halves_at_rest(&what, &body, &plane);
@@ -235,11 +233,11 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
             ] {
                 let what = format!("{what}, the {side} side");
                 assert_eq!(topo::validate_closed(b), Ok(()), "{what}: tier 2");
-                // Tilted, the square hole keeps a face of its own over the
-                // ellipse's, and tier 3′ refuses each side, trench or no
-                // trench (`work/heldrecords/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
-                let pseudo = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol());
-                assert_eq!(pseudo.is_ok(), tilt == 0.0, "{what}: tier 3′ {pseudo:?}");
+                assert_eq!(
+                    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol()),
+                    Ok(()),
+                    "{what}: tier 3′"
+                );
                 let got = topo::test_support::pinned_volume(
                     "the measured body",
                     &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),

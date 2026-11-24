@@ -224,20 +224,47 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                         super::Operand::B,
                         sb.face,
                     );
-                    let side = |body: &Body<T>, operand, face, bound| {
+                    // Each bound with the edge behind it, which a bound
+                    // rides the rim only by being.
+                    let side = |body: &Body<T>, operand, face, bound, other| {
                         let kind = body.proven_face(face).surface().kind();
                         super::sectors::junction_bound_side(
-                            rim, p, bound, operand, face, kind, read, band,
+                            rim, p, bound, other, operand, face, kind, read, band,
                         )
                     };
+                    let (on_a, on_b) = ((a_body, sa.face), (b_body, sb.face));
                     Some((
                         (
-                            side(a_body, super::Operand::A, sa.face, a_start)?,
-                            side(a_body, super::Operand::A, sa.face, a_end)?,
+                            side(
+                                a_body,
+                                super::Operand::A,
+                                sa.face,
+                                (sa.start, sa.start_reach),
+                                on_b,
+                            )?,
+                            side(
+                                a_body,
+                                super::Operand::A,
+                                sa.face,
+                                (sa.end, sa.end_reach),
+                                on_b,
+                            )?,
                         ),
                         (
-                            side(b_body, super::Operand::B, sb.face, b_start)?,
-                            side(b_body, super::Operand::B, sb.face, b_end)?,
+                            side(
+                                b_body,
+                                super::Operand::B,
+                                sb.face,
+                                (sb.start, sb.start_reach),
+                                on_a,
+                            )?,
+                            side(
+                                b_body,
+                                super::Operand::B,
+                                sb.face,
+                                (sb.end, sb.end_reach),
+                                on_a,
+                            )?,
                         ),
                     ))
                 }
@@ -1704,6 +1731,7 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
             super::sectors::junction_lump(
                 declared.junction_at(own_op, own_sec.face, other_op, other_sec.face),
                 site()?,
+                (other_body, other_sec.face),
                 own_op,
                 own_sec.face,
                 own_body.proven_face(own_sec.face).surface().kind(),
@@ -2054,6 +2082,7 @@ fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
             super::sectors::junction_lump(
                 declared.junction_at(own_op, own_sec.face, ref_op, ref_sector.face),
                 site_point(own_sec)?,
+                (ref_body, ref_sector.face),
                 own_op,
                 own_sec.face,
                 own_body.proven_face(own_sec.face).surface().kind(),

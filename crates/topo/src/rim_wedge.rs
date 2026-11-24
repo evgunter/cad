@@ -47,6 +47,7 @@
 //! rim is found geometrically — a boundary edge of each face riding
 //! the same circle carrier, decided on the carrier's own data.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
@@ -63,11 +64,27 @@ pub(crate) struct Rim<T: Real> {
     /// The circle's centre.
     pub center: Point3<T>,
     /// The unit axis.
-    pub axis: Vec3<T>,
+    pub axis: UnitVec3<T>,
     /// The radius.
     pub radius: T,
     /// The unit reference direction where the parameter is zero.
     pub u_ref: Vec3<T>,
+}
+
+impl<T: Decide> Rim<T> {
+    /// **The farthest the whole circle stands from `pivot`**: its cover's
+    /// far distance ([`geom_brep::ExtentBall::of_cover_from`]), exact on
+    /// a circle, so one read bounds it from both sides; poison where the
+    /// circle has no cover.
+    fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
+        let circle = geom::Circle::new(
+            geom::Frame::new(self.center, self.axis.get(), self.u_ref),
+            self.radius,
+        );
+        let turn = geom::cover::ParamWindow::new(T::zero(), circle.period().length());
+        let cover = geom::Curve3::Circle(circle).cover_over(turn).ok();
+        geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
+    }
 }
 
 /// What the ruling's table routes a shared rim to.
@@ -219,12 +236,11 @@ fn same_circle<T: Decide>(
             (RIM_CIRCLE_CENTER, Margin::norm3(ra.center - rb.center)),
             (
                 RIM_CIRCLE_AXIS_PARALLEL,
-                // Unsourced lever: the two rims' radii summed, which no
-                // one extent's read is; their union's (the larger)
-                // would move verdicts by a shorter arm.
+                // The tilt pinned at `ra`'s centre, levered at both
+                // circles' far distance from there: their union's.
                 Margin::levered(
-                    ra.axis.cross(rb.axis).norm(),
-                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                    ra.axis.get().cross(rb.axis.get()).norm(),
+                    ra.reach_from(ra.center).max(rb.reach_from(ra.center)),
                 ),
             ),
         ],
@@ -526,39 +542,86 @@ impl<T: Real> Default for Touch<T> {
     }
 }
 
+/// Where an end on a rim lies against the touch there ([`Touch::holds`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OnTouch {
+    /// Off every stretch of it.
+    Off,
+    /// On a stretch: A rides it with `sign` there. `stops` where the end
+    /// is within the band of where the touch stops (a stretch's end no
+    /// other stretch carries on, or a touch that is a point).
+    Inside {
+        /// The sign A rides the stretch with.
+        sign: geom_core::Sign,
+        /// The end is where the touch stops.
+        stops: bool,
+    },
+    /// On two stretches ridden opposite ways, where they meet.
+    Opposed,
+}
+
 impl<T: Decide> Touch<T> {
-    /// **Whether `p`, a point decided on `rim`, lies on the touch**, a
-    /// closed stretch or point of it (`junction_end_in_extent`, metered
-    /// along the rim): the sign A rides it with there, or `None` where no
-    /// piece holds it, or two that do are ridden opposite ways.
+    /// **Where `p`, a point decided on `rim`, lies against the touch**
+    /// (`junction_end_in_extent`, metered along the rim): inside a
+    /// stretch, where the touch stops, or off it.
     ///
     /// # Errors
     ///
-    /// The first in-band reading of whether a piece holds it.
+    /// The first in-band reading of where a stretch starts or stops.
     pub(crate) fn holds(
         &self,
         rim: Rim<T>,
         p: Point3<T>,
         band: Band,
-    ) -> Result<Option<geom_core::Sign>, Indeterminate> {
+    ) -> Result<OnTouch, Indeterminate> {
+        use geom_core::Sign::{Positive, Zero};
         let tau = geom::conic_period::<T>().length();
         let at = locus_param(Locus::Rim(rim), p);
         let meter = |m: T| {
             crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
         };
-        let mut sign = None;
+        let (mut inside, mut starts, mut stops) = (Vec::new(), Vec::new(), Vec::new());
+        let mut point = false;
         for &(lo, hi, rides) in &self.pieces {
+            // A stretch all the way round has no end of its own.
+            if meter(tau - (hi - lo))? == Zero {
+                inside.push(rides);
+                continue;
+            }
             let past = at - lo - tau * ((at - lo) / tau).floor();
-            let within = !matches!(meter(hi - lo - past)?, geom_core::Sign::Negative)
-                || matches!(meter(tau - past)?, geom_core::Sign::Zero);
-            if within {
-                match sign {
-                    Some(s) if s != rides => return Ok(None),
-                    _ => sign = Some(rides),
+            let from_start = meter(past)?;
+            let to_stop = meter(hi - lo - past)?;
+            let at_start = from_start == Zero || meter(tau - past)? == Zero;
+            match (at_start, from_start, to_stop) {
+                (true, _, Zero) => {
+                    starts.push(rides);
+                    point = true;
                 }
+                (true, _, _) => starts.push(rides),
+                (false, Positive, Zero) => stops.push(rides),
+                (false, Positive, Positive) => inside.push(rides),
+                _ => {}
             }
         }
-        Ok(sign)
+        let Some(sign) = inside.first().or(starts.first()).or(stops.first()).copied() else {
+            return Ok(OnTouch::Off);
+        };
+        if !inside
+            .iter()
+            .chain(&starts)
+            .chain(&stops)
+            .all(|&s| s == sign)
+        {
+            return Ok(OnTouch::Opposed);
+        }
+        // An end where one stretch stops and the next starts is inside the
+        // touch; one where only a start or only a stop holds it, or a
+        // touch that is a point, is where the touch stops.
+        let carried = !inside.is_empty() || (!starts.is_empty() && !stops.is_empty() && !point);
+        Ok(OnTouch::Inside {
+            sign,
+            stops: !carried,
+        })
     }
 }
 
@@ -682,7 +745,8 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
         Locus::Rim(rim) => {
-            rim.center + geom::Frame::new(rim.center, rim.axis, rim.u_ref).radial(s) * rim.radius
+            rim.center
+                + geom::Frame::new(rim.center, rim.axis.get(), rim.u_ref).radial(s) * rim.radius
         }
     }
 }
@@ -700,7 +764,9 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
         Locus::Line(line) => line.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
-            let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
+            let th = d
+                .dot(rim.axis.get().cross(rim.u_ref))
+                .atan2(d.dot(rim.u_ref));
             let tau = geom::conic_period::<T>().length();
             th - tau * (th / tau).floor()
         }
@@ -794,8 +860,8 @@ fn reach_as<T: Decide>(
             let p = curve.carrier().eval(mid);
             let along = curve.carrier().deriv(mid) * if he { T::one() } else { -T::one() };
             let tangent = match locus {
-                Locus::Rim(rim) => rim.axis.cross(p - rim.center),
-                Locus::Line(line) => line.dir,
+                Locus::Rim(rim) => rim.axis.get().cross(p - rim.center),
+                Locus::Line(line) => line.dir.get(),
             };
             let cos = along.dot(tangent) / (along.norm() * tangent.norm());
             let name = match locus {
@@ -841,6 +907,10 @@ fn reach_as<T: Decide>(
 
 /// The sense in which a circle edge's PARAMETER runs about the rim's
 /// axis: `Positive` with it, `Negative` against.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn curve_sense<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -850,7 +920,11 @@ fn curve_sense<T: Decide>(
         (Locus::Rim(rim), geom::Curve3::Circle(the_circle @ geom::Circle { .. })) => {
             let frame = the_circle.frame();
             let axis = frame.axis();
-            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
+            crate::validate::decide(
+                "seam_rim_axis_sense",
+                Margin::of(axis.dot(rim.axis.get())),
+                band,
+            )
         }
         _ => Ok(geom_core::Sign::Positive),
     }
@@ -869,6 +943,25 @@ pub(crate) fn on_rim<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     on_locus(Locus::Rim(rim), p, band)
+}
+
+/// Whether `circle` is `rim`, decided on the identity ladder the rim
+/// itself was found by ([`same_circle`]): the junction's reader asks it
+/// of the edge behind a sector bound, which rides the rim only where it
+/// IS the rim's edge.
+///
+/// # Errors
+///
+/// The identity's [`Indeterminate`] in band.
+pub(crate) fn circle_is_rim<T: Decide>(
+    circle: geom::Circle<T>,
+    rim: Rim<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let Some(of) = rim_of(&geom::Curve3::Circle(circle)) else {
+        return Ok(false);
+    };
+    Ok(same_circle(of, rim, band)?.is_some())
 }
 
 /// Whether `p` lies on the locus.
@@ -896,6 +989,10 @@ fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool
 /// kind, whose crossings this read does not solve. Candidates are
 /// solved in closed form, then kept where they decide on the locus and
 /// strictly inside the edge.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn crossings<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -934,16 +1031,16 @@ fn crossings<T: Decide>(
                 Locus::Line(geom::Line { origin, dir }) => {
                     // The closest approach of the segment's line to the
                     // locus.
-                    if maybe_nonzero(w.cross(dir).norm()) {
+                    if maybe_nonzero(w.cross(dir.get()).norm()) {
                         candidates.push(crate::census::segment_cross_point(
                             (p0, p1),
-                            (origin, origin + dir),
+                            (origin, origin + dir.get()),
                         ));
                     }
                 }
                 Locus::Rim(rim) => {
-                    let nw = rim.axis.dot(w);
-                    let h0 = rim.axis.dot(p0 - rim.center);
+                    let nw = rim.axis.get().dot(w);
+                    let h0 = rim.axis.get().dot(p0 - rim.center);
                     if maybe_nonzero(nw) {
                         candidates.push(p0 + w * (-h0 / nw));
                     }
@@ -983,7 +1080,7 @@ fn crossings<T: Decide>(
             Ok(Some(kept))
         }
         (geom::Curve3::Circle(arc), _) => {
-            let (center, axis) = (arc.frame().origin(), arc.frame().axis());
+            let (center, axis) = (arc.frame().origin(), arc.axis());
             let radius = arc.radius();
             let (ce, ae, re) = (center, axis, radius);
             let e1 = {
@@ -997,24 +1094,28 @@ fn crossings<T: Decide>(
             };
             match locus {
                 Locus::Line(line @ geom::Line { origin, dir }) => {
-                    let ad = ae.dot(dir);
+                    let ad = ae.dot(dir.get());
                     if maybe_nonzero(ad) {
-                        candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
+                        candidates.push(origin + dir.get() * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
                         let foot = line.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
-                            candidates.push(foot - dir * half);
-                            candidates.push(foot + dir * half);
+                            candidates.push(foot - dir.get() * half);
+                            candidates.push(foot + dir.get() * half);
                         }
                     }
                 }
                 Locus::Rim(rim) => {
                     // n·(p(φ) − c) = A cos φ + B sin φ + C.
                     let n = rim.axis;
-                    let (qa, qb, qc) = (n.dot(e1) * re, n.dot(e2) * re, n.dot(ce - rim.center));
+                    let (qa, qb, qc) = (
+                        n.get().dot(e1) * re,
+                        n.get().dot(e2) * re,
+                        n.get().dot(ce - rim.center),
+                    );
                     let rr = (qa.powi(2) + qb.powi(2)).sqrt();
                     if maybe_nonzero(rr) {
                         let ratio = -qc / rr;
@@ -1065,6 +1166,10 @@ fn crossings<T: Decide>(
 
 /// Whether a boundary curve rides `locus`: a circle decided the rim's
 /// own, or a line segment whose two ends lie on the locus line.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn rides<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     locus: Locus<T>,
@@ -1072,11 +1177,8 @@ fn rides<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) =
+                (circle.frame().origin(), circle.axis_unit(), circle.u_ref());
             let radius = circle.radius();
             same_circle(
                 Rim {
@@ -1147,13 +1249,17 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 }
 
 /// A circle carrier as a [`Rim`]; none for any other carrier.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
     match *carrier {
         geom::Curve3::Circle(circle) => Some(Rim {
             center: circle.frame().origin(),
-            axis: circle.frame().axis(),
+            axis: circle.axis_unit(),
             radius: circle.radius(),
-            u_ref: circle.frame().u_ref(),
+            u_ref: circle.u_ref(),
         }),
         _ => None,
     }
@@ -1282,7 +1388,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     if s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some() {
         return Ok(RimRouting::SplineFace);
     }
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let face = |surface, sense| geom_brep::SideFace { surface, sense };
     let walk = geom_brep::WedgeWalk::around_circle(
         face(s_plus, sense_plus),
@@ -1305,7 +1411,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
 /// circle's reach from its centre.
 #[cfg(test)]
 fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).twice_lever_from(rim.center)
 }
 
@@ -1330,7 +1436,7 @@ mod cover_rows {
         let face = body.faces().next().map(|(k, _)| k).unwrap();
         let line = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
         });
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
             FaceOnLocus {
@@ -1393,7 +1499,7 @@ mod redfirst {
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
         Rim {
             center: Point3::from_array(center),
-            axis: Vec3::from_array(axis),
+            axis: geom_core::UnitVec3::squared(Vec3::from_array(axis)),
             radius,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -1476,6 +1582,29 @@ mod redfirst {
         );
     }
 
+    /// **The tilt is levered at the two circles' union, not their
+    /// radii's sum.** Two unit circles about one centre, their axes
+    /// tilted `0.75·z` radians apart: the union's reach from the centre
+    /// is the radius, so the tilt reads `0.75·z` and the circles are one.
+    /// The sum of the radii reads it `1.5·z`, past the zero. The same
+    /// pair a kilometre from the world origin reads alike: the lever is
+    /// read from the centre the centre datum pins, not from anywhere
+    /// else. Red where the arm is the radii's sum, or read from the
+    /// origin.
+    #[test]
+    fn rim_axis_tilt_is_levered_at_the_circles_union_from_their_centre() {
+        let b = band();
+        let tilt = 0.75 * b.zero();
+        for at in [[0.0, 0.0, 0.0], [1.0e3, 0.0, 0.0]] {
+            let one = circle(at, [0.0, 0.0, 1.0], 1.0);
+            let tilted = circle(at, [tilt, 0.0, 1.0], 1.0);
+            assert!(
+                rim_identity(&one, &tilted, b).unwrap(),
+                "about {at:?}: a tilt of 0.75 z over a unit circle is one rim"
+            );
+        }
+    }
+
     /// **The two sense words route the same geometry to different
     /// arms**, which is what makes the door's `sense` parameters
     /// load-bearing rather than decoration. The unit sphere about the
@@ -1506,7 +1635,7 @@ mod redfirst {
         };
         let equator = Rim {
             center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom_core::UnitVec3::exact_z(),
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
@@ -1568,7 +1697,7 @@ mod redfirst {
         };
         let rim = Rim {
             center: Point3::new(0.0, 0.0, 0.6),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
@@ -1625,7 +1754,7 @@ mod r2_probes {
     fn cut_rim() -> Rim<f64> {
         Rim {
             center: Point3::new(0.0, 0.0, 0.6),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
@@ -1788,7 +1917,7 @@ mod arc_end_rows {
         );
         let locus = Locus::Line(geom::Line {
             origin: q,
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
@@ -1820,7 +1949,10 @@ mod boundary_midpoint_rows {
         let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
         (
-            Locus::Line(geom::Line { origin: p, dir: t }),
+            Locus::Line(geom::Line {
+                origin: p,
+                dir: geom::stated_direction(t),
+            }),
             move |u, v| p + t * u + n * v,
         )
     }
@@ -2016,7 +2148,7 @@ mod boundary_midpoint_rows {
         let zero = band.zero();
         let rim = Rim {
             center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            axis: geom_core::UnitVec3::exact_z(),
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
@@ -2026,7 +2158,7 @@ mod boundary_midpoint_rows {
             let (a, fa) = arc_cap(small, (-1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), tol);
             let got = GAPS.map(|gap| {
                 let beta = (2.0 * gap * zero).sqrt();
-                let unit = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+                let unit = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
                 let (b, fb) = arc_cap(
                     unit,
                     (alpha - 1.0, alpha + 2.0 * beta),
@@ -2051,7 +2183,7 @@ mod unplaced_rows {
     use super::*;
     use crate::construction::MevSite;
     use crate::test_support_fixtures::prism_z;
-    use geom_core::{Tol, Vec3};
+    use geom_core::Tol;
 
     /// **A lone-vertex ring leaves a face's piece read**: two unit
     /// blocks' tops share the plane `z = 0`, and one top carries a ring
@@ -2087,7 +2219,7 @@ mod unplaced_rows {
         ringed.body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let locus = Locus::Line(geom::Line {
             origin: Point3::new(0.0, 0.25, 0.0),
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         for (side, got) in [
             (

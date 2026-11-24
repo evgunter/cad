@@ -837,7 +837,10 @@ mod tests {
 
     /// The unit stretch of the x axis from `from`, walked along `dir`.
     fn line(from: f64, dir: f64) -> geom::Curve3<f64> {
-        geom::Curve3::line(Point3::new(from, 0.0, 0.0), Vec3::new(dir, 0.0, 0.0))
+        geom::Curve3::line(
+            Point3::new(from, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(dir, 0.0, 0.0)),
+        )
     }
 
     /// The fold over `plus` then `minus`, walked along `carrier`.
