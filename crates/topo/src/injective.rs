@@ -11735,13 +11735,13 @@ mod presentation_rows {
                     Read::Local,
                     "half a band, rim {reach}, {sign}: off the shared cell a split may part it"
                 );
-                // Five bands: the guard passes. Whether the corner is
-                // then cut is the placement's: at the default band and
-                // wider the spike (from 1e-5 rad at these rims) is wide
-                // enough for the ray's direction to be enclosed; at a
-                // tighter band five bands of angle is too thin and the
-                // placement refuses, `Local`, never the guard's
-                // `Structural`.
+                // Five bands. At the default band and wider the guard
+                // passes and the corner is cut (the spike, from 1e-5 rad
+                // at these rims, is wide enough for the ray's direction
+                // to be enclosed). At a tighter band five bands of angle
+                // is 1e-8 rad or less, the ray's stand-off is enclosed
+                // no tighter than the band, and the guard does not
+                // decide it: refused, as the guard refuses.
                 let cut = short(reach, sign * 5.0, &[vertex(1)]);
                 if band().zero() >= 1e-9 {
                     assert!(
@@ -11751,8 +11751,8 @@ mod presentation_rows {
                 } else {
                     assert_eq!(
                         cut,
-                        Read::Local,
-                        "five bands, rim {reach}, {sign}, at ε {:e}: the placement refuses",
+                        Read::Structural,
+                        "five bands, rim {reach}, {sign}, at ε {:e}: the guard is undecided",
                         band().zero()
                     );
                 }
