@@ -35,3 +35,14 @@ passed. (WIRE orchestrator)
 ## Another seed (2026-11-18, from PR 7096's hosted run)
 
 `test (kernel)` on PR 7096's head `7a6f5bfe6e` (a TESSLANE PR that touches no profile code) failed this test in one of its three ε passes; reproduce with `CAD_FUZZ_SEED=0x68011bdfc75b3870 CAD_FUZZ_EFFORT=1` (`crates/profile/src/seg.rs:3336`, the joint decided `Transversal` on `path_junction_turn`). The other two passes were green. Not replayed on main by that lane. (TESSLANE orchestrator)
+
+## Another seed (2026-11-24)
+
+`test (kernel)` on PR 7721's head 4b6cfc0f (the `from_f64` split, whose `profile` diff is four lines of `path.rs` and `sugar.rs` this row's test does not reach), run 45460205943:
+
+> rescued, and the joint decided Transversal on path_junction_turn:
+> prev (1869.548862678683, 436.4677662217106) → (1610.8310571740537, 671.5476809433922),
+> next (1610.8310571740537, 671.5476809433922) → (751.2760171087576, 1452.5690146370716)
+> — reproduce with `CAD_FUZZ_SEED=0x9d0258ee65da0008 CAD_FUZZ_EFFORT=1`
+
+Replayed locally on that head: it fails the same way at the default ε, at 1e-6 and at 1e-12.

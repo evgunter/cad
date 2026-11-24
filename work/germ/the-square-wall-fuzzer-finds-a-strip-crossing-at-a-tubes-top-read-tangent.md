@@ -84,3 +84,13 @@ Another seed, from CI's slow set on lane `orbit-tilt`'s PR 7617
 `R 0.0239, r 0.0201`, tilt 4.7e-12, `top` 1.57e-9. The PR leaves the
 square-wall arm untouched. The seed reproduces both mismatches on
 main `341d62e9a6` (a local replay).
+
+## Another seed (2026-11-24)
+
+The slow-set step of `test (kernel)` on PR 7721's head 4b6cfc0f (the `from_f64` split; it does not touch `section_cert`), run 45460205943, at the default ε:
+
+```text
+2 mismatches (reproduce with CAD_FUZZ_SEED=0xd027c20af504f7e6 CAD_FUZZ_EFFORT=1):
+a strip crossing at a tube circle's top: R 9.41951976376279, r 4.38808298174347, (e, z0, rc) (-16.64717054535688, 4.921991505656265, 11.786281126728884), tilt 0: R-tan at Degeneracy { tangent: 1.3462250036522407, top: 7.074500985027043e-10 }: Tangent("section_torus_square_wall_fold_half")
+a strip crossing at a tube circle's top: R 62.79382200103899, r 44.55596502513693, (e, z0, rc) (165.1146266545549, -40.492230777656104, 102.40146972380528), tilt 0: R-tan at Degeneracy { tangent: 36.9157707380144, top: 3.018982397406944e-9 }: Tangent("section_torus_square_wall_fold_half")
+```
