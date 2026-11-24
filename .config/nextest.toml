@@ -8,15 +8,18 @@
 # silently nowhere; scripts/check-slow-set-names.py fails the test job on the
 # dead name.
 #
-# Put a test here when it costs >= 0.5 s a run, whatever it has caught: a
-# slow test that catches something still catches it the next night. A
-# cheaper test goes here too when it costs more than a fraction of a second
-# averaged over every PR run and has never gone red on a PR after the one
-# that added it, unless a test the gate kept went red with it
-# (work/ciw/demote-unearned-tests.md). The per-PR default-eps step enforces
-# two bars on the runner's own times (scripts/check-fast-set-times.py): a
-# fast-set test the diff adds fails it at >= 0.5 s, and every other fast-set
-# test at >= 1 s.
+# Put a test here when it costs >= 0.25 s run alone, whatever it has
+# caught: a slow test that catches something still catches it the next
+# night. A cheaper test goes here too when it costs more than a fraction of a
+# second averaged over every PR run and has never gone red on a PR after the
+# one that added it, unless a test the gate kept went red with it
+# (work/ciw/demote-unearned-tests.md). A test's cost is its time run alone on
+# the gate's build: the per-PR default-eps step re-runs alone, three times,
+# each test its parallel pass reads over a bar and takes the fastest
+# (scripts/check-fast-set-times.py). A fast-set test the diff adds or edits
+# fails it at >= 0.25 s, and any fast-set test at >= 1 s. A test that drifts
+# past 0.25 s on main below 1 s is named by the scheduled drift check
+# (.github/workflows/fast-set-drift.yml, scripts/fast-set-drift.py).
 
 [profile.ci]
 fail-fast = false
@@ -194,6 +197,7 @@ failure-output = "immediate-final"
 # every face's own aim over a table of boxes, and two counterexample
 # searches at EFFORT 1 (a local run, 4 vCPUs):
 #    4.48 s  topo side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has
+#    3.71 s  topo side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side (local)
 #    2.97 s  topo side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has
 #    3.54 s  topo side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has
 #    0.46 s  topo side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it
@@ -204,6 +208,8 @@ failure-output = "immediate-final"
 #   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
 #    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
 #    0.57 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side (PR 6958's hosted run)
+#    0.32 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box (local; past the 0.25 s bar for a new row)
+#    0.28 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair (local; past the 0.25 s bar for a new row)
 #    1.04 s  sweep::all volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks
 #    1.82 s  sweep::all volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies
 #    2.77 s  sweep::all volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume (local, four cores)
@@ -446,6 +452,7 @@ not (
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
   (binary_id(geom-brep) & test(=pcurve_cache::line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read)) |
   (binary_id(geom-brep) & test(=curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere)) |
+  (binary_id(geom-brep) & (test(=curve_face::spline_face::crossing_parameter_rows::at_f64_the_walks_box_is_far_narrower_than_the_band) | test(=curve_face::spline_face::crossing_parameter_rows::at_interval_the_leafs_box_is_bands_wide_and_its_middle_is_its_witnesss))) |
   (binary_id(topo) & test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path)) |
   (binary_id(sweep::all) & test(=join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound)) |
   (binary_id(geom-brep) & test(=curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere_past_the_touchs_placement)) |
@@ -684,9 +691,9 @@ not (
   (binary_id(sweep::all) & test(=parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings)) |
   (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
-  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
+  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
   (binary_id(sweep::all) & (test(=volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks) | test(=volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies) | test(=volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume))) |
-  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
+  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |

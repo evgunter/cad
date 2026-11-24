@@ -1397,6 +1397,38 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
 
+/// **A measured norm less a locus's radius**, `norm − radius`, spelled
+/// `(norm_sq − radius²) / (norm + radius)`: the same real wherever
+/// `norm + radius ≠ 0`, its one precondition. `norm_sq` is the measured
+/// vector's own dot product and `norm` its root, so the numerator is a
+/// polynomial in the vector's and the radius's data: for a vector built
+/// at the radius's length it is the zero form with nothing known of the
+/// radius's sign, where `√(radius²) − radius` is not. The sign is the
+/// difference's; a caller that wants the distance takes the `abs` of
+/// the whole quotient.
+///
+/// `radius` is the locus's positive radius. A caller that holds a
+/// signed radius passes its magnitude: the numerator folds either way
+/// (`|r|² = r²`), and with the signed value `norm + radius` is zero at
+/// the locus's own points.
+///
+/// A caller holding the vector reads [`crate::Vec3::radius_gap`] or
+/// [`crate::Vec2::radius_gap`], which form `norm_sq` and `norm` from it.
+///
+/// Per scalar:
+/// - `f64`: `norm − radius` to rounding wherever `norm + radius` is not
+///   zero in rounding; there it is a quotient of two roundings and no
+///   value is claimed.
+/// - `Interval`: an enclosure of `norm − radius` wherever the
+///   denominator's enclosure excludes zero; where it contains zero the
+///   quotient is invalid, and a decision on it refuses.
+/// - `Dual`: the quotient's tangent is the difference's.
+/// - `Sym<T>`: the value channel is `T`'s sentence; a zero form over an
+///   invalid value refuses.
+pub fn radius_gap<T: Real>(norm_sq: T, norm: T, radius: T) -> T {
+    (norm_sq - radius.powi(2)) / (norm + radius)
+}
+
 /// Whether `x` is EXACTLY zero, of either sign: at the point scalars
 /// `x == 0.0` on the value, at the interval scalar only the degenerate
 /// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
