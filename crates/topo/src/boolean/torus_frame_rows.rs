@@ -681,7 +681,7 @@ fn a_general_pose_the_certificate_reads_touching_escalates() {
         (
             "tangent, undecided",
             tangent(4.0 * b.zero()),
-            "section_torus_plane_near_tube",
+            "pt_near_tube",
         ),
     ] {
         let got = frame(&p);

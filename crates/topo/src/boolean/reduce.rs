@@ -468,7 +468,7 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`crate::separating::faces_apart`]), which reads both faces along
+///   ([`crate::census::faces_apart`]), which reads both faces along
 ///   directions that turn with the operands and with the pair, as the
 ///   census reads a pair at rest. A pair it parts is certified apart as
 ///   a box non-overlap is, and the verdict is the pair's rather than
@@ -570,7 +570,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !crate::separating::faces_apart(
+                    && !crate::census::faces_apart(
                         (body, face),
                         (other, other_face),
                         axes.of(a, b, band),
