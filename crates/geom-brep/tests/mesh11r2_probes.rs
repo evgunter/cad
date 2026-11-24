@@ -152,7 +152,10 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
     };
     let generator = |u: f64, v0: f64, v1: f64, a, b| {
         edge(
-            Curve3::line(p3(0.0, 0.0, 0.0), v3(u.cos() * s, u.sin() * s, s)),
+            Curve3::line(
+                p3(0.0, 0.0, 0.0),
+                crate::shared::point::unit3(u.cos() * s, u.sin() * s, s),
+            ),
             v0,
             v1,
             a,
@@ -326,9 +329,10 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let t0 = PI / 2.0 - delta;
         let t1 = t0 + 2.0 * PI + 2.0 * delta;
         let e = great(0.0, t0, t1, 0, 1);
-        let Curve3::Circle(geom::Circle { frame, .. }) = e.carrier else {
+        let Curve3::Circle(circle @ geom::Circle { .. }) = e.carrier else {
             unreachable!()
         };
+        let frame = circle.frame();
         let n_c = frame.axis();
         let w0 = e.carrier.eval(e.t0) - p3(0.0, 0.0, 0.0);
         let sa = w0.dot(axis) / RS;

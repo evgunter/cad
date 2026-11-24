@@ -2,10 +2,13 @@
 id: boolean-gate-refuses-a-pair-the-census-reads-apart
 kind: issue
 title: The boolean operand gate, the NURBS extent test and the split's carrier gate refuse as within reach what the census's nearest-point directions and held sphere reach would part
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
+closed: 2026-11-24
+pr: 7588
+branch: orbit/gate-reads-apart
 ---
 
 
@@ -87,3 +90,13 @@ whole sphere's reach, on the side whose pole the patch does not hold.
 ## Since PR 6336 (BOXES, 2026-11-02)
 
 `classify::gate_face_reach` / `torus_window_reach` are gone; the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)
+
+## Closed (2026-11-24, PR 7588)
+
+The operand gate and the NURBS re-gate now read the census's sharper separation: `apart`, then `apart_by` along the pair's own directions, with the held-pole covers (`cover::face_cover_toward`). The split gate's `carrier_gate` and `edge_clears` read `census::face_reach_toward`, a range along the plane's normal.
+- A rod beside a NURBS or Approx cap, 0.04 and 1e-3 clear, builds.
+- The lumps of a bar through a ball union with the NURBS cap.
+- The lumps split where the plane meets no material.
+- Touching or overlapping poses still refuse at the gate.
+
+The sweep's narrow phase and point-in-solid stay as on main: the review found that no row needed either hunk. Review: one full review (APPROVE-WITH-FIXES), then a verify (APPROVE), then a last pass on my read. PR 7589 folds `separating::faces_apart` into the one census reader.

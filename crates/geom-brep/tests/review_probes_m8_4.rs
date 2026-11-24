@@ -13,8 +13,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{Pcurve, PcurveCache};
+use geom_core::Point3;
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3, Vec2};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -62,9 +62,9 @@ fn imported_wall() -> Surface<f64> {
 fn certify_seam(u: f64, carrier: &Curve3<f64>) -> Result<(), String> {
     PcurveCache::certify(
         Pcurve::IsoLine {
-            p0: Point2::new(u, 0.0),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(u),
+            at0: 0.0,
+            rate: 1.0,
         },
         0.0,
         1.0,
@@ -143,32 +143,4 @@ fn probe_c_closed_chart_both_columns_certify() {
     let carrier = Curve3::Nurbs(std::sync::Arc::new(start_column()));
     certify_seam(0.0, &carrier).expect("the start column certifies");
     certify_seam(WIDE, &carrier).expect("the end column of a closed chart is the same locus");
-}
-
-/// **P-D: a DIAGONAL image refuses typed at the certifier** — the
-/// (true, true) arm of the envelope classifier, the excluded class's
-/// pin at the geom-brep door.
-#[test]
-fn probe_d_diagonal_image_refuses_typed() {
-    let carrier = Curve3::Nurbs(std::sync::Arc::new(start_column()));
-    let refusal = PcurveCache::certify(
-        Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(1.0, 1.0),
-            ends: None,
-        },
-        0.0,
-        1.0,
-        &carrier,
-        &imported_wall(),
-        band(),
-    )
-    .map(|_| ())
-    .expect_err("a diagonal image certifies?!");
-    let shown = format!("{refusal:?}");
-    assert!(
-        shown.contains("DIAGONAL") || shown.contains("MapResidual"),
-        "the refusal names the class: {shown}"
-    );
-    println!("P-D refusal: {shown}");
 }

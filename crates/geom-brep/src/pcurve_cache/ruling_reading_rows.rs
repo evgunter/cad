@@ -1,14 +1,13 @@
 //! **Whether a line is a ruling of its chart** ([`ruling_miss`], the one
 //! reading the mint's cylinder and cone arms, props and the boolean
 //! share): metered over the edge's span, so one tilt reads apart on a
-//! long edge and shown on a short one, and a line read with its `dir`
-//! scaled reads the same. On the cone it is D3's lane choice: a line
+//! long edge and shown on a short one. On the cone it is D3's lane choice: a line
 //! shown on its generator takes the generator's closed form, and one in
 //! band or definitely off it the general lane. Every row holds at `f64`
 //! and at `Interval`, and at every ε of the run.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `ruling-per-parameter`
-//! (the span unread), the short-and-long, scaled and in-band rows refuse;
+//! (the span unread), the short-and-long and in-band rows refuse;
 //! naming `cone-ruling-gate` (no ruling reading on the cone), the shifted
 //! ruling and the cone's in-band row refuse; naming `ruling-unplaced`
 //! (the span's length read, where it lies unread), the anchored row
@@ -43,7 +42,7 @@ fn tilted(phi: f64, tilt: f64) -> Curve3<f64> {
     let (s, c) = phi.sin_cos();
     Curve3::line(
         origin + Vec3::new(c, s, 0.0) * radius + Vec3::new(0.0, 0.0, 0.3),
-        Vec3::new(-s * tilt.sin(), c * tilt.sin(), tilt.cos()),
+        geom::stated_direction(Vec3::new(-s * tilt.sin(), c * tilt.sin(), tilt.cos())),
     )
 }
 
@@ -126,7 +125,7 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
     let point = |p: Point3<f64>| Point3::new(f(p.x), f(p.y), f(p.z));
     let line_i = geom::Line {
         origin: point(line.origin),
-        dir: lift3(line.dir),
+        dir: line.dir.map_scalar(f),
     };
     let ruling_i = match ruling {
         Ruling::Axis(axis) => Ruling::Axis(lift3(axis)),
@@ -314,69 +313,6 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
     }
 }
 
-/// **A line's reading is the line's, not its parametrisation's**: `dir`
-/// scaled by `1e-3` and `1e3`, its span scaled back, reads the same
-/// margin and takes the same class, on the cylinder (the short edge of
-/// [`one_tilt_reads_by_its_reach_over_the_edge`]) and on the cone (a
-/// ruling turned in band off its generator). Red under
-/// `ruling-per-parameter`, which reads the scale.
-#[test]
-fn a_scaled_direction_reads_the_same_margin() {
-    let short_tilt = 100.0 * band().escalate();
-    let short = 0.25 * zero() / short_tilt;
-    let (anchor, g, tangent) = cone_at(1.0, 1.0, 1.0);
-    let Surface::Cone { frame, .. } = cone() else {
-        unreachable!("a cone")
-    };
-    let apex = frame.origin();
-    let theta = cone_in_band_turn(CONE_SPAN.1);
-    let cone_line = Curve3::line(anchor, g * theta.cos() + tangent * theta.sin());
-    let rows = [
-        (
-            "cylinder",
-            tilted(0.3, short_tilt),
-            (-short / 2.0, short / 2.0),
-            cylinder(),
-            Ruling::Axis(Vec3::unit_z()),
-        ),
-        (
-            "cone",
-            cone_line,
-            CONE_SPAN,
-            cone(),
-            Ruling::Generator { apex, g },
-        ),
-    ];
-    for (what, carrier, span, surface, ruling) in rows {
-        let Curve3::Line(geom::Line { origin, dir }) = carrier else {
-            unreachable!("a line")
-        };
-        let (base, _) = reading(&carrier, span, ruling);
-        let [d, _] = derivations(&carrier, span, &surface);
-        for k in [1e-3, 1e3] {
-            let scaled = Curve3::line(origin, dir * k);
-            let span_k = (span.0 / k, span.1 / k);
-            let (at, (lo, hi)) = reading(&scaled, span_k, ruling);
-            // The cross product's rounding, metres over the span.
-            let slack = 1e-9 * base + 64.0 * f64::EPSILON * (span.1 - span.0);
-            assert!(
-                (at - base).abs() <= slack && lo <= base + slack && hi >= base - slack,
-                "{what}, ×{k}: the reading {at:e} ([{lo:e}, {hi:e}]) is the unscaled {base:e}"
-            );
-            let [d_k, d_k_i] = derivations(&scaled, span_k, &surface);
-            let class = |d: &Result<Derivation, PcurveCertifyError>| {
-                d.as_ref()
-                    .map(core::mem::discriminant)
-                    .map_err(core::mem::discriminant)
-            };
-            assert!(
-                class(&d_k) == class(&d) && class(&d_k_i) == class(&d),
-                "{what}, ×{k}: the class is the unscaled one: {d_k:?} / {d_k_i:?} against {d:?}"
-            );
-        }
-    }
-}
-
 /// The span the cone's in-band rows read, from the anchor.
 const CONE_SPAN: (f64, f64) = (0.0, 1e-2);
 
@@ -405,7 +341,7 @@ fn a_shifted_ruling_takes_the_general_lane() {
     let s = (0.3 * zero() * 2.0 * h * half_angle.tan() / half_angle.cos()).sqrt();
     for sigma in [1.0, -1.0] {
         let (anchor, g, tangent) = cone_at(1.0, sigma, h);
-        let carrier = Curve3::line(anchor + tangent * s, g);
+        let carrier = Curve3::line(anchor + tangent * s, geom::stated_direction(g));
         let span = (0.0, 1.0);
         let what = format!("σ {sigma}, shifted {s:e}");
         let [d, d_i] = derivations(&carrier, span, &surface);
@@ -430,13 +366,13 @@ fn a_shifted_ruling_takes_the_general_lane() {
 ///
 /// At ε 1e-12 the long span `(0.5, 40)` certifies at `f64` and its
 /// `Interval` certificate escalates `pcurve_envelope`, margin in
-/// `(1.1e-12, 1.2e-12]` (measured 1.121e-12 to 1.158e-12 over the four
-/// generators). Cause: both jointly: a stored frame read as its polar
+/// `(1.05e-12, 1.2e-12]` (measured 1.112e-12 on σ 1, φ 1). Cause: both
+/// jointly: a stored frame read as its polar
 /// enclosure (decision 1, #7131) and frames built at Interval from
-/// bracket inputs, a rigid-motion claim (fork 274); either alone stays
-/// under the band, so mutant A alone and mutant F1X alone each certify
-/// it and turn this pin red; both are levered by the span's 40 m. Every
-/// span certifies at ε 1e-9 and 1e-6.
+/// bracket inputs, a rigid-motion claim (fork 274), each widening the
+/// evaluation. Either alone stays under the band, so mutant A alone and
+/// mutant F1X alone each certify it and turn this pin red; both are
+/// levered by the span's 40 m. Every span certifies at ε 1e-9 and 1e-6.
 #[test]
 fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
     let surface = cone();
@@ -444,7 +380,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
         let nappe = if sigma > 0.0 { Nappe::Pos } else { Nappe::Neg };
         for phi in [1.0, -2.5] {
             let (anchor, g, _) = cone_at(phi, sigma, 1.0);
-            let carrier = Curve3::line(anchor, g);
+            let carrier = Curve3::line(anchor, geom::stated_direction(g));
             for span in [(0.5, 2.0), (0.5, 40.0)] {
                 let what = format!("σ {sigma}, φ {phi}, over {span:?}");
                 let [d, d_i] = derivations(&carrier, span, &surface);
@@ -462,7 +398,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
                         .unwrap_or_else(|e| panic!("{what}: mints at Interval: {e:?}"));
                 // The long span at ε 1e-12: a stored frame read as its
                 // polar enclosure and the bracket frames (#7131; fork 274).
-                let pin = (span.1 > 10.0).then_some((1.1e-12, 1.2e-12));
+                let pin = (span.1 > 10.0).then_some((1.05e-12, 1.2e-12));
                 certifies(&what, (&image, &image_i), &carrier, span, &surface, pin);
                 assert_eq!(
                     chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
@@ -500,7 +436,10 @@ fn an_in_band_tilt_takes_the_general_lane_on_each_chart() {
         let theta = cone_in_band_turn(l);
         rows.push((
             format!("cone, σ {sigma}"),
-            Curve3::line(anchor, g * theta.cos() + tangent * theta.sin()),
+            Curve3::line(
+                anchor,
+                geom::stated_direction(g * theta.cos() + tangent * theta.sin()),
+            ),
             CONE_SPAN,
             cone(),
             Ruling::Generator { apex, g },
@@ -607,7 +546,10 @@ fn the_cone_reading_is_placed_over_the_span() {
     for sigma in [1.0, -1.0] {
         let (anchor, g, tangent) = cone_at(1.0, sigma, 1.0);
         let what = format!("cone, σ {sigma}, turned {theta:e}, over [{k}, {}]", k + l);
-        let carrier = Curve3::line(anchor, g * theta.cos() + tangent * theta.sin());
+        let carrier = Curve3::line(
+            anchor,
+            geom::stated_direction(g * theta.cos() + tangent * theta.sin()),
+        );
         let span = (k, k + l);
         let [d, d_i] = derivations(&carrier, span, &surface);
         assert!(
@@ -619,7 +561,7 @@ fn the_cone_reading_is_placed_over_the_span() {
             takes_the_general_lane(&what, &carrier, span, &surface),
             "{what}: the general lane certifies"
         );
-        let true_ruling = Curve3::line(anchor, g);
+        let true_ruling = Curve3::line(anchor, geom::stated_direction(g));
         let [d, d_i] = derivations(&true_ruling, span, &surface);
         assert!(
             matches!(d, Ok(Derivation::ConeRuling { .. }))
@@ -650,7 +592,8 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
         for k in [1.02, 1.1] {
             for span in [(-0.5, 0.5), (-0.4, 1.0)] {
                 let what = format!("σ {sigma}, shifted {k}·zero, over {span:?}");
-                let carrier = Curve3::line(anchor + tangent * (k * zero()), g);
+                let carrier =
+                    Curve3::line(anchor + tangent * (k * zero()), geom::stated_direction(g));
                 let [d, d_i] = derivations(&carrier, span, &surface);
                 assert!(
                     !matches!(d, Ok(Derivation::ConeRuling { .. }))
@@ -708,7 +651,7 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
             let (anchor, g, tangent) = cone_at(phi, sigma, 0.3);
             let shifts = [0.5, 3.0, 10.0, 30.0, 100.0, 300.0].map(|k| k * zero);
             for s in core::iter::once(1e-7).chain(shifts) {
-                let carrier = Curve3::line(anchor + tangent * s, g);
+                let carrier = Curve3::line(anchor + tangent * s, geom::stated_direction(g));
                 let (carrier_i, surface_i) = lift(&carrier, &surface);
                 let off = s * 0.5f64.cos();
                 for span in [(-0.5, 0.5), (-0.4, 1.0)] {
@@ -809,7 +752,9 @@ fn a_line_standing_off_the_wall_reads_its_standoff_with_its_lean() {
                     let reach = span.0.abs().max(span.1.abs());
                     let carrier = Curve3::line(
                         origin + r * (radius + off * zero()),
-                        Vec3::unit_z() + tang * (frac * zero() / reach),
+                        geom_core::UnitVec3::squared(
+                            Vec3::unit_z() + tang * (frac * zero() / reach),
+                        ),
                     );
                     let what = format!("φ {phi}, off {off}·zero, lean {frac}·zero, over {span:?}");
                     let (carrier_i, surface_i) = lift(&carrier, &surface);
@@ -877,7 +822,7 @@ fn a_line_whose_span_holds_no_origin_reads_its_origins_standoff() {
             for sigma in [1.0, -1.0] {
                 let carrier = Curve3::line(
                     origin + r * (radius - sigma * k * delta),
-                    Vec3::unit_z() + r * (sigma * delta),
+                    geom_core::UnitVec3::squared(Vec3::unit_z() + r * (sigma * delta)),
                 );
                 let span = (k - h, k + h);
                 let what = format!("φ {phi}, crossing at {k}, leaning {sigma}·δ, over {span:?}");

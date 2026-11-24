@@ -135,7 +135,10 @@ fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
         major_radius: 2.0,
         minor_radius: 0.5,
     };
-    let c = Curve3::line(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
+    let c = Curve3::line(
+        Point3::new(0.0, 0.0, 0.5),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), (-3.0, 3.0), band())
         .expect("localizes within the budgets");
     for touch in [-2.0, 2.0] {
@@ -167,13 +170,10 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let carrier = section(b_in_major);
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-    let Curve3::Ellipse(geom::Ellipse {
-        frame: carrier_frame,
-        ..
-    }) = carrier
-    else {
+    let Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
         unreachable!("a section is an ellipse")
     };
+    let carrier_frame = the_ellipse.frame();
     let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p0, true).unwrap();
@@ -228,9 +228,10 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
                 !edge_clear_of_ball(&body, edge, at, 1e-3, band()).unwrap(),
                 "b_in_major = {b_in_major}: the ball about {at:?} on the arc is cleared of it"
             );
-            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = reference else {
+            let Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = reference else {
                 unreachable!("a section is an ellipse")
             };
+            let frame = the_ellipse.frame();
             let axis = frame.axis();
             let above = at + axis * 0.05;
             assert!(

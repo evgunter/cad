@@ -312,7 +312,9 @@ drive(doc, box) -> ParamBoxVerdict {
   refused:   [ Leaf { box, reason: SliverTerminal { predicate }
                | FlipCrossing { flipped predicates }  // no-flips v1
                | Bifurcation(WitnessBifurcation) | Infeasible  // E8
-               | Budget { depth/work bound hit } } ],
+               | Budget { depth/work bound hit }
+               | ReadsNoVariable { node, undecided | failed } } ],
+                 // the deciding node reads no variable of the box
   measure_accounting: per-reason mass under the product measure,
                       + Unanalyzed = tail mass outside `box` (E2),
 }
@@ -702,10 +704,12 @@ number.
 
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
-  a session-level record that two DAG NODES denote one function of the
+  a record that two DAG NODES denote one function of the
   parameters — equal at every parameter value, not only where a
   decision of the registrant came out as it did — made by the site
-  that guarantees it. A fact that holds only past a decision is not
+  that guarantees it, and read by the decisions of the document node
+  that made it and of the nodes it feeds, to which it travels with
+  the node's value. A fact that holds only past a decision is not
   registered: the construction spells that decision as a literal sign
   (`4·atan(σ·b)`, a radius `σ·ρ`), and the fact is then an identity of
   the expressions it built. A zero through it

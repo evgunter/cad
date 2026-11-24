@@ -2,12 +2,13 @@
 id: the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause
 kind: issue
 title: The injectivity check's sliver reads a cell that reaches past a shared line by rounding as holding none of its face, and certifies the pair with neither face read; it retires once the departure reading is metered at the faces' reach
-status: dispatched
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: H
 pr: 7329
 branch: embed/remeter
+closed: 2026-11-24
 ---
 
 
@@ -86,7 +87,8 @@ by θ = ε/r", levered at the faces' extent, read at stations along the
 edge), not a second answer to the same question.
 `Presentation::Vacuous` means only that the cell lies off the face.
 The sliver's funnel site, its entry in the module's "ε concessions" and
-the rows that assert `Vacuous` through it go.
+the rows that assert `Vacuous` through it go. Landed by `embed/remeter`
+("Landed" below).
 
 **The unit.**
 1. The margin is metered at the faces' reach, by the lever
@@ -96,7 +98,11 @@ the rows that assert `Vacuous` through it go.
    pairs. `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
    pins a count that moves (14 corner certificates to 18). The banded
    form itself was not measured; the designers put its margins on
-   these bodies at 0.1 to 0.4 m against 1e-8 m.
+   these bodies at 0.1 to 0.4 m against 1e-8 m. **Both proxy figures
+   are the exact sign's, not the banded form's** (measured by the
+   unit, "Landed" below): under the band the rod's count stays 14 and
+   four tour bodies take fewer pairs, since most of what the proxy
+   newly passed were rates signed only at rounding size.
 2. All three slivers go with it (`present_line_corner`,
    `present_plane_corner`, `present_chart`). `chute`, the stepped ring
    and `tiltedcut_above` hold without them, each pair by the carrier
@@ -702,3 +708,122 @@ read the rectangle `Vacuous`.
 So in four of the six, the plane's rate times the sliver's own width is
 the only failing reading. In two, the cylinder's departure straddles as
 well. The bodies are valid, built as their tests' ordinary results.
+
+## Landed: the departure is a sine levered at the faces' reach, and the sliver is gone (EMBED, lane `embed/remeter`, 2026-11-22)
+
+Main at `0cae9969f`. Default ε unless a row says otherwise.
+
+**What the code reads now.**
+- `sign_on` decides how a face leaves a separator as
+  `Margin::levered(sine, arm)` at `SELF_INTERSECTION_DEPARTURE`: the
+  sine is `∇ψ·Φ_a / (|∇ψ|·|Φ_a|)` over the presentation rectangle, the
+  arm `arm_of`'s. The rectangle's own span is out of the margin.
+- `arm_of` reads the arm off the pair: near shared edges, each one's
+  reach by `wedge_reach::reach_over`, the recipe `edge_wedge_reach`
+  hands check 4, at the engine's lifted scalar (the least of them);
+  near shared vertices alone, the two faces' reach from each
+  (`reach_from_vertex`, new). A null edge gives no arm, and no arm
+  decides nothing.
+- At a pole or an apex (`Zero::Corner` with one side collapsed, read by
+  key through `Along::collapsed`) the sine is read by its limit,
+  `n·Φ_xy / (|n|·|Φ_xy|)`. Two regular sides answer nothing.
+- The three sliver sites, `SELF_INTERSECTION_SLIVER`, its entry in the
+  module's ε concessions and its audit row are gone. A strip beside a
+  shared line is presented however thin, and `Vacuous` is returned
+  only where a cell lies off the face.
+
+**The arm is the reach alone**, not check 4's fold with the faces'
+curvature arms: with the fold a cone that owns its apex refuses
+(`the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms`).
+The two readings are one lever source and one number at first order
+from two call sites, not yet one reading
+(`work/restfront/check-4-reads-an-edges-wedge-at-stations-where-the-embedding-question-reads-the-same-margin-over-the-whole-edge.md`).
+
+**Measured, before and after.**
+
+| what | main | this unit |
+|---|---|---|
+| the suite file, the `injective::` unit set, the cavity rows and `clearance` at default ε, 1e-6 and 1e-12 | 249 of 249 at each | 255 of 255 at each (six rows added) |
+| tour walk, 85 stops (main's own at `0cae9969f`) | 78 hold, 4 refused, 3 cross | the same verdict at every stop |
+| tour, leaves discharged | 499,153 | 499,036: `bracket` 1,389 to 1,379, `tiltedcut_above` 1,826 to 1,773, `cutaway_above` 2,996 to 2,967, `cutaway_below` 6,815 to 6,790 |
+| the filleted drum's `Interval` half | holds (567 pairs, 16 sliver decisions) | refuses `Uncertified`, the top plane against the band across their circle, arm `Departure`; pinned so, red the day it holds |
+
+- The four refusals on main's walk are `diepips`, `diecomposed`,
+  `diechamfer` and `lily_lantern`; this row's first measurement read 82
+  holding on the main of 2026-11-17. They refuse alike before and after.
+- `chute` holds with no sliver, 1,794 leaves for 1,794; the stepped
+  ring holds at both scalars, 386 leaves for 386, as built, turned 0.7
+  about `(1, 2, 3)` and placed a hundred units off.
+- **Why the pairs barely move where the proxy saw a tenth fewer.** Over
+  the suite file's 91,315 departure reads (traced on the prototype,
+  `embed/remeter-measure` at `d1ed935d9`): 14,785 decide as before; 484
+  decide now that the rectangle's span left in the band; **5,472 have a
+  rate signed only at rounding size** (a lower bound near 1e-17), which
+  an exact sign passes and the band refuses; the rest straddle zero.
+- On the stepped ring 58 of 198 reads are on rectangles 0 to 1.3e-15 m
+  across. All 58 decide, each by the cap's carrier with the annulus's
+  thin rectangle read: sine 1, arm 2.50 to 2.66 m.
+
+**The census tests of this cause, through the at-rest gate.** On
+`embed/remeter-measure` (the gate harness, which now holds main, with
+`embed/remeter` merged in), every census test that refused
+`Uncertified/Departure/Edge` between plane and plane or plane and
+cylinder in topo, sweep and editor-core: 280 names, 275 of which exist
+today.
+
+| | pass with the gate asking | the rest |
+|---|---:|---|
+| before | 0 of 275 | all 275 refuse `Uncertified`, a shared edge, arm `Departure` |
+| after | 23 of 275 | 241 refuse `Uncertified`, a shared edge, arm `Departure`; 5 `Budget` (4 depth, 1 pairs); 6 read a verified crossing |
+
+- **The six bodies of the section above** ("six valid bodies refused on
+  a plane rectangle ~1e-16 wide"): the four where the plane's rate
+  times the strip's own width was the only failing reading now pass
+  (`blend4_r1_probes::p1…`, `blend_operand_gate::…`,
+  `review_blend4_r2_probes::r2…`, `review_m6_5_pr2_probes::p3…`). The
+  two where the cylinder's rate straddles zero as well still refuse at
+  the same exit (`band_open_mixed_chain_shapes::arcs_of_a_half_turn_or_more_build`,
+  `…::a_hole_over_a_wide_arcs_band_refuses_and_one_clear_of_it_builds`),
+  as that section said a wider plane reading alone would leave them.
+- Of the 23, 18 are plane against plane and 5 plane against cylinder.
+- **The 6 crossings are later asks.** In each of those tests the ask
+  that refused before now holds, the test goes on, and a body it builds
+  afterwards reads a crossing the verifier confirmed (3 of the 6 with
+  contact records held at that door, 3 with none).
+- **Of the 5 budget refusals, 4 are later asks** (out of depth). **One
+  is the same ask refusing differently**:
+  `band_closed_mixed_chain::a_rounded_plate_filleted_all_round_removes_pappuss_volume_at_interval`
+  (`Interval`, 26 faces, at the blend's door) refused `Uncertified` at
+  a plane and a cylinder across their edge, and now runs out of its
+  65,536 pairs.
+- **The thin-face families still refuse where they did**
+  (`a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`):
+  their faces are not presented, so no margin is read. The slab 20 ε
+  thick (`m10_3_r1_probes_interval::a_one_leaf_budget_still_covers_the_box_exactly`)
+  refuses faces 3 and 4 across edge 6 as before, both faces
+  `Unpresented::Local` in every ask of the pair. Its end edge's reach
+  is the two side faces' run from it, about a metre, not the slab's
+  20 ε, so once that edge is presented its right angle is levered at
+  about a metre.
+- The five other margins levered at a cell are counted over the tour,
+  the suites and these tests in
+  `five-more-injectivity-margins-are-levered-at-a-cell-of-the-sweep`.
+
+
+## Plane reflex corners whose partner is a sliver at the vertex (EMBED lane `embed/iso-end`, 2026-11-22)
+
+Plane/plane departure census, 212 tests (vertex and edge buckets, ≤30 s each) on main `a29fd3695`, with the trace prints on `embed/iso-end-measure`. In these 13 the refusing pair holds a reflex corner (both leans < 0) on one face, and the partner is presented at the vertex as a rectangle whose span across its zero side is 2e-16 to 3e-14. The carrier arm's departure there is read at the band (`across` about 1e-16) and decides nothing (`departs=None`).
+
+- `editor-core::all emit_union_borders::a_bar_that_divides_no_tied_face_leaves_the_tie`
+- `editor-core::all emit_union_borders::a_staircase_cites_every_wall_along_its_side`
+- `editor-core::all emit_union_member_order::a_seam_passed_through_a_split_and_cut_later_is_named`
+- `editor-core::all remap_reorders_ids::a_second_cut_of_a_union_seams_pieces_follows_it_too`
+- `editor-core::all resolve_group_membership::a_unions_seam_of_a_tied_parent_counts_its_pieces`
+- `pncad::all the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel`
+- `sweep::all band_mixed_corner_odd_plus_one::the_bracket_chamfers_with_the_odd_edge_and_one_other_at_every_mixed_corner`
+- `sweep::all band_subdivided_side_walls::revolved_continuation_builds_one_wall_per_run_and_unions_as_built`
+- `sweep::all join1_delta_probes::the_seam_body_is_an_operand`
+- `sweep::all join1_r1_rows::a_hexagon_unions_a_box_on_its_corner_edge_soundly`
+- `topo::all vertex_on_edge_records::a_split_at_the_crossing_records_its_vertex_on_the_other_edge`
+- `topo::all vertex_on_edge_records::a_split_at_the_other_edges_end_records_a_vertex_vertex_pair`
+- `viewer::all blend_authoring::an_upstream_edit_that_strands_held_edges_drops_them_and_says_so`

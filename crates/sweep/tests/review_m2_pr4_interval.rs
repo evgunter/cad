@@ -105,7 +105,7 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     let counts = euler_counts(&t.body);
     assert_eq!((counts.v, counts.e, counts.f, counts.r), (20, 30, 12, 2));
-    assert_eq!(counts.genus(), Ok(1));
+    assert_eq!(counts.h(), Ok(1));
     // Both caps carry the ring.
     assert_eq!(t.body.get_face(t.top).unwrap().rings.len(), 1);
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
@@ -145,7 +145,7 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     // Genus 1: the ring path ran end to end at the interval scalar.
     let counts = euler_counts(&t.body);
     assert_eq!((counts.v, counts.e, counts.f, counts.r), (16, 24, 10, 2));
-    assert_eq!(counts.genus(), Ok(1));
+    assert_eq!(counts.h(), Ok(1));
 }
 
 /// FIXED (was `interval_rotated_placement_refuses_honestly_pre_b1_fix`):

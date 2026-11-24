@@ -37,8 +37,14 @@ fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<Row> {
                 .unwrap_or_else(|| panic!("{h:?}: the mint stores the wall's row"))
                 .pcurve()
             {
-                Pcurve::IsoLine { p0, pl, .. } => ("column", (p0.x, p0.y), (pl.x, pl.y)),
-                Pcurve::IsoArc { p0, pd, .. } => ("rim", (p0.x, p0.y), (pd.x, pd.y)),
+                image @ Pcurve::IsoLine { .. } => {
+                    let (p0, pl) = image.iso_line_form().expect("an IsoLine has a line form");
+                    ("column", (p0.x, p0.y), (pl.x, pl.y))
+                }
+                image @ Pcurve::IsoArc { .. } => {
+                    let (p0, pd) = image.iso_arc_segment().expect("an IsoArc has a segment");
+                    ("rim", (p0.x, p0.y), (pd.x, pd.y))
+                }
                 other => panic!("{h:?}: the wall's rows are exact iso images: {other:?}"),
             }
         })
@@ -149,7 +155,7 @@ fn seams(body: &Body<f64>, wall: FaceKey) -> Vec<HalfEdgeKey> {
         .filter(|&h| {
             matches!(
                 native.pcurve(h).map(|c| c.pcurve().clone()),
-                Some(Pcurve::IsoLine { pl, .. }) if pl.x == 0.0
+                Some(Pcurve::IsoLine { line, .. }) if line.axis == geom_brep::ChartAxis::U
             )
         })
         .collect()
@@ -195,15 +201,19 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
     let inset = in_band() / (2.0 * (half + in_band()));
     for h in seams {
         let image = derived(&wider, h).unwrap();
-        let Pcurve::IsoLine { p0, pl, .. } = image else {
+        let Pcurve::IsoLine { line, .. } = image else {
             panic!("{h:?}: a straight seam takes an iso line: {image:?}")
         };
-        assert_eq!(pl.x, 0.0, "{h:?}: a column holds u: {pl:?}");
-        let off = p0.x.min(1.0 - p0.x);
+        assert_eq!(
+            line.axis,
+            geom_brep::ChartAxis::U,
+            "{h:?}: a column holds u: {line:?}"
+        );
+        let off = line.value.min(1.0 - line.value);
         assert!(
             (off - inset).abs() < 1e-12,
             "{h:?}: the column the foot names, {inset:e} inside the boundary: {}",
-            p0.x
+            line.value
         );
     }
 }
@@ -235,9 +245,9 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
     spec.description = EdgeDescriptionSpec::Chart {
         surface: wall_key,
         image: Some(Pcurve::IsoLine {
-            p0: Point2::new(-slope * t0, 0.0),
-            pl: geom_core::Vec2::new(slope, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: -slope * t0,
+            rate: slope,
         }),
         wrap: false,
         declared: None,
@@ -245,7 +255,10 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
     let before = format!("{body:?}");
     let refused = body.set_edge_curve(edge, spec, tol());
     assert!(
-        matches!(refused, Err(topo::EulerOpError::Certification { .. })),
+        matches!(
+            refused,
+            Err(topo::EulerOpError::DescriptionUncertified { .. })
+        ),
         "a circle is no iso line of a rational chart: {refused:?}"
     );
     assert_eq!(format!("{body:?}"), before, "the body is untouched");
@@ -285,7 +298,7 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
     .into_body();
     let seam = body
         .pcurves()
-        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x.lo() == 0.0))
+        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { line, .. } if line.axis == geom_brep::ChartAxis::U))
         .map(|(h, _)| body.get_half_edge(h).unwrap().edge)
         .expect("the prism has a seam on a column");
     let (t0, t1) = body
@@ -305,12 +318,14 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
         let mut fresh = body.clone();
         fresh.detach_pcurve(h);
         let got = topo::pcurve_of(&fresh, h, band);
-        let Ok(Pcurve::IsoLine { p0, pl, .. }) = got else {
+        let Ok(Pcurve::IsoLine { line, rate, .. }) = got else {
             panic!("{h:?}: a sub-seam takes its column: {got:?}")
         };
         assert!(
-            pl.x.lo() == 0.0 && pl.y.lo() != 0.0 && [0.0, 1.0].contains(&p0.x.lo()),
-            "{h:?}: on a boundary column, v moving: {p0:?} {pl:?}"
+            line.axis == geom_brep::ChartAxis::U
+                && rate.lo() != 0.0
+                && [0.0, 1.0].contains(&line.value.lo()),
+            "{h:?}: on a boundary column, v moving: {line:?} at rate {rate:?}"
         );
     }
 }
@@ -327,7 +342,7 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
     let mut body = semicircle_prism::<f64>();
     let seam = body
         .pcurves()
-        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x == 0.0))
+        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { line, .. } if line.axis == geom_brep::ChartAxis::U))
         .map(|(h, _)| body.get_half_edge(h).unwrap().edge)
         .expect("the prism has a seam on a column");
     let params = |b: &Body<f64>, e| {
@@ -348,12 +363,12 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
         let face = body.face_of_half_edge(h).unwrap();
         let chart = body.face_surface(face).unwrap().clone();
         let image = derived(&body, h).unwrap();
-        let Pcurve::IsoLine { p0, pl, .. } = image else {
+        let Pcurve::IsoLine { line, at0, rate } = image else {
             panic!("{h:?}: a sub-seam takes an iso line: {image:?}")
         };
         assert_eq!(
-            (pl.x, pl.y, p0.y),
-            (0.0, 1.0, 0.0),
+            (line.axis, rate, at0),
+            (geom_brep::ChartAxis::U, 1.0, 0.0),
             "{h:?}: the stated map v = t, not the closed form through the same probe point"
         );
         let curve = body
@@ -410,12 +425,12 @@ fn an_in_band_stated_column_gives_way_to_a_closed_form_that_holds() {
     let (shifted, flat) = flat_wall_shifted_in_v(&body);
     for h in seams(&body, flat) {
         let got = derived(&shifted, h);
-        let Ok(Pcurve::IsoLine { p0, pl, .. }) = got else {
+        let Ok(Pcurve::IsoLine { line, at0, rate }) = got else {
             panic!("{h:?}: the closed-form column holds: {got:?}")
         };
         assert!(
-            pl.x == 0.0 && (pl.y - 1.0).abs() < 1e-12 && p0.y == in_band(),
-            "{h:?}: the chart's own column, v from δ: {p0:?} {pl:?}"
+            line.axis == geom_brep::ChartAxis::U && (rate - 1.0).abs() < 1e-12 && at0 == in_band(),
+            "{h:?}: the chart's own column, v from δ: {line:?} from {at0:?} at rate {rate:?}"
         );
     }
 }

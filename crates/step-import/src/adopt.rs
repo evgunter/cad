@@ -531,6 +531,10 @@ fn must_carry_rung(
 /// has no arc rims to mint (its profile was a polyline). Arc rims on
 /// a rational wall are held on the wall's boundary by the build's
 /// `step_rim_on_wall` check before this description is stated.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mapped_self_description(
     carrier: &Curve3<f64>,
     p_start: Point3<f64>,
@@ -540,8 +544,8 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| {
+        Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => line_frame(*origin, dir.get())
+            .map(|place| {
                 MappedCurve::whole(MappedSource::PlacedSegment {
                     segment: geom_brep::SketchSegment::Line {
                         a: Point2::new(t0, 0.0),
@@ -549,15 +553,15 @@ fn mapped_self_description(
                     },
                     place,
                 })
-            })
-        }
+            }),
         Curve3::Line(_) => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle(geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        Curve3::Circle(circle @ geom::Circle { .. }) => {
+            let frame = circle.frame();
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(0.0, 0.0),
                 place: Affine3::translation(p_start - Point3::origin()),
@@ -668,10 +672,7 @@ mod tests {
             radius: 1.0,
         };
         let floor = plane(geom_core::Vec3::new(0.0, 1.0, 0.0));
-        let carrier = Curve3::line(
-            Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-        );
+        let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let rung = |a: &Surface<f64>, b: &Surface<f64>, sagitta: f64| {
             let reach = geom_brep::points_lever_from(
                 Point3::new(0.0, 0.0, 0.5),

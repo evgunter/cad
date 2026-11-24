@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
+blocked_on: [a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
 ---
 
 
@@ -123,3 +123,12 @@ read).
 (`Real::Expression`; the line mint's two branches are two makers), and
 signed-radius (which adds the door). Dual tier when it is dispatched:
 a witness type every profile and sweep reader holds.
+
+**From PR 7384's second review (2026-11-23), three more places this
+unit takes:** `swept::Traversed::half_turn(…, radial: Vec2<T>)` takes a
+bare vector for a unit claim (new in that PR); every field of
+`ValidatedSegment` and `SegmentKind` is public, so another crate can
+write a free-standing segment whose director has length 5 (it cannot
+enter a `ValidatedLoop`); and `SegmentKind::map` accepts any closure,
+so nothing in its signature keeps a mapped director a unit or the map
+upward.

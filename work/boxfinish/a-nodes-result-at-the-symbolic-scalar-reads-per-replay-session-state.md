@@ -2,12 +2,13 @@
 id: a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state
 kind: unit
 title: A node's result at the symbolic scalar reads per-replay session state: the expression table, the registry and the retry cap belong to a replay, not to a node or the drive
-status: dispatched
+status: review
 opened: 2026-11-22
 priority: P1
 cost: H
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
 branch: boxfinish/session-state
+pr: 7492
 ---
 
 
@@ -22,8 +23,15 @@ to a node's inputs, and the retry ladder's per-replay cap
 
 Measured (M9): 23.0 s of the tour's 177.6 s of leaf time is the
 session's per-replay teardown (publishing the leaf's forms to the
-drive's memo, the `frozen` column, dropping the tables), which a
-drive-scoped table pays once. Untested by any measurement: a drive in
+drive's memo, the `frozen` column, dropping the tables). **A
+drive-scoped table does not pay it once**, as this row first said:
+measured by the unit, the teardown is the leaf's early memo, which
+stays per leaf, and moving the table, the plain forms and the atom
+records to the drive changed neither the wall time nor the teardown
+(the section below, and
+`a-leaf-rebuilds-and-drops-its-early-forms-though-most-read-no-bracket`).
+The unit makes a node's answer its own; it does not make the drive
+faster. Untested by any measurement: a drive in
 which the retry ladder runs or an identity is registered.
 
 **Sequenced after the decide path's unit** (SYM's row, in flight on
@@ -44,6 +52,17 @@ unit moves what is left. The lane merges `boxfinish/node-key` when
 that PR opens (it gives a value with no expression a name scoped to
 its minting node, the scope this unit extends), and reports a census
 of the session's state and its plan before it builds.
+
+**The split rule rests on this unit** (split-reads lane, 2026-11-22).
+`drive::bisect` splits only what the deciding node reads
+(`Doc::free_reads`), and a deciding node that reads nothing of the box
+refuses `ReadsNoVariable`: "no split changes it". That is exact when a
+node's result is a function of its inputs. While a node can read
+per-replay session state (the retry ladder's per-replay cap, the
+registry), an earlier node that reads another variable can move that
+state, and a split of that variable could change what the deciding node
+says. Not observed: no retry runs in the drives measured, and the
+corpus differential compares content keys, which do not see the session.
 
 **Evidence from the node-key unit** (its sweep and its audit of what a
 node reads against what its key hashes; by reading unless said):

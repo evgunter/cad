@@ -69,7 +69,7 @@ impl DeleteAffordance {
         report: &[Maintenance],
     ) -> Self {
         let stranded = stranded_names(report);
-        let mut label = format!("Delete {}", doc.spoken(node));
+        let mut label = format!("Delete {}", crate::tree::spelled(&doc.spoken(node)));
         let mut hover = Vec::new();
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.

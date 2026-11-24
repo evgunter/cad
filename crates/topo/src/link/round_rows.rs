@@ -420,14 +420,13 @@ fn a_cell_against_a_round_face_reads_by_its_carrier_about_any_axis() {
 fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across() {
     let c = |x: f64| Dual::constant(x);
     let cp = |q: Point3<f64>| Point3::new(c(q.x), c(q.y), c(q.z));
-    let cv = |q: Vec3<f64>| Vec3::new(c(q.x), c(q.y), c(q.z));
     let o = Point3::new(0.4, -0.3, 1.1);
     let a = Vec3::new(0.3, -0.5, 0.8).normalize();
     let across = Vec3::new(0.8, 0.0, -0.3).normalize();
     let pin = Round::cylinder(
         geom::Line {
             origin: cp(o),
-            dir: cv(a),
+            dir: geom_core::UnitVec3::checked(a).map_scalar(c),
         },
         Dual::variable(1.0),
         true,
@@ -460,7 +459,7 @@ fn the_dual_lane_at_the_axis_reads_the_radius_and_refuses_a_point_moved_across()
     let fixed = Round::cylinder(
         geom::Line {
             origin: cp(o),
-            dir: cv(a),
+            dir: geom_core::UnitVec3::checked(a).map_scalar(c),
         },
         c(1.0),
         true,
@@ -515,7 +514,7 @@ fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
     let bore = Round::cylinder(
         geom::Line {
             origin: Point3::origin(),
-            dir: v(0.0, 0.0, 1.0),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         1.0,
         false,

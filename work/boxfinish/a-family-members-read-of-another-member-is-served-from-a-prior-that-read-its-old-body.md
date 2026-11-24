@@ -2,11 +2,13 @@
 id: a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body
 kind: unit
 title: A family member's read of another member is served from a prior that read its old body: a stale result on the editor's incremental path, at every scalar
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: M
 branch: boxfinish/member-read-key
+pr: 7512
+closed: 2026-11-24
 ---
 
 
@@ -50,3 +52,27 @@ node results per drive rests on this key.
 
 **Letter M; single FULL review** (a demonstrated wrong answer with its
 red row in hand; the claims are what else the key leaves out).
+
+## Closed
+
+PR 7512 (2026-11-24). A node's content and naming keys are derived from
+one list of its reads, each as the read sees it
+(`eval::wire::seen_reads`, a `SeenRead` per read: the results' entry for
+a plain read, the family whole, or the member an index picks, with the
+picked member's place). So a member's read of another member keys on
+that member, and an evaluation over a prior recomputes it when that
+member moved; twenty read rows are red on main without it. A clearance's
+verdict that cites a point is served from a prior only where the
+rebuild's point is this run's (`ClearanceVerdict::point`), and a holding
+verdict is served across boxes. A prior run under another twist, sweep
+or symbol setting is refused at the door (`PriorRefusal::Options`); the
+tessellation memo compares the computing frame too. The format version
+is 25.
+
+What it left, each with its own row:
+`a-nodes-op-and-its-keys-walk-its-reads-separately` (the op still
+resolves its reads at its own call sites, held equal to the list by
+rows); `a-clearances-rebuild-is-fixed-by-its-point-only-while-expressions-agree`
+(by reading: an edited expression of the same enclosure and nominal
+rebuilds other bodies under the same keys); on FORMWORDS,
+`a-one-body-node-reading-two-members-of-one-family-reaches-an-unreachable`.

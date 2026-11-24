@@ -99,10 +99,12 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 ///
 /// A 2×2×2 square prism turned 30° about its axis, dimpled at its top
 /// centre by a radius-0.3 sphere: the ring (radius √0.08 = 0.2828) sits
-/// 0.7172 from each top edge, and its closest points lie 15° off the
-/// screen's 45° sample lattice, so the screen reads the gap as
-/// `1 − 0.2828·cos 15° = 0.7268`. Setbacks between the two are passed
-/// by the screen and refused by the exact ring check.
+/// 0.7172 from each top edge, and its closest points lie off the
+/// screen's sample lattice, so the screen's sampled pairs read the gap
+/// wider (it passes 0.73 and refuses from 0.732 on the ring as the
+/// boolean leaves it, one closed edge starting at the top face's
+/// `u_ref`). Setbacks between the two are passed by the screen and
+/// refused by the exact ring check.
 ///
 /// Red when the screen stops overestimating a sampled gap, or the
 /// surgery stops checking rings exactly. Its lattice-ALIGNED twin, on
@@ -160,7 +162,7 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     builds(&dimpled, &edges, 0.715, "the reduced blend size");
     // And past the sampled gap the screen answers, as the PR's row pins
     // on its axis-aligned fixture.
-    let screened = refusal(&dimpled, &edges, 0.73, "a setback past the sampled gap");
+    let screened = refusal(&dimpled, &edges, 0.74, "a setback past the sampled gap");
     assert!(
         matches!(screened, BlendError::FaceClearanceUncertified { .. }),
         "the screen answers once the sampled gap is exceeded too, got {screened:?}"
@@ -370,8 +372,8 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
         .filter(|k| {
             let e = body.get_edge(*k).unwrap();
             let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame, .. })
-                if (frame.origin().z - 1.0).abs() < 1e-9)
+            matches!(*g.carrier(), geom::Curve3::Circle(the_circle @ geom::Circle { .. })
+                if (the_circle.frame().origin().z - 1.0).abs() < 1e-9)
         })
         .collect();
     assert!(!rim.is_empty(), "the hole's top rim");

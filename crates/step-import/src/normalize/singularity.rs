@@ -41,7 +41,7 @@ use geom::{ChartInverse, Curve3, Surface};
 use geom_brep::chart_singularity::{self as home, Lies, Unread};
 use geom_brep::curve_pair::{self, Span, SpanEnd};
 use geom_brep::props::LoopEdge;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, UnitVec3, Vec3};
 
 use super::surgery::{
     self, At, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
@@ -62,7 +62,7 @@ enum Chart {
         frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         u_ref: Vec3<f64>,
     },
     /// A cone: the apex.
@@ -70,7 +70,7 @@ enum Chart {
         /// The stored frame, carried back by [`Chart::surface`].
         frame: geom::Frame<f64>,
         apex: Point3<f64>,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         half_angle: f64,
         u_ref: Vec3<f64>,
     },
@@ -80,7 +80,7 @@ impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
             Surface::Sphere { frame, radius } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Sphere {
                     frame,
                     center,
@@ -90,7 +90,7 @@ impl Chart {
                 })
             }
             Surface::Cone { frame, half_angle } => {
-                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Cone {
                     frame,
                     apex,
@@ -103,7 +103,7 @@ impl Chart {
         }
     }
 
-    fn axis(self) -> Vec3<f64> {
+    fn axis_unit(self) -> UnitVec3<f64> {
         match self {
             Self::Sphere { axis, .. } | Self::Cone { axis, .. } => axis,
         }
@@ -138,9 +138,7 @@ impl Chart {
     /// ([`geom_brep::chart_singularity::singular_points`]), in its order,
     /// with signed zeros normalized as every point this pass mints is.
     fn singular(self) -> Vec<Point3<f64>> {
-        ChartInverse::of(&self.surface())
-            .map(|chart| home::singular_points(&chart))
-            .unwrap_or_default()
+        home::singular_points(&self.surface())
             .into_iter()
             .map(|(_, p)| crate::signed_zero::plus_zero_point(p))
             .collect()
@@ -222,7 +220,7 @@ impl Read {
 
     /// Whether the distance `d` reads Zero at the pass's band under the
     /// decision `name`.
-    fn on(&self, name: &'static str, d: f64) -> bool {
+    fn on_as(&self, name: &'static str, d: f64) -> bool {
         self.file.read(name, d) == crate::interpret::Read::Zero
     }
 
@@ -267,7 +265,7 @@ impl Read {
                 file: self.coincidence(),
             },
             Unread::Carrier { .. } => foreign_carrier(id),
-            Unread::Loop { .. } => unreadable(id),
+            Unread::Loop { .. } | Unread::SplineSide => unreadable(id),
         }
     }
 }
@@ -468,11 +466,7 @@ fn holds(
 ) -> Result<bool, StepImportError> {
     let face = &solid.faces[fi];
     let surface = chart.surface();
-    let Some(&(singularity, _)) = ChartInverse::of(&surface)
-        .map(|c| home::singular_points(&c))
-        .unwrap_or_default()
-        .get(k)
-    else {
+    let Some(&(singularity, _)) = home::singular_points(&surface).get(k) else {
         return Err(unreadable(face.id));
     };
     let images = image_edges(solid, fi);
@@ -488,7 +482,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let Ok(inverse) = ChartInverse::of(&chart.surface()) else {
         return Err(unreadable(face_id));
     };
-    let points = home::singular_points(&inverse);
+    let points = home::singular_points(&chart.surface());
     let images = image_edges(solid, fi);
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.band()).ok_or(unreadable(face_id))?;
@@ -813,7 +807,10 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center,
+                radius,
+                axis.get(),
+                d,
             )),
             from: if k == 0 { 0.0 } else { core::f64::consts::PI },
             sign: if k == 0 { 1.0 } else { -1.0 },
@@ -825,13 +822,11 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             half_angle,
             ..
         } => Ray {
+            // The azimuth is squared about the axis, so the generator
+            // swings in one frame's plane ([`geom::pole_form::cone_generator`]).
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
+                geom_core::RigidMotion::squared_about(apex, axis, d),
                 half_angle,
-                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -937,7 +932,7 @@ fn interior(
         .filter(|&(j, _)| j != k)
         .map(|(_, s)| *s)
         .collect();
-    let (axis, origin) = (chart.axis(), chart.origin());
+    let (axis, origin) = (chart.axis_unit(), chart.origin());
     // The azimuth: the surface's own u_ref, unless the face holds the
     // other pole too. Then its loop bounds a pole-free hole, and the
     // azimuth is that of the loop's centroid, which the hole surrounds:
@@ -1014,7 +1009,7 @@ fn strut_tip(
     let x = solid.vertices[&vertex];
     let Some(k) = singular
         .iter()
-        .position(|s| read.on(STEP_SINGULARITY_POINT, (*s - x).norm()))
+        .position(|s| read.on_as(STEP_SINGULARITY_POINT, (*s - x).norm()))
     else {
         unreachable!("the scan finds a strut tip at a singular point")
     };
@@ -1034,10 +1029,9 @@ fn strut_tip(
         &spec.carrier,
         geom::Line {
             origin: chart.origin(),
-            dir: chart.axis(),
+            dir: chart.axis_unit(),
         },
-        crate::signed_zero::plus_zero_point,
-        crate::signed_zero::plus_zero,
+        crate::signed_zero::fold_signed_zero,
     ) else {
         return Err(foreign_carrier(face_id));
     };
@@ -1627,8 +1621,8 @@ mod meetings_are_the_kernels {
         let Curve3::Line(generator) = ray.carrier else {
             unreachable!("a cone's ray is its generator line")
         };
-        let g = generator.dir * beta.cos() + y * beta.sin();
-        let graze = Curve3::line(crossing - g * 0.5, g);
+        let g = generator.dir.get() * beta.cos() + y * beta.sin();
+        let graze = Curve3::line(crossing - g * 0.5, geom::stated_direction(g));
         let (s, h) = half_angle.sin_cos();
         let (rim, rim_vertex) = closed(
             12,
@@ -1758,9 +1752,11 @@ mod meetings_are_the_kernels {
         let seam_carrier = geom::pole_form::sphere_meridian(origin, 1.0, z, x);
         let Some(twin) = geom::pole_form::half_turn_curve(
             &seam_carrier,
-            geom::Line { origin, dir: z },
-            crate::signed_zero::plus_zero_point,
-            crate::signed_zero::plus_zero,
+            geom::Line {
+                origin,
+                dir: geom::stated_direction(z),
+            },
+            crate::signed_zero::fold_signed_zero,
         ) else {
             unreachable!("a meridian circle has a half-turn twin")
         };
@@ -1831,7 +1827,8 @@ mod meetings_are_the_kernels {
         };
         let [ray, _] = meridian_rays(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(2.0);
-        let line = Curve3::line(crossing - y * 1e-3, y * 2e-3);
+        // The 2 mm chord across the crossing, its span in metres.
+        let line = Curve3::line(crossing - y * 1e-3, geom_core::UnitVec3::squared(y));
         let solid = face(
             cone,
             vec![(
@@ -1841,18 +1838,21 @@ mod meetings_are_the_kernels {
                     end: 2,
                     carrier: line.clone(),
                     t0: 0.0,
-                    t1: 1.0,
+                    t1: 2e-3 * y.norm(),
                     reversed: false,
                     curve: None,
                 },
             )],
-            vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
+            vec![(1, line.eval(0.0)), (2, line.eval(2e-3 * y.norm()))],
         );
         let got = first_hit(&solid, 0, &ray, None, &[], &read_at(1e-9));
         let Ok((Hit::Edge { edge: 11, t }, _)) = got else {
             panic!("the line at slant 2: {}", shown(&got))
         };
-        assert!((t - 0.5).abs() < 1e-9, "met at the line's middle: t {t}");
+        assert!(
+            (t - 1e-3 * y.norm()).abs() < 1e-9,
+            "met at the line's middle: t {t}"
+        );
     }
 
     /// **A singular point in the band of its ray refuses**, the band's

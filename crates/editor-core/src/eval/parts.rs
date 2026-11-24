@@ -73,6 +73,8 @@
 //! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
 //! named as a loop.
 
+use crate::say;
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -140,6 +142,10 @@ pub(crate) struct PartValue<T: topo::AtRestPolicy + Decide> {
     /// a dual descent binds the same part's run to, read off the
     /// record's row (DUAL-DESIGN DL3, [`Refusals`]).
     pub refused: Arc<Refusals>,
+    /// What the part's run left in the symbolic session
+    /// ([`geom_core::sym::NodeRecord`]): an instance node that reads
+    /// this row receives its identities.
+    pub sym: Arc<geom_core::sym::NodeRecord>,
 }
 
 /// **A part's evaluation, as a build of record**: the nodes it refused
@@ -218,6 +224,7 @@ impl<T: topo::AtRestPolicy + Decide> PartValue<T> {
 impl<T: topo::AtRestPolicy + Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
+            sym: Arc::clone(&self.sym),
             body: self.body.clone(),
             names: Arc::clone(&self.names),
             carry: self.carry.clone(),
@@ -249,8 +256,9 @@ pub enum PartFault {
     Unresolved {
         /// Which seam rule failed.
         fault: ResolveFault,
-        /// The resolver's diagnosis.
-        message: String,
+        /// The resolver's diagnosis, each node it names mentioned in the
+        /// part's document.
+        message: crate::Sentence,
     },
     /// The referenced document evaluated, but a node its PRODUCT reads
     /// failed — the ordinary "my part is broken, why?" path.
@@ -414,7 +422,7 @@ impl PartFault {
     /// The sentence, each of the part's nodes said by `by`: the fault's
     /// [`speaker`](Self::speaker), or the part itself while
     /// [`product_fault`] records them.
-    fn say_by(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say_by(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             // Raised only at an API door, each of which takes a
             // resolver; the viewer always carries one of its own.
@@ -428,50 +436,49 @@ impl PartFault {
             // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
-                    write!(f, "the reference's pin does not hold: {message}")
+                    say!(f, "the reference's pin does not hold: ", message)
                 }
-                ResolveFault::EpsilonSeam => write!(
+                ResolveFault::EpsilonSeam => say!(
                     f,
-                    "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}. {}",
-                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
+                    "the referenced document's recorded tolerance disagrees with this process's: ",
+                    message,
+                    format_args!(". {}", Recourse(crate::part::EPSILON_SEAM_RECOURSE))
                 ),
-                ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
+                ResolveFault::Unresolved => say!(f, "the reference did not resolve: ", message),
             },
-            Self::PartProductFailed { node, .. } => {
-                let node = by.node(*node);
-                write!(
-                    f,
-                    "the part's {node} failed, so the part has no body. {}",
-                    InThePart(format_args!("repair {node}")),
-                )
-            }
-            Self::PartProductPoisoned { node, through, .. } => {
-                let through = by.node(*through);
-                write!(
-                    f,
-                    "the part's {through} failed and poisoned {}, which its product reads, so \
-                     the part has no body. {}",
+            Self::PartProductFailed { node, .. } => say!(
+                f,
+                "the part's ",
+                by.node(*node),
+                " failed, so the part has no body. ",
+                InThePart(sentence!("repair ", by.node(*node)))
+            ),
+            Self::PartProductPoisoned { node, through, .. } => say!(
+                f,
+                "the part's ",
+                by.node(*through),
+                " failed and poisoned ",
+                by.node(*node),
+                ", which its product reads, so the part has no body. ",
+                InThePart(sentence!("repair ", by.node(*through)))
+            ),
+            Self::PartProductFailureUnrecorded { node, .. } => say!(
+                f,
+                "the part's product names its ",
+                by.node(*node),
+                " as failed and the part's evaluation holds no failure there; the two \
+                 disagree, so this is a kernel bug. ",
+                InThePart(sentence!(
+                    "see ",
                     by.node(*node),
-                    InThePart(format_args!("repair {through}")),
-                )
-            }
-            Self::PartProductFailureUnrecorded { node, .. } => {
-                let node = by.node(*node);
-                write!(
-                    f,
-                    "the part's product names its {node} as failed and the part's evaluation \
-                     holds no failure there; the two disagree, so this is a kernel bug. {}",
-                    InThePart(format_args!(
-                        "see {node} as it evaluates, then report it with the part's file"
-                    )),
-                )
-            }
+                    " as it evaluates, then report it with the part's file"
+                ))
+            ),
             Self::PartProduct { refusal, .. } => {
-                write!(
+                say!(
                     f,
-                    "the part has no product: {}",
-                    refusal.error().bare_said(by)
+                    "the part has no product: ",
+                    crate::Said(&refusal.error().bare_said(by), by)
                 )?;
                 match product_recourse(refusal.kind()) {
                     ProductRecourse::KernelDefect => {
@@ -512,10 +519,19 @@ impl PartFault {
     }
 }
 
+/// The fault, each of the part's nodes as the pinned part holds it and
+/// mentioned in the part: its ids are numbered there, so the speaker of
+/// the sentence it is written into is not asked.
+impl Say for PartFault {
+    fn say(&self, f: &mut crate::Sentence, _: Speaker<'_>) -> core::fmt::Result {
+        self.say_by(f, self.speaker())
+    }
+}
+
 /// The fault, each of the part's nodes as the pinned part holds it.
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say_by(f, self.speaker())
+        crate::spoken::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -526,14 +542,14 @@ impl core::fmt::Display for PartFault {
 struct InPart<'a>(&'a PartFault);
 
 impl Say for InPart<'_> {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         self.0.say_by(f, by)?;
         let levels =
             super::CarriedChain::from_first(self.0.carried(), super::CarriedIn::ThisDocument);
         for level in
             levels.take_while(|level| matches!(level.document, super::CarriedIn::ThisDocument))
         {
-            write!(f, "\n{}", level.refusal.line_at(level.node, by))?;
+            say!(f, "\n", level.refusal.line_at(level.node, by))?;
         }
         Ok(())
     }
@@ -543,13 +559,9 @@ impl Say for InPart<'_> {
 /// and act there.
 struct InThePart<A>(A);
 
-impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            Recourse(format_args!("open the part and {}", self.0))
-        )
+impl<A: crate::Put> crate::Put for InThePart<A> {
+    fn put(self, out: &mut crate::Sentence) {
+        crate::Put::put(Recourse(sentence!("open the part and ", self.0)), out);
     }
 }
 
@@ -592,6 +604,9 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 /// its admission admitted ([`Self::enter`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
+    /// The symbolic record of each part run this store made, in the
+    /// order run: the replay's receipt counts each once.
+    pub(crate) built: Vec<Arc<geom_core::sym::NodeRecord>>,
     resolver: Option<&'a Arc<dyn PartResolver>>,
     /// The ambient ε these rows were produced at, by bits — half the
     /// key, hoisted because it is constant within one store.
@@ -637,6 +652,7 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
     ) -> Self {
         Self {
             resolver,
+            built: Vec::new(),
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
@@ -686,6 +702,8 @@ pub(crate) struct Entry<T: topo::AtRestPolicy + Decide> {
     /// How many referenced documents the pass evaluated, at every
     /// depth.
     pub evaluations: usize,
+    /// The symbolic record of each part run made, in the order run.
+    pub built: Vec<Arc<geom_core::sym::NodeRecord>>,
 }
 
 impl<T: super::EvalScalar> PartStore<'_, T> {
@@ -898,6 +916,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 costs: self.costs,
             },
             evaluations: self.evaluations,
+            built: self.built,
         }
     }
 
@@ -973,14 +992,27 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 continue;
             }
             let reached = core::mem::take(&mut current.reached);
-            let value = self.evaluate_entered(
-                &current.doc,
-                current.doc_ref,
-                reached,
-                cancel,
-                tol,
-                current_record.as_deref(),
-            );
+            // A part's run is a scope of its own in the symbolic
+            // session, opened over no identity: what its nodes and its
+            // product decide and register is the part's, rides its
+            // row, and is counted once in the replay however many
+            // instance nodes read the row.
+            let (value, record) = geom_core::sym::apart(|| {
+                self.evaluate_entered(
+                    &current.doc,
+                    current.doc_ref,
+                    reached,
+                    cancel,
+                    tol,
+                    current_record.as_deref(),
+                )
+            });
+            let record = Arc::new(record);
+            self.built.push(Arc::clone(&record));
+            let value = value.map(|mut value| {
+                value.sym = record;
+                value
+            });
             path.pop();
             let Some((parent, parent_record)) = waiting.pop() else {
                 return value;
@@ -1164,8 +1196,9 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             reading: seam,
             carried_interference,
             carried_at_rest,
-        } = crate::checks::at_rest::whole_reading(&product, tol);
+        } = crate::checks::at_rest::whole_reading(doc, &product, tol);
         Ok(PartValue {
+            sym: Arc::default(),
             interference: Arc::new(
                 seam.interference
                     .into_iter()

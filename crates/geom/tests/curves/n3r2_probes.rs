@@ -118,10 +118,14 @@ fn n3r2_dispatcher_is_its_two_arms() {
         format!("{:?}", conic_arc_aabb(&e, t0, t1, e.eval(t0), e.eval(t1))),
         format!("{:?}", ellipse_arc_aabb(&e, t0, t1, e.eval(t0), e.eval(t1)))
     );
-    let l: Curve3<f64> = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let l: Curve3<f64> = Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let p = Point3::new(0.0, 0.0, 0.0);
     assert!(conic_arc_aabb(&l, 0.0, 1.0, p, p).is_none());
-    let n = Curve3::<f64>::nurbs_placeholder();
+    let n: Curve3<f64> =
+        geom::test_support::nurbs_segment(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     assert!(conic_arc_aabb(&n, 0.0, 1.0, p, p).is_none());
 }
 

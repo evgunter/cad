@@ -163,13 +163,16 @@ fn equal_numbers_under_two_expressions_are_one_key_at_a_number_and_two_at_a_symb
 /// of one document: in two sessions, and under no session at all. An
 /// expression's id is a hash of what it says, never of the session that
 /// built it, and the drive, the stackup's tie and a reader with no tier
-/// each replay under a session of their own kind.
+/// each replay under a session of their own kind. The document is the
+/// holed slab, whose extrude mints values with no expression: their
+/// names are the session's inside one and the thread's outside, and no
+/// key feeds one.
 ///
 /// Mutant: a word of the session fed beside the id (whether one is
 /// installed) makes the replay under no session key apart.
 #[test]
 fn every_replay_of_one_document_has_one_key_per_node() {
-    let (doc, _) = slab_by_a();
+    let doc = holed_slab();
     let opts = over_the_box(&doc);
     let replay = || {
         let ev = run::<Sym<Interval>>(&doc, None, &opts);

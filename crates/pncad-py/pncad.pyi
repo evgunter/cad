@@ -216,7 +216,8 @@ class EvaluationError(PncadError):
     (attributes never go missing).
 
     The message speaks the failed node as the document holds it: its
-    kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
+    label and its tag, `"base plate" (3fa9c1d2a0b1)`, or its kind and
+    tag when it has no label, `Extrude 3fa9c1d2a0b1`.
     It is read off the document the evaluation is OF, the one
     `evaluate` was handed. So a label set after `evaluate` shows on the
     next evaluation, not on this one's errors. `node` is the `NodeId`,
@@ -695,7 +696,7 @@ class ProductError(PncadError):
     or not at all — there are no partial products.
 
     Its message names each node as the evaluation's own document holds
-    it (kind, label and tag): the document the gather was taken of.
+    it (its label and tag, or its kind and tag with no label): the document the gather was taken of.
     `node` and `through` carry the full ids: a failed or poisoned
     operation and the failed node that poisoned it. `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
@@ -1120,7 +1121,7 @@ class McRefusal(PncadError):
     estimate (`no_samples`). Or the document does not build at its
     nominal, so there is nothing to replay
     (`nominal_does_not_build`, with `node` and `cause`). Its message
-    speaks that node as the document holds it, kind, label and tag;
+    speaks that node as the document holds it, label and tag (kind and tag with no label);
     `node` keeps the full id. Or an evaluation the run made — its
     nominal build or a sample — stopped short (`stopped`): this door
     takes no `cancel=`, so it ran out of its member budget, the budget
@@ -1135,6 +1136,44 @@ class McRefusal(PncadError):
     param: Optional[str]
     node: Optional[NodeId]
     cause: Optional[str]
+
+class RangeRefusal(PncadError):
+    """A certified range could not be searched.
+
+    `variant` is the stable tag; the rest are the arms' payloads,
+    present on every arm and `None` where that arm does not carry one.
+
+    Decided before any geometry runs: the seed does not bracket the
+    field's current value (`seed_not_a_bracket`, the offsets asked for
+    as `lo` and `hi`, in the kernel's units); the document declares no
+    such continuous parameter (`not_a_continuous_param`, `param`); it
+    has no such node (`unknown_node`, `node`), or the node carries no
+    such slot (`unknown_slot`, `node` and `slot`); the slot is a
+    count, which selects between shapes and has no interval
+    (`structural_slot`); or the slot reads a variable defined by a
+    formula, which has no interval of its own (`slot_is_defined`). A
+    `built` evaluation of another document is
+    `evaluation_of_another_document` at the kernel's door; this door
+    raises ValueError for it first.
+
+    From the nominal build: a node does not build, so there is no
+    build to prove an interval the same as (`witness_does_not_build`,
+    `node` and `cause`), or the build was stopped (`stopped`).
+
+    `derivation` (`cause`), `seed_is_not_the_analyzed_axis` (`lo`,
+    `hi` and `analyzed`), `more_than_one_axis_varies` (`varying`) and
+    `nothing_varies` are the kernel's guards on a document it derives
+    itself; reading one is a kernel defect."""
+
+    variant: str
+    lo: Optional[float]
+    hi: Optional[float]
+    analyzed: Optional[tuple[float, float]]
+    param: Optional[str]
+    node: Optional[NodeId]
+    slot: Optional[str]
+    cause: Optional[str]
+    varying: Optional[int]
 
 class AnalysisPolicyError(PncadError):
     """An `AnalysisPolicy` that cannot be honoured: `quantile_mass` is
@@ -2357,6 +2396,22 @@ class Node:
         made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
 
     @staticmethod
+    def datum(
+        target: _SpaceArg,
+        constraints: Optional[_BundleArg] = None,
+    ) -> Node:
+        """A datum: a placement whose source is nothing, placing a bare
+        frame into `target` by `constraints`, written whole as
+        `Node.place`'s are; `None` stands the frame at the space's
+        origin, by the identity bundle. Its one output is the frame
+        (`Doc.output(node)`): read a plane or an axis off it through a
+        role (`RoleRead(frame, "xy")`). A mate of its bundle reads the
+        datum's own frame on its `on` side, plainly or through its
+        `"xy"` plane, `"z"` axis or `"origin"`, so it is written once
+        the datum is (`DocEdit.set_constraints`); any other `on` refuses
+        `mate_not_the_datums_own`."""
+
+    @staticmethod
     def space() -> Node:
         """A space of its own, reading nothing: a target a placement
         places copies into beside the world's. Inserting it is
@@ -2368,9 +2423,9 @@ class Node:
         in the members' order.
 
         `members` is a sequence of reads, each on its own (an operand,
-        or one member of a family, `xs[i]`), or ONE operand reading a
-        whole family — a pattern's output — whose bodies are the
-        members in index order. Any count is a union:
+        or one member of a family, `xs[i]`), or ONE operand, written as
+        a list of it: a body, or a whole family — a pattern's output —
+        whose bodies are the members in index order. Any count is a union:
         one member is that body, none is the typed empty body, and a
         read listed twice is the same material twice (`[a, a]` is
         `a`). A family read beside single reads in one list refuses at
@@ -2384,7 +2439,7 @@ class Node:
         Members whose faces a margin decides on one surface glue there,
         and each such coincidence is recorded for the
         `unproven_coincidence` check. A refusal only a fold step raises
-        is `kind == "union_fold_step"`, naming the member it folds in.
+        is `kind == "fold_step"`, naming the member it folds in.
 
         A closed surface of one member that lies wholly on another's —
         one read at two seats, or a member carried into a union
@@ -2408,18 +2463,24 @@ class Node:
         result keeps each piece's meet as a piece."""
 
     @staticmethod
-    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
-        """The SUBTRACT: `from_` with the material of `tool` cut away.
+    def subtract(from_: _BodyArg, tool: Sequence[_BodyArg] | _BodyArg) -> Node:
+        """The SUBTRACT: `from_` with the material of every tool cut away.
 
         The one pair node — difference neither commutes nor associates
         — so its operands are named slots: `from` (spelled `from_`,
         since `from` is a Python keyword; its slot word is `from`) and
-        `tool` (slot word `cut`). Several tools are one subtract of
-        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
-        body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body. A `from_` that is an `assemble`, or a copy of one, is cut
-        piece by piece, and the result keeps each piece's cut as a
-        piece; a piece the cut empties drops out."""
+        `tool`, read as `union`'s members are: one operand (a body, or a
+        family read whole, which is every member — a pattern's output),
+        or a sequence of reads, each on its own (an operand, or one
+        member `xs[i]`; slot word `cut`, completed by its position, and
+        `cuts` for a family read whole). The cut is the fold
+        `from − t1 − … − tn`, order-free in the tools, and fuses no tool
+        with another, so two tools that overlap each cut where they
+        stand. `Node.subtract(body, Node.union([t1, t2]))` cuts by their
+        union, as before. A body cut by itself, `Node.subtract(a, a)`,
+        is the typed empty body. A `from_` that is an `assemble`, or a
+        copy of one, is cut piece by piece, and the result keeps each
+        piece's cut as a piece; a piece the cut empties drops out."""
 
     @staticmethod
     def linear_pattern(
@@ -2874,19 +2935,6 @@ class VarName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class SketchedOnFace:
-    """What `Doc.sketch_on_face` inserted."""
-
-    @property
-    def profile(self) -> NodeId: ...
-    @property
-    def extrude(self) -> NodeId: ...
-    @property
-    def placement(self) -> NodeId: ...
-    @property
-    def union(self) -> NodeId: ...
-    def __repr__(self) -> str: ...
-
 class Measured:
     """What `Doc.measure` inserted: the measures, one per primitive in
     order, and their outputs in the same order."""
@@ -3264,6 +3312,291 @@ def sample_offset(param: VarName, dist: Distribution, u: float) -> _Offset:
     region the certified answer does not cover. Raises
     MeasureUnavailable for a band, which `param` names."""
 
+class RangeField:
+    """The field a certified range is asked about: one document
+    parameter, or one slot of one node.
+
+    A slot is boxed through the free variable it reads, so the range is
+    that variable's — every slot reading it moves with it — reported
+    against the slot it was asked through.
+
+    A value, not a lookup: a parameter written by name is resolved in
+    the document each door is handed, and a name that document does
+    not hold refuses there (RangeRefusal, `not_a_continuous_param`)."""
+
+    @staticmethod
+    def param(var: Var | VarName) -> RangeField:
+        """A document parameter, by identity or by name."""
+    @staticmethod
+    def slot(node: NodeId, slot: str) -> RangeField:
+        """One slot of `node`, by the slot's own word (`"distance"`,
+        `"radius"`) — the word `Doc.slot` and `DocEdit.set_param`
+        take. A word outside the slot alphabet is a ValueError."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class RangeSeed:
+    """How far a range search looks, as OFFSETS from the field's
+    nominal in the field's own dimension: `lo <= 0 <= hi` with some
+    width.
+
+    Constructing one checks only that its two offsets share a
+    dimension (QuantityOpMismatch). Whether it brackets the field's
+    value is asked where the seed meets a field (RangeRefusal,
+    `seed_not_a_bracket`), and a seed written in another dimension
+    than the field's is a QuantityOpMismatch there."""
+
+    def __init__(self, lo: _Offset, hi: _Offset) -> None: ...
+    @staticmethod
+    def symmetric(w: _Offset) -> RangeSeed:
+        """The symmetric seed `[-w, w]`."""
+    @staticmethod
+    def of(doc: Doc, field: RangeField) -> RangeSeed:
+        """The seed the kernel chooses for `field`: from zero to twice
+        its current value, and `±1` for a field at zero. What every
+        range door searches when it is handed no seed. Raises
+        RangeRefusal for a field with no axis."""
+    @property
+    def lo(self) -> _Offset: ...
+    @property
+    def hi(self) -> _Offset: ...
+    @property
+    def dimension(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Admission:
+    """What `admit_range` resolved a request to."""
+
+    @property
+    def axis(self) -> Var:
+        """The free variable the field is boxed through: the parameter
+        itself, or the variable the slot reads."""
+    @property
+    def nominal(self) -> _Offset:
+        """The field's value in the document."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class ProvenDifferent:
+    """A point at which the document is proven NOT the nominal's
+    build: the near edge of the nearest interval the search decided
+    definitely otherwise."""
+
+    @property
+    def at(self) -> _Offset:
+        """The point, as an offset from the field's nominal."""
+    @property
+    def kind(self) -> str:
+        """`"standing_change"` — a node that built does not, or the
+        reverse — or `"builds_differently"`: every node stands as it
+        did and a recorded decision goes the other way, which is the
+        boundary of the CERTIFICATE and not of validity."""
+    @property
+    def node(self) -> Optional[NodeId]:
+        """The first node whose standing changed; `None` for
+        `"builds_differently"`."""
+
+class NotDecided:
+    """Ground a range search did not decide, outward from `past`.
+
+    Not a bound, and never to be shown as one: nothing here says the
+    document is valid past `past`, or that it is not."""
+
+    @property
+    def past(self) -> _Offset:
+        """The offset the undecided ground starts at: the proven
+        frontier."""
+    @property
+    def reason(self) -> str:
+        """Why the side is undecided at its frontier: `"unfinished"`
+        (the search still had work here when it stopped), `"stalled"`
+        (halvings past the proof's last move decided nothing),
+        `"flip_unfounded"` (the replay refused as a flip that names
+        nothing, or at the current value: never a difference), or the
+        driver's own reason for the frontier interval: `"budget"`,
+        `"sliver_terminal"`, `"reads_no_variable"` (the deciding node
+        does not read the field, so no halving settles it),
+        `"bifurcation"` or `"infeasible"`."""
+    @property
+    def replays(self) -> Optional[int]:
+        """The replays the search had taken, for `"unfinished"`: budget
+        spent, not a cap."""
+    @property
+    def width(self) -> Optional[_Offset]:
+        """The width of the interval that last moved the proof, for
+        `"stalled"`."""
+    @property
+    def budget(self) -> Optional[str]:
+        """Which bound a `"budget"` ran out of — `"depth"` (the
+        halvings one side may take) or `"resolution"` (the float grid)
+        — and `None` for another reason."""
+    @property
+    def predicate(self) -> Optional[str]:
+        """The predicate a `"sliver_terminal"` could not decide."""
+    @property
+    def more_time_helps(self) -> bool:
+        """Whether more replays can change this side's answer: only
+        `"unfinished"` answers yes. A larger `max_depth` can move a
+        `"depth"` floor; more replays cannot."""
+
+class RangeSide:
+    """One side of a certified range.
+
+    `proven_to` is the far end of the proven interval on this side.
+    Between it and a point proven `different` lies ground the search
+    did NOT decide (`not_decided`), which is never valid by default.
+
+    `reached_seed_end` and `different` say how the side ends, and both
+    are empty exactly when the side is undecided with nothing proven
+    different beyond; `not_decided` is `None` exactly when the proven
+    interval reaches the seed's end, or runs up to the point proven
+    different."""
+
+    @property
+    def proven_to(self) -> _Offset:
+        """The far end of the proven interval, as an offset: zero when
+        nothing is proven."""
+    @property
+    def reached_seed_end(self) -> bool:
+        """Whether everything from the current value to the seed's end
+        is proven. Never a claim about values outside the seed, which
+        were not replayed."""
+    @property
+    def different(self) -> Optional[ProvenDifferent]: ...
+    @property
+    def not_decided(self) -> Optional[NotDecided]: ...
+
+class CertifiedRange:
+    """A range search's answer: a proven interval around the field's
+    current value, and one RangeSide per direction.
+
+    A CONDITIONAL answer that carries its condition: `pinned` are the
+    parameters held at their nominals for the whole certificate."""
+
+    @property
+    def field(self) -> RangeField: ...
+    @property
+    def nominal(self) -> _Offset:
+        """The field's value in the document: the origin every offset
+        here is measured from."""
+    @property
+    def seed(self) -> RangeSeed:
+        """How far the search looked."""
+    @property
+    def pinned(self) -> list[Var]:
+        """The parameters whose declared distribution the search
+        cleared, in declaration order; empty means the document
+        declared no other spread. By identity, because a parameter
+        carrying a spread need not be named; `Doc.var_name` speaks a
+        handle."""
+    @property
+    def steps(self) -> int:
+        """How many replays this answer is the answer after."""
+    @property
+    def lo(self) -> RangeSide: ...
+    @property
+    def hi(self) -> RangeSide: ...
+    @property
+    def proven_offsets(self) -> tuple[_Offset, _Offset]:
+        """The proven interval as offsets: every value in it builds
+        exactly what the nominal built, with `pinned` at their
+        nominals. Both zero when nothing is proven."""
+    @property
+    def proven_interval(self) -> tuple[_Offset, _Offset]:
+        """The proven interval in ABSOLUTE field values. The proof is
+        over the offsets; this sum rounds."""
+    @property
+    def nothing_proven(self) -> bool: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class RangeSearch:
+    """The stepped search for a certified range: over which interval
+    around a field's current value the document is PROVABLY the same
+    build.
+
+    Constructing one admits the request and builds the document once,
+    at its nominal; `step` replays ONE interval; `answer` can be read
+    after any step and is a function of the request and the number of
+    steps taken, so stopping keeps what was proven and a later `step`
+    continues it. The search works only where its answer can still
+    move, and takes the two sides level by level together.
+
+    `seed` is the kernel's own (`RangeSeed.of`) where none is handed.
+    `max_depth` is how many times one side may be halved, and defaults
+    to what the seed needs to reach a width a curved field certifies
+    at. `max_replays` bounds how many intervals the search will ever
+    replay and defaults to no bound: the loop calling `step` is the
+    budget. `resolver` is how a document that instantiates parts
+    reaches them, as `evaluate` takes it. `cancel` stops the nominal
+    build; each `step` takes its own.
+
+    Raises RangeRefusal: the request's own refusals before any
+    geometry runs, then a nominal that does not build or was
+    stopped."""
+
+    def __init__(
+        self,
+        doc: Doc,
+        field: RangeField,
+        seed: Optional[RangeSeed] = None,
+        *,
+        max_depth: Optional[int] = None,
+        max_replays: Optional[int] = None,
+        resolver: Optional[Workspace] = None,
+        cancel: Optional[CancelToken] = None,
+    ) -> None: ...
+    def step(self, *, cancel: Optional[CancelToken] = None) -> str:
+        """One replay. `"advanced"` when an interval was replayed,
+        `"finished"` when nothing was — the search has no work left
+        that could change its answer, or `max_replays` is spent — and
+        `"stopped"` when the replay stopped short (`cancel`) and
+        decided nothing; a later `step` continues the search."""
+    @property
+    def steps(self) -> int:
+        """How many intervals have been replayed."""
+    def answer(self) -> CertifiedRange:
+        """The answer after the steps taken so far."""
+
+def admit_range(
+    doc: Doc,
+    field: RangeField,
+    seed: Optional[RangeSeed] = None,
+    *,
+    built: Optional[Evaluation] = None,
+) -> Admission:
+    """Whether a certified range can be searched at all, decided with
+    no geometry run.
+
+    `built` is the caller's finished evaluation of this same document,
+    where it holds one: a node that did not build there refuses as the
+    nominal build would (`witness_does_not_build`) without building it
+    again. An evaluation of another document is a ValueError.
+
+    Raises RangeRefusal: a seed that does not bracket the field's
+    value, then a field with no axis."""
+
+def certified_range(
+    doc: Doc,
+    field: RangeField,
+    seed: Optional[RangeSeed] = None,
+    *,
+    max_replays: int,
+    max_depth: Optional[int] = None,
+    resolver: Optional[Workspace] = None,
+    cancel: Optional[CancelToken] = None,
+) -> CertifiedRange:
+    """The certified range of one field: a RangeSearch stepped until
+    it finishes, `max_replays` is spent, or `cancel` stops it.
+
+    `max_replays` is required: a replay is a document evaluation at
+    the certified scalar, and a field that certifies only near the
+    tolerance never finishes a wide seed, so no count this door could
+    choose is one a caller should wait for. `max_depth` defaults as on
+    RangeSearch. A stop after the nominal build keeps what was proven
+    and is not a refusal. Raises RangeRefusal as RangeSearch does."""
+
 DEFINITION_NODE_BOUND: Final[int]
 """The most expression nodes a variable's expansion through the
 definitions it reads may hold: a definition past it refuses
@@ -3315,10 +3648,11 @@ class VarDecl:
         """An INDEX `k = index(count)` (D10 `[repetition]`): a count
         taking each value `0 .. count`, so a placement whose values read
         it is a family of `count` members. `within` names the index this
-        one is declared within (a grid's outer). `declare_var` refuses a
-        count of another dimension or a `within` that is no index
-        (`index`); a reader of two indices neither within the other
-        refuses `indices_unrelated`."""
+        one follows in one binder (a grid's first); an index within none
+        opens a binder of its own. `declare_var` refuses a count of
+        another dimension, a `within` that is no index, or one another
+        index already follows (`index`); one node reading the indices of
+        two binders refuses `two_binders`."""
     @staticmethod
     def source(body: _BodyArg) -> VarDecl:
         """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
@@ -3447,7 +3781,8 @@ class DocEdit:
     @staticmethod
     def set_members(node: NodeId, members: Sequence[_BodyArg] | _Operand) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s or a
-        `Node.intersect`'s members, a `Node.loft`'s sections — with the
+        `Node.intersect`'s members, a `Node.subtract`'s tools, a
+        `Node.loft`'s sections — with the
         list stated in full. `members` takes `Node.union`'s shape: a
         sequence of operands, or one operand reading a family whole.
 
@@ -3777,6 +4112,21 @@ class DocEdit:
         (`unknown_var`) and on an anonymous one, whose lifecycle is its
         readers' (`delete_anonymous_var`)."""
     @staticmethod
+    def set_yields(binder: Var | VarName, yields: Sequence[Var | VarName]) -> DocEdit:
+        """Write what a binder yields (D10 `[repetition]`), whole and in
+        order: `binder` is its first index, each of `yields` a variable
+        inside it (a pattern's copy, `Doc.output(row, 0)`) that every
+        reader outside reads as a family. A binder that yields nothing
+        refuses at evaluation (`yields_nothing`).
+
+        Refuses typed (`yields`) an index that opens no binder
+        (`not_a_binder`), a yield that is an index (`yield_is_index`), is
+        listed twice (`yield_twice`), is another binder's
+        (`yield_elsewhere`) or reads none of the binder's indices
+        (`yield_outside`), empty yields (`no_yields`), and one that
+        leaves a reader reading a
+        family at a seat for one body (`slot_var_kind`)."""
+    @staticmethod
     def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:
         """Bind `node`'s STRUCTURAL v-degree slot to the document
         parameter `name` — a loft's v-direction interpolation degree
@@ -3985,8 +4335,8 @@ class Doc:
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
         `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
-        `subtract`, `place`, `world`, `space`, `instantiate_part`,
-        `measure`, `assertion`.
+        `subtract`, `place`, `datum`, `world`, `space`,
+        `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         placement and a union all evaluate to a value whose
@@ -4027,6 +4377,14 @@ class Doc:
 
         Exactly `insert(Node.measure(p))` per primitive, recorded as one
         action and answered with the outputs."""
+    def assert_quieting(self, quieting: Quieting) -> NodeId:
+        """Author the assertion a check carries (`CheckEvidence.quieting`)
+        as one action: a split's unnamed tool named first, the measure,
+        then the assertion, `= 0` over its output; all land or none does.
+        Answers the assertion's id, the node the quieted finding names.
+        A `quieting` the checks of another document found raises
+        `EditError` with variant `evaluation_of_another_document`; a
+        refusal of the insert door raises its own `EditError`."""
     def place(
         self,
         source: _BodyArg,
@@ -4135,31 +4493,45 @@ class Doc:
         it, a split of it) carries the same names, and answers them
         too."""
 
-    def sketch_on_face(
+    def draw_on_face(
         self,
         body: _BodyArg,
         face: str,
-        outline: ClosedLoop | list[ClosedLoop],
-        distance: _LengthArg,
-        spin: Optional[_AngleArg] = None,
+        outline: ClosedLoop | Chain | list[ClosedLoop | Chain],
         *,
         orient: Optional[Orientation] = None,
+        spin: Optional[_AngleArg] = None,
+        slides: Optional[tuple[_LengthArg, _LengthArg]] = None,
+        traced: Optional[list[tuple[_BodyArg, str]]] = None,
         label: Optional[str] = None,
-    ) -> SketchedOnFace:
-        """"Sketch on this face": `outline` drawn on its own plane and
-        extruded `distance` up its own `z`, the copy placed against
-        `face` of `body` (its start cap resting on the face's plane,
-        looking out along the outward normal, its origin over the face
-        body's own, turned `spin` about the normal; zero when `None`),
-        and `body` and the copy fused. `face` is opaque name text from
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
+        """A profile drawn on a face: `outline` drawn on the chart of
+        `face` of `body`, the frame a plane placement onto the face
+        gives, as one profile node in `body`'s space; nothing is
+        placed. `outline` is a `ClosedLoop` (as `Node.profile` takes
+        one) or a traced `Chain` (as `Node.drawn_profile` takes one),
+        or a list of them, outer first; `traced` is the faces of that
+        space a chain reads the trace of, each `(body, name)`, by its
+        place in the list. `face` is opaque name text from
         `Evaluation.all_faces` / `select`; on one member of a family,
-        `body` is `xs[i]` and `face` the member's own name
-        (`Evaluation.select(xs[i], ...)`), and the copy fuses with the
-        whole family. `orient=` is the mate's
-        `Orientation`; when `None`, the one nearest where the copy
-        stands, the profile's `z` along the face's outward normal. One
-        putting `z` opposite the normal is written backwards
-        (`mate_backwards`). One action; `label=` labels the union."""
+        `body` is `xs[i]` and `face` the member's own name.
+
+        The chart's `z` is the face's outward normal; its `x` and
+        origin are the space's under `orient`, carried onto the face by
+        the least turn, then turned `spin` about the normal and moved
+        by the two `slides`, each zero when `None`. The slides run
+        along the space's own axes: the two other than the one `orient`
+        puts the chart's `z` most along, in `x`, `y`, `z` order.
+        `orient=None` writes the orientation nearest the face, read off
+        it as it evaluates under `resolver=`; one putting `z` opposite
+        the normal refuses at `evaluate` (`pose_degenerate`,
+        `face_chart_backwards`), naming the orientation to write. A face
+        that is no plane refuses there too.
+
+        One action, answering the profile's id; `label=` labels it. A
+        boss is `Node.extrude(profile, d)` united with `body`; a pocket
+        is the same profile extruded `-d` and subtracted from it."""
 
     @property
     def node_count(self) -> int: ...
@@ -4918,7 +5290,8 @@ class Body:
         A measurement that cannot be made raises `ValidationError` with
         `reason == "mass_properties_failed"` and `measure_refusal`
         naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
-        `"null_scaffold_edge"` or `"band"` (no enclosure),
+        `"null_scaffold_edge"`, `"no_outline"` (a face whose outline is a
+        single vertex) or `"band"` (no enclosure),
         `"poisoned"` (the predicate's margin could not be read),
         `"resolution_finer_than_eps"`, `"empty_contains"` (a
         `Settle.contains` whose `lo` is above its `hi`), or
@@ -5987,10 +6360,12 @@ class Mate:
     a node.
 
     `on` is a pose read off the copied shapes' geometry — a `PoseDef`
-    over one of the placement's shapes, or over the instance itself.
-    `to` is a pose of the space the copy joins (a `PoseDef`, or a pose
-    variable), read off geometry there: a mate reads only geometry,
-    never the world's frame. The kind is the primitive: plane to
+    over one of the placement's shapes, or over the instance itself — or,
+    for a datum, the datum's own frame, plainly or as a `RoleRead` of
+    its `"xy"` plane, `"z"` axis or `"origin"`. `to` is a pose of the
+    space the copy joins (a `PoseDef`, a pose variable, or a `RoleRead`
+    of a frame there, a datum's among them): a mate reads only what is
+    placed or built there, never the world's frame. The kind is the primitive: plane to
     plane rests, axis to axis is coaxial, frame to frame coincides,
     point to point is a ball, direction to direction is parallel. A
     plain plane mate equates outward normals, so two faces resting
@@ -6012,17 +6387,19 @@ class Mate:
 
     def __init__(
         self,
-        on: _Operand,
-        to: _Operand,
+        on: _PoseRead,
+        to: _PoseRead,
         *,
         orient: Optional[Orientation] = None,
     ) -> None: ...
     @property
-    def on(self) -> PoseDef:
-        """The copy's pose, as written."""
+    def on(self) -> PoseDef | RoleRead:
+        """The copy's pose, as written: a `RoleRead` where it reads
+        through a role."""
     @property
-    def to(self) -> PoseDef:
-        """The pose the copy's is equated with."""
+    def to(self) -> PoseDef | RoleRead:
+        """The pose the copy's is equated with: a `RoleRead` where it
+        reads through a role."""
     @property
     def orient(self) -> Orientation:
         """The orientation, as written."""
@@ -6522,6 +6899,52 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
+class QuietingRef:
+    """One reference of a `Quieting`'s measure, as the measure reads it:
+    the entity `name` names in the body `read` reads, read as that cell
+    or as the pose `pose` read off it; or, with no `name`, the variable
+    `read` itself (the plane a split cuts with). Equal where all three
+    are."""
+
+    @property
+    def read(self) -> Var:
+        """The variable read: the body the entity is selected in, or the
+        variable the measure reads as it is."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The entity's name in that body's table, as opaque text; `None`
+        for a variable read as it is."""
+
+    @property
+    def pose(self) -> Optional[str]:
+        """The kind of the pose read off the cell, `axis` or `point`;
+        `None` for the cell itself."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Quieting:
+    """The assertion that would quiet an unproven coincidence:
+    `measure(references) = 0`, a `gap` or a `distance` over the row's
+    two cells as that measure reads them, in the document the checks ran
+    over. The kernel mints it only where the rule that decides which
+    holding assertion quiets the row takes it, so the row is quiet once
+    `Doc.assert_quieting` has authored it. `str()` is the claim in words.
+    Equal where the claim and the document are."""
+
+    @property
+    def measure(self) -> str:
+        """The measure related to zero: `gap` or `distance`."""
+
+    @property
+    def references(self) -> tuple[QuietingRef, QuietingRef]:
+        """The measure's two references, in its order: a `gap`'s outer
+        then inner."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the
     route it arrived by: an `unproven_coincidence` finding's
@@ -6626,11 +7049,19 @@ class InterferenceFinding:
     @property
     def loud(self) -> bool: ...
     @property
-    def quietable(self) -> bool:
-        """Whether an assertion the quieting rule accepts could quiet it,
-        as the rule itself answers: some holding `gap` assertion over two
-        of its bounding faces would quiet it. One no assertion could
-        quiet refuses at no severity."""
+    def quieting(self) -> tuple[FaceSite, FaceSite] | None:
+        """The two faces a `gap` that would quiet it is written over,
+        outer then inner, as the quieting rule itself answers: a holding
+        `gap(outer, inner)` related to a negative bound by `<=` or `=`
+        quiets it, and the bound is the author's. `None` where no
+        assertion could quiet it, which refuses at no severity."""
+    @property
+    def quieting_references(self) -> tuple[QuietingRef, QuietingRef] | None:
+        """The two references an author writes that `gap` over, outer
+        then inner, each a selection of one name in its copy's read: a
+        family member's face by the name its member wraps, so the
+        assertion reaches the family's index and each member reads its
+        own face. `None` exactly where `quieting` is."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -7040,6 +7471,13 @@ class CheckEvidence:
     @property
     def restated(self) -> Optional[list[Coincidence]]: ...
     @property
+    def quieting(self) -> Optional[Quieting]:
+        """The assertion that would quiet an unproven coincidence, on
+        `unproven_coincidence` alone, and `None` where no assertion says
+        the row: then the finding names the construction alone and
+        `enforce_checks` refuses it at no severity."""
+
+    @property
     def interference(self) -> Optional[InterferenceFinding]: ...
     @property
     def carried_interference(self) -> Optional[CarriedInterference]: ...
@@ -7060,16 +7498,19 @@ class Coincidence:
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
-    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    `tangent`, `cusp`, `surface_tangent`, `rim_junction`, `coaxial`,
+    `same_radius`, `axes_meet`, `co_ruled` or `meet`; `site` is
+    `plane_ladder`, `carrier_ladder`, `tangent_witness`, `rim_junction`,
+    `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
     `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
-    claiming nothing of the materials. `rung` is the door's rung that
+    claiming nothing of the materials, and a `rim_junction` row is
+    `rim_junction`, two faces that end on one rim joined there smoothly,
+    with no touch claimed along it. `rung` is the door's rung that
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a

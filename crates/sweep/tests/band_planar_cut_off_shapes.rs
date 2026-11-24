@@ -39,13 +39,8 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
                 let radius = conic_k.radius();
                 assert_eq!(radius, D, "{what}: a circle end")
             }
-            Curve3::Ellipse(
-                ellipse @ geom::Ellipse {
-                    frame: carrier_frame,
-                    ..
-                },
-            ) => {
-                let axis = carrier_frame.axis();
+            Curve3::Ellipse(ellipse) => {
+                let axis = ellipse.frame().axis();
                 let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
                 ellipses += 1;
                 assert!(

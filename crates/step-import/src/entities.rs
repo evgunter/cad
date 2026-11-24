@@ -29,7 +29,7 @@ use crate::parse::{Instance, Record, StepFile, Value};
 use crate::recognize;
 use crate::recognize_curve;
 use crate::signed_zero;
-use crate::units::{self, UnitKind};
+use crate::units::{self, Scale, UnitKind};
 use crate::{
     CurvePromotion, FaceCensus, NormalizationKind, STEP_LINE_DIRECTION_UNIT,
     STEP_PLACEMENT_IDENTITY, StructureNormalization,
@@ -321,16 +321,16 @@ pub(crate) struct EdgeSpec {
 pub(crate) struct Resolver<'a> {
     file: &'a StepFile,
     /// The file's SI length factor into kernel meters (M7-2 Leg A):
-    /// 1.0 for the kernel's own dialect, 1e-3 for FreeCAD's
-    /// millimeters. EVERY length the resolver reads passes through
-    /// [`Resolver::as_length`].
-    length_scale: f64,
+    /// 1 for the kernel's own dialect, 1/1000 for FreeCAD's
+    /// millimeters, held exactly. EVERY length the resolver reads
+    /// passes through [`Resolver::as_length`].
+    length_scale: Scale,
     /// The file's angle factor into kernel radians (M7-4 Leg B): 1.0
     /// for a radian context, the file's own declared π/180 for the
     /// wild's dominant `CONVERSION_BASED_UNIT('DEGREE', …)`. Only one
     /// slot in the subset states an angle — a `CONICAL_SURFACE`'s
     /// `semi_angle` — and it passes through [`Resolver::as_angle`].
-    angle_scale: f64,
+    angle_scale: Scale,
     /// ε_in in kernel metres (the file's declared uncertainty, scaled
     /// with every other length) and the band the file is read at: the
     /// one interpretation budget, spent by every reading that decides
@@ -360,8 +360,10 @@ pub(crate) struct Resolver<'a> {
     /// Each surface entity as interpretation reads it, keyed by entity
     /// id: recognition acts on the record, once, whichever faces cite it.
     interpreted: std::cell::RefCell<BTreeMap<u64, Interpreted>>,
-    /// The surface entities whose promotion is reported, once each,
-    /// against the first face citing it ([`NormalizationKind::SurfacePromotion`]).
+    /// The surface entities whose reading is reported, once each,
+    /// against the first face citing it: its healed sides
+    /// ([`NormalizationKind::CollapsedSideMadeOne`]) and its promotion
+    /// ([`NormalizationKind::SurfacePromotion`]).
     promotions_reported: std::cell::RefCell<std::collections::BTreeSet<u64>>,
 }
 
@@ -370,6 +372,9 @@ pub(crate) struct Resolver<'a> {
 #[derive(Clone, Debug)]
 struct Interpreted {
     surface: Surface<f64>,
+    /// How far each net side healing made one point moved
+    /// ([`recognize::heal_collapsed_sides`]), before recognition.
+    healed: Vec<f64>,
     /// The promotion, its residual, and whether it turned the chart
     /// over (composed into each citing face's sense).
     promoted: Option<(recognize::PromotedKind, f64, bool)>,
@@ -493,10 +498,10 @@ impl<'a> Resolver<'a> {
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
         let raw = as_real(id, value, expected)?;
-        // Multiplication by an exact power of ten is one correctly
-        // rounded operation; the unprefixed case multiplies by 1.0 and
-        // moves no bits at all (the own-corpus identity is untouched).
-        Ok(raw * self.length_scale)
+        // The number's decimal times the exact factor, rounded once; the
+        // unprefixed case moves no bits at all (the own-corpus identity
+        // is untouched).
+        Ok(self.length_scale.apply(raw))
     }
 
     /// One stated angle into kernel radians. A radian context
@@ -509,7 +514,7 @@ impl<'a> Resolver<'a> {
         value: &Value,
         expected: &'static str,
     ) -> Result<f64, StepImportError> {
-        Ok(as_real(id, value, expected)? * self.angle_scale)
+        Ok(self.angle_scale.apply(as_real(id, value, expected)?))
     }
 
     /// A fresh entity id for minted topology (module docs).
@@ -1377,9 +1382,23 @@ impl<'a> Resolver<'a> {
         if let Some(known) = self.interpreted.borrow().get(&surface_id) {
             return Ok(known.clone());
         }
-        let surface = self.surface(face, surface_id)?;
+        let mut surface = self.surface(face, surface_id)?;
+        // **A net side read one point at the file's band is made that
+        // point** (`[import]` healing), before recognition reads the
+        // patch's collapsed side as its pole.
+        let mut healed = Vec::new();
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+            && let Some((made_one, sides)) =
+                recognize::heal_collapsed_sides(patch.as_ref(), self.budget)
+                    .map_err(|refusal| self.budget.refused(face, refusal))?
+        {
+            healed = sides.into_iter().map(|(_, moved_by)| moved_by).collect();
+            surface = Surface::Nurbs(std::sync::Arc::new(made_one));
+        }
         let mut read = Interpreted {
             surface,
+            healed: healed.clone(),
             promoted: None,
             ill_conditioned: None,
         };
@@ -1395,6 +1414,7 @@ impl<'a> Resolver<'a> {
                     let flipped = recognize::chart_flipped(patch.as_ref(), &promoted);
                     read = Interpreted {
                         surface: promoted,
+                        healed,
                         promoted: Some((kind, residual, flipped)),
                         ill_conditioned: None,
                     };
@@ -1441,6 +1461,7 @@ impl<'a> Resolver<'a> {
         let surface_id = as_ref(id, surface_ref, expected)?;
         let Interpreted {
             surface,
+            healed,
             promoted,
             ill_conditioned,
         } = self.interpreted(id, surface_id)?;
@@ -1470,18 +1491,26 @@ impl<'a> Resolver<'a> {
         // and the face's `same_sense` composes with the chart
         // orientation so the promoted chart means what the NURBS chart
         // meant. The surface entity is read once ([`Self::interpreted`]),
-        // so every face citing it wears one record.
-        if let Some((kind, residual, flipped)) = promoted {
-            if flipped {
-                sense = !sense;
-            }
-            if self.promotions_reported.borrow_mut().insert(surface_id) {
-                let census = bounds_census(&bound_specs, edges);
+        // so every face citing it wears one record, and what reading it
+        // did (a net side made one point, a promotion) is reported once,
+        // against the first face citing it.
+        if let Some((_, _, true)) = promoted {
+            sense = !sense;
+        }
+        if self.promotions_reported.borrow_mut().insert(surface_id) {
+            let census = bounds_census(&bound_specs, edges);
+            let healings = healed
+                .iter()
+                .map(|&moved_by| NormalizationKind::CollapsedSideMadeOne { moved_by });
+            let promotion = promoted.map(|(kind, residual, _)| {
+                NormalizationKind::SurfacePromotion { to: kind, residual }
+            });
+            for kind in healings.chain(promotion) {
                 self.normalizations
                     .borrow_mut()
                     .push(StructureNormalization {
                         face: id,
-                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                        kind,
                         file_census: census,
                         kernel_census: census,
                     });
@@ -1764,7 +1793,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
-        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -1796,7 +1825,10 @@ impl<'a> Resolver<'a> {
         let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
             let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center,
+                radius,
+                axis.get(),
+                d,
             ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(
@@ -2572,7 +2604,7 @@ fn length_factor(
     r: &Resolver<'_>,
     id: u64,
     records: &[Record],
-) -> Result<Option<f64>, StepImportError> {
+) -> Result<Option<Scale>, StepImportError> {
     if !records.iter().any(|(kw, _)| kw == "LENGTH_UNIT") {
         return Ok(None);
     }
@@ -2761,12 +2793,10 @@ fn first_proj_axis(axis: Vec3<f64>) -> Vec3<f64> {
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding, so a unit direction
 /// the writer printed is kept bit for bit; otherwise the triple
-/// normalized. Read by the kernel's f64 door: the line's frame is built by
-/// `build_axes` about the triple, and with the triple as stated put back
-/// as its axis, [`geom_core::RigidMotion::check_rigid`] says whether the
-/// frame is still rigid within its rounding. `None` for a triple that
-/// names no direction.
-fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
+/// normalized, the axis of the frame `build_axes` decides about it. Unit
+/// within its rounding is [`geom_core::UnitVec3::stated`]'s column test,
+/// the frame door's. `None` for a triple that names no direction.
+fn unit_line_direction(ratios: Vec3<f64>) -> Option<geom_core::UnitVec3<f64>> {
     let reference = first_proj_axis(ratios);
     let built = geom_core::RigidMotion::from_axis_and_reference(
         Point3::origin(),
@@ -2776,13 +2806,9 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
         geom_core::Band::least(),
     )
     .ok()?;
-    let (u, v) = (built.u().get(), built.v().get());
-    let stated = Affine3::from_parts(Mat3::from_cols(u, v, ratios), Vec3::zero());
-    Some(if geom_core::RigidMotion::check_rigid(&stated).is_ok() {
-        ratios
-    } else {
-        built.w().get()
-    })
+    // The stated ratios where they are a unit direction to rounding, the
+    // built frame's axis otherwise.
+    Some(geom_core::UnitVec3::stated(ratios).unwrap_or_else(|| built.w()))
 }
 
 /// A placement as interpretation built it: the frame, the same frame as a
@@ -2826,12 +2852,12 @@ struct ContentRoots {
 }
 
 /// The scales and uncertainty one file states.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct UnitContext {
     /// Meters per file length unit.
-    pub(crate) length_scale: f64,
+    pub(crate) length_scale: Scale,
     /// Radians per file angle unit.
-    pub(crate) angle_scale: f64,
+    pub(crate) angle_scale: Scale,
     /// The declared uncertainty in kernel meters, when the governing
     /// contexts declare one. `None` is not yet an error: a file with
     /// no geometry to import should say *that*, not complain about a
@@ -2869,11 +2895,11 @@ fn resolve_units_and_uncertainty(
     // different length units would leave every coordinate's meaning
     // ambiguous, so a second, distinct factor refuses typed rather
     // than letting the first one win silently.
-    let mut length_scale: Option<(u64, f64)> = None;
-    let mut note_scale = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match length_scale {
+    let mut length_scale: Option<(u64, Scale)> = None;
+    let mut note_scale = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &length_scale {
             None => length_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2887,11 +2913,11 @@ fn resolve_units_and_uncertainty(
     };
     // The file's ONE angle scale, by the same argument: a semi_angle
     // read in the wrong angular unit is a different cone.
-    let mut angle_scale: Option<(u64, f64)> = None;
-    let mut note_angle = |id: u64, factor: f64| -> Result<(), StepImportError> {
-        match angle_scale {
+    let mut angle_scale: Option<(u64, Scale)> = None;
+    let mut note_angle = |id: u64, factor: Scale| -> Result<(), StepImportError> {
+        match &angle_scale {
             None => angle_scale = Some((id, factor)),
-            Some((_, prev)) if prev.to_bits() == factor.to_bits() => {}
+            Some((_, prev)) if *prev == factor => {}
             Some(_) => {
                 return Err(StepImportError::UnsupportedUnit {
                     id,
@@ -2936,10 +2962,10 @@ fn resolve_units_and_uncertainty(
                     for entry in as_list(id, list, expected)? {
                         let uid = as_ref(id, entry, expected)?;
                         let (raw, factor, unit_id) = r.uncertainty_value(id, uid)?;
-                        note_scale(unit_id, factor)?;
                         // Into kernel meters with every other length
                         // (D7's ε_in rule unchanged; 1.E-07 mm → 1e-10 m).
-                        let value = raw * factor;
+                        let value = factor.apply(raw);
+                        note_scale(unit_id, factor)?;
                         // A coincidence distance is a length no less
                         // than zero; a declaration that is negative or
                         // not finite is no budget any band reads.
@@ -2984,8 +3010,8 @@ fn resolve_units_and_uncertainty(
         }
     }
     Ok(UnitContext {
-        length_scale: length_scale.map_or(1.0, |(_, f)| f),
-        angle_scale: angle_scale.map_or(1.0, |(_, f)| f),
+        length_scale: length_scale.map_or_else(Scale::one, |(_, f)| f),
+        angle_scale: angle_scale.map_or_else(Scale::one, |(_, f)| f),
         uncertainty_m: uncertainty,
     })
 }
@@ -2997,7 +3023,7 @@ impl<'a> Resolver<'a> {
     /// meters, the unit's entity id)` — the caller scales, so ε_in
     /// lands in kernel meters like every other length, and a foreign
     /// unit can never silently rescale it.
-    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, f64, u64), StepImportError> {
+    fn uncertainty_value(&self, from: u64, id: u64) -> Result<(f64, Scale, u64), StepImportError> {
         let args = self.simple(from, id, "UNCERTAINTY_MEASURE_WITH_UNIT")?;
         let expected = "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(value), #unit, \
                         name, description)";
@@ -3518,8 +3544,8 @@ fn resolve_shape(
 fn unit_pass_resolver(file: &StepFile, tol: geom_core::Tol) -> Resolver<'_> {
     Resolver {
         file,
-        length_scale: 1.0,
-        angle_scale: 1.0,
+        length_scale: Scale::one(),
+        angle_scale: Scale::one(),
         budget: interpret::FileBand::unread(),
         tol,
         next_id: std::cell::Cell::new(0),

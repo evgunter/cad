@@ -105,8 +105,9 @@ HALF_READS = {
 }
 WINDOW = 40
 lines = collections.defaultdict(list)
+RECORD = re.compile(r"^(.*?\.rs):(\d+):(.*)$")
 for l in sys.stdin:
-    m = re.match(r"^(.*?\.rs):(\d+):(.*)$", l.rstrip("\n"))
+    m = RECORD.match(l.rstrip("\n"))
     if m:
         lines[m.group(1)].append((int(m.group(2)), m.group(3)))
 # A half-edge expression read for its start: `get_half_edge(H)` and,
@@ -131,6 +132,9 @@ TWIN = re.compile(r"get_half_edge\(\s*&?(\w+(?:\.\w+)*)\.he_(plus|minus)\s*\)")
 out = set()
 for f, ls in lines.items():
     text = "\n".join(t for _, t in ls)
+    # Every shape below reads an edge`s he_plus.
+    if "he_plus" not in text and "plus.half_edge" not in text:
+        continue
     offs, o = [], 0
     for _, t in ls:
         offs.append(o)
@@ -225,21 +229,28 @@ gate() {
   done < <(gate_files)
   GATE_SCAN_FILES=${#files[@]}
   local view hits
-  if ! view=$(gate_rust_code --statements "${files[@]}"); then
+  # Both views go through files, not shell variables, as
+  # `lever-sources.sh` reads its view.
+  view=$GATE_VIEW_FILE.statements
+  if ! (gate_rust_code --statements "${files[@]}") > "$view"; then
     gate_error "$(gate_name): the shared Rust reader could not build the statement view, so what it did not match is unknown — that is not a pass"
     exit 1
   fi
   local needle all=''
+  # Each needle spells one of these words, so the statements that carry
+  # none of them cannot match one.
+  view=$(gate_grep -F -e 'once(' -e 'get_surface(' -e 'get_face(' -e 'he_plus' < "$view" || true)
   for needle in "$LOOPS" "$SURFACE_NESTED" "$SURFACE_AND_THEN" "$ENDS_ARRAY" "$ENDS_STARTS" "$ENDS_HALVES"; do
     hits=$(printf '%s\n' "$view" | gate_grep -P "$needle" || true)
     all=$(printf '%s\n%s\n' "$all" "$hits")
   done
   local lines_view shaped
-  if ! lines_view=$(gate_rust_code "${files[@]}"); then
+  lines_view=$GATE_VIEW_FILE.lines
+  if ! (gate_rust_code "${files[@]}") > "$lines_view"; then
     gate_error "$(gate_name): the shared Rust reader could not build the line view — that is not a pass"
     exit 1
   fi
-  if ! shaped=$(printf '%s\n' "$lines_view" | python3 -c "$EDGE_ENDS_SHAPE"); then
+  if ! shaped=$(python3 -c "$EDGE_ENDS_SHAPE" < "$lines_view"); then
     gate_error "$(gate_name): the edge-ends shape reader failed — that is not a pass"
     exit 1
   fi

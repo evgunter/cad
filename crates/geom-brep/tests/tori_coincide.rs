@@ -25,7 +25,7 @@ use test_utils::fuzz;
 fn data(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> TorusData<f64> {
     TorusData {
         center,
-        axis: axis.normalize(),
+        axis: geom_core::UnitVec3::squared(axis),
         major_radius: big,
         minor_radius: small,
     }
@@ -33,7 +33,7 @@ fn data(center: Point3<f64>, axis: Vec3<f64>, big: f64, small: f64) -> TorusData
 
 fn surface(t: TorusData<f64>) -> Surface<f64> {
     Surface::Torus {
-        frame: geom::Frame::new(t.center, t.axis, t.axis.orthonormal_basis().0),
+        frame: geom::Frame::new(t.center, t.axis.get(), t.axis.orthonormal_basis().0),
         major_radius: t.major_radius,
         minor_radius: t.minor_radius,
     }
@@ -122,8 +122,8 @@ fn the_pose_reads_two_tori_one_where_the_decision_does() {
 /// The exact distance from `q` to the torus `t`.
 fn distance(q: Point3<f64>, t: TorusData<f64>) -> f64 {
     let d = q - t.center;
-    let h = d.dot(t.axis);
-    let rho = (d - t.axis * h).norm();
+    let h = d.dot(t.axis.get());
+    let rho = (d - t.axis.get() * h).norm();
     ((rho - t.major_radius).hypot(h) - t.minor_radius).abs()
 }
 
@@ -140,7 +140,7 @@ fn sampled_reach(a: TorusData<f64>, b: TorusData<f64>) -> f64 {
             let v = TAU * f64::from(j) / f64::from(nv);
             let q = a.center
                 + out * (a.major_radius + a.minor_radius * v.cos())
-                + a.axis * (a.minor_radius * v.sin());
+                + a.axis.get() * (a.minor_radius * v.sin());
             far = far.max(distance(q, b));
         }
     }
@@ -350,7 +350,10 @@ fn a_tilt_decided_apart_leaves_the_bound_past_the_band() {
         major_radius: 2.0,
         minor_radius: 0.5,
     };
-    let (first, second) = (torus(a), torus(b));
+    let (first, second) = (
+        torus(geom::stated_direction(a)),
+        torus(geom::stated_direction(b)),
+    );
     let (datum, tilt) = TorusDisplacement::of(first, second).data[0];
     assert_eq!(datum, TorusDatum::AxisTilt, "the first datum is the tilt");
     let band = Band::new(0.5 * tilt.value(), tilt.value()).unwrap();

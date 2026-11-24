@@ -460,7 +460,8 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
 
         let (mut body, wall, _) = sheet::<T>(rim, 0.0);
         let stated = state(&mut body, wall, &Arc::new(bumped(at)));
-        let Err((topo::EulerOpError::Certification { error }, carrier)) = &stated else {
+        let Err((topo::EulerOpError::DescriptionUncertified { error, .. }, carrier)) = &stated
+        else {
             panic!(
                 "{rim:?}: the edge door refuses the wrong stated row, at {}: {stated:?}",
                 T::NAME

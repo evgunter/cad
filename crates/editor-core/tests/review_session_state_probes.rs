@@ -50,6 +50,10 @@ fn sums(ev: &Evaluation<Sym<Interval>>, session: SymCounts) -> (SymCounts, SymCo
         nodes.absorb(record.counts());
         regs += record.registrations();
     }
+    // This head's receipt: the nodes', the parts' and (when gathered) the product's.
+    for part in &ev.parts_sym {
+        nodes.absorb(part.counts());
+    }
     (
         SymCounts {
             frozen: 0,
@@ -120,6 +124,11 @@ fn probe_an_assemblys_leaf_receipt_and_its_parts_registrations() {
     println!("instance {inst:?}: {:?}", ev.result(inst).map(|r| matches!(r, NodeResult::Ok(_))));
     assert!(part_regs > 0, "the plate's nodes register");
     assert!(s.decisions() > 0, "the leaf decided");
-    assert_eq!(regs, part_regs, "the instance carries its part's registrations");
+    // The unplaced plate's product is empty, so the instance refuses here;
+    // the registrations reaching an instance are pinned by the unit's own
+    // `a_parts_run_is_the_parts_and_its_identities_reach_its_instance`.
+    if matches!(ev.result(inst), Some(NodeResult::Ok(_))) {
+        assert_eq!(regs, part_regs, "the instance carries its part's registrations");
+    }
     assert_eq!(s, n, "assembly: the receipt is the sum of the nodes' records");
 }

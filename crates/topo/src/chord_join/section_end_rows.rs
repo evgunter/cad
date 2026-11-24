@@ -67,7 +67,8 @@ fn cause() -> Indeterminate {
 }
 
 fn escalated(check: CertCheck) -> EulerOpError {
-    EulerOpError::Certification {
+    EulerOpError::DescriptionUncertified {
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check,
             sample: 8,
@@ -77,7 +78,8 @@ fn escalated(check: CertCheck) -> EulerOpError {
 }
 
 fn past(margin: f64) -> EulerOpError {
-    EulerOpError::Certification {
+    EulerOpError::DescriptionUncertified {
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::ResidualExceeded {
             check: CertCheck::EndpointEnd,
             sample: 8,
@@ -140,8 +142,8 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
 
 /// **The section's own rounding is never offered as the input's.** A
 /// far centre resolves its arc only to `u` times its distance, so an
-/// in-band pin is a kernel limitation exactly where that resolution, `K`
-/// times over, passes ε, whichever reading of the plane, and its words
+/// in-band pin is a kernel limitation exactly where that resolution
+/// passes `ε/K`, whichever reading of the plane, and its words
 /// name no lever and no defect. Both sides of the line are read:
 /// `x = 1e4` resolves (`ρ ≈ 7e-11`), `x = 3e4` does not (`ρ ≈ 2e-10`).
 #[test]
@@ -155,7 +157,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
             spec.param_end,
         )
         .unwrap();
-        let unresolved = k * rho > EPS;
+        let unresolved = rho > EPS / k;
         assert_eq!(unresolved, x > 2e4, "x {x:e}: ρ {rho:e}");
         for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
             let got = read(
@@ -178,7 +180,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                     true,
                 ) => {
                     assert_eq!(*diag, cause(), "x {x:e}");
-                    assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
+                    assert_eq!(*resolution, MarginDiag::value(rho), "x {x:e}");
                     let text = got.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         text.starts_with(
@@ -290,7 +292,8 @@ fn what_no_reading_explains_stays_the_gates() {
             "{check:?} on an unresolved carrier: {got:?}"
         );
     }
-    let definite_residual = EulerOpError::Certification {
+    let definite_residual = EulerOpError::DescriptionUncertified {
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::ResidualExceeded {
             check: residual(),
             sample: 8,
@@ -304,7 +307,8 @@ fn what_no_reading_explains_stays_the_gates() {
         definite_residual,
     );
     assert!(gates(&got), "a definite residual: {got:?}");
-    let unreadable = EulerOpError::Certification {
+    let unreadable = EulerOpError::DescriptionUncertified {
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check: CertCheck::EndpointEnd,
             sample: 8,
@@ -316,7 +320,8 @@ fn what_no_reading_explains_stays_the_gates() {
     };
     let got = read(SectionEndReading::OnPlane, &far, far_ends(&far), unreadable);
     assert!(gates(&got), "an unreadable margin: {got:?}");
-    let straddle = EulerOpError::Certification {
+    let straddle = EulerOpError::DescriptionUncertified {
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check: CertCheck::EndpointStart,
             sample: 0,

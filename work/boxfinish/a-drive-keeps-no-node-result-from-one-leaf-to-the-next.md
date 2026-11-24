@@ -44,9 +44,11 @@ After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
   counts to the leaf's receipt, and the record's roots to the roots
   the leaf's `frozen` column is read over (`sym::leaf_need` reads the
   root scope's, which holds the roots of the nodes that ran).
-- A node's scope is opened over its upstream nodes' records
-  (`eval::upstream_records`, by node id). A served upstream node's
-  record is read the same way, so nothing else is owed there.
+- A node's scope reads the records of the values its reads see
+  (`eval::read_records` over `wire::seen_reads`, in field order), and
+  each record names the records it was itself built over
+  (`NodeRecord`'s `over`). A served upstream node's record is read the
+  same way, so nothing else is owed there.
 - The parameter brackets stay the leaf's input (`Sym::param_over`,
   recorded as the environment is built, before any node). A node's
   decision read takes the brackets of the parameters its forms reach,
@@ -57,3 +59,72 @@ After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
   table (`sym_drive_memo::a_value_built_in_one_leaf_means_the_same_in_another`).
   With `DriveConfig::plain_memo` off the table serves nothing, so the
   store has to be off with it or keep its own table.
+
+**A question this unit settles (from the session-state unit's fix
+pass).** A leaf resolves a symbolic id by its PRESENCE in the drive's
+table: an id is its content's hash, so once any leaf of the drive has
+minted that content inside a session, a leaf handed the same content
+from outside every session reads it as known, and before that as an
+unknown of its own (unpublished, unpooled, never a proof). Both
+answers are sound and the second is the stronger: an order dependence
+between leaves, reached only by a value from outside every session
+(`geom-core`'s `a_drives_table_and_what_is_outside_it::an_outside_value_resolves_once_a_leaf_has_minted_its_content`
+pins it as it stands). Whether a leaf should resolve an id by presence,
+or only by reachability from what the drive served it, is this unit's
+to decide.
+
+**Also from that fix pass:** a part's run is a scope of its own and is
+counted once per replay (`Evaluation::parts_sym`), so a part built in
+each of N leaves is N results in the drive's total unless the store
+serves it; a family's value carries its members' records; the
+product's gather is on the product (`Product::sym`); a prior is read
+only under the table it was built under (`PriorRefusal::Table`),
+which is the door a served result comes through.
+
+**Two gaps the session-state unit leaves here** (its merge pass,
+2026-11-24):
+
+- **No row serves one member of a family while its siblings run.** A
+  member is a scope of its own inside the family's
+  (`eval::eval_any`), and what it read goes on the family's record
+  (`NodeRecord`'s `over`) when its scope closes. A member that is
+  served and not run closes no scope, so the family's record has to be
+  handed what the served member's record holds and what it was built
+  over, in member order. No fixture in the tree has a family whose
+  members are served singly; the rows that exist run every member
+  (`editor-core`'s
+  `a_nodes_result_at_the_symbolic_scalar_is_its_keys::a_reader_of_a_member_reads_that_members_record_and_a_reader_of_the_family_all`).
+- **What a record holds beyond the table is not in any size.** A
+  record names the records it was built over, one pointer per
+  registering record upstream of it, shared and not copied
+  (`NodeRecord`'s `over`). `DriveMemo::bytes_estimate` counts the
+  drive's table and neither the records on a leaf's values nor the
+  warm caches. A store that keeps values keeps their records, so its
+  size is its own to measure.
+
+**From the node-key unit's fix pass (PR 7470), two things the store
+should know:**
+
+- **A name is a function of the document only inside a session.** A
+  value with no expression is named by its node's mint scope and
+  ordinal inside a session, and by its minting thread outside one
+  (`geom_core::sym::mint`). A walk that maps its units in parallel
+  where decisions are thread-portable and runs them in order under a
+  session (`topo::props`' face walk, the evaluator's level map) so
+  names the same work two ways (`geom-core`'s
+  `the_two_arms_of_a_walk_share_no_name`). A drive replays every leaf
+  inside a session, on the serial arm, so every entry of one store is
+  named one way; a store that ever took an entry built under no
+  session would hold names no replay reproduces.
+- **A held axis keys apart from the unboxed build at `Sym`.**
+  `analysis::var_env_over` binds a `Fixed` axis `nominal + 0` and the
+  unboxed environment binds `nominal`: one number, two expressions, so
+  two content keys now that the key hashes the expression. The `+ 0`
+  is the arithmetic a varying axis binds through (`nominal + offset`),
+  kept so that a held axis and a degenerate varying one are the same
+  bits, a negative zero included; binding a held axis as the bare
+  literal at `Sym` alone would make the symbolic lane's numeric channel
+  differ from the plain lane's there. Every leaf of a drive goes
+  through `var_env_over`, so inside one store a held axis is one
+  expression and nothing misses; the miss is between an unboxed build
+  and a boxed replay, which no store shares.

@@ -6,7 +6,7 @@
 //! `m10_sym_drive_memo_interval`) can only show what a DRIVE produces.
 //! These rows build the leaves themselves, so they can put a leaf in a
 //! state no fixture in the tree reaches (a node minted outside the
-//! session, a leaf-varying opaque sequence, a budget the table was not
+//! session, a leaf whose mints take other names, a budget the table was not
 //! made for) and ask what the table does with it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -91,56 +91,14 @@ fn decisions(c: SymCounts) -> (u64, u64) {
     (c.symbolic, c.numeric)
 }
 
-/// **A value built in one leaf of a drive means in another what it
-/// meant where it was built.** Leaf 1 mints `c = 2` and proves
-/// `c·c − 4` zero by the constant fold. Leaf 2 is handed leaf 1's `c`
-/// and mints nothing for it: the id resolves through the drive's
-/// table, and leaf 2 reaches the same proof. The dials are the plain
-/// walk with A0 and no early walk, so the plain form is the whole
-/// answer.
-///
-/// Mutant: a leaf that resolves an id in its own cache alone freezes
-/// `c` in leaf 2, and the decision is numeric.
-#[test]
-fn a_value_built_in_one_leaf_means_the_same_in_another() {
-    let rules = SymRules {
-        const_fold: true,
-        ..SymRules::none()
-    };
-    let m = Arc::new(DriveMemo::new(budget(), rules));
-    let (c, first) = with_session_memo(budget(), rules, &m, || {
-        let c = lit(2.0);
-        zero(c * c - lit(4.0));
-        c
-    });
-    assert_eq!(decisions(first), (1, 0), "{first:?}");
-    let (_, second) = with_session_memo(budget(), rules, &m, || zero(c * c - lit(4.0)));
-    assert_eq!(
-        decisions(second),
-        (1, 0),
-        "the second leaf reads the first leaf's node through the drive's table: {second:?}"
-    );
-}
-
-/// **A node minted outside every session on a drive's table is a
-/// kernel bug, and says so.** Whether such an id is absent from the
-/// table would depend on which leaf ran first (`sym::memo`'s header),
-/// so the walk that meets one stops instead of freezing it.
-#[test]
-#[should_panic(expected = "minted outside every session on the drive's table")]
-fn a_node_minted_outside_the_drives_sessions_is_refused_loudly() {
-    let outside = three();
-    let m = tight_memo();
-    leaf(&m, || zero(outside - outside + outside - outside));
-}
-
-/// **A leaf-varying opaque sequence moves no decision through the
-/// memo** (R2, adopted): an `Opaque` id names a syntactic unknown, a
+/// **A leaf whose mints take other names moves no decision through
+/// the memo** (R2, adopted): an `Opaque` id names a syntactic unknown, a
 /// plain form is a syntactic normal form of a syntactic id, and a
 /// `Zero` it answers is an identity in whatever unknowns the id's
-/// syntax names — so two leaves that give one sequence number to two
-/// different reals are still each handed a sound form. What a
-/// leaf-varying mint costs is HITS (`sym::memo`'s header).
+/// syntax names — so two leaves that give one name (`sym::mint`: here
+/// the session root's ordinal) to two different reals are still each
+/// handed a sound form. What a leaf-varying mint costs is HITS
+/// (`sym::memo`'s header).
 #[test]
 fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
     let m = memo();
@@ -149,7 +107,7 @@ fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
             if extra {
                 // The stand-in for a value-dependent mint: one more
                 // opaque before the real ones shifts every later
-                // sequence number on this leaf.
+                // ordinal of this leaf's root scope.
                 let _ = Sym::<f64>::opaque(9.0);
             }
             let u = Sym::<f64>::opaque(1.0);
@@ -165,13 +123,13 @@ fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
     let (r2, c2) = leaf(false);
     let (r3, c3) = leaf(true);
     assert_eq!(r0, (false, true, true));
-    assert_eq!(r1, r0, "a shifted opaque sequence changed an answer");
+    assert_eq!(r1, r0, "a shifted ordinal changed an answer");
     assert_eq!(r2, r0);
     assert_eq!(r3, r0);
     for c in [c0, c1, c2, c3] {
         assert_eq!(decisions(c), (2, 1), "{c:?}");
     }
-    println!("memo after four leaves with a leaf-varying opaque sequence: {m:?}");
+    println!("memo after four leaves with leaf-varying mint names: {m:?}");
 }
 
 /// **A budget mismatch is refused at the DOOR** — a `debug_assert!` in

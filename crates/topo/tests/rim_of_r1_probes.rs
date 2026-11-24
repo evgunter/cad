@@ -282,7 +282,8 @@ fn stored_axis(body: &Body<f64>, k: EdgeKey) -> [u64; 3] {
         .certified()
         .unwrap();
     match *g.carrier() {
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let axis = frame.axis();
             [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()]
         }

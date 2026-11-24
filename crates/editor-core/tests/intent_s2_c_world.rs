@@ -45,7 +45,8 @@ const PRE_C: [(&str, &str); 39] = [
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
     ("kitchen_sink", "fddfb7f84e02cfcd/196"),
-    ("cut_cylinder", "d2acb2b37c5273db/28"),
+    // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
+    ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
     ("die_fillet", "934f10b8156f9396/76"),
@@ -312,7 +313,7 @@ fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     assert_eq!(doc.placements(), placements, "the insert placed nothing");
@@ -415,7 +416,7 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![p.into(), other.into()]),
+            members: editor_core::Bodies::spelled(vec![p.into(), other.into()]),
         },
     );
     (doc, [profile, b, p, reader])
@@ -446,12 +447,12 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         panic!("the reader stays in the remainder")
     };
     assert_eq!(
-        out.remainder.operation_of(members[0].read),
+        out.remainder.operation_of(members[0].read().read),
         Some(out.instance),
         "the remainder's reader reads the instance's copies"
     );
     assert!(
-        out.remainder.pick(members[0].read).is_none(),
+        out.remainder.pick(members[0].read().read).is_none(),
         "the part's product is that one copy, read whole: {:?}",
         members[0]
     );
@@ -466,7 +467,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
             let mut v = vec![
                 out.instance,
                 out.remainder
-                    .operation_of(members[1].read)
+                    .operation_of(members[1].read().read)
                     .expect("the other block's placement"),
             ];
             v.sort();
@@ -515,7 +516,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(editor_core::Operand::Node(instance)),
                 other.into(),
             ]),
@@ -536,7 +537,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     };
     let read = inlined
         .doc
-        .operation_of(members[0].read)
+        .operation_of(members[0].read().read)
         .expect("the boolean's read is live");
     // The spliced copy, in the world beside the boolean's other
     // operand: the extrude's body is in a space of its own.
@@ -567,7 +568,7 @@ fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
     let (doc, unmoved) = place_by_values(doc, a, &editor_core::Frame::IDENTITY);
     let (doc, b) = place_by_values(doc, b, &editor_core::Frame::IDENTITY);
     let boolean = |a: editor_core::Operand| Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
     };
     let (read_copy, by_insert) = insert(doc.clone(), boolean(copy.into()));
     let (read_block, by_block) = insert(doc.clone(), boolean(unmoved.into()));
@@ -754,7 +755,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(editor_core::Operand::Node(instance)),
                 other.into(),
             ]),
@@ -771,7 +772,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         panic!("the union stays")
     };
     assert_eq!(
-        inlined.doc.operation_of(members[0].read),
+        inlined.doc.operation_of(members[0].read().read),
         Some(inlined.placement),
         "the boolean reads the copy of the spliced placement's copy in the host's world"
     );
@@ -844,7 +845,7 @@ fn cut_with_a_reader(
     let (doc, reader) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![b.into(), b.into()]),
         },
     );
     let (doc, _) = place(doc, reader);

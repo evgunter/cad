@@ -95,23 +95,21 @@
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Vec3};
 
-use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::ray_walk::RayFault;
 use crate::region::{
-    self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, in_band,
+    self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
-use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -130,11 +128,10 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     /// on it and every edge keyed by it. The fields below are read off it
     /// ([`Self::on`]).
     charted: Charted<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
+    /// The torus's frame, as its surface holds it.
+    frame: geom::Frame<T>,
     major: T,
     minor: T,
-    u_ref: Vec3<T>,
     /// The face's sense bit: `false` points its outward normal into the
     /// tube.
     sense: bool,
@@ -207,18 +204,11 @@ impl<T: Decide> TorusFaceRegion<T> {
         else {
             unreachable!("a torus region is built on a torus record")
         };
-        let (center, axis, u_ref) = (
-            carrier_frame.origin(),
-            carrier_frame.axis(),
-            carrier_frame.u_ref(),
-        );
         Self {
             charted,
-            center,
-            axis,
+            frame: carrier_frame,
             major: major_radius,
             minor: minor_radius,
-            u_ref,
             sense,
             outer,
             edges,
@@ -252,12 +242,13 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(self.center, self.axis, self.u_ref)
+        self.frame
     }
 
     /// The parallel through `p`, run `forward` (the major angle
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
-    /// the tube side `p` lies on ([`Section::TubeSide`]).
+    /// the tube side `p` lies on
+    /// ([`Section::TubeSide`](geom_brep::curve_pair::on_surface::Section::TubeSide)).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
         let curve =
             SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
@@ -272,35 +263,11 @@ impl<T: Decide> TorusFaceRegion<T> {
         Leg::whole(Round::on(region::built(curve)))
     }
 
-    /// Where `y`, a point of the torus on the edge arc's plane, lies on
-    /// the arc of `(t0, t1)` from its offset `(x, y)` in the arc's frame
-    /// at `lever`: its parameter within half a turn of the span's middle,
-    /// read against the span by the span's own reading
-    /// ([`geom_brep::curve_pair::Span::place_param`]).
-    fn arc_place(
-        (t0, t1): (T, T),
-        (x, y): (T, T),
-        lever: T,
-        band: Band,
-    ) -> Result<Option<(T, bool)>, Fault> {
-        use geom_brep::curve_pair::Place;
-        let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        // The arc's circle in its own frame, where `(x, y)` is read: its
-        // chords are the arc's.
-        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), lever, Vec3::unit_x());
-        match geom_brep::curve_pair::Span::new(&circle, (t0, t1)).place_param(theta, band) {
-            Ok(Place::Inside) => Ok(Some((theta, false))),
-            Ok(Place::End(_)) => Ok(Some((theta, true))),
-            Ok(Place::Past) => Ok(None),
-            Err(diag) => Err(in_band(diag)),
-        }
-    }
-
     /// The unit chart normal at `y`.
     fn chart_normal(&self, y: Point3<T>) -> Vec3<T> {
         let n = geom_brep::implicit_gradient(
             &geom::Surface::Torus {
-                frame: geom::Frame::new(self.center, self.axis, self.u_ref),
+                frame: self.frame,
                 major_radius: self.major,
                 minor_radius: self.minor,
             },
@@ -437,101 +404,6 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     fn charted(&self) -> &Charted<T> {
         &self.charted
-    }
-
-    /// An oval across a leg's plane has no built reading (the curve ×
-    /// face table's `(Spiric, Plane)` is unbuilt), and a parallel leg's
-    /// plane is tangent to the torus along its top and bottom circles:
-    /// each is read the other way, the leg across the edge's plane. A
-    /// meridian leg's plane is normal to the torus everywhere, so every
-    /// circle edge is read across it.
-    fn across(&self, leg: &Leg<T>, edge: &Edge<T>, _: Band) -> Result<ReadAcross, Fault> {
-        match edge.carrier {
-            geom::Curve3::Spiric { .. } => Ok(ReadAcross::LegOverEdge),
-            geom::Curve3::Circle(_) => Ok(match region::Course::curve(&leg.course).section() {
-                Section::TubeSide { .. } => ReadAcross::LegOverEdge,
-                _ => ReadAcross::EdgeOverLeg,
-            }),
-            _ => unreachable!("torus_face_region admits circles and spirics only"),
-        }
-    }
-
-    /// The edge's plane meets the torus in two curves: a meridian's or a
-    /// Villarceau circle's in it and its mirror through the centre, an
-    /// oval's in two ovals across its trace (the spiric's two-oval regime,
-    /// `|offset| < R − r`, the convention its minting door decides). A
-    /// meeting on the edge's own is placed on its span.
-    fn on_edge_plane(
-        &self,
-        edge: &Edge<T>,
-        y: Point3<T>,
-        band: Band,
-    ) -> Result<Option<(T, bool)>, Fault> {
-        let row = |m: T| decide(Self::COMPONENT, Margin::of(m), band).map_err(in_band);
-        match edge.carrier {
-            geom::Curve3::Spiric {
-                frame,
-                major_radius: major,
-                minor_radius: minor,
-                offset,
-            } => {
-                debug_assert!(
-                    ((major - minor) - offset.abs())
-                        .point_value()
-                        .is_none_or(|gap| gap > 0.0),
-                    "a spiric is minted in its two-oval regime"
-                );
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
-                let w = y - center;
-                match row(w.dot(axis.cross(u_ref)))? {
-                    Sign::Positive => {}
-                    Sign::Negative => return Ok(None),
-                    Sign::Zero => return Err(RayFault::Graze),
-                }
-                let (h, rho) = geom::Line {
-                    origin: center,
-                    dir: axis,
-                }
-                .height_and_distance(y);
-                Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
-            }
-            geom::Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: carrier_frame_46,
-                    ..
-                },
-            ) => {
-                let (center, axis, u_ref) = (
-                    carrier_frame_46.origin(),
-                    carrier_frame_46.axis(),
-                    carrier_frame_46.u_ref(),
-                );
-                let radius = conic_k.radius();
-                let w = y - center;
-                // A parallel leg across a meridian's or a Villarceau
-                // circle's plane, which meets the torus in it and its
-                // mirror through the centre.
-                let mirror = self.center + (self.center - center);
-                let own = match row((y - mirror).norm() - radius)? {
-                    Sign::Positive | Sign::Negative => true,
-                    // On the mirror, or where the two cross.
-                    Sign::Zero => match row(w.norm() - radius)? {
-                        Sign::Positive | Sign::Negative => false,
-                        Sign::Zero => return Err(RayFault::Graze),
-                    },
-                };
-                if !own {
-                    return Ok(None);
-                }
-                Self::arc_place(
-                    (edge.t0, edge.t1),
-                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
-                    radius,
-                    band,
-                )
-            }
-            _ => unreachable!("torus_face_region admits circles and spirics only"),
-        }
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {

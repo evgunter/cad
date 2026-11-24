@@ -42,6 +42,8 @@ fn run_probe(env: &[(&str, &str)]) -> String {
         None => "print_k_flip_probe".to_string(),
     };
     cmd.args([probe.as_str(), "--ignored", "--exact", "--nocapture"]);
+    cmd.env_remove("CAD_TOLERANCE_EPS");
+    cmd.env_remove("CAD_AMBIGUITY_K");
     for (k, v) in env {
         cmd.env(k, v);
     }

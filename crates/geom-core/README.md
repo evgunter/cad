@@ -226,6 +226,25 @@ interior as well as at its doors:
   widened to every scalar the body happens to compile at, and no work
   is done to support a scalar the code has no meaning for.
 
+## Asking a scalar's expression (ERROR-DESIGN E12)
+
+**EX1 — the expression is a type, and the question is its method.**
+`Real::Expression` is what a scalar carries beside its value: at
+`Sym<T>` the node its value was computed as, and at `f64`, `Interval`,
+`Dual<T>` and `Probe` a type with no values (`NoExpression`), as a
+dual's lanes are (DL5.3). E12's structural question, whether a value
+is zero as a function of the document's variables, is
+`Expression::proves_zero`: a method of the expression, so it cannot be
+written against a number or against a generic `T`. Generic code
+reaches it through `Real::expression`, and at a numeric scalar the arm
+that asks is unreachable by type; no impl answers "no". Code whose
+whole meaning is symbolic takes the expression, or a bound only the
+symbolic scalar meets. `Real::register_equal` and
+`Decide::free_identity` are methods every scalar answers: a numeric
+scalar's `register_equal` checks the claim at its value and records
+nothing, and its `free_identity` drops the identity
+(`work/decide/register-equal-and-free-identity-are-answered-by-every-scalar.md`).
+
 ## Choosing among spellings of one quantity (W1)
 
 **W1 — a spelling is chosen by what its width and its error scale
@@ -476,11 +495,16 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   is the curve its stored numbers state, and no reading replaces it
   with a rounded copy: one held at its centre is read from its centre,
   and so fixes a point of its arc only to the rounding of the centre's
-  distance and directions. Every reading of where a conic is goes
-  through the conic. No
+  distance and directions. A conic's position is the point it stores
+  plus two vectors times two functions of its parameter, and every
+  reading of where the conic is (at a parameter, along it, or of a
+  point against it) is read from that position. Its centre is a datum
+  of the whole conic, stored or derived. No
   `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
-  `running`'s charge doors (its `pub` items) outside this crate. Every
+  `running`'s charge doors (its `pub` items, and every call of a
+  `with_…` method that adds a charge to a `Rounded`'s bound) outside
+  this crate. Every
   site is a listed entry with its reason: in production, a formula or a
   stored form owed a re-posing, an error-free transformation, or
   test-support code; in a test, its oracle. An entry whose site has gone

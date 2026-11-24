@@ -55,9 +55,9 @@ Split { target: @0, tool: @1 }
 Mirror { body: @0, plane: @1 }
   @0 Operand(Body)
   @1 Operand(Plane)
-Subtract { from: @0, tool: @1 }
+Subtract { from: @0, tool: Spelled([@1]) }
   @0 Operand(From)
-  @1 Operand(Cut)
+  @1 Operand(Cut(0))
 Union { members: Spelled([@0, @1]) }
   @0 Operand(Member(0))
   @1 Operand(Member(1))
@@ -75,6 +75,9 @@ Place { source: @0, target: @1, constraints: [Constraint { id: ConstraintId(Mint
   #1 ValueSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 2 }) }
   @0 Operand(Source)
   @1 Operand(Space)
+Datum { target: @0, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Some(Z)), by: #0 }) }] }
+  #0 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }) }
+  @0 Operand(Space)
 World
 Space
 Place { source: BodyRead { read: @0, at: [#0] }, target: @1, constraints: [] }

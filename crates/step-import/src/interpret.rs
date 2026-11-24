@@ -42,6 +42,10 @@ pub(crate) fn band_at(eps_in: f64, run_eps: f64, k: f64) -> Option<Band> {
 /// (a NURBS patch or carrier promoted to an analytic one): Zero promotes.
 pub(crate) const STEP_RECOGNIZED_RESIDUAL: &str = "step_recognized_residual";
 
+/// A NURBS net side's spread, the farthest its control points lie from
+/// the side's first: Zero makes the side that one point.
+pub(crate) const STEP_COLLAPSED_SIDE: &str = "step_collapsed_side";
+
 /// A recognition estimator's conditioning (a span, a sagitta, a radius,
 /// a chord): Zero determines no candidate; in band and apart go on to
 /// the certificate, which does not rest on the answer.
@@ -51,6 +55,17 @@ pub(crate) const STEP_RECOGNIZED_CONDITIONING: &str = "step_recognized_condition
 /// patch's `∂u`), each length read at the least band — the certificate,
 /// not this, decides the plane.
 pub(crate) const STEP_RECOGNIZED_PLANE_FRAME: &str = "step_recognized_plane_frame";
+
+/// A promoted carrier of revolution's frame (a cylinder's, cone's,
+/// sphere's or torus's): its estimated axis, already a direction, and
+/// its seam radial's part square to it, that length read at the least
+/// band, as the plane's frame is. The certificate, not this, decides
+/// the carrier.
+pub(crate) const STEP_RECOGNIZED_REVOLUTION_FRAME: &str = "step_recognized_revolution_frame";
+
+/// A snapped carrier's frame: its new axis, a direction already, and
+/// the seam it keeps squared to it, that length read at the least band.
+pub(crate) const STEP_SNAP_FRAME: &str = "step_snap_frame";
 
 /// A Nurbs-adjacent line rim's `PlacedSegment` frame: the line's
 /// direction and its residual completion, each length read at the least

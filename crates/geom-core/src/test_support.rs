@@ -1,6 +1,8 @@
 //! Test vocabulary over this crate's types, for the suites downstream.
 
-use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol, Told};
+use crate::{
+    Affine3, Band, Decide, ErrorTextReading, Indeterminate, MarginDiag, RigidMotion, Tol, Told,
+};
 
 /// The upper end of a reporting margin: the point margin, or the
 /// enclosure's upper end; `NaN` for a poisoned reading, which no bound
@@ -44,6 +46,15 @@ pub fn at_the_frame_cost_band(tol: Tol) -> bool {
     tol.eps() <= 1e-12
 }
 
+/// **Whether `cause` escalated `predicate` with its margin's upper end in
+/// `(lo, hi]`**: the window a frame-cost row
+/// ([`at_the_frame_cost_band`]) pins its refusal to.
+#[must_use]
+pub fn escalated(cause: &Indeterminate, predicate: &str, (lo, hi): (f64, f64)) -> bool {
+    let m = upper(cause.margin);
+    cause.predicate == Some(predicate) && m > lo && m <= hi
+}
+
 /// The lower end of a reporting margin: the point margin, or the
 /// enclosure's lower end; `NaN` for a poisoned reading. A measured
 /// miss's floor reads here: at an enclosure scalar limb 2 refuses on
@@ -75,7 +86,48 @@ pub fn told(told: &Told) -> f64 {
 /// offer by this rather than by the offer rule's own answer.
 #[must_use]
 pub fn is_told_offer_of(offered: f64, exact: f64) -> bool {
-    offered <= exact && exact - offered <= 1e-3 * exact
+    offered <= exact && exact - offered <= OFFER_GRID_STEP * exact
+}
+
+/// The band at tolerance `eps` and the default `K`: the band an
+/// executed-offer case's first raise runs at (`test_utils::offer::DESIGN_EPS`),
+/// whatever the running process's own tolerance is. Panics where `eps`
+/// forms no band.
+#[must_use]
+#[allow(clippy::panic)]
+pub fn default_k_band(eps: f64) -> Band {
+    match Band::new(eps, crate::tolerance::DEFAULT_K * eps) {
+        Ok(band) => band,
+        Err(e) => panic!("the default-K band at {eps:e}: {e:?}"),
+    }
+}
+
+/// The widest relative step of the grid an offered bound is told on:
+/// four significant figures.
+const OFFER_GRID_STEP: f64 = 1e-3;
+
+/// Whether `offered`, a tolerance read off a refusal's sentence, is the
+/// offer `band` makes for a margin known only to within `slack` of
+/// `margin`, by two checks that answer apart:
+///
+/// - **against the margin itself**, as [`is_told_offer_of`] is: at most
+///   `(|m| + slack)/K`, and no more than the grid's step below
+///   `(|m| − slack)/K`. A rule that rounds up, drops a figure or
+///   misplaces a decade fails here whatever the sentence says.
+/// - **against the rule's own answer** ([`Band::offer_deciding`]) at
+///   the window's two ends: no lower than its offer at the low end and
+///   no higher than its offer at the high end, so a sentence that does
+///   not quote the rule fails here. A quote between two grid points
+///   inside the window passes this half.
+#[must_use]
+pub fn is_offer_of_a_margin_within(band: Band, offered: f64, margin: f64, slack: f64) -> bool {
+    let k = band.escalate() / band.zero();
+    let (lo, hi) = (margin.abs() - slack, margin.abs() + slack);
+    let independent =
+        offered > 0.0 && offered <= hi / k && offered >= (1.0 - OFFER_GRID_STEP) * lo / k;
+    let rule = band.offer_deciding(lo).is_none_or(|y| y <= offered)
+        && band.offer_deciding(hi).is_some_and(|y| offered <= y);
+    independent && rule
 }
 
 /// The tolerance a refusal's sentence offers to tighten below, where it
@@ -389,5 +441,235 @@ pub mod twins {
             }
             .decisive_pairs(Pairing::Rank, |m| m < 1.5);
         }
+    }
+}
+
+/// **The belly of a stored first harmonic across a plane, decided
+/// exactly** ([`crate::Real::harmonic_belly`]'s oracle). The arithmetic is
+/// exact dyadic rationals over [`num_bigint::BigInt`], none of
+/// [`crate::exact`]'s, and the terms come from the stored data alone. The
+/// across-seam direction is `axis × u_ref` crossed exactly, never a
+/// rounded `v_ref`. The curve is `x + u·a·(cos θ − c₀) + (w × u)·b·(sin θ − s₀)`,
+/// so its height over the plane through `o` with normal `n` is
+/// `D + A cos θ + B sin θ`, and its belly is `β = √(A² + B²) − |D|`.
+/// No square root is taken: for `t ≥ −|D|`, `β > t` exactly where
+/// `(t + |D|)² < A² + B²`.
+pub mod stored_belly {
+    use num_bigint::BigInt;
+
+    use crate::StoredHarmonic;
+
+    /// `m·2^e`, exactly.
+    #[derive(Clone, Debug)]
+    struct Dyadic {
+        m: BigInt,
+        e: i64,
+    }
+
+    impl Dyadic {
+        fn of(x: f64) -> Self {
+            assert!(x.is_finite(), "a stored datum is finite: {x}");
+            let bits = x.to_bits();
+            let biased = i64::try_from((bits >> 52) & 0x7ff).unwrap_or(0);
+            let fraction = i64::try_from(bits & ((1u64 << 52) - 1)).unwrap_or(0);
+            let (m, e) = if biased == 0 {
+                (fraction, -1074)
+            } else {
+                (fraction | (1i64 << 52), biased - 1075)
+            };
+            let m = BigInt::from(if x.is_sign_negative() { -m } else { m });
+            Self { m, e }
+        }
+
+        fn plus(&self, other: &Self) -> Self {
+            let e = self.e.min(other.e);
+            let shift = |d: &Self| &d.m << usize::try_from(d.e - e).unwrap_or(0);
+            Self {
+                m: shift(self) + shift(other),
+                e,
+            }
+        }
+
+        fn times(&self, other: &Self) -> Self {
+            Self {
+                m: &self.m * &other.m,
+                e: self.e + other.e,
+            }
+        }
+
+        fn negated(&self) -> Self {
+            Self {
+                m: -&self.m,
+                e: self.e,
+            }
+        }
+
+        fn is_negative(&self) -> bool {
+            self.m.sign() == num_bigint::Sign::Minus
+        }
+
+        fn abs(&self) -> Self {
+            if self.is_negative() {
+                self.negated()
+            } else {
+                self.clone()
+            }
+        }
+    }
+
+    fn dot(p: &[Dyadic; 3], q: &[Dyadic; 3]) -> Dyadic {
+        p[0].times(&q[0])
+            .plus(&p[1].times(&q[1]))
+            .plus(&p[2].times(&q[2]))
+    }
+
+    /// `(A, B, D)`, exactly.
+    fn terms(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3]) -> [Dyadic; 3] {
+        let v3 = |p: [f64; 3]| p.map(Dyadic::of);
+        let (x, w, u, o, n) = (v3(curve.at), v3(curve.axis), v3(curve.u_ref), v3(o), v3(n));
+        let cross = |i: usize, j: usize| w[i].times(&u[j]).plus(&w[j].times(&u[i]).negated());
+        let v = [cross(1, 2), cross(2, 0), cross(0, 1)];
+        let big_a = Dyadic::of(curve.semi.0).times(&dot(&u, &n));
+        let big_b = Dyadic::of(curve.semi.1).times(&dot(&v, &n));
+        let offset = [0, 1, 2].map(|i| x[i].plus(&o[i].negated()));
+        let d = dot(&offset, &n)
+            .plus(&Dyadic::of(curve.phase.0).times(&big_a).negated())
+            .plus(&Dyadic::of(curve.phase.1).times(&big_b).negated());
+        [big_a, big_b, d]
+    }
+
+    /// **Whether the belly exceeds `t`**, exactly.
+    #[must_use]
+    pub fn exceeds(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3], t: f64) -> bool {
+        let [big_a, big_b, d] = terms(curve, o, n);
+        let lift = Dyadic::of(t).plus(&d.abs());
+        if lift.is_negative() {
+            return true;
+        }
+        let gap = lift
+            .times(&lift)
+            .plus(&big_a.times(&big_a).negated())
+            .plus(&big_b.times(&big_b).negated());
+        gap.is_negative()
+    }
+
+    /// **Whether the belly lies in `[lo, hi]`**, exactly.
+    #[must_use]
+    pub fn within(
+        curve: StoredHarmonic<f64>,
+        o: [f64; 3],
+        n: [f64; 3],
+        (lo, hi): (f64, f64),
+    ) -> bool {
+        !exceeds(curve, o, n, hi) && !below(curve, o, n, lo)
+    }
+
+    /// **Whether the belly lies below `t`**, exactly.
+    #[must_use]
+    pub fn below(curve: StoredHarmonic<f64>, o: [f64; 3], n: [f64; 3], t: f64) -> bool {
+        let [big_a, big_b, d] = terms(curve, o, n);
+        let lift = Dyadic::of(t).plus(&d.abs());
+        if lift.is_negative() {
+            return false;
+        }
+        let gap = lift
+            .times(&lift)
+            .plus(&big_a.times(&big_a).negated())
+            .plus(&big_b.times(&big_b).negated());
+        !gap.is_negative() && gap.m.sign() != num_bigint::Sign::NoSign
+    }
+}
+
+/// **How far a motion's `f64` axes are from their polar factor**, the
+/// rotation [`RigidMotion::rounding`] bounds the distance to, read
+/// independently of that bound: `(‖w − Rẑ‖, ‖u − Rx̂‖)`. The Gram defect
+/// `G = MᵀM − I` of the stored columns `M = [u v w]` is read exactly
+/// ([`crate::exact::Expansion`]) and rounded once per entry. Then
+/// `(M − R)eⱼ = R·S·eⱼ` with `S = (I + G)^½ − I`, summed as its series
+/// `G/2 − G²/8 + G³/16`. Each answer is within a few ulps of its own
+/// size, the series' remainder `5‖G‖⁴/128` below that wherever
+/// `‖G‖ ≤ 10⁻⁶`. A frame farther from rigid panics: the series is no
+/// oracle there.
+#[must_use]
+pub fn polar_distance(m: &RigidMotion<f64>) -> (f64, f64) {
+    use crate::exact::Expansion;
+    let columns = [m.u().get(), m.v().get(), m.w().get()];
+    let gram = |i: usize, j: usize| {
+        let (x, y) = (columns[i], columns[j]);
+        let mut e = Expansion::product(x.x, y.x);
+        e.add_expansion(&Expansion::product(x.y, y.y));
+        e.add_expansion(&Expansion::product(x.z, y.z));
+        if i == j {
+            e.add(-1.0);
+        }
+        e.components().iter().sum::<f64>()
+    };
+    let g: [[f64; 3]; 3] = core::array::from_fn(|i| core::array::from_fn(|j| gram(i, j)));
+    let norm = g.iter().flatten().map(|x| x.powi(2)).sum::<f64>().sqrt();
+    assert!(
+        norm <= 1e-6,
+        "polar_distance: ‖G‖ = {norm:e}, past the series oracle's reach"
+    );
+    let product = |a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]| -> [[f64; 3]; 3] {
+        core::array::from_fn(|i| core::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
+    };
+    let g2 = product(&g, &g);
+    let g3 = product(&g2, &g);
+    let s: [[f64; 3]; 3] = core::array::from_fn(|i| {
+        core::array::from_fn(|j| g[i][j] / 2.0 - g2[i][j] / 8.0 + g3[i][j] / 16.0)
+    });
+    let column = |j: usize| (0..3).map(|i| s[i][j].powi(2)).sum::<f64>().sqrt();
+    (column(2), column(0))
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod offer_tests {
+    use super::{Band, is_offer_of_a_margin_within};
+
+    /// **The offer check answers false on a quote the margin does not
+    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
+    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
+    /// offers 5.756e-11.
+    #[test]
+    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
+        let band = Band::new(1e-9, 1e-8).expect("the design band");
+        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
+        // The rule's own offer passes at every scale the suites raise at:
+        // a quote equal to the rule's answer, so only the bound by |m|/K
+        // can refuse it.
+        for m in [
+            3.0000000000031634e-10,
+            9.999999999999951e-11,
+            5.5e-9,
+            1.234567e-7,
+            4.2e-6,
+        ] {
+            let offered = band.offer_deciding(m).expect("an offer above the floor");
+            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
+        }
+        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
+        assert!(
+            at(5.756e-11, 5.756955e-10),
+            "the told offer of 5.756955e-10"
+        );
+        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
+        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
+        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
+        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
+        assert!(
+            !at(5.7565e-11, 5.756955e-10),
+            "off the grid, between two points"
+        );
+        // A margin known to a slack accepts either grid point it straddles.
+        let straddle = 1.1e-12 * 3e-10;
+        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
+        assert!(is_offer_of_a_margin_within(
+            band, 2.999e-11, 3e-10, straddle
+        ));
+        assert!(
+            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
+            "a step below both"
+        );
     }
 }

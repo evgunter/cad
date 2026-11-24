@@ -57,7 +57,11 @@ fn bottom_rim(body: &Body<f64>) -> (HalfEdgeKey, EdgeKey, FaceKey, Pcurve<f64>) 
     let (he, row) = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            row @ Pcurve::IsoArc { p0, .. } if p0.y == 0.0 => Some((he, row.clone())),
+            row @ Pcurve::IsoArc { line, .. }
+                if line.axis == geom_brep::ChartAxis::V && line.value == 0.0 =>
+            {
+                Some((he, row.clone()))
+            }
             _ => None,
         })
         .expect("the arc wall's bottom rim is an IsoArc row");
@@ -99,16 +103,12 @@ fn assert_same_row(got: &Pcurve<f64>, want: &Pcurve<f64>, what: &str) {
 
 fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
     let Pcurve::IsoArc {
-        p0,
-        pd,
-        t0,
-        angle,
-        breaks,
-        ..
+        t0, angle, breaks, ..
     } = image
     else {
         panic!("an IsoArc row: {image:?}")
     };
+    let (p0, pd) = image.iso_arc_segment().expect("an IsoArc has a segment");
     test_utils::arc_row::ArcRow {
         p0: [p0.x, p0.y],
         pd: [pd.x, pd.y],
@@ -268,7 +268,7 @@ fn a_double_split_re_mints_every_piece() {
 ///
 /// Tier 3 is not read: the in-place re-chart leaves the edges'
 /// descriptions naming the old chart, and the describing door, which
-/// would restate them, refuses (`RechartFalsifies { Unimplemented }`,
+/// would restate them, refuses (`DescriptionUncertified { Unimplemented }`,
 /// `work/topo/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`).
 /// The mint pass certifies every row it stores.
 #[test]
@@ -300,7 +300,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
         .unwrap()
         .pcurve()
         .clone();
-    let Pcurve::IsoArc { p0, pd, .. } = &parent else {
+    let Some((p0, pd)) = parent.iso_arc_segment() else {
         panic!("the reversed rim's row is an IsoArc: {parent:?}")
     };
     assert_eq!(
@@ -368,7 +368,11 @@ fn a_line_piece_the_closed_form_crosses_at_its_quarter_point_takes_its_row() {
     let he = body
         .pcurves()
         .find_map(|(he, c)| match c.pcurve() {
-            Pcurve::IsoLine { p0, pl, .. } if p0.y == 0.0 && pl.y == 0.0 && pl.x != 0.0 => Some(he),
+            Pcurve::IsoLine { line, rate, .. }
+                if line.axis == geom_brep::ChartAxis::V && line.value == 0.0 && *rate != 0.0 =>
+            {
+                Some(he)
+            }
             _ => None,
         })
         .expect("a line rim on a wall row");

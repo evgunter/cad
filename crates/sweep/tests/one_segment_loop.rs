@@ -605,8 +605,8 @@ fn one_segment_circles_revolve_at_interval() {
 /// to bottom and carried by the column run back. A circle, and a square
 /// with a round hole, each lofted between two stacked copies: one wall
 /// per one-segment loop with its strut the body's one wrap edge, all
-/// three tiers at `f64`, and at `Interval` tiers 1–2 and the two-arc
-/// circle's tier-3 verdict. A rational wall is not meshed
+/// three tiers at `f64`; at `Interval` both lofts refuse at the
+/// carrier's door, pinned. A rational wall is not meshed
 /// (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late.md`);
 /// its volume is the next row's.
 #[test]
@@ -644,10 +644,10 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
                 )
             });
         tiers(&one.body, what);
-        let [wall] = one.side_faces[li][0][..] else {
+        let [Some(wall)] = one.side_faces[li][0][..] else {
             panic!("{what}: one wall, got {:?}", one.side_faces[li]);
         };
-        let [strut] = one.seam_edges[li][0][..] else {
+        let [Some(strut)] = one.seam_edges[li][0][..] else {
             panic!("{what}: one strut, got {:?}", one.seam_edges[li]);
         };
         assert_eq!(
@@ -655,45 +655,31 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             vec![(wall, strut)],
             "{what}: the strut is the body's one wrap edge"
         );
-        let at_i = |loops: Vec<ProfileLoop<f64>>| {
-            let lofted = sweep::loft_body::<Interval>(
+        // At `Interval` the loft is built there, and an arc's weight
+        // `cos(Δ/2)` is an enclosure no carrier holds yet
+        // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+        // Pinned, so the row goes red when that lands: once both loft,
+        // ask that they pass tiers 1 and 2 and that tier 3 reads the
+        // one-segment wall as it reads the two-arc walls.
+        for loops in [section, two_arcs] {
+            match sweep::loft_body::<Interval>(
                 &sweep::test_support::lift_sections::<Interval>(&[loops.clone(), loops]),
                 &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
                 1,
                 tol(),
-            )
-            .unwrap_or_else(|e| {
-                panic!(
-                    "{what}: the loft builds at Interval: {e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                )
-            });
-            assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
-            assert_eq!(
-                validate_closed(&lofted.body),
-                Ok(()),
-                "{what} at Interval: tier 2"
-            );
-            // The face a refusal names differs between the two bodies;
-            // what it says about that face is compared.
-            match validate_geometric(&lofted.body, tol()) {
-                Ok(()) => None,
-                Err(errors) => match &errors[..] {
-                    [
-                        topo::ValidationError::VolumeUncomputable {
-                            source: topo::MassPropsError::Face { source, .. },
-                            ..
-                        },
-                    ] => Some(source.clone()),
-                    other => panic!("{what} at Interval: tier 3 refused otherwise: {other:?}"),
-                },
+            ) {
+                Err(sweep::LoftError::Skin(sweep::SkinError::Structure(e)))
+                    if matches!(
+                        e.refusal(),
+                        geom_core::spline::SplineError::CarrierWeightNotAPoint { .. }
+                    ) => {}
+                other => panic!(
+                    "{what}: at Interval the loft refuses its arc weights at the carrier's \
+                     door; once it builds, ask its tiers here: {:?}",
+                    other.map(|_| ())
+                ),
             }
-        };
-        assert_eq!(
-            at_i(section),
-            at_i(two_arcs),
-            "{what} at Interval: tier 3 reads the one-segment wall as the two-arc walls"
-        );
+        }
     }
 }
 
@@ -1220,10 +1206,13 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
             spec.description,
             geom_brep::EdgeDescriptionSpec::Chart {
                 surface,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, .. }),
+                image: Some(geom_brep::Pcurve::IsoLine { line, rate, .. }),
                 wrap: true,
                 ..
-            } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0
+            } if surface == wall_key
+                && line.axis == geom_brep::ChartAxis::U
+                && line.value == 0.0
+                && rate == -1.0
         ),
         "the wrap edge is the u = 0 wrap row of the wall's chart, run back \
          (`pl = (0, −1)`), got {:?}",

@@ -26,17 +26,29 @@
 //! expressions colliding on a 128-bit content hash would be a
 //! soundness break.
 //!
-//! # Every node a drive reasons about is in its table
+//! # What a leaf resolves through the table, and what it cannot
 //!
 //! A session on a drive's table records each node as it mints it, and
 //! a leaf resolves an id through its own cache and then through the
 //! table, so a value built in one leaf of a drive means in another
-//! what it meant where it was built. An id in neither was minted
-//! outside every session of the drive. No kernel path carries a
-//! symbolic value across a session's boundary, and a walk that meets
-//! such an id under a drive's table says so (`form_in`'s
-//! `debug_assert!`): whether it is absent would otherwise depend on
-//! which leaf ran first.
+//! what it meant where it was built.
+//!
+//! An id in neither was minted outside every session on the table: a
+//! `Sym` is a plain value, and any public door can be handed one. It
+//! is an UNKNOWN in that leaf (`Session::unknown`): an indeterminate
+//! of its own, which proves nothing the node would not, and its form
+//! and every plain form built over it are neither published here nor
+//! left in the caches the table keeps warm, because they are that
+//! leaf's reading and not a function of the id.
+//!
+//! **One dependence on the order of leaves is left, and it is this
+//! one.** An id is its content's hash, so once any leaf has minted the
+//! same content inside a session the table names it, and a leaf handed
+//! that content from outside resolves it. Sound either way; stronger
+//! after the minting leaf. Only a value from outside every session
+//! reaches it, and the evaluation service refuses the one such value
+//! it is handed whole, a prior built under another table
+//! (`editor_core`'s `prior_under_this_table`).
 //!
 //! # A leaf's `frozen` column
 //!
@@ -55,9 +67,13 @@
 //! makes one its cache does not hold. The caches outlive the leaf:
 //! the table keeps them ([`DriveMemo::warm`]) and hands one to the
 //! next leaf, which therefore starts with what an earlier leaf made
-//! and publishes only what is new to it. A cache holds nothing the
-//! table does not, so which cache a leaf is handed changes what it
-//! costs and nothing it answers. The forms are `Arc<Form>`, so a hit
+//! and publishes only what is new to it. Every node and plain form in
+//! a cache is in the table; its atom records are more than the
+//! table's (the early and retry walks' too), and each is a function of
+//! its id. So which cache a leaf is handed changes what it costs and
+//! nothing it answers. Nothing caps a cache: it grows to the table's
+//! size, one per leaf that runs at once, and
+//! [`MemoSize::bytes_estimate`] does not count it. The forms are `Arc<Form>`, so a hit
 //! hands back the allocation the first leaf built.
 //!
 //! With the dial off ([`DriveMemo::counting_only`]) the table keeps
@@ -88,6 +104,17 @@ pub struct DriveMemo {
     inner: RwLock<Inner>,
     /// The caches of the leaves that are done, for the next ones.
     warm: Mutex<Vec<Warm>>,
+    /// Which table this is ([`table_token`]).
+    token: u64,
+}
+
+/// A token no other table of the process has: what a value built under
+/// a table is told from one built under another by (`super::table`).
+/// Monotone and process-wide, it identifies a table and is read as
+/// nothing else.
+pub(super) fn table_token() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Default)]
@@ -141,6 +168,7 @@ impl DriveMemo {
             serves_forms: true,
             inner: RwLock::new(Inner::default()),
             warm: Mutex::new(Vec::new()),
+            token: table_token(),
         }
     }
 
@@ -154,6 +182,11 @@ impl DriveMemo {
             serves_forms: false,
             ..Self::new(budget, rules)
         }
+    }
+
+    /// This table's token.
+    pub(super) fn token(&self) -> u64 {
+        self.token
     }
 
     /// Whether a leaf under `budget` and `rules` may consult this
@@ -297,6 +330,10 @@ impl DriveMemo {
     /// the same budget and rules, so it is this one, and the first is
     /// kept with the `Arc` every earlier hit handed out.
     pub(super) fn publish_form(&self, id: SymId, form: &Arc<Form>, froze: bool) {
+        // A table that serves nothing keeps the freezes alone.
+        if !froze && !self.serves_forms {
+            return;
+        }
         let mut inner = self.write();
         if froze {
             inner.frozen.insert(id, ());
@@ -384,6 +421,7 @@ impl core::fmt::Debug for DriveMemo {
             serves_forms,
             inner,
             warm: _,
+            token: _,
         } = self;
         f.debug_struct("DriveMemo")
             .field("serves_forms", serves_forms)

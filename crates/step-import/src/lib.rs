@@ -230,6 +230,7 @@
 //! other charts keep a typed refusal naming that re-mint as the
 //! recourse.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod adopt;
 mod assemble;
 mod build;
@@ -425,6 +426,16 @@ pub enum NormalizationKind {
     /// and a torus band's winding × sense pair selects which of the
     /// two v-intervals between its rims the face covers.
     SeamlessPeriodicBand,
+    /// **A net side the file states one point, made exactly that
+    /// point** (`[import]` healing, `[extensibility]`): every control
+    /// point of a side of a NURBS face's knot rectangle reads as one at
+    /// the file's band, so the side is made its first control point in
+    /// file order, and the kernel reads it as the chart singularity it
+    /// is. One record per side; its census pair is the face's, unchanged.
+    CollapsedSideMadeOne {
+        /// The farthest a control point of the side moved (metres).
+        moved_by: f64,
+    },
     /// A **NURBS surface promoted to an analytic kind** (D7 stage 1,
     /// ruling #256): the patch's residual against the fitted analytic
     /// surface CERTIFIED at ε_in, so the face is adopted on the

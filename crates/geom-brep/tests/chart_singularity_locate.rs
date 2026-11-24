@@ -4,7 +4,7 @@
 //! whatever the loop's carriers, and the readings that cannot place it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, SQRT_2, TAU};
 
 use geom::{Curve3, Surface};
 use geom_brep::chart_singularity::{
@@ -316,14 +316,18 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
         "run west"
     );
     // A generator from the apex: the apex is that loop's vertex.
-    let generator = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0));
+    // Each generator is its chord from the apex, its span in metres.
+    let generator =
+        Curve3::Line(geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)).0);
     let sector = vec![
-        LoopEdge::hand_built(generator.clone(), 0.0, 1.0, true, 0, 1),
+        LoopEdge::hand_built(generator.clone(), 0.0, SQRT_2, true, 0, 1),
         LoopEdge::hand_built(rim.clone(), 0.0, PI, true, 1, 2),
         LoopEdge::hand_built(
-            Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 1.0)),
+            Curve3::Line(
+                geom::Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 1.0)).0,
+            ),
             0.0,
-            1.0,
+            SQRT_2,
             false,
             2,
             0,
@@ -438,16 +442,18 @@ fn parallel(z: f64) -> Curve3<f64> {
 #[test]
 fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
     let generator =
-        |u: f64| Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(u.cos(), u.sin(), 1.0));
+        // The generator at `u`, its parameter `√2` metres per unit of
+        // height.
+        |u: f64| Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::squared(Vec3::new(u.cos(), u.sin(), 1.0)));
     let (u0, u1) = (0.2, 0.2 + FRAC_PI_2);
     for z in [1e-3_f64, 1e-6] {
         for w in [1e-3_f64, 1e-6, 1e-9] {
             let top = z * (1.0 + w);
             let patch = vec![
                 LoopEdge::hand_built(parallel(z), u0, u1, true, 0, 1),
-                LoopEdge::hand_built(generator(u1), z, top, true, 1, 2),
+                LoopEdge::hand_built(generator(u1), z * SQRT_2, top * SQRT_2, true, 1, 2),
                 LoopEdge::hand_built(parallel(top), u0, u1, false, 2, 3),
-                LoopEdge::hand_built(generator(u0), z, top, false, 3, 0),
+                LoopEdge::hand_built(generator(u0), z * SQRT_2, top * SQRT_2, false, 3, 0),
             ];
             for (sense, want) in [(true, Lies::Outside), (false, Lies::Interior)] {
                 let got = lies(&cone(), core::slice::from_ref(&patch), sense);
@@ -607,9 +613,10 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
 fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
-    let Curve3::Circle(geom::Circle { frame, .. }) = rim.clone() else {
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = rim.clone() else {
         unreachable!()
     };
+    let frame = the_circle.frame();
     let (center, u_ref) = (frame.origin(), frame.u_ref());
     let p0 = center + u_ref * 0.8;
     let w = p0 - Point3::new(0.0, 0.0, 0.0);

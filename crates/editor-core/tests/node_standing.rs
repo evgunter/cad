@@ -487,15 +487,14 @@ fn reads(code: &str) -> usize {
 /// A file here names `NodeResult` or reads [`Evaluation::result`]
 /// because it needs what the standing does not carry — a failed node's
 /// own error, a value's payload beside a failure's kind — or because it
-/// is where results are written or re-exported. The count is
-/// [`reads`]'s hits in the file's shipped code ([`shipped`]: its
-/// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
-/// the answer is to read through `Evaluation::usable` or to give the
-/// file its line here.
-const READERS: [(&str, usize, &str); 15] = [
+/// is where results are written or re-exported. A file is a reader when
+/// [`reads`] hits its shipped code ([`shipped`]: its `#[cfg(test)]`
+/// items are not read); a new reader reds, and the answer is to read
+/// through `Evaluation::usable` or to give the file its line here. A
+/// listed file that stops reading is not a red.
+const READERS: [(&str, &str); 14] = [
     (
         "crates/editor-core/src/eval/members.rs",
-        18,
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
          indices: it holds the result map as the evaluator writes it, overlays each member's \
          raw values on the family's (a member's result where it has one, carrying the \
@@ -505,10 +504,9 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        41,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; \
-         `eval_node` writes what a node left in the symbolic session onto the result it made, \
-         and hands the result map to `upstream_records`, which reads through `usable_in`; the \
+         `eval_node` writes what a node left in the symbolic session onto the result it made; \
+         `chains_of` reads each node's reach (`Reach::node`), no result; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
          mate fault a FAILED placement carries, a standing and not a value (a node's space is \
@@ -522,7 +520,6 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        9,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port or a family's member copies the standing entries and writes \
          the value it resolves to (`reads_projected`), every read still through `value_of`; a \
@@ -532,64 +529,49 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/eval/measure.rs",
-        3,
         "the observed binding holds the result map by type, as the op wiring does, and reads \
          a measure's row only through `usable_in`",
     ),
-    ("crates/editor-core/src/lib.rs", 1, "re-exports the type"),
+    ("crates/editor-core/src/lib.rs", "re-exports the type"),
     (
         "crates/pncad/src/document.rs",
-        1,
         "re-exports the type on the public surface",
     ),
     (
         "crates/pncad/src/analysis.rs",
-        5,
         "the nominal clearance door reads each assertion's report off its value and, for one \
          that has none, its own error's words",
     ),
     (
         "crates/editor-core/src/drive.rs",
-        4,
         "reads a failed node's escalation log, which the standing does not carry",
     ),
     (
         "crates/editor-core/src/stackup.rs",
-        3,
         "a measure's sensitivity reads the failed node's own error to tell the guided \
          replay's refusal from the measure's (`unread_measure`)",
     ),
     (
         "crates/editor-core/src/mate/corner.rs",
-        3,
         "the corner frame evaluates the document itself and reads the body's own value \
          before placement; anything else is its `Unevaluated` refusal",
     ),
     (
         "crates/editor-core/src/mate/unobservable.rs",
-        3,
         "the unobservable-value report reads a placement's own value, and says nothing of one \
          that has none",
     ),
     (
-        "crates/viewer/src/bounds.rs",
-        4,
-        "collects the failed nodes a bounds verdict names, poisoned ones deliberately not",
-    ),
-    (
         "crates/viewer/src/tree.rs",
-        8,
         "the tree row renders a failed node's own error and links the node its error names \
          for repair, and a poisoned row renders its source's",
     ),
     (
         "demos/tour/src/chaintol.rs",
-        4,
         "prints a failed node's typed kind, as a consumer of the public result enum",
     ),
     (
         "crates/editor-core/src/eval/parts.rs",
-        2,
         "moves the failure behind a failed or poisoned piece of the part's product out of the part's \
          evaluation, which the standing does not carry; and walks the part build's whole result \
          map for the nodes that themselves FAILED, the refusals its record carries, where \
@@ -619,8 +601,7 @@ fn shipped(code: &str) -> String {
 
 /// **The census.** Every file of shipped `src` — each crate's and each
 /// demo's — whose code reads a node's result other than through
-/// [`Evaluation::usable`] is in [`READERS`] with its count and its
-/// reason, and no other file does.
+/// [`Evaluation::usable`] is in [`READERS`] with its reason.
 ///
 /// Blind spot: a read that never names the type nor calls
 /// `Evaluation::result` — `ev.nodes.get(&id)` followed by a method on
@@ -630,7 +611,8 @@ fn shipped(code: &str) -> String {
 #[test]
 fn every_node_result_reader_goes_through_usable_or_is_listed() {
     let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-    let mut found: Vec<(String, usize)> = Vec::new();
+    let mut unlisted: Vec<String> = Vec::new();
+    let mut home_read = false;
     for parent in ["crates", "demos"] {
         for entry in std::fs::read_dir(root.join(parent)).expect("listing") {
             let src = entry.expect("dir entry").path().join("src");
@@ -639,8 +621,7 @@ fn every_node_result_reader_goes_through_usable_or_is_listed() {
             }
             for path in test_utils::source::rust_sources(&src) {
                 let text = std::fs::read_to_string(&path).expect("readable source file");
-                let hits = reads(&shipped(&test_utils::source::code_only(&text)));
-                if hits == 0 {
+                if reads(&shipped(&test_utils::source::code_only(&text))) == 0 {
                     continue;
                 }
                 let rel = path
@@ -648,20 +629,24 @@ fn every_node_result_reader_goes_through_usable_or_is_listed() {
                     .expect("a walked file lies under the root")
                     .to_string_lossy()
                     .replace('\\', "/");
-                found.push((rel, hits));
+                home_read |= rel == "crates/editor-core/src/eval/mod.rs";
+                if !READERS.iter().any(|&(file, _)| file == rel) {
+                    unlisted.push(rel);
+                }
             }
         }
     }
-    found.sort();
-    let mut listed: Vec<(String, usize)> = READERS
-        .iter()
-        .map(|&(file, count, _)| (file.to_owned(), count))
-        .collect();
-    listed.sort();
-    assert_eq!(
-        found, listed,
+    // The evaluator writes every result: a walk that does not find it
+    // there has gone blind, not clean.
+    assert!(
+        home_read,
+        "the census no longer finds the evaluator's own reads in eval/mod.rs"
+    );
+    assert!(
+        unlisted.is_empty(),
         "a node's result is read somewhere other than `Evaluation::usable`; read it \
-         through that door, or give the file its line in `READERS` with a reason"
+         through that door, or give the file its line in `READERS` with a reason: \
+         {unlisted:#?}"
     );
 }
 

@@ -1,8 +1,9 @@
 //! **A validated segment records the unit directions its construction
 //! made**: a line's director, an arc's radial at each end
 //! (`crates/profile/README.md`, the profile format). A verb feeds what it
-//! holds exactly; a segment that holds only its points has its direction
-//! decided once at validate; a table's recorded direction is checked
+//! holds exactly; a hop between two points is given its director by the
+//! one mint, in the verb; an arc that holds only its points has its
+//! radials minted at validate; a table's recorded direction is checked
 //! there; the lift carries them; reversal swaps and negates.
 #![allow(
     clippy::unwrap_used,
@@ -74,6 +75,25 @@ fn radials<T: Real>(d: SegmentDirections<T>) -> (Vec2<T>, Vec2<T>) {
     }
 }
 
+/// A validated arc's radials.
+fn arc_radials<T: Real>(k: profile::SegmentKind<T>) -> (Vec2<T>, Vec2<T>) {
+    match k {
+        profile::SegmentKind::Arc {
+            radials: [start, end],
+            ..
+        } => (start, end),
+        profile::SegmentKind::Line { .. } => panic!("an arc's directions are radials"),
+    }
+}
+
+/// A validated line's director.
+fn line_director<T: Real>(k: profile::SegmentKind<T>) -> Vec2<T> {
+    match k {
+        profile::SegmentKind::Line { director } => director,
+        profile::SegmentKind::Arc { .. } => panic!("a line's direction is its director"),
+    }
+}
+
 fn director<T: Real>(d: SegmentDirections<T>) -> Vec2<T> {
     match d {
         SegmentDirections::Line(d) => d,
@@ -96,7 +116,7 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
     let (one, zero) = (1.0f64, 0.0f64);
     let want = [((one, zero), (-one, zero)), ((-one, zero), (one, zero))];
     for (k, ((sx, sy), (ex, ey))) in want.into_iter().enumerate() {
-        let (start, end) = radials(segs[k].directions);
+        let (start, end) = arc_radials(segs[k].kind);
         assert_eq!(
             bits(start),
             bits(Vec2::new(sx, sy)),
@@ -118,7 +138,7 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
         let band = geom_core::Band::linear(tol()).unwrap();
         let segs = vp.loops()[0].segments();
         for (k, ((sx, sy), (ex, ey))) in want.into_iter().enumerate() {
-            let (start, end) = radials(segs[k].directions);
+            let (start, end) = arc_radials(segs[k].kind);
             assert_eq!(
                 bounds(start),
                 [(sx, sx), (sy, sy)],
@@ -163,8 +183,8 @@ fn a_reversed_loop_swaps_its_radials_and_negates_its_directors() {
     assert_eq!(hole.role(), profile::LoopRole::Hole);
     let n = hole.segments().len();
     for k in 0..n {
-        let (s, e) = radials(hole.segments()[k].directions);
-        let (os, oe) = radials(outer.loops()[0].segments()[(n - k - 1) % n].directions);
+        let (s, e) = arc_radials(hole.segments()[k].kind);
+        let (os, oe) = arc_radials(outer.loops()[0].segments()[(n - k - 1) % n].kind);
         assert_eq!((bits(s), bits(e)), (bits(oe), bits(os)), "hole segment {k}");
     }
     // A table read both ways: reversing negates a director exactly.
@@ -197,7 +217,7 @@ fn a_rectangles_directors_are_the_axes_over_a_box() {
         let vp = validated(vec![lp.into()]);
         let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         for (k, (x, y)) in want.into_iter().enumerate() {
-            let d = director(vp.loops()[0].segments()[k].directions);
+            let d = line_director(vp.loops()[0].segments()[k].kind);
             assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
         }
     });
@@ -205,8 +225,9 @@ fn a_rectangles_directors_are_the_axes_over_a_box() {
 
 /// **A leg drawn along a director records that director with no
 /// width**, though its start carries a box; a leg between two authored
-/// points has its director decided at validate, and where the two
-/// points share a variable it is stored with the width of the quotient
+/// points has its director minted by its verb, and where the two
+/// points share a variable and no component is zero it is stored with
+/// the width of the quotient
 /// that mints it: never narrower than the direction over the box (its
 /// enclosure holds the direction at both ends), and wider than that
 /// hull by the quotient's dependency on `t` (measured: about three
@@ -228,7 +249,7 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
             .unwrap();
         let vp = validated(vec![lp.loop_]);
         let segs = vp.loops()[0].segments();
-        let d0 = director(segs[0].directions);
+        let d0 = line_director(segs[0].kind);
         assert_eq!(
             bounds(d0),
             [(1.0, 1.0), (0.0, 0.0)],
@@ -236,7 +257,7 @@ fn a_directed_leg_records_its_director_and_a_hop_its_true_width() {
         );
         // The hop from (t + 1, 0) to (2t, t + 1): direction (t − 1, t + 1)/|·|,
         // whose x runs from negative to positive across the box.
-        let d1 = bounds(director(segs[1].directions));
+        let d1 = bounds(line_director(segs[1].kind));
         let truth = |tv: f64| {
             let (dx, dy) = (tv - 1.0, tv + 1.0);
             let n = dx.hypot(dy);
@@ -271,7 +292,7 @@ fn bulge_and_tangent_arcs_record_their_centre_to_vertex_radials() {
             let profile::SegmentKind::Arc { arc, .. } = s.kind else {
                 continue;
             };
-            let (rs, re) = radials(s.directions);
+            let (rs, re) = arc_radials(s.kind);
             for (v, r, end) in [(s.start, rs, "start"), (s.end, re, "end")] {
                 let want = (v - arc.centre) / arc.radius;
                 assert!(
@@ -345,7 +366,7 @@ fn table(lp: ProfileLoop<f64>) -> Result<ValidatedProfile<f64>, ProfileError> {
 fn a_tables_recorded_direction_is_checked_and_refused_typed() {
     let ok = table(square_with_directors(1.0)).expect("an agreeing table validates");
     assert_eq!(
-        bits(director(ok.loops()[0].segments()[0].directions)),
+        bits(line_director(ok.loops()[0].segments()[0].kind)),
         bits(Vec2::new(1.0, 0.0))
     );
     let refuse = |lp: ProfileLoop<f64>| table(lp).expect_err("the table refuses");
@@ -388,13 +409,13 @@ fn a_tables_recorded_direction_is_checked_and_refused_typed() {
         ])
     };
     let good = table(arcs(Vec2::new(1.0, 0.0))).expect("agreeing radials validate");
-    let (s, e) = radials(good.loops()[0].segments()[0].directions);
+    let (s, e) = arc_radials(good.loops()[0].segments()[0].kind);
     assert_eq!(
         (bits(s), bits(e)),
         (bits(Vec2::new(1.0, 0.0)), bits(Vec2::new(-1.0, 0.0)))
     );
     // The unrecorded arc's radials are decided from its vertices.
-    let (s, e) = radials(good.loops()[0].segments()[1].directions);
+    let (s, e) = arc_radials(good.loops()[0].segments()[1].kind);
     assert!((s - Vec2::new(-1.0, 0.0)).norm() < 1e-15 && (e - Vec2::new(1.0, 0.0)).norm() < 1e-15);
     assert!(
         matches!(
@@ -493,7 +514,7 @@ fn a_tables_direction_is_a_unit_by_check_ones_measure_at_its_lever() {
             let ok = table(square_of_side(l, d)).unwrap_or_else(|e| {
                 panic!("side {l:e}: a director {what} by {off:e} validates: {e:?}")
             });
-            let stored = director(ok.loops()[0].segments()[0].directions);
+            let stored = line_director(ok.loops()[0].segments()[0].kind);
             assert_eq!(
                 bits(stored),
                 bits(d),
@@ -737,7 +758,7 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
         (Point2::new(-1.0, 3.0), Segment::Line, None),
     ]);
     let vp = table(lp).expect("the table validates");
-    let stored = director(vp.loops()[0].segments()[0].directions);
+    let stored = line_director(vp.loops()[0].segments()[0].kind);
     assert_eq!(
         bits(stored),
         bits(d),
@@ -747,11 +768,11 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
         .clone()
         .lift_onto(SketchPlane::<Interval>::xy())
         .expect("the lift");
-    let l = director(lifted.loops()[0].segments()[0].directions);
+    let l = line_director(lifted.loops()[0].segments()[0].kind);
     assert_eq!(bounds(l), [(d.x, d.x), (d.y, d.y)], "the lifted director");
     let channel = lifted.value_channel().expect("a point channel");
     assert_eq!(
-        bits(director(channel.loops()[0].segments()[0].directions)),
+        bits(line_director(channel.loops()[0].segments()[0].kind)),
         bits(d),
         "the value channel"
     );
@@ -760,10 +781,8 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
 /// **A hop between two points that share a variable mints its axis with
 /// no width**: the slab whose width `W` carries a box, drawn through its
 /// four corners. The side from (W, 0) to (W, 1) is (0, 1) at every `W`,
-/// and validation's mint reads `W − W` as the zero the tier proves, in
-/// an eager session over a box, where the quotient would carry the box's
-/// width twice. (In a deferring session over a box it does not:
-/// `the_slabs_side_takes_the_quotient_in_a_deferring_session_over_a_box`.)
+/// and the mint asks the chord's `W − W` whether it is zero as an
+/// expression, where the quotient would carry the box's width twice.
 #[test]
 fn a_hop_along_an_axis_mints_its_director_with_no_width() {
     in_session(|| {
@@ -782,7 +801,7 @@ fn a_hop_along_an_axis_mints_its_director_with_no_width() {
         let vp = validated(vec![lp.loop_]);
         let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
         for (k, (x, y)) in want.into_iter().enumerate() {
-            let d = director(vp.loops()[0].segments()[k].directions);
+            let d = line_director(vp.loops()[0].segments()[k].kind);
             assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
         }
     });
@@ -804,6 +823,14 @@ fn line_rec(x: f64, y: f64) -> Option<SegmentDirections<f64>> {
     Some(SegmentDirections::Line(Vec2::new(x, y)))
 }
 
+/// What a point-to-point verb records at `f64` for the hop `a → b`: the
+/// chord over its length.
+fn hop(a: (f64, f64), b: (f64, f64)) -> Option<SegmentDirections<f64>> {
+    Some(SegmentDirections::Line(
+        (Point2::new(b.0, b.1) - Point2::new(a.0, a.1)).normalize(),
+    ))
+}
+
 /// `lp`'s recorded directions are `want`, bit for bit, `None` included.
 fn records(lp: &ProfileLoop<f64>, want: &[Option<SegmentDirections<f64>>], what: &str) {
     let got: Vec<_> = lp.directions().iter().map(|&d| recorded_bits(d)).collect();
@@ -812,11 +839,13 @@ fn records(lp: &ProfileLoop<f64>, want: &[Option<SegmentDirections<f64>>], what:
 }
 
 /// **What each verb records on its loop**, before validation reads it:
-/// the exact direction where the verb holds one, and `None` where it
-/// holds only points (validation then mints it). A verb that stopped
-/// recording, or one that recorded where it holds no direction, goes
-/// red here; the validated rows above cannot see either, since
-/// validation mints a missing direction to the same value.
+/// the exact direction where the verb holds one, a hop's minted
+/// director (at `f64` its chord over its length, [`hop`]), and `None`
+/// where a verb holds only points and no mint of its own (validation
+/// then mints it). A verb that stopped recording, or one that recorded
+/// where it holds no direction, goes red here; the validated rows above
+/// cannot see either, since validation mints a missing direction to the
+/// same value.
 #[test]
 fn each_verb_records_what_it_holds_on_the_loop() {
     let x = |x: f64, y: f64| Vec2::new(x, y);
@@ -855,8 +884,8 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         ],
         "rectangle",
     );
-    // A leg along a director records it; a leg to a point target
-    // continuing that director, and hops, record nothing.
+    // A leg along a director records it and a hop its minted director;
+    // a leg to a point target continuing a director records nothing.
     let legs = Open
         .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, tol())
@@ -871,7 +900,12 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap();
     records(
         &legs.loop_.into_loop(),
-        &[line_rec(1.0, 0.0), None, None, None],
+        &[
+            line_rec(1.0, 0.0),
+            None,
+            hop((3.0, 0.0), (3.0, 1.0)),
+            hop((3.0, 1.0), (0.0, 0.0)),
+        ],
         "directed leg, point target, hops",
     );
     // Bulge and via: the lowering's own radials at the literal sign.
@@ -893,7 +927,12 @@ fn each_verb_records_what_it_holds_on_the_loop() {
             .unwrap();
         records(
             &lp.loop_.into_loop(),
-            &[None, lowered(bulge), None, None],
+            &[
+                hop((0.0, 0.0), (4.0, 0.0)),
+                lowered(bulge),
+                hop((4.0, 4.0), (0.0, 4.0)),
+                hop((0.0, 4.0), (0.0, 0.0)),
+            ],
             &format!("bulge {bulge}"),
         );
     }
@@ -910,7 +949,12 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap();
     records(
         &via.loop_.into_loop(),
-        &[None, lowered(profile::bulge_from_via(a, q, b)), None, None],
+        &[
+            hop((0.0, 0.0), (4.0, 0.0)),
+            lowered(profile::bulge_from_via(a, q, b)),
+            hop((4.0, 4.0), (0.0, 4.0)),
+            hop((0.0, 4.0), (0.0, 0.0)),
+        ],
         "via",
     );
     // A centred arc holds its points and its centre, not its radials.
@@ -931,7 +975,16 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap()
         .line_to(Start, tol())
         .unwrap();
-    records(&center.loop_.into_loop(), &[None; 4], "centred arc");
+    records(
+        &center.loop_.into_loop(),
+        &[
+            hop((0.0, 0.0), (4.0, 0.0)),
+            None,
+            hop((4.0, 4.0), (0.0, 4.0)),
+            hop((0.0, 4.0), (0.0, 0.0)),
+        ],
+        "centred arc",
+    );
     // Tangent arcs: σ·(t.y, −t.x) at each end, the tangent turned away
     // from the turn's centre; left from east, the end tangent north.
     let tangent = Open
@@ -947,7 +1000,12 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap();
     records(
         &tangent.loop_.into_loop(),
-        &[None, arc_rec(x(0.0, -1.0), x(1.0, -0.0)), None, None],
+        &[
+            hop((0.0, 0.0), (2.0, 0.0)),
+            arc_rec(x(0.0, -1.0), x(1.0, -0.0)),
+            hop((3.0, 1.0), (0.0, 2.0)),
+            hop((0.0, 2.0), (0.0, 0.0)),
+        ],
         "tangent arc",
     );
     // The B: a tangent arc then `arc_onto(Start)`, each recording its
@@ -989,7 +1047,9 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         }
     }
     // Fillets and the arc_fillet's side arc hold their tangency points,
-    // not a direction: nothing recorded.
+    // not a direction: nothing recorded. The hops beside them record
+    // their authored chord's director, whatever a fillet trims off the
+    // segment.
     let (east, north) = (0.0_f64, core::f64::consts::FRAC_PI_2);
     let (west, south) = (core::f64::consts::PI, -north);
     let t = tol();
@@ -1041,15 +1101,21 @@ fn each_verb_records_what_it_holds_on_the_loop() {
         .unwrap()
         .line_to(Start, t)
         .unwrap();
-    records(&side.loop_.into_loop(), &[None; 6], "arc_fillet");
+    records(
+        &side.loop_.into_loop(),
+        &[
+            None,
+            None,
+            None,
+            hop((4.0, 0.0), (4.0, 3.0)),
+            hop((4.0, 3.0), (-1.0, 3.0)),
+            hop((-1.0, 3.0), (0.0, 2.0)),
+        ],
+        "arc_fillet",
+    );
 }
 
-// ---- the axis mint at two valuations and in each session --------------
-
-/// Where the axis mint's residual is filed: it asks for proof only where
-/// the value reads Zero.
-const RESIDUAL: &str =
-    "work/boxfinish/the-axis-mint-asks-for-proof-only-where-the-value-reads-zero.md";
+// ---- the direction mint: one document, one branch ---------------------
 
 /// The symbolic sessions a build runs in: eager (each Zero offered to
 /// the tier as it is decided) and deferring (the coincidence door's
@@ -1086,23 +1152,40 @@ fn pf(name: &str, v: f64) -> Sym<f64> {
     Sym::param(ParamSymbol::new(test_utils::symbol_id(name)), v)
 }
 
-/// The quadrilateral (0, 0) → (x1, 0) → (x2, 1) → (0, 1), its second
-/// side's stored director as bounds.
-fn quad_hop<T: Decide + Bounds>(x1: T, x2: T) -> [(f64, f64); 2] {
-    let (z, one) = (T::from_f64(0.0), T::from_f64(1.0));
-    let lp = Open
+/// The quadrilateral (0, 0) → (x1, 0) → (x2, y) → (0, y), as its verbs
+/// answer it.
+fn quad<T: Decide>(x1: T, x2: T, y: T) -> Result<ConstructedLoop<T>, profile::PathError<T>> {
+    let z = T::from_f64(0.0);
+    Ok(Open
         .at(Point2::new(z, z))
-        .line_to(Point2::new(x1, z), tol())
-        .unwrap()
-        .line_to(Point2::new(x2, one), tol())
-        .unwrap()
-        .line_to(Point2::new(z, one), tol())
-        .unwrap()
-        .line_to(Start, tol())
-        .unwrap();
-    bounds(director(
-        validated(vec![lp.loop_]).loops()[0].segments()[1].directions,
-    ))
+        .line_to(Point2::new(x1, z), tol())?
+        .line_to(Point2::new(x2, y), tol())?
+        .line_to(Point2::new(z, y), tol())?
+        .line_to(Start, tol())?
+        .loop_)
+}
+
+/// The gate a verb's escalation names, or what the verb answered
+/// instead, rendered.
+fn escalated_gate<T: Real>(
+    built: Result<ConstructedLoop<T>, profile::PathError<T>>,
+) -> Result<Gate, String> {
+    match built {
+        Err(profile::PathError::Escalated { gate, .. }) => Ok(gate),
+        Err(other) => Err(format!("{other:?}")),
+        Ok(_) => Err("built".to_owned()),
+    }
+}
+
+/// [`quad`]'s second side's stored director, the quad one unit tall.
+fn quad_director<T: Decide>(x1: T, x2: T) -> Vec2<T> {
+    let lp = quad(x1, x2, T::from_f64(1.0)).expect("the quad builds");
+    line_director(validated(vec![lp]).loops()[0].segments()[1].kind)
+}
+
+/// [`quad_director`], as bounds.
+fn quad_hop<T: Decide + Bounds>(x1: T, x2: T) -> [(f64, f64); 2] {
+    bounds(quad_director(x1, x2))
 }
 
 const AXIS_UP: [(f64, f64); 2] = [(0.0, 0.0), (1.0, 1.0)];
@@ -1114,12 +1197,22 @@ fn answers(
     d.iter().map(|d| (d.predicate, d.sign)).collect()
 }
 
-/// How many `segment_direction_axis` readings a build kept.
-fn axis_readings(d: &[geom_core::sym::revalue::Decision]) -> usize {
+/// The signs of the `segment_direction_axis` readings a build took: one
+/// per director stored as an axis, `None` for one that escalated.
+fn axis_readings(d: &[geom_core::sym::revalue::Decision]) -> Vec<Option<geom_core::Sign>> {
     d.iter()
         .filter(|d| d.predicate == "segment_direction_axis")
-        .count()
+        .map(|d| d.sign)
+        .collect()
 }
+
+/// The three literal axis sides of [`quad`], each signed by one
+/// reading of its other component: +x, then −x, then −y.
+const LITERAL_SIDES: [Option<geom_core::Sign>; 3] = [
+    Some(geom_core::Sign::Positive),
+    Some(geom_core::Sign::Negative),
+    Some(geom_core::Sign::Negative),
+];
 
 /// **A coincidence of values takes one branch at every valuation, in
 /// both sessions** (ERROR-DESIGN E12): a hop between two corners whose
@@ -1127,9 +1220,10 @@ fn axis_readings(d: &[geom_core::sym::revalue::Decision]) -> usize {
 /// component that reads exactly `0.0` there and is no identity. Built at
 /// `Sym<f64>` at the nominal and with one corner moved, every decision
 /// the two builds take answers the same sign, and both store the
-/// quotient: a mint that branched on the component's value would store a
-/// constant at the nominal where the computation varies with the
-/// parameters (what the five `revalue_corpus` rows caught).
+/// quotient and read no sign for this side. A mint that took a
+/// component reading `0.0` for a zero stores a constant at the nominal
+/// where the computation varies with the parameters, and is red on the
+/// readings.
 #[test]
 fn a_value_coincident_hop_takes_one_branch_at_every_valuation() {
     use geom_core::sym::revalue::record;
@@ -1137,118 +1231,122 @@ fn a_value_coincident_hop_takes_one_branch_at_every_valuation() {
         let build = |x2: f64| record(|| run(kind, || quad_hop(pf("x1", 1.0), pf("x2", x2))));
         let ((d0, at0), (d1, at1)) = (build(1.0), build(1.0 + 1.0e-7));
         assert_eq!(answers(&at0), answers(&at1), "{kind:?}: one branch");
-        // The quad's three other sides are literal axes, two readings
-        // kept each; this side keeps none.
-        assert_eq!(axis_readings(&at0), 6, "{kind:?}: none kept on this side");
+        assert_eq!(
+            axis_readings(&at0),
+            LITERAL_SIDES,
+            "{kind:?}: no sign read here"
+        );
         assert_eq!(d0[0], (0.0, 0.0), "{kind:?}: the nominal's quotient");
         assert!(d1[0].0 > 0.0, "{kind:?}: the moved build leans: {d1:?}");
     }
 }
 
-/// **An identity that reads Zero mints its axis in both sessions, the
-/// deferring one by discharge, and keeps its two readings**: the hop
-/// `(w, 0) → (w, 1)` at `Sym<f64>`. In a deferring session the Zero is
-/// stamped with its place on the list and proven only when the mint asks
-/// (`geom_core::sym::deferred::discharge`); a mint that did not ask
-/// there would store the quotient. The two readings the axis stands on
-/// are kept in the decision record, beside the quad's three literal
-/// axis sides' two each; a mint that discarded them would leave none.
-#[test]
-fn an_identity_that_reads_zero_mints_its_axis_in_both_sessions_and_keeps_its_readings() {
-    use geom_core::sym::revalue::record;
-    for kind in SESSIONS {
-        let (d, at) = record(|| {
-            run(kind, || {
-                let w = pf("w", 1.0);
-                quad_hop(w, w)
-            })
-        });
-        assert_eq!(d, AXIS_UP, "{kind:?}: the axis");
-        // Two readings kept on every side, this one's among them.
-        assert_eq!(axis_readings(&at), 8, "{kind:?}: the readings kept");
-    }
-}
-
-/// **Pinned: an identity whose `f64` value rounds takes the quotient**,
-/// at `Sym<f64>` in both sessions (the replay's lane): the hop
-/// `(x, 0) → ((x + w) − w, 1)`, whose chord `x` is zero as a theorem.
-/// At `(x, w) = (1, 1)` `f64` computes it as `0.0`, the tier proves the
-/// Zero and the mint stores the axis; at `(0.1, 0.3)` it rounds to
-/// `2.8e-17`, a definite sign the tier is never asked about, and the
-/// mint stores the quotient. Today's truth, not the goal: [`RESIDUAL`].
+/// **One document, one branch: an identity mints its axis at every
+/// valuation, in both sessions.** The hop `(x, 0) → ((x + w) − w, 1)` at
+/// `Sym<f64>`, whose chord `x` is zero as an expression. At
+/// `(x, w) = (1, 1)` `f64` computes it as `0.0`; at `(0.1, 0.3)` it
+/// rounds to `2.8e-17`. Both store the axis, sign it by one reading of
+/// the other component, and take the same decisions with the same
+/// answers; so does the hop `(w, 0) → (w, 1)`.
 ///
-/// The axis half is told from the quotient by the readings it keeps (at
-/// `(1, 1)` the quotient is `(0, 1)` too): eight `segment_direction_axis`
-/// readings, two per axis side, against six where this side takes the
-/// quotient. A mint that returned the quotient without reading turns it
-/// red on both halves.
+/// A mint that asks the expression only where the value channel reads
+/// zero (what a sign reading does: the tier is consulted only where the
+/// value reads no definite sign) stores the quotient at `(0.1, 0.3)`,
+/// one ulp off the axis, and is red there.
 #[test]
-fn an_identity_that_rounds_takes_the_axis_only_where_its_value_reads_zero() {
+fn an_identity_that_rounds_mints_its_axis_at_every_valuation() {
+    use geom_core::sym::revalue::record;
     let rounds = |x: f64, w: f64| ((x + w) - w) - x;
     assert_eq!(rounds(1.0, 1.0), 0.0);
     assert_ne!(rounds(0.1, 0.3), 0.0);
+    let up = [
+        LITERAL_SIDES[0],
+        LITERAL_SIDES[0],
+        LITERAL_SIDES[1],
+        LITERAL_SIDES[2],
+    ];
     for kind in SESSIONS {
         let at = |x: f64, w: f64| {
-            geom_core::sym::revalue::record(|| {
+            record(|| {
                 run(kind, || {
                     let (x, w) = (pf("x", x), pf("w", w));
                     quad_hop(x, (x + w) - w)
                 })
             })
         };
-        let (d, kept) = at(1.0, 1.0);
-        assert_eq!(d, AXIS_UP, "{kind:?}: reads zero: the axis");
-        assert_eq!(axis_readings(&kept), 8, "{kind:?}: reads zero: kept");
-        let (d, kept) = at(0.1, 0.3);
-        assert_eq!(axis_readings(&kept), 6, "{kind:?}: rounds: none kept here");
-        assert!(
-            d[0].0 > 0.0 && d[0].0 == d[0].1,
-            "{kind:?}: rounds: the quotient, one ulp off the axis ({RESIDUAL}): {d:?}"
-        );
+        let ((d0, at0), (d1, at1)) = (at(1.0, 1.0), at(0.1, 0.3));
+        assert_eq!(d0, AXIS_UP, "{kind:?}: reads zero: the axis");
+        assert_eq!(d1, AXIS_UP, "{kind:?}: rounds: the axis");
+        assert_eq!(answers(&at0), answers(&at1), "{kind:?}: one branch");
+        assert_eq!(axis_readings(&at1), up, "{kind:?}: one sign read per axis");
+        let (d, same) = record(|| {
+            run(kind, || {
+                let w = pf("w", 1.0);
+                quad_hop(w, w)
+            })
+        });
+        assert_eq!(d, AXIS_UP, "{kind:?}: one variable twice");
+        assert_eq!(axis_readings(&same), up, "{kind:?}: one variable twice");
     }
 }
 
-/// **Pinned: the slab's side takes the quotient in a deferring session
-/// over a box**: `W − W` over a box straddles zero, the least band
-/// escalates, a deferring session returns the escalation without asking
-/// the tier, and the mint reads no Zero to discharge. An eager session
-/// hands the escalation to the tier, which proves it; over a point box
-/// both read `[0, 0]`, a Zero the deferring session discharges. Latent
-/// (the one production deferring session is `Sym<f64>`); today's truth,
-/// not the goal: [`RESIDUAL`].
+/// **The slab's side is proved in every symbolic session, over a box
+/// and over a point, and is never read as a sign**: `W − W` over a box
+/// straddles zero, so a sign reading of it escalates, and a deferring
+/// session returns the escalation without asking the tier. The mint
+/// asks the expression: the axis in all four, and every
+/// `segment_direction_axis` reading the build takes is of an axis's
+/// other component and is definite.
+///
+/// A mint that learned the zero from a sign reading stores the
+/// quotient, straddling the axis, in the deferring session over a box,
+/// and is red there. A plain `Interval` carries no expression: there
+/// the side is the quotient, as wide as the box makes it.
 #[test]
-fn the_slabs_side_takes_the_quotient_in_a_deferring_session_over_a_box() {
+fn the_slabs_side_is_proved_in_every_session_and_never_escalates() {
+    use geom_core::sym::revalue::record;
     let side = |kind: Session, h: f64| {
-        run(kind, || {
-            let w = param("W", 1.0, h);
-            quad_hop(w, w)
+        record(|| {
+            run(kind, || {
+                let w = param("W", 1.0, h);
+                quad_hop(w, w)
+            })
         })
     };
-    assert_eq!(side(Session::Eager, small()), AXIS_UP, "eager, a box");
-    assert_eq!(side(Session::Eager, 0.0), AXIS_UP, "eager, a point");
-    assert_eq!(side(Session::Deferring, 0.0), AXIS_UP, "deferring, a point");
-    let d = side(Session::Deferring, small());
+    let cases = SESSIONS.map(|kind| [small(), 0.0].map(|h| (kind, h, side(kind, h))));
+    for (kind, h, (d, _)) in cases.iter().flatten() {
+        assert_eq!(*d, AXIS_UP, "{kind:?}, half-width {h:e}");
+    }
+    for (kind, h, (_, readings)) in cases.iter().flatten() {
+        assert_eq!(
+            axis_readings(readings),
+            [
+                LITERAL_SIDES[0],
+                LITERAL_SIDES[0],
+                LITERAL_SIDES[1],
+                LITERAL_SIDES[2]
+            ],
+            "{kind:?}, half-width {h:e}: every reading definite"
+        );
+    }
+    let w = Interval::from_bounds(1.0 - small(), 1.0 + small());
+    let d = quad_hop(w, w);
     assert!(
         d[0].0 < 0.0 && 0.0 < d[0].1,
-        "deferring, a box: the quotient, straddling the axis ({RESIDUAL}): {d:?}"
+        "a plain interval: the quotient, straddling the axis: {d:?}"
     );
 }
 
-/// **Pinned: a `max` in a corner is no identity the mint proves, on
-/// either side of its comparison**: the hop `(max(a, b), 0) → (b, 1)` at
-/// `Sym<Interval>` over point boxes. Where `a < b` the chord's `x`,
-/// `max(a, b) − b`, reads `[0, 0]` as a value, but the tier does not
-/// prove it zero, so the mint takes the quotient and keeps none of this
-/// side's readings; its value is the axis's, `[0, 0]` over a length of
-/// one. Where `a > b` the chord is `b − a`, the quotient leaning back. So
-/// the tier does not read the `max`'s comparison off the box here, which
-/// DECIDE's row on asking for an identity weighs
-/// (`work/decide/a-construction-can-ask-whether-a-value-is-an-identity-only-by-taking-a-sign-reading.md`).
+/// **A `max` in a corner is no identity, on either side of its
+/// comparison**: the hop `(max(a, b), 0) → (b, 1)` at `Sym<Interval>`
+/// over point boxes. Where `a < b` the chord's `x`, `max(a, b) − b`,
+/// reads `[0, 0]` as a value; the question reads no value, so not the
+/// arm the `max` takes either, and the mint stores the quotient, whose
+/// value is the axis's. Where `a > b` the chord is `b − a`, the quotient
+/// leaning back. No sign is read for this side on either.
 ///
-/// The branch is told by the readings kept, six (two per literal axis
-/// side) and none of this side's on either side of the comparison. A
-/// mint that returned the quotient without reading turns it red (none
-/// kept); one that took a Zero for proof turns it red where `a < b`.
+/// A mint that took a component's Zero for proof is red where `a < b`
+/// (a fourth reading).
 #[test]
 fn a_max_in_a_corner_is_no_identity_the_mint_proves() {
     let at = |a: f64| {
@@ -1261,13 +1359,98 @@ fn a_max_in_a_corner_is_no_identity_the_mint_proves() {
     };
     let (d, kept) = at(0.5);
     assert_eq!(d, AXIS_UP, "a < b: the quotient, whose value is the axis's");
-    assert_eq!(axis_readings(&kept), 6, "a < b: none kept on this side");
+    assert_eq!(
+        axis_readings(&kept),
+        LITERAL_SIDES,
+        "a < b: no sign read here"
+    );
     let (d, kept) = at(1.5);
-    assert_eq!(axis_readings(&kept), 6, "a > b: none kept on this side");
+    assert_eq!(
+        axis_readings(&kept),
+        LITERAL_SIDES,
+        "a > b: no sign read here"
+    );
     assert!(
         d[0].1 < 0.0,
         "a > b: the quotient, (b − a) leaning back: {d:?}"
     );
+}
+
+/// **The axis is signed by one reading of the other component, and
+/// where that reading does not decide the verb refuses.** The hop
+/// `(W, 0) → (W, H)` with `H` over a box:
+///
+/// - `H` definitely negative: the axis `(0, −1)`. A mint that signed
+///   every axis `+1` is red here.
+/// - `H` straddling zero: `line_to` refuses with the reading's
+///   escalation under `segment_direction_axis`, in an eager and in a
+///   deferring session, and does not store a quotient whose enclosure
+///   is the whole circle. A mint that fell back to the quotient where
+///   the reading escalates is red here.
+///
+/// At a plain `Interval` the same hop reads no sign (it carries no
+/// expression): what refuses the chord that may have no length is the
+/// junction's own gate, on the quotient.
+#[test]
+fn the_axis_is_signed_by_one_reading_and_an_undecided_sign_refuses() {
+    for kind in SESSIONS {
+        let d = run(kind, || {
+            let w = param("W", 1.0, small());
+            let lp = quad(w, w, param("H", -1.0, small())).expect("the quad builds");
+            let vp = validated(vec![lp]);
+            // Wound clockwise as drawn, so the outer loop is stored
+            // reversed: the drawn hop is the stored one negated.
+            vp.loops()[0]
+                .segments()
+                .iter()
+                .map(|s| bounds(line_director(s.kind)))
+                .find(|d| d[0] == (0.0, 0.0) && d[1].0 > 0.0)
+        });
+        assert_eq!(
+            d,
+            Some(AXIS_UP),
+            "{kind:?}: the drawn (0, −1), stored reversed"
+        );
+        let refused = run(kind, || {
+            let w = param("W", 1.0, small());
+            escalated_gate(quad(w, w, param("H", 0.0, 0.5)))
+        });
+        assert_eq!(
+            refused,
+            Ok(Gate::SegmentDirectionAxis),
+            "{kind:?}: the undecided sign refuses"
+        );
+    }
+    let w = Interval::from_bounds(1.0 - small(), 1.0 + small());
+    assert_eq!(
+        escalated_gate(quad(w, w, Interval::from_bounds(-0.5, 0.5))),
+        Ok(Gate::PathJunctionTurn),
+        "a plain interval reads no sign"
+    );
+}
+
+/// **A symbolic scalar over a dual mints the axis, with no tangent**:
+/// `Sym<Dual64>` carries an expression, the hop `(w, 0) → (w, 1)` is
+/// proved as at any symbolic scalar, and the stored director is the
+/// literal `(0, 1)`, whose derivative along `w` is zero, as the
+/// direction's is. A plain `Dual64` carries none and stores the
+/// quotient, whose value and tangent are the same.
+#[test]
+fn a_symbolic_dual_mints_the_axis_and_a_plain_dual_the_quotient() {
+    use geom_core::Dual64;
+    let parts = |d: Vec2<Dual64>| [(d.x.value, d.x.deriv), (d.y.value, d.y.deriv)];
+    let literal = [(0.0, 0.0), (1.0, 0.0)];
+    let sym = in_session(|| {
+        let w = Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("w")),
+            Dual64::variable(1.0),
+        );
+        let d = quad_director(w, w);
+        Vec2::new(d.x.value(), d.y.value())
+    });
+    assert_eq!(parts(sym), literal, "Sym<Dual64>: the axis");
+    let w = Dual64::variable(1.0);
+    assert_eq!(parts(quad_director(w, w)), literal, "Dual64: the quotient");
 }
 
 /// **A radial takes one branch at every valuation, in both sessions**:
@@ -1306,8 +1489,8 @@ fn a_radial_takes_one_branch_at_every_valuation() {
                         .iter()
                         .find(|s| matches!(s.kind, profile::SegmentKind::Arc { .. }))
                         .expect("the arc")
-                        .directions;
-                    let (s, e) = radials(arc);
+                        .kind;
+                    let (s, e) = arc_radials(arc);
                     (bounds(s), bounds(e))
                 })
             })
@@ -1331,41 +1514,52 @@ fn a_radial_takes_one_branch_at_every_valuation() {
 }
 
 /// **At `f64` a minted direction is the quotient, and these are its
-/// bits**: nothing is proven at `f64`, so every direction validation
-/// mints is `(end − start)/|·|` for a side, `(v − c)/|·|` for a radial.
-/// Where a component is zero that is `±0`, its sign the sign of the
-/// difference (`b − a` is `−0` exactly where `b` is `−0` and `a` is
-/// `+0`), and the other component is `±1` exactly (`√(0 + y²)` is
-/// `|y|`). The axis mint PR 6963 shipped stored `+0` there in every case,
-/// so the two differ only where one end holds `−0.0` and the other
-/// `+0.0`: value-equal, and nothing outside `profile` reads a direction.
+/// bits**: `f64` carries no expression, so no axis is ever stored. An
+/// arc's radial is validation's `(v − c)/|·|`. A hop's director is its
+/// verb's: the drawn chord over its length, and where validation stores
+/// the loop reversed (drawn clockwise) that director negated. Where a
+/// component is zero that is `±0`, the sign of the drawn difference
+/// (`b − a` is `−0` exactly where `b` is `−0` and `a` is `+0`), flipped
+/// by a reversal; the other component is `±1` exactly (`√(0 + y²)` is
+/// `|y|`). So against the quotient of the stored ends, a hop's director
+/// differs only in the sign of a zero, on a reversed loop: value-equal.
 /// Rectangles of either winding and of every scale, corners on the
 /// signed zeros among them, and centred arcs whose radials lie on the
 /// axes.
 #[test]
 fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
-    let check = |vp: &ValidatedProfile<f64>, what: &str| {
+    let check = |vp: &ValidatedProfile<f64>, reversed: bool, what: &str| {
         for (k, s) in vp.loops()[0].segments().iter().enumerate() {
             let want = |v: Vec2<f64>| v / v.norm();
-            match (s.kind, s.directions) {
-                (_, SegmentDirections::Line(d)) => {
-                    let c = s.end - s.start;
-                    assert_eq!(bits(d), bits(want(c)), "{what}: side {k}");
-                    if c.x == 0.0 {
-                        assert_eq!(d.x.to_bits(), c.x.to_bits(), "{what}: side {k}'s zero");
+            match s.kind {
+                profile::SegmentKind::Line { director: d } => {
+                    let stored = s.end - s.start;
+                    let drawn = if reversed { s.start - s.end } else { stored };
+                    let minted = if reversed { -want(drawn) } else { want(drawn) };
+                    assert_eq!(bits(d), bits(minted), "{what}: side {k}");
+                    assert!(
+                        d.equals_exactly(want(stored)),
+                        "{what}: side {k}: value-equal to the stored ends' quotient"
+                    );
+                    let zero = |c: f64| if reversed { -c } else { c }.to_bits();
+                    if drawn.x == 0.0 {
+                        assert_eq!(d.x.to_bits(), zero(drawn.x), "{what}: side {k}'s zero");
                         assert_eq!(d.y.abs(), 1.0, "{what}: side {k}");
                     }
-                    if c.y == 0.0 {
-                        assert_eq!(d.y.to_bits(), c.y.to_bits(), "{what}: side {k}'s zero");
+                    if drawn.y == 0.0 {
+                        assert_eq!(d.y.to_bits(), zero(drawn.y), "{what}: side {k}'s zero");
                         assert_eq!(d.x.abs(), 1.0, "{what}: side {k}");
                     }
                 }
-                (profile::SegmentKind::Arc { arc, .. }, SegmentDirections::Arc { start, end }) => {
+                profile::SegmentKind::Arc {
+                    arc,
+                    radials: [start, end],
+                    ..
+                } => {
                     for (v, r) in [(s.start, start), (s.end, end)] {
                         assert_eq!(bits(r), bits(want(v - arc.centre)), "{what}: arc {k}");
                     }
                 }
-                (kind, d) => panic!("{what}: segment {k}: {kind:?} with {d:?}"),
             }
         }
     };
@@ -1397,15 +1591,17 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
         );
         check(
             &validated(vec![rect(x0, y0, w, h).loop_]),
+            w * h < 0.0,
             &format!("rect {x0:e} {y0:e} {w:e} {h:e}"),
         );
     }
-    // Corners on the signed zeros: a side from `+0` to `−0` stores `−0`,
-    // where the axis mint stored `+0`.
+    // Corners on the signed zeros: a side drawn from `+0` to `−0` stores
+    // `−0`.
     for (x0, y0) in [(0.0, 0.0), (-0.0, 0.0), (0.0, -0.0), (-0.0, -0.0)] {
         for (w, h) in [(1.0, 2.0), (-1.0, 2.0), (1.0, -2.0)] {
             check(
                 &validated(vec![rect(x0, y0, w, h).loop_]),
+                w * h < 0.0,
                 &format!("rect at ({x0:?}, {y0:?})"),
             );
         }
@@ -1421,8 +1617,8 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
         .line_to(Start, tol())
         .unwrap();
     let vp = validated(vec![quad.loop_]);
-    check(&vp, "a side from +0 to −0");
-    let last = director(vp.loops()[0].segments().last().unwrap().directions);
+    check(&vp, false, "a side from +0 to −0");
+    let last = line_director(vp.loops()[0].segments().last().unwrap().kind);
     assert_eq!(
         bits(last),
         bits(Vec2::new(-0.0, -1.0)),
@@ -1446,7 +1642,268 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
             .unwrap();
         check(
             &validated(vec![lp.loop_]),
+            false,
             &format!("arc about ({cx:?}, 0)"),
         );
+    }
+}
+
+/// **The value channel keeps each arc's radial at the end it was
+/// recorded at.** A quarter arc's two radials differ, so a channel that
+/// handed the end radial back as the start one reads differently from
+/// the `f64` form it was lifted from.
+#[test]
+fn the_value_channel_keeps_an_arcs_radials_at_their_own_ends() {
+    use profile::SegmentKind;
+    fn radials<T: geom_core::Real>(kind: SegmentKind<T>) -> [Vec2<T>; 2] {
+        match kind {
+            SegmentKind::Arc { radials, .. } => radials,
+            SegmentKind::Line { .. } => panic!("an arc"),
+        }
+    }
+    let q = (std::f64::consts::PI / 8.0).tan();
+    let vp = Profile::new(
+        SketchPlane::<f64>::xy(),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), q),
+            (Point2::new(1.0, 1.0), q),
+        ])],
+    )
+    .validate(geom_core::Tol::witness())
+    .expect("the D validates");
+    let channel = vp
+        .clone()
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .expect("the lift")
+        .value_channel()
+        .expect("a point channel");
+    let bits = |v: Vec2<f64>| (v.x.to_bits(), v.y.to_bits());
+    let mut arcs = 0;
+    for (s, c) in vp.loops()[0]
+        .segments()
+        .iter()
+        .zip(channel.loops()[0].segments())
+    {
+        if matches!(s.kind, SegmentKind::Line { .. }) {
+            continue;
+        }
+        arcs += 1;
+        let ([rs, re], [cs, ce]) = (radials(s.kind), radials(c.kind));
+        assert_ne!(bits(rs), bits(re), "a quarter arc's radials differ");
+        assert_eq!(bits(cs), bits(rs), "the channel's start radial");
+        assert_eq!(bits(ce), bits(re), "the channel's end radial");
+    }
+    assert_eq!(arcs, 2, "the D has two arcs");
+}
+
+/// What a build of [`quad`] came to: built and validated, or the head
+/// of the verb's or validation's refusal.
+fn outcome<T: Decide>(r: Result<ConstructedLoop<T>, profile::PathError<T>>) -> String {
+    let head = |s: String| s.chars().take(60).collect::<String>();
+    match r {
+        Ok(lp) => match ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+            Ok(_) => "built and validated".to_owned(),
+            Err(e) => format!("validate: {}", head(format!("{e:?}"))),
+        },
+        Err(e) => format!("verb: {}", head(format!("{e:?}"))),
+    }
+}
+
+/// **A chord with no length is refused in every lane, and the mint
+/// gives it no axis.** The hop `(x1, 0) → (x2, y)` of [`quad`] with
+/// both components zero: both proved, one proved and the other reading
+/// Zero, and both merely reading zero. The mint stores the quotient,
+/// which is no direction there, and the verb's junction gate answers on
+/// it: by name at a value (`JunctionTurnWithinTolerance`), and as an
+/// escalation of `path_junction_turn` over a box. Where the other
+/// component straddles zero the sign reading itself escalates. No lane
+/// builds; none names the zero chord as such
+/// (`work/profile/a-hop-whose-chord-is-proved-zero-is-refused-by-the-junction-gate-not-by-name.md`).
+#[test]
+fn a_chord_with_no_length_is_refused_in_every_lane() {
+    const NAMED: &str = "verb: JunctionTurnWithinTolerance";
+    const JUNCTION: &str = "verb: Escalated { site: Door, gate: PathJunctionTurn";
+    const SIGN: &str = "verb: Escalated { site: Door, gate: SegmentDirectionAxis";
+    let i = |v: f64| Interval::from_bounds(v, v);
+    let mut rows = vec![
+        ("f64".to_owned(), NAMED, outcome(quad(1.0, 1.0, 0.0))),
+        (
+            "Interval".to_owned(),
+            NAMED,
+            outcome(quad(i(1.0), i(1.0), i(0.0))),
+        ),
+    ];
+    for kind in SESSIONS {
+        let boxed = || param("w", 1.0, small());
+        let lanes: [(&str, &str, &dyn Fn() -> String); 6] = [
+            ("both proved", NAMED, &|| {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, Sym::from_f64(0.0)))
+            }),
+            ("x proved, y reads 0", NAMED, &|| {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, pf("h", 0.0)))
+            }),
+            ("both read 0", NAMED, &|| {
+                outcome(quad(pf("a", 1.0), pf("b", 1.0), pf("h", 0.0)))
+            }),
+            ("box, both proved", JUNCTION, &|| {
+                outcome(quad(boxed(), boxed(), Sym::from_f64(0.0)))
+            }),
+            ("box, x proved, y the point 0", JUNCTION, &|| {
+                outcome(quad(boxed(), boxed(), param("h", 0.0, 0.0)))
+            }),
+            ("box, x proved, y straddles 0", SIGN, &|| {
+                outcome(quad(boxed(), boxed(), param("h", 0.0, small())))
+            }),
+        ];
+        for (lane, want, build) in lanes {
+            rows.push((format!("{kind:?}: {lane}"), want, run(kind, build)));
+        }
+    }
+    for (lane, want, got) in rows {
+        assert!(got.starts_with(want), "{lane}: {got}");
+    }
+}
+
+/// **The sign is read at the least band.** A hop whose proved-zero
+/// component leaves the other a sixty-fourth of ε long: its direction
+/// is `+y` however short it is, the reading answers Positive, and the
+/// axis is stored; the junction gate then refuses the short side by
+/// name. A reading at the working band answers Zero here and is red on
+/// the readings.
+#[test]
+fn the_axis_sign_is_read_at_the_least_band() {
+    use geom_core::Sign::Positive;
+    use geom_core::sym::revalue::record;
+    for kind in SESSIONS {
+        let (at_value, d) = record(|| {
+            run(kind, || {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, pf("h", small())))
+            })
+        });
+        assert_eq!(
+            axis_readings(&d),
+            [Some(Positive), Some(Positive)],
+            "{kind:?}"
+        );
+        assert!(
+            at_value.starts_with("verb: JunctionTurnWithinTolerance"),
+            "{kind:?}: {at_value}"
+        );
+        let (_, d) = record(|| {
+            run(kind, || {
+                let w = param("w", 1.0, small());
+                outcome(quad(w, w, param("h", small(), 0.0)))
+            })
+        });
+        assert_eq!(
+            axis_readings(&d),
+            [Some(Positive), Some(Positive)],
+            "{kind:?}: over a box"
+        );
+    }
+}
+
+/// **What was asked before does not move the branch.** The sum `x + w`
+/// is minted before the session is installed, and the hop
+/// `(x, 0) → (that − w, 1)` asks about a graph the session does not
+/// hold. The same document built inside the session afterwards mints
+/// the axis whether or not that hop was asked first: each ask starts
+/// from the expression alone.
+#[test]
+fn an_earlier_ask_does_not_move_the_branch() {
+    for kind in SESSIONS {
+        let build = |ask_first: bool| {
+            let minted_before = pf("x", 0.1) + pf("w", 0.3);
+            run(kind, || {
+                let (x, w) = (pf("x", 0.1), pf("w", 0.3));
+                if ask_first {
+                    let _ = quad(x, minted_before - w, Sym::from_f64(1.0));
+                }
+                quad_hop(x, (x + w) - w)
+            })
+        };
+        assert_eq!(build(false), AXIS_UP, "{kind:?}");
+        assert_eq!(build(true), AXIS_UP, "{kind:?}: asked first");
+    }
+}
+
+/// **The one-branch statement is about a graph built inside its
+/// session.** The identity `(x + w) − w` computed before the session is
+/// installed is a graph the session's table does not hold; the question
+/// proves nothing about it, and the hop stores the quotient: the axis
+/// where the value channel computes `0.0`, one ulp off it at
+/// `(0.1, 0.3)`. Every door builds its document inside the session it
+/// decides in.
+#[test]
+fn a_graph_built_outside_its_session_stores_the_quotient() {
+    for kind in SESSIONS {
+        let outside = |x: f64, w: f64| {
+            let (x, w) = (pf("x", x), pf("w", w));
+            let x2 = (x + w) - w;
+            run(kind, || quad_hop(x, x2))
+        };
+        assert_eq!(outside(1.0, 1.0), AXIS_UP, "{kind:?}");
+        let leans = outside(0.1, 0.3);
+        assert!(leans[0].0 > 0.0, "{kind:?}: {leans:?}");
+    }
+}
+
+/// **An arc verb whose leg lowers to a line is a hop.** A bulge of the
+/// literal zero has no arc; the leg is the line to its end, and its
+/// director is minted and recorded as `line_to`'s is: at `f64` the
+/// quotient with its zero's sign, and over a box the axis, with no
+/// width, where the chord's `x` is proved zero.
+#[test]
+fn a_bulge_of_zero_records_the_hops_minted_director() {
+    let (a, b) = (Point2::new(4.0, 0.0), Point2::new(4.0, 4.0));
+    let lp = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(a, tol())
+        .unwrap()
+        .arc_to(profile::Bulge { p: b, b: 0.0 }, tol())
+        .unwrap()
+        .line_to(Point2::new(0.0, 4.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(
+        &lp.loop_.into_loop(),
+        &[
+            hop((0.0, 0.0), (4.0, 0.0)),
+            hop((4.0, 0.0), (4.0, 4.0)),
+            hop((4.0, 4.0), (0.0, 4.0)),
+            hop((0.0, 4.0), (0.0, 0.0)),
+        ],
+        "bulge 0",
+    );
+    for kind in SESSIONS {
+        let side = run(kind, || {
+            let (w, z) = (param("W", 4.0, small()), Lane::from_f64(0.0));
+            let h = Lane::from_f64(4.0);
+            let lp = Open
+                .at(Point2::new(z, z))
+                .line_to(Point2::new(w, z), tol())
+                .unwrap()
+                .arc_to(
+                    profile::Bulge {
+                        p: Point2::new(w, h),
+                        b: z,
+                    },
+                    tol(),
+                )
+                .unwrap()
+                .line_to(Point2::new(z, h), tol())
+                .unwrap()
+                .line_to(Start, tol())
+                .unwrap();
+            bounds(line_director(
+                validated(vec![lp.loop_]).loops()[0].segments()[1].kind,
+            ))
+        });
+        assert_eq!(side, AXIS_UP, "{kind:?}");
     }
 }

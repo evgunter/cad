@@ -7,9 +7,8 @@
 //! to the member's values and every definition reaching them bound again
 //! ([`crate::Doc::bind_member`]), and over the results with each
 //! operation it reads as a member replaced by that member
-//! ([`overlay`]). A seat that reads a family whole — a member seat of
-//! a `union`, `intersect` or `assemble`, or an indexed read
-//! ([`crate::repetition::takes_whole`]), a selection's among them —
+//! ([`overlay`]). A read of a family whole — a list entry spliced in,
+//! `…xs`, or an indexed read `xs[i]`, a selection's among them —
 //! reads the family the member stands for ([`super::NodeValue::whole`]),
 //! so one operation may read a family plainly at one seat and whole at
 //! another. A member that refuses
@@ -414,19 +413,29 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
     h.write_u64((key.0 >> 64) as u64);
     h.write_tag(tag::member::AT);
     h.write_u64(at.len() as u64);
-    for &(index, value) in at {
-        h.write_u64(u64::from(index.0.ordinal()));
-        h.write_u64(index.0.digest());
-        h.write_u64(value as u64);
+    for word in at_words(at) {
+        h.write_u64(word);
     }
     h.finish()
+}
+
+/// A member's place as words: each index's id and its value, in chain
+/// order. What a member's content key and its mint scope both feed.
+pub(super) fn at_words(at: &[(VarId, i64)]) -> impl Iterator<Item = u64> + '_ {
+    at.iter().flat_map(|&(index, value)| {
+        [
+            u64::from(index.0.ordinal()),
+            index.0.digest(),
+            value.cast_unsigned(),
+        ]
+    })
 }
 
 /// **The family's value**: a family of bodies as their `Instances`,
 /// each body named at its member's place; any other as
 /// [`ValuePayload::Family`] with no output. Its keys are its members',
 /// in order.
-fn family_value<T: topo::AtRestPolicy + Decide>(
+pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {
@@ -537,7 +546,7 @@ mod tests {
                     name: name.clone(),
                     def: crate::VarDecl::Index {
                         count: crate::Formula::count(count),
-                        within: None,
+                        after: None,
                     },
                 },
                 tol,

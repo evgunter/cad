@@ -2,9 +2,10 @@
 id: no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel
 kind: issue
 title: no CI row builds topo with per-op-postcondition or --all-features, so a row the scalpel flips reads green
-status: open
+status: parked
+blocked_on: [mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel]
 opened: 2026-10-01
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -74,3 +75,9 @@ under the scalpel
 (`work/topo/two-topo-rows-assume-the-default-build-under-the-per-op-scalpel.md`).
 What this row still owes is to bring the scalpel into that job, by
 emptying `HELD_OUT_FEATURES`, once the mfkrh item closes.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Nightly-only by its own text; per-PR cost nil. Already narrowed: the all-features
+nightly job exists (GREEN, 10-28) holding the scalpel out; the residue is emptying
+`HELD_OUT_FEATURES` once `work/topo/mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel`
+(open, P2) closes. Its incidents (two rows, 10-01) are older than a month; the payoff is CI
+going red less, i.e. P4.

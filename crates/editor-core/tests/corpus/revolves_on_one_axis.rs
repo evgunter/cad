@@ -72,7 +72,7 @@ pub fn document() -> CorpusDoc {
         editor_core::stand(),
     );
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![
+        members: editor_core::Bodies::spelled(vec![
             editor_core::BodyRead::plain(Operand::output(first, 0)),
             stacked.into(),
         ]),

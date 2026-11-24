@@ -43,3 +43,7 @@ show why a site's error has nothing to add.
 - Moved to HONEWORD (`work/honeword/`) by `git mv`, id and body unchanged: whose charter is split and boolean refusal text, payloads and endings. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
 
 Moved from HONEWORD to CLEAVETAIL on 2026-11-20, by `git mv`, when HONEWORD merged into CLEAVETAIL: HONEWORD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CLEAVETAIL carries.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The `apply_recuts` site listed above is gone. That PR retires the rotation re-chart and with it `apply_recuts` and `CarveStep::Recut`, so the sphere re-cut's `single_solid`/carve/graft refusals no longer exist. The other sites are unchanged.

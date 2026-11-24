@@ -583,9 +583,9 @@ pub(crate) fn prism_patch_across_the_seam() -> Result<(Body<f64>, FaceKey), supe
         description: EdgeDescriptionSpec::chart_image(
             wall,
             geom_brep::Pcurve::IsoLine {
-                p0: geom_core::Point2::new(0.0, v),
-                pl: geom_core::Vec2::new(1.0, 0.0),
-                ends: None,
+                line: geom_brep::ChartLine::row(v),
+                at0: 0.0,
+                rate: 1.0,
             },
         ),
         carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -608,12 +608,12 @@ pub(crate) fn prism_patch_across_the_seam() -> Result<(Body<f64>, FaceKey), supe
             description: EdgeDescriptionSpec::chart_image(
                 wall,
                 geom_brep::Pcurve::IsoLine {
-                    p0: geom_core::Point2::new(u, v0),
-                    pl: geom_core::Vec2::new(0.0, v1 - v0),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(u),
+                    at0: v0,
+                    rate: v1 - v0,
                 },
             ),
-            carrier: Curve3::line(p, q - p),
+            carrier: Curve3::line(p, geom::stated_direction(q - p)),
             param_start: 0.0,
             param_end: 1.0,
         }
@@ -745,9 +745,9 @@ pub(crate) fn prism_patch_across_the_v_seam() -> Result<(Body<f64>, FaceKey), su
         description: EdgeDescriptionSpec::chart_image(
             wall,
             geom_brep::Pcurve::IsoLine {
-                p0: geom_core::Point2::new(u, 0.0),
-                pl: geom_core::Vec2::new(0.0, 1.0),
-                ends: None,
+                line: geom_brep::ChartLine::column(u),
+                at0: 0.0,
+                rate: 1.0,
             },
         ),
         carrier: Curve3::Nurbs(std::sync::Arc::new(
@@ -768,12 +768,12 @@ pub(crate) fn prism_patch_across_the_v_seam() -> Result<(Body<f64>, FaceKey), su
             description: EdgeDescriptionSpec::chart_image(
                 wall,
                 geom_brep::Pcurve::IsoLine {
-                    p0: geom_core::Point2::new(u0, v),
-                    pl: geom_core::Vec2::new(u1 - u0, 0.0),
-                    ends: None,
+                    line: geom_brep::ChartLine::row(v),
+                    at0: u0,
+                    rate: u1 - u0,
                 },
             ),
-            carrier: Curve3::line(p, q - p),
+            carrier: Curve3::line(p, geom::stated_direction(q - p)),
             param_start: 0.0,
             param_end: 1.0,
         }
@@ -901,9 +901,9 @@ fn only_a_net_closed_in_v_decides_a_v_element() {
     // The row at `u = 0.5` entering at `v = 0`, its predecessor's exit
     // at `v = 1`: one point on the closed net.
     let image = geom_brep::Pcurve::IsoLine {
-        p0: geom_core::Point2::new(0.5, 0.0),
-        pl: geom_core::Vec2::new(0.0, 0.3),
-        ends: None,
+        line: geom_brep::ChartLine::column(0.5),
+        at0: 0.0,
+        rate: 0.3,
     };
     let joint = |s: &Surface<f64>| {
         super::decide_plain_joint(
@@ -1345,16 +1345,16 @@ fn a_split_of_an_edge_stated_periods_off_is_the_mints_and_closes() {
             let label = format!("turned {turn}, {periods} periods off");
             let mut body = cylinder_patch_turned(periods, turn).unwrap();
             let bottom = body
-                    .edges()
-                    .map(|(e, _)| e)
-                    .find(|&e| {
-                        let he = body.get_edge(e).unwrap().he_plus;
-                        matches!(
-                            super::half_edge_carrier(&body, he),
-                            Ok((Curve3::Circle(geom::Circle { frame, .. }), _, _)) if frame.origin().z == 0.0
-                        )
-                    })
-                    .expect("the bottom arc");
+                .edges()
+                .map(|(e, _)| e)
+                .find(|&e| {
+                    let he = body.get_edge(e).unwrap().he_plus;
+                    matches!(
+                        super::half_edge_carrier(&body, he),
+                        Ok((Curve3::Circle(circle), _, _)) if circle.frame().origin().z == 0.0
+                    )
+                })
+                .expect("the bottom arc");
             let he = body.get_edge(bottom).unwrap().he_plus;
             let (_, t0, t1) = super::half_edge_carrier(&body, he).unwrap();
             let t = t0.min(t1) + PI / 4.0;

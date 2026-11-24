@@ -841,9 +841,10 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         assert_eq!(witness.z.to_bits(), mid.z.to_bits());
         // And it is the start point's antipode, not the start point.
         let start = c.carrier().eval(t0);
-        let Curve3::Circle(geom::Circle { frame, .. }) = c.carrier().clone() else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = c.carrier().clone() else {
             panic!("rim carrier")
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         assert!(
             witness.distance(start) > 1.0,
@@ -896,7 +897,7 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
         .set_edge_curve(rim, forged, Tol::witness())
         .unwrap_err();
     assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
+        matches!(err, topo::EulerOpError::DescriptionUncertified { .. }),
         "start-point witness must fail the mid-parameter pin: {err:?}"
     );
     assert_all_tiers(&body);
@@ -1130,7 +1131,7 @@ fn survives_near_full_period_rim_span_escalates() {
                 place: geom_core::Affine3::identity(),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::new(0.0, 1.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 angle: span,
             },
@@ -1157,7 +1158,7 @@ fn survives_near_full_period_rim_span_escalates() {
         )
         .unwrap_err();
     assert!(
-        matches!(err, topo::EulerOpError::Certification { .. }),
+        matches!(err, topo::EulerOpError::DescriptionUncertified { .. }),
         "near-τ rim span must escalate: {err:?}"
     );
 }
@@ -1441,7 +1442,9 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
         .unwrap_err();
     assert_eq!(
         err,
-        topo::EulerOpError::DescriptionNotAdjacent { edge: Some(circle) },
+        topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Keyed(circle)
+        },
         "Seam on a plane annulus's circle must be refused"
     );
     assert_all_tiers(&body);

@@ -567,8 +567,8 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 ///
 /// **The old door, verbatim (measured at the unit's head before the
 /// window was read forward):** `ShellError::Face { face: FaceKey(1v1),
-/// error: Op { edge: None, error: RechartFalsifies { edge:
-/// EdgeKey(2v1), error: IntervalNotForward { verdict: Negative {
+/// error: Op { edge: None, error: DescriptionUncertified { edge:
+/// Keyed(EdgeKey(2v1)), error: IntervalNotForward { verdict: Negative {
 /// margin: −0.7068583470577036 } } } } }` — the span `−π·r′` of a rim
 /// whose inner-equator end `param_on` read on `atan2`'s branch cut. One
 /// door earlier it was the equator seams' re-author
@@ -779,12 +779,13 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the axis edge moved to the caps' meeting line at ρ = t√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            geom::Curve3::Circle(circle) => {
+                let center = circle.frame().origin();
                 let radius = circle.radius();
                 rims += 1;
                 let (rho_c, h_c) = axial(center);
@@ -1210,12 +1211,13 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the axis edge moved to the caps' meeting line at ρ = |t|√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            geom::Curve3::Circle(circle) => {
+                let center = circle.frame().origin();
                 let radius = circle.radius();
                 rims += 1;
                 let (rho_c, h_c) = axial(center);

@@ -55,6 +55,8 @@ mod exact_q;
 mod refusal;
 mod span_fixtures;
 
+#[path = "a_drives_table_and_what_is_outside_it.rs"]
+mod a_drives_table_and_what_is_outside_it;
 #[path = "a_nodes_answer_at_the_symbolic_scalar_is_its_own.rs"]
 mod a_nodes_answer_at_the_symbolic_scalar_is_its_own;
 #[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]

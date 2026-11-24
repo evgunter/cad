@@ -19,6 +19,7 @@
 
 use core::cell::OnceCell;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom_core::UnitVec3;
 use std::collections::BTreeMap;
 
 use geom_brep::ChartedNurbs;
@@ -779,7 +780,11 @@ fn nearest<T: Decide>(
 /// their parallelism and coaxial swing act on a Zero and read the bound
 /// from above, their convention guards and station admission act on a
 /// Positive and read the bound from below
-/// ([`geom_brep::intersect::cone_cylinder_section`]).
+/// ([`geom_brep::intersect::cone_cylinder_section`]). The two bounds are
+/// of whatever each was read over: a caller whose `extent` is not the
+/// seed's own (the import's, the seed's two faces' run) can hand a
+/// `below` past this `above`, and a reading taken at both still acts
+/// only where they agree.
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
@@ -1101,14 +1106,14 @@ fn plane_plane<T: Decide>(
             what: "the two planes are parallel",
         }));
     }
-    let dir = dir.normalize();
+    let dir = UnitVec3::squared(dir);
     let mid = old.mid_point(t0, t1);
     // Three planes: the two given, and the one across `dir` through the
     // old middle.
     let o = Point3::origin();
-    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.dot(mid - o));
-    let det = n1.dot(n2.cross(dir));
-    let x = (n2.cross(dir) * d1 + dir.cross(n1) * d2 + n1.cross(n2) * d3) / det;
+    let (d1, d2, d3) = (n1.dot(q1 - o), n2.dot(q2 - o), dir.get().dot(mid - o));
+    let det = n1.dot(n2.cross(dir.get()));
+    let x = (n2.cross(dir.get()) * d1 + dir.get().cross(n1) * d2 + n1.cross(n2) * d3) / det;
     Ok(Ok(Curve3::line(o + x, dir)))
 }
 
@@ -1138,7 +1143,7 @@ pub(crate) fn analytic_root<T: Decide>(
     ) = (surface, carrier)
     {
         let (q, m) = (plane_frame.origin(), plane_frame.axis());
-        let sine = dir.dot(m);
+        let sine = dir.get().dot(m);
         if graze(sine.abs())? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
@@ -1724,7 +1729,7 @@ mod square {
                 "plane beside a plane holding its normal",
                 plane(o, z, x),
                 plane(o, x, y),
-                line(o, y),
+                line(o, geom::stated_direction(y)),
                 (0.0, 1.0),
             ),
             (
@@ -1745,7 +1750,7 @@ mod square {
                 "cylinder beside a plane holding its axis",
                 cylinder.clone(),
                 plane(o, x, y),
-                line(Point3::new(0.0, 1.0, 0.0), z),
+                line(Point3::new(0.0, 1.0, 0.0), geom::stated_direction(z)),
                 (0.0, 1.0),
             ),
             (
@@ -1765,7 +1770,7 @@ mod square {
                     half_angle: std::f64::consts::FRAC_PI_4,
                 },
                 plane(o, x, y),
-                line(o, Vec3::new(0.0, s, s)),
+                line(o, geom::stated_direction(Vec3::new(0.0, s, s))),
                 (0.5, 1.5),
             ),
             (
@@ -1888,7 +1893,10 @@ mod regions {
     #[test]
     fn a_corner_region_refuses_by_the_corner() {
         let wall = net(&|i, j| 0.5 * (i + j) as f64);
-        let old = Curve3::line(Point3::origin(), Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt());
+        let old = Curve3::line(
+            Point3::origin(),
+            geom_core::UnitVec3::checked(Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt()),
+        );
         let got = plane_wall_section(
             &ground(),
             Wall {
@@ -1945,7 +1953,7 @@ mod rational_carriers {
         let plane = Surface::Plane {
             frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         };
-        let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), Vec3::unit_x());
+        let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), geom_core::UnitVec3::exact_x());
         let row = match plane_wall_section(
             &plane,
             Wall {

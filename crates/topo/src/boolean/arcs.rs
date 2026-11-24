@@ -6,7 +6,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, VertexKey};
-use crate::live::{Proven, linked, proven};
+use crate::live::{Proven, proven};
 use crate::validate::decide;
 
 /// One circle arc [`arcs_along`] found: the edge, the vertex it arrives
@@ -45,25 +45,19 @@ pub(super) fn arcs_along<T: Decide>(
     for he in orbit {
         let to = body.proven_half_edge_end(he);
         let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            e,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(e, edge).certified() else {
+        let edge = body.linked_edge(e, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = edge.certified() else {
             continue;
         };
         let geom::Curve3::Circle(_) = curve.carrier() else {
             continue;
         };
-        let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);
+        let (tangent, arrival) = curve.walk_tangents(he == edge.record().he_plus);
         let tangent = tangent.normalize();
         // A tilt of the tangent about `u` moves the arc, so it is levered
         // at the arc's farthest reach from `u`.
         let arm = geom_brep::ExtentBall::of_cover_from(
-            crate::cover::edge_cover_linked(body, e, edge).as_ref().ok(),
+            crate::cover::edge_cover_linked(body, edge).as_ref().ok(),
             at,
         )
         .lever();
@@ -211,8 +205,7 @@ mod rows {
             .iter()
             .map(|(k, _)| k)
             .find(|&k| {
-                let e = &y.edges[k];
-                y.edge_curve_linked(k, e)
+                y.proven_edge(k)
                     .certified()
                     .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(_)))
                     && crate::cover::edge_cover(&y, k)
