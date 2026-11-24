@@ -2049,6 +2049,27 @@ Flagged, NOT fixed here (dispositions):
   `fitted_defects`, runs both ways). **Carried as
   `k_stats::unlogged("F47", ..)`**. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+- **F48** (added by BOXFINISH's witness-premises unit) every `props_*`
+  premise and classification of a closed-form face asked a second time
+  — `topo/src/props.rs` `lifted_closed_form`, called by
+  `rederive_faces`: at a scalar whose sums round (`f64`), check 7's
+  certified read runs the face's closed form again at the interval
+  scalar over the face's geometry lifted (`quad_lane::closed_form` →
+  `closed_form_of::<Interval>`), and for a plane reads
+  `quad_lane::planar_face_about`, which decides nothing. The predicates
+  are the role walk's own, on the same face at the same node (the same
+  function, `closed_form_of`, runs both ways), so the log loses no kind
+  of premise, only the repeat. What keeps the repeat off the log is that
+  **it is the rounding scalar's certificate of its own arithmetic, not a
+  decision of the body**: a scalar whose sums are enclosures takes the
+  walk's sums and asks nothing again (`walked_closed_form`), so a
+  logged repeat is recorded by the `f64` witness and by no interval
+  leaf, and the two verdict vectors part at it with no decision
+  differing. A refusal inside it is returned by value and refuses the
+  face (`VolumeUncomputable`), as before. The margins and their
+  dimensions are the logged checks' own. **Carried as
+  `k_stats::unlogged("F48", ..)`**. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

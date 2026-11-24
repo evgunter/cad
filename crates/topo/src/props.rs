@@ -1742,7 +1742,11 @@ fn rederive_faces<T: geom_core::Certifies>(
             None => match walked_closed_form(lane, surface, &run.contribution) {
                 Some(read) => read,
                 None => {
-                    let (read, moved) = lifted_closed_form(body, band, lane, run)?;
+                    // The interval re-read of a face the walk decided
+                    // (ledger row F48): it states no decision of its own.
+                    let (read, moved) = geom_core::k_stats::unlogged("F48", || {
+                        lifted_closed_form(body, band, lane, run)
+                    })?;
                     recentred &= moved;
                     read
                 }
@@ -1787,6 +1791,12 @@ fn walked_closed_form<T: geom_core::Certifies>(
 /// **A closed-form face's flux and area read again at the interval
 /// scalar** about the point its run was read about, with its region's
 /// carry ([`closed_form_or_carried`]), and whether it was read there.
+///
+/// Its decisions are the walk's own, asked again of the face's geometry
+/// lifted, so the re-derivation runs it off the log
+/// (`docs/predicate-dimension-audit.md`, F48): a verdict vector lists a
+/// face's premises where the walk decided them, at every scalar alike.
+/// A refusal here still refuses the face.
 fn lifted_closed_form<T: geom_core::Certifies>(
     body: &Body<T>,
     band: Band,
