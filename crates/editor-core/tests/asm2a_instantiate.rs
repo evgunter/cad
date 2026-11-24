@@ -55,7 +55,7 @@ impl PartResolver for StubStore {
     fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
-            message: message.to_string(),
+            message: message.into(),
         };
         if self.eps_seam.contains_key(&doc_ref.id) {
             return Err(fail(
@@ -146,7 +146,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), boss.into()]),
         },
     );
     crate::fixture::place(doc, fused).0
@@ -390,7 +390,7 @@ impl PartResolver for PinBlind {
             .cloned()
             .ok_or_else(|| ResolveFailure {
                 fault: ResolveFault::Unresolved,
-                message: "no such document".to_string(),
+                message: "no such document".into(),
             })
     }
 }
@@ -751,7 +751,10 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // 12 × 19 more, 834 → 1062. Its caps are the sketch frame and its
     // walls the frame turning their segments, so it fits no plane: the
     // two caps' `cap_plane_orientation` and the six planes' four corners
-    // of `newell_plane_residual` go, 1062 → 1036. The copy is validated
+    // of `newell_plane_residual` go, 1062 → 1036. Each of the two
+    // validations no longer reads the box's four corners' shared vertex,
+    // six decisions a corner (two sides, two spans, two coincidences):
+    // 1036 → 988. The copy is validated
     // by no one, so main's matching +24 on the placing op does not
     // arise.
     assert_eq!(
@@ -759,7 +762,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         1,
         "the instantiate op decides its placement's box ask; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 1036, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 988, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -923,8 +926,8 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         )],
     ));
     let pin = editor_core::Mate {
-        on: cap.clone(),
-        to: cap,
+        on: cap.clone().into(),
+        to: cap.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     match editor_core::apply(
@@ -1817,7 +1820,7 @@ fn two_cubes_glued_on_a_wall() -> (
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 copy_in(&part_doc, ids[0]),
                 copy_in(&part_doc, ids[1]),
             ]),

@@ -15,7 +15,6 @@ use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
-use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -24,8 +23,9 @@ use geom::cover::BoxAxes;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// (`census::face_reach_in`, the face's cover at this body's scalar)
-/// is not definitely on one side of the plane
+/// (`census::face_reach_toward`, the face's cover at this body's
+/// scalar, with a sphere face's pole-side cut along the normal) is not
+/// definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -34,13 +34,12 @@ use geom::cover::BoxAxes;
 /// refuses by kind, since an arm executed against the fit would cut
 /// the approximation, not the surface the modeller described.
 ///
-/// The reach is read in the plane's own frame
-/// ([`geom::cover::BoxAxes::aimed`]), never in the world's
+/// The reach is read along the plane's normal, never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
-/// Edge carriers: `Line`, `Circle` and `Ellipse` pass. A `Spiric` or
-/// `Nurbs` carrier refuses typed only when the plane may meet it
+/// Edge carriers: `Line`, `Circle`, `Ellipse` and `Spiric` pass. A
+/// spline carrier refuses typed only when the plane may meet it
 /// ([`edge_clears`]). A face whose surface key, or an edge whose curve
 /// key, does not resolve is a torn body and panics (the operand is a
 /// public body, at rest), and so does a null edge: every door that
@@ -51,7 +50,6 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
         let surface = face.surface();
@@ -64,7 +62,7 @@ pub(super) fn carrier_gate<T: Decide>(
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
                 if !reach_clears(
-                    crate::census::face_reach_in(body, face_key, band, &frame),
+                    crate::census::face_reach_toward(body, face_key, band, plane.normal),
                     plane,
                     band,
                 ) {
@@ -80,12 +78,13 @@ pub(super) fn carrier_gate<T: Decide>(
         let edge_key = view.key();
         match view.curve() {
             CurveGeom::Certified(curve) => match curve.carrier() {
-                geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {}
-                // No crossing-root arm reads a spiric or a spline.
-                geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_)
-                | geom::Curve3::Periodic(_) => {
-                    if !edge_clears(body, edge_key, plane, band, &frame) {
+                geom::Curve3::Line(_)
+                | geom::Curve3::Circle(..)
+                | geom::Curve3::Ellipse(..)
+                | geom::Curve3::Spiric { .. } => {}
+                // No crossing-root arm reads a spline.
+                geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
+                    if !edge_clears(body, edge_key, plane, band) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
                 }
@@ -104,8 +103,7 @@ pub(super) fn carrier_gate<T: Decide>(
 /// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
-/// reaches may beat. `frame` is the plane's
-/// ([`BoxAxes::aimed`] at its normal).
+/// reaches may beat. Each reach is read along the plane's normal.
 ///
 /// `edge` is one the gate's arena walk read out of the at-rest operand,
 /// so it is proven, and its halves and their faces are links, which
@@ -115,17 +113,16 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     let reach = crate::cover::edge_cover(body, edge)
         .ok()
-        .map(|cover| cover.box_in(frame));
+        .map(|cover| cover.range_along(plane.normal.get()));
     reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
-                crate::census::face_reach_in(body, face, band, frame),
+                crate::census::face_reach_toward(body, face, band, plane.normal),
                 plane,
                 band,
             )
@@ -136,30 +133,23 @@ fn edge_clears<T: Decide>(
 /// split plane along the plane's normal (metres).
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
-/// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxAxes::aimed`]), whose first coordinate is the
-/// component along the plane's normal: the reach's gap from the
-/// plane's own offset along that normal, less the boolean sweep's pad,
-/// decided definitely positive. No reach (an entity the reach lane
-/// cannot bound) answers `false`.
-fn reach_clears<T: Decide>(
-    reach: Option<(Point3<T>, Point3<T>)>,
-    plane: &SplitPlane<T>,
-    band: Band,
-) -> bool {
+/// Whether the plane certainly misses a reach along its normal, bounds
+/// on `n·p`: the reach's gap from the plane's own offset along that
+/// normal, less the boolean sweep's pad, decided definitely positive.
+/// No reach (an entity the reach lane cannot bound) answers `false`.
+fn reach_clears<T: Decide>(reach: Option<(T, T)>, plane: &SplitPlane<T>, band: Band) -> bool {
     let Some((lo, hi)) = reach else {
         return false;
     };
     let pad = T::from_f64(crate::boxes::sweep_pad(band));
-    // The frame turns about the world origin, so a reach's first
-    // coordinate is `n·p`, and the world origin's own offset from the
+    // The reach is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
     let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
     );
-    let gap = (lo.x + origin).max(T::zero() - (hi.x + origin)) - pad;
+    let gap = (lo + origin).max(T::zero() - (hi + origin)) - pad;
     matches!(
         decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
         Ok(Sign::Positive)
@@ -318,8 +308,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   ([`PoseRefusal::Enclosed`]): it is read by the ring composite at
 ///   this scalar (`AtRestPolicy::spline_face_crossings`), and refuses
 ///   where the scalar has none.
-/// - Any window is [`SplitReduceError::CrossingEscalated`], a spiric
-///   carrier's unbuilt route included.
+/// - Any window is [`SplitReduceError::CrossingEscalated`].
 ///
 /// Every split is certified by `split_edge` itself (the span's place of
 /// the parameter and the children's re-certification). New vertices are
@@ -631,7 +620,7 @@ mod tests {
             panic!("{edge:?} is a line edge of the cube")
         };
         assert!(
-            line.dir.z.abs() < 1e-12,
+            line.dir.get().z.abs() < 1e-12,
             "{edge:?} lies parallel to the plane"
         );
     }
@@ -991,13 +980,12 @@ mod torn_rows {
     /// `edge_clears` reads both faces of an edge the plane crosses, and a
     /// half whose loop was dropped panics naming it, where a read of the
     /// miss as no face would clear the edge on its other face alone.
-    /// The gate's face reach (`census::face_reach_in`) reads the face's surface, and a dropped one
-    /// panics naming it, where a read of the miss as no claim to make
-    /// would answer the census's box.
+    /// The gate's face reach (`census::face_reach_toward`) reads the
+    /// face's surface, and a dropped one panics naming it, where a read
+    /// of the miss as no claim to make would clear the face.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
         use crate::live::OPERATORS_KEEP_LINKS;
-        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -1006,8 +994,6 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxAxes::aimed(plane.normal);
-
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {
             let (u, v) = b.edge_vertices(e).unwrap();
@@ -1020,7 +1006,7 @@ mod torn_rows {
             .map(|(k, e)| (k, e.clone()))
             .unwrap();
         assert!(
-            !super::edge_clears(&body, edge, &plane, band, &frame),
+            !super::edge_clears(&body, edge, &plane, band),
             "the plane meets an edge it crosses"
         );
         let lost = body.get_half_edge(data.he_plus).unwrap().parent_loop;
@@ -1034,22 +1020,22 @@ mod torn_rows {
             "edge_clears",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_clears(b, edge, &plane, band, &frame),
+            |b| super::edge_clears(b, edge, &plane, band),
         );
 
         let mut body = fresh();
         let (face, surface) = body.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
         assert!(
-            crate::census::face_reach_in(&body, face, band, &frame).is_some(),
+            crate::census::face_reach_toward(&body, face, band, plane.normal).is_some(),
             "a sound face has a reach"
         );
         body.surfaces.remove(surface);
         let named = format!("{}'s surface names", EntityId::Face(face));
         assert_torn_op_panics(
-            "face_reach_in",
+            "face_reach_toward",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| crate::census::face_reach_in(b, face, band, &frame),
+            |b| crate::census::face_reach_toward(b, face, band, plane.normal),
         );
     }
 }

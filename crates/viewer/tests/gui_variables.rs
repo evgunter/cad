@@ -14,7 +14,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use viewer::props::{self, SlotValue};
-use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
+use viewer::session::{DocSession, RangeTarget, Refusal, SessionOp};
 
 /// Two extrudes of one square, depths 8 mm and 10 mm, and two declared
 /// variables holding the same number at different kinds: `w`, a
@@ -525,35 +525,54 @@ fn with_defined(session: &mut DocSession) -> VarId {
     d
 }
 
-/// **The range probe reads a defined variable as held, and says it is
-/// defined**: not the absent variable's refusal, which it is not.
+/// **`range?` on a defined variable, and on an absent one, is refused
+/// by the kernel's admission door in its own words**, and the control
+/// greys with the same value before the click. Both read today as "not
+/// a continuous parameter": the door does not tell a defined variable
+/// from an absent one
+/// (`work/doctail/range-admission-says-a-defined-variable-is-absent`).
 #[test]
-fn the_range_probe_says_a_defined_variable_is_defined() {
-    let (mut session, _a, _b, _w, _k) = two_extrudes();
+fn range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission() {
+    let (mut session, _a, _b, w, _k) = two_extrudes();
     let d = with_defined(&mut session);
-    let refused = session
-        .perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Variable { var: d },
-        })
-        .refusal
-        .expect("a defined variable has no value to probe");
-    assert!(
-        matches!(&refused, Refusal::VariableIsDefined(var) if var.id() == d),
-        "{refused:?}"
-    );
-    let said = refused.to_string();
-    assert!(said.starts_with("d is defined by a formula"), "{said}");
-
     let absent = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
-    let refused = session
-        .perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Variable { var: absent },
-        })
-        .refusal
-        .expect("an absent variable refuses");
-    assert!(
-        matches!(refused, Refusal::NoSuchVariable(var) if var == absent),
-        "{refused:?}"
+    // A run already in flight, so the refusals below are seen to clear
+    // nothing as well as to set nothing.
+    let started = session.perform(SessionOp::ProveRange {
+        target: RangeTarget::Variable { var: w },
+    });
+    assert!(started.refusal.is_none(), "{:?}", started.refusal);
+    for var in [d, absent] {
+        let target = RangeTarget::Variable { var };
+        let greyed = session.range_refusal(&target).expect("the control greys");
+        let refused = session
+            .perform(SessionOp::ProveRange { target })
+            .refusal
+            .expect("and the click is refused");
+        assert_eq!(
+            refused.to_string(),
+            greyed.to_string(),
+            "one door, one sentence"
+        );
+        assert!(
+            matches!(
+                &refused,
+                Refusal::Range(refusal)
+                    if matches!(**refusal, pncad::analysis::RangeRefusal::NotAContinuousParam { .. })
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            refused
+                .to_string()
+                .contains("there is no axis to certify over"),
+            "{refused}"
+        );
+    }
+    assert_eq!(
+        session.range().map(|reading| reading.target.clone()),
+        Some(RangeTarget::Variable { var: w }),
+        "a refused run neither sets a reading nor clears the one in flight"
     );
 }
 

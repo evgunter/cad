@@ -317,7 +317,7 @@ fn clear_of_singular(
         Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
             let axis_line = geom::Line {
                 origin: frame.origin(),
-                dir: frame.axis(),
+                dir: frame.axis_unit(),
             };
             clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }

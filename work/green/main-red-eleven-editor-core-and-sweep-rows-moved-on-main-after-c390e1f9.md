@@ -1,11 +1,13 @@
 ---
 id: main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9
 kind: issue
-title: "Main red: eleven editor-core and sweep default-set rows moved on main after c390e1f9 (cut_cylinder's and boss_union's digests, the m10 fence, the at-rest census, the boss-union parting, two sweep band poses)"
-status: open
+title: Main red: eleven editor-core and sweep default-set rows moved on main after c390e1f9 (cut_cylinder's and boss_union's digests, the m10 fence, the at-rest census, the boss-union parting, two sweep band poses)
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7682
 ---
 
 Found by BOXFINISH's doors-read lane (PR 7384) on 2026-11-22, re-merging
@@ -175,3 +177,47 @@ no seed and no ε set, on a binary carrying only a decision logger
 them: its head merged with main at `5d5cb7d8` gives the two payloads
 above. (Carried here from the PR's branch by ONEROUND's orchestrator,
 whose copy of this row trailed main's.)
+
+## CIW, 2026-11-23
+
+PR 7501 (`ciw/census-digest-goldens`) re-cuts seat7's `boss_union` on a key-free feed and pins it at its tree's reading, with a comment citing this row: "holds PR 7354's move unjudged; SECTCONE owes the judgement". It also replaces `m10_p_fence`'s Interval golden with in-process claims, and adds `the_interval_corpus_holds_sectcones_move_unjudged`, an id-masked Interval pin citing this row for the same move. Neither pin judges the move. Each goes when SECTCONE has judged it.
+
+## Closed (2026-11-23, GREEN U18)
+
+Every row was re-read on hosted CI at main `a433ff83d6`, default ε, in
+probe run 45307943329 (slow-set step). Each is now accounted for:
+
+- **Passing** at main: `seat8_split_lowering`; `seat7_sweep_lowering`
+  (its `cut_cylinder` is GERM's judged re-pin, and its `boss_union` is
+  CIW's held pin); `intent_s2_c_world`;
+  `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+  and `the_interval_corpus_holds_sectcones_move_unjudged` (CIW's held
+  pin, which replaced the `Interval` row);
+  `edit_placement_corpus_bits`. `m10_p_fence::…_at_interval_has_the_f64_outcomes`
+  passed in run 45312452002.
+- **Gone from main:** PR 7501 removed
+  `m10_p_fence::the_corpus_evaluation_is_bit_identical_at_f64` and
+  `perf12_census_goldens.rs`, along with its at-rest golden.
+- **Held red, PR 7354's:** the two `sweep` rows. They pass on
+  `4a94f7109b^1` (run 45312853278) and fail on `4a94f7109b` (run
+  45312883535) with main's text, so they are re-bisected to 7354. A
+  refusal changed kind at each band edge, which is a decision only its
+  owner can judge, so GREEN did not re-pin them. Each runs under
+  `test_utils::pinned_red::row` where it is red:
+  `bisector_nodes::the_near_node_poses_at_the_witness_band` at the
+  default ε, and `section_end_poses::a_section_end_at_the_band_edge_…`
+  at the default ε and 1e-6. Probe run 45322247807 read both pins
+  green at all three ε.
+- **PR 7354's unjudged moves are SECTCONE's**, in
+  `work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section`.
+  That covers the two held reds above, the two CIW `boss_union` pins
+  (their citations now point there), and the parting pin's share.
+- **`revalue_corpus::revalue_boss_union_apart_to_its_parting`: red on
+  main for another reason, and not held.** PR 7354's `(2390, 3856)`
+  move went into the pin's later re-cuts (`aca51efe7e`; PR 7396's
+  `(2372, 3856)`), and nightly 45117679717 (`dc263f8553`) passed it.
+  It now fails earlier, at `drifted: 228` with `carrier_on_surface_{1,2}`
+  and `witness_on_surface_{1,2}` laundered. That is
+  `main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411`,
+  which this lane's CI bisect confirms (evidence on that row). It stays
+  red there with its nine siblings.

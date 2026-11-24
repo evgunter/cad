@@ -63,6 +63,7 @@
 //! loop. Last, it writes the F9 record.
 
 use geom_core::NonzeroSign;
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -513,7 +514,7 @@ fn line_pairs<T: Decide>(
     let along: Vec<&Crossing<T>> = crossings.iter().collect();
     let line = geom::Line {
         origin: red.plane.origin,
-        dir: d.normalize(),
+        dir: UnitVec3::squared(d),
     };
     Ok(pair_along_line(face, &along, line, band)?.0)
 }
@@ -602,7 +603,7 @@ fn ruling_pairs<T: Decide>(
         };
         lines.push(geom::Line {
             origin,
-            dir: dir.normalize(),
+            dir: UnitVec3::squared(dir.get()),
         });
     }
     let off = |p: Point3<T>, line: geom::Line<T>| line.distance(p);
@@ -615,7 +616,7 @@ fn ruling_pairs<T: Decide>(
             Some(germ) => decide_nonzero(
                 "split_join_ruling_germ",
                 Margin::levered(
-                    germ.cross(lines[1].dir).norm() - germ.cross(lines[0].dir).norm(),
+                    germ.cross(lines[1].dir.get()).norm() - germ.cross(lines[0].dir.get()).norm(),
                     crossing_reach(crossings, c.point),
                 ),
                 band,
@@ -1163,9 +1164,8 @@ impl<T: Decide> Sweep<T> {
             let a_pt = body.resolve_vertex_point(he_data.start, crate::live::Proven);
             let b_pt = body.resolve_vertex_point(end, crate::live::Proven);
             let dt_signed = if forward { span } else { T::zero() - span };
-            let excess =
-                geom_brep::props::arc_segment_term(conic.frame().axis(), sa * sb, dt_signed)
-                    .dot(self.plane.normal.get());
+            let excess = geom_brep::props::arc_segment_term(conic.axis(), sa * sb, dt_signed)
+                .dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             // The arc's length over-stated by its larger semi-axis
             // (`reach`), whichever is stored first.

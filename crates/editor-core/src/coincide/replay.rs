@@ -81,12 +81,15 @@ const BUDGET: SymBudget = SymBudget {
 /// its own degenerate boxes) — so the instrument reads exactly what
 /// the door replays.
 ///
-/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
-/// polynomial in the atoms it mints, and an eager session builds every
-/// definite margin's form for its contradiction check. Measured on
-/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
-/// 120 s, here 136 MB in 1.07 s
-/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+/// Deferring is what makes the replay's branches the build's (the
+/// module docs): an in-band margin is taken as the numeric channel takes
+/// it and discharged when a rung asks, where an eager session would
+/// answer it at the decision. The memory reading that also argued for
+/// it (`plate_param` eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s,
+/// `work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`)
+/// was taken while an eager session walked every definite margin's form
+/// as well, which no session does now; it is not re-taken.
 pub fn with_replay_session<R>(
     base: EvalOptions,
     f: impl FnOnce(&EvalOptions) -> R,

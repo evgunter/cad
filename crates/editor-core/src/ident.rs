@@ -99,6 +99,16 @@ impl ContentPin {
         Self(Sha256::digest(bytes).into())
     }
 
+    /// The pin as four words, most significant byte first: what a hash
+    /// over a pin feeds.
+    pub(crate) fn words(&self) -> [u64; 4] {
+        let mut words = [0; 4];
+        for (word, bytes) in words.iter_mut().zip(self.0.chunks(8)) {
+            *word = bytes.iter().fold(0, |w, &b| (w << 8) | u64::from(b));
+        }
+        words
+    }
+
     /// The canonical text form: exactly 64 lowercase hex digits.
     pub fn hex(&self) -> String {
         let mut out = String::with_capacity(64);

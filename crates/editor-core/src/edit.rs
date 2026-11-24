@@ -116,8 +116,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node to delete.
         id: RecipeNodeId,
     },
-    /// **Replace a node's whole LIST input** (DM4) — a union's or an
-    /// intersect's `Bodies` argument, or a loft's section reads re-pointed
+    /// **Replace a node's whole LIST input** (DM4) — a union's, an
+    /// intersect's or an assemble's `Bodies` argument, a subtract's
+    /// tools, or a loft's section reads re-pointed
     /// in place: the slot door
     /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
     /// new list is stated in full, so nothing is inferred about which of
@@ -704,9 +705,46 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The body read, `None` for an empty product.
         product: Option<crate::Operand>,
     },
+    /// **Write what a binder yields** (D10 `[repetition]`), whole and in
+    /// order: each yield a family to every reader, one member per value
+    /// of the binder's indices. `binder` is its first index.
+    ///
+    /// Refuses a binder that is no binder's first index, a yield that
+    /// is an index, is listed twice or is another binder's
+    /// ([`EditError::Yields`]); and, as every edit does, one that leaves
+    /// a reader reading a family at a seat for one body
+    /// ([`EditError::SlotVarKind`]).
+    SetYields {
+        /// The binder, by its first index.
+        binder: VarRef,
+        /// What it yields.
+        yields: Vec<VarRef>,
+    },
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **The edit giving the binder `binder` also the yields `more`**,
+    /// after what it yields in `doc` ([`DocEdit::SetYields`]): the one
+    /// spelling of "this binder yields one more", a yield it already
+    /// writes kept once.
+    #[must_use]
+    pub fn yielding_more<Q: crate::ProfilePayload>(
+        doc: &Doc<Q>,
+        binder: VarId,
+        more: &[VarId],
+    ) -> Self {
+        let mut yields: Vec<VarId> = doc.yields(binder).to_vec();
+        for &var in more {
+            if !yields.contains(&var) {
+                yields.push(var);
+            }
+        }
+        Self::SetYields {
+            binder: binder.into(),
+            yields: yields.into_iter().map(VarRef::from).collect(),
+        }
+    }
+
     /// **The edit removing the constraint `at`**
     /// ([`DocEdit::RemoveConstraint`]), which writes the bundle whole
     /// again without it. Empty where `at` names no constraint `doc`
@@ -800,6 +838,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::ClearAppearanceMeta { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::SetYields { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -1567,7 +1606,7 @@ fn mint_pose<P: crate::ProfilePayload>(
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            Some(node) if node.makes_a_copy()
         )
     {
         return Err(shape(PoseFault::NotACopy { var: *copy }));
@@ -1622,7 +1661,10 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
         SlotId::Operand(seat) | SlotId::Index { seat, .. } => seat,
         _ => return None,
     };
-    let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
+    // A family's rank is its binder's (D10 `[repetition]`).
+    let rank = doc
+        .yielding(doc.through_sources(body.read).read)
+        .map_or(0, |binder| doc.binder_indices(binder).len());
     if body.at.len() != rank {
         return Some(crate::var::SelectionFault::Input(Box::new(
             crate::node::InputFault::IndexRank {
@@ -1684,9 +1726,8 @@ pub(crate) fn written_member<P>(doc: &Doc<P>, body: &crate::BodyRead<VarId>) -> 
 /// index lowered as a `Count` slot of the selection, the names checked
 /// live and in the stored form of the seat's selection kind, and one
 /// anonymous selection variable minted for the seat to read. A
-/// selection authored at two seats is two variables. A member read
-/// whose indices are exactly its family's own index chain is the plain
-/// read, as a per-member reader reads it: `xs[k]` is stored as `xs`.
+/// selection authored at two seats is two variables. A member read is
+/// stored as written: `xs[k]` reads one member, and `xs` the family.
 fn mint_selection<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1717,14 +1758,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    let body = crate::BodyRead {
-        read,
-        at: if own { Vec::new() } else { at },
-    };
+    let body = crate::BodyRead { read, at };
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1840,12 +1874,7 @@ fn mint_pick<P: crate::ProfilePayload>(
 /// each index a `Count` written at the seat. A plain read of a source is
 /// that source, shared: the seat reads it, and VR2 asks for its name where
 /// it is anonymous and read already. Any other read mints one anonymous
-/// source for the seat to read.
-///
-/// A member read at the family's own indices (`xs[i]`, `i` the index the
-/// family is over) reads every member at its own value, which is the family
-/// read whole; it is stored as the plain read, as a selection's body is, so
-/// the two spellings mint one source definition.
+/// source for the seat to read. A member read is stored as written.
 fn mint_source<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1875,17 +1904,7 @@ fn mint_source<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    mint_anonymous(
-        doc,
-        WrittenDef::Source(crate::BodyRead {
-            read,
-            at: if own { Vec::new() } else { at },
-        }),
-    )
+    mint_anonymous(doc, WrittenDef::Source(crate::BodyRead { read, at }))
 }
 
 /// **A declared source's body read as the door writes it** (VR4): a
@@ -1929,8 +1948,12 @@ fn lower_source_decl<P: crate::ProfilePayload>(
         true => VarKind::Bodies,
         false => VarKind::Body,
     });
-    if let Some(crate::doc::ReadFault::Kind { found }) =
-        doc.read_fault(read, held, expected, Reader::Constructs)
+    // A source reading a family whole is that family to its readers,
+    // each of which reads it whole or by member (D10 `[repetition]`).
+    let family = !body.is_indexed() && doc.family_through_sources(read);
+    if !family
+        && let Some(crate::doc::ReadFault::Kind { found }) =
+            doc.read_fault(read, held, expected, Reader::Constructs)
     {
         return Err(refused(SourceFault::Kind { found }));
     }
@@ -1990,7 +2013,7 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     };
     let copied = matches!(
         doc.operation_of(copy).and_then(|at| doc.node(at)),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        Some(node) if node.makes_a_copy()
     );
     if !copied || of.is_empty() {
         return Some(None);
@@ -2275,16 +2298,55 @@ pub enum SourceFault {
     Fresh,
 }
 
+/// **Why a binder's yields are refused** ([`EditError::Yields`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum YieldsFault {
+    /// The variable named is no binder's first index.
+    NotABinder,
+    /// A yield is an index, which its binder mints rather than yields.
+    Index {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is written twice.
+    Twice {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+    /// A yield is another binder's.
+    Elsewhere {
+        /// The yield.
+        var: Box<SpokenVar>,
+        /// The binder yielding it.
+        binder: Box<SpokenVar>,
+    },
+    /// The yields are empty: a binder yields what repeats in it, and one
+    /// that yields nothing is refused (an assertion inside is its own
+    /// yield, and needs none written).
+    Nothing,
+    /// A yield reads none of the binder's indices, so it repeats nothing.
+    Outside {
+        /// The yield.
+        var: Box<SpokenVar>,
+    },
+}
+
 /// **Why an index is refused as declared** ([`EditError::Index`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexFault {
     /// Its count is of another dimension.
     CountNotCount {
         /// The count's dimension.
         found: Dimension,
     },
-    /// What it is declared within is no index of the document.
-    WithinNoIndex,
+    /// What it is declared after is no index of the document.
+    AfterNoIndex,
+    /// The index it is declared after already has an index after it:
+    /// a binder's indices are one sequence, outermost first.
+    AfterTaken {
+        /// The index already after it.
+        taken: Box<SpokenVar>,
+    },
 }
 
 /// **A declared definition as the door writes it**: a free one as
@@ -2304,7 +2366,7 @@ fn lower_decl<P: crate::ProfilePayload>(
         VarDecl::Defined(formula) => lowering
             .lower_definition(doc, var, formula)
             .map(WrittenDef::Defined),
-        VarDecl::Index { count, within } => {
+        VarDecl::Index { count, after } => {
             let refused = |fault| EditError::Index {
                 var: var.clone(),
                 fault,
@@ -2312,18 +2374,37 @@ fn lower_decl<P: crate::ProfilePayload>(
             if count.dim() != Dimension::Count {
                 return Err(refused(IndexFault::CountNotCount { found: count.dim() }));
             }
-            let within = match within {
-                None => None,
-                Some(within) => Some(
-                    lowering
-                        .lower_definition(doc, var, within)?
+            let seat = match after {
+                // A redefined binder keeps what it yields.
+                None => crate::IndexSeat::Binder {
+                    yields: doc
+                        .var(var.id())
+                        .and_then(|held| held.def().index())
+                        .and_then(|index| match &index.seat {
+                            crate::IndexSeat::Binder { yields } => Some(yields.clone()),
+                            crate::IndexSeat::After(_) => None,
+                        })
+                        .unwrap_or_default(),
+                },
+                Some(after) => {
+                    let before = lowering
+                        .lower_definition(doc, var, after)?
                         .as_var()
-                        .filter(|&at| doc.var(at).is_some_and(|v| v.def().index().is_some()))
-                        .ok_or_else(|| refused(IndexFault::WithinNoIndex))?,
-                ),
+                        .filter(|&at| {
+                            at != var.id() && doc.var(at).is_some_and(|v| v.def().index().is_some())
+                        })
+                        .ok_or_else(|| refused(IndexFault::AfterNoIndex))?;
+                    if let Some(taken) = doc.index_after(before).filter(|&taken| taken != var.id())
+                    {
+                        return Err(refused(IndexFault::AfterTaken {
+                            taken: Box::new(doc.spoken_var(taken)),
+                        }));
+                    }
+                    crate::IndexSeat::After(before)
+                }
             };
             let count = lowering.lower_definition(doc, var, count)?;
-            Ok(WrittenDef::Index(crate::Index { count, within }))
+            Ok(WrittenDef::Index(crate::Index { count, seat }))
         }
         VarDecl::Source(body) => lower_source_decl(doc, lowering, var, body),
     }
@@ -2468,6 +2549,8 @@ pub enum CarryForwardDoor {
     Rename,
     /// [`DocEdit::DeleteVar`] — the variable itself.
     Delete,
+    /// [`DocEdit::SetYields`] — what a binder yields.
+    Yields,
 }
 
 // The door as it appears inside a refusal's sentence, in the user's
@@ -2481,6 +2564,7 @@ impl core::fmt::Display for CarryForwardDoor {
             Self::Annotation => "an annotation edit",
             Self::Rename => "a rename",
             Self::Delete => "a delete",
+            Self::Yields => "a binder's yields",
         })
     }
 }
@@ -2686,6 +2770,13 @@ impl LoftFault {
 /// paragraph instead of re-wording it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
+    /// A binder's yields refused as written ([`DocEdit::SetYields`]).
+    Yields {
+        /// The binder, by its first index.
+        binder: SpokenVar,
+        /// Why.
+        fault: YieldsFault,
+    },
     /// The edit targets a node id that is not live.
     UnknownNode {
         /// The missing id.
@@ -3124,9 +3215,9 @@ pub enum EditError {
         /// The kind the definition holds.
         offered: VarKind,
     },
-    /// **A reader of two indices neither of which is within the other**
-    /// (D10 `[repetition]`): they meet in no reader.
-    IndicesUnrelated {
+    /// **A reader of the indices of two binders** (D10 `[repetition]`):
+    /// no binder holds it, so it would repeat over both unwritten.
+    TwoBinders {
         /// The reader.
         node: SpokenNode,
         /// One index.
@@ -3940,10 +4031,23 @@ impl EditError {
                 **source = source.respoken(doc);
                 **other = other.respoken(doc);
             }
-            Self::IndicesUnrelated { node, a, b } => {
+            Self::TwoBinders { node, a, b } => {
                 *node = node.respoken(doc);
                 **a = a.respoken(doc);
                 **b = b.respoken(doc);
+            }
+            Self::Yields { binder, fault } => {
+                *binder = binder.respoken(doc);
+                match fault {
+                    YieldsFault::NotABinder | YieldsFault::Nothing => {}
+                    YieldsFault::Index { var }
+                    | YieldsFault::Twice { var }
+                    | YieldsFault::Outside { var } => **var = var.respoken(doc),
+                    YieldsFault::Elsewhere { var, binder } => {
+                        **var = var.respoken(doc);
+                        **binder = binder.respoken(doc);
+                    }
+                }
             }
             Self::ProfileProgramRefused { node, refusal: _ }
             | Self::SelectionShape {
@@ -4610,7 +4714,51 @@ impl EditError {
                             crate::sentence::article(&found.to_string())
                         )
                     )?;
-                    tail.recourse(f, format_args!("read {expected} there"))
+                    match (found, slot) {
+                        // A yield in a spelled list (a boolean's members, a
+                        // subtract's tools) is spliced in whole.
+                        (
+                            VarKind::Bodies,
+                            SlotId::Operand(
+                                crate::OperandSlot::Member(_) | crate::OperandSlot::Cut(_),
+                            ),
+                        ) => tail.recourse(f, sentence!("splice it, `…", by.var(var), "`")),
+                        // A family at a seat for one: write the binder,
+                        // one node per member, in the seat's own words.
+                        (VarKind::Bodies, _) => {
+                            let op = node
+                                .kind()
+                                .map_or_else(|| "op".to_owned(), str::to_lowercase);
+                            let held = var.name().map(crate::doc::VarName::as_str);
+                            let k = ["k", "i", "j", "m", "n"]
+                                .into_iter()
+                                .find(|k| held != Some(*k))
+                                .unwrap_or("k");
+                            tail.recourse(
+                                f,
+                                sentence!(
+                                    format_args!("write a binder, `{{{k} in "),
+                                    by.var(var),
+                                    format_args!(": {op}("),
+                                    by.var(var),
+                                    format_args!("[{k}])}}`"),
+                                ),
+                            )
+                        }
+                        // One body spliced in, `…a`, where a splice takes a
+                        // family: it is one member, written alone.
+                        (
+                            VarKind::Body,
+                            SlotId::Operand(
+                                crate::OperandSlot::Member(_) | crate::OperandSlot::Cut(_),
+                            ),
+                        ) if matches!(expected, crate::SlotKind::Is(VarKind::Bodies)) => tail
+                            .recourse(
+                                f,
+                                sentence!("write it as one member, `[", by.var(var), "]`"),
+                            ),
+                        _ => tail.recourse(f, format_args!("read {expected} there")),
+                    }
                 }
             },
             Self::SlotUnresolvedVar { var, node, slot } => {
@@ -4834,24 +4982,109 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("read the entry, or drop it from the table"))
             }
-            Self::IndicesUnrelated { node, a, b } => {
+            Self::TwoBinders { node, a, b } => {
                 say!(
                     f,
                     by.mention(node),
                     " reads the indices ",
                     by.var(a),
-                    sentence!(
-                        " and ",
-                        by.var(b),
-                        ", and neither is within the other, so \
-                     they meet in no reader"
-                    )
+                    " and ",
+                    by.var(b),
+                    ", which are of two binders, and a reader repeats inside one binder"
                 )?;
                 tail.recourse(
                     f,
-                    format_args!("declare one within the other, or read one of them here"),
+                    format_args!("bind both indices in one binder, or read what one binder yields"),
                 )
             }
+            Self::Yields { binder, fault } => match fault {
+                YieldsFault::NotABinder => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " is no binder's first index, and a binder's yields are written on \
+                         its first index"
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("write the yields on the binder's first index"),
+                    )
+                }
+                YieldsFault::Index { var } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which is an index: a binder mints its indices and yields what \
+                         reads them"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "yield a variable that reads ",
+                            by.var(var),
+                            ", not ",
+                            by.var(var)
+                        ),
+                    )
+                }
+                YieldsFault::Twice { var } => {
+                    say!(f, by.var(binder), " would yield ", by.var(var), " twice")?;
+                    tail.recourse(f, sentence!("name ", by.var(var), " once"))
+                }
+                YieldsFault::Elsewhere { var, binder: other } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which ",
+                        by.var(other),
+                        " already yields"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "drop ",
+                            by.var(var),
+                            " from ",
+                            by.var(binder),
+                            "'s yields; ",
+                            by.var(other),
+                            " yields it"
+                        ),
+                    )
+                }
+                YieldsFault::Nothing => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield nothing, and a binder yields what repeats in it"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!("name what ", by.var(binder), "'s binder yields"),
+                    )
+                }
+                YieldsFault::Outside { var } => {
+                    say!(
+                        f,
+                        by.var(binder),
+                        " would yield ",
+                        by.var(var),
+                        ", which reads none of the binder's indices"
+                    )?;
+                    tail.recourse(
+                        f,
+                        sentence!(
+                            "yield a variable that reads the binder's index, or read ",
+                            by.var(var),
+                            " outside the binder"
+                        ),
+                    )
+                }
+            },
             Self::Index { var, fault } => {
                 match fault {
                     IndexFault::CountNotCount { found } => say!(
@@ -4863,18 +5096,25 @@ impl EditError {
                             found.article()
                         )
                     )?,
-                    IndexFault::WithinNoIndex => say!(
+                    IndexFault::AfterNoIndex => say!(
                         f,
                         by.var(var),
-                        " is declared within a variable that is no index, and an index \
-                         is within another index or nothing"
+                        " is declared after a variable that is no other index, and a \
+                         binder's further index comes after one of its indices"
+                    )?,
+                    IndexFault::AfterTaken { taken } => say!(
+                        f,
+                        by.var(var),
+                        " is declared after an index that ",
+                        by.var(taken),
+                        " already comes after, and a binder's indices are one sequence"
                     )?,
                 }
                 tail.recourse(
                     f,
                     format_args!(
-                        "give it a count expression, and declare it within an index, or no \
-                         index"
+                        "give it a count expression, and declare it as a new binder's index, \
+                         or after the last index of a binder"
                     ),
                 )
             }
@@ -5688,6 +5928,20 @@ pub enum Maintenance {
         /// the document is shown ([`Maintenance::is_silent_retirement`]).
         distribution: Option<Distribution>,
     },
+    /// **A yield this edit removed from its binder** (D10
+    /// `[repetition]`): the edit removed the variable (its node was
+    /// deleted, or the variable itself), or a refactoring carried it
+    /// where it reads none of its binder's indices (its reads of them
+    /// stayed behind), so the binder yields it no more. Its readers
+    /// outside the binder say so where they read it.
+    YieldRemoved {
+        /// The binder, by its first index, spoken from the document the
+        /// edit entered.
+        binder: SpokenVar,
+        /// The yield that went, spoken from the document the edit
+        /// entered.
+        var: SpokenVar,
+    },
 }
 
 impl Maintenance {
@@ -5718,7 +5972,8 @@ impl Maintenance {
             | Self::StrandedSpace { .. }
             | Self::ProductOutsideWorld { .. }
             | Self::ValueDropped { .. }
-            | Self::AnonymousVarRemoved { .. } => None,
+            | Self::AnonymousVarRemoved { .. }
+            | Self::YieldRemoved { .. } => None,
         }
     }
 
@@ -6031,6 +6286,14 @@ impl crate::Say for Maintenance {
                 }
                 Ok(())
             }
+            Self::YieldRemoved { binder, var } => say!(
+                f,
+                by.var(binder),
+                "'s binder yields ",
+                by.var(var),
+                " no more: the edit removed it, or carried it where it reads none of the \
+                 binder's indices"
+            ),
         }
     }
 }
@@ -6509,6 +6772,11 @@ impl MaintenanceNet {
         self.rows.extend(edit.maintenance.iter().cloned());
     }
 
+    /// Fold in a row the action reports itself, beside its edits' own.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.rows.push(row);
+    }
+
     /// The rows that survive, against `start` — the document the first
     /// pushed edit was applied to — and `end`, the one the last
     /// produced.
@@ -6549,7 +6817,9 @@ impl MaintenanceNet {
                 Maintenance::ProductOutsideWorld { read, .. } => {
                     end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
                 }
-                Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
+                Maintenance::ValueDropped { .. }
+                | Maintenance::AnonymousVarRemoved { .. }
+                | Maintenance::YieldRemoved { .. } => true,
             })
             .collect()
     }
@@ -6741,6 +7011,13 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     fn end(&mut self, refusal: EditError) -> EditError {
         self.refused = Some(refusal.clone());
         refusal
+    }
+
+    /// **A row the action reports itself** (a refactoring's carry that
+    /// keeps no yield for a variable it carried, say), kept with its
+    /// edits' rows.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.maintenance.report(row);
     }
 
     fn take(&mut self, edit: DocEdit<P>, applied: Applied<P>) -> Option<RecipeNodeId> {
@@ -8317,6 +8594,37 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
+    // D10 `[repetition]`, on EVERY arm: a yield goes with its variable,
+    // and the edit reports it (`Maintenance::YieldRemoved`).
+    let gone: Vec<(VarId, crate::Index)> = new
+        .vars
+        .iter()
+        .filter_map(|(&id, var)| {
+            let index = var.def().index()?;
+            let crate::IndexSeat::Binder { yields } = &index.seat else {
+                return None;
+            };
+            yields
+                .iter()
+                .any(|y| !new.vars.contains_key(y))
+                .then(|| (id, index.clone()))
+        })
+        .collect();
+    for (id, mut index) in gone {
+        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+            for &y in yields.iter().filter(|y| !new.vars.contains_key(y)) {
+                reported.push(Maintenance::YieldRemoved {
+                    binder: doc.spoken_var(id),
+                    var: doc.spoken_var(y),
+                });
+            }
+            yields.retain(|y| new.vars.contains_key(y));
+        }
+        new.vars
+            .insert(id, Var::written(crate::WrittenDef::Index(index)));
+    }
+    // D10 `[repetition]`, on EVERY arm: the yield rules' one home.
+    yields_door(doc, &new)?;
     // D10 `[placement.spaces]`, on EVERY arm: the node an edit
     // re-points (`held`) is refused reading two spaces, as one written
     // whole is at its own door; any other node an edit left reading two
@@ -8348,20 +8656,45 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             });
         }
     }
-    // D10 `[repetition]`, on EVERY arm: two indices meet in one reader
-    // only when one is within the other. An edit that leaves a reader of
-    // two unrelated indices refuses, naming the first in id order that
-    // the document before did not hold.
+    // D10 `[repetition]`, on EVERY arm: a reader repeats inside one
+    // binder. An edit that leaves a reader of two binders' indices
+    // refuses, naming the first in id order that the document before did
+    // not hold.
     if let Some((node, a, b)) = new
         .indices_faults()
         .into_iter()
         .find(|fault| !doc.indices_faults().contains(fault))
     {
-        return Err(EditError::IndicesUnrelated {
+        return Err(EditError::TwoBinders {
             node: spoken_before_else_after(doc, &new, node),
             a: Box::new(new.spoken_var(a)),
             b: Box::new(new.spoken_var(b)),
         });
+    }
+    // D10 `[repetition]`, on EVERY arm: a yield is a family to every
+    // reader, so an edit that leaves one read at a seat for one body, or
+    // a member read of a variable no binder yields, refuses by kind,
+    // naming the first the document before did not hold.
+    let family_faults = new.family_read_faults();
+    if !family_faults.is_empty() {
+        let before = doc.family_read_faults();
+        if let Some(crate::repetition::FamilyReadFault::Seat {
+            node,
+            slot,
+            var,
+            found,
+        }) = family_faults.into_iter().find(|f| !before.contains(f))
+        {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(new.spoken_var(var)),
+                node: spoken_before_else_after(doc, &new, node),
+                slot: SlotId::Operand(slot),
+                found,
+                expected: new
+                    .node(node)
+                    .map_or_else(|| slot.kind(), |held| held.seat_kind(slot)),
+            });
+        }
     }
     // VR2, on EVERY arm: an anonymous variable has one reader, so the
     // edit that gave it a second, or cleared the name two share, refuses
@@ -8690,15 +9023,14 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
     }
     let left: Vec<&crate::mate::Constraint> =
         bundle.iter().filter(|c| !removed.contains(&c.id)).collect();
-    let kind = |var: VarId| new.var(var).map(crate::Var::kind);
     let mut families: Vec<crate::SubgroupFamily> = left
         .iter()
         .filter_map(|c| c.mate())
-        .filter_map(|m| kind(m.on).and_then(crate::VarKind::symmetry))
+        .filter_map(|m| crate::mate::side_kind(new, m.on).and_then(crate::VarKind::symmetry))
         .collect();
     if let Some(mate) = &added
         && let Some(family) =
-            crate::mate::pin::operand_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
+            crate::mate::pin::side_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
     {
         families.push(family);
     }
@@ -8707,8 +9039,8 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
         c.mate().map(|m| Constraint {
             id: c.id,
             kind: ConstraintKind::Mate(Mate {
-                on: crate::Operand::Var(m.on),
-                to: crate::Operand::Var(m.to),
+                on: m.on.map(|&v| crate::Operand::Var(v)),
+                to: m.to.map(|&v| crate::Operand::Var(v)),
                 orient: m.orient,
             }),
         })
@@ -8797,12 +9129,7 @@ fn removed((ids, _): (Vec<crate::node::ConstraintId>, Vec<VarId>)) -> EditRecord
 /// A placement's bundle, writable; `None` for a node that is no
 /// placement.
 fn bundle_of_mut<P>(node: &mut Node<P>) -> Option<&mut Vec<crate::mate::Constraint>> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
-        _ => None,
-    }
+    node.bundle_mut()
 }
 
 /// **The door of every edit that writes a bundle**
@@ -8834,24 +9161,21 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
         }
     }
     // The constraints lowered as a bundle of their own: their reads at
-    // their seats, under the ids as written, which the mint replaces.
-    // The carrier copies the placement's own copy, a body read that
-    // lowers wherever the placement stands.
-    let copy = new
-        .output(placement, 0)
-        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
-    let carrier: Node<P::Authored, Formula> = Node::Place {
-        source: crate::BodyRead::plain(crate::Operand::Var(copy)),
+    // their seats, under the ids as written, which the mint replaces. The
+    // carrier is the placement that reads nothing but its bundle (a
+    // datum in the world), so it lowers whatever the placement places;
+    // the written node is checked whole below.
+    let carrier: Node<P::Authored, Formula> = Node::Datum {
         target: crate::Operand::Var(VarId::WORLD),
         constraints,
     };
     let lowering = Lowering::start(new, fresh)?;
     let lowered = lower_node(new, &lowering, &carrier, || doc.spoken(placement))?;
-    let Node::Place {
+    let Node::Datum {
         mut constraints, ..
     } = lowered
     else {
-        unreachable!("a placement lowers to a placement")
+        unreachable!("a datum lowers to a datum")
     };
     // A whole rewrite keeps the id of a constraint it writes again.
     let held: Vec<crate::node::ConstraintId> = if replace {
@@ -8970,6 +9294,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             };
             let spoken = || doc.spoken(*node);
+            // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
+            let spliced = |slot: crate::OperandSlot| match (members, slot) {
+                (
+                    crate::Bodies::Spelled(entries),
+                    crate::OperandSlot::Member(i) | crate::OperandSlot::Cut(i),
+                ) => entries.get(i).is_some_and(crate::Spell::is_splice),
+                _ => false,
+            };
             let lower =
                 |new: &mut Doc<P>, slot: crate::OperandSlot, member: &crate::BodyRead<Formula>| {
                     lower_operand(
@@ -8977,17 +9309,27 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         &spoken,
                         SlotId::Operand(slot),
                         &member.read,
-                        member.kind(slot),
+                        if spliced(slot) {
+                            crate::SlotKind::Is(VarKind::Bodies)
+                        } else {
+                            member.kind(slot)
+                        },
                     )
                 };
             let mut rewritten = current.clone();
+            let seats = match &rewritten {
+                Node::Subtract { .. } => crate::operand::Seats::CUTS,
+                _ => crate::operand::Seats::MEMBERS,
+            };
             match &mut rewritten {
                 Node::Union { members: list, .. }
                 | Node::Intersect { members: list, .. }
-                | Node::Assemble { members: list, .. } => {
-                    let reads = members.try_map(|slot, member| lower(new, slot, member))?;
+                | Node::Assemble { members: list, .. }
+                | Node::Subtract { tool: list, .. } => {
+                    let reads =
+                        members.try_map_in(seats, |slot, member| lower(new, slot, member))?;
                     let mut indices = Vec::new();
-                    for (seat, member) in members.rows() {
+                    for (seat, member) in members.rows_in(seats) {
                         let mut at = Vec::new();
                         for (k, formula) in member.rows() {
                             at.push(lower_index(
@@ -9021,6 +9363,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .enumerate()
                         .map(|(i, section)| {
                             let slot = crate::OperandSlot::Section(i);
+                            let section = section.read();
                             if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),
@@ -9356,7 +9699,36 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
                 WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
+                    // A binder's first index declared after another index
+                    // joins that index's binder, which yields what it
+                    // yielded (D10 `[repetition]`).
+                    let carried: Vec<VarId> = match (doc.var(id).map(Var::def), &def) {
+                        (Some(VarDef::Index(held)), WrittenDef::Index(written))
+                            if written.after().is_some() =>
+                        {
+                            match &held.seat {
+                                crate::IndexSeat::Binder { yields } => yields.clone(),
+                                crate::IndexSeat::After(_) => Vec::new(),
+                            }
+                        }
+                        _ => Vec::new(),
+                    };
                     new.vars.insert(id, Var::written(def));
+                    if !carried.is_empty()
+                        && let Some(binder) = new.binder_of(id)
+                        && let Some(VarDef::Index(index)) = new.var(binder).map(Var::def)
+                    {
+                        let mut index = index.clone();
+                        if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+                            for y in carried {
+                                if !yields.contains(&y) {
+                                    yields.push(y);
+                                }
+                            }
+                        }
+                        new.vars
+                            .insert(binder, Var::written(WrittenDef::Index(index)));
+                    }
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,
@@ -9859,6 +10231,54 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
+        DocEdit::SetYields { binder, yields } => {
+            let unknown = |var: &VarRef| EditError::UnknownVar {
+                var: var.clone(),
+                door: CarryForwardDoor::Yields,
+            };
+            let Some(first) = doc.resolve_var(binder) else {
+                return Err(unknown(binder));
+            };
+            let refused = |fault| EditError::Yields {
+                binder: doc.spoken_var(first),
+                fault,
+            };
+            let Some(index) = doc
+                .var(first)
+                .and_then(|held| held.def().index())
+                .filter(|index| index.after().is_none())
+            else {
+                return Err(refused(YieldsFault::NotABinder));
+            };
+            let mut written = Vec::with_capacity(yields.len());
+            for read in yields {
+                let Some(var) = doc.resolve_var(read) else {
+                    return Err(unknown(read));
+                };
+                written.push(var);
+            }
+            // The yield rules' one home (`Doc::yield_rule`), which every
+            // arm and load ask too ([`yields_door`]).
+            if let Some(rule) =
+                doc.yield_rule(first, &written, &mut crate::repetition::Reach::own(doc))
+            {
+                return Err(refused(yields_fault(doc, rule)));
+            }
+            let index = crate::Index {
+                count: index.count.clone(),
+                seat: crate::IndexSeat::Binder { yields: written },
+            };
+            new.vars
+                .insert(first, Var::written(crate::WrittenDef::Index(index)));
+            EditRecord {
+                minted: None,
+                minted_constraints: Vec::new(),
+                minted_var: None,
+                structural: true,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
+            }
+        }
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {
@@ -10218,8 +10638,8 @@ mod tests {
             }))
         };
         let mate = crate::mate::Mate {
-            on: plane(crate::node::RecipeNodeId::new(0, 3)),
-            to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            on: plane(crate::node::RecipeNodeId::new(0, 3)).into(),
+            to: plane(crate::node::RecipeNodeId::new(0, 2)).into(),
             orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
@@ -10349,6 +10769,10 @@ pub enum ProductReadFault {
     /// one; the product's gather does not, so the slot refuses it rather
     /// than gather the family whole.
     Member,
+    /// The body read reads an index, so it is one member at each value
+    /// of it, and a reader outside its binder reads only what the
+    /// binder yields (D10 `[repetition]`).
+    PerMember,
     /// A pick written at the slot picks no piece ([`EditError::PickPath`]'s
     /// rule).
     Path {
@@ -10373,8 +10797,53 @@ impl crate::Say for ProductReadFault {
             Self::Member => f.write_str(
                 "it reads one member of a family, which the product's gather does not read",
             ),
+            Self::PerMember => f.write_str(
+                "it reads a body that reads an index, which is one member at each value; the \
+                 product reads a family its binder yields",
+            ),
             Self::Path { at } => say!(f, PicksNoPiece("it", *at)),
         }
+    }
+}
+
+/// **A yield rule, in the door's words** ([`YieldsFault`]).
+fn yields_fault<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    rule: crate::repetition::YieldRule,
+) -> YieldsFault {
+    use crate::repetition::YieldRule as R;
+    let spoken = |var| Box::new(doc.spoken_var(var));
+    match rule {
+        R::Nothing => YieldsFault::Nothing,
+        // A yield the door resolved is live; one an edit removed went
+        // with its variable (`Maintenance::YieldRemoved`).
+        R::NotLive(var) | R::Outside(var) => YieldsFault::Outside { var: spoken(var) },
+        R::Index(var) => YieldsFault::Index { var: spoken(var) },
+        R::Twice(var) => YieldsFault::Twice { var: spoken(var) },
+        R::Elsewhere { var, binder } => YieldsFault::Elsewhere {
+            var: spoken(var),
+            binder: spoken(binder),
+        },
+    }
+}
+
+/// **The yield rules on every arm** (D10 `[repetition]`): an edit that
+/// leaves a binder breaking a rule it did not break before refuses
+/// ([`EditError::Yields`]) — a redefinition that leaves a yield reading
+/// none of its binder's indices, say. `doc` is the document the edit
+/// entered and `new` the one it would leave.
+fn yields_door<P: crate::ProfilePayload>(doc: &Doc<P>, new: &Doc<P>) -> Result<(), EditError> {
+    let before = doc.yield_faults();
+    match new
+        .yield_faults()
+        .into_iter()
+        .find(|fault| !before.contains(fault))
+    {
+        None => Ok(()),
+        Some((binder, rule)) => Err(EditError::Yields {
+            binder: new.spoken_var(binder),
+            fault: yields_fault(new, rule),
+        }),
     }
 }
 
@@ -10394,7 +10863,7 @@ impl core::fmt::Display for ProductReadFault {
 /// the read (it resolves to nothing, to another kind, or picks no
 /// piece); any other refusal (an index formula of a source written in
 /// place) is the lowering's own.
-fn product_read<P: crate::ProfilePayload>(
+fn product_read<P: Clone + crate::ProfilePayload>(
     doc: &mut Doc<P>,
     read: &crate::Operand,
 ) -> Result<VarId, EditError> {
@@ -10409,15 +10878,29 @@ fn product_read<P: crate::ProfilePayload>(
     ) {
         return Err(refused(ProductReadFault::Unresolved));
     }
-    let body = crate::SlotKind::Is(VarKind::Body);
-    let var = lower_read(
-        doc,
-        &|| SpokenNode::absent(RecipeNodeId::WORLD),
-        SlotId::Operand(crate::OperandSlot::Source),
-        read,
-        body,
-        Reader::of(body),
-    )
+    // The product reads one body, or a family a binder yields whole.
+    let lower = |doc: &mut Doc<P>, kind: VarKind| {
+        let body = crate::SlotKind::Is(kind);
+        lower_read(
+            doc,
+            &|| SpokenNode::absent(RecipeNodeId::WORLD),
+            SlotId::Operand(crate::OperandSlot::Source),
+            read,
+            body,
+            Reader::of(body),
+        )
+    };
+    let mut trial = doc.clone();
+    let var = match lower(&mut trial, VarKind::Body) {
+        Err(EditError::SlotVarKind {
+            found: VarKind::Bodies,
+            ..
+        }) => lower(doc, VarKind::Bodies),
+        written => {
+            *doc = trial;
+            written
+        }
+    }
     .map_err(|error| match error {
         EditError::UnresolvedInput { .. }
         | EditError::DefinesNothing { .. }
@@ -10437,17 +10920,26 @@ fn product_read<P: crate::ProfilePayload>(
 }
 
 /// **What is wrong with the slot reading `var`**: a live variable of
-/// another kind than `Body`, or a body outside the world. `None` for a
-/// slot that reads a body in the world, and for one whose variable or
-/// space is gone, which is a stranded reader
+/// another kind than `Body`, a body that reads an index and that no
+/// binder yields (one member at each value, read only inside its
+/// binder: D10 `[repetition]`'s containment), or a body outside the
+/// world. `None` for a slot that reads a body in the world, and for one
+/// whose variable or space is gone, which is a stranded reader
 /// ([`crate::ProductError::StrandedProduct`]).
-pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
+///
+/// The one home of the slot's rules: `SetProduct`'s door, every other
+/// arm (an edit that leaves the slot on a k-reader refuses) and load
+/// all ask it.
+pub(crate) fn product_fault<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     var: VarId,
 ) -> Option<ProductReadFault> {
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    if doc.yielding(var).is_none() && !doc.var_reach(var).is_none() {
+        return Some(ProductReadFault::PerMember);
     }
     if doc.through_sources(var).is_indexed() {
         return Some(ProductReadFault::Member);

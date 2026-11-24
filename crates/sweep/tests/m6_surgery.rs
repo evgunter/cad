@@ -497,10 +497,13 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect_err("a curved end face is an unbuilt end");
-    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
-        text.contains(sweep::blend::END_FACE_CURVED),
-        "the refusal names the run-out gap: {text}"
+        matches!(
+            err.error,
+            sweep::blend::BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::CurvedEndFace { .. })
+        ),
+        "the refusal names the curved end face: {}",
+        err.render(geom_brep::recourse::Reading::Build)
     );
     fillet_edges(
         &sweep::test_support::at_rest(&pipped, Tol::witness()),

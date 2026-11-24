@@ -42,8 +42,7 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::UnsupportedSeamVertex`],
 ///    [`Self::UnsupportedCrossingSenses`], [`Self::UnsupportedSeamSides`],
 ///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
-///    [`Self::HoldingsUnread`], [`Self::UnsupportedTurnedCell`],
-///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
+///    [`Self::HoldingsUnread`], [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
 ///    [`Self::CarrierUnplaced`], reached from recipes nothing is wrong
@@ -404,23 +403,6 @@ pub enum NamingError {
         name: Box<StableName>,
         /// What the name met.
         shape: UnionNameShape,
-    },
-    /// A seam edge or pole of a sphere the boolean re-charted, kept in the
-    /// result where the turn put it (`topo::BooleanNaming::recharted`).
-    /// The re-chart turns a closed sphere shell about its centre so its
-    /// seams cross the other solid's section circles, and a turned seam
-    /// edge or pole descends from no cell of its operand: no name form
-    /// (NS2) is true of it. The way through is to cut the sphere along
-    /// its own chart instead of turning it
-    /// (`work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md`).
-    UnsupportedTurnedCell {
-        /// The read the turned sphere's operand came in through.
-        read: crate::VarId,
-        /// The turned cell, in the operand's re-cut keys. The emitter
-        /// raises it on an edge or a vertex
-        /// (`emit_topo::refuse_turned_cells`); the sentence reads any
-        /// kind.
-        cell: topo::Cell,
     },
     /// Which way edge `edge` runs along another's carrier decided ZERO:
     /// the two readings compared lie within a zero band of each other. A
@@ -865,24 +847,6 @@ impl crate::spoken::Say for NamingError {
                     format_args!(" {shape}")
                 )
             }
-            Self::UnsupportedTurnedCell { read, cell } => say!(
-                f,
-                format_args!("{UNRULED_FRAMING}: the Boolean turned a sphere of "),
-                by.read(*read),
-                sentence!(
-                    format_args!(
-                        " about its centre to find \
-                 where it meets the other solid, and the result keeps {} {cell:?} where the \
-                 turn put it, which descends from no cell of ",
-                        match cell {
-                            topo::Cell::Vertex(_) => "its pole",
-                            topo::Cell::Edge(_) => "a piece of its seam,",
-                            topo::Cell::Face(_) => "its face",
-                        }
-                    ),
-                    by.read(*read)
-                )
-            ),
             Self::WayInZeroBand { edge, shape } => {
                 write!(f, "{LIMIT_FRAMING}: edge {edge:?} {shape}")
             }
@@ -1072,8 +1036,7 @@ impl NamingError {
             | Self::UnsupportedSeamSides { .. }
             | Self::UnsupportedJoin { .. }
             | Self::UnsupportedUnionName { .. }
-            | Self::HoldingsUnread { .. }
-            | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
+            | Self::HoldingsUnread { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
             | Self::BandVerdictsDisagree { .. }
@@ -1141,10 +1104,6 @@ fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
         topo::HeldRefusal::UncutRemainder { .. } => {
             "a face the boolean kept only in part lost outside its kept faces a region no step \
              cut, so which of its member faces that region held is not read"
-                .to_owned()
-        }
-        topo::HeldRefusal::Recharted { .. } => {
-            "a sphere shell's face was turned before the boolean, over the input shell's faces"
                 .to_owned()
         }
         topo::HeldRefusal::NotUnder { .. } => {
@@ -2044,13 +2003,6 @@ mod display_tests {
                 ],
             ),
             (
-                NamingError::UnsupportedTurnedCell {
-                    read: crate::VarId::new(0, test_utils::refusal::tagged(38)),
-                    cell: topo::Cell::Vertex(vtx),
-                },
-                vec!["turned a sphere", "its pole", "descends from no cell"],
-            ),
-            (
                 NamingError::BandVerdictsDisagree {
                     vertex: vtx,
                     shape: DisagreeShape::FlushSensesDisagree,
@@ -2274,9 +2226,8 @@ mod display_tests {
                 NamingError::WayInZeroBand { .. } => 24,
                 NamingError::BandVerdictsDisagree { .. } => 25,
                 NamingError::JoinedPieceOffRoot { .. } => 26,
-                NamingError::UnsupportedTurnedCell { .. } => 27,
-                NamingError::PastWidth { .. } => 28,
-                NamingError::HoldingsUnread { .. } => 29,
+                NamingError::PastWidth { .. } => 27,
+                NamingError::HoldingsUnread { .. } => 28,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

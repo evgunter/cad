@@ -343,6 +343,11 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                     .map_or(Frame::Own, |d| d.frame().clone()),
             })
         }
+        // A datum's frame: its target's axes where its bundle placed them.
+        (ValuePayload::Datum(frame), Some(Node::Datum { .. })) if port == 0 => Ok(Posed {
+            value: PoseValue::Frame(*frame),
+            frame: Frame::Own,
+        }),
         // A read the door would have refused, in a document built past
         // it: the pose the seat asks for, in the operand door's words.
         _ => {

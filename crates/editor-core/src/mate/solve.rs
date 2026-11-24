@@ -112,7 +112,11 @@ pub trait SolveScalar: Decide {
     /// `f64` (or `Probe`) of either sign's zero, an interval `[0, 0]`, a
     /// dual whose value and derivative both are; at `Sym`, its box
     /// lane's point zero alone (never at `Sym<f64>`, whose symbols range
-    /// over every value).
+    /// over every value). It chooses a branch that changes what is built
+    /// (`mate::turn::aligned`), so it answers for the whole of what the
+    /// scalar stands for; [`Self::exactly_zero`] only tightens a box
+    /// lane's reading, and answers false at `f64`, where nothing needs
+    /// tightening.
     fn zero_everywhere(self) -> bool {
         self.quoted() == 0.0 && self.upper() == 0.0
     }
@@ -1062,9 +1066,7 @@ pub(crate) fn equations_of<P>(
         .filter_map(|c| {
             let e = match &c.kind {
                 super::ConstraintKind::Mate(mate) => Equations::Mate(
-                    doc.var(mate.on)
-                        .map(crate::Var::kind)
-                        .and_then(crate::VarKind::symmetry)?,
+                    super::side_kind(doc, mate.on).and_then(crate::VarKind::symmetry)?,
                 ),
                 super::ConstraintKind::Value(value) => Equations::Value(value.coord),
             };
@@ -1287,16 +1289,11 @@ pub(crate) fn arm_of<'a, T: SolveScalar, A>(
 /// **The constraints a placement holds**, `None` for a node that is no
 /// placement.
 pub(crate) fn bundle_of<P, S: crate::Slot>(node: &Node<P, S>) -> Option<&[super::Constraint<S>]> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
-        _ => None,
-    }
+    node.bundle()
 }
 
 /// **Whether `placement`'s operand row `(seat, read)` is a mate's `on`
-/// read through an instance's own copy**: `Doc::upstream`'s one
+/// read through an instance's own copy or a datum's own frame**: `Doc::upstream`'s one
 /// exemption, the content key's, and the split between the reads an
 /// evaluation resolves before its op and those it resolves against the
 /// copy before placement. The one spelling every such reader asks.
@@ -1312,15 +1309,41 @@ pub(crate) fn own_copy_side<P>(
             side: MateSide::On,
             ..
         }
-    ) && matches!(doc.node(placement), Some(Node::InstantiatePart { .. }))
-        && doc.read_ports(read).iter().any(|&(at, _)| at == placement)
+    ) && match doc.node(placement) {
+        Some(Node::InstantiatePart { .. }) => {
+            doc.read_ports(read).iter().any(|&(at, _)| at == placement)
+        }
+        Some(Node::Datum { .. }) => datum_frame(doc, placement) == Some(read),
+        _ => false,
+    }
+}
+
+/// **The frame the datum `placement` defines**, `None` for a node that is
+/// no datum: what every one of its mates' `on` reads, and the one
+/// spelling of "a datum's own side" ([`own_copy_side`], [`admit_mate`]).
+pub(crate) fn datum_frame<P>(doc: &Doc<P>, placement: RecipeNodeId) -> Option<crate::VarId> {
+    matches!(doc.node(placement), Some(Node::Datum { .. }))
+        .then(|| doc.output(placement, 0))
+        .flatten()
+}
+
+/// **Whether `on` is a datum's own side**: its frame ([`datum_frame`])
+/// read plainly or through its xy plane, its z axis or its origin
+/// (D10 `[placement.datums]`).
+pub(crate) fn reads_own_frame(
+    frame: crate::VarId,
+    on: crate::pose::RoleRead<crate::VarId>,
+) -> bool {
+    use crate::pose::PoseRole as R;
+    on.read == frame && matches!(on.role, None | Some(R::Xy | R::Z | R::Origin))
 }
 
 /// **Whether `on` reads the copy `placement` defines**, before
 /// placement: every operation its definition reaches is one of a
-/// `Place`'s shapes, or an instance's own output. A read that reaches
-/// nothing live (its body deleted) is stranded, which is the
-/// evaluation's to refuse (N5), never this door's.
+/// `Place`'s shapes, or an instance's own output; a datum copies nothing
+/// ([`reads_own_frame`] is its rule). A read that reaches nothing live
+/// (its body deleted) is stranded, which is the evaluation's to refuse
+/// (N5), never this door's.
 pub(crate) fn on_reads_the_copy<P>(
     doc: &Doc<P>,
     placement: RecipeNodeId,
@@ -1352,12 +1375,15 @@ pub(crate) fn admit_mate<P>(
     mate: MateRef,
     data: &super::Mate,
 ) -> Result<(), Box<MateFault>> {
-    if !on_reads_the_copy(doc, mate.placement, data.on) {
+    if let Some(frame) = datum_frame(doc, mate.placement) {
+        if !reads_own_frame(frame, data.on) {
+            return Err(Box::new(MateFault::NotTheDatumsOwn { mate }));
+        }
+    } else if !on_reads_the_copy(doc, mate.placement, data.on.read) {
         return Err(Box::new(MateFault::NotOnTheCopy { mate }));
     }
-    let kind = |var: crate::VarId| doc.var(var).map(crate::Var::kind);
-    let on = kind(data.on);
-    if let (Some(on), Some(to)) = (on, kind(data.to))
+    let on = super::side_kind(doc, data.on);
+    if let (Some(on), Some(to)) = (on, super::side_kind(doc, data.to))
         && on != to
     {
         return Err(Box::new(MateFault::KindsDiffer { mate, on, to }));
@@ -1699,7 +1725,7 @@ mod tests {
         let reads = |y: Interval, x: Interval| {
             let lane = <Interval as SolveScalar>::solve_atan2(y, x);
             let sym = <Sym<Interval> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x));
-            [lane, sym.value]
+            [lane, sym.value()]
         };
         // `angle` or a copy of it a whole turn away lies in `read`.
         let holds = |read: Interval, angle: f64| {
@@ -1782,9 +1808,10 @@ mod tests {
         use crate::mate::SolveScalar;
         use geom_core::{Bounds, Interval, Sym};
         let zero = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(0.0), Sym::opaque(-0.0));
-        assert_eq!(zero.value, 0.0, "an exact zero reads u_ref");
+        assert_eq!(zero.value(), 0.0, "an exact zero reads u_ref");
         for (y, x) in [(0.0, 0.0), (1e-300, 0.0), (0.0, -1e-300)] {
-            let sym = <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value;
+            let sym =
+                <Sym<f64> as SolveScalar>::solve_atan2(Sym::opaque(y), Sym::opaque(x)).value();
             let lane = <f64 as SolveScalar>::solve_atan2(y, x);
             assert!(sym.is_finite(), "({y}, {x}): {sym}");
             assert_eq!(sym.to_bits(), lane.to_bits(), "({y}, {x}): the f64 lane's");

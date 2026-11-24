@@ -2,11 +2,14 @@
 id: a-plane-other-than-a-face-cannot-be-authored-in-the-viewer
 kind: issue
 title: No viewer gesture defines a plane other than a picked face, so a split or mirror cannot cut elsewhere
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+pr: 7382
+branch: formwords/datum
 refs: [7373]
+closed: 2026-11-23
 ---
 
 
@@ -66,8 +69,9 @@ zx, x / y / z).
   is (`[placement.mates]`). No mate holds a gap. The placement editor
   gains the "offset" row on a mate's far side, which bodies get too.
 - **Slide, Spin and Flip stay** as pose moves: a mate's sides are
-  spelled with them. `PoseDef::FaceChart`, a frame placed flush on a
-  face by a fixed one-mate bundle, folds into the datum.
+  spelled with them. `PoseDef::FaceChart` stays as it is for now: folding
+  it into the datum waits on a datum's pole being levered over what it
+  carries (`face-chart-folds-into-the-datum-once-a-datum-levers-its-pole`).
 - **Always a frame** (Ev, `[ev]` 7367): a plane or axis is a role read
   off the datum's frame. If a reader later needs a kind's symmetry, it
   can be added then, perhaps as a forgetting layer over a frame.

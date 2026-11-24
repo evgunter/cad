@@ -19,7 +19,7 @@ crates/topo/src/solid_contain.rs 1
 # shape, are scheduled on the-ladder-has-no-climb-for-a-disagreement-
 # that-answers.)
 crates/topo/src/rim_wedge.rs 2
-# containment: conic_crossings, a crossing count, needs both roots.
+# containment: arc_crossings, a crossing count, needs every root.
 # (certify_plane reads its data as one identity.)
 crates/topo/src/splitting/containment.rs 1
 # join: conic_pairs's first cut: WHICH, the cut rotates the pairing

@@ -57,6 +57,7 @@
 //! a complex every point of which on a planar face, an edge or a vertex
 //! lies on another surface reads nothing.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
 
@@ -475,8 +476,11 @@ fn across_edges<T: Decide>(
         carriers.push(curve.carrier());
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
-        let w = inward(normal, if plus { t } else { -t }).normalize();
-        if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
+        let w = UnitVec3::squared(inward(normal, if plus { t } else { -t }));
+        if [w.get().x, w.get().y, w.get().z]
+            .iter()
+            .all(|c| !c.is_poison())
+        {
             inward_lines.push(geom::Line {
                 origin: curve.mid_point(),
                 dir: w,
@@ -491,7 +495,7 @@ fn across_edges<T: Decide>(
                 if geom_core::is_finite_length(s)
                     && crate::validate::definitely_positive("stands_across_meeting", s, band)
                 {
-                    out.push(m + w * (s * half));
+                    out.push(m + w.get() * (s * half));
                 }
             }
         }
@@ -505,6 +509,10 @@ fn across_edges<T: Decide>(
 /// two lines are parallel), both roots of a conic's quadratic (one
 /// double root where the line misses it, read at its nearest
 /// approach). Empty for a spiric or a spline.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_meetings<T: Decide>(
     c: &geom::Curve3<T>,
     normal: Vec3<T>,
@@ -514,7 +522,7 @@ fn line_meetings<T: Decide>(
         let v = axis.cross(u);
         let r = m - center;
         let (x0, y0) = (r.dot(u) / a, r.dot(v) / b);
-        let (xw, yw) = (w.dot(u) / a, w.dot(v) / b);
+        let (xw, yw) = (w.get().dot(u) / a, w.get().dot(v) / b);
         let qa = xw.powi(2) + yw.powi(2);
         let qb = (x0 * xw + y0 * yw) * T::from_f64(2.0);
         let qc = x0.powi(2) + y0.powi(2) - T::one();
@@ -526,23 +534,15 @@ fn line_meetings<T: Decide>(
     };
     match *c {
         geom::Curve3::Line(geom::Line { origin, dir }) => {
-            vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
+            vec![(origin - m).cross(dir.get()).dot(normal) / w.get().cross(dir.get()).dot(normal)]
         }
         geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             conic(center, axis, u_ref, radius, radius)
         }
         geom::Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             conic(center, axis, u_ref, semi_u, semi_v)
         }

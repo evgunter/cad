@@ -193,6 +193,9 @@ crate::vocab::vocabulary! {
         /// Faces only: the edge test is not run, so the answer is the
         /// ray path's face or nothing.
         FacesOnly,
+        /// Faces and datums' squares: what a seat reading a plane picks
+        /// with — a face's, or a datum's through its role.
+        FacesAndDatums,
         /// Edges only: the edge test runs, and a cursor that no edge wins
         /// answers NOTHING rather than the face the ray met.
         EdgesOnly,
@@ -222,6 +225,10 @@ crate::vocab::vocabulary! {
         Vertex,
         /// A committed profile, by its outline.
         Profile,
+        /// A datum, by its drawn square (D10 `[placement.datums]`): a
+        /// mate's far side of any kind but a direction, and a mirror's or
+        /// a split's plane, read it through a role of its frame.
+        Datum,
     }
 
     /// Every kind.
@@ -251,15 +258,17 @@ impl PickKinds {
     pub fn admits(self, kind: PickedKind) -> bool {
         use PickedKind as K;
         match (self, kind) {
-            (Self::Any, K::Face | K::Edge | K::Profile)
-            | (Self::FacesAndEdges, K::Face | K::Edge)
+            (Self::Any, K::Face | K::Edge | K::Profile | K::Datum)
+            | (Self::FacesAndEdges, K::Face | K::Edge | K::Datum)
             | (Self::FacesOnly, K::Face)
+            | (Self::FacesAndDatums, K::Face | K::Datum)
             | (Self::EdgesOnly, K::Edge)
-            | (Self::WithVertices, K::Face | K::Edge | K::Vertex) => true,
+            | (Self::WithVertices, K::Face | K::Edge | K::Vertex | K::Datum) => true,
             (Self::Any, K::Vertex)
             | (Self::FacesAndEdges, K::Vertex | K::Profile)
-            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
-            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile)
+            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile | K::Datum)
+            | (Self::FacesAndDatums, K::Edge | K::Vertex | K::Profile)
+            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile | K::Datum)
             | (Self::WithVertices, K::Profile) => false,
         }
     }
@@ -272,6 +281,7 @@ impl PickKinds {
         match self {
             Self::Any | Self::FacesAndEdges | Self::WithVertices => "nothing",
             Self::FacesOnly => "no face",
+            Self::FacesAndDatums => "no face or datum",
             Self::EdgesOnly => "no edge",
         }
     }
@@ -1110,6 +1120,10 @@ impl Rims {
     }
 }
 
+/// **One outline the picture draws**: its node, whether it is a datum's
+/// square, and its loops in world coordinates.
+type DrawnOutline<'a> = (RecipeNodeId, bool, &'a [Vec<Point3<f64>>]);
+
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
 /// [`crate::sketch::PreviewLoop::drawn_on`] places it, at the picture's
@@ -1123,6 +1137,9 @@ impl Rims {
 struct Outline {
     node: RecipeNodeId,
     loops: Vec<Vec<Point3<f64>>>,
+    /// Whether the outline is a datum's square ([`PickedKind::Datum`])
+    /// rather than a profile's.
+    datum: bool,
 }
 
 impl Outline {
@@ -1135,6 +1152,7 @@ impl Outline {
         Self {
             node: profile.node,
             loops,
+            datum: profile.datum,
         }
     }
 }
@@ -1147,6 +1165,8 @@ struct Lines<'a> {
     front: &'a [PickHit],
     edges: bool,
     outlines: bool,
+    /// Whether datums' squares are in the contest.
+    datums: bool,
 }
 
 /// A chord point and its pixel, or `None` where it has no pixel.
@@ -1165,6 +1185,7 @@ enum Line {
 enum Near {
     Edge(EdgePick),
     Profile(RecipeNodeId),
+    Datum(RecipeNodeId),
 }
 
 /// **What a picture IS**: the landed generation an index describes,
@@ -2138,11 +2159,12 @@ impl PickIndex {
             front: &front,
             edges: true,
             outlines: false,
+            datums: false,
         };
         Ok(
             match self.near(eval, camera, viewport, cursor, display, edges)? {
                 Some(Near::Edge(edge)) => Some(edge),
-                Some(Near::Profile(_)) | None => None,
+                Some(Near::Profile(_) | Near::Datum(_)) | None => None,
             },
         )
     }
@@ -2300,8 +2322,9 @@ impl PickIndex {
             front: &front,
             edges: kinds.admits(PickedKind::Edge),
             outlines: kinds.admits(PickedKind::Profile),
+            datums: kinds.admits(PickedKind::Datum),
         };
-        if front.is_empty() && !lines.outlines {
+        if front.is_empty() && !lines.outlines && !lines.datums {
             return Ok(None);
         }
         match self.near(eval, camera, viewport, cursor, display, lines)? {
@@ -2315,6 +2338,7 @@ impl PickIndex {
                 return Ok(Some(Hovered::Edge(edge.selection())));
             }
             Some(Near::Profile(node)) => return Ok(Some(Hovered::Profile(node))),
+            Some(Near::Datum(node)) => return Ok(Some(Hovered::Datum(node))),
             None => {}
         }
         if front.is_empty() {
@@ -2473,8 +2497,11 @@ impl PickIndex {
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
-        if lines.outlines {
-            for (rank, (_, loops)) in outlines.iter().enumerate() {
+        if lines.outlines || lines.datums {
+            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
+                if !(if datum { lines.datums } else { lines.outlines }) {
+                    continue;
+                }
                 let mut best: Option<Candidate> = None;
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points
@@ -2596,7 +2623,10 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(outlines[rank].0),
+                Line::Outline(rank) => match outlines[rank] {
+                    (node, true, _) => Near::Datum(node),
+                    (node, false, _) => Near::Profile(node),
+                },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2654,19 +2684,24 @@ impl PickIndex {
     /// ([`PickIndex::drawn_outline`]): the committed ones in document
     /// order, the previewed node's in its committed one's place, or
     /// last where the index holds no committed outline of it.
-    fn drawn_outlines<'a>(
-        &'a self,
-        display: &'a DisplayView,
-    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
-        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+    fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
+        // Each committed outline is its own drawing: a profile or datum
+        // shown through two copies is drawn, and picked, at both.
+        let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .map(|outline| {
+                let loops = match &display.previewed_profile {
+                    Some(previewed) if previewed.node == outline.node => &previewed.outline,
+                    _ => &outline.loops,
+                };
+                (outline.node, outline.datum, loops.as_slice())
+            })
             .collect();
         if let Some(previewed) = &display.previewed_profile
-            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+            && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, previewed.outline.as_slice()));
+            drawn.push((previewed.node, false, previewed.outline.as_slice()));
         }
         drawn
     }
@@ -3197,24 +3232,22 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let segment = pncad::geom::Line {
-        origin: a,
-        dir: b - a,
-    };
+    let (segment, length) = pncad::geom::Line::chord(a, b);
     let pair = segment.closest_params(&pncad::geom::Line {
         origin: ray.origin,
-        dir: ray.dir,
+        dir: pncad::geom_core::UnitVec3::squared(ray.dir),
     });
     // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
     // the ray's direction (or of no length, NaN) answers its own start,
     // since any end will do.
+    // The segment's own fraction: the chord's parameter is in metres.
     let t_segment = if pair.sin2 > PARALLEL_REL {
-        pair.s
+        pair.s / length
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, segment.at(t_segment))
+    (t_segment, segment.at(t_segment * length))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).

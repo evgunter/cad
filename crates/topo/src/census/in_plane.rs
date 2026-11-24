@@ -170,13 +170,10 @@ pub(super) fn apart_in_plane<T: Decide>(
 }
 
 /// A face's levered outward normal ([`planar_axis`]) and its reach
-/// diagonal's length.
+/// diagonal's length, the scale its in-plane slope is read against.
 fn normal<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<(UnitVec3<T>, T)> {
     let (lo, hi) = super::face_reach(body, f, band)?;
-    Some((
-        planar_axis(body, f, || Some((lo, hi)), band)?,
-        (hi - lo).norm(),
-    ))
+    Some((planar_axis(body, f, band)?, (hi - lo).norm()))
 }
 
 /// The second reading (module docs): `b`, bounded by `lb`, standing on

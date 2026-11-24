@@ -120,11 +120,7 @@ fn a_scalar_that_is_its_own_value_channel_views_itself() {
             Dual64::from_f64(0.0),
             Dual64::from_f64(0.0),
         ),
-        geom_core::Vec3::new(
-            Dual64::from_f64(1.0),
-            Dual64::from_f64(0.0),
-            Dual64::from_f64(0.0),
-        ),
+        geom_core::UnitVec3::exact_x(),
     );
     let on = curve.value_view();
     let at = curve.eval(Dual64::from_f64(0.25));
@@ -150,7 +146,11 @@ fn at_sym_the_view_borrows_and_each_place_is_its_own_unknown() {
             "over f64 a Sym surface's view borrows"
         );
         let (a, b) = (s.eval_at(0.3, 0.6), s.eval_at(0.3, 0.6));
-        assert_eq!(a.x.value.to_bits(), b.x.value.to_bits(), "the same number");
+        assert_eq!(
+            a.x.value().to_bits(),
+            b.x.value().to_bits(),
+            "the same number"
+        );
         assert!(a.x.node() != b.x.node(), "one unknown per place");
     });
 }

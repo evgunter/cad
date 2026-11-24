@@ -580,13 +580,13 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
 
 /// **A corrupt body never finishes, and the raw door panics on it only
 /// where it always did**: a two-ball union with one entity removed at a
-/// time (a face, a loop, an edge or a half-edge). No removal passes
+/// time (a face, a loop, an edge, a half-edge or a vertex). No removal passes
 /// `AtRestBody::validate`, so the typed door never reads one. Read
 /// through the raw door, the seam pass refuses what it cannot follow
-/// `MassPropsError::Corrupt`, and six removals panic in the walk's own
+/// `MassPropsError::Corrupt`, and seven removals panic in the walk's own
 /// face resolution (`live.rs`, a shell's or a face's record naming a
 /// removed key) before any seam is read — as they did before the seam
-/// pass — so the row admits those six and no other. Each edge's curve
+/// pass — so the row admits those seven and no other. Each edge's curve
 /// removed in turn refuses `MassPropsError::Corrupt`, never a panic.
 #[test]
 fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
@@ -610,6 +610,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     }
     ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
     ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    ids.extend(b.vertices().map(|(k, _)| EntityId::Vertex(k)));
     let loops: Vec<String> = ids
         .iter()
         .filter(|id| matches!(id, EntityId::Loop(_)))
@@ -642,6 +643,9 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         "Face(FaceKey(6v5))",
         "Loop(LoopKey(1v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
+        // The start vertex of that same half-edge: the shell's reference
+        // point reads it before any seam, as it reads the half-edge.
+        "Vertex(VertexKey(8v1))",
     ];
     let new: Vec<_> = panicked
         .iter()

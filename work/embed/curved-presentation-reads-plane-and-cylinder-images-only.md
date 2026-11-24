@@ -72,6 +72,48 @@ on PR 7115's topo diff. The other 21 rows are assigned by bucket,
 unchecked. Valid bodies, so P0 at the gate's landing. Cheapest:
 `sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment` (0.21 s).
 
+## Seven more census instances, plane against torus (EMBED collinear-cover lane, 2026-11-22)
+
+Seven rows of the census's plane/torus and torus/plane Boolean buckets
+were assigned by shape to
+`vacuous-reads-a-cell-at-a-corner-local-at-every-depth` and are not
+that row's. Run on `embed/collinear-cover-measure` with the gate and
+the trace, each is refused with both faces `Structural` in the cell
+(`departure`'s "both stuck" exit), raised at `beside_curve`'s unread
+corner, the exit of the cone/cone instances above. The pairs:
+- `sweep::all germ_plane_torus_frame::a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name`
+  (`3v1`/`5v5` across `14v1`);
+- `sweep::all germ_plane_torus_spiric::the_donuts_spiric_poses_build_their_true_bodies`
+  (`3v1`/`5v5` across `16v1`);
+- `sweep::all germ_plane_torus_spiric::the_fat_corner_bars_lens_is_the_true_body`
+  (`3v1`/`6v3` across `7v9`);
+- `sweep::all germ_torus_doors::a_chord_across_the_hole_is_pierced_not_passed`
+  (`2v9`/`3v1` across `16v1`);
+- `mesh::all lift_probes::a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube`
+  and `mesh::all reach_probes::a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row`
+  (`2v5`/`3v1` across `6v7`);
+- `mesh::all reach_probes::a_ring_stored_a_period_away_meshes_where_the_door_moves_it`
+  (`3v1`/`14v1` across `10v5`).
+
+The exit and the pair are printed; which edge's image is unread, and
+that it is a plane section of the torus, is read off the fixtures.
+
+## Three plane/cone instances (lane `embed/apex-separator`, 2026-11-21)
+
+Three census tests the apex row (`a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator`)
+held unchecked, traced on main `0c1eb97ad` with the gate (`CV_TRACE`):
+their last cell pair is a cone part `Structural` at a shared conic edge
+with no shared vertex near, the same before and after the apex lane's
+change. Plane/cone, f64:
+- `mesh::all reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`:
+  cone `1v1` `Structural` at `u ∈ (1.66897, 1.71806)`,
+  `v ∈ (−0.03516, −0.03281)`, against plane `10v1` read by its curve
+  (`Zero::Curve(XLo)`), shared edge `9v1`;
+- `sweep::all a_ring_on_a_cone_face::a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners`:
+  cone `1v1` `Structural`, the plane `Local`, edge `8v1`;
+- `mesh::all split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`:
+  the plane by its side, cone `2v1` `Structural`, edge `19v3`.
+
 ## 2026-11-23 — the first unit cut from this row: a cone chart reads a plane section's image (EMBED orchestrator)
 
 **Unit `embed/cone-image`. Letter H. Tier: dual** (a new certified enclosure, a trigonometric polynomial of degree two on a cone chart and degree four under a quadric separator, whose soundness is not to be believed by reading it). Stacked on the second landing branch (`embed/wave3-land`), which holds PR 7113's sphere reading and PR 7315's apex arm.

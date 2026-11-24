@@ -68,10 +68,13 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             u: channel(u),
             v: channel(v),
         },
-        &Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
-            p0: p2(p0),
-            pl: v2(pl),
-            ends: ends.map(|e| e.map(p2)),
+        &Pcurve::IsoLine { line, at0, rate } => Pcurve::IsoLine {
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            at0: c(at0),
+            rate: c(rate),
         },
         Pcurve::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
         &Pcurve::Spiric {
@@ -113,15 +116,20 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             sense: c(f.sense),
         }),
         Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks,
             ends,
         } => Pcurve::IsoArc {
-            p0: p2(*p0),
-            pd: v2(*pd),
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            g0: c(*g0),
+            gd: c(*gd),
             t0: c(*t0),
             angle: c(*angle),
             breaks: breaks.clone(),
@@ -228,7 +236,7 @@ fn harmonic_witness(b: f64) -> (Surface<f64>, Pcurve<f64>, Curve3<f64>, (f64, f6
         Vec2::new(0.0, b),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     (plane(), image, carrier, (0.0, 8.0 * PI))
 }
 
@@ -323,7 +331,7 @@ fn a_bound_past_the_band_with_no_miss_located_is_the_lever() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     for door in DOORS {
         let got = (door.certify)(&plane(), &image, &carrier, (-0.05, 0.05));
         assert_eq!(ended(&got), Ended::Unsettled, "at {}: {got:?}", door.name);
@@ -473,8 +481,15 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             let at = o + u_ref * g.range(-5.0, 5.0) + v_ref * g.range(-5.0, 5.0);
             match g.below(3) {
                 0 => {
-                    let dir = perpendicular(g, axis) * g.range(0.3, 3.0);
-                    (surface, Curve3::line(at, dir), length(g))
+                    // The drawn speed scales the span: the same segment
+                    // on its unit direction, its span in metres.
+                    let (dir, speed) = (perpendicular(g, axis), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => {
                     let r = g.range(0.1, 5.0);
@@ -505,8 +520,13 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             match g.below(3) {
                 0 => {
                     let at = o + radial(g.range(-4.0, 4.0)) * r + axis * h;
-                    let dir = axis * (sign(g) * g.range(0.3, 3.0));
-                    (surface, Curve3::line(at, dir), length(g))
+                    let (dir, speed) = (axis * sign(g), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => (surface, circle(g, o + axis * h, axis, r), turn(g)),
                 _ => {
@@ -544,8 +564,11 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
                 let (sigma, speed) = (sign(g), g.range(0.3, 3.0));
                 let away = sigma * slant > 0.0;
                 let reach = if away { 10.0 } else { slant.abs() - 0.2 } / speed;
-                let line = Curve3::line(o + generator * slant, generator * (sigma * speed));
-                (surface, line, (0.0, g.range(0.1, 1.0) * reach))
+                let line = Curve3::line(
+                    o + generator * slant,
+                    geom_core::UnitVec3::squared(generator * sigma),
+                );
+                (surface, line, (0.0, g.range(0.1, 1.0) * reach * speed))
             } else {
                 let c = o + axis * (slant * alpha.cos());
                 (
@@ -730,7 +753,10 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
+            Curve3::Line(l) => Curve3::line(
+                self.point(l.origin),
+                geom::stated_direction(self.vector(l.dir.get())),
+            ),
             Curve3::Circle(k) => Curve3::circle(
                 self.point(k.frame().origin()),
                 -self.vector(k.frame().axis()),
@@ -1153,6 +1179,9 @@ fn a_spiric_or_focal_section_on_its_carrier_certifies() {
 fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
     let mut g = fuzz::start("curve_in_uv_on_its_carrier");
     let mut read = 0usize;
+    // How many of the lines read were also stated as an iso line (a row
+    // or a column of their chart), and how many were slanted in it.
+    let (mut as_iso, mut slanted) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(2) {
         for kind in &KINDS[1..] {
             let (surface, carrier, span) = drawn(&mut g, *kind);
@@ -1165,7 +1194,14 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             if [pa.x, pa.y, pb.x, pb.y].iter().any(|&x| x != 0.0) {
                 continue;
             }
-            let iso = Pcurve::IsoLine { p0, pl, ends: None };
+            // The line as an iso image where it is a row or a column of
+            // its chart (a ruling, a meridian); a line slanted in its
+            // chart is the curve in UV alone.
+            let iso = Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y]);
+            match iso {
+                Some(_) => as_iso += 1,
+                None => slanted += 1,
+            }
             let mut breaks: Vec<f64> = (0..g.below(5))
                 .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
                 .collect();
@@ -1183,7 +1219,11 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             let general = Pcurve::General(Arc::new(
                 NurbsCurve2::new(kv.clone(), control, vec![1.0; count]).unwrap(),
             ));
-            for (what, image) in [("iso line", iso), ("curve in UV", general.clone())] {
+            let stated = iso
+                .map(|iso| ("iso line", iso))
+                .into_iter()
+                .chain([("curve in UV", general.clone())]);
+            for (what, image) in stated {
                 certifies_everywhere(
                     &format!("{kind:?} {what}"),
                     &surface,
@@ -1223,7 +1263,13 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             }
         }
     }
-    println!("read {read} curves in UV");
+    println!("read {read} images: {as_iso} lines stated as an iso line too, {slanted} slanted");
+    assert_eq!(
+        (read > 0, as_iso > 0 || read == 0),
+        (true, true),
+        "the row read {read} images, {as_iso} of them as an iso line ({})",
+        fuzz::replay()
+    );
 }
 
 /// `sup |C(t) − S(P(t))|` over the span, read densely: `4096` even points,
@@ -1830,8 +1876,9 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
     let (oval, [_, _, oval_plane]) = spiric(&mut fuzz::Rng::from_seed(7));
     let spiric_cap = chart_pcurve_over(&oval, 0.3, 2.2, &oval_plane, band()).unwrap();
     let iso_arc = Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: Vec2::new(1.0, 0.0),
+        line: crate::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: PI,
         breaks: KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -1871,7 +1918,7 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
             "an iso arc on a plane",
             plane(),
             iso_arc,
-            Curve3::line(Point3::origin(), Vec3::unit_x()),
+            Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
         ),
     ];
     let mut g = fuzz::Rng::from_seed(11);
@@ -2180,7 +2227,7 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 1e-4),
     );
-    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     assert!(check("a slope off", &plane(), &slope, &line, (2.0, 10.0)));
     assert!(check(
         "a height off",

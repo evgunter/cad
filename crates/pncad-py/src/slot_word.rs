@@ -28,7 +28,7 @@
 //! move's place in the station; and `value_slide` and `value_spin` a
 //! value's number, completed by the constraint; `side` names one side of a constraint,
 //! completed by the constraint and the side; a loft's `section`, a
-//! union's or a `⊔`'s `member`, a measure's `measured` and a clearance
+//! union's or a `⊔`'s `member`, a subtract's `cut`, a measure's `measured` and a clearance
 //! assertion's `cleared` name one entry of a list, completed by its
 //! position; `index` names
 //! one index of an indexed read, completed by the seat it reads at and
@@ -80,7 +80,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "source" => SlotId::Operand(OperandSlot::Source),
         "tool" => SlotId::Operand(OperandSlot::Tool),
         "from" => SlotId::Operand(OperandSlot::From),
-        "cut" => SlotId::Operand(OperandSlot::Cut),
+        "cuts" => SlotId::Operand(OperandSlot::Cuts),
         "members" => SlotId::Operand(OperandSlot::Members),
         "input" => SlotId::Operand(OperandSlot::Input),
         "of" => SlotId::Operand(OperandSlot::Of),

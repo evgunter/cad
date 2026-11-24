@@ -17,7 +17,7 @@ use crate::fixture::{ang, in_world, insert, len, len2, place, scl, slid, square}
 use editor_core::{
     AssertionRelation, Bodies, ChecksConfig, FaceSite, Formula, Frame, InterferenceFinding,
     LoopProgram, MeasurePrimitive, Node, Overlap, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Severity, SitedRef, enforce_checks,
+    ProgramStep, ProgramTarget, RecipeNodeId, Severity, enforce_checks,
 };
 use geom_core::Tol;
 
@@ -76,17 +76,33 @@ fn outline(h: f64) -> LoopProgram<Formula> {
 /// `doc` with a holding-or-not `Gap(outer, inner) ≤ −1e-5`, and the
 /// assertion.
 fn with_gap(doc: &ProfileDoc, outer: &FaceSite, inner: &FaceSite) -> (ProfileDoc, RecipeNodeId) {
-    let node = |var| {
-        doc.operation_of(var)
-            .expect("a copy is a placement's output")
-    };
     gap_over(
         doc,
         [
-            SitedRef::new(node(outer.copy.var), outer.face.clone()).into(),
-            SitedRef::new(node(inner.copy.var), inner.face.clone()).into(),
+            face_of(doc, outer.copy.var, outer.face.clone()),
+            face_of(doc, inner.copy.var, inner.face.clone()),
         ],
     )
+}
+
+/// **The face `name` of the copy `copy`, as a measure reads it**: off the
+/// copy read plainly, or, where a binder yields the copy, off its member
+/// at the binder's own key, `xs[k]` (D10 `[repetition]`).
+fn face_of(
+    doc: &ProfileDoc,
+    copy: editor_core::VarId,
+    name: editor_core::StableName,
+) -> editor_core::Operand {
+    let read = editor_core::Operand::Var(copy);
+    let body = if doc.yielding(copy).is_some() {
+        crate::fixture::member_here(doc, read)
+    } else {
+        editor_core::BodyRead::plain(read)
+    };
+    editor_core::Operand::Select {
+        body: Box::new(body),
+        names: vec![name],
+    }
 }
 
 /// `Gap(outer, inner) ≤ −1e-5` over two operands: the document after
@@ -153,12 +169,7 @@ fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
             }
             names
                 .into_iter()
-                .map(|name| editor_core::Operand::Select {
-                    body: Box::new(editor_core::BodyRead::plain(editor_core::Operand::Var(
-                        site.copy.var,
-                    ))),
-                    names: vec![name],
-                })
+                .map(|name| face_of(doc, site.copy.var, name))
                 .collect::<Vec<_>>()
         };
         let mut quieted = false;
@@ -181,7 +192,7 @@ fn holds_the_rule(label: &str, doc: &ProfileDoc) -> Vec<bool> {
             );
             let [outer, inner] = &pair.references;
             assert!(
-                quiets_by(gap_over(doc, [outer.operand(), inner.operand()])),
+                quiets_by(gap_over(doc, [outer.operand(doc), inner.operand(doc)])),
                 "{label}: a Gap over the carried references quiets it: {finding:?}"
             );
         }
@@ -292,7 +303,7 @@ fn a_blind_bore_pin_is_quietable_and_refuses_until_quieted() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.0, 0.0, 0.505)], 1.7);
@@ -319,7 +330,7 @@ fn a_blind_bore_pin_in_a_turned_frame_is_quietable() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.0, 0.0, 0.505)], 1.7);
@@ -355,7 +366,7 @@ fn a_headed_press_fit_is_not_quietable() {
     let (doc, pin) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![shank.into(), head.into()]),
+            members: Bodies::spelled(vec![shank.into(), head.into()]),
         },
     );
     let (doc, _) = place(doc, plate);
@@ -437,7 +448,7 @@ fn two_press_fits_between_one_pair_are_not_quietable() {
     let (doc, pins) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![left.into(), right.into()]),
+            members: Bodies::spelled(vec![left.into(), right.into()]),
         },
     );
     let (doc, _) = place(doc, plate);

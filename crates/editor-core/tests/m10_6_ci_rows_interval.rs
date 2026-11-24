@@ -748,7 +748,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
         Tol::witness(),
     )
     .expect("the nominal builds");
-    let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
+    let rendered = MassBudget::of(verdict.accounting(), &analyzed)
+        .render(&band)
+        .to_string();
     assert!(
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"
@@ -780,13 +782,6 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// are decisions a PR body has to state. Re-bless with
 /// `M10_6_BLESS_CERT_KEYS=1`, read the diff, and say in the PR which
 /// of the two it was.
-///
-/// `min_clearance_neck`'s two keys moved, and not the filter
-/// (`dropped=1` held, `plain_distance` unmoved), when the least turn lost
-/// its identity shortcut and its Rodrigues arm changed spelling: a chart
-/// whose two directions are one decides its pole verdict and
-/// conditioning like any other, and a generic turn's rounding moved, so
-/// the vector's contents moved.
 ///
 /// `min_clearance_neck`'s two keys moved, and not the filter
 /// (`dropped=1` held, `plain_distance` unmoved), when a placement whose
@@ -862,6 +857,15 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// came to be asked at the door that places a copy (`session_box_reach`
 /// on the neck's placement): that ask joins the vector's rows. Skipping
 /// the placement's ask puts back the keys main holds.
+///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// when validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`): each document's profile node no
+/// longer decides that vertex's two `chord_side` sides, two `line_span`
+/// spans and two `contact_at_shared_vertex` coincidences, so those rows
+/// left the vector at every corner of its straight loops. Merged over
+/// main's re-pin of the same two lines, the neck's keys are this
+/// change's on main's tree and `plain_distance` reads this change's keys.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
