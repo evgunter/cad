@@ -4434,11 +4434,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                             .iter()
                             .find(|(_, h)| h.contains(&row.half_edge))
                             .map(|(k, _)| *k);
-                        let carrier = ek.and_then(|ek| {
-                            let e = body.edges.get(ek)?;
-                            let c = body.edge_curve_linked(ek, e).certified()?;
-                            Some(head(format!("{:?}", c.carrier())))
-                        });
+                        let carrier: Option<String> = None;
                         let (a, b) = (end(t0), end(t1));
                         eprintln!(
                             "CVI face={face:?} surface={} edge={ek:?} pcurve={} carrier={carrier:?} t=({:.6},{:.6}) uv0=({:.6},{:.6}) uv1=({:.6},{:.6}) full={:?}",
