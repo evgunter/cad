@@ -80,12 +80,13 @@
 //!   band of the chart's at the meeting's chart point; two within the
 //!   band of each other refuse.
 //!
-//! The walk is `geom_core::bisect::bisect`, with its piece budget.
+//! The walk is `geom_core::bisect::bisect_within`, with its piece budget
+//! past the blocks it starts from.
 
 use core::num::NonZeroUsize;
 
 use geom::{Curve3, NurbsSurface};
-use geom_core::bisect::{Step, bisect};
+use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::interval::dot;
 use geom_core::k_stats::decide;
 use geom_core::spline::Knots;
@@ -927,7 +928,11 @@ pub fn isolate<T: CertifiedBounds>(
     let mut ends: Vec<Cell> = sectors.into_iter().flatten().collect();
     let mut found: Vec<Found> = Vec::new();
     let pieces = blocks.iter().map(|&x| (x, x));
-    let walked = bisect(pieces, |(x, block): (Cell, Cell)| {
+    // Every block is a root read once, so the budget walls the
+    // refinement past them: the span's knot spans times the chart's
+    // cells, thousands on a carrier fitted at a fine band.
+    let mut budget = Budget::new(PIECE_BUDGET.saturating_add(blocks.len()));
+    let walked = bisect_within(pieces, &mut budget, |(x, block): (Cell, Cell)| {
         if held(&found, &ends, x) {
             return Step::Settled;
         }

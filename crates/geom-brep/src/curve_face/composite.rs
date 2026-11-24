@@ -49,10 +49,11 @@
 //! the span is that end's meeting, and two within the band of each other
 //! cannot be told apart, so they refuse.
 //!
-//! The walk is `geom_core::bisect::bisect`, with its piece budget.
+//! The walk is `geom_core::bisect::bisect_within`, with its piece budget
+//! past the knot spans it starts from.
 
 use geom::{NurbsCurve3, Surface};
-use geom_core::bisect::{Step, bisect};
+use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
@@ -239,7 +240,11 @@ pub fn crossings<T: geom_core::Certifies>(
     // its other end's side: read with the piece that starts there.
     let mut open: Option<(f64, Piece, Sign)> = None;
     let mut meetings: Vec<Meeting> = Vec::new();
-    let walked = bisect(pieces, |piece: Piece| {
+    // Every knot span is a root read once, so the budget walls the
+    // refinement past them: a fitted carrier holds thousands of spans at
+    // a fine band.
+    let mut budget = Budget::new(PIECE_BUDGET.saturating_add(pieces.len()));
+    let walked = bisect_within(pieces, &mut budget, |piece: Piece| {
         let visit = || -> Result<Step<Piece, CompositeRefusal>, CompositeRefusal> {
             if matches!(read(hull(&piece.num) / hull(&piece.den)), Reading::Past(_)) {
                 return Ok(Step::Settled);
