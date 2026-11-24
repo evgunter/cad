@@ -1,0 +1,19 @@
+== M9_cert_dropped: ['     Summary [   3.447s] 1259 tests run: 1258 passed, 1 failed, 58 skipped', 'error: test run failed'] fails=['geom-core sym::point::tests::a_reading_with_a_lost_domain_declines'] battery_rows=134784 differing_from_base=0
+== M10_memo_kept: ['     Summary [   3.036s] 1259 tests run: 1257 passed, 2 failed, 58 skipped', 'error: test run failed'] fails=['geom-core sym::point::tests::the_reading_is_the_same_in_any_order_and_on_any_thread', 'geom-core::all review_refute_differential::review_a_moved_bracket_clears_the_readings'] battery_rows=134784 differing_from_base=0
+== M10b_memo_kept_on_move: ['     Summary [   3.086s] 1259 tests run: 1258 passed, 1 failed, 58 skipped', 'error: test run failed'] fails=['geom-core::all review_refute_differential::review_a_moved_bracket_clears_the_readings'] battery_rows=134784 differing_from_base=0
+== Mtie_when_gt_at_zero: ['     Summary [   4.515s] 1259 tests run: 1257 passed, 2 failed, 58 skipped', 'error: test run failed'] fails=['geom-core sym::point::tests::a_select_that_straddles_at_the_point_reads_both_arms', 'geom-core::all review_refute_differential::review_a_select_at_a_tie_takes_when_le'] battery_rows=134784 differing_from_base=764
+    ROW box0 | sel(v-v,u,v)-u | u=x v=y | PROVEN
+    ROW box0 | sel(v-v,u,v)-u | u=x v=z | PROVEN
+    ROW box0 | sel(v-v,u,v)-u | u=x v=w | PROVEN
+== Matan2_swapped: ['     Summary [   3.560s] 1259 tests run: 1257 passed, 2 failed, 58 skipped', 'error: test run failed'] fails=['geom-core::all m10_10_atan2_interval::the_atan2_fold_decides_over_a_box_and_a_straddling_offset', 'geom-core::all m10_10_r2_probes::over_boxes::r2_a1_the_degenerate_boxes_refuse_through_clause_one_for_every_class'] battery_rows=134784 differing_from_base=2403
+    ROW box0 | atan2(u-u,v^2) | u=x v=x | PROVEN
+    ROW box0 | atan2(u-u,v^2) | u=x v=y | PROVEN
+    ROW box0 | atan2(u-u,v^2) | u=x v=-y | PROVEN
+== Mdual_reads: ['     Summary [   3.458s] 1259 tests run: 1259 passed, 58 skipped'] fails=[] battery_rows=134784 differing_from_base=0
+== Mcopysign_swapped: ['     Summary [   3.875s] 1259 tests run: 1256 passed, 3 failed, 58 skipped', 'error: test run failed'] fails=['geom-core::all sym_rule_f_interval_rows::a_manifestly_positive_form_undefined_inside_the_box', 'geom-core::all sym_rule_f_interval_rows::the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints', 'geom-core::all sym_rule_f_interval_rows::the_reflected_adversary_at_the_interval_lift_is_a_plain_theorem'] battery_rows=134784 differing_from_base=0
+== Mpowi_abs_exponent: ['     Summary [   3.559s] 1259 tests run: 1259 passed, 58 skipped'] fails=[] battery_rows=134784 differing_from_base=624
+    ROW box0 | u^-2-1/(u*u) | u=x v=x | PROVEN
+    ROW box0 | u^-2-1/(u*u) | u=x v=y | PROVEN
+    ROW box0 | u^-2-1/(u*u) | u=x v=z | PROVEN
+== Mfloor_identity: ['     Summary [   3.325s] 1259 tests run: 1259 passed, 58 skipped'] fails=[] battery_rows=134784 differing_from_base=0
+== Mhull_read_as_max: ['     Summary [   3.109s] 1259 tests run: 1258 passed, 1 failed, 58 skipped', 'error: test run failed'] fails=['geom-core sym::point::tests::values_with_no_expression_decline'] battery_rows=134784 differing_from_base=0
