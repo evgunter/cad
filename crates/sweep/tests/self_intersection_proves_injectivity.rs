@@ -2478,6 +2478,459 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     }
 }
 
+// ------------------------------- a vertex on one line of a wall's edges
+
+/// **A half rod with a block under its flat face**: the half disc
+/// `x² + y² ≤ r²`, `y ≥ 0` over `z ∈ [0, 2]`, united with the block
+/// `[x0, r] × [-d, 0] × [z0, z1]`. The block's corners `(r, 0, z0)` and
+/// `(r, 0, z1)` land on the wall's ruling `x = r`, `y = 0`, so that line
+/// of the wall is three edges, and the wall meets each of the block's
+/// two horizontal faces, at its corner, at one of those vertices alone.
+fn half_rod_on_a_block_at<T: Scalar>(
+    r: f64,
+    x0: f64,
+    d: f64,
+    (z0, z1): (f64, f64),
+) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished, prism_at};
+    let at = T::from_f64;
+    let half = finished(
+        "the half rod",
+        prism_at(
+            vec![
+                (Point2::new(at(-r), T::zero()), T::zero()),
+                (Point2::new(at(r), T::zero()), T::one()),
+            ],
+            T::zero(),
+            at(2.0),
+            tol(),
+        ),
+        tol(),
+    );
+    let block = finished(
+        "the block",
+        brick::<T>((x0, r), (-d, 0.0), (z0, z1), tol()),
+        tol(),
+    );
+    built(topo::union(&half, &block, tol()))
+}
+
+/// [`half_rod_on_a_block_at`] on the dyadic grid: radius 1, the block
+/// `[0, 1] × [-1, 0] × [0.5, 1.5]`.
+fn half_rod_on_a_block<T: Scalar>() -> topo::AtRestBody<T> {
+    half_rod_on_a_block_at(1.0, 0.0, 1.0, (0.5, 1.5))
+}
+
+/// `b` mirrored across the plane through `(0.1, -0.2, 0.4)` with normal
+/// `(1, 2, 3)`: a mirror across no axis plane.
+fn mirrored_generically<T: Scalar>(b: &Body<T>) -> Body<T> {
+    let across = topo::Reflection::across(
+        Point3::new(0.1, -0.2, 0.4).map(T::from_f64),
+        geom_core::Vec3::new(1.0, 2.0, 3.0).map(T::from_f64),
+        tol(),
+    )
+    .unwrap();
+    topo::mirror_body(b, &across, tol()).unwrap()
+}
+
+/// The cylinder wall of `body`, and the faces that share a vertex with
+/// it and no edge.
+fn wall_and_the_faces_at_a_vertex_alone<T: Scalar>(body: &Body<T>) -> (FaceKey, Vec<FaceKey>) {
+    let wall = body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| matches!(surface(body, k), Surface::Cylinder { .. }))
+        .unwrap();
+    let face_of = |he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let halves: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [(e.he_plus, e.he_minus), (e.he_minus, e.he_plus)])
+        .collect();
+    let on_wall: BTreeSet<VertexKey> = halves
+        .iter()
+        .filter(|&&(h, _)| face_of(h) == wall)
+        .map(|&(h, _)| body.get_half_edge(h).unwrap().start)
+        .collect();
+    let across: BTreeSet<FaceKey> = halves
+        .iter()
+        .filter(|&&(h, _)| face_of(h) == wall)
+        .map(|&(_, mate)| face_of(mate))
+        .collect();
+    let alone: BTreeSet<FaceKey> = halves
+        .iter()
+        .filter(|&&(h, _)| on_wall.contains(&body.get_half_edge(h).unwrap().start))
+        .map(|&(h, _)| face_of(h))
+        .filter(|f| *f != wall && !across.contains(f))
+        .collect();
+    (wall, alone.into_iter().collect())
+}
+
+/// A rigid turn about a generic axis, and a placement a hundred units
+/// from the origin.
+fn turned_and_far() -> [(&'static str, Option<geom_core::Affine3<f64>>); 3] {
+    use geom_core::{Affine3, Vec3};
+    [
+        ("as built", None),
+        (
+            "turned about a generic axis",
+            Some(Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                0.7,
+            )),
+        ),
+        (
+            "a hundred units off",
+            Some(Affine3::translation(Vec3::new(100.0, -100.0, 100.0))),
+        ),
+    ]
+}
+
+/// `b` in one of [`turned_and_far`]'s poses.
+fn in_pose<T: Scalar>(b: topo::AtRestBody<T>, m: Option<&geom_core::Affine3<f64>>) -> Body<T> {
+    match m {
+        Some(m) => moved(&b, m).into_body(),
+        None => b.into_body(),
+    }
+}
+
+/// **The wall of a half rod holds against each block face that meets it
+/// at one vertex in the middle of its ruling**, as built, at `f64`: the
+/// per-PR row of
+/// [`a_wall_holds_against_a_face_at_a_vertex_mid_ruling`], which runs
+/// the poses, the off-grid build, `Interval` and the whole body in the
+/// slow set. Red if a shared vertex on one side of a wall's cell, at no
+/// corner of it, has no zero.
+#[test]
+fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling_as_built() {
+    let body = half_rod_on_a_block::<f64>().into_body();
+    let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&body);
+    assert_eq!(alone.len(), 2, "two faces share one vertex with the wall");
+    for f in alone {
+        let report = injective(&body, Some(vec![wall, f]), BUDGET);
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the wall against {f:?}: {:?} {:?}",
+            report.verdict,
+            report.receipt
+        );
+    }
+}
+
+/// **A wall holds against a face that meets it at one vertex in the
+/// middle of its ruling**, at both scalars: the half rod's wall against
+/// each of the block's two horizontal faces, whose corner is on the
+/// ruling, and the whole body, at the verdict door too. Two builds, one
+/// on the dyadic grid and one off it (radius 0.7, the block
+/// `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`), each as built, turned about
+/// a generic axis and a hundred units off.
+///
+/// The wall's cell at the vertex has the ruling as its side, zero under
+/// a plane through the ruling's line, and the block's face leaves its
+/// corner to that plane's other side.
+///
+/// Red if a shared vertex on one side of a wall's cell, at no corner of
+/// it, has no zero: the wall is not presented in any cell holding the
+/// vertex, and the pair refuses `Uncertified { Departure }` at the
+/// vertex at the depth budget. Red on the off-grid build alone if the
+/// two edges of the ruling that meet at the vertex, whose stored ends
+/// there are `0.3` and `0.30000000000000004`, are not read as one line
+/// across their joint: the `f64` wall is then not covered at the vertex
+/// and never reaches its zero, while the `Interval` one, whose two ends
+/// are brackets that overlap, holds.
+#[test]
+fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
+    use topo::clearance::Embedding;
+
+    type Build<T> = fn() -> topo::AtRestBody<T>;
+    let builds: [(&str, Build<f64>, Build<Interval>); 2] = [
+        ("on the grid", half_rod_on_a_block, half_rod_on_a_block),
+        (
+            "off the grid",
+            || half_rod_on_a_block_at(0.7, 0.13, 0.61, (0.3, 1.7)),
+            || half_rod_on_a_block_at(0.7, 0.13, 0.61, (0.3, 1.7)),
+        ),
+    ];
+    for (grid, float, twin) in builds {
+        for (pose, m) in turned_and_far() {
+            let what = format!("{grid}, {pose}");
+            let float = in_pose(float(), m.as_ref());
+            let twin = in_pose(twin(), m.as_ref());
+            let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&float);
+            let (twin_wall, twin_alone) = wall_and_the_faces_at_a_vertex_alone(&twin);
+            assert_eq!(
+                (alone.len(), twin_alone.len()),
+                (2, 2),
+                "{what}: the block's two horizontal faces meet the wall at a vertex alone"
+            );
+            for (f, g) in alone.into_iter().zip(twin_alone) {
+                let report = injective(&float, Some(vec![wall, f]), BUDGET);
+                let at_interval = injective(&twin, Some(vec![twin_wall, g]), BUDGET);
+                same_class(
+                    &format!("{what}: the wall and a face at its ruling's vertex"),
+                    &report,
+                    &at_interval,
+                );
+                assert!(
+                    matches!(report.verdict, BoundVerdict::Holds) && report.receipt.certified > 0,
+                    "{what}: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+            }
+            assert_eq!(
+                embedding_of(&float),
+                Embedding::Embedded,
+                "{what}: the verdict door, at f64"
+            );
+            holds_at_both(&what, float, twin);
+        }
+    }
+}
+
+/// **Mirrored across a plane that is no axis plane, the ring refuses at
+/// both scalars and the block holds at `f64` only.** Two causes.
+///
+/// - **At `f64`, the ring**: the mirror re-mints each rim circle's chart
+///   row with a rounding in its axial channel, so it reads as a harmonic
+///   image and not as a coordinate line, and a cell holding that circle
+///   beside a ruling's vertex is handed to the curve presentations and
+///   read at no depth
+///   (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
+///   its third sighting). `Uncertified { Departure }` across an edge of
+///   a plane end face and a cylinder wall. This half goes red the day
+///   that row is fixed.
+/// - **At `Interval`, the ring and the block**: the ring refuses on
+///   another pair, and the block, embedded at `f64` on the grid and off
+///   it with its wall holding against both faces at the vertex, refuses
+///   whole; cause not isolated
+///   (`work/embed/a-generic-mirror-refuses-at-interval-a-body-that-holds-at-f64.md`).
+///
+/// Mirrored across an axis plane both hold.
+#[test]
+fn the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane() {
+    use topo::clearance::Embedding;
+
+    type Build<T> = fn() -> topo::AtRestBody<T>;
+    let builds: [(&str, Build<f64>, Build<Interval>); 2] = [
+        ("on the grid", half_rod_on_a_block, half_rod_on_a_block),
+        (
+            "off the grid",
+            || half_rod_on_a_block_at(0.7, 0.13, 0.61, (0.3, 1.7)),
+            || half_rod_on_a_block_at(0.7, 0.13, 0.61, (0.3, 1.7)),
+        ),
+    ];
+    for (grid, float, twin) in builds {
+        let block = mirrored_generically(&float().into_body());
+        let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&block);
+        for f in alone {
+            let report = injective(&block, Some(vec![wall, f]), BUDGET);
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "{grid}: the mirrored wall against a face at the vertex, f64: {:?}",
+                report.verdict
+            );
+        }
+        assert_eq!(
+            embedding_of(&block),
+            Embedding::Embedded,
+            "{grid}: the mirrored block at the verdict door, f64"
+        );
+        let at_interval = injective(&mirrored_generically(&twin().into_body()), None, BUDGET);
+        assert!(
+            matches!(at_interval.verdict, BoundVerdict::Refused(_)),
+            "{grid}: the mirrored block at Interval: {:?}",
+            at_interval.verdict
+        );
+    }
+    let ring = mirrored_generically(&near_full_ring::<f64>().into_body());
+    let twin = mirrored_generically(&near_full_ring::<Interval>().into_body());
+    let report = injective(&ring, None, BUDGET);
+    same_class(
+        "the mirrored ring",
+        &report,
+        &injective(&twin, None, BUDGET),
+    );
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        a,
+        b,
+        shared: SharedCell::Edge(_),
+        arm: CertificateArm::Departure,
+    }) = report.verdict
+    else {
+        panic!("the mirrored ring: {:?}", report.verdict);
+    };
+    let kinds = [a, b].map(|f| matches!(surface(&ring, f), Surface::Plane { .. }));
+    assert!(
+        kinds.contains(&true) && kinds.contains(&false),
+        "a plane face against a curved wall"
+    );
+    let axis = topo::Reflection::across(
+        Point3::new(0.1, -0.2, 0.4),
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        tol(),
+    )
+    .unwrap();
+    for (what, body) in [
+        ("the block", half_rod_on_a_block::<f64>().into_body()),
+        ("the ring", near_full_ring::<f64>().into_body()),
+    ] {
+        assert_eq!(
+            embedding_of(&topo::mirror_body(&body, &axis, tol()).unwrap()),
+            Embedding::Embedded,
+            "{what}, mirrored across an axis plane"
+        );
+    }
+}
+
+/// **A ring revolved a milliradian short of a full turn**: the
+/// rectangle `[0.5, 1] × [0, 1]` revolved `τ − 10⁻³` about `y`. Each
+/// wall starts at one end face and stops at the other, the two a
+/// millimetre apart at the outer wall, so a cell at a wall's end has the
+/// wall's start, an edge and two vertices it shares with the first end
+/// face, in reach of its ball at every depth and a turn away in its
+/// chart.
+fn near_full_ring<T: Scalar>() -> topo::AtRestBody<T> {
+    let lp = profile::test_support::bulge_loop(
+        [(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y).map(T::from_f64), T::zero()))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    sweep::test_support::finished(
+        "the ring",
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(TAU - 1e-3)),
+            tol(),
+        )
+        .unwrap()
+        .body
+        .into_body(),
+        tol(),
+    )
+}
+
+/// **A ring a milliradian short of a full turn holds across its gap**,
+/// at both scalars, as built, turned about a generic axis and a hundred
+/// units off, and is embedded at the verdict door. A wall's cell at its
+/// end holds no point of the cell it shares with the first end face:
+/// its zero names none of the rectangle, and the separator's value over
+/// the whole rectangle signs it. Red if a shared vertex in reach that
+/// the rectangle's clips do not place refuses the cell: every smaller
+/// cell at the wall's end reaches it again, and the pair ends at the
+/// depth budget, `Uncertified { Departure }` across the wall's first
+/// ruling.
+#[test]
+fn a_ring_a_milliradian_short_of_a_full_turn_holds_across_its_gap() {
+    use topo::clearance::Embedding;
+
+    for (pose, m) in turned_and_far() {
+        let float = in_pose(near_full_ring::<f64>(), m.as_ref());
+        let twin = in_pose(near_full_ring::<Interval>(), m.as_ref());
+        assert_eq!(
+            embedding_of(&float),
+            Embedding::Embedded,
+            "{pose}: the verdict door"
+        );
+        holds_at_both(&format!("the near-full ring, {pose}"), float, twin);
+    }
+}
+
+/// **A flap through a wall at a vertex in the middle of its ruling never
+/// holds.** From the vertex `(1, 0, 0.5)` of [`half_rod_on_a_block`],
+/// where the wall's ruling is split, hangs a triangle to
+/// `(1.3, 0.4, 0.9)` and `(0.6, 0.4, 0.9)`. It shares the vertex alone
+/// with the wall and passes through it along a curve from the vertex up
+/// to `(0.917, 0.4, 0.9)`. The wall's side at the vertex is zero under a
+/// plane through the ruling, and no such plane has the triangle on its
+/// other side. Red if the ruling's side is read as zero under a plane
+/// that does not hold it, or its sign is read without the flap's.
+#[test]
+fn a_flap_through_a_wall_at_its_rulings_vertex_never_holds() {
+    fn flapped<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
+        use geom_brep::EdgeCurveSpec;
+        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+        use topo::test_support::plane;
+
+        let mut body = half_rod_on_a_block::<T>().into_body();
+        let at =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let v_at = at(1.0, 0.0, 0.5);
+        let v = body
+            .vertices()
+            .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+            .unwrap()
+            .0;
+        let (wall, _) = wall_and_the_faces_at_a_vertex_alone(&body);
+        let face_of = |body: &Body<T>, he| {
+            body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+                .unwrap()
+                .face
+        };
+        // The struts hang in the block's horizontal face, so the wall
+        // keeps its two edges at the vertex.
+        let horizontal = |body: &Body<T>, f: FaceKey| match surface(body, f) {
+            Surface::Plane { frame } => mid(frame.axis().z).abs() > 0.5,
+            _ => false,
+        };
+        let h = body
+            .edges()
+            .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+            .find(|&he| {
+                body.get_half_edge(he).unwrap().start == v && horizontal(&body, face_of(&body, he))
+            })
+            .unwrap();
+        let (a0, a1) = (at(1.3, 0.4, 0.9), at(0.6, 0.4, 0.9));
+        let fan = MevSite::Fan { he1: h, he2: h };
+        let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+        let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+        let flap = body
+            .mef(
+                MefSite::Chords {
+                    he1: strut0.he_minus,
+                    he2: strut1.he_minus,
+                },
+                EdgeCurveSpec::line_between(a0, a1),
+                FaceSurface::New {
+                    surface: plane(&[a0, v_at, a1], tol()),
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap()
+            .face;
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        (body, wall, flap)
+    }
+    let (body, wall, flap) = flapped::<f64>();
+    let report = injective(&body, Some(vec![wall, flap]), BUDGET);
+    let (twin, tw, tf) = flapped::<Interval>();
+    same_class(
+        "the wall and the flap through it",
+        &report,
+        &injective(&twin, Some(vec![tw, tf]), BUDGET),
+    );
+    println!(
+        "[clip-vertex] the wall and the flap through it: {:?} {:?}",
+        report.verdict, report.receipt
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "the flap passes through the wall above the vertex: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
 // ------------------------------------------- curved shared edges
 
 /// The surface kind of `f`, by name.
