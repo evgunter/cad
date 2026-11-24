@@ -70,16 +70,13 @@ pub(crate) enum Item<T: Real> {
     },
 }
 
-/// The full circle about `center` of radius `radius` in the plane of
-/// the orthonormal `u_ref`, `v_ref`.
+/// The full circle of radius `radius` about its frame's origin, in the
+/// plane square to its frame's axis.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Circle<T: Real> {
-    /// The centre.
-    pub(crate) center: Point3<T>,
-    /// One in-plane unit direction.
-    pub(crate) u_ref: Vec3<T>,
-    /// The other, perpendicular to it.
-    pub(crate) v_ref: Vec3<T>,
+    /// The circle's frame: its centre, and the plane it lies in as the
+    /// face it was read on holds it.
+    pub(crate) frame: geom::Frame<T>,
     /// The radius.
     pub(crate) radius: T,
 }
@@ -93,7 +90,7 @@ impl<T: Real> Circle<T> {
     )]
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
-            &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
+            &self.frame,
             (self.radius, self.radius),
             // The circle's one turn (a circle's period).
             ParamWindow::new(T::zero(), geom::conic_period::<T>().length()),
@@ -326,7 +323,7 @@ fn cover<T: Decide>(
         Item::Edge(e) => crate::cover::edge_cover(body, e).ok(),
         Item::Circle(circle) => circle.cover(),
         Item::Ball { center, radius } => Cover::tube(
-            &geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            &geom::Frame::of_motion(&geom_core::RigidMotion::identity().with_origin(center)),
             T::zero(),
             radius,
         ),
@@ -357,7 +354,8 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
                 });
             }
         }
-        Item::Circle(Circle { center, .. }) | Item::Ball { center, .. } => return Some(center),
+        Item::Circle(Circle { frame, .. }) => return Some(frame.origin()),
+        Item::Ball { center, .. } => return Some(center),
     }
     mean(points)
 }

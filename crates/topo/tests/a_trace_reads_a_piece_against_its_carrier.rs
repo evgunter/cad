@@ -331,3 +331,35 @@ fn a_graze_past_the_taken_crossing_reads_the_entry() {
         "nothing past the entry and its gap is read: {taken:?}"
     );
 }
+
+/// **A circle whose stated directions name no frame refuses typed**: its
+/// seam along its axis, or an axis of no length, is a frame the trace
+/// decides it cannot mint ([`TraceFault::Frame`]), each naming the axis
+/// that has no direction, and never a crossing read on a poisoned frame.
+#[test]
+fn a_circle_naming_no_frame_refuses_typed() {
+    let circle = |axis: Vec3<f64>, seam: Vec3<f64>| {
+        circle_crossings(&floor(), true, (Point3::origin(), axis, 1.0, seam), band())
+    };
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    for (what, read, axis) in [
+        (
+            "a seam along the axis",
+            circle(x, x * 2.0),
+            geom_core::OrthoAxis::V,
+        ),
+        (
+            "an axis of no length",
+            circle(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            geom_core::OrthoAxis::U,
+        ),
+    ] {
+        assert!(
+            matches!(
+                &read,
+                Err(TraceFault::Frame(geom_core::OrthonormalizeError { axis: a, .. })) if *a == axis
+            ),
+            "{what}: {read:?}"
+        );
+    }
+}
