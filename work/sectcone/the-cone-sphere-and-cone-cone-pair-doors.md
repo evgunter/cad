@@ -61,3 +61,6 @@ join carries them. Left open, each on its own row:
 `a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face` (the boolean
 witness), `route-pose-reads-oblique-cone-cylinder-on-its-closed-form` and
 `the-cone-search-fuzz-reads-near-coincident-coaxial-apexes-intractable`.
+The section certificate still reads cone × sphere on topo's own copy; that
+move is on `the-section-certificate-reads-the-cone-pairs-on-the-value`'s
+addendum.
