@@ -626,7 +626,20 @@ fn a_revolved_cone_holds() {
             .body
             .into_body()
     }
-    holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
+    let [float, interval] = holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
+    // The receipts, pinned: no body row's VERDICT moves when a pair's
+    // two sines are not summed (the carrier arm reads a crease's one
+    // sine whole, and a seam's faces are tangent), and these counts do:
+    // read at one sine where two are owed, each scalar discharges more
+    // cells (152 and 160) and certifies a different count (52 and 56).
+    assert_eq!(
+        (
+            (float.receipt.discharged, float.receipt.certified),
+            (interval.receipt.discharged, interval.receipt.certified),
+        ),
+        ((136, 47), (152, 54)),
+        "the cone's receipts"
+    );
 }
 
 /// **The box `2 × 1` at depth `h = 1 ± 1e-2` holds at `Sym<Interval>`**:
