@@ -2,10 +2,12 @@
 id: main-red-the-prose-census-misses-boolean-errors-curve-and-surface
 kind: issue
 title: Main red: pncad-py's prose census meets BooleanError's curve and surface fields (topo/src/boolean/mod.rs) and neither decides nor names them
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7670
 ---
 
 
@@ -16,3 +18,7 @@ cost: E
 **The same shape before.** BIND's `work/bind/main-red-prose-census-misses-two-boolean-error-fields.md` (closed 2026-10-27) was this census missing two other `BooleanError` fields, `edge` and `face`. Its fix shows the two ways out: decide the site, or give it a line, with its reason, in the census's undecided list.
 
 **Owed.** Whoever lands it: bisect to the commit that added the fields (or the arm that reads them), then decide the sites or name them with a reason. The disposition is BIND's ground (the census), and the cause is in topo, whichever program owns the commit.
+
+## 2026-11-23 — named, with their reason (PR 7670)
+
+The two sites are one arm of `BooleanError`'s `Display`: `JunctionEndUnread { gap: JunctionEndGap::NoLane { curve, surface }, .. }`, whose sentence renders `{curve:?}` and `{surface:?}`. They came in with HELDRECORDS' `835cb357c8` (`heldrecords/elbow-ends`, PR 7463), found by `git log -S` on the arm rather than by a bisect. The census cannot type either binding: each is introduced by a pattern nested inside the field pattern it reads, the largest reason its `UNDECIDED` list already has (`CertifyError`'s `check` is the same shape). Each now has its own line in `UNDECIDED` in `crates/pncad-py/src/prose_census.rs`, with that reason. Both fields are `geom::CurveKind` and `geom::SurfaceKind`, unit enums, so their `Debug` is prose and the binding cannot panic on them. Reducing the list stays with `work/bind/prose-census-undecided-residue.md`.
