@@ -233,3 +233,37 @@ fn a_leaf_that_panics_leaves_no_session_installed() {
     );
     assert_eq!(decisions(minting(&m)), (1, 0), "and the next leaf decides");
 }
+
+/// **The structural question reads a node where the leaf does**
+/// ([`geom_core::Expression::proves_zero`]): a leaf asks whether
+/// `d − x² − 2x − 1` is zero, where `d = (x + 1)²` was built by another
+/// leaf of the drive that is still open, so `d` is in the drive's table
+/// and in no cache of the asking leaf's. The ask's state is its own and
+/// holds no form of the drive's; the node it resolves is the table's.
+///
+/// Mutant: an ask that reads the installed session's node cache alone
+/// finds no `d`, freezes it as an unknown, and proves nothing.
+#[test]
+fn the_structural_question_resolves_a_node_another_leaf_recorded() {
+    use geom_core::Expression;
+    let x = || Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("x")), 0.5);
+    let m = Arc::new(DriveMemo::new(budget(), SymRules::shipped()));
+    let ((), _first) = with_session_memo(budget(), SymRules::shipped(), &m, || {
+        let d = (x() + lit(1.0)) * (x() + lit(1.0));
+        let proved = std::thread::scope(|s| {
+            s.spawn(|| {
+                with_session_memo(budget(), SymRules::shipped(), &m, || {
+                    let residual = d - x() * x() - lit(2.0) * x() - lit(1.0);
+                    residual
+                        .expression()
+                        .and_then(Expression::proves_zero)
+                        .is_some()
+                })
+                .0
+            })
+            .join()
+            .expect("the asking leaf ran")
+        });
+        assert!(proved, "the ask reads `d` through the drive's table");
+    });
+}

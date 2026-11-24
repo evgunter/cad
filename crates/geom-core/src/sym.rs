@@ -1053,6 +1053,10 @@ pub mod memo;
 pub mod mint;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// The structural question: whether an expression is zero as a function
+/// of the document's variables, asked of the expression.
+#[path = "sym/question.rs"]
+mod question;
 /// Rule E: the quotient's common factor — the shared monomial divided
 /// out, and a constant ratio folded to its constant.
 #[path = "sym/quotient.rs"]
@@ -2458,6 +2462,12 @@ struct Session {
     /// leaf's caches is written to it as it is made, and a miss in the
     /// caches asks it.
     memo: Option<Arc<DriveMemo>>,
+    /// **The table an ask's state reads nodes in** (`question`): the
+    /// installed session's, for [`Session::node_of`] and nothing else.
+    /// An ask's rules and budget are its own, so it neither reads a
+    /// form of the drive's nor writes one. `None` in every session but
+    /// an ask's.
+    nodes_in: Option<Arc<DriveMemo>>,
     /// **The Zeros a deferring session left for later**
     /// ([`with_deferred_session`](self::deferred::with_deferred_session)): `None` in every other session, which
     /// discharges each decision as it is taken.
@@ -2877,6 +2887,7 @@ impl Session {
             #[cfg(test)]
             reduction_hits: 0,
             memo,
+            nodes_in: None,
             deferred: None,
             budget_frozen: IdSet::default(),
             unknown: IdSet::default(),
@@ -2897,7 +2908,7 @@ impl Session {
         self.nodes
             .get(&id)
             .copied()
-            .or_else(|| self.memo.as_ref()?.node(id))
+            .or_else(|| self.memo.as_ref().or(self.nodes_in.as_ref())?.node(id))
     }
 
     /// The node `id` denotes, following the registry to its end — `id`
@@ -5236,6 +5247,13 @@ impl<T: Real> Real for Sym<T> {
     /// whether the scalar certifies.
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
 
+    /// The node, whatever the lane scalar: the tier reads no value.
+    type Expression = SymId;
+
+    fn expression(self) -> Option<SymId> {
+        Some(self.node)
+    }
+
     /// The symbolic scalar over its numeric channel's value: the
     /// identity over the unknowns is what a decision at it reads, so it
     /// is kept, node for node. Over `f64` or `Interval` that is the
@@ -6876,6 +6894,53 @@ mod tests {
             "proven"
         } else {
             "numeric"
+        }
+    }
+
+    /// **The structural question does not read the registry**
+    /// ([`crate::Expression::proves_zero`]): two values a constructor
+    /// registered equal decide Zero through the session's door, and the
+    /// question, asked of their difference, proves nothing. An answer
+    /// taken from the installed session's ladder is red here.
+    #[test]
+    fn the_structural_question_does_not_read_the_registry() {
+        use crate::real::Expression;
+        with_session(budget(), || {
+            let (n, r) = (p("n", 1.0), p("r", 1.0));
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
+            let residual = n - r;
+            let decided = residual.sign_within(band()).unwrap();
+            assert!(decided.margin.proven(), "the door proves the pair");
+            assert!(
+                residual
+                    .expression()
+                    .and_then(Expression::proves_zero)
+                    .is_none()
+            );
+        });
+    }
+
+    /// **The kept-atom shapes close without the ladder at the question's
+    /// budget**: the two identities the retry ladder was measured on
+    /// (rule G shut, rule A shut) are proved by an ask with the ladder
+    /// and by one without it. At 64 terms the form each retry would keep
+    /// as an atom is already frozen into one.
+    #[test]
+    fn the_kept_atom_shapes_close_without_the_ladder_at_the_questions_budget() {
+        for build in [
+            closes_only_with_rule_g_off as fn() -> Sym<f64>,
+            closes_only_with_rule_a_off,
+        ] {
+            let answers = with_session(budget(), || {
+                let id = build().node();
+                [SymRetry::kept_atom(), SymRetry::none()]
+                    .map(|retry| question::asked(id, question::BUDGET, retry))
+            })
+            .0;
+            assert_eq!(answers, [true, true]);
         }
     }
 
