@@ -762,6 +762,59 @@ mod review_probes {
         assert!(!r);
     }
 
+    /// Claim 7: the growth guard (`SymRetry::max_forms`) makes a later
+    /// decision read how many retry forms earlier asks built, so a
+    /// refuted ask that no longer climbs can MOVE a later identity's
+    /// outcome. A: the refuted margin decided (head), then the identity;
+    /// B: the refuted margin climbed as main climbs it, then the identity.
+    #[test]
+    fn a_refutation_moves_a_later_identity_through_the_growth_guard() {
+        use super::super::{SymRetry, with_session_retry};
+        use crate::predicate::{Band, Margin, Sign};
+        let c = || S::from_f64(1.0 / 3.0);
+        let chain = |k: usize| (1..k).fold(c(), |acc, _| acc * c());
+        let identity = move || chain(5) - chain(2) * chain(3);
+        let band = || Band::linear(Tol::witness()).expect("band");
+        let capped = SymRetry {
+            bits: Some(512),
+            max_forms: 1,
+            ..SymRetry::none()
+        };
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let run = |climb_first: bool| {
+            with_session_retry(budget, SymRules::shipped(), capped, || {
+                let x = p("x", -1.0, 1.0);
+                let m1 = x * x - l(0.01);
+                if climb_first {
+                    let _ = discharge_in(m1.node(), Path::Decision);
+                } else {
+                    let _ = crate::k_stats::decide("probe_m1", Margin::of(m1), band());
+                }
+                crate::k_stats::decide("probe_id", Margin::of(identity()), band())
+            })
+        };
+        let (head, hc) = run(false);
+        let (main, mc) = run(true);
+        eprintln!("head: {head:?} {hc:?}\nmain-like: {main:?} {mc:?}");
+        // Measured: the sign is Zero both ways, but on head it is PROVEN
+        // (symbolic 1, retried 1) and main-like it is the in-band numeric
+        // Zero, the retry withheld at the cap (symbolic 0, retried 0).
+        assert_eq!((head, main), (Ok(Sign::Zero), Ok(Sign::Zero)));
+        assert_eq!(
+            (hc.symbolic, hc.retried),
+            (1, 1),
+            "head proves it on the retry"
+        );
+        assert_eq!(
+            (mc.symbolic, mc.retried),
+            (0, 0),
+            "main-like: the retry is withheld"
+        );
+    }
+
     /// Point brackets, one-ulp brackets, huge brackets.
     #[test]
     fn the_point_rule_at_the_edges() {
