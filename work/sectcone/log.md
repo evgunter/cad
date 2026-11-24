@@ -66,3 +66,11 @@ The single FULL review returned APPROVE-WITH-FIXES with one MAJOR. The new Touch
 - the green roster row records all nine lines.
 
 The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (orchestrator read) and accepted it. Kernel CI is red only on the inherited reds: topo's `recourse_roster` decide-site row (`green/main-red-recourse-roster-misses-chain-parity-and-spline-trim-decide-sites`) and `square_search` (`germ/the-square-wall-fuzzer-finds-a-strip-crossing-at-a-tubes-top-read-tangent`). Merged over CI after a main merge whose only conflict was the topo lever count (branch +7 on main's 320 = 327). U3 `the-join-reads-the-cone-pairs-on-the-value` is un-parked: U2 and the limb-2 reader (7350) are both closed. 7457 must narrow its `cone_pair` arms to Plane | Sphere when it merges main.
+
+## 2026-11-24: main red 7720; 7457's dual review
+- **Main red:** PR 7651 (scalar) left geom-brep's lib tests failing to compile. Its `crossing_parameter_rows` handed `settle` an f64 reader, and main's own CI skipped every job on that merge. PR 7720 fixes it in one line; I merged it once lint (clippy, all targets) passed.
+- **7457:** green at `8f470a5c65`. Two Opus reviewers, one brief, both NOT-MERGEABLE-AS-IS. They agree on M1: a sphere tangency decided Zero lists one point, which is wrong for a touch beside a loop, the far-line saddle (a node) and two touches.
+  - r2 M2: the `Elsewhere` poses of the newly served pairs desync in the join, where they used to refuse typed.
+  - r1 M2: the boolean witness's ball has a pole on the cone face, which is the likely vertex-on-face refusal site.
+  - A reachable `unreachable!` in `replace_face`, plus minors.
+  The fix pass went to the implementer, and both reviewers will re-verify.
