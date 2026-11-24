@@ -202,8 +202,7 @@ pub fn clearances_at_nominal(
                                 " evaluated to {}, not to a clearance verdict",
                                 other.kind_name()
                             )
-                        )
-                        .to_string(),
+                        ),
                     },
                 },
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
@@ -214,9 +213,8 @@ pub fn clearances_at_nominal(
                                     Speaker::of(doc).node(assertion),
                                     " did not evaluate"
                                 )
-                                .to_string()
                             },
-                            |e| e.kind_spoken(doc).to_string(),
+                            |e| e.kind_spoken(doc),
                         ),
                     }
                 }
@@ -252,20 +250,20 @@ pub enum ClearanceOutcome {
         /// The refusal's class ([`ClearanceRefusal::name`]).
         name: &'static str,
         /// The refusal said, with its recourse.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
     /// **A requirement over a pattern's members**: a seat reads a
     /// family, so the assertion is one requirement per member, which the
     /// certifying lane does not decide yet. Said with its recourse.
     OverMembers {
         /// Why, said from the document, with the recourse.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
     /// The assertion did not evaluate: a seat that does not resolve, or
     /// a node under it that failed.
     Unanswered {
         /// Why, said from the document.
-        sentence: String,
+        sentence: crate::document::Sentence,
     },
 }
 
@@ -282,8 +280,7 @@ impl ClearanceOutcome {
                 " reads the members of a pattern, so it is one requirement per member, and a \
                  clearance over a pattern's members is not certified yet. Recourse: seat one \
                  member — project it with the projection tool and pick the projection"
-            )
-            .to_string(),
+            ),
         }
     }
 
@@ -297,7 +294,7 @@ impl ClearanceOutcome {
             ClearanceVerdict::Exceeded => Self::Exceeded,
             ClearanceVerdict::Refused(r) => Self::Refused {
                 name: r.name(),
-                sentence: crate::document::Said(r, by).sentence().to_string(),
+                sentence: crate::document::Said(r, by).sentence(),
             },
         }
     }

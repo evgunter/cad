@@ -54,7 +54,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), rib.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), rib.into()]),
         },
     );
     // Two notches across the rib's y = 1 seam: the first in place, the
@@ -64,7 +64,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     let (doc, notches) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![n1.into(), tr.into()]),
+            members: editor_core::Bodies::spelled(vec![n1.into(), tr.into()]),
         },
     );
     let (doc, cut) = insert(

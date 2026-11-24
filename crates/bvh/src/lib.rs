@@ -118,6 +118,7 @@
 //! with payloads need no change here: the box tree *is* the
 //! subdivision structure, the payloads live beside it.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod aabb;
 pub mod ray;
 pub mod tree;

@@ -578,7 +578,7 @@ fn r1_an_underqualified_nested_read_refuses_and_a_family_of_a_placed_copy_places
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, inner_k, inner) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, outer_k) = crate::fixture::index_of(doc, "j", Formula::count(2), Some(inner_k));
-    let (doc, outer) = crate::fixture::family_of(
+    let (doc, outer) = crate::fixture::family_of_members(
         doc,
         inner,
         crate::fixture::slides_along(outer_k, [0.0, 1.0, 0.0], 3.0),

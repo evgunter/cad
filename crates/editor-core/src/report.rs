@@ -217,36 +217,37 @@ impl MassBudget {
     /// its own line, and every unavailability named — each variable
     /// spoken from `doc`, the document the budget's box was taken of, as
     /// it holds them now (a rename moves no mass, and the line says the
-    /// name the document holds).
-    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
-        use core::fmt::Write as _;
+    /// name the document holds), and mentioned in it: one sentence per
+    /// line.
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Lines {
+        let by = Speaker::of(doc);
         let percent = |m: &Result<f64, MeasureUnavailable>| match m {
-            Ok(_) => percent(m),
-            Err(e) => percent(&Err(e.respoken(doc))),
+            Ok(_) => percent(m, by, 0),
+            Err(e) => percent(&Err(e.respoken(doc)), by, 0),
         };
-        let mut s = String::new();
-        let _ = writeln!(
-            s,
-            "{}",
-            self.basis
-                .sentence(|id| doc.spoken_var(id), crate::Speaker::TAG)
-        );
-        let _ = writeln!(s, "  certified   {}", percent(&self.certified));
-        for (class, m) in &self.refused {
-            let _ = writeln!(s, "  refused ({class}) {}", percent(m));
-        }
-        let _ = writeln!(s, "  tail        {}", percent(&self.tail));
-        let _ = writeln!(
-            s,
-            "  UNRESOLVED  {} ({})",
-            percent(&self.unresolved),
-            if self.containment {
-                "exact: the analyzed box contains the witness chamber"
-            } else {
-                "conservative: the witness chamber may reach past the analyzed box"
-            }
-        );
-        s
+        vec![
+            self.basis.sentence(|id| doc.spoken_var(id), by),
+            sentence!("  certified   ", percent(&self.certified)),
+        ]
+        .into_iter()
+        .chain(
+            self.refused
+                .iter()
+                .map(|(class, m)| sentence!(format_args!("  refused ({class}) "), percent(m))),
+        )
+        .chain([
+            sentence!("  tail        ", percent(&self.tail)),
+            sentence!(
+                "  UNRESOLVED  ",
+                percent(&self.unresolved),
+                if self.containment {
+                    " (exact: the analyzed box contains the witness chamber)"
+                } else {
+                    " (conservative: the witness chamber may reach past the analyzed box)"
+                }
+            ),
+        ])
+        .collect()
     }
 }
 
@@ -326,45 +327,38 @@ impl LeafHistogram {
     /// The human form. The advisory label is the first line, and the
     /// uncovered mass is the last: a reader meets both without looking
     /// for them. The measure is spoken from `doc`, the document the
-    /// histogram was taken of.
+    /// histogram was taken of, and mentioned in it: one sentence per
+    /// line.
     ///
     /// # Panics
     ///
     /// When `doc` is not the document the histogram was taken of.
-    pub fn render<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
-        use core::fmt::Write as _;
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Lines {
         crate::spoken::assert_taken_of("this leaf histogram", self.document, doc);
-        let mut s = String::new();
-        let _ = writeln!(
-            s,
-            "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
-             certified enclosure over that leaf. Not a density: a true output density is v2 \
-             (E11.6), and nothing here claims one.",
-            doc.spoken_value(self.measurement)
-        );
-        let _ = writeln!(
-            s,
-            "{}",
-            self.basis
-                .sentence(|id| doc.spoken_var(id), crate::Speaker::TAG)
-        );
+        let by = Speaker::of(doc);
+        let mut lines = vec![
+            sentence!(
+                "ADVISORY leaf-mass histogram of ",
+                doc.spoken_value(self.measurement),
+                " — leaf mass against the measure's certified enclosure over that leaf. Not a \
+                 density: a true output density is v2 (E11.6), and nothing here claims one."
+            ),
+            self.basis.sentence(|id| doc.spoken_var(id), by),
+        ];
         for row in &self.rows {
             let (lo, hi) = row.enclosure;
-            let _ = writeln!(
-                s,
-                "  {:>8} of mass in [{}, {}]   {}",
-                percent(&row.mass),
-                lo,
-                hi,
-                row.leaf
-            );
+            lines.push(sentence!(
+                "  ",
+                percent(&row.mass, by, 8),
+                format_args!(" of mass in [{lo}, {hi}]   {}", row.leaf)
+            ));
         }
-        let _ = writeln!(
-            s,
-            "  {:>8} NOT covered by any row (the drive's unresolved budget)",
-            percent(&self.uncovered)
-        );
-        s
+        lines.push(sentence!(
+            "  ",
+            percent(&self.uncovered, by, 8),
+            " NOT covered by any row (the drive's unresolved budget)"
+        ));
+        crate::Lines::new(lines)
     }
 }
 
@@ -635,9 +629,17 @@ pub(crate) fn mass_bits(m: &Result<f64, MeasureUnavailable>) -> String {
 /// Four decimal places: the tail of a ±3σ box is 0.27%, and a report
 /// that rounded it to 0.3% would be rounding away the number E2 exists
 /// to keep.
-pub(crate) fn percent(m: &Result<f64, MeasureUnavailable>) -> String {
+///
+/// At least `width` characters wide: a number is right-aligned in the
+/// column, and a refusal, whose words are wider than any column, is
+/// written as it is, its variable mentioned by `by`.
+pub(crate) fn percent(
+    m: &Result<f64, MeasureUnavailable>,
+    by: Speaker<'_>,
+    width: usize,
+) -> Sentence {
     match m {
-        Ok(v) => format!("{:.4}%", v * 100.0),
-        Err(e) => format!("[no measure: {e}]"),
+        Ok(v) => Sentence::from(format!("{:>width$}", format!("{:.4}%", v * 100.0))),
+        Err(e) => sentence!("[no measure: ", crate::Said(e, by), "]"),
     }
 }

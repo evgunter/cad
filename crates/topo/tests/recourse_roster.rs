@@ -65,6 +65,7 @@ const BOOLEAN: Door = Door {
         "bool_",
         "carrier_",
         "contact_",
+        "junction_",
         "rim_",
         "seam_",
         "section_",
@@ -546,8 +547,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("region.rs: place: at", CARRIER_CALL),
     ("region.rs: short_of_end: end.row", ROW_FIELD),
     ("region.rs: side_at_closest_as: cross", FORWARDS),
-    ("rim_wedge.rs: departures: a", CARRIER_CALL),
-    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: touch: a", CARRIER_CALL),
+    ("rim_wedge.rs: touch: b", CARRIER_CALL),
     ("rim_wedge.rs: reach_as: name", FORWARDS),
     ("rim_wedge.rs: read_identity#1([)", IDENTITY),
     (

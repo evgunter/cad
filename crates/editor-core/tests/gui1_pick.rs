@@ -250,7 +250,7 @@ fn unusable_nodes_surface_typed_errors() {
     let (doc, poisoned) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![bad.into(), good_in.into()]),
+            members: editor_core::Bodies::spelled(vec![bad.into(), good_in.into()]),
         },
     );
     let ev = run(&doc);

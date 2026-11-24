@@ -1617,6 +1617,9 @@ fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // tolerance took an analysis axis, which nothing else says.
         Maintenance::AnonymousVarRemoved { .. } if row.is_silent_retirement() => return None,
         Maintenance::AnonymousVarRemoved { .. } => Retold::Never,
+        // A yield that went with its variable strands its readers
+        // outside the binder, which say so where they read it.
+        Maintenance::YieldRemoved { .. } => Retold::Never,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
