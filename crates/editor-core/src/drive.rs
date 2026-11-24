@@ -2037,6 +2037,27 @@ mod probe {
         });
         br::compare_into(&mut line, witness, &ra, leaf, &certifying(doc));
         br::emit(line);
+        // The two records in full, once per witness, for a reader to
+        // hold a flip leaf's against its witness's by eye.
+        if name == "flip" && std::env::var_os("BUILD_RECORD_DUMP").is_some() {
+            static DUMPED: Mutex<std::collections::BTreeSet<u64>> =
+                Mutex::new(std::collections::BTreeSet::new());
+            let first = DUMPED
+                .lock()
+                .map(|mut d| d.insert(witness.epoch.0))
+                .unwrap_or(false);
+            if first {
+                let rb = Record::of(leaf);
+                let lines = |r: &Record| -> Vec<Vec<String>> {
+                    r.nodes
+                        .iter()
+                        .map(|n| n.lines.iter().chain(&n.extras).cloned().collect())
+                        .collect()
+                };
+                br::emit(json!({"k": "dump", "w": witness.epoch.0, "box": render_box(box_),
+                    "witness": lines(&ra), "leaf": lines(&rb)}));
+            }
+        }
     }
 
     pub(super) fn fate(witness: &Evaluation<f64>, box_: &ParamBox, reason: &str) {

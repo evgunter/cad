@@ -129,19 +129,87 @@ fn turning_crease(nominal: f64, half: f64) -> ProfileDoc {
     r.doc
 }
 
+/// Each leaf of this document costs from ten seconds to three minutes
+/// at the box scalar, so each drive is held to two leaves.
 #[test]
 fn probe_a_tilted_plane_cuts_a_cone() {
-    for (nominal, half) in [
-        (0.0, 1e-9),
-        (0.0, 1e-6),
-        (0.0, 1e-3),
-        (0.0, 5e-2),
-        (0.05, 1e-3),
-        (0.05, 0.1),
-    ] {
+    for (nominal, half) in [(0.0, 1e-6), (0.05, 1e-3)] {
         report(
             &format!("cone tilt {nominal} ± {half:e}"),
             &tilted_cone_cut(half, nominal),
+            2,
+        );
+    }
+}
+
+/// Two unit blocks, the second slid along `x` by `s = nominal ± half`:
+/// one lump while they overlap (`s < 1`), two past it. The instrument's
+/// sensitivity row: a leaf wholly past the parting holds other cells.
+fn slid_blocks(nominal: f64, half: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("s"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(uniform(half)),
+        }),
+    });
+    let s = || Formula::named(VarName::from_static("s"), Dimension::Length);
+    let s1 = || {
+        Formula::add(
+            Formula::named(VarName::from_static("s"), Dimension::Length),
+            len(1.0),
+        )
+        .expect("a length")
+    };
+    let mut block = |corners: [[Formula; 2]; 4]| {
+        let p = r.insert(Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::polygon_expr(corners)],
+            ids: Vec::new(),
+            on: None,
+        }));
+        r.insert(Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        })
+    };
+    let a = block([
+        [len(0.0), len(0.0)],
+        [len(1.0), len(0.0)],
+        [len(1.0), len(1.0)],
+        [len(0.0), len(1.0)],
+    ]);
+    let b = block([
+        [s(), len(0.25)],
+        [s1(), len(0.25)],
+        [s1(), len(0.75)],
+        [s(), len(0.75)],
+    ]);
+    // The second block stands where its numbers put it in the first's
+    // space.
+    let placed = crate::corpus::placed_in(
+        &mut r,
+        &Operand::from(a),
+        Operand::from(b),
+        editor_core::stand(),
+    );
+    r.insert(Node::Union {
+        members: editor_core::Bodies::spelled(vec![
+            editor_core::BodyRead::plain(Operand::from(a)),
+            placed.into(),
+        ]),
+    });
+    r.doc
+}
+
+#[test]
+fn probe_two_blocks_slide_apart() {
+    for (nominal, half) in [(0.5, 0.2), (0.5, 1.0), (1.5, 0.2)] {
+        report(
+            &format!("blocks s {nominal} ± {half:e}"),
+            &slid_blocks(nominal, half),
             64,
         );
     }
