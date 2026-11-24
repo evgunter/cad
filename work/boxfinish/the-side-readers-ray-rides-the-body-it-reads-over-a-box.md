@@ -2,7 +2,7 @@
 id: the-side-readers-ray-rides-the-body-it-reads-over-a-box
 kind: unit
 title: The side reader's ray rides the body it reads: over a box it is a family of rays, and every reading subtracts two stored copies of one moving quantity
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: H
