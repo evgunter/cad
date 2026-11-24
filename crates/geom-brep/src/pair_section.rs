@@ -2673,6 +2673,15 @@ fn march_over_the_ball(
         PairPose::CylinderCylinder(p) => {
             crate::ssi::march_cylinder_cylinder(p, &section.seeds(), domain, band)
         }
+        // The ℝ³ march ends no branch at a node, so a section listing one
+        // is classified and not carried.
+        PairPose::ConeCylinder(_) | PairPose::ConeCone(_) | PairPose::ConeSphere(_)
+            if !section.nodes().is_empty() =>
+        {
+            return Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::ConeNode,
+            )));
+        }
         PairPose::ConeCylinder(p) | PairPose::ConeCone(p) | PairPose::ConeSphere(p) => {
             crate::ssi::march_cone_ruled(p, section.tangency(), &section.seeds(), domain, band)
         }

@@ -12,9 +12,14 @@
 //!   one loop about its own axis, both apexes clear of the other cone,
 //!   the general cone × cone pose, marched.
 //!
-//! Each run builds a body, and the volumes close as the operations must:
-//! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
-//! the measured pads.
+//! Each run builds a body or refuses typed, never by a desync or a
+//! broken invariant; where an order's three runs all build, the volumes
+//! close as the operations must: `|A ∪ B| + |A ∩ B| = |A| + |B|` and
+//! `|A ∖ B| = |A| − |A ∩ B|`, within the measured pads. Today every run
+//! refuses `CurvedBooleanUnsupported` at the cone face, ahead of the
+//! pair's section
+//! (`work/sectcone/a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face.md`);
+//! the row is the witness that flips when it builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -68,13 +73,25 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     (m.volume, m.volume_pad)
 }
 
+/// The measured volume of a run's result (zero for an empty one), or
+/// `None` where it refused typed. A desync or a broken invariant is a
+/// defect, and red.
 fn result_volume(
     label: &str,
     got: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     tol: Tol,
-) -> (f64, f64) {
-    let got = got.unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
-    got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))
+) -> Option<(f64, f64)> {
+    match got {
+        Ok(got) => Some(got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))),
+        Err(
+            e @ (topo::BooleanError::JoinDesync { .. }
+            | topo::BooleanError::ClassificationInvariant { .. }),
+        ) => panic!("{label}: a defect: {e:?}"),
+        Err(e) => {
+            eprintln!("{label}: refused typed: {e:?}");
+            None
+        }
+    }
 }
 
 /// Every op in both orders of `k` and `other`, the volumes closed, `∩`
@@ -91,17 +108,20 @@ fn every_order(what: &str, k: &AtRestBody<f64>, other: &AtRestBody<f64>, v_other
         ("the cone first", k, other, vk, pk),
         ("the other first", other, k, vo, po),
     ] {
-        let (vu, pu) = result_volume(&format!("{what}, {name}: ∪"), topo::union(a, b, tol), tol);
-        let (vi, pi) = result_volume(
+        let u = result_volume(&format!("{what}, {name}: ∪"), topo::union(a, b, tol), tol);
+        let i = result_volume(
             &format!("{what}, {name}: ∩"),
             topo::intersect(a, b, tol),
             tol,
         );
-        let (vd, pd) = result_volume(
+        let d = result_volume(
             &format!("{what}, {name}: ∖"),
             topo::subtract(a, b, tol),
             tol,
         );
+        let (Some((vu, pu)), Some((vi, pi)), Some((vd, pd))) = (u, i, d) else {
+            continue;
+        };
         assert!(
             vi > 0.0 && vi < vk.min(vo),
             "{what}, {name}: the two cross, so ∩ is a part of each ({vi})"

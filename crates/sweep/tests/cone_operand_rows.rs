@@ -451,13 +451,14 @@ fn bite() -> AtRestBody<f64> {
     moved(&along_x, &Affine3::translation(Vec3::new(0.0, 0.45, 0.8)))
 }
 
-/// **A cone against an oblique cylinder has no frame.** P1, the bite,
-/// and P2, the bite with P2a's brick beside it as a second lump: every
-/// op refuses `GermFrameUnsupported` on the cone × cylinder pair
-/// (`work/sectcone/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`),
-/// in the operands' order.
+/// **A cone against an oblique cylinder rides its carried section.** P1,
+/// the bite, and P2, the bite with P2a's brick beside it as a second
+/// lump: the cone × cylinder pair is served and marched, so no op
+/// refuses at that pair's germ frame. What stops the bite now is its
+/// own cap plane against the cone (an open conic's germ), named and
+/// typed; a desync or a broken invariant would be a defect.
 #[test]
-fn the_bite_refuses_at_the_germ_frame() {
+fn the_bite_rides_the_carried_cone_cylinder_section() {
     let tol = Tol::witness();
     let (c, _) = cone(None);
     let (pin, _) = boxed((-0.7, -0.5), (-0.3, 0.1), (-0.1, 0.1));
@@ -467,16 +468,22 @@ fn the_bite_refuses_at_the_germ_frame() {
     };
     for (what, b) in [("P1", bite()), ("P2", bite_and_pin)] {
         for (op, got) in every_op(&c, &b) {
-            let kinds = if op == "B ∖ A" {
-                [geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cone]
-            } else {
-                [geom::SurfaceKind::Cone, geom::SurfaceKind::Cylinder]
+            let pair = |a: geom::SurfaceKind, b: geom::SurfaceKind| {
+                matches!(
+                    [a, b],
+                    [geom::SurfaceKind::Cone, geom::SurfaceKind::Cylinder]
+                        | [geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cone]
+                )
             };
             assert!(
-                matches!(
+                !matches!(
                     &got,
                     Err(BooleanError::GermFrameUnsupported { a_kind, b_kind, .. })
-                        if [*a_kind, *b_kind] == kinds
+                        if pair(*a_kind, *b_kind)
+                ) && !matches!(
+                    &got,
+                    Err(BooleanError::JoinDesync { .. }
+                        | BooleanError::ClassificationInvariant { .. })
                 ),
                 "{what}, {op}: {:?}",
                 got.map(|r| r.body().map(|b| b.kind))

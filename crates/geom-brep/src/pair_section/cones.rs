@@ -53,11 +53,10 @@
 //! Every component is the general rung's ([`ClassCarrier::General`]),
 //! marched from its witness by [`PairSection::carry`]
 //! (`ssi::march_cone_ruled`), save the points a tangency or a touch
-//! lists and the arcs that end at a node. A crossing tangency is a node
-//! (C5), its arcs ending at it, one node-joined set; the apex on the
-//! partner is another. The ℝ³ march ends no branch at a node, so an arc
-//! ending at one is classified and not carried
-//! ([`super::NoCarrier::ConeNode`]).
+//! lists. A crossing tangency is a node (C5), its arcs ending at it, one
+//! node-joined set; the apex on the partner is another. The ℝ³ march
+//! ends no branch at a node, so a section that lists a node is
+//! classified and its carry refuses ([`super::NoCarrier::ConeNode`]).
 
 use geom::Surface;
 use geom_core::k_stats::{decide_across_reported, decide_reported};
@@ -898,7 +897,6 @@ pub(crate) fn cone_ruled<T: Decide>(
             End::Node(pass) => nodes.end(&pose, pass, start, arc.witness, band).map(Some),
             End::Cut(_) => Ok(None),
         };
-        let noded = matches!(from, End::Node(_)) || matches!(to, End::Node(_));
         if pose.sphere().is_some() && arc.cut_ends().is_some() {
             return Err(SectionError::Unaccounted {
                 cause: "the ruling sweep cut a cone × sphere component, which the sphere's own \
@@ -921,11 +919,7 @@ pub(crate) fn cone_ruled<T: Decide>(
                 },
                 [false, false],
                 Some(arc.witness),
-                if noded {
-                    ClassCarrier::Unminted(NoCarrier::ConeNode)
-                } else {
-                    ClassCarrier::General
-                },
+                ClassCarrier::General,
             )
         });
     }

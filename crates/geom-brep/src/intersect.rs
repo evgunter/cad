@@ -576,7 +576,9 @@ pub fn route_pose<T: Decide>(
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
         (Plane, Torus) => plane_torus_section(a, b, extent(), band).map(drop),
         (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
-        (Cone, Cylinder | Cone | Sphere) | (Cylinder | Sphere, Cone) => {
+        (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
+        (Cone, Cone | Sphere) | (Sphere, Cone) => {
             crate::pair_section(a, b, Some(reach.ball()), None::<geom_core::NoLane>, band).map(drop)
         }
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
