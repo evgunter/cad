@@ -32,21 +32,23 @@ fn tilted(tilt: f64) -> Surface<f64> {
     }
 }
 
-/// **Every door reads the pose the value reads**, over tilts straddling
-/// the value's band against a consumer reach a tenth and a hundred times
-/// a metre: the pose reads closed below `5e-10` and tilted from it, so
-/// the run holds both. At each tilt the section value reads a closed pose
-/// elsewhere and builds a tilted one, its closed form serves the closed
-/// one alone, and `route_pose` answers the arm implemented at both
-/// reaches. Asked at the reach, the closed form read `2.6e-10` closed to
-/// the value and tilted at a hundred metres, and `4e-9` tilted to the
-/// value and in the band of `pt_axis_plane_gap` at a tenth, where the
-/// gate escalated a pose the value builds.
+/// **Every door reads the pose the value reads**, over tilts `k·zero`
+/// straddling the value's band against a consumer reach a tenth and a
+/// hundred times a metre: the pose reads closed below `k = 0.5` and
+/// tilted from it, so the run holds both. At each tilt the section value
+/// reads a closed pose elsewhere and builds a tilted one, its closed form
+/// serves the closed one alone, and `route_pose` answers the arm
+/// implemented at both reaches. Asked at the reach (at the run's
+/// `zero = 1e-9`), the closed form read `k = 0.26` closed to the value
+/// and tilted at a hundred metres, and `k = 4.1` tilted to the value and
+/// in the band of `pt_axis_plane_gap` at a tenth, where the gate
+/// escalated a pose the value builds.
 #[test]
 fn every_door_reads_the_pose_the_value_reads() {
     let b = band();
     let mut seen = (false, false);
-    for tilt in [1e-11, 6.4e-11, 2.6e-10, 5.12e-10, 4.096e-9, 1.6e-8, 1e-3] {
+    for k in [0.01, 0.064, 0.26, 0.512, 4.096, 16.0, 1e6] {
+        let tilt = k * b.zero();
         let (plane, torus) = (tilted(tilt), torus());
         let pose = PlaneTorusPose::decide(&plane, &torus, b)
             .expect("a plane and a torus")
