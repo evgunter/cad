@@ -5056,7 +5056,11 @@ pub struct ClearanceLane<T: geom_core::Certifies> {
     verdict_facts: for<'b> fn(Windows<'b, T>, &crate::Tier3Facts<T>) -> Windows<'b, T>,
     /// Windows with the facts tier 3's local battery decides on their
     /// body now ([`crate::geometric`]).
-    battery: for<'b> fn(Windows<'b, T>, &'b Body<T>, geom_core::Tol) -> Windows<'b, T>,
+    battery: for<'b> fn(
+        Windows<'b, T>,
+        &'b Body<T>,
+        geom_core::Tol,
+    ) -> Result<Windows<'b, T>, crate::NotFinished>,
 }
 
 impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> ClearanceLane<T> {
@@ -5077,11 +5081,10 @@ impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> Cle
         windows: Windows<'b, T>,
         body: &'b Body<T>,
         tol: geom_core::Tol,
-    ) -> Windows<'b, T> {
-        match crate::geometric(body, tol) {
-            Ok(of) => windows.reading(of.facts()),
-            Err(_) => windows,
-        }
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
+        crate::geometric(body, tol)
+            .map(|of| windows.reading(of.facts()))
+            .map_err(crate::NotFinished::new)
     }
 
     fn facts_of<'b>(windows: Windows<'b, T>, kept: &crate::Tier3Facts<T>) -> Windows<'b, T> {
@@ -5151,7 +5154,7 @@ impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> Cle
 ///         self,
 ///         _windows: Windows<'b, f64>,
 ///         _of: &topo::Geometric<'b, f64>,
-///     ) -> Windows<'b, f64> {
+///     ) -> Result<Windows<'b, f64>, topo::NotFinished> {
 ///         unimplemented!()
 ///     }
 ///     fn reading_unfinished<'b>(
@@ -5159,7 +5162,7 @@ impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> Cle
 ///         _windows: Windows<'b, f64>,
 ///         _body: &'b topo::Body<f64>,
 ///         _tol: geom_core::Tol,
-///     ) -> Windows<'b, f64> {
+///     ) -> Result<Windows<'b, f64>, topo::NotFinished> {
 ///         unimplemented!()
 ///     }
 /// }
@@ -5204,14 +5207,17 @@ pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + S
 
     /// **[`Self::reading`] for a caller that holds `body` bare**: tier
     /// 3's local battery is run over it now for the facts
-    /// ([`crate::geometric`]); where it refuses, `bare` comes back
-    /// carrying none.
+    /// ([`crate::geometric`]).
+    ///
+    /// # Errors
+    ///
+    /// The battery's findings, where it refuses `body`.
     fn reading_unfinished<'b>(
         self,
         bare: Windows<'b, T>,
         body: &'b Body<T>,
         tol: geom_core::Tol,
-    ) -> Windows<'b, T>;
+    ) -> Result<Windows<'b, T>, crate::NotFinished>;
 }
 
 impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
@@ -5288,7 +5294,7 @@ impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
         bare: Windows<'b, T>,
         body: &'b Body<T>,
         tol: geom_core::Tol,
-    ) -> Windows<'b, T> {
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
         (self.battery)(bare, body, tol)
     }
 }
@@ -5339,7 +5345,7 @@ impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
         _windows: Windows<'b, T>,
         _body: &'b Body<T>,
         _tol: geom_core::Tol,
-    ) -> Windows<'b, T> {
+    ) -> Result<Windows<'b, T>, crate::NotFinished> {
         match self {}
     }
 }
@@ -5517,7 +5523,7 @@ mod wiring_rows {
                     super::Windows<'b, T>,
                     &'b crate::Body<T>,
                     geom_core::Tol,
-                ) -> super::Windows<'b, T>,
+                ) -> Result<super::Windows<'b, T>, crate::NotFinished>,
         ) {
             return Err("battery is not `geometric` then `Windows::reading`");
         }

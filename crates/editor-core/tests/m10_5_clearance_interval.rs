@@ -764,6 +764,42 @@ fn a_sound_prism_certifies_its_boundary_injective() {
     }
 }
 
+/// **The strict question between two different selections of one body
+/// reads the one verdict on both.** Two neighbouring flats of the
+/// hexagon, each its own scope: they touch along the wall edge they
+/// share, and the pair is certified across it on what tier 3 decided
+/// about that edge, read into both sides' windows. Red if either side
+/// is read bare: the pair then refuses, naming a face "read with no
+/// tier-3 verdict".
+#[test]
+fn two_selections_of_one_body_are_asked_on_its_one_verdict() {
+    let (doc, minted, _) = hexagon();
+    let flat = |k: u32| Selection {
+        at: minted,
+        body: 0,
+        faces: FaceScope::Named(vec![fixture::fname(minted, fixture::wall(&doc, minted, k))]),
+    };
+    let stop = editor_core::Stop::default();
+    let report = editor_core::clearance::clearance_at_dials(
+        &doc,
+        &box_of(&doc, "place"),
+        &flat(0),
+        &flat(1),
+        &ClearanceQuery::strictly_positive(&stop, Tol::witness()),
+    );
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
+        report.serialize()
+    );
+    let r = report.receipt();
+    assert!(
+        r.holds() && r.certified > 0,
+        "the two flats certify across their edge: {r:?}"
+    );
+}
+
 // ------------------------------------------- the parametric question
 
 /// A bound BELOW the whole parameter band holds over the whole box.

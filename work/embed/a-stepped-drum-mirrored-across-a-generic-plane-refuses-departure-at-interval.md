@@ -1,9 +1,11 @@
 ---
 id: a-stepped-drum-mirrored-across-a-generic-plane-refuses-departure-at-interval
 kind: issue
-title: A stepped drum mirrored across a generic plane refuses Departure across a rim at Interval
+title: A stepped drum mirrored across a generic plane refuses Departure across a wall's seam at Interval
 status: open
 opened: 2026-11-23
+priority: P2
+cost: M
 ---
 
 
