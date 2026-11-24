@@ -2,10 +2,11 @@
 id: a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off
 kind: issue
 title: A pen-drawn and a cornered rectangle certifying over a boxed width run out of memory with the switch's box arm off (killed at 245 s; 0.18 s with the switch on)
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: M
+branch: boxfinish/probe-switch-off
 ---
 
 

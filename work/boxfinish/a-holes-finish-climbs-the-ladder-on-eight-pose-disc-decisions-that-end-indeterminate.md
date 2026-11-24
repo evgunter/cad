@@ -2,10 +2,11 @@
 id: a-holes-finish-climbs-the-ladder-on-eight-pose-disc-decisions-that-end-indeterminate
 kind: issue
 title: A hole's finish over a box climbs the symbolic ladder on eight curve_face_pose_disc decisions that each end indeterminate: a second of every hole finish, and most of the tour's leaf time with the switch off
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: M
+branch: boxfinish/probe-switch-off
 ---
 
 
