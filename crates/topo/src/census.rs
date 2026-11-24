@@ -23332,13 +23332,13 @@ mod corner_cause_rows {
     #[test]
     fn each_corner_cause_is_named_apart() {
         let face = FaceKey::default();
-        let apex = VertexFace::Apex(ConeApex {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: geom_core::UnitVec3::exact_z(),
-            half_angle: 0.5_f64,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        });
+        let apex = VertexFace::Apex(ConeApex::stated(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::UnitVec3::exact_z(),
+            0.5_f64,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        ));
         assert!(
             matches!(
                 vertex_normal(apex),

@@ -5383,6 +5383,17 @@ impl<T: Real> Real for Sym<T> {
         }
     }
 
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::harmonic_belly`]): the same real, read to its digits.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            node: plain.node,
+        }
+    }
+
     fn abs(self) -> Self {
         self.unary(self.value.abs(), SymOp::Abs, 0)
     }

@@ -49,7 +49,7 @@
 #    `profile`'s refusals hold four positions as `Point2<T>`, told
 #    through `Told` when rendered and read as numbers by the viewer and
 #    the Python door
-#    (`work/scalar/a-refusals-corner-point-is-read-as-a-number-by-the-viewer-and-python.md`).
+#    (`work/told/a-refusals-corner-point-is-read-as-a-number-by-the-viewer-and-python.md`).
 #  - A scalar under a name this file does not list: a type alias of
 #    `f64`, a second type parameter, a foreign struct that holds one.
 #    The match is on the scalar names above.
