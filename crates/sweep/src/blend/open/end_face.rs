@@ -48,7 +48,7 @@ use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use crate::blend::arms::perp_unit;
+use crate::blend::arms::frame_along;
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
@@ -57,7 +57,9 @@ use crate::blend::surgery::{
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
     split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
 };
-use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
+use crate::blend::{
+    BlendDecision, BlendError, BlendSite, UnbuiltEnd, carrier_frame_refused, classify,
+};
 
 /// The band's section by the end face, between the two feet.
 #[derive(Clone)]
@@ -129,7 +131,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         section: EndSection<T>,
-        band: &Surface<T>,
+        (band, tolerance): (&Surface<T>, Band),
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
@@ -196,13 +198,14 @@ impl<T: Decide + Bounds> EndCut<T> {
                 // The band's own seam reference points at `face_a`'s
                 // trimline (`arms`), so laid into the cap it points at
                 // `foot_a`.
-                let n = n.normalize();
-                let u_ref = perp_unit(u_ref, n);
+                let frame = frame_along(center, n, u_ref, tolerance).map_err(
+                    carrier_frame_refused(BlendSite::Joint { vertex }, EntityId::Vertex(vertex)),
+                )?;
                 debug_assert!(
-                    (foot_a - center).dot(u_ref).lo() > 0.0,
+                    (foot_a - center).dot(frame.u_ref()).lo() > 0.0,
                     "the band's seam reference points at face_a's foot"
                 );
-                let circle = Curve3::circle(center, n, radius, u_ref);
+                let circle = Curve3::Circle(geom::Circle::new(frame, radius));
                 round(Some(circle), center)?
             }
             (EndSection::Ellipse(ellipse), Some((spine, ..))) => {
@@ -370,20 +373,37 @@ struct SliverBoundary<T: Real> {
     rims: [(Curve3<T>, (T, T)); 2],
 }
 
-/// A round section in the end plane, as the ellipse `shape` centred at
+/// A round section in the end plane, as the conic `shape` centred at
 /// the origin and seamed along its larger semi-axis: `p − center` is
 /// inside it when its unit coordinates ([`geom::Conic::unit_in_plane`])
 /// lie inside the unit circle. `1/minor` bounds the scaling's stretch
 /// ([`Self::depth`], [`Self::outside`]).
 #[derive(Clone, Copy)]
 struct SectionFrame<T: Real> {
-    shape: geom::Ellipse<T>,
+    shape: SectionShape<T>,
+}
+
+/// The end curve's carrier moved to the origin, major semi-axis first:
+/// a circle as it is, an ellipse quarter-turned where its seam is the
+/// minor axis ([`geom::Ellipse::quarter_turned_where`]).
+#[derive(Clone, Copy)]
+enum SectionShape<T: Real> {
+    Circle(geom::Circle<T>),
+    Ellipse(geom::Ellipse<T>),
 }
 
 impl<T: Bounds> SectionFrame<T> {
+    /// The section's conic.
+    fn conic(&self) -> &dyn geom::Conic<T> {
+        match &self.shape {
+            SectionShape::Circle(c) => c,
+            SectionShape::Ellipse(e) => e,
+        }
+    }
+
     /// The section's smaller semi-axis.
     fn minor(self) -> T {
-        geom::Conic::speed_lo(&self.shape)
+        self.conic().speed_lo()
     }
 
     /// `d` in the section's unit coordinates.
@@ -392,7 +412,7 @@ impl<T: Bounds> SectionFrame<T> {
         reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
     )]
     fn unit(self, d: Vec3<T>) -> (T, T) {
-        geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
+        self.conic().unit_in_plane(Point3::origin() + d)
     }
 
     /// The section's scaled radius at `d`: below one inside it.
@@ -882,22 +902,27 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
-                // The frame with the major semi-axis first
-                // (`Curve3::major_frame`).
-                let (center, axis, major, minor, u) = match *arc {
-                    Curve3::Circle(circle) => {
-                        let (center, axis, u_ref) =
-                            (circle.frame().origin(), circle.axis(), circle.u_ref());
-                        let radius = circle.radius();
-                        (center, axis, radius, radius, u_ref)
-                    }
-                    ref ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
-                        let carrier_frame = the_ellipse.frame();
-                        let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                        let Some(f) = ellipse.major_frame() else {
+                // The carrier moved to the origin, its major semi-axis
+                // first (as `Curve3::major_frame` reads it).
+                let origin = Point3::origin();
+                let (center, axis, shape) = match *arc {
+                    Curve3::Circle(circle) => (
+                        circle.frame().origin(),
+                        circle.axis(),
+                        SectionShape::Circle(circle.centred_at(origin)),
+                    ),
+                    Curve3::Ellipse(the_ellipse) => {
+                        // Turned where the major semi-axis is the second,
+                        // its phase a quarter turn on (`MajorFrame::phase`).
+                        let Some(major) = arc.major_frame() else {
                             unreachable!("an Ellipse carrier has a major frame")
                         };
-                        (center, axis, f.major, f.minor, f.major_dir)
+                        let major_first = the_ellipse.quarter_turned_where(major.phase);
+                        (
+                            the_ellipse.frame().origin(),
+                            the_ellipse.axis(),
+                            SectionShape::Ellipse(major_first.centred_at(origin)),
+                        )
                     }
                     Curve3::Line(_)
                     | Curve3::Spiric { .. }
@@ -920,20 +945,14 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 if (tb - ta).lo() <= 0.0 {
                     return Err(backward());
                 }
-                let frame = SectionFrame {
-                    shape: geom::Ellipse::new(
-                        geom::Frame::new(Point3::origin(), axis, u),
-                        major,
-                        minor,
-                    ),
-                };
+                let frame = SectionFrame { shape };
                 (center, Some((frame, axis)))
             }
         };
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.u_ref(), frame.shape.v_ref());
+            let (u, w) = (frame.conic().u_ref(), frame.conic().v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
@@ -1362,7 +1381,7 @@ mod tests {
                 rims: [EdgeKey::default(); 2],
                 center: Point3::new(f(0.0), f(0.0), f(0.0)),
                 inside: self.section.map(|(a, major, minor)| SectionFrame {
-                    shape: geom::Ellipse::new(
+                    shape: super::SectionShape::Ellipse(geom::Ellipse::new(
                         geom::Frame::new(
                             Point3::new(f(0.0), f(0.0), f(0.0)),
                             Vec3::new(f(0.0), f(0.0), f(1.0)),
@@ -1370,7 +1389,7 @@ mod tests {
                         ),
                         f(major),
                         f(minor),
-                    ),
+                    )),
                 }),
                 reach: f(self.reach),
                 floors: self
@@ -1738,11 +1757,11 @@ mod tests {
             rims: [EdgeKey::default(); 2],
             center: p(0.0, 0.0),
             inside: Some(SectionFrame {
-                shape: geom::Ellipse::new(
+                shape: super::SectionShape::Ellipse(geom::Ellipse::new(
                     geom::Frame::new(p(0.0, 0.0), Vec3::unit_z(), v(1.0, 0.0)),
                     1.0,
                     1.0,
-                ),
+                )),
             }),
             reach: 2f64.sqrt(),
             floors: Vec::new(),

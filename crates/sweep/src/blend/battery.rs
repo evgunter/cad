@@ -42,7 +42,9 @@ use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
 use geom_brep::SurfaceSide;
 use geom_core::UnitVec3;
-use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, Lever, Margin, MarginDiag, OrthonormalizeError, Point3, Real, Sign, Vec3,
+};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
@@ -60,7 +62,8 @@ use super::surgery::{
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, KnifeRefusal, OddEdge,
-    UnbuiltEnd, UnsettledWedge, classify, classify_positive, classify_reported,
+    UnbuiltEnd, UnsettledWedge, carrier_frame_refused, classify, classify_positive,
+    classify_reported,
 };
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -906,7 +909,7 @@ struct BallRoom(());
 impl BallRoom {
     /// [`plane_sphere_blend`], on a ball decided to exist.
     #[allow(clippy::too_many_arguments)]
-    fn plane_sphere<T: Real>(
+    fn plane_sphere<T: Decide>(
         self,
         origin: Point3<T>,
         n: Vec3<T>,
@@ -914,9 +917,9 @@ impl BallRoom {
         sphere_c: Point3<T>,
         sphere_r: T,
         radius: T,
-        sphere_convex: bool,
-        convexity: Convexity,
-    ) -> EdgeBlend<T> {
+        (sphere_convex, convexity): (bool, Convexity),
+        band: Band,
+    ) -> Result<EdgeBlend<T>, OrthonormalizeError> {
         plane_sphere_blend(
             origin,
             n,
@@ -926,6 +929,7 @@ impl BallRoom {
             radius,
             sphere_convex,
             convexity,
+            band,
         )
     }
 
@@ -941,14 +945,15 @@ impl BallRoom {
     }
 
     /// [`Ruling::blend`], on a ball decided to exist.
-    fn ruling<T: Real>(
+    fn ruling<T: Decide>(
         self,
         sheet: &Ruling<T>,
         traces: (SupportTrace<T>, SupportTrace<T>),
         radius: T,
         branch: Branch<T>,
-    ) -> EdgeBlend<T> {
-        sheet.blend(traces.0, traces.1, radius, branch)
+        band: Band,
+    ) -> Result<EdgeBlend<T>, OrthonormalizeError> {
+        sheet.blend(traces.0, traces.1, radius, branch, band)
     }
 }
 
@@ -1378,10 +1383,11 @@ fn classify_arm<T: Decide + Bounds>(
         // whichever support is the plane.
         let plane = if sa.kind() == Plane { faces.0 } else { faces.1 };
         let room = |trim: T, rim: T| face_clearance_margin(plane, trim, rim, false, band);
+        let framed = carrier_frame_refused(BlendSite::Link { edge }, EntityId::Edge(edge));
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
-                chamfer_strip(p, UnitVec3::squared(tau), n_a, n_b, radius),
+                chamfer_strip(p, UnitVec3::squared(tau), n_a, n_b, radius, band).map_err(framed)?,
                 None,
             )),
             // A circle where a cylinder meets a plane: the frustum, once
@@ -1397,6 +1403,7 @@ fn classify_arm<T: Decide + Bounds>(
                 convexity,
                 (coaxial, room),
                 unsupported,
+                (edge, band),
             ),
             _ => Err(unsupported()),
         };
@@ -1419,10 +1426,12 @@ fn classify_arm<T: Decide + Bounds>(
         let room = plane_sphere_room(origin, n, center, r, radius, sense, convexity);
         room_at(edge, &branch, Some(room), radius, band)
     };
+    let framed = carrier_frame_refused(BlendSite::Link { edge }, EntityId::Edge(edge));
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
-            plane_plane_blend(p, UnitVec3::squared(tau), n_a, n_b, radius, convexity),
+            plane_plane_blend(p, UnitVec3::squared(tau), n_a, n_b, radius, convexity, band)
+                .map_err(framed)?,
             None,
         )),
         (
@@ -1447,9 +1456,10 @@ fn classify_arm<T: Decide + Bounds>(
                     center,
                     *r,
                     radius,
-                    senses.1,
-                    convexity,
-                ),
+                    (senses.1, convexity),
+                    band,
+                )
+                .map_err(framed)?,
                 None,
             ))
         }
@@ -1466,16 +1476,18 @@ fn classify_arm<T: Decide + Bounds>(
             let center = sphere_frame.origin();
             let origin = plane_frame.origin();
             let room = ball_room(origin, n_b, center, *r, senses.0)?;
-            let mut b = room.plane_sphere(
-                origin,
-                n_b,
-                plane_u(sb),
-                center,
-                *r,
-                radius,
-                senses.0,
-                convexity,
-            );
+            let mut b = room
+                .plane_sphere(
+                    origin,
+                    n_b,
+                    plane_u(sb),
+                    center,
+                    *r,
+                    radius,
+                    (senses.0, convexity),
+                    band,
+                )
+                .map_err(framed)?;
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b, None))
         }
@@ -1508,7 +1520,7 @@ fn classify_arm<T: Decide + Bounds>(
     clippy::disallowed_methods,
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
 )]
-fn frustum_arm<T: Real>(
+fn frustum_arm<T: Decide>(
     (sa, sb): (&Surface<T>, &Surface<T>),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
     senses: (bool, bool),
@@ -1523,11 +1535,11 @@ fn frustum_arm<T: Real>(
         impl FnOnce(T, T) -> Result<(), BlendError>,
     ),
     unsupported: impl Fn() -> BlendError,
+    (edge, band): (EdgeKey, Band),
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
-    let sheet = Meridian {
-        axis: circle.frame().axis_line(),
-        rim: p,
-    };
+    let sheet = Meridian::new(circle.frame().axis_line(), p, band).map_err(
+        carrier_frame_refused(BlendSite::Link { edge }, EntityId::Edge(edge)),
+    )?;
     let (Some((_, da)), Some((_, db))) = (
         sheet.trace(sa, ball_side(convexity, senses.0)),
         sheet.trace(sb, ball_side(convexity, senses.1)),
@@ -1543,7 +1555,7 @@ fn frustum_arm<T: Real>(
         foot_b
     };
     room(
-        (foot - sheet.axis.origin).dot(sheet.radial()),
+        (foot - sheet.axis().origin).dot(sheet.radial()),
         circle.radius(),
     )?;
     Ok((
@@ -1652,6 +1664,7 @@ fn curved_arm<T: Decide + Bounds>(
     // (two planes) has no room, and says so there.
     let room = |ta, tb| room_at(edge, &branch, offset_room(p, ta, tb, radius), radius, band);
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
+    let framed = carrier_frame_refused(BlendSite::Link { edge }, EntityId::Edge(edge));
     match *carrier {
         Curve3::Circle(the_circle @ geom::Circle { .. }) => {
             let frame = the_circle.frame();
@@ -1659,10 +1672,7 @@ fn curved_arm<T: Decide + Bounds>(
             if arm.is_none() && matches!(branch, Branch::Rim) {
                 return Err(unsupported(ARM_ROSTER));
             }
-            let sheet = Meridian {
-                axis: frame.axis_line(),
-                rim: p,
-            };
+            let sheet = Meridian::new(frame.axis_line(), p, band).map_err(framed)?;
             let (Some((ta, da)), Some((tb, db))) = (
                 sheet.trace(sa, ball_side(convexity, senses.0)),
                 sheet.trace(sb, ball_side(convexity, senses.1)),
@@ -1681,7 +1691,7 @@ fn curved_arm<T: Decide + Bounds>(
                 return Err(unsupported(ARM_ROSTER));
             }
             let sheet = Ruling {
-                tau: UnitVec3::squared(dir.get()),
+                tau: dir,
                 rim: p,
                 lever: extent.length(),
             };
@@ -1695,7 +1705,10 @@ fn curved_arm<T: Decide + Bounds>(
             let axis = (topo::Relation::CoRuled, margin);
             let room = room(ta, tb)?;
             let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
-            Ok((arm, room.ruling(&sheet, (ta, tb), radius, branch), axis))
+            let blend = room
+                .ruling(&sheet, (ta, tb), radius, branch, band)
+                .map_err(framed)?;
+            Ok((arm, blend, axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),
     }
@@ -4067,10 +4080,12 @@ mod coaxial_spine_rows {
                     panic!("the base rim is a circle");
                 };
                 let p = carrier.eval(geom::mid_param(t0, t1));
-                let sheet = Meridian {
-                    axis: rim.frame().axis_line(),
-                    rim: p,
-                };
+                let sheet = Meridian::new(
+                    rim.frame().axis_line(),
+                    p,
+                    geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+                )
+                .expect("the sheet's frame mints");
                 let radial = sheet.radial();
                 let side = |f: FaceKey| {
                     let sense = body.get_face(f).unwrap().sense;
@@ -4082,7 +4097,7 @@ mod coaxial_spine_rows {
                 };
                 let (ta, tb) = (side(link.face_a), side(link.face_b));
                 let ball = sheet_center(p, sheet.sheet_normal(), ta, tb, r, Branch::Rim);
-                let s = (ball - sheet.axis.origin).dot(radial);
+                let s = (ball - sheet.axis().origin).dot(radial);
                 assert!(
                     s < 0.0,
                     "r = {r}: the premise, a centre past the axis (s = {s})"

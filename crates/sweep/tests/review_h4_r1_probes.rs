@@ -193,7 +193,18 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
         (false, Convexity::Concave),
     ] {
         let convex = blend_sense(convexity);
-        let blend = plane_sphere_blend(origin, n, u, sphere_c, big_r, r, sphere_convex, convexity);
+        let blend = plane_sphere_blend(
+            origin,
+            n,
+            u,
+            sphere_c,
+            big_r,
+            r,
+            sphere_convex,
+            convexity,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the torus's frame mints");
         let Surface::Torus {
             frame: carrier_frame,
             major_radius,

@@ -35,7 +35,6 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, validate_geometric};
 
-use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
 use crate::band_mixed_corner::{
     Scalar, boreless, chamfer_flush, edge, every_edge, fillet_flush, flush_at, inset, inset_at,
     l_corner, l_prism, realized_at, seams, tol, volume,
@@ -265,18 +264,6 @@ fn the_short_and_close_witnesses_build<T: Scalar + topo::CertifiedPolicy>() {
     let (body, edges) = inset_boss::<T>(0.25);
     for verb in VERBS {
         let what = "an inset boss 0.25 tall";
-        // The inset fillet's sections escalate their shared row's touch
-        // at the tightest Interval row, as every mixed rim's does
-        // (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`),
-        // past the reach.
-        if tightest_interval::<T>() && matches!(verb, Verb::Fillet) {
-            let got = verb.run(&body, &edges, S);
-            let e = got
-                .err()
-                .unwrap_or_else(|| panic!("{what}: escalates at Interval at 1e-12"));
-            assert_touch_escalation(what, &e);
-            continue;
-        }
         let truth = -verb.flush(S, (0.25, 1.0, 1.0));
         builds(&body, &edges, (verb, S), (truth, 1), what);
     }
@@ -556,25 +543,16 @@ fn a_feature_in_what_the_patch_leaves_as_it_was_refuses_as_a_bound() {
 
 /// **The inset witness's fillet at every ε row**, fast enough for the
 /// per-PR gate: the boss `0.25` tall fillets at `Interval` to tier 3
-/// (its closed form is the slow rows'), but at the tightest row, where its sections escalate their
-/// shared row's touch (the `_at_interval` witness row's branch).
+/// at every row, the tightest included (its closed form is the slow
+/// rows').
 #[test]
 fn the_inset_witness_fillets_or_escalates_at_every_eps_row() {
     let (body, edges) = inset_boss::<Interval>(0.25);
     let what = "an inset boss 0.25 tall filleted at Interval";
-    if tightest_interval::<Interval>() {
-        let e = Verb::Fillet
-            .run(&body, &edges, S)
-            .err()
-            .unwrap_or_else(|| panic!("{what}: escalates at 1e-12"));
-        assert_touch_escalation(what, &e);
-    } else {
-        let out = Verb::Fillet
-            .run(&body, &edges, S)
-            .unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
-        validate_geometric(&out.body, tol())
-            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-    }
+    let out = Verb::Fillet
+        .run(&body, &edges, S)
+        .unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
 }
 
 /// **At plan angles of 60° and 120°** a box void below the corner,

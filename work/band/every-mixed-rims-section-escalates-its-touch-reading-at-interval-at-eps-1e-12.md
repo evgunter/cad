@@ -31,3 +31,14 @@ Pinned both ways by `crates/sweep/tests/band_closed_mixed_chain_shapes.rs::tight
 **Re-pinned as 7131's cost (GREEN U13, 2026-11-23, PR 7558).** Ev ruled on PR 7505 that PR 7131's frame cost stands. The six rows' 1e-12 pin now states that cost: `assert_touch_escalation` reads the 11 rims `UNADMITTED_AT_THE_FRAME_COST` names (`band_closed_mixed_chain_shapes.rs`) as `assert_shared_row_unadmitted`, and every other rim as this row's `shared_row_touch` escalation. The rectangles at 7° and 90° still reach the touch. Mutant F1X turns the pin red. This row's status is unchanged.
 
 **After ONEHOME's check-1 change (GREEN U13, 2026-11-23, PR 7558).** Re-measured on main after PRs 7323/7349 (probe run 45254555300). Seven of the 11 rims PR 7558 first listed (the barrel, the triangle, the rectangle at 45°, both L-plates, the S-run and the two arcs) no longer refuse ahead of the touch. They reach this row's own `shared_row_touch` escalation again, at hi 2.9e-11 to 4.9e-11 (1.7e-11 to 3.2e-11 under mutant F1X, so the frame cost still widens them, but does not change where they stop). `UNADMITTED_AT_THE_FRAME_COST` now names the four that still refuse unadmitted: the pentagon, the hexagon, the rectangle at 30° and the slot at 30°. F1X turns those into the touch too.
+
+- 2026-11-23 — **Two witnesses build at ε 1e-12 since `onehome/mints-sweep`**
+  (PR 7625, which mints the blend's band and patch frames through decided
+  doors, keeping a stored axis bit for bit where `Frame::new` re-squared
+  it): `band_mixed_corner_reach`'s inset boss 0.25 tall (both its
+  fillet rows) and `band_closed_mixed_chain_shapes`' slot at 30°
+  chamfered. Both rows now hold them to tier 3 at every ε. And the four
+  rims PR 7558 pinned as `UNADMITTED_AT_THE_FRAME_COST` (the pentagon,
+  the hexagon, the rectangle and the slot at 30°, filleted) now admit
+  their sections and escalate `shared_row_touch` with every other rim,
+  as that pin's F1X mutant predicted; the list is gone.

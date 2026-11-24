@@ -198,16 +198,37 @@ fn corner(distinct: bool, n: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     [p, along(n[1], 0.7), along(n[2], -1.3)]
 }
 
-fn ball<T: Real>(verts: [[f64; 3]; 3], n: [[f64; 3]; 3], r: f64) -> Point3<T> {
+/// The ball's centre, or `None` where its chart refuses, which it does
+/// only where the corner's independence (`fillet3_corner_independence`,
+/// the door's own gate) refuses too: the chart's pole is levered as that
+/// margin is.
+fn ball<T: geom_core::Decide>(verts: [[f64; 3]; 3], n: [[f64; 3]; 3], r: f64) -> Option<Point3<T>> {
     let p = |v: [f64; 3]| Point3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
     let v = |v: [f64; 3]| Vec3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
-    corner_ball(
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the band");
+    let normals = [v(n[0]), v(n[1]), v(n[2])];
+    match corner_ball(
         [p(verts[0]), p(verts[1]), p(verts[2])],
-        [v(n[0]), v(n[1]), v(n[2])],
+        normals,
         T::from_f64(r),
         Convexity::Convex,
-    )
-    .center
+        band,
+    ) {
+        Ok(ball) => Some(ball.center),
+        Err(e) => {
+            assert!(
+                sweep::blend::battery::corner_independence(
+                    topo::VertexKey::default(),
+                    normals,
+                    T::from_f64(r),
+                    band,
+                )
+                .is_err(),
+                "the chart refuses ({e:?}) where the corner's independence passes"
+            );
+            None
+        }
+    }
 }
 
 /// `(s, distinct, the three plane points, the three normals)`.
@@ -232,7 +253,10 @@ fn corner_ball_far_from_the_origin_sits_on_its_planes() {
     let r = 0.25;
     let mut worst = 0.0_f64;
     for (s, distinct, verts, n) in corners() {
-        let c = ball::<f64>(verts, n, r);
+        let Some(c) = ball::<f64>(verts, n, r) else {
+            eprintln!("s {s:e}: the corner is not independent at this band");
+            continue;
+        };
         let det = Vec3::new(n[0][0], n[0][1], n[0][2])
             .dot(Vec3::new(n[1][0], n[1][1], n[1][2]).cross(Vec3::new(n[2][0], n[2][1], n[2][2])));
         let scale = 613.7_f64.hypot(580.3).hypot(541.9) + r / det.abs();
@@ -259,8 +283,11 @@ fn corner_ball_far_from_the_origin_enclosure_is_narrow() {
     let r = 0.25;
     let mut worst = 0.0_f64;
     for (s, distinct, verts, n) in corners() {
-        let c = ball::<Interval>(verts, n, r);
-        let point = ball::<f64>(verts, n, r);
+        let (Some(c), Some(point)) = (ball::<Interval>(verts, n, r), ball::<f64>(verts, n, r))
+        else {
+            eprintln!("s {s:e}: the corner is not independent at this band");
+            continue;
+        };
         let det = Vec3::new(n[0][0], n[0][1], n[0][2])
             .dot(Vec3::new(n[1][0], n[1][1], n[1][2]).cross(Vec3::new(n[2][0], n[2][1], n[2][2])));
         let scale = 613.7_f64.hypot(580.3).hypot(541.9) + r / det.powi(2);

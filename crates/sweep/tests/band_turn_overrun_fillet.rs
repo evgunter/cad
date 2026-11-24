@@ -680,15 +680,9 @@ type IntervalCase = (String, Body<f64>, Body<Interval>, [EdgeKey; 2]);
 /// **At the certified scalar**: the leaning prism at `±0.5` and `±1`
 /// (the bracket's corners) and the skewed box at `Interval` build,
 /// tier-3 valid and naming total, the volume enclosure bracketing the
-/// oracle.
-///
-/// At ε 1e-12 the skewed box does not: its pcurve re-mint after surgery
-/// escalates `pcurve_envelope`, margin in `(1.15e-12, 1.3e-12]`
-/// (measured 1.234e-12). Cause: a frame built at Interval from bracket
-/// inputs, a rigid-motion claim (fork 274): the fillet's frames are
-/// squared over the bracketed corner, where main stored them raw. Mutant
-/// F1X (that squaring stores the stated vectors raw) builds it and turns
-/// this pin red; mutant A does not. It builds at ε 1e-9 and 1e-6.
+/// oracle, at every ε row: the fillet's frames are minted keeping the
+/// edge's decided direction, so nothing is squared over the bracketed
+/// corner.
 #[test]
 fn the_overrun_carves_at_the_certified_scalar() {
     use crate::common::interval::iv;
@@ -720,29 +714,6 @@ fn the_overrun_carves_at_the_certified_scalar() {
         let want = taken_on(&halves_of(&body), &body, &fedges, D);
         let ibody = sweep::test_support::finished("operand", ibody, tol());
         let out = fillet_edges(&ibody, &iedges, iv(D), tol());
-        if what == "skewed box" && crate::common::frame_cost::at_the_least_band() {
-            // A frame built at Interval from bracket inputs, a
-            // rigid-motion claim (fork 274).
-            let pinned = matches!(
-                &out,
-                Err(e) if matches!(
-                    &e.error,
-                    sweep::blend::BlendError::PcurveMint { source }
-                        if crate::common::frame_cost::pcurve_escalates(
-                            source,
-                            "pcurve_envelope",
-                            (1.15e-12, 1.3e-12),
-                        )
-                )
-            );
-            assert!(
-                pinned,
-                "{what}: pinned to escalate pcurve_envelope in (1.15e-12, 1.3e-12] at the \
-                 pcurve re-mint, at ε 1e-12: {:?}",
-                out.as_ref().map(|_| ()).map_err(|e| &e.error)
-            );
-            continue;
-        }
         let out = out.unwrap_or_else(|e| panic!("{what}: builds at Interval, got {:?}", e.error));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);

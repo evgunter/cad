@@ -96,7 +96,7 @@ use std::collections::{BTreeMap, VecDeque};
 use geom::cover::{BoxAxes, Cover};
 use geom::{Curve3, Frame, Surface};
 use geom_core::k_stats::TestSite;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, RigidMotion, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
@@ -104,9 +104,10 @@ use super::battery::{
     Chain, Convexity, Link, MixedVertex, Turn, TurnRunOut, carrier_of, classified,
     face_clearance_margin, outward, same_supports,
 };
+use super::build::corner_frame_refused;
 use super::open::planar::{MixedGeometry, MixedLink, mixed_corner_geometry};
 use super::surgery::{disagrees, loop_walk, unresolved, unwalked};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, carrier_frame_refused, classify};
 
 /// How many cells one face may be cut into against one reach before it
 /// is refused uncertified: the meter's cost ceiling per pair, which
@@ -1470,19 +1471,18 @@ fn circular_reach<T: Decide + Bounds>(
         dir: axis,
     });
     // A band of revolution about its own axis lies within `reach` of the
-    // circle through its spine point: that tube's cover.
-    let (lo, hi) = Cover::torus(
-        &Frame::new(center, a.get(), (circle - center).normalize()),
-        big,
-        reach,
-    )
-    .map(|c| c.box_in(&BoxAxes::World))
-    .ok_or_else(|| {
-        disagrees(
-            EntityId::Edge(link.edge),
-            "a circular link's band is no finite tube about its axis",
-        )
-    })?;
+    // circle through its spine point: that tube's cover, which reads the
+    // axis line alone, so any frame aimed along it places it.
+    let (lo, hi) = RigidMotion::aimed(center, a)
+        .ok()
+        .and_then(|aimed| Cover::torus(&Frame::of_motion(&aimed), big, reach))
+        .map(|c| c.box_in(&BoxAxes::World))
+        .ok_or_else(|| {
+            disagrees(
+                EntityId::Edge(link.edge),
+                "a circular link's band is no finite tube about its axis",
+            )
+        })?;
     let sheet = |x: Point3<T>| sheet_of(meridian, x);
     let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet {
         axis: meridian,
@@ -1738,8 +1738,8 @@ fn corner_reach<T: Decide + Bounds>(
     v: VertexKey,
     here: &[(usize, &Link<T>)],
     mixed: &[MixedVertex],
-    size: T,
-    kind: BlendKind,
+    (size, kind): (T, BlendKind),
+    band: Band,
 ) -> Result<Option<CornerReach<T>>, BlendError> {
     let links: Vec<&Link<T>> = here.iter().map(|(_, l)| *l).collect();
     let mut chains: Vec<usize> = here.iter().map(|(ci, _)| *ci).collect();
@@ -1771,14 +1771,22 @@ fn corner_reach<T: Decide + Bounds>(
                 "a corner whose convexity mixes is not a mixed corner the battery admitted",
             )
         })?;
-        return mixed_corner_reach(body, *m, here, (&faces, pv, normals), (size, kind), chains)
-            .map(Some);
+        return mixed_corner_reach(
+            body,
+            *m,
+            here,
+            (&faces, pv, normals),
+            (size, kind, band),
+            chains,
+        )
+        .map(Some);
     }
     let mut bounds = Vec::new();
     let mut confine = None;
     let (q, anchors, surface) = match kind {
         BlendKind::Fillet => {
-            let ball = corner_ball([pv; 3], normals, size, links[0].convexity);
+            let ball = corner_ball([pv; 3], normals, size, links[0].convexity, band)
+                .map_err(corner_frame_refused(v))?;
             let c = ball.center;
             bounds.push((Role::Band, Bound::OutsideBall { o: c, r: size }));
             // Every extreme point of the corner's material — the vertex,
@@ -1824,7 +1832,10 @@ fn corner_reach<T: Decide + Bounds>(
                 feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
-            let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
+            let patch =
+                chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2], band).map_err(
+                    carrier_frame_refused(BlendSite::Joint { vertex: v }, EntityId::Vertex(v)),
+                )?;
             let Surface::Plane {
                 frame: carrier_frame,
                 ..
@@ -1938,7 +1949,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
     m: MixedVertex,
     here: &[(usize, &Link<T>)],
     (faces, pv, normals): (&[FaceKey], Point3<T>, [Vec3<T>; 3]),
-    (size, kind): (T, BlendKind),
+    (size, kind, band): (T, BlendKind, Band),
     chains: Vec<usize>,
 ) -> Result<CornerReach<T>, BlendError> {
     let v = m.vertex;
@@ -1949,7 +1960,7 @@ fn mixed_corner_reach<T: Decide + Bounds>(
         host_normal: n_e,
         pair,
         ..
-    } = mixed_corner_geometry((v, m), &links, faces, (pv, normals), size, kind)?;
+    } = mixed_corner_geometry((v, m), &links, faces, (pv, normals), (size, kind), band)?;
     // The patch is the pair's link, and does to the material what the
     // pair's bands do: the reach is named by a pair band's chain.
     let chain = here
@@ -2018,7 +2029,12 @@ fn mixed_corner_reach<T: Decide + Bounds>(
             // The region lies in the torus's convex hull, `ρ ≤ R + r`
             // about its axis and within `r` of its centre along it: its
             // box is that of the torus's cover.
-            let frame = Frame::new(q, axis.get(), (rests[0].1 - q).normalize());
+            let frame = surface.frame().ok_or_else(|| {
+                disagrees(
+                    EntityId::Vertex(v),
+                    "a mixed corner's fillet patch is not a torus",
+                )
+            })?;
             let (lo, hi) = Cover::torus(&frame, major, radius)
                 .map(|c| c.box_in(&BoxAxes::World))
                 .ok_or_else(|| {
@@ -2977,7 +2993,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         if !fan.iter().all(|e| requested.binary_search(e).is_ok()) {
             continue;
         }
-        if let Some((r, ends)) = corner_reach(body, v, &at(v), mixed, size, kind)? {
+        if let Some((r, ends)) = corner_reach(body, v, &at(v), mixed, (size, kind), band)? {
             reaches.push(r);
             corners.push((v, ends));
         }

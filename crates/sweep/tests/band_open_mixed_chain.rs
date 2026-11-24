@@ -362,8 +362,10 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// smooth seam), one band face per link (`links`), a strip over each
 /// line and a frustum over each arc, one section per junction
 /// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
-/// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
-/// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
+/// the certified enclosure. At `Interval` at ε = 1e-12 a refusal is the
+/// one [`assert_chamfer_unbuilt_at_the_tightest`] pins; a chain whose
+/// sections admit there (the slot at 30°, since its bands' frames are
+/// minted decided) is held to the same checks as at every other row.
 pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
@@ -373,13 +375,7 @@ pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::Certified
     dv: f64,
 ) -> Option<sweep::blend::Blended<T>> {
     let out = match chamfer_edges(&at_rest(body, tol()), edges, s, tol()) {
-        Ok(out) => {
-            assert!(
-                !tightest_interval::<T>(),
-                "{what}: built where its section's row does not admit"
-            );
-            out
-        }
+        Ok(out) => out,
         Err(e) if tightest_interval::<T>() => {
             assert_chamfer_unbuilt_at_the_tightest(what, &e.error);
             return None;

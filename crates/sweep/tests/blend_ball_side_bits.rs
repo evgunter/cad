@@ -50,13 +50,15 @@ fn assert_bits(actual: f64, expected: f64, what: &str) {
 /// line × line, line × circle and circle × circle.
 #[test]
 fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
-    let m = Meridian {
-        axis: geom::Line {
+    let m = Meridian::new(
+        geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: geom_core::UnitVec3::exact_z(),
         },
-        rim: Point3::new(2.0, 0.0, 1.0),
-    };
+        Point3::new(2.0, 0.0, 1.0),
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sheet's frame mints");
     let plane = Surface::Plane {
         frame: geom::Frame::admitted(
             Point3::new(0.0, 0.0, 1.0),
@@ -351,7 +353,15 @@ fn the_ruled_arm_answers_each_ball_side_pair_as_pinned() {
         };
         let (ta, _) = r.trace(a, side_a).expect("a ruled support traces");
         let (tb, _) = r.trace(b, side_b).expect("a ruled support traces");
-        let blend = r.blend(ta, tb, RADIUS, Branch::Rim);
+        let blend = r
+            .blend(
+                ta,
+                tb,
+                RADIUS,
+                Branch::Rim,
+                geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+            )
+            .expect("the cylinder's frame mints");
         let Surface::Cylinder {
             frame: carrier_frame,
             ..
@@ -390,7 +400,16 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
     let p = Point3::new(1.3, 0.7, 1.0);
     let tau = Vec3::new(1.0, 0.0, 0.0);
     for (convexity, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
-        let blend = plane_plane_blend(p, geom::stated_direction(tau), n, up, 0.1, convexity);
+        let blend = plane_plane_blend(
+            p,
+            geom::stated_direction(tau),
+            n,
+            up,
+            0.1,
+            convexity,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the cylinder's frame mints");
         let Surface::Cylinder {
             frame: carrier_frame,
             ..
@@ -417,7 +436,9 @@ fn the_plane_plane_bands_u_ref_is_its_first_supports_foot_direction() {
             ivv(up),
             iv(0.1),
             convexity,
-        );
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the cylinder's frame mints");
         let Surface::Cylinder { frame, .. } = blend.surface else {
             panic!("{convexity}: the plane–plane arm mints a cylinder at Interval");
         };

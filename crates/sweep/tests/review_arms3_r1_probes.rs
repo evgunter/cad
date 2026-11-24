@@ -340,13 +340,15 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 #[test]
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
-    let sheet = Meridian {
-        axis: geom::Line {
+    let sheet = Meridian::new(
+        geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: geom_core::UnitVec3::exact_y(),
         },
-        rim: Point3::new(0.8, 0.0, 0.0),
-    };
+        Point3::new(0.8, 0.0, 0.0),
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sheet's frame mints");
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: 1.0,
@@ -355,7 +357,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     // r = 0.4: offsets 0.6 exactly reach the far centre — the crossing
     // is the axis point midway.
     let at_tangency = sheet_center(
-        sheet.rim,
+        sheet.rim(),
         sheet.sheet_normal(),
         trace(-0.6, Inner),
         trace(0.6, Inner),
@@ -372,7 +374,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     );
     // r = 0.45: no crossing exists; the form must say NaN.
     let past = sheet_center(
-        sheet.rim,
+        sheet.rim(),
         sheet.sheet_normal(),
         trace(-0.6, Inner),
         trace(0.6, Inner),
@@ -387,7 +389,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     // 0.875 / 1.025 are internally tangent (difference = the centre
     // distance 0.15) — again the crossing degenerates onto the axis.
     let internal = sheet_center(
-        sheet.rim,
+        sheet.rim(),
         sheet.sheet_normal(),
         SupportTrace::Round {
             center: Point3::new(0.0, 0.0, 0.0),

@@ -63,7 +63,9 @@ fn the_concave_arm_rests_the_ball_in_the_void_at_depth_r() {
         normals,
         r,
         Convexity::Concave,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     assert!(
         (ball.center - Point3::new(r, r, r)).norm() < 1e-15,
         "the concave rest is at (r, r, r), got {:?}",
@@ -95,7 +97,14 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
         Vec3::new(0.6, 0.0, 0.8),
     ];
     let verts = [Point3::new(0.0, 0.0, 0.0); 3];
-    let concave = corner_ball(verts, normals, r, Convexity::Concave);
+    let concave = corner_ball(
+        verts,
+        normals,
+        r,
+        Convexity::Concave,
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     for (i, n) in normals.iter().enumerate() {
         let depth = (concave.center - verts[i]).dot(*n);
         assert!(
@@ -104,7 +113,14 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
         );
     }
     assert!((concave.independence - 0.8).abs() < 1e-15);
-    let convex = corner_ball(verts, normals, r, Convexity::Convex);
+    let convex = corner_ball(
+        verts,
+        normals,
+        r,
+        Convexity::Convex,
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     assert!(
         (convex.independence - concave.independence).abs() < 1e-15,
         "independence is side-blind"
@@ -134,7 +150,9 @@ fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
         normals,
         r,
         Convexity::Concave,
-    );
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     for n in normals {
         let convex_formula = ball.center + n * r;
         let off = (convex_formula - Point3::new(0.0, 0.0, 0.0)).dot(n);
@@ -167,7 +185,14 @@ fn the_stored_chart_equator_runs_through_each_sides_own_feet() {
         Vec3::new(0.0, 0.0, 1.0),
     ];
     for (convex, sign) in [(Convexity::Convex, 1.0), (Convexity::Concave, -1.0)] {
-        let ball = corner_ball([Point3::new(0.0, 0.0, 0.0); 3], normals, r, convex);
+        let ball = corner_ball(
+            [Point3::new(0.0, 0.0, 0.0); 3],
+            normals,
+            r,
+            convex,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the sphere's frame mints");
         let Surface::Sphere { frame, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
         };

@@ -625,20 +625,6 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit2<T: Real>(Vec2<T>);
 
-impl<T: Real> Unit2<T> {
-    /// The right normal `(d.y, −d.x)`: a quarter turn of a unit
-    /// direction, unit with it. For a material-left loop it points out
-    /// of the region.
-    pub(crate) fn right(self) -> Self {
-        Self(Vec2::new(self.0.y, T::zero() - self.0.x))
-    }
-
-    /// The opposite direction.
-    pub(crate) fn reversed(self) -> Self {
-        Self(-self.0)
-    }
-}
-
 /// **A unit world direction the sweep holds by construction**: a
 /// [`Unit2`] or a station axis carried by a rigid frame
 /// ([`Placing::direction`], or an axis of [`Placing::frame`]), a
@@ -680,18 +666,13 @@ impl<T: Real> Unit3<T> {
     pub(crate) fn reversed(self) -> Self {
         Self(-self.0)
     }
-
-    /// `self × other`, normalized: the vector arm's wall normal.
-    pub(crate) fn cross_normalized(self, other: Self) -> Self {
-        Self::normalized(self.get().cross(other.get()))
-    }
 }
 
 /// **The sketch vector a placed copy of the segment is turned onto**, in
 /// swept order: a line's chord `b − a`, an arc's start radial `a −
 /// centre`, for a frame turned onto that direction
 /// ([`Placing::frame_toward`]), which normalizes it. Its right normal
-/// `(y, 0 − x)` is spelled as [`Unit2::right`] spells it, so a frame
+/// `(y, 0 − x)` is spelled once, by [`sketch_right_vector`], so a frame
 /// turned onto it holds that normal placed bit for bit
 /// ([`sketch_right_vector`]). Every placed copy is the station's frame
 /// turning it, so no door divides a difference of placed points by its
@@ -713,7 +694,7 @@ pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
 }
 
 /// The right normal of [`sketch_vector`], `(y, 0 − x)`: normalized, it is
-/// [`Unit2::right`] of the normalized sketch vector, component for
+/// the right normal of the normalized sketch vector, component for
 /// component (negation and division commute exactly, and `0 − x` over
 /// `n` is `0 − x/n`, signed zeros included).
 pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {

@@ -65,7 +65,7 @@
 //! the boolean's ground and not this walk's.
 
 use geom::Surface;
-use geom_core::{Bounds, Decide, Real, Tol};
+use geom_core::{Band, Bounds, Decide, Real, Tol};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, VertexKey};
@@ -111,6 +111,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         link: AdmittedOpen<'a, T>,
         opens: &[AdmittedOpen<'_, T>],
         end_faces: &[(VertexKey, EndSection<T>)],
+        band: Band,
     ) -> Result<Self, BlendError> {
         let l = link.link();
         let edge = l.edge;
@@ -187,7 +188,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
                 (q_a, q_b),
                 tau,
                 section.clone(),
-                &l.blend.surface,
+                (&l.blend.surface, band),
             )?);
         }
         let Ok(ends) = <[EndCut<T>; 2]>::try_from(ends) else {

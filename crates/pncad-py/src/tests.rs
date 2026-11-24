@@ -3210,6 +3210,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::TurnOverrunChord,
         BlendDecision::TurnFeet,
         BlendDecision::MitreSection,
+        BlendDecision::CarrierFrame,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {

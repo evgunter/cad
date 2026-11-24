@@ -66,8 +66,8 @@
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Bounds, Decide, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey};
+use geom_core::{Band, Bounds, Decide, Point3, Vec3};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::arms::corner_chart;
@@ -313,7 +313,8 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
 /// ORDER-FREE, and finds the admitting edge whenever one exists. On a
 /// genuinely oblique trihedron no link admits, and the octant is a
 /// spherical triangle with two meridian sides whichever link wins.
-/// Returns `(u_ref, axis)`.
+/// Returns the sphere's frame at `center`, each candidate minted
+/// ([`corner_chart`]) before it is scored.
 ///
 /// **The chart follows the corner's convexity**: a convex octant's
 /// feet lie along `+n_i` from the centre, a concave one's along `−n_i`,
@@ -339,13 +340,15 @@ pub(super) fn face_cycle_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> Opti
 /// [`BlendError::BodyNotIntact`] when `faces` and `links` are not the
 /// same corner's, or when a link's supports are not two of this
 /// corner's three; [`BlendError::UnsupportedGeometry`] when a support
-/// of this corner is not a plane.
+/// of this corner is not a plane; [`corner_frame_refused`]'s where a
+/// candidate's frame does not mint.
 pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
     convexity: super::battery::Convexity,
-) -> Result<(Vec3<T>, Vec3<T>), BlendError> {
+    (center, radius, band): (Point3<T>, T, Band),
+) -> Result<geom::Frame<T>, BlendError> {
     // The two tokens describe ONE corner. This is the total check:
     // the ends of a single edge share both of its supports and differ
     // only in the third, so a face-membership test alone cannot tell
@@ -362,7 +365,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     // along it, scored by how nearly the third support's normal is
     // parallel to its axis. The score is side-blind (`|n_c × axis|`
     // is even in `axis`), so the pick and the fold commute.
-    let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
+    let candidate = |l: &Link<T>| -> Result<(f64, geom::Frame<T>), BlendError> {
         // Before a normal is read: this link's two supports are two of
         // THIS corner's three. Necessary, not sufficient — the vertex
         // check above is what identifies the corner.
@@ -387,8 +390,9 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // also swaps the first two to keep its handedness.
         let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
         let (first, second) = if convex { (n_a, n_b) } else { (n_b, n_a) };
-        let (u_ref, axis) = corner_chart([foot(first), foot(second), foot(n_c)]);
-        Ok((score, u_ref, axis))
+        let frame = corner_chart(center, [foot(first), foot(second), foot(n_c)], radius, band)
+            .map_err(corner_frame_refused(links.vertex()))?;
+        Ok((score, frame))
     };
     let mut best = candidate(links.first().link())?;
     for l in links.rest() {
@@ -397,8 +401,28 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
             best = next;
         }
     }
-    let (_, u_ref, axis) = best;
-    Ok((u_ref, axis))
+    Ok(best.1)
+}
+
+/// **A corner chart's refusal at `vertex`**: its frame is minted over
+/// the three feet, which are dependent exactly where the support
+/// normals are, so it is [`super::BlendDecision::CornerIndependence`]'s
+/// refusal — in band its escalation, definite the dependent-normals end.
+pub(super) fn corner_frame_refused(
+    vertex: VertexKey,
+) -> impl Fn(geom_core::OrthonormalizeError) -> BlendError {
+    move |e| match e.error {
+        geom_core::UnitVec3Error::Escalated(source) => BlendError::Escalated {
+            site: super::BlendSite::Joint { vertex },
+            decision: super::BlendDecision::CornerIndependence,
+            source,
+        },
+        geom_core::UnitVec3Error::Degenerate
+        | geom_core::UnitVec3Error::NonFiniteLength
+        | geom_core::UnitVec3Error::UnderflowedLength => {
+            BlendError::UnbuiltEnd(super::UnbuiltEnd::DependentNormals { vertex })
+        }
+    }
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded
@@ -552,8 +576,13 @@ mod tests {
         // The corner's OWN faces still chart, so the refusals below are
         // about the pairing and not about the corner.
         let mine = CornerFaces::admit(body, vertex).expect("a cube corner is trivalent");
+        let at = (
+            geom_core::Point3::origin(),
+            0.1,
+            geom_core::Band::linear(Tol::witness()).expect("the band"),
+        );
         assert!(
-            super::octant_chart(body, &mine, &corner, convexity).is_ok(),
+            super::octant_chart(body, &mine, &corner, convexity, at).is_ok(),
             "a corner charted against its own three supports must still yield"
         );
 
@@ -568,7 +597,7 @@ mod tests {
             .expect("a cube has a corner sharing neither of a given edge's supports");
         assert!(
             matches!(
-                super::octant_chart(body, &elsewhere, &corner, convexity),
+                super::octant_chart(body, &elsewhere, &corner, convexity, at),
                 Err(BlendError::BodyNotIntact { .. })
             ),
             "a chart derived from a link whose supports are not the corner's own must \
@@ -594,7 +623,7 @@ mod tests {
         );
         assert!(
             matches!(
-                super::octant_chart(body, &adjacent, &corner, convexity),
+                super::octant_chart(body, &adjacent, &corner, convexity, at),
                 Err(BlendError::BodyNotIntact { .. })
             ),
             "a chart offered the face orbit of the edge's OTHER end must refuse: both \

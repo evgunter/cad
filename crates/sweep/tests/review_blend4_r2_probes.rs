@@ -479,7 +479,14 @@ fn r2_the_concave_feet_land_on_their_walls_at_an_oblique_trihedron() {
         Point3::new(-0.3, 0.0, 0.75),
         Point3::new(0.0, 1.5, 0.0),
     ];
-    let ball = corner_ball(verts, normals, r, Convexity::Concave);
+    let ball = corner_ball(
+        verts,
+        normals,
+        r,
+        Convexity::Concave,
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+    )
+    .expect("the sphere's frame mints");
     for (i, n) in normals.iter().enumerate() {
         let rest = (ball.center - verts[i]).dot(*n);
         assert!(

@@ -2,10 +2,14 @@
 id: blend-arms-perp-unit-is-an-undecided-gram-schmidt
 kind: issue
 title: blend arms' perp_unit is a hand Gram-Schmidt on an undecided normalize
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
+closed: 2026-11-23
+pr: 7625
+branch: onehome/mints-sweep
+parent: carrier-frames-the-production-mints
 ---
 
 
@@ -38,3 +42,18 @@ cap lays the band cylinder's `u_ref` into the cap plane with it. There
 the residual is about 1 (the cap's normal is the band's axis, decided
 `Zero` apart by the battery's `EndSection::Circle`), so it is not the
 short-residual case this row is about, but the row's fix reaches it.
+
+## Moved to ONEHOME and closed (2026-11-23)
+
+Claimed by `carrier-frames-the-production-mints` (branch
+`onehome/mints-sweep`, group G1). Every chart seam this row named is now
+minted by a decided door, under `fillet3_carrier_frame`
+(`blend::arms::frame_about`, `frame_along`): the plane–sphere torus,
+the corner chart (`corner_chart` returns the minted frame, so
+`octant_chart` does too), the chamfer's corner patch, the meridian
+sheet (`Meridian::new` holds one decided frame and every arm reads it),
+and `open::end_face`'s perpendicular cap circle. A residual in band
+escalates; a definite zero is the surgery's own invariant. `perp_unit`
+survives only as a point's azimuth about a held axis
+(`chamfer_setback_point`, `frustum_rim_side`), which no chart takes as
+its seam.

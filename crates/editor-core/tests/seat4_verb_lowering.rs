@@ -192,7 +192,7 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("die_fillet", 0x81ac_5f87_2e20_3541_u64),
-        ("die_chamfer", 0x70db_9e0e_6992_0941),
+        ("die_chamfer", 0xa935_9b2a_2e99_72c9),
     ] {
         let doc = corpus::documents()
             .into_iter()

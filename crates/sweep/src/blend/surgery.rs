@@ -226,7 +226,7 @@ use topo::{
 };
 
 use super::admit::{AdmittedOpen, CornerLinks, OpenBand, RequestedBoundary, StationKind};
-use super::arms::{BallSection, BlendArm};
+use super::arms::{BallSection, BlendArm, frame_about};
 use super::battery::{
     BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, blend_sense, face_clearance_margin,
     same_supports,
@@ -243,7 +243,10 @@ use super::open::planar::{
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::reach::{RingOn, TakenRing, Unclear, sure};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, Breach, UnbuiltEnd, classify};
+use super::{
+    BlendDecision, BlendError, BlendKind, BlendSite, Breach, UnbuiltEnd, carrier_frame_refused,
+    classify,
+};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -611,8 +614,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         junctions.push(junction_plan(source, junction, &planar)?);
     }
     let mut mixed: Vec<MixedLinkPlan<T>> = Vec::new();
-    for band in planar_bands.iter().filter(|b| !b.junctions().is_empty()) {
-        mixed.extend(mixed_link_plans(source, band, &junctions)?);
+    for open in planar_bands.iter().filter(|b| !b.junctions().is_empty()) {
+        mixed.extend(mixed_link_plans(source, open, &junctions, band)?);
     }
     let is_junction = |v: VertexKey| junctions.iter().any(|j| j.junction.vertex() == v);
 
@@ -631,7 +634,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 continue;
             }
             if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
-                cut_offs.push(cut_off_plan(source, *o, v, section.clone())?);
+                cut_offs.push(cut_off_plan(source, *o, v, section.clone(), band)?);
                 continue;
             }
             if let Some(turn) = verdict.turns.iter().find(|t| t.vertex == v) {
@@ -700,7 +703,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             ));
         }
         let mixed = verdict.mixed.iter().find(|m| m.vertex == v).copied();
-        corners.push(corner_plan(source, links, mixed, radius, kind)?);
+        corners.push(corner_plan(source, links, mixed, radius, kind, band)?);
     }
 
     // ---- The support faces, admitted before anything is carved: each
@@ -734,7 +737,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // the supports, and the feet the trimlines put on them. ----
     let mut ruled_plans: Vec<RuledPlan<'_, T>> = Vec::with_capacity(ruled.len());
     for o in &ruled {
-        ruled_plans.push(RuledPlan::plan(source, *o, &opens, &verdict.end_faces)?);
+        ruled_plans.push(RuledPlan::plan(
+            source,
+            *o,
+            &opens,
+            &verdict.end_faces,
+            band,
+        )?);
     }
 
     // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
@@ -890,7 +899,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         let link = rim.chain.first();
         if let RimShape::Mixed(mixed) = &rim.shape {
             let (faces, mut arcs) =
-                rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
+                rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, (tol, band))?;
             for (face, surface, edge) in faces {
                 let l =
                     rim.chain.links().find(|l| l.edge == edge).ok_or_else(|| {
@@ -903,7 +912,9 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             continue;
         }
         let (band_face, band_surface, mut arcs) = match &rim.shape {
-            RimShape::Ladder { ring } => rim_phase(&mut body, rim, *ring, &sources, &mut rec, tol)?,
+            RimShape::Ladder { ring } => {
+                rim_phase(&mut body, rim, *ring, &sources, &mut rec, (tol, band))?
+            }
             RimShape::Annulus(ann) => {
                 // The #935 refresh: an earlier band's carve on a shared
                 // wall split this rim's seam meridians, so their LIVE
@@ -921,7 +932,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                         })
                         .collect()
                 };
-                rim_phase_annulus(&mut body, rim, ann, &live, &sources, &mut rec, tol)?
+                rim_phase_annulus(&mut body, rim, ann, &live, &sources, &mut rec, (tol, band))?
             }
             RimShape::Mixed(_) => unreachable!("a mixed rim is carved above"),
         };
@@ -4471,12 +4482,19 @@ pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: Edg
 /// demands a seam lie in its surface's own `u_ref` half-plane, and the
 /// reference is conventional data (D2), so it is fixed here, where the
 /// closure is reached.
-fn seamed_band<T: Real>(
+fn seamed_band<T: Decide>(
     link: &Link<T>,
     (centre, radius): (Point3<T>, T),
     foot: Point3<T>,
+    band: Band,
 ) -> Result<(Surface<T>, ContactCarrier<T>), BlendError> {
     let radial = (foot - centre) / radius;
+    let seamed = |origin: Point3<T>, axis| {
+        frame_about(origin, axis, radial, band).map_err(carrier_frame_refused(
+            BlendSite::Link { edge: link.edge },
+            EntityId::Edge(link.edge),
+        ))
+    };
     match link.blend.surface {
         Surface::Torus {
             frame: carrier_frame,
@@ -4484,10 +4502,10 @@ fn seamed_band<T: Real>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+            let center = carrier_frame.origin();
             Ok((
                 Surface::Torus {
-                    frame: geom::Frame::new(center, axis, radial),
+                    frame: seamed(center, carrier_frame.axis_unit())?,
                     major_radius,
                     minor_radius,
                 },
@@ -4501,16 +4519,13 @@ fn seamed_band<T: Real>(
             frame: carrier_frame,
             half_angle,
             ..
-        } => {
-            let (apex, axis) = (carrier_frame.origin(), carrier_frame.axis());
-            Ok((
-                Surface::Cone {
-                    frame: geom::Frame::new(apex, axis, radial),
-                    half_angle,
-                },
-                ContactCarrier::SeamLine,
-            ))
-        }
+        } => Ok((
+            Surface::Cone {
+                frame: seamed(carrier_frame.origin(), carrier_frame.axis_unit())?,
+                half_angle,
+            },
+            ContactCarrier::SeamLine,
+        )),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(link.edge),
             "a closed rim's band is neither a torus nor a cone",
@@ -4536,7 +4551,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     ring: LoopKey,
     sources: &SourceFaces,
     rec: &mut BlendNaming,
-    tol: Tol,
+    (tol, band): (Tol, Band),
 ) -> Result<(FaceKey, Surface<T>, Described<T>), BlendError> {
     let mut described: Described<T> = Vec::new();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links().find(|l| l.edge == e) };
@@ -4782,7 +4797,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             // The slit's true carrier: the band's meridian at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
-            let (seamed, slit) = seamed_band(rim.chain.first(), (ca, sa), strut_hes[idx].1)?;
+            let (seamed, slit) = seamed_band(rim.chain.first(), (ca, sa), strut_hes[idx].1, band)?;
             junction::retire(body, *sp, *v, mr, "rim closure kev", tol)?;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
@@ -5243,7 +5258,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     live: &[LiveSeams],
     sources: &SourceFaces,
     rec: &mut BlendNaming,
-    tol: Tol,
+    (tol, band): (Tol, Band),
 ) -> Result<(FaceKey, Surface<T>, Described<T>), BlendError> {
     // `live` pairs with `ann.crossings` BY INDEX. Both producers mint
     // exactly one entry per crossing (the identity map and the
@@ -5639,6 +5654,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         l0,
         arcs[closure_arc].host_circle,
         feet_targets[ann.closure].host,
+        band,
     )?;
     let Some(first_mate) = mate_trims.first() else {
         unreachable!(
@@ -5774,7 +5790,7 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
     mixed: &MixedRim,
     sources: &SourceFaces,
     rec: &mut BlendNaming,
-    tol: Tol,
+    (tol, band): (Tol, Band),
 ) -> Result<(BandFaces<T>, Described<T>), BlendError> {
     let links: Vec<&Link<T>> = rim.chain.links().collect();
     let n = links.len();
@@ -5813,7 +5829,7 @@ fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut surfaces = Vec::with_capacity(n);
     for (i, l) in links.iter().enumerate() {
         let at = starters.iter().position(|&s| s == i).map(|k| &readings[k]);
-        surfaces.push(junction::band_chart(body, l, at)?);
+        surfaces.push(junction::band_chart(body, l, at, band)?);
     }
 
     // ---- (1) The mate splits, on the live edge off the rim. ----
@@ -6768,7 +6784,9 @@ mod tests {
             0.02,
             false,
             Convexity::Convex,
-        );
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the band"),
+        )
+        .expect("the torus's frame mints");
         let mut swapped = blend.clone();
         core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);
         // The edge only names the site of a refusal; this pin takes
