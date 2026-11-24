@@ -14,7 +14,8 @@
 //! alone (`names/README.md`, "A conventional vertex"), so the union
 //! publishes its table.
 //!
-//! Past the union, each edit meets a fillet's own door, not a naming
+//! The cube less the union builds and names too, and both mesh closed.
+//! Past them, each edit meets a fillet's own door, not a naming
 //! one: a pip moved to 0.58 cuts its rim circle and its neighbour's
 //! into arcs, so the pip-rim fillet's selection, recorded on the
 //! nominal die, names a whole rim no longer there (N5, `Vanished`,
@@ -139,6 +140,7 @@ fn each_pip_moved_into_its_neighbour_builds_its_union_and_meets_a_fillets_door()
              {apart:?} off: {v} against {}",
             closed_form(apart)
         );
+        die_meshes(spoken, &doc, &ev, union);
         let failed: Vec<_> = ev
             .order
             .iter()
@@ -161,4 +163,42 @@ fn each_pip_moved_into_its_neighbour_builds_its_union_and_meets_a_fillets_door()
         };
         assert!(said.starts_with(door), "{spoken} = {to}: {said}");
     }
+}
+
+/// **The die's bodies under its fillets build and mesh** closed and
+/// manifold: the pips' union, each moved ball holding the circle it
+/// meets its neighbour in as a ring, and the cube less it.
+fn die_meshes(
+    spoken: &str,
+    doc: &editor_core::ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    union: editor_core::RecipeNodeId,
+) {
+    let meshes = |what: &str, id: editor_core::RecipeNodeId| {
+        let body = body_of(ev, id);
+        let m = mesh::tessellate(&body, 1e-3, Tol::witness())
+            .unwrap_or_else(|e| panic!("{spoken}: {what} meshes: {e:?}"));
+        assert_eq!(
+            mesh::validate::check_mesh(&m),
+            Ok(()),
+            "{spoken}: {what} meshes closed and manifold"
+        );
+    };
+    meshes("the pips' union", union);
+    let die = doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| match doc.node(id) {
+            Some(Node::Subtract { tool, .. }) => tool
+                .reads()
+                .any(|t| doc.operation_of(t.read) == Some(union)),
+            _ => false,
+        })
+        .expect("the die cuts its cube by the union");
+    assert!(
+        matches!(ev.nodes.get(&die), Some(NodeResult::Ok(_))),
+        "{spoken}: the cube less the union builds and names"
+    );
+    meshes("the cube less the union", die);
 }

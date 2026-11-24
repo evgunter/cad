@@ -19,7 +19,7 @@ The ring door's analytic reader (`crates/topo/src/pcurves_rings.rs`, `Outer::sid
 - a `Fitted` or `General` image's box is its whole control net's;
 - a `Spiric` image's box is its whole period's in `f`.
 
-So a point inside such a box is never cleared. The reading spends `PIECE_VISITS` (16384 decides) and answers `Near`, and the door answers `RingPlacementError::Undecided`. The answer is typed, but no measured case produces it: the 24 measured outer loops (`crates/mesh/tests/lift_probes.rs`) are all `Harmonic`, whose boxes tighten.
+So a point inside such a box is never cleared. The reading spends `PIECE_VISITS` (16384 decides) and answers `Near`, and the door answers `RingPlacementError::Undecided`. The answer is typed. The 24 outer loops `crates/mesh/tests/lift_probes.rs` measures are all `Harmonic`, whose boxes tighten, but measured cases now produce it: the poses below, and the sphere rings a closed cut-in leaves (2026-11-24, ORBIT).
 
 ## What a tightening box takes
 
@@ -72,5 +72,14 @@ poses, the mesher then answers this row's `Undecided { cause: None }`:
   With the two loops' roles swapped, they answer `NoShift`, so the
   roles are right.
 
+- **`snowman`**: `a_cut_ends_at_the_nearest_of_several_boundary_hits`
+  (the slab toward latitude −60°) and
+  `a_slab_cutting_a_cap_off_a_pole_strut_carve_builds` (the slab toward
+  `(0.866, 0.1, −0.5)`), under both unions and the carve less the slab
+  (`assert_ring_unread`). Both meshed before the closing.
+
 Each body is tier-3 valid, maximal, and at its closed-form volume. The
-pins are `Want::RingUnread` in that file.
+pins are `Want::RingUnread` in `spheres_crossing_off_every_edge` and
+`assert_ring_unread` in `snowman`. The tour's die with two pips dragged
+together does not reach it: its kernel body meshes in all eight edits
+(`the_tours_die_with_two_pips_run_together_refuses_at_the_circles_vertex`).
