@@ -131,7 +131,7 @@ fn p<T: Real>(x: f64, y: f64) -> Point2<T> {
 
 /// The unit square, with corner `(1, 1)` at `(1, h)` and the edge
 /// leaving it bulged by `bulge` (zero: a line).
-fn quad<T: Real>(h: T, bulge: T) -> ProfileLoop<T> {
+fn quad<T: geom_core::Decide>(h: T, bulge: T) -> ProfileLoop<T> {
     let z = T::zero;
     bulge_loop(vec![
         (p(0.0, 0.0), z()),
@@ -204,7 +204,7 @@ fn a_slab_over_a_depth_box_stores_exact_caps_and_walls() {
 }
 
 /// A square of half-width `a` about the sketch origin.
-fn square<T: Real>(a: T) -> ProfileLoop<T> {
+fn square<T: geom_core::Decide>(a: T) -> ProfileLoop<T> {
     let z = T::zero;
     let m = T::zero() - a;
     bulge_loop(vec![
@@ -245,7 +245,7 @@ fn a_lofts_caps_over_a_section_box_are_its_end_frames() {
 }
 
 /// The rectangle `[1, 1 + a] × [0, 1]`.
-fn band<T: Real>(a: T) -> ProfileLoop<T> {
+fn band<T: geom_core::Decide>(a: T) -> ProfileLoop<T> {
     let z = T::zero;
     let far = T::one() + a;
     bulge_loop(vec![
@@ -510,7 +510,7 @@ fn an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direct
 }
 
 /// The rectangle `[0, w] × [0, 1]`.
-fn rect<T: Real>(w: T) -> ProfileLoop<T> {
+fn rect<T: geom_core::Decide>(w: T) -> ProfileLoop<T> {
     let z = T::zero;
     bulge_loop(vec![
         (p(0.0, 0.0), z()),
@@ -1105,4 +1105,308 @@ fn a_disc_on_a_turned_plane_refuses_at_check_3_over_the_box() {
             "at Sym<Interval> it refuses at check 3's end pin: {sym}"
         );
     });
+}
+
+/// How far one arc verb's slab gets over a box of `half` either way on
+/// the quantity that fixes its arc's radius: `"finished"`, or the stage
+/// that refused (`validation`, `door`, `finish`) and its refusal's text.
+/// A slab the door built is handed to `built` before it is finished.
+fn verb_slab_stage(verb: &str, c: f64, half: f64, built: impl FnOnce(&Extruded<S>)) -> String {
+    let q = boxed(0x9b0, c - half, c + half);
+    let lp = profile::test_support::arc_verb_loop::<S>(verb, q, tol());
+    let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+        Ok(profile) => profile,
+        Err(e) => return format!("validation: {e:?}"),
+    };
+    let side = ExtrudeSide::Along;
+    let depth = lit(1.0);
+    match extrude(&profile, Extrusion::Distance { depth, side }, tol()) {
+        Err(e) => format!("door: {e:?}"),
+        Ok(slab) => {
+            built(&slab);
+            match topo::take::<S>(&std::sync::Arc::new(slab.body), tol()) {
+                Err(e) => format!("finish: {e:?}"),
+                Ok(_) => "finished".to_owned(),
+            }
+        }
+    }
+}
+
+/// A box three orders past the band or wider: `1e-6`, and `1e3·ε` where
+/// that is wider.
+fn wide_box() -> f64 {
+    1e-6_f64.max(1e3 * tol().eps())
+}
+
+/// Each arc verb, what its slab does over a box validation decides
+/// ([`vertex_box`]) and what it does over a wide one ([`wide_box`]): a
+/// stage and a word its refusal carries.
+const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
+    ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
+    ("split circle", ["finished", ""], ["door", "MappedSource"]),
+    ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    (
+        "bulge cw",
+        ["door", "MappedSource"],
+        ["validation", "gate: ArcSpan"],
+    ),
+    ("via", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    ("via cw", ["finished", ""], ["validation", "gate: ArcSpan"]),
+    (
+        "tangent",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "tangent cw",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "onto",
+        ["finished", ""],
+        ["validation", "gate: SegmentDirection"],
+    ),
+    ("sweep", ["finished", ""], ["validation", "gate: LineSpan"]),
+    (
+        "sweep cw",
+        ["finished", ""],
+        ["validation", "gate: LineSpan"],
+    ),
+    (
+        "fillet",
+        ["validation", "gate: CanonicalOrderX"],
+        ["validation", "gate: LineSpan"],
+    ),
+];
+
+/// **Each arc verb's slab over a box on the quantity that fixes its
+/// arc's radius.** Over a box validation decides, the door builds the
+/// slab and its consumer finishes it: every cylinder wall's `u_ref` and
+/// every rim circle's is a unit through the tier (its squared length
+/// less one decides zero), and every member's `f64` build lies in the
+/// stored enclosures. Two fixtures stop short there: the clockwise
+/// bulge's mapped-source residual reads a hair over the band at the
+/// door, and the fillet's four-fold loop ties its canonical order over
+/// any box.
+///
+/// Over a wide box the circle alone passes the door, and its
+/// finish stops at the volume reading's rim premise
+/// (`work/boxfinish/the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel.md`).
+/// The split circle's door refuses its mapped-source residual (its
+/// recorded radials are rounded sines and cosines, a unit to rounding
+/// and not through the tier), and every verb drawn beside a line stops
+/// in validation's span readers
+/// (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`),
+/// the onto arc in its first leg's direction.
+///
+/// Red under the circle verb storing `radius.abs()`
+/// (`profile::path::circle_loop`): the circle's door refuses over the
+/// wide box, at its mapped-source residual. Red under the door's arc
+/// arm turned onto the start vertex's normalized offset in place of the
+/// recorded radial (`sweep::swept::sketch_direction`): both circles'
+/// doors refuse over the wide box at the carrier's start, and over the
+/// narrow one the clockwise via arc's door refuses. Red under
+/// `Arc2::register_radials` without its turned pair (the start radial
+/// turned by the sweep lands on the far vertex): the split circle's door
+/// refuses over the wide box at its far end.
+#[test]
+fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let unit = |what: &str, u: Vec3<S>| {
+        let miss = u.norm_squared() - lit(1.0);
+        assert_eq!(
+            miss.sign_within(band).map(|d| d.sign).ok(),
+            Some(geom_core::Sign::Zero),
+            "{what} is a unit through the tier"
+        );
+    };
+    let mut moved = Vec::new();
+    for ((verb, c, _), (name, narrow, wide)) in
+        profile::test_support::ARC_VERBS.into_iter().zip(VERB_SLABS)
+    {
+        assert_eq!(verb, name, "the two tables list the verbs in one order");
+        for (half, [stage, word]) in [(vertex_box(), narrow), (wide_box(), wide)] {
+            let mut got = String::new();
+            in_session(|| {
+                got = verb_slab_stage(verb, c, half, |slab| {
+                    if stage != "finished" {
+                        return;
+                    }
+                    let body: &Body<S> = &slab.body;
+                    let mut curved = 0;
+                    for wall in &slab.walls[0] {
+                        if let Surface::Cylinder { frame, .. } =
+                            body.face_surface(wall.face).expect("a live face")
+                        {
+                            unit(&format!("{verb} wall {:?} u_ref", wall.face), frame.u_ref());
+                            curved += 1;
+                        }
+                    }
+                    assert!(curved > 0, "{verb} sweeps a cylinder wall");
+                    let mut rims = 0;
+                    for (edge, _) in body.edges() {
+                        let circle = body
+                            .edge(edge)
+                            .and_then(topo::EdgeView::certified)
+                            .and_then(|c| c.carrier().as_circle());
+                        if let Some(circle) = circle {
+                            unit(
+                                &format!("{verb} rim {edge:?} u_ref"),
+                                circle.frame().u_ref(),
+                            );
+                            rims += 1;
+                        }
+                    }
+                    assert!(rims > 0, "{verb} has rim circles");
+                    let members = members(c - half, c + half).map(|q| {
+                        slab_of(profile::test_support::arc_verb_loop::<f64>(verb, q, tol()))
+                    });
+                    assert_holds_its_members(verb, slab, members, None);
+                });
+            });
+            let short: String = got.chars().take(200).collect();
+            println!("{verb} ±{half:e}: {short}");
+            if !(got.starts_with(stage) && got.contains(word)) {
+                moved.push(format!(
+                    "{verb} ±{half:e}: pinned {stage} {word:?}, got {short}"
+                ));
+            }
+        }
+    }
+    assert!(
+        moved.is_empty(),
+        "an arc verb's slab reaches a different stage over its box:\n{}",
+        moved.join("\n")
+    );
+}
+
+/// A unit slab of `lp` on the sketch plane `xy`.
+fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
+    slab(SketchPlane::xy(), lp, T::one())
+}
+
+/// **A table's written radial does not reach a wall's frame as written**
+/// (a fixture row: the table door, `RawLoop::new_directed`, is compiled
+/// for tests only, so no shipped build holds a written radial). A
+/// two-arc unit circle whose start radial is written too long by a part
+/// of ε: validation accepts it (`segment_direction` reads
+/// `‖c + r·d − p‖`, which bounds the stretch times the radius), and the
+/// extrude turns the wall's and the rims' frames onto it through
+/// `geom_core::RigidMotion::spun_onto`, which measures the frame it
+/// mints and squares one past its rounding. So the body builds, at a
+/// stretch of `0.1·ε` and of `0.4·ε` alike, and every `u_ref` it stores
+/// is a unit to rounding.
+///
+/// Red when a written stretch reaches a stored frame (a frame door that
+/// takes a direction for a unit without measuring it).
+#[test]
+fn a_tables_stretched_radial_is_squared_at_the_frame_door() {
+    let half = geom_core::Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: 1.0,
+        sweep: core::f64::consts::PI,
+    };
+    for part in [0.1, 0.4] {
+        let stretch = part * tol().eps();
+        let lp: ProfileLoop<f64> = RawLoop::new_directed([
+            (
+                Point2::new(1.0, 0.0),
+                profile::Segment::Arc(half),
+                Some(profile::SegmentDirections::Arc {
+                    start: Vec2::new(1.0 + stretch, 0.0),
+                    end: Vec2::new(-1.0, 0.0),
+                }),
+            ),
+            (Point2::new(-1.0, 0.0), profile::Segment::Arc(half), None),
+        ]);
+        let built = slab(SketchPlane::xy(), lp, 1.0);
+        let body: &Body<f64> = &built.body;
+        let mut longest = 0.0_f64;
+        for (face, _) in body.faces() {
+            if let Surface::Cylinder { frame, .. } = body.face_surface(face).expect("a live face") {
+                longest = longest.max((frame.u_ref().norm() - 1.0).abs());
+            }
+        }
+        for (edge, _) in body.edges() {
+            let circle = body
+                .edge(edge)
+                .and_then(topo::EdgeView::certified)
+                .and_then(|c| c.carrier().as_circle());
+            if let Some(circle) = circle {
+                longest = longest.max((circle.frame().u_ref().norm() - 1.0).abs());
+            }
+        }
+        println!("stretch {stretch:e}, longest u_ref defect {longest:e}");
+        assert!(
+            longest <= 4.0 * f64::EPSILON,
+            "a stretch of {stretch:e} is squared out of every frame: {longest:e}"
+        );
+    }
+}
+
+/// A three-arc circle of radius `r` about the origin, its first vertex
+/// a quarter of a radian round: radials that are rounded sines and
+/// cosines, a unit to rounding.
+fn split_circle<T: profile::ArcCarrierScalar>(r: f64) -> ProfileLoop<T> {
+    let l = T::from_f64;
+    profile::circle_split(Point2::new(l(0.0), l(0.0)), l(r), 3, l(0.25), tol())
+        .expect("the split circle draws")
+        .loop_
+        .into_loop()
+}
+
+/// **An `f64` loft of arc sections held at `Interval` turns its rims
+/// onto radials that enclose a unit.** Two three-arc circles lofted at
+/// `f64` and held at `Interval` as points
+/// (`sweep::test_support::f64_body_held_as_points_construction`, a test
+/// door, the one caller of `ValidatedProfile::lift_onto`): the caps'
+/// rims are built from the `f64` canonical form lifted onto the held
+/// placements. A lifted radial's two numbers are a unit to rounding, and
+/// an arc's rim frame is turned onto its radial with no normalization,
+/// so the lift normalizes them at `Interval`: every rim circle's `u_ref`
+/// has a width (it is an enclosure, not the `f64` point) and its length
+/// holds one.
+///
+/// Red under the lift carrying an arc's radials through `from_f64`
+/// alone (`ValidatedSegment::lift` without its `normalize`): each rim's
+/// `u_ref` is a point.
+#[test]
+fn a_loft_of_arc_sections_at_interval_turns_its_rims_onto_enclosed_units() {
+    let top = SketchPlane::<f64>::xy_at(Point3::new(0.0, 0.0, 1.5));
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<Interval>(
+        &[
+            vec![split_circle::<f64>(1.0)],
+            vec![split_circle::<f64>(0.6)],
+        ],
+        &[SketchPlane::xy(), top],
+        1,
+        tol(),
+    )
+    .expect("the f64 loft of arc sections is held at Interval");
+    let body: &Body<Interval> = &lofted.body;
+    let mut rims = 0;
+    for (edge, _) in body.edges() {
+        let circle = body
+            .edge(edge)
+            .and_then(topo::EdgeView::certified)
+            .and_then(|c| c.carrier().as_circle());
+        let Some(circle) = circle else {
+            continue;
+        };
+        rims += 1;
+        let u = circle.frame().u_ref();
+        let n = u.norm();
+        assert!(
+            n.lo() <= 1.0 && 1.0 <= n.hi(),
+            "rim {edge:?}: the u_ref's length holds one: [{}, {}]",
+            n.lo(),
+            n.hi()
+        );
+        assert!(
+            width(u.x) > 0.0 || width(u.y) > 0.0,
+            "rim {edge:?}: the u_ref is an enclosure, not the f64 radial's point: {u:?}"
+        );
+    }
+    assert!(rims > 0, "the loft's caps have circle rims");
 }

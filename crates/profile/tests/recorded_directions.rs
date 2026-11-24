@@ -16,6 +16,7 @@ use geom_core::sym::with_session_rules;
 use geom_core::{
     Arc2, Bounds, Decide, Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Tol, Vec2,
 };
+use profile::test_support::arc_verb_loop;
 use profile::{
     ArcSweep, ConstructedLoop, ConstructedProfile, Gate, Open, Profile, ProfileError, ProfileLoop,
     RawLoop, RecordedDirection, Segment, SegmentDirections, SketchPlane, Start, ValidatedProfile,
@@ -149,9 +150,9 @@ fn a_circles_radials_are_exactly_plus_and_minus_x_over_a_box() {
                 [(ex, ex), (ey, ey)],
                 "boxed segment {k}'s end radial"
             );
-            // Certified against the vertices by the registered radial
-            // facts: the centre plus the radius along each radial IS the
-            // vertex through the tier, though `|r| − r` is no polynomial.
+            // The centre plus the stored radius along each radial IS the
+            // vertex through the tier: the radius is stored as authored,
+            // so the difference is the zero polynomial.
             let profile::SegmentKind::Arc { arc, .. } = segs[k].kind else {
                 panic!("a circle's segments are arcs");
             };
@@ -911,7 +912,8 @@ fn each_verb_records_what_it_holds_on_the_loop() {
     // Bulge and via: the lowering's own radials at the literal sign.
     let (a, b) = (Point2::new(4.0, 0.0), Point2::new(4.0, 4.0));
     let lowered = |bulge: f64| {
-        let [s, e] = Arc2::from_chord_radials(a, b, bulge, bulge.signum()).1;
+        let [s, e] =
+            Arc2::from_chord_radials(a, b, bulge, geom_core::ArcSweep::of_constant(bulge)).1;
         arc_rec(s, e)
     };
     for bulge in [0.4, -0.3] {
@@ -1645,6 +1647,136 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
             false,
             &format!("arc about ({cx:?}, 0)"),
         );
+    }
+}
+
+/// **Each arc verb's stored arc is exact over a box on the quantity
+/// that fixes its radius.** For the circle, the split circle, a bulge
+/// leg of either sign, a via arc on either side of its chord, a tangent
+/// arc to either side, the onto arc, a swept-angle arc to either side
+/// and a line×line fillet, at
+/// `Sym<Interval>` over a box about a tenth of the quantity wide, with
+/// the registered-identity door shut (open for the fillet, whose own
+/// door reads the tangency it registers):
+///
+/// - the stored radius is positive over the whole box;
+/// - each vertex reads on its carrier ([`Arc2::off_carrier`] decides
+///   Zero), though the read's enclosure is far wider than the band;
+/// - where the verb records its radials, the centre plus the radius
+///   along each is its vertex, in both components;
+/// - the rim less the radius, `√(…) − radius`, does not decide: the
+///   reading this row's readers no longer take;
+/// - and each member of the box, built at `f64`, stores a centre, a
+///   radius, a sweep and radials inside the boxed build's enclosures.
+///
+/// Red on a verb that stores its radius as a magnitude: with
+/// `radius.abs()` in `circle_loop`, `rho.abs()` in `tangent_arc` or
+/// `.abs()` on `Arc2::from_chord_radials`' radius, that verb's
+/// along-the-radial readings come back undecided.
+#[test]
+fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
+    use geom_core::Sign;
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let inside = |x: f64, e: Lane| e.lo() <= x && x <= e.hi();
+    for (verb, c, h) in profile::test_support::ARC_VERBS {
+        // The fillet's own door reads its joints through the tangency it
+        // registers at its incoming foot, so it runs with the door open.
+        let rules = if verb == "fillet" {
+            SymRules::shipped()
+        } else {
+            SymRules::shipped_without_the_door()
+        };
+        with_session_rules(budget, rules, || {
+            let lp = arc_verb_loop::<Lane>(verb, param("q", c, h), tol());
+            let members: Vec<ProfileLoop<f64>> = [c - h, c, c + h]
+                .into_iter()
+                .map(|q| arc_verb_loop::<f64>(verb, q, tol()))
+                .collect();
+            let n = lp.vertices().len();
+            let zero = |m: Lane| m.sign_within(band).map(|d| d.sign).ok() == Some(Sign::Zero);
+            let mut arcs = 0;
+            for k in 0..n {
+                let Segment::Arc(arc) = lp.segments()[k] else {
+                    continue;
+                };
+                arcs += 1;
+                let ends = [lp.vertices()[k], lp.vertices()[(k + 1) % n]];
+                assert!(
+                    arc.radius.lo() > 0.0,
+                    "{verb} segment {k}: a positive radius"
+                );
+                for (v, end) in ends.into_iter().zip(["start", "end"]) {
+                    assert!(
+                        zero(arc.off_carrier(v)),
+                        "{verb} segment {k}: the {end} vertex on its carrier"
+                    );
+                }
+                let recorded = lp.directions()[k].map(radials);
+                if let Some((start, end)) = recorded {
+                    let mut widest = 0.0_f64;
+                    for (v, d, at) in [(ends[0], start, "start"), (ends[1], end, "end")] {
+                        let miss = arc.on_radial(d) - v;
+                        for (m, axis) in [(miss.x, "x"), (miss.y, "y")] {
+                            widest = widest.max(m.hi() - m.lo());
+                            assert!(
+                                zero(m),
+                                "{verb} segment {k}: the radius along the {at} radial is \
+                                 its vertex, {axis}"
+                            );
+                        }
+                    }
+                    if verb != "onto" || k == 1 {
+                        assert!(
+                            widest > 1e3 * band.escalate(),
+                            "{verb} segment {k}: no enclosure decided it ({widest:e})"
+                        );
+                        assert!(
+                            !zero(arc.rim(ends[0]) - arc.radius),
+                            "{verb} segment {k}: the rim less the radius does not decide"
+                        );
+                    }
+                } else {
+                    assert!(
+                        matches!(verb, "fillet" | "sweep" | "sweep cw"),
+                        "{verb} segment {k} records its radials"
+                    );
+                }
+                for (q, member) in members.iter().enumerate() {
+                    let Segment::Arc(m) = member.segments()[k] else {
+                        panic!("{verb} member {q} segment {k} is an arc");
+                    };
+                    let mut pairs = vec![
+                        (m.centre.x, arc.centre.x, "centre.x"),
+                        (m.centre.y, arc.centre.y, "centre.y"),
+                        (m.radius, arc.radius, "radius"),
+                        (m.sweep, arc.sweep, "sweep"),
+                    ];
+                    if let (Some((s, e)), Some((bs, be))) =
+                        (member.directions()[k].map(radials), recorded)
+                    {
+                        pairs.extend([
+                            (s.x, bs.x, "start radial x"),
+                            (s.y, bs.y, "start radial y"),
+                            (e.x, be.x, "end radial x"),
+                            (e.y, be.y, "end radial y"),
+                        ]);
+                    }
+                    for (x, e, what) in pairs {
+                        assert!(
+                            inside(x, e),
+                            "{verb} member {q} segment {k} {what}: {x:e} outside [{:e}, {:e}]",
+                            e.lo(),
+                            e.hi()
+                        );
+                    }
+                }
+            }
+            assert!(arcs > 0, "{verb} stores an arc");
+        });
     }
 }
 

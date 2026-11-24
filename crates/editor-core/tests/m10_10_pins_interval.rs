@@ -171,11 +171,12 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// theorems outright (rule D with A/B per node, no value read, no axiom), and so
 /// are `carrier_matches_mapped_source` at every sample (rule D meets
 /// the two spellings) and `pcurve_map_residual` at every sample (rule
-/// D's A1 folds take the chart's phase — `atan2(0, r²/sqrt(r²))` is the
+/// D's A1 folds take the chart's phase — `atan2(0, r/r)` is the
 /// zero form; `cos π` on the negative frame is `−1`). What is left of
-/// each after the trig is the rim identity `‖q − c‖ = r`, and the
-/// circles store their authored radius as `|r|`, so the rim at a
-/// vertex folds onto it with no registration. `symbolic` does not fall
+/// each after the trig is a vertex's gap from its rim, and the circles
+/// store their radius as authored with each vertex `centre +
+/// radius·radial`, so the gap's numerator is the zero polynomial with
+/// no registration. `symbolic` does not fall
 /// anywhere: the plain form is asked first, so the algebra can only
 /// add.
 ///
@@ -238,7 +239,10 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     };
     // The split with the algebra off.
     assert_eq!(row(&off, "carrier_matches_mapped_source"), [196, 56]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [288, 72]);
+    // Sixteen of the cylinder's are theorems of the plain form: a vertex
+    // is its centre plus the stored radius along its radial, so its gap
+    // from the wall has the zero polynomial for a numerator.
+    assert_eq!(pair(&off, "carrier_on_surface"), [304, 56]);
     assert_eq!(pair(&off, "witness_on_surface"), [32, 8]);
     assert_eq!(row(&off, "pcurve_map_residual"), [0, 36]);
     // The algebra on.
@@ -246,7 +250,7 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
         row(&on, "carrier_matches_mapped_source"),
         [252, 0],
         "rule D meets the pushforward and the carrier at every sample, and the rim at a \
-         vertex folds onto the authored |r|, so every one is a THEOREM"
+         vertex is the authored radius along its radial, so every one is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
@@ -261,9 +265,9 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     assert_eq!(
         row(&on, "pcurve_map_residual"),
         [36, 0],
-        "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
-         THEOREM"
+        "the chart's phase `atan2(0, r/r)` folds to the zero form (A1) and `cos π` \
+         on the negative frame to −1; the rim gap's numerator is the zero polynomial, so \
+         every one of the 36 is a THEOREM"
     );
     for table in [&off, &on] {
         assert!(
@@ -284,13 +288,17 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
 }
 
 /// **The plate needs no door.** Its circles store their authored
-/// carrier, the radius as `|r|`, so the rim identity `‖q − c‖ = r` that
-/// closed its scaffold residuals through the registered-identity door
-/// is the tier's own algebra: with the door shut, the split at the
-/// nominal is the shipped set's, row for row, and at `1.0e3 · ε` of the
-/// real study the plate certifies whole under the shipped set and
-/// under the shipped set with the door shut. With the algebra off it
-/// refuses there: M10-9's tier does not reach the plate's ceiling.
+/// carrier, the radius as authored, and each vertex is `centre +
+/// radius·radial`, so the rim identity `‖q − c‖ = r` that closed its
+/// scaffold residuals through the registered-identity door is the
+/// tier's own algebra: with the door shut, the split at the nominal is
+/// the shipped set's, row for row, and at `1.0e3 · ε` and `1.0e4 · ε`
+/// of the real study the plate certifies whole under the shipped set
+/// and under the shipped set with the door shut. With the algebra off
+/// it certifies at `1.0e3 · ε` and refuses at `1.0e4 · ε`: M10-9's tier
+/// does not reach where the algebra does (its ceiling bisects to
+/// `2.42e3 · ε` at `ε = 1e-9` and the plain `Interval` lane's to
+/// `1.47e3 · ε`).
 #[test]
 fn m10_10_the_plate_needs_no_door() {
     let tol = Tol::witness();
@@ -300,19 +308,26 @@ fn m10_10_the_plate_needs_no_door() {
         "the door shut moves no decision on the plate"
     );
     let eps = tol.eps();
-    let doc = crate::m10_7_plate::plate(5.0e-5 * 1.0e3 * eps, 1.0e-5 * 1.0e3 * eps, tol).0;
-    for (label, rules) in [
-        ("shipped", SymRules::shipped()),
-        ("door shut", SymRules::shipped_without_the_door()),
-    ] {
-        assert!(
-            certifies_whole(&doc, rules, tol),
-            "{label}: the plate certifies whole at 1e3·ε"
-        );
+    let at = |s: f64| crate::m10_7_plate::plate(5.0e-5 * s * eps, 1.0e-5 * s * eps, tol).0;
+    for scale in [1.0e3, 1.0e4] {
+        for (label, rules) in [
+            ("shipped", SymRules::shipped()),
+            ("door shut", SymRules::shipped_without_the_door()),
+        ] {
+            assert!(
+                certifies_whole(&at(scale), rules, tol),
+                "{label}: the plate certifies whole at {scale:e}·ε"
+            );
+        }
     }
     assert!(
-        !certifies_whole(&doc, SymRules::without_the_algebra(), tol),
-        "the algebra off does not: M10-9's tier refuses the plate at 1e3·ε"
+        certifies_whole(&at(1.0e3), SymRules::without_the_algebra(), tol),
+        "the algebra off certifies the plate at 1e3·ε: the rim gap is a theorem of the \
+         plain form"
+    );
+    assert!(
+        !certifies_whole(&at(1.0e4), SymRules::without_the_algebra(), tol),
+        "the algebra off does not reach 1e4·ε: M10-9's tier refuses the plate there"
     );
 }
 

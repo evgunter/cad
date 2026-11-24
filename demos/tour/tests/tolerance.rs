@@ -148,19 +148,27 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
         assert_eq!(lines, *pinned, "a plate verdict moved at eps={eps}");
     }
 
-    /// **The cut plate over the study box: its first `Subtract` refuses
-    /// a bore's `u_ref`**, and nothing before it refuses: the findings are
-    /// the bore walls' and rim circles' `u_ref` lengths, both kinds, and
-    /// nothing else. Red under `sweep::swept::sketch_vector`'s arc arm
-    /// reading the recorded radial (the refusal moves onto the hole's own
-    /// extrude, `carrier_endpoint_start`). Re-cut by
-    /// `work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`.
+    /// **The cut plate evaluates over its whole study box, no node
+    /// refusing.** The tour's plate with its holes subtracted, evaluated
+    /// over the whole study box at `Sym<Interval>`: the blank, both hole
+    /// extrudes, their placed copies and both `Subtract`s build. The
+    /// circle verb stores the radius it gated, the door turns the bores'
+    /// and rims' frames onto the recorded radial, the readers of a point
+    /// against a radius read the rationalized gap, and the volume
+    /// reading's premises are walked at the scalar that built the body.
+    ///
+    /// Red under each of: the circle verb storing `radius.abs()`
+    /// (`profile::path::circle_loop`), which refuses the hole's own
+    /// extrude at `carrier_matches_mapped_source`; and the door's arc
+    /// arm turned onto the start vertex's normalized offset in place of
+    /// the recorded radial (`sweep::swept::sketch_direction`), which
+    /// refuses the same extrude at `carrier_endpoint_start`.
     #[test]
-    fn the_cut_plates_first_subtract_refuses_a_bores_u_ref_over_the_study() {
+    fn the_cut_plate_evaluates_over_its_study_box_with_no_node_refusing() {
         use demo_tour::plate::cut_plate;
-        use pncad::analysis::{DriveConfig, ParamBox};
-        use pncad::document::{Evaluation, Node, NodeErrorKind, NodeResult};
-        use pncad::geom_core::{Interval, Sym, SymBudget};
+        use pncad::analysis::ParamBox;
+        use pncad::document::{Evaluation, Node, NodeResult};
+        use pncad::geom_core::{Interval, Sym, SymBudget, SymRules};
         let tol = Tol::witness();
         let p = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
@@ -168,74 +176,35 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
             ..EvalOptions::default()
         };
-        // The drive's own default dials.
-        let dials = DriveConfig::default().symbolic;
+        // The drive's default budget.
         let budget = SymBudget {
-            max_terms: dials.max_terms,
-            max_degree: dials.max_degree,
+            max_terms: 4096,
+            max_degree: 128,
         };
-        // What the first refusing node is and refuses, read inside the
-        // session that built it.
-        let (subtract, all_uref, what) =
-            pncad::geom_core::sym::with_session_rules(budget, dials.rules, || {
+        let (refused, subtracts) =
+            pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
                 let ev: Evaluation<Sym<Interval>> =
                     evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
-                let (node, e) = ev
+                let refused: Vec<String> = ev
                     .order
                     .iter()
-                    .find_map(|id| match ev.result(*id) {
-                        Some(NodeResult::Failed(e)) => Some((*id, e)),
+                    .filter_map(|id| match ev.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some(format!("node {id:?}: {:?}", e.kind)),
                         _ => None,
                     })
-                    .expect("the cut plate refuses over the study box");
-                // Each finding a bore wall's (`Cylinder`) or a rim's
-                // (`Circle`) `u_ref` length, both kinds among them.
-                let all_uref = match &e.kind {
-                    NodeErrorKind::UnfinishedLeaf { findings, .. } => {
-                        use pncad::topo::ValidationError::{
-                            CurveDatumUndecided, SurfaceDatumUndecided,
-                        };
-                        let (mut walls, mut rims, mut other) = (0, 0, 0);
-                        for f in findings.as_slice() {
-                            match f {
-                                SurfaceDatumUndecided {
-                                    kind: pncad::geom::SurfaceKind::Cylinder,
-                                    datum: pncad::geom::SurfaceDatum::URef,
-                                    ..
-                                } => walls += 1,
-                                CurveDatumUndecided {
-                                    kind: pncad::geom::CurveKind::Circle,
-                                    datum: pncad::geom::CurveDatum::URef,
-                                    ..
-                                } => rims += 1,
-                                _ => other += 1,
-                            }
-                        }
-                        Some((walls > 0, rims > 0, other))
-                    }
-                    _ => None,
-                };
-                let first_subtract = ev
+                    .collect();
+                let subtracts = ev
                     .order
                     .iter()
-                    .copied()
-                    .find(|id| matches!(p.doc.node(*id), Some(Node::Subtract { .. })));
-                (
-                    first_subtract == Some(node),
-                    all_uref,
-                    format!("node {node:?}: {:?}", e.kind),
-                )
+                    .filter(|id| {
+                        matches!(p.doc.node(**id), Some(Node::Subtract { .. }))
+                            && matches!(ev.result(**id), Some(NodeResult::Ok(_)))
+                    })
+                    .count();
+                (refused, subtracts)
             })
             .0;
-        assert!(
-            subtract,
-            "the first refusal is the first Subtract's: {what}"
-        );
-        assert_eq!(
-            all_uref,
-            Some((true, true, 0)),
-            "the Subtract refuses an operand that does not finish, its findings the bore \
-             walls' and rims' u_ref lengths, undecided, and nothing else: {what}"
-        );
+        assert!(refused.is_empty(), "no node refuses: {refused:#?}");
+        assert_eq!(subtracts, 2, "both holes are cut");
     }
 }

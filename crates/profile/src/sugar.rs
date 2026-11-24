@@ -34,37 +34,7 @@ use geom_core::{Band, BandError, Circles, Decide, Margin, Point2, Real, Sign, To
 
 use crate::validate::{FilletLeg, NoCornerReason, OverrunLegs};
 
-/// The sweep direction hint for [`bulge_from_center`] /
-/// the closing arc constructors: which way the arc winds about its
-/// center (a hint consumed by sugar — the stored sweep carries the same
-/// information as its sign).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ArcSweep {
-    /// Counterclockwise sweep (positive included angle; positive bulge).
-    Ccw,
-    /// Clockwise sweep (negative included angle; negative bulge).
-    Cw,
-}
-
-impl ArcSweep {
-    /// The other sense: the same arc traversed backwards.
-    #[must_use]
-    pub(crate) fn reversed(self) -> Self {
-        match self {
-            Self::Ccw => Self::Cw,
-            Self::Cw => Self::Ccw,
-        }
-    }
-
-    /// The sense as the literal ±1: `+1` counterclockwise, `−1`
-    /// clockwise.
-    pub(crate) fn sign<T: Real>(self) -> T {
-        match self {
-            Self::Ccw => T::one(),
-            Self::Cw => -T::one(),
-        }
-    }
-}
+pub use geom_core::ArcSweep;
 
 /// [`turn_side`] as a winding: a left turn rounds counter-clockwise.
 /// `None` on a turn decided Zero, as [`turn_side`].
@@ -1395,6 +1365,10 @@ impl<T: Real> Leg<T> {
         // at `Line2::circle_heights` would round it off by an ulp.
         let h = offset.side(arc.center);
         let foot = arc.center - normal * h;
+        // ρ's magnitude: the enclosing-class gate refuses only a
+        // definite Negative, so a ρ in band of zero reaches here at
+        // either sign, and the reading must be the same for both. `h`
+        // is a side no gate decided.
         match decide(
             Gate::FilletOffsetLineCircle,
             Margin::of(rho.abs() - h.abs()),
@@ -1563,8 +1537,11 @@ impl<T: Real> ArcCarrier<T> {
     {
         let rho1 = offset_radius(&self, sgn, radius);
         let rho2 = offset_radius(&other, sgn, radius);
-        let r1 = rho1.abs();
-        let r2 = rho2.abs();
+        // The offset circles' radii, as magnitudes: the enclosing-class
+        // gate refuses only a definite Negative, so a ρ in band of zero
+        // reaches here at either sign, and the clearances, the lever
+        // and the tangent centre below must read the same for both.
+        let (r1, r2) = (rho1.abs(), rho2.abs());
         let link = other.center - self.center;
         let dist_squared = link.norm_squared();
         let dist = dist_squared.sqrt();

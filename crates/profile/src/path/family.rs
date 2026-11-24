@@ -216,7 +216,7 @@ pub(super) struct ArrivalCircle<T: Real> {
 /// authored spec, so the emission is axiom-clean) — and the tip lands
 /// as an ordinary directed point at the anchor (a HARD anchor,
 /// uniform with line arrivals). `arrival_radius` is the authored
-/// carrier radius `|r|` where the arrival mode authors one; the run
+/// carrier radius where the arrival mode authors one; the run
 /// stores it, and otherwise the distance from `centre` to `anchor`.
 pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     mut core: Core<T>,
@@ -751,7 +751,7 @@ fn radius_complete<T: geom_core::Decide>(
             winding,
             through: None,
         },
-        Some(spec.r.abs()),
+        Some(spec.r),
         tol,
     )
 }
@@ -1149,7 +1149,7 @@ fn bulge_carrier<T: geom_core::Decide>(
         }
         Err(source) => return Err(PathError::escalated(source)),
     };
-    let arc = crate::lower_arc(at, p, b);
+    let arc = crate::lower_arc(at, p, b, winding);
     let (start, _) = super::chord_tangents(p - at, arc.sweep);
     Ok((arc.centre, winding, start))
 }
@@ -1299,7 +1299,7 @@ pub enum FusedIncoming<T: Real> {
     /// tangent + authored anchor (junction-checked at the tip).
     Anchored(PointCarrier<T>),
     /// Arc extension: the carrier derived at the tip (centre, winding,
-    /// and the authored radius as `|r|`); the anchor is the tip itself.
+    /// and the authored radius); the anchor is the tip itself.
     FromTip(Point2<T>, crate::sugar::ArcSweep, T),
 }
 
@@ -1339,7 +1339,7 @@ impl<T: ArcCarrierScalar> LegEndIncoming<T> for Center<T, Point2<T>> {
 impl<T: ArcCarrierScalar> LegEndIncoming<T> for Radius<T> {
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>> {
         let (centre, winding) = verbs::radius_carrier(dp, *self, linear_band(tol)?)?;
-        Ok(FusedIncoming::FromTip(centre, winding, self.r.abs()))
+        Ok(FusedIncoming::FromTip(centre, winding, self.r))
     }
     fn to_wire(&self, _tol: Tol) -> ArcData<T> {
         ArcData::Radius {
@@ -1796,7 +1796,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Point2<
             b: spec.b,
         }));
         path.arc_leg_from_the_tip(super::order::site::ARC_TO)?;
-        let leg = path.arc_bulge(spec.p, spec.b)?;
+        let leg = path.arc_bulge(spec.p, spec.b, tol)?;
         path.arc_to_point(spec.p, leg, tol)
     }
 }
@@ -1809,7 +1809,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             b: spec.b,
         }));
         path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
-        let leg = path.arc_bulge(path.start_target()?, spec.b)?;
+        let leg = path.arc_bulge(path.start_target()?, spec.b, tol)?;
         path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
 }
@@ -1825,7 +1825,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             b: spec.b,
         }));
         path.arc_leg_from_the_tip(super::order::site::ARC_TO_START)?;
-        let leg = path.arc_bulge(path.start_target()?, spec.b)?;
+        let leg = path.arc_bulge(path.start_target()?, spec.b, tol)?;
         path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }

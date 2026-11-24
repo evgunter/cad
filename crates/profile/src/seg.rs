@@ -618,9 +618,18 @@ pub fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
     T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
-/// Validation's two difference checks of a stored arc against its
-/// endpoints `a → b`, `arc_start_on_carrier` then `arc_landing`,
-/// decided at the run's band ([`build_seg`] states each margin).
+/// Validation's checks of a stored arc against its endpoints `a → b`,
+/// decided at the run's band: `arc_radius`, then the two difference
+/// checks `arc_start_on_carrier` and `arc_landing` ([`build_seg`]
+/// states each margin).
+///
+/// **The radius is read first** (`arc_radius`, margin the stored
+/// radius, meters): a table is the one door a radius enters by that no
+/// gate decided, and one that is not definitely positive is no carrier
+/// for the start to lie on, refused as that check's
+/// ([`ArcCheck::OnCarrier`]). Every reader past this line holds
+/// [`Arc2::radius`]'s "positive in value" as a decided fact, so the
+/// gap's `‖w‖ + radius` is not zero at a point of the carrier.
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
@@ -631,8 +640,13 @@ fn check_carrier<T: Decide>(
     // A difference check's definite answer is a statement about the
     // input only where the scene's `f64` can read a difference that
     // small at the magnitude it was taken at ([`resolves`]).
+    let radius = decide_reported(Gate::ArcRadius, Margin::of(arc.radius), band)
+        .map_err(SegIssue::escalated)?;
+    if radius.sign != Sign::Positive {
+        return refuse(ArcCheck::OnCarrier);
+    }
     let scale = arc.radius.max(reach(arc.centre));
-    let on_carrier = arc.rim(a) - arc.radius;
+    let on_carrier = arc.off_carrier(a);
     let read = decide_reported(Gate::ArcStartOnCarrier, Margin::of(on_carrier), band)
         .map_err(SegIssue::escalated)?;
     match read.sign {
@@ -676,10 +690,14 @@ const DIRECTION_ULPS: f64 = 8.0;
 
 /// **The recorded directions of a table segment, against its vertices**
 /// ([`Consistency::Decide`]): a line's director walked the chord's
-/// length from its start, and an arc's radial walked its rim from the
-/// centre, each must land on the vertex it points at — the
+/// length from its start, and an arc's radial walked its stored radius
+/// from the centre, each must land on the vertex it points at — the
 /// **`segment_direction`** predicate, margin ‖o + ℓ·d − p‖ (meters,
-/// direct), which is Zero exactly when `d` is the unit `(p − o)/ℓ`. A
+/// direct), which is Zero exactly when `d` is `(p − o)/ℓ`. For an arc
+/// that is the reading its readers make of a recorded radial (the
+/// centre plus the stored radius along it is the vertex), not a mint of
+/// one: a radial minted from the points is the offset over its own
+/// length ([`mint_radial`]), and passes here to the carrier band. A
 /// definite miss is refused typed where the scene resolves it
 /// (**`segment_direction_resolution`**, [`resolves`]'s margin).
 ///
@@ -702,7 +720,7 @@ pub(crate) fn check_directions<T: Decide>(
             check_direction(
                 c,
                 s.a,
-                g.arc.rim(s.a),
+                g.arc.radius,
                 start,
                 RecordedDirection::StartRadial,
                 band,
@@ -710,7 +728,7 @@ pub(crate) fn check_directions<T: Decide>(
             check_direction(
                 c,
                 s.b,
-                g.arc.rim(s.b),
+                g.arc.radius,
                 end,
                 RecordedDirection::EndRadial,
                 band,
@@ -848,17 +866,18 @@ pub(crate) struct AxisUnsigned<T: Real> {
     pub(crate) source: Escalation,
 }
 
-/// **`x`'s sign as the literal ±1**, where it reads definite: a choice
+/// **`x`'s sign as a sense**, where it reads definite: a choice
 /// between sound spellings ([`geom_core::k_stats::choose`],
 /// `segment_direction_sign`, audit row F43), one reading per call;
-/// `None` at a tie, for the caller's other spelling. A literal rather
-/// than a `copysign` of one, so the symbolic tier reads a constant where
-/// the sign is known, not an opaque atom.
-pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
+/// `None` at a tie, where the caller has no arc to spell and refuses.
+/// A sense ([`geom_core::ArcSweep`], whose sign is a literal ±1) rather
+/// than a `copysign`, so the symbolic tier reads a constant where the
+/// sign is known, not an opaque atom.
+pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<geom_core::ArcSweep> {
     use geom_core::k_stats::{Pick, choose};
     match choose(Gate::SegmentDirectionSign.predicate(), Margin::of(x), "F43") {
-        Pick::Positive => Some(T::one()),
-        Pick::Negative => Some(-T::one()),
+        Pick::Positive => Some(geom_core::ArcSweep::Ccw),
+        Pick::Negative => Some(geom_core::ArcSweep::Cw),
         Pick::Tie => None,
     }
 }
@@ -918,7 +937,15 @@ pub(crate) fn mint_director<T: Decide>(
 
 /// **The radial at `p`, minted**: the axis `p − centre` lies along, or
 /// that vector over the rim at `p` ([`Arc2::rim`], [`axis_or`]). The
-/// one mint of an arc's direction from its points.
+/// one mint of an arc's direction from its points. The divisor is the
+/// offset's own measured length, so a minted radial is a unit by
+/// construction: a vertex that holds only its points is on the carrier
+/// to validation's decision, so its offset over the stored radius is a
+/// unit only to that band. Dividing by the stored radius is red on
+/// `sweep`'s `a_cusp_whose_walls_part_definitely_builds_legal` (the
+/// wall's frame defect reaches its envelope) and on its
+/// `an_arc_wall_whose_radial_turns_with_a_boxed_bulge_stores_every_members_direction`
+/// (the wall's `u_ref` over the box is nine times wider).
 ///
 /// # Errors
 ///
@@ -1016,9 +1043,9 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 /// stored arc against what its construction authored, each read through
 /// [`read_back`].
 ///
-/// - **Start on the carrier** ([`ArcRead::Start`], ‖a − centre‖ − r,
-///   [`READ_BACK_RIM_ULPS`]): the stored radius against the vertex the
-///   arc leaves.
+/// - **Start on the carrier** ([`ArcRead::Start`], ‖a − centre‖ − r
+///   as [`Arc2::off_carrier`] spells it, [`READ_BACK_RIM_ULPS`]): the
+///   stored radius against the vertex the arc leaves.
 /// - **Landing** ([`ArcRead::Landing`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
 ///   For an arc whose end is on its carrier only to an inline
 ///   ε-decision the door made ([`crate::Facts::Decided`]), the landing
@@ -1074,7 +1101,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     let carrier = || arc.radius.max(reach(arc.centre));
     read_back(
         ArcRead::Start,
-        Reading::Difference(arc.rim(a) - arc.radius),
+        Reading::Difference(arc.off_carrier(a)),
         || reach(a),
         || carrier().max(reach(a)),
         READ_BACK_RIM_ULPS,
@@ -1102,7 +1129,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     if let Some(q) = built.through {
         read_back(
             ArcRead::ThroughPoint,
-            Reading::Difference(arc.rim(q) - arc.radius),
+            Reading::Difference(arc.off_carrier(q)),
             || reach(a).max(reach(b)).max(reach(q)),
             || carrier().max(reach(q)),
             READ_BACK_RIM_ULPS,
@@ -1184,9 +1211,10 @@ enum Reading<T> {
 /// digits and also inflated the magnitude it stored (a carrier flattened
 /// to 1e12 m) still reads as the defect it is; the clearance reads the
 /// STORED magnitude, so a sound arc whose stored form is legitimately
-/// far out is never called one. A miss that is not finite (a rim past
-/// 1.3e154 m overflows) is the scene's, never a defect. A difference in
-/// the band, or poisoned, escalates. Not a verdict
+/// far out is never called one. A miss that is not finite (a landing
+/// past the range) is the scene's, never a defect. A difference in the
+/// band, or poisoned (a rim past 1.3e154 m, whose square overflows the
+/// gap), escalates. Not a verdict
 /// (`k_stats::check_unlogged`): a box leaf has no row for it.
 ///
 /// It shares [`resolves`]'s headroom and not its door: validation's
@@ -1299,14 +1327,10 @@ fn chord_side_reported<T: Decide>(
 }
 
 /// **`circle_side`** — which side of an arc's carrier circle a point
-/// lies on. Margin: |q − c| − r, the rim through [`Arc2::rim`]
+/// lies on. Margin: |q − c| − r, as [`Arc2::off_carrier`] spells it
 /// (meters; positive = outside).
 fn circle_side<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, band: Band) -> Result<Sign, Escalation> {
-    decide(
-        Gate::CircleSide,
-        Margin::of(g.arc.rim(q) - g.arc.radius),
-        band,
-    )
+    decide(Gate::CircleSide, Margin::of(g.arc.off_carrier(q)), band)
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -1681,7 +1705,10 @@ pub(crate) fn joint_tangency<T: Decide>(
 
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
 /// `r − |h|` between a line's carrier and a circle's, where `h` is the
-/// centre's signed offset from the line, [`Line2::side`]. Returned with the SCALE its arithmetic passes through — the
+/// centre's signed offset from the line, [`Line2::side`], spelled
+/// `(r² − h²)/(r + |h|)`: the same real, with a numerator that is the
+/// zero form where the construction made the line tangent, whichever
+/// side the centre lies on. Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1694,9 +1721,9 @@ pub(crate) fn joint_tangency<T: Decide>(
 /// the same `h`, so the
 /// clearance and the crossings cannot drift apart.
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
-    let h = line.distance(g.arc.centre);
+    let h = line.side(g.arc.centre);
     (
-        g.arc.radius - h,
+        (g.arc.radius.powi(2) - h.powi(2)) / (g.arc.radius + h.abs()),
         g.arc
             .radius
             .max(reach(g.arc.centre))
@@ -2249,7 +2276,7 @@ fn segment_clear_of_circle<T: Decide>(line: &Seg<T>, g: &ArcGeom<T>, tc: T, band
 /// `r` taken against it.
 fn end_clear_of_circle<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, outside: bool, band: Band) -> bool {
     let charge = geom_core::rounding_charge(reach(q) + reach(g.arc.centre) + g.arc.radius);
-    let rim = g.arc.rim(q) - g.arc.radius;
+    let rim = g.arc.off_carrier(q);
     let (margin, side) = if outside {
         (rim - charge, Sign::Positive)
     } else {

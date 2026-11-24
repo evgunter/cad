@@ -179,15 +179,21 @@ type Sagitta = (
 );
 
 /// The chord lowering ([`Arc2::from_chord`]) at the lane scalar over a
-/// box: chord `a → b`, bulge `bulge`.
+/// box: chord `a → b`, bulge `bulge` of sign `turn`.
 fn sagitta(
     ax: Sym<Interval>,
     ay: Sym<Interval>,
     bx: Sym<Interval>,
     by: Sym<Interval>,
     bulge: Sym<Interval>,
+    turn: f64,
 ) -> Sagitta {
-    let arc = Arc2::from_chord(Point2::new(ax, ay), Point2::new(bx, by), bulge);
+    let arc = Arc2::from_chord(
+        Point2::new(ax, ay),
+        Point2::new(bx, by),
+        bulge,
+        geom_core::ArcSweep::of_constant(turn),
+    );
     let (cx, cy) = (arc.centre.x, arc.centre.y);
     let (vx, vy) = (ax - cx, ay - cy);
     let norm = (vx * vx + vy * vy).sqrt();
@@ -218,7 +224,7 @@ fn r2_the_rim_identity_holds_at_the_semicircle_the_major_arc_and_a_clockwise_tur
                 p("by", 3.0e-3, 3.0e-3 + 1e-7),
             );
             let b = p("b", blo, bhi);
-            let (norm, radius, [vx, vy], _) = sagitta(ax, ay, bx, by, b);
+            let (norm, radius, [vx, vy], _) = sagitta(ax, ay, bx, by, b, blo.signum());
             let reg = norm.register_equal(radius, Tol::witness());
             let scale = radius / norm - lit(1.0);
             (reg, [sign_of(vx * scale), sign_of(vy * scale)])
@@ -245,7 +251,7 @@ fn r2_evidence_how_loose_is_the_interval_witness_at_the_ceiling_scale() {
             let (ax, ay) = (p("ax", 0.0, w), p("ay", 0.0, w));
             let (bx, by) = (p("bx", 4.0e-3, 4.0e-3 + w), p("by", 3.0e-3, 3.0e-3 + w));
             let b = p("b", 0.4, 0.4 + w);
-            let (norm, radius, _, _) = sagitta(ax, ay, bx, by, b);
+            let (norm, radius, _, _) = sagitta(ax, ay, bx, by, b, 1.0);
             let bo = |v: Sym<Interval>| {
                 (
                     geom_core::Bounds::lo(v.value()),

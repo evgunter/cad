@@ -16,12 +16,17 @@
 use geom_brep::SketchSegment;
 use geom_core::{Arc2, Point2, Real};
 
-/// The arc from `a` to `b` with quarter-tangent `bulge`, lowered from
-/// its chord.
-pub(crate) fn lowered_arc<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> SketchSegment<T> {
+/// The arc from `a` to `b` with quarter-tangent `bulge`, whose sign is
+/// `turn`, lowered from its chord.
+pub(crate) fn lowered_arc<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    bulge: T,
+    turn: f64,
+) -> SketchSegment<T> {
     SketchSegment::Arc {
         a,
         b,
-        arc: Arc2::from_chord(a, b, bulge),
+        arc: Arc2::from_chord(a, b, bulge, geom_core::ArcSweep::of_constant(turn)),
     }
 }

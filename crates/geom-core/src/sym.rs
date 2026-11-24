@@ -115,8 +115,8 @@
 //! discharge by PROVENANCE — and [`Sym::register_equal`] is it: a
 //! session-level record that two DAG nodes denote one function of the
 //! parameters, made by the site that GUARANTEES it
-//! (`sweep::swept::register_rigidity`, whose doc comment carries
-//! the proof), verified in the lane scalar at the moment it is made,
+//! (`Arc2::register_endpoints`' callers, each of whose doc comments
+//! carries the proof), verified in the lane scalar at the moment it is made,
 //! refused typed when it lies, and consulted by a THIRD normal-form
 //! walk beside the plain one and the early one.
 //!
@@ -139,16 +139,24 @@
 //! alias is transitive, so facts stated at two constructions chain. A
 //! profile arc's construction (the path door's, through
 //! `Arc2::register_endpoints`) states the endpoint facts its algebra
-//! proves in the sketch: the rim at each end is the radius, and the
-//! carrier's end is the far vertex. The sweep that places the arc states only rigidity
-//! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
-//! the placed rim is the sketch rim, and the placed carrier at its span
-//! is the sketch carrier's end, placed — the latter same-object because
-//! `Curve3::eval`'s `Circle` arm DELEGATES to a `Real`-bounded door
-//! (`Curve3::circle_at`) the registrant calls too, so the node it
-//! states the identity about is the node the certifier asks about.
+//! proves in the sketch: the landing from each end is the other, the
+//! carrier's end is the far vertex, and the centre plus the radius
+//! along each recorded radial is the vertex it points at
+//! (`Arc2::register_radials`). None of them takes a root: an arc stores
+//! its radius as the literal its construction decided, so each holds at
+//! every value of the construction's inputs. That a RIM is the radius
+//! is not among them: `sqrt(r²)` against `r` holds only where a gate
+//! decided `r` positive, which is no function of the parameters to
+//! register, and its readers ask the rationalized gap instead.
 //!
-//! The revolve's latitude carriers (`sweep::revolve::surfaces` and
+//! The sweep that places an arc states only rigidity
+//! (`sweep::swept::register_placed_carrier_ends`): the placed carrier
+//! at its start and at its span is the placed sketch point the recorded
+//! radial, and the radial turned by the sweep, reaches — same-object
+//! because `Curve3::eval`'s `Circle` arm DELEGATES to a `Real`-bounded
+//! door (`Curve3::circle_at`) the registrant calls too, so the node it
+//! states the identity about is the node the certifier asks about. The
+//! revolve's latitude carriers (`sweep::revolve::surfaces` and
 //! `::full`) state nothing: their `u_ref` is the revolve's seam
 //! direction, so a latitude through its point is an identity the plain
 //! form proves.
@@ -7043,7 +7051,7 @@ mod tests {
     /// The arc carrier's far-end identity, in miniature — the carrier at
     /// its span is the far vertex, `carrier.eval(θ) = q_to` (M10-9
     /// amendment A1; stated today as a chain of
-    /// `sweep::swept::register_placed_carrier_end` and the lowering's
+    /// `sweep::swept::register_placed_carrier_ends` and the lowering's
     /// `Arc2::register_endpoints`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
     /// residual carries `cos`/`sin` of the span `4·atan b`, which no

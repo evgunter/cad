@@ -25,7 +25,7 @@ type S = Sym<f64>;
 
 /// The square `[−1, 1]²` whose right side is an arc of bulge `b`, run
 /// counterclockwise, so a positive `b` turns it inward.
-fn section<T: Real>(b: T) -> Vec<ProfileLoop<T>> {
+fn section<T: geom_core::Decide>(b: T) -> Vec<ProfileLoop<T>> {
     let p = |x: f64, y: f64| Point2::new(T::from_f64(x), T::from_f64(y));
     vec![bulge_loop(vec![
         (p(-1.0, -1.0), T::zero()),
@@ -191,7 +191,7 @@ fn a_lofted_arc_walls_weight_carries_the_bulges_derivative() {
 
 /// The quadrilateral `(−1, −1), (1, −1), (h, 1), (−1, 1)`, run
 /// counterclockwise: every side a line, and only one corner moving.
-fn quad<T: Real>(h: T) -> Vec<ProfileLoop<T>> {
+fn quad<T: geom_core::Decide>(h: T) -> Vec<ProfileLoop<T>> {
     let corner = |x: T, y: f64| (Point2::new(x, T::from_f64(y)), T::zero());
     vec![bulge_loop(vec![
         corner(T::from_f64(-1.0), -1.0),
@@ -1009,7 +1009,7 @@ fn strip_skin<T: geom_core::spline::ProjectiveScalar>(b: T) -> geom::NurbsSurfac
     let arc = |x: T| SketchSegment::Arc {
         a,
         b: e,
-        arc: Arc2::from_chord(a, e, x),
+        arc: Arc2::from_chord(a, e, x, geom_core::ArcSweep::Ccw),
     };
     let segs = [arc(b), SketchSegment::Line { a, b: e }, arc(b + b), arc(b)];
     let curves: Vec<geom::NurbsCurve3<T>> = segs

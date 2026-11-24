@@ -128,18 +128,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // zero and X reads `2w / |2w|`, a sign the tier does not
             // hold. The rim identity the arc registers sits inside a
             // frozen compound, the mapped-source residual is read
-            // numerically, and it leaves the band first at 3.030e2·ε.
+            // numerically (`carrier_matches_mapped_source`), and it leaves
+            // the band first at 4.395e2·ε, door open or shut; the bracket's
+            // certifying end measures 4.393e2.
             certifies_at: 3.029e2,
-            refuses_at: Some(3.030e2),
+            refuses_at: Some(4.395e2),
             refused_by: None,
-            // Door shut, limb 2 stalled against the cylinder rim while
-            // the arc after an axis hop departed along the chord's
-            // quotient. The `line_to` verb hands on the director it
-            // minted (the literal axis where the chord's component is
-            // zero as an expression, `geom_core::Expression::proves_zero`),
-            // the rim residual is then a theorem, and shut the replay
-            // certifies, the door's 60 decisions read numerically.
-            door: Door::Buys(60),
+            // Door shut the link certifies whole: the four decisions the
+            // registry discharges are numeric, inside the band.
+            door: Door::Buys(4),
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -152,12 +149,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra, so its `dihedral_wedge` decisions, and the
             // tangent certificate's gap rows on the fillet's contact
-            // edges, are registered rather than proved. One of the 71
-            // was a fillet radial's `segment_direction_axis` reading,
-            // proved zero through the registry alone; the mint asks the
-            // expression, which reads no registry, so that radial is no
-            // axis and reads no sign.
-            door: Door::Buys(70),
+            // edges, are registered rather than proved.
+            door: Door::Buys(79),
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -295,22 +288,20 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
     );
 }
 
-/// **THE MECHANISM, in the receipt.** A replay of the plate past its
-/// ceiling with the door SHUT registers nothing; the same replay with
-/// the door OPEN discharges through the registry — BOTH endpoint
-/// pinnings (the rim identity `‖q − c‖ = r` and the span identity
-/// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
-/// identities).
+/// **THE MECHANISM, in the receipt.** A replay of the plate at
+/// `1.6e3 · ε` with the door SHUT registers nothing; the same replay
+/// with the door OPEN discharges through the registry: the arc
+/// carrier's endpoint pinnings (`carrier.eval(0) = q_from`,
+/// `carrier.eval(param_end) = q_to`) and its radial facts. The rim
+/// identity `‖q − c‖ = r` is not among them: nothing registers it, and
+/// a vertex's gap from its rim is a theorem with the door shut.
 ///
-/// The name the drive stops on is deliberately NOT read: past the
-/// ceiling several predicates are over the band at once and the name
-/// is evaluation order.
+/// Both replays certify whole, so both decide the same population and
+/// the door's whole effect is decisions moved out of `numeric`.
 #[test]
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // Past the measured ceiling (`[7.811e2, 7.814e2] · ε`,
-    // `measured_studies`).
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
@@ -320,23 +311,19 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
     assert!(
+        shut_refusal.is_none() && open_refusal.is_none(),
+        "the plate certifies whole at 1.6e3·ε with the door shut and open alike: \
+         {shut_refusal:?}, {open_refusal:?}"
+    );
+    assert!(
         open.symbolic > shut.symbolic,
-        "the rim registrant discharges on the plate: {open:?} vs {shut:?}"
+        "the registrants discharge on the plate: {open:?} vs {shut:?}"
     );
-    // NOT "and `numeric` shrank": a REFUSING replay stops at its first
-    // refusal, so the two runs do not decide the same population — the
-    // door lets this one get further, and the decisions past the old
-    // refusal are decisions the shut run never reached. The
-    // out-of-`numeric`-and-nothing-else claim is pinned where every
-    // site decides: at the scalar
-    // (`geom_core::sym`'s `a_registered_identity_decides_zero`).
-    assert!(
-        open.decisions() >= shut.decisions(),
-        "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
-    );
-    assert!(
-        shut_refusal.is_some() && open_refusal.is_some(),
-        "past its ceiling the plate refuses with the door shut and open alike"
+    assert_eq!(
+        (open.decisions(), open.symbolic - shut.symbolic),
+        (shut.decisions(), shut.numeric - open.numeric),
+        "neither replay refuses, so both decide the same sites and each decision the door \
+         discharges leaves `numeric`: {open:?} vs {shut:?}"
     );
 }
 

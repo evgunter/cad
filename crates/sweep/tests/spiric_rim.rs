@@ -986,7 +986,7 @@ mod interval_rows {
     /// interval and f64 twins are built by one spelling.
     /// NOT `common::torus_walls::vessel_quarter`: the scalar-generic twin,
     /// its band an exact bulge rather than an arc about its centre.
-    fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
+    fn vessel_loop<T: geom_core::Decide>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
         let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
         bulge_loop(vec![
             (p(0.0, 0.0), iv(0.0)),

@@ -1135,17 +1135,17 @@ fn a_driver_certified_leaf_carries_the_certificate() {
 }
 
 /// **A leaf is replayed on the lane the drive certified it on.** The
-/// two-hole plate at `1e3·ε` of its real study certifies in one leaf
-/// only with the symbolic tier on (`m10_10_the_plate_needs_no_door`),
-/// so its `Interval` replay is not the build the leaf's verdict is
-/// about. The fold over that leaf answers the holes' clearance, and so
+/// two-hole plate at `1e4·ε` of its real study certifies in one leaf
+/// only with the symbolic tier on (`m10_10_the_plate_needs_no_door`;
+/// the plain `Interval` lane builds it to `1.47e3·ε`), so its `Interval`
+/// replay is not the build the leaf's verdict is about. The fold over that leaf answers the holes' clearance, and so
 /// does the per-leaf door asked at the drive's tier; the same leaf on
 /// the numeric replay (the replay both used before they read a lane)
 /// does not hold.
 #[test]
 fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
     let tol = Tol::witness();
-    let s = 1.0e3 * tol.eps();
+    let s = 1.0e4 * tol.eps();
     let plate = crate::m10_7_plate::plate_with_holes(5.0e-5 * s, 1.0e-5 * s, tol);
     let analyzed = analyzed_box(&plate.doc, &AnalysisPolicy::default());
     let verdict = drive(

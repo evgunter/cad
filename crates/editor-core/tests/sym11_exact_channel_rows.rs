@@ -70,9 +70,9 @@ use crate::m10_9_pins_interval::measured_studies;
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
     ("two_hole_plate", None, 951, 36),
     ("r1_annulus", None, 511, 36),
-    ("r2_link", None, 785, 1501),
-    ("r2_filleted_bracket", None, 1329, 53),
-    ("r2_rounded_pad", None, 1455, 127),
+    ("r2_link", Some("mapped-source residual"), 313, 128),
+    ("r2_filleted_bracket", None, 1337, 57),
+    ("r2_rounded_pad", None, 1487, 2863),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

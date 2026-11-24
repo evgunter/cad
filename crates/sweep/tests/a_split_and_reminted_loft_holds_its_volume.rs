@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Tol};
+use geom_core::{Bounds, Decide, Interval, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use topo::construction::Construct;
@@ -25,7 +25,7 @@ fn tol() -> Tol {
 }
 
 /// The quadrilateral at `h`, scaled by `s`.
-fn quad<T: Real>(h: f64, s: f64) -> Vec<ProfileLoop<T>> {
+fn quad<T: geom_core::Decide>(h: f64, s: f64) -> Vec<ProfileLoop<T>> {
     let c = |x: f64, y: f64| {
         (
             Point2::new(T::from_f64(x * s), T::from_f64(y * s)),

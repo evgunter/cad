@@ -433,6 +433,7 @@ const NOT_DRIVEN: &[(Gate, &str)] = &[
     (Gate::ArcCarrierResolution, NO_FIXTURE),
     (Gate::ArcDiameterClearance, NO_FIXTURE),
     (Gate::ArcLanding, NO_FIXTURE),
+    (Gate::ArcRadius, NO_FIXTURE),
     (Gate::ArcSpan, NO_FIXTURE),
     (Gate::ArcStartOnCarrier, NO_FIXTURE),
     (Gate::ArcSweepLength, NO_FIXTURE),

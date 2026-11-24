@@ -288,8 +288,8 @@ fn sign_normalised(f: &Form) -> Option<Form> {
 /// Without it rule G's own magnitudes — keyed on the primitive, since
 /// that is what a root's content split leaves — would not meet the
 /// `abs` NODES a document writes, which are keyed on the form as
-/// written. A registrant's `|signed_radius|` and a walk's
-/// `sqrt(signed_radius²)` are exactly that pair.
+/// written. A document's `|R|` and a walk's `sqrt(R²)` are exactly
+/// that pair.
 fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
     let (cn, mut n) = content_split(&f.num)?;
     let (cd, mut d) = content_split(&f.den)?;

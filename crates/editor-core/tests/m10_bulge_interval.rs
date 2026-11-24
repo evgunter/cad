@@ -283,7 +283,12 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
-    ("arc_span", [6, 4]),
+    // The bulge arc against the lines it meets: two `arc_span` and two
+    // `circle_side` decisions the registered rim used to carry are
+    // numeric at the nominal, the crossing found through the half
+    // chord's root
+    // (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`).
+    ("arc_span", [4, 6]),
     ("assert_bound", [0, 1]),
     ("carrier_circles_identity", [3, 0]),
     ("carrier_endpoint_end", [36, 0]),
@@ -293,7 +298,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
     ("chord_side", [2, 12]),
-    ("circle_side", [2, 2]),
+    // Two of the four were theorems through the registered rim; the
+    // rim is not registered, and the D-tab's bulge outruns the
+    // coefficient ring, so the gap reads them numerically.
+    ("circle_side", [0, 4]),
     ("contact_at_shared_vertex", [8, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the
@@ -542,11 +550,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_radial_moving", [14, 12]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
-            // and [28, 6] -> [20, 4]. A carrier's distance from its own
-            // wall is read through the rationalized gap
-            // (`geom_core::radius_gap`), so the four numeric Zeros of
-            // each incidence predicate are theorems: [8, 4] -> [12, 0]
-            // and [10, 4] -> [14, 0].
+            // and [28, 6] -> [20, 4].
             ("pcurve_cylinder_chart_incident", [12, 0]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_interval_forward", [0, 12]),

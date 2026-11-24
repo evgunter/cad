@@ -10,10 +10,15 @@
 //! The plain prisms are the slab's kind; the others are curved bodies
 //! over a box: a filleted prism and a disc of boxed depth (cylinder
 //! walls under moving arc-edged caps), and a cylinder and a cone frustum
-//! of boxed radius (the curved carrier itself moves). The sweep doors
-//! refuse every one of the curved bodies over every box drawn here, so
-//! today these rows read the prisms alone and say so in what they
-//! print; a curved body is read the day its door admits it.
+//! of boxed radius (the curved carrier itself moves). One curved body
+//! is admitted over a box: the disc of boxed radius drawn by the circle
+//! verb, whose arcs store the radius the verb gated and whose walls and
+//! two-arc caps turn their frames onto the recorded radial
+//! ([`the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read`]).
+//! The doors refuse the other curved bodies over every box drawn here
+//! (their arcs come through the fixture table, which records no
+//! radial), and the rows say so in what they print; each is read the
+//! day its door admits it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -158,6 +163,31 @@ fn shapes() -> Vec<Shape> {
             },
         },
         Shape {
+            name: "disc of boxed radius, the circle verb's",
+            middle: 0.7,
+            build: |r, tol| {
+                let circle = profile::circle(Point2::new(c(0.0), c(0.0)), r, tol)
+                    .map_err(|e| format!("{e:?}"))?;
+                let profile = profile::ConstructedProfile::new(
+                    SketchPlane::<Boxed>::xy(),
+                    vec![circle.into()],
+                )
+                .validate(tol)
+                .map_err(|e| format!("{e:?}"))?;
+                let extrusion = Extrusion::Distance {
+                    depth: c(1.0),
+                    side: ExtrudeSide::Along,
+                };
+                extrude(&profile, extrusion, tol)
+                    .map(|built| built.body.into_body())
+                    .map_err(|e| format!("{e:?}"))
+            },
+            moving: |p, u| {
+                let a = u * TAU;
+                [p * a.cos(), p * a.sin(), (7.0 * u).fract()]
+            },
+        },
+        Shape {
             name: "cylinder of boxed radius",
             middle: 0.7,
             build: |r, tol| {
@@ -228,12 +258,23 @@ fn over<R>(
     hi: f64,
     read: impl FnOnce(&Body<Boxed>, Band) -> R,
 ) -> Result<R, String> {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let budget = SymBudget {
         max_terms: 64,
         max_degree: 8,
     };
+    over_within(budget, shape, lo, hi, read)
+}
+
+/// [`over`] in a session of `budget`.
+fn over_within<R>(
+    budget: SymBudget,
+    shape: &Shape,
+    lo: f64,
+    hi: f64,
+    read: impl FnOnce(&Body<Boxed>, Band) -> R,
+) -> Result<R, String> {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
     geom_core::sym::with_session(budget, || {
         let p = Sym::param_over(
             ParamSymbol::new(test_utils::symbol_id("boxed_door_parameter")),
@@ -472,6 +513,54 @@ fn a_prism_with_walls_on_the_frame_seam_reads_by_its_rays_at_interval() {
     );
 }
 
+/// `rays` aims about `shape` over `[lo, hi]`, each with a normal: half
+/// in its bounding box grown by a fifth, half on the boundary that moves
+/// with the parameter at a member of the box; the normals are the axes
+/// and random unit vectors.
+fn draws_about(
+    rng: &mut test_utils::fuzz::Rng,
+    shape: &Shape,
+    lo: f64,
+    hi: f64,
+    rays: usize,
+) -> Vec<([f64; 3], [f64; 3])> {
+    (0..rays)
+        .map(|k| {
+            let aim = if k % 2 == 0 {
+                [
+                    rng.range(-1.3, 1.3),
+                    rng.range(-0.3, 1.4),
+                    rng.range(-1.3, 1.4),
+                ]
+            } else {
+                let member = match rng.below(4) {
+                    0 => lo,
+                    1 => hi,
+                    2 => shape.middle,
+                    _ => rng.range(lo, hi),
+                };
+                (shape.moving)(member, rng.unit())
+            };
+            let normal = match rng.below(8) {
+                0 => [1.0, 0.0, 0.0],
+                1 => [0.0, 1.0, 0.0],
+                2 => [0.0, 0.0, 1.0],
+                3 => [0.0, 0.0, -1.0],
+                _ => {
+                    let v = [
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                        rng.range(-1.0, 1.0),
+                    ];
+                    let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-3);
+                    [v[0] / n, v[1] / n, v[2] / n]
+                }
+            };
+            (aim, normal)
+        })
+        .collect()
+}
+
 /// **Rays aimed anywhere about a boxed body, from any normal, read no
 /// `In`** (counterexample search, shape 1). Half the aims are drawn in
 /// the body's bounding box grown by a fifth; the other half are points
@@ -502,41 +591,7 @@ fn no_ray_about_a_boxed_door_body_reads_in() {
         for _ in 0..boxes {
             let half = rng.log_uniform(1e-5, 0.08) * shape.middle;
             let (lo, hi) = (shape.middle - half, shape.middle + half);
-            let draws: Vec<([f64; 3], [f64; 3])> = (0..rays)
-                .map(|k| {
-                    let aim = if k % 2 == 0 {
-                        [
-                            rng.range(-1.3, 1.3),
-                            rng.range(-0.3, 1.4),
-                            rng.range(-1.3, 1.4),
-                        ]
-                    } else {
-                        let member = match rng.below(4) {
-                            0 => lo,
-                            1 => hi,
-                            2 => shape.middle,
-                            _ => rng.range(lo, hi),
-                        };
-                        (shape.moving)(member, rng.unit())
-                    };
-                    let normal = match rng.below(8) {
-                        0 => [1.0, 0.0, 0.0],
-                        1 => [0.0, 1.0, 0.0],
-                        2 => [0.0, 0.0, 1.0],
-                        3 => [0.0, 0.0, -1.0],
-                        _ => {
-                            let v = [
-                                rng.range(-1.0, 1.0),
-                                rng.range(-1.0, 1.0),
-                                rng.range(-1.0, 1.0),
-                            ];
-                            let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-3);
-                            [v[0] / n, v[1] / n, v[2] / n]
-                        }
-                    };
-                    (aim, normal)
-                })
-                .collect();
+            let draws = draws_about(&mut rng, &shape, lo, hi, rays);
             let read = over(&shape, lo, hi, |body, band| {
                 let face = body.faces().next().expect("a body has faces").0;
                 draws
@@ -788,4 +843,82 @@ fn a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side() {
         wrong.is_empty(),
         "a ray every member reads Out reads In over the box: {wrong:#?}"
     );
+}
+
+/// **The circle verb's disc of boxed radius is admitted, and read.** A
+/// disc whose radius is a box up to a tenth wide either way, drawn by
+/// `profile::circle` and extruded: the door builds it at every width
+/// here (cylinder walls under two-arc caps, all moving with the
+/// radius). Of each face's own aim none reads `In`; up to a box of
+/// `1e-4` some read `Out`, and from `1e-2` each is set aside as crossing
+/// the moving wall. Of the rays drawn about it as
+/// [`no_ray_about_a_boxed_door_body_reads_in`] draws them, half through
+/// the wall that moves with the radius, none reads `In`.
+///
+/// **What this can go red on:** the door refusing the disc (a circle
+/// verb that stores `radius.abs()`, or an arc frame turned onto the
+/// start vertex's normalized offset, refuses it from `1e-6` up), and a
+/// reading of the side no member has. It is evidence that these aims
+/// find no wrong side on the one curved body a sweep door admits over a
+/// box, not that the curved edge reading is sound: it stays green with
+/// `topo`'s `reaches_root_in_band` answering reached without deciding,
+/// and with `curved_edges::passes` reading an edge it could not place
+/// as cleared (three of the rays drawn at `1e-4` then read a side or a
+/// graze where they were set aside as crossing, none `In`).
+#[test]
+fn the_circle_verbs_disc_of_boxed_radius_is_admitted_and_read() {
+    let shape = shapes()
+        .into_iter()
+        .find(|s| s.name.starts_with("disc of boxed radius"))
+        .expect("the disc");
+    let mut rng = test_utils::fuzz::start("boxed_disc_rays");
+    let replay = test_utils::fuzz::replay();
+    for half in [1e-6, 1e-4, 1e-2, 0.05, 0.1] {
+        let (lo, hi) = (shape.middle - half, shape.middle + half);
+        // The budget the sweeps' frame rows run in: the disc's
+        // mapped-source forms outgrow the 64 terms the prisms need.
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let readings = over_within(budget, &shape, lo, hi, |body, band| {
+            topo::test_support::each_aim(body, band)
+        })
+        .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
+        let kinds: Vec<&str> = readings.iter().map(|r| kind(r)).collect();
+        assert!(
+            !kinds.contains(&"IN"),
+            "±{half:e}: a wrong side: {readings:?}"
+        );
+        println!("±{half:e}: {}", tally(&readings));
+        assert!(
+            half > 1e-3 || kinds.contains(&"out"),
+            "±{half:e}: no aim reads a side: {}",
+            tally(&readings)
+        );
+        let draws = draws_about(&mut rng, &shape, lo, hi, test_utils::fuzz::scaled(40));
+        let drawn = over_within(budget, &shape, lo, hi, |body, band| {
+            let face = body.faces().next().expect("a body has faces").0;
+            draws
+                .iter()
+                .map(|&(a, n)| {
+                    topo::test_support::ray_at(
+                        body,
+                        face,
+                        Point3::new(c(a[0]), c(a[1]), c(a[2])),
+                        Vec3::new(c(n[0]), c(n[1]), c(n[2])),
+                        band,
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|refusal| panic!("±{half:e}: the door refuses the disc: {refusal}"));
+        println!("±{half:e} drawn: {}", tally(&drawn));
+        for (r, (aim, normal)) in drawn.iter().zip(&draws) {
+            assert!(
+                kind(r) != "IN",
+                "±{half:e}, aim {aim:?} normal {normal:?}: a wrong side: {r} ({replay})"
+            );
+        }
+    }
 }

@@ -1453,7 +1453,7 @@ fn for_both_scalars(what: &str, o: &Outline, zh: (f64, f64), s: f64) {
 }
 
 /// A loop of the outline `o` at any scalar; `hole` runs it clockwise.
-fn outline_loop<T: geom_core::Real>(o: &Outline, hole: bool) -> profile::ProfileLoop<T> {
+fn outline_loop<T: geom_core::Decide>(o: &Outline, hole: bool) -> profile::ProfileLoop<T> {
     let n = o.chain.len();
     let chain: Vec<(P, f64)> = if hole {
         (0..n)

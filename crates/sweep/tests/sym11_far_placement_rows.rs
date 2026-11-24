@@ -198,17 +198,14 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   rounding at this placement leaves an end `1.18e-9` off its plane —
 ///   inside the ambiguity band, so it escalates, and the tier's identity
 ///   is read only at an exact witness.
-/// - **The certified lane's stadium claims nothing about its arcs.** It
-///   is written through the fixture door, which holds no tolerance and
-///   so registers none of the lowering's endpoint facts, and the sweep
-///   registers only rigidity. Its arc carriers' `u_ref` is the placement
-///   turning the sketch radial, so the carrier is the description's own
-///   placement of the sketch arc and builds out to `(1e-6, 1e9)` and
-///   `(1e-9, 1e6)`; from `3.7e7` out at `1e-9` and at every placement
-///   off the origin at `1e-12` it is a typed `EndpointStart`, cells where
-///   rule G (`SymRules::canonical_root`) alone builds it over the sweep's
-///   registrations. Never a contradiction, never a wrong answer
-///   (`work/profile/fixture-built-sym-rows-lose-registered-discharges.md`).
+/// - **The certified lane's stadium builds in every cell.** It is
+///   written through the fixture door, which holds no tolerance and so
+///   registers none of the lowering's endpoint facts; its semicircles'
+///   bulges are literals, so the lowering records their radials, each
+///   arc carrier's `u_ref` is the placement turning the recorded radial,
+///   and the sweep states rigidity at both of the placed carrier's ends
+///   against it (`register_placed_carrier_ends`). So the carrier's
+///   start and end are the placed vertices at every placement.
 /// - **The certified lane is not a superset or a subset of either.**
 ///   It refuses the washer at `(1e-9, 3.7e7)` where `Sym<f64>` builds
 ///   it (the enclosure straddles the band where the point does not),
@@ -245,15 +242,15 @@ const TABLE: [[Cell; 4]; 3] = [
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["built", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["built", "EndpointEnd", "built"], 0) },
     ],
 ];
 

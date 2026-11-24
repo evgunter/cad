@@ -41,41 +41,53 @@
 #         (this workspace ships `debug-assertions = true` there).
 #     The arm table is one method, `SymRegistration::handle`
 #     (`crates/geom-core/src/real.rs`), exhaustive by hand, which every
-#     registrant calls on its answer — the sweep's sites and the
-#     profile lowering's alike;
+#     registrant calls on its answer;
 #
 # THE RATIFIED SITES (M10-9's unit of scope, the CONSTRUCTOR, as the
 # #3453 ruling reads it: the construction registers what the algebra
 # does not close, and the sweep registers rigidity):
 #
 #   * `crates/geom-core/src/arc.rs` — `Arc2::register_endpoints`, the
-#     shared arc type's one spelling of an arc's four endpoint facts
-#     (the rim at each end is the radius; the landing from each end is
-#     the other). It proves none of them: its caller does, so the
-#     callers need no entry of
-#     its own (Ev, #3453: the allowlist gains the shared type's site).
-#     Its callers are now every profile construction that proves its
-#     arc's endpoint facts (`profile::BuiltArc::register`, each
-#     construction's doc carrying the proof), and beside it
-#     `Arc2::register_tangent_at`, the centre as the radius along a
-#     side normal from a tangent foot, which the line×line fillet calls
-#     at its incoming foot (`profile/src/path.rs`,
-#     `register_incoming_tangency`, whose doc carries the proof), and
-#     `Arc2::register_radials`, the carrier point along each recorded
-#     radial is its vertex, which `profile::BuiltArc::register` calls for
-#     an arc whose construction made its radials. Each
+#     shared arc type's one spelling of an arc's endpoint facts: the
+#     landing from each end is the other, and the carrier's end from
+#     each end is the other. Each is the start's offset turned by the
+#     sweep, with no root taken, so it is one function of the arc's
+#     data at every value of it. It proves none of them: its caller
+#     does, so the callers need no entry of their own (Ev, #3453: the
+#     allowlist gains the shared type's site). Its callers are every
+#     profile construction that proves its arc's endpoint facts
+#     (`profile::BuiltArc::register`, each construction's doc carrying
+#     the proof), and beside it `Arc2::register_tangent_at`, the centre
+#     as the radius along a side normal from a tangent foot, which the
+#     line×line fillet calls at its incoming foot
+#     (`profile/src/path.rs`, `register_incoming_tangency`, whose doc
+#     carries the proof), and `Arc2::register_radials`, the centre
+#     plus the radius along each recorded radial is its vertex and the
+#     turned radial lands on the far one, which
+#     `profile::BuiltArc::register` calls for an arc whose construction
+#     made its radials: root-free, so true at every value where the
+#     construction stores its radius as the literal it decided. Each
 #     spells its identity here, so a registrant of another identity is
 #     a new function in this file.
-#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
-#     both facts it places: `register_rigidity` (the placed rim
-#     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`
-#     (the carrier at its span is the placed sketch landing, per
-#     component). These two functions are the only bodies that call
-#     the method; `crates/sweep/src/extrude.rs` reaches rigidity
-#     THROUGH `register_rigidity` and therefore needs no entry. The
-#     revolve's latitude carriers register nothing: their `u_ref` is the
-#     revolve's seam direction, so a latitude through its point is an
-#     identity the plain form proves.
+#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc:
+#     `register_placed_carrier_ends`, the carrier at its start and at
+#     its span is the placed sketch point the arc's recorded radial,
+#     and that radial turned by the sweep, reaches, per component. Each
+#     is one function of the centre, the radius, the direction and the
+#     sweep at every value of them (no root, the radius's sign
+#     included), stated because a frame's axes are atoms to the tier.
+#     That function is the only body in the sweep that calls the
+#     method. The revolve's latitude
+#     carriers register nothing: their `u_ref` is the revolve's seam
+#     direction, so a latitude through its point is an identity the
+#     plain form proves.
+#
+# WHAT IS NOT REGISTERED, and why no site states it: that an arc's rim
+# at a vertex is its radius. That is `sqrt(r²)` against `r`, which
+# holds only where `r` is positive: a fact about a sign a gate decided,
+# which is not one function of the parameters, and which the witness
+# cannot tell from one. Its readers ask the rationalized gap instead
+# (`Arc2::off_carrier`, `geom_core::radius_gap`).
 #
 # WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
 # source text, so a call reached through a macro, a re-export under

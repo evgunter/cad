@@ -60,7 +60,7 @@ pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
 /// it.
 pub const GOLDEN_SECTION: f64 = 0.618_033_988_749_895;
 
-pub use arc::{Arc2, Circles, Circles2, CirclesAt};
+pub use arc::{Arc2, ArcSweep, Circles, Circles2, CirclesAt};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
