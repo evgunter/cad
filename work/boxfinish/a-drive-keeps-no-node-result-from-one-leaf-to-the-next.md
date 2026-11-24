@@ -102,6 +102,34 @@ which is the door a served result comes through.
   warm caches. A store that keeps values keeps their records, so its
   size is its own to measure.
 
+**From the session-state unit's delta review (PR 7492), for whoever
+builds the store:**
+
+- **A family's record with a served member** is now the record a run
+  of every member leaves: `eval_node` hands the enclosing scope a
+  served step's held record in place of what ran (`sym::carry`), pinned
+  by `a_family_with_a_member_taken_from_an_earlier_leaf_carries_that_members_record`.
+  That is the evaluator's own prior; a store that serves a member
+  through another door owes the same call.
+- **One record at two addresses.** A record's `over` and its `==`
+  compare the records it was built over by address first and by their
+  own content second, and `NodeRecord::read` counts by address. A node
+  and its upstream served from different leaves can hold one record at
+  two addresses; an identity of the record's own (its content) would
+  not depend on that history.
+- **A second, different bracket for one symbol**, where a served
+  node's record and the leaf's environment disagree: the last recorded
+  stands, and which stands decides the early walk. A named question
+  for the store; nothing checks it today.
+- **A served value under a table that serves nothing**
+  (`DriveConfig::plain_memo` off): the value names nodes the table
+  holds and forms it does not serve.
+- **A served result's `over` keeps every upstream record alive** for
+  as long as the result is held, so for the drive's length.
+- **A gather that refuses drops its record** (`product::gather_sources`
+  writes it on `Ok` alone): on
+  `work/boxfinish/a-documents-registrations-do-not-reach-its-products-gather`.
+
 **From the node-key unit's fix pass (PR 7470), two things the store
 should know:**
 
