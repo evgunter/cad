@@ -194,7 +194,7 @@ pub(crate) fn circle_vertex_cites(
     operands: [RecipeNodeId; 2],
     what: &str,
 ) {
-    use editor_core::{EntityKey, Entry, RoleSeg};
+    use editor_core::{EntityKey, EntityKind, Entry, RoleSeg};
     let t = crate::fixture::table(ev, out);
     let vertices: Vec<_> = t
         .iter()
@@ -232,6 +232,15 @@ pub(crate) fn circle_vertex_cites(
     assert!(
         !editor_core::all_vertices(ev, out).contains(name),
         "{what}: no listing hands out the vertex's name for a reference to hold"
+    );
+    assert!(
+        !editor_core::select(
+            ev,
+            out,
+            &editor_core::Selector::of(editor_core::NamePat::of_kind(EntityKind::Vertex)),
+        )
+        .contains(name),
+        "{what}: no selector hands out the vertex's name"
     );
 }
 

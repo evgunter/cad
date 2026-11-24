@@ -71,7 +71,7 @@ use std::sync::Arc;
 use topo::{Body, EdgeKey, FaceKey, ShellNaming, VertexKey};
 
 use super::defer::{TieRows, put as put_row, upstream_name};
-use super::emit::{NamingError, check_total, ent, name1};
+use super::emit::{NamingError, ent, name1};
 use super::role::{EntityKind, RoleSeg};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
@@ -327,8 +327,7 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     }
     named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
-    let t = super::emit::name_conventional_vertices(t, body, 0)?;
-    check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Arc::new(t))
 }
 

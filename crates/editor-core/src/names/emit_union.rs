@@ -116,7 +116,7 @@ use crate::names::defer::{TieRows, mint_candidates};
 use crate::names::discriminate::{ON_MEMBER_EDGE, band};
 use crate::names::emit::{
     DisagreeShape, Incidence, NamingError, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    check_total, edge_ends, ent, face_half_edges, read_held, vertex_point,
+    edge_ends, ent, face_half_edges, read_held, vertex_point,
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, HeldFace, Lone, ParentEntities,
@@ -310,8 +310,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
-    let t = super::emit::name_conventional_vertices(t, body, 0)?;
-    check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok((Arc::new(t), groups))
 }
 
@@ -1642,7 +1641,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     .start;
                 // A member's conventional vertex has no identity of its
                 // own: its point is its closed edge's interior.
-                if !seen.insert((i, w)) || topo::is_conventional_vertex(m.body, w) {
+                let own = m.table.name_of(&ent(0, EntityKey::Vertex(w)));
+                if !seen.insert((i, w)) || super::emit::is_named_conventional(m.body, w, own) {
                     continue;
                 }
                 let gap = Margin::of((vertex_point(m.body, w) - p).norm());

@@ -840,6 +840,11 @@ impl OutputNames {
     pub(crate) fn shared_table(&self) -> Arc<NameTable> {
         Arc::clone(&self.table)
     }
+
+    /// The groups, shared.
+    pub(crate) fn shared_groups(&self) -> Arc<crate::names::FragmentGroups> {
+        Arc::clone(&self.groups)
+    }
 }
 
 /// A successful node value (spec D2): the op-appropriate payload plus

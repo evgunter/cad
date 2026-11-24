@@ -19,7 +19,7 @@ use geom_core::Tol;
 
 /// The ball (its copy beside the brick), the brick, `op` over them,
 /// ball first or not, and the revolve that mints the ball's names.
-fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 4]) {
+pub(crate) fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let doc = ProfileDoc::empty_derived("ball_cut_by_brick", Tol::witness());
     let (doc, revolve) = ball(doc, 1.0, 0.0);
     let (doc, brick, stands) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);

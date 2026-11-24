@@ -818,6 +818,8 @@ mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
 
+#[path = "a_cut_through_a_conventional_vertex_reads_its_edge.rs"]
+mod a_cut_through_a_conventional_vertex_reads_its_edge;
 #[path = "a_datum_is_a_placed_frame.rs"]
 mod a_datum_is_a_placed_frame;
 #[path = "a_keel_ring_names_its_two_edges.rs"]
