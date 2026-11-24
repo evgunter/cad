@@ -298,7 +298,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
     ("chord_side", [2, 12]),
-    ("circle_side", [2, 2]),
+    // Two of the four were theorems through the registered rim; the
+    // rim is not registered, and the D-tab's bulge outruns the
+    // coefficient ring, so the gap reads them numerically.
+    ("circle_side", [0, 4]),
     ("contact_at_shared_vertex", [8, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the

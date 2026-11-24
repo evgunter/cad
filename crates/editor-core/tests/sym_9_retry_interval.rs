@@ -523,11 +523,13 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // never proved (the least turn's pole verdicts took it 1801 -> 1803).
     // `symbolic` fell 1390 -> 1381 when validation stopped reading an
     // adjacent line pair's shared vertex (PROFILE, `dbc608ffba`): decisions
-    // no longer asked.
+    // no longer asked. 1381 -> 1410 with the arcs' radii stored as
+    // decided and the rim read as the rationalized gap: twenty-nine
+    // decisions out of `numeric`, twenty-two through the ladder.
     // Once that row closes, this pin narrows to the general form above.
     assert_eq!(
-        d.symbolic, 1381,
-        "the shipped ladder's leaf proves 1381 theorems: {d:?}"
+        d.symbolic, 1410,
+        "the shipped ladder's leaf proves 1410 theorems: {d:?}"
     );
     let retried = d.retried > 0;
     assert_eq!(

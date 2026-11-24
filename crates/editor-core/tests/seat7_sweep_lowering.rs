@@ -245,7 +245,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("cut_cylinder", 0x578d_6718_4b8b_6b9f),
         // Holds PR 7354's move unjudged; SECTCONE owes the judgement
         // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
-        ("boss_union", 0x8d66_5160_109c_0ae9),
+        ("boss_union", 0x8d1b_fa79_663f_e8f1),
         ("kitchen_sink", 0x0027_ff77_60b2_466b),
     ];
     let mut moved: Vec<String> = Vec::new();

@@ -237,7 +237,7 @@ fn sym_profile_callgrind_replay() {
 /// a form that shrinks, or grows by less than its measured size, moves
 /// nothing.
 const SLAB_MAX_TERMS: usize = 8;
-const PLATE_MAX_TERMS: usize = 76;
+const PLATE_MAX_TERMS: usize = 222;
 
 /// One replay of `doc` at its nominal with the profile installed: its
 /// walk ledger — per walk and origin the calls, the forms, the frozen,
@@ -309,9 +309,9 @@ fn the_slabs_walks_build_one_ledger_and_freeze_nothing() {
 }
 
 /// The plate's largest form under the growth guard ([`PLATE_MAX_TERMS`]).
-/// The holes' plane mates place by a reach read off the faces' cover
-/// (`topo::cover`), and the largest form is one of its norms, so a
-/// change to how a cover is read is what moves it.
+/// The largest form is a rim gap's squared offset (`geom_core::radius_gap`
+/// over an arc's vertex), 111 terms, so a change to how a point is read
+/// against a radius is what moves it.
 ///
 /// **And the cap apex's lines freeze nothing** — the witness of an open
 /// row, not a baseline: rule D folds `sin` and `cos` of `q·atan X` but
@@ -415,8 +415,9 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     // `Plain/Report` is not a form the plain walk builds: it counts the
     // residuals rendered because they BLOCKED, and which ones block is
     // the early walk's rules' to decide. So it is the one plain line a
-    // dial may move: the sets with the canonical root render none, and
-    // the sets without it render the certificate's blocked reads.
+    // dial may move. No set renders one on the plate: the reads that
+    // blocked without the canonical root were rim gaps, whose numerator
+    // is the zero polynomial under every dial set.
     let is_report = |l: &str| l.trim_start().starts_with("Plain/Report");
     let plain_lines = |ledger: &str| {
         ledger
@@ -437,7 +438,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            true,
+            false,
         ),
         ("without_the_reads", SymRules::without_the_reads(), false),
         (
@@ -446,7 +447,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            true,
+            false,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
@@ -465,8 +466,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         assert_eq!(
             report_calls(&ledger).is_some_and(|n| n > 0),
             blocked,
-            "{name}: the plain walk renders blocked residuals where the canonical root is off, \
-             and none where it is on: {:?}",
+            "{name}: the plain walk renders the blocked residuals its set is pinned to: {:?}",
             report_calls(&ledger)
         );
         match &seen {

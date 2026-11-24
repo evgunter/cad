@@ -129,8 +129,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.029e2,
             refuses_at: Some(4.395e2),
             refused_by: None,
-            // Door shut, limb 2 stalls against the cylinder rim.
-            door: Door::LoadBearing("Stalled { operand: Cylinder"),
+            // Door shut the link certifies whole: the four decisions the
+            // registry discharges are numeric, inside the band.
+            door: Door::Buys(4),
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -144,7 +145,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so its `dihedral_wedge` decisions, and the
             // tangent certificate's gap rows on the fillet's contact
             // edges, are registered rather than proved.
-            door: Door::Buys(71),
+            door: Door::Buys(79),
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
