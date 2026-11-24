@@ -1242,6 +1242,10 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn transport_curve<T: Decide>(
     old: &Surface<T>,
     nappe: Nappe,
@@ -1445,6 +1449,10 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
 /// offset's own map.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
@@ -2494,6 +2502,10 @@ fn group_cone_v_window<T: Decide>(
 
 /// The `v`-range of one carrier on a cone chart (see
 /// [`group_cone_v_window`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -2517,11 +2529,7 @@ fn cone_v_range<T: Decide>(
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
         Curve3::Circle(circle) => {
-            let (center, ca, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis.get()) * radius).powi(2)
@@ -2532,11 +2540,7 @@ fn cone_v_range<T: Decide>(
             (c - amp, c + amp)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, ca, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, ca, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);
             let amp = ((u_ref.dot(axis.get()) * semi_u).powi(2)
