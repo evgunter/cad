@@ -103,3 +103,14 @@ Round-5 replies (all three in by 13:10 UTC; raw on `boxfinish/briefs` `probe/bri
 ## Round 6 (dispatched 13:15 UTC to all three; statement `probe/briefs/fork-parted-path/round-6.md` at `e820b3ea3f9`)
 
 Shown: each other's round-5 replies; a table of the three positions; and two corrections from the measurement lane (M13b section 7 at `efceb821b`): the extrude's 27,667 leaves are a `Zero` decided in the funnel inside the zero band, a definite failure with no certified mass below (so nothing was decided outside the funnel, and the orchestrator's earlier statement was wrong); and `extrusion_normal_component`'s 122 flips DO move the body across its sketch plane, through a frame neither the cell record nor any check holds, so the flips are 318 coordinates-only, 220 a crease, 122 a body on the other side of its plane with no cell or check differing. Asked: one comparison or the split; a parting bisected or refused at once; whether "same form" stands given the 122; and one paragraph of the E6 text each would have Ev ratify.
+
+Round-6 replies (all three in by 13:15 UTC; raw on `boxfinish/briefs` `probe/briefs/fork-parted-path/<label>-round-6.md` at `a3a1db273b8`): **one answer on everything but a phrase.**
+- **B moved** off the same-lane reference to E6's comparison as ratified (its error-direction argument was against leaving checks out, and nobody now does; its own tie would refuse the one measured lane difference whole, the same refusal the witness gate makes leaf by leaf). It keeps a parting bisecting.
+- **A moved** from a parting bisecting to a parting refused at once (every measured parting exists at zero width, where no split helps).
+- **C withdrew** "certify on form" as a gate: correction 2 measured the failure its proposal named as its risk (a record of cells and creases certifies 122 leaves whose body is across its sketch plane). It holds a parting refused at once.
+- **All three:** E6's comparison stands (whole record against the `f64` witness, no second run); a turn is a named `FlipCrossing`, including a node that fails on a decided answer where the witness builds (the 27,667 degenerate extrusions: refused at once, not bisected); a difference with no turn is `Parted`, never a flip, named; lane parity is a kernel rule under a parity test; "same form" is closed as a gate; the 318 coordinate-only flips are rows per predicate.
+- **The one phrase left:** a `Parted` leaf is refused at once (A, C) or bisects and is named at the floor (B).
+
+## Round 7 (dispatched 13:19 UTC to all three; statement `probe/briefs/fork-parted-path/round-7.md` at `a3a1db273b8`)
+
+The agreed list, the phrase with both arguments, and one question: which phrase each holds after reading the others, and whether a remaining difference should go to Ev or be ruled as a detail of the unit.
