@@ -1864,3 +1864,7 @@ mod tests {
         assert_eq!(direct, CarrierRelation::SameOpposite);
     }
 }
+
+#[cfg(test)]
+#[path = "carrier_eq_review_probe.rs"]
+mod review_probe;
