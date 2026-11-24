@@ -508,10 +508,14 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   points' distance, a point set's reach from a pivot) live beside
   `Lever` in `geom-core`; covers and `Reach` stay in `geom_brep`. A
   lever is never shorter than the region its verdict governs and no
-  longer than the site's own measure of it: a verdict that claims a
-  definite sign reads the extent from below, one that acts on its Zero
-  reads it from above, and one that acts on every sign reads both and
-  acts only where they agree.
+  longer than the site's own measure of it: a lever read off a
+  consumed extent is known from both sides, each measured from the
+  site its datum is read at: from below off points known to lie on the
+  region and from above off its cover. A verdict is served only where
+  it holds at every length between the two: for a reading multiplied by
+  its lever, a definite sign at the bound from below and a Zero at the
+  bound from above. Where the two disagree the reading is in band and
+  is refused as one.
 - **The consumed extent** (`geom_brep::Reach`): the region a verdict
   is used over. It is one type, built only from the geometry consumed
   (an edge over its span, a face's region, two faces' meet, a bounded
@@ -521,11 +525,15 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   derived from the extent, never chosen: a datum fixed by a carrier's
   form (an apex, a centre) is read there, and a datum free along an
   axis is read at the middle of the extent's window along it. Its
-  lever is the extent's far distance from that point; the least over
-  all points is not owed. That point is the origin of a tilt bound,
-  not a claim about the entity: any point is sound provided the datum
-  and its lever are read at the same one, so a record that verdicts
-  read from different points holds its region, not a lever.
+  lever is the extent's far distance from the site its datum is read
+  at; the least over all sites is not owed. A tilt moves a point of
+  the extent by the tilt times that point's distance from the line it
+  turns about, which is never more than its distance from any point of
+  that line. So a lever read from a point proves a Zero, and a
+  definite sign of a datum that turns about a known line is levered
+  from that line: a dihedral along a line edge, from the edge's line.
+  A record that verdicts read from different sites holds its region,
+  not a lever.
 - **The session box** is one predicate over the region a piece of
   geometry occupies, never a carrier's stored terms. The region is read
   from outside as its cover, and from inside off points known to lie on
@@ -549,4 +557,7 @@ determinism, Q1 on the comparison-free `Real`); `crates/geom-brep/README.md`
 
 ## Open
 
-- Nothing on this page.
+- Which site a dihedral along a curved edge is levered from (its
+  station's tangent line or the edge's carrier), and the site and
+  region of the joint turn at a pole; both are read from the span's
+  middle.
