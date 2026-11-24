@@ -124,3 +124,14 @@ this container has 4 vCPUs):
   - **Logged, not asked:** `section_cert::torus_plane` reads the square half Structural at the ball lever, while the pose reads it as a lane choice. An in-band square tilt with a tube-top touch reads `Tangent` there and closed to the pose. That errs toward escalation; it is unsure whether any pose reaches it.
   - **Main's tree:** the lane's main merge ran the first full CI over PRs 7664 and 7694 together (run 45416790254). Its only red is the inherited square_search fuzz, at a new seed.
   - **Class:** two spellings of one answer that agree "by construction", because both call one helper, are the same parallel-door shape a one-answer PR closes. Ask for one spelling at review. (ORBIT orchestrator)
+- 2026-11-24 — **PR 7713 (plane×torus at one lever, P1) merges.** Fix pass checked on my read:
+  - The JoinDesync guard is folded into the fallback. A germ's two faces meet, so the glue door always reads the pair and no production path builds the guard's input; the reason is written at the site.
+  - `plane_torus_closed_form` is the one spelling, and `asked` is gone.
+  - The cfg(test) frame copy is deleted.
+  - The tautological row is replaced by one levered at the torus face's own reach.
+  - The silent arms are `unreachable!`, naming the error.
+  - There is one decide site (`pair_section_held`).
+  - The stale citations are updated in SECTTORUS, SEAL, SECTARMS and SPLICE, and in the GERM frame spec. The spec's §1.2 "refuse by name" is restated as "carried; a frame reach is a desync". That catches up with merged work and is not a new decision. It is an agent-written unit spec, outside DESIGN.md's companion table, and `git log -S` found no ratification.
+  - Lily wall 8 now stops at torus × NURBS `GermSectionUnbuilt` (the ssi exhaustiveness budget, 200 000 cells), not at plane × torus.
+  - CI run 45441615769 is red only on the inherited square_search fuzz, at a new seed. I merged main myself; the gates and lint pass by their own exits.
+  - Closes `the-section-certificate-reads-a-plane-and-a-torus-on-its-own-rows`. (ORBIT orchestrator)

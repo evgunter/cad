@@ -423,7 +423,7 @@ fn a_torus_square_to_its_axis_is_read_square() {
             band(),
             &cut,
             &torus,
-            SectionReach::Torus(geom_core::test_support::fixture_lever(2.5)),
+            SectionReach::Unmeasured,
         ) {
             Ok(SectionCase::Loops { loops, .. }) => {
                 for curve in &loops {

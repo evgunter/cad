@@ -128,7 +128,9 @@ pub use cones::{ConeDecision, ConeRead, ConeRuledPose, ConeStance};
 pub use conic_pairs::{PlaneCylinderPose, PlaneSpherePose, SphereSpherePose};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
-pub use plane_torus::{PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance};
+pub use plane_torus::{
+    PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance, plane_torus_closed_form,
+};
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
@@ -1435,6 +1437,33 @@ pub enum SectionRead<T: Real> {
     Elsewhere(PairRoute),
 }
 
+/// What [`pair_section_held`] answers: [`SectionRead`], save that a
+/// plane × torus pose the value reads closed comes back whole, holding
+/// the closed form's reading ([`PlaneTorusPose::closed_form`]).
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+pub enum HeldRead<T: Real> {
+    /// The value's reading.
+    Read(SectionRead<T>),
+    /// A closed plane × torus pose, which [`pair_section`] reads
+    /// elsewhere.
+    ClosedPlaneTorus(PlaneTorusPose<T>),
+}
+
+impl<T: Decide> HeldRead<T> {
+    /// The value's reading, a closed pose read elsewhere.
+    #[must_use]
+    pub fn read(self) -> SectionRead<T> {
+        match self {
+            Self::Read(read) => read,
+            Self::ClosedPlaneTorus(pose) => {
+                let (a, b) = pose.operands();
+                SectionRead::Elsewhere(route(a.kind(), b.kind()))
+            }
+        }
+    }
+}
+
 /// **The section of `a` and `b`** (module docs): the one dispatch on
 /// kind pairs this value has, exhaustive with no wildcard arm.
 ///
@@ -1469,10 +1498,27 @@ pub fn pair_section<T: Decide>(
     lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
+    pair_section_held(a, b, region, lane, band).map(HeldRead::read)
+}
+
+/// [`pair_section`], holding a closed plane × torus pose
+/// ([`HeldRead::ClosedPlaneTorus`]) for a reader that serves its closed
+/// form from the pose the value decided.
+///
+/// # Errors
+///
+/// As [`pair_section`].
+pub fn pair_section_held<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    region: Option<ExtentBall<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
+    band: Band,
+) -> Result<HeldRead<T>, SectionError> {
     let (ka, kb) = (a.kind(), b.kind());
     let wrong = |expected| Err(SectionError::WrongLane { expected });
     let region_of = |pair| region.ok_or(SectionError::NoRegion { pair });
-    match arm(ka, kb) {
+    let read = match arm(ka, kb) {
         Arm::CylinderSphere => match CylinderSpherePose::decide(a, b, band) {
             Some(pose) => cylinder_sphere(pose?, band).map(SectionRead::Built),
             None => wrong("a cylinder and a sphere"),
@@ -1497,13 +1543,15 @@ pub fn pair_section<T: Decide>(
             Some(pose) => cone_torus::cone_torus(pose?).map(SectionRead::Built),
             None => wrong("a cone and a torus"),
         },
-        // An axis-aligned plane is the closed form's, read where it was
-        // before.
         Arm::PlaneTorus => match PlaneTorusPose::decide(a, b, band) {
-            Some(Ok(pose)) if matches!(pose.stance(), PtStance::Closed) => {
-                Ok(SectionRead::Elsewhere(route(ka, kb)))
+            Some(pose) => {
+                let pose = pose?;
+                return match pose.stance() {
+                    PtStance::Closed => Ok(HeldRead::ClosedPlaneTorus(pose)),
+                    PtStance::Tilted(_) => plane_torus::plane_torus(pose)
+                        .map(|s| HeldRead::Read(SectionRead::Built(s))),
+                };
             }
-            Some(pose) => plane_torus::plane_torus(pose?).map(SectionRead::Built),
             None => wrong("a plane and a torus"),
         },
         Arm::CylinderCylinder => {
@@ -1547,7 +1595,8 @@ pub fn pair_section<T: Decide>(
                 .map(SectionRead::Built)
         }
         Arm::Elsewhere => Ok(SectionRead::Elsewhere(route(ka, kb))),
-    }
+    };
+    read.map(HeldRead::Read)
 }
 
 /// **The value's arm for a kind pair**: the one dispatch on kinds, which
