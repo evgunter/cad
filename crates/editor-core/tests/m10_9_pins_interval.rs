@@ -127,8 +127,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.029e2,
             refuses_at: Some(3.030e2),
             refused_by: None,
-            // Door shut, limb 2 stalls against the cylinder rim.
-            door: Door::LoadBearing("Stalled { operand: Cylinder"),
+            // Door shut, limb 2 stalled against the cylinder rim while
+            // the arc after an axis hop departed along the chord's
+            // quotient. The `line_to` verb hands on the director it
+            // minted (the literal axis where the chord's component is
+            // zero as an expression, `geom_core::Expression::proves_zero`),
+            // the rim residual is then a theorem, and shut the replay
+            // certifies, the door's 60 decisions read numerically.
+            door: Door::Buys(60),
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -141,8 +147,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra, so its `dihedral_wedge` decisions, and the
             // tangent certificate's gap rows on the fillet's contact
-            // edges, are registered rather than proved.
-            door: Door::Buys(71),
+            // edges, are registered rather than proved. One of the 71
+            // was a fillet radial's `segment_direction_axis` reading,
+            // proved zero through the registry alone; the mint asks the
+            // expression, which reads no registry, so that radial is no
+            // axis and reads no sign.
+            door: Door::Buys(70),
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -459,8 +469,8 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// every other dial as shipped) beside the shipped replay, read against
 /// its [`Door`]. Where the door-shut replay certifies it decides what
 /// the shipped one does, and the door's decisions move from `symbolic`
-/// to `numeric`; on the link the door is load-bearing, and shut it
-/// refuses. A registrant that started stating something slightly false
+/// to `numeric`; a load-bearing door's document refuses shut (none of
+/// the five is one since the link's arcs depart along a minted axis). A registrant that started stating something slightly false
 /// stops discharging without ever being refused, and this is where that
 /// shows: what the door buys falls, and a load-bearing door's document
 /// refuses.

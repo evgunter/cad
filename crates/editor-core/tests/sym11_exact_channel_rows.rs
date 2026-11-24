@@ -55,12 +55,20 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The floors fell, and the pad's ceiling, when validation stopped
 /// reading an adjacent line pair's shared vertex (PROFILE, `dbc608ffba`):
 /// decisions no longer asked, not decisions answered differently.
+///
+/// They fell again with the profile's direction mint asking the chord's
+/// expression whether it is zero (`geom_core::Expression::proves_zero`,
+/// no decision) where it read a proved Zero as one: the plate 955 → 951,
+/// the link 786 → 785, the bracket 1337 → 1329, the pad 1471 → 1455,
+/// each a reading no longer taken. The link's and the pad's frozen
+/// ceilings fell with the arcs after an axis hop departing along the
+/// literal axis: 2600 → 1987 and 1963 → 130.
 const PAST_THE_CEILING: [(&str, Option<&str>, u64, u64); 5] = [
-    ("two_hole_plate", None, 955, 36),
+    ("two_hole_plate", None, 951, 36),
     ("r1_annulus", None, 511, 36),
-    ("r2_link", None, 786, 2600),
-    ("r2_filleted_bracket", None, 1337, 57),
-    ("r2_rounded_pad", None, 1471, 1963),
+    ("r2_link", None, 785, 1987),
+    ("r2_filleted_bracket", None, 1329, 57),
+    ("r2_rounded_pad", None, 1455, 130),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
