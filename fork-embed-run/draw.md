@@ -39,3 +39,16 @@ What moved:
 Position after round 2: agreed on the promise, the rate, the cases' verdicts (1, 2, 4 refuse; 3 certified). Not yet agreed on the reading's form: one lever at the near run (A), or two readings (B: distinctness at the far run, and the boundary parts' clearance), and on whether the wedge's reality is the question's to read at all or tier 3's alone. Positions moved and did not meet: round 3.
 
 Tokens, cumulative as the harness reports: A 158,704; B 293,366.
+
+## Round 3 (2026-11-24, about 02:45Z to 02:55Z)
+
+Dispatched: both designers, same agents. Shown: each the other's round-2 report in full (neutral copy), my reading of the remaining difference (one reading at the near run, or two readings), and seven questions: what moved; whether the first fact is implied by the near-run reading; the second fact's form as a final state (a kept length or a rule on what a certified cell discharges); whether the wedge's reality is the question's to read; the rule A stated; which door owns "pieces that do not meet" for a face's own boundary; the sentence each would put to Ev. Verbatim: `round3/A-r3.md`, `round3/B-r3.md`.
+
+What moved:
+- **B moved back to ONE reading** at the near run and withdrew round 2's separate far-run reading (near ≤ far, so a pass implies the faces are distinct; reading it separately has the question decide tier 3's fact again). It recommends the kept length over the rule in the walk, which it had called the general form (the rule ties the verdict to the subdivision). It adds that the near run must include the face's own end (a cap on its rim, a half-disc, a lune, a lens have no stranger boundary, and with no length the code refuses), and a third clause: a neighbouring edge that left the shared edge's end and has turned back.
+- **A unchanged in substance**: one reading, the near run capped at the far run ("never farther than it stands from that at all"), which is the same fallback; the kept length; it holds that the edge that dips back is excluded by key under both forms and is caught, if at all, by another pair.
+- Both: the rule ("every body within the band of this one, with the same topology, stays embedded") is the derivation and belongs in the PR body, not in ratified text. Both: the question owns "pieces that do not meet" for a face's own boundary beside a shared cell, through the lever; the census's plane passes reading the same number within one solid is a follow-up row.
+
+Position after round 3: the same lever, rate, promise and form (one kept length per face and shared cell). One clause differs: whether an adjacent edge that turns back counts in the near run (B) or is left to the pair across it (A). Round 4 asks each whether it signs the other's sentence.
+
+Tokens, cumulative: A 174,168; B as the harness reports at its round-3 notification (recorded with round 4).
