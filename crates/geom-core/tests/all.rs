@@ -241,3 +241,5 @@ mod m10_10_r1_sym_probes;
 mod m10_10_r2_probes;
 #[path = "polar_enclosure_contains_the_polar_factor.rs"]
 mod polar_enclosure_contains_the_polar_factor;
+#[path = "shape_report_render_budget.rs"]
+mod shape_report_render_budget;

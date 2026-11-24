@@ -3308,7 +3308,8 @@ pub(super) enum FrameError {
         verdict: geom_brep::recourse::Refused,
     },
     /// A plane cuts a torus in a general spiric quartic, which the
-    /// table routes to its unbuilt general rung.
+    /// table routes to its general rung, on a pair the operation's
+    /// section table holds no section of.
     Spiric {
         /// The loops the section certificate reads.
         loops: super::SpiricLoops,
@@ -3989,6 +3990,7 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             | P::CylinderTorus(_)
             | P::TorusTorus(_)
             | P::ConeTorus(_)
+            | P::PlaneTorus(_)
             | P::SplineImplicit(_)
             | P::SplinePair(_)
             | P::PlaneSphere(_)
@@ -4284,8 +4286,13 @@ pub(super) fn pk_section<T: Decide>(
 /// every point of the section, which the table decided positive.
 ///
 /// A general plane cuts a spiric quartic, which the table routes to its
-/// unbuilt general rung; that refuses as [`FrameError::Spiric`], naming
-/// the loops by the section certificate's own margins
+/// general rung: the section value marches it ([`geom_brep::PlaneTorusPose`]),
+/// and the operation's section table holds it, so a germ on it is read
+/// by its components and never reaches this frame. It reaches here only
+/// where the value, levered over the torus's ball, read the pose as one
+/// the closed form serves and the table holds nothing: that refuses as
+/// [`FrameError::Spiric`], naming the loops by the section certificate's
+/// own margins
 /// ([`section_cert::torus_plane_loops`](super::section_cert::torus_plane_loops)).
 /// A tangent circle or no section under a minted germ is the desync the
 /// sphere arm's tangent point is. Where the table routes the pose to its

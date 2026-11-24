@@ -156,3 +156,12 @@ should know:**
   through `var_env_over`, so inside one store a held axis is one
   expression and nothing misses; the miss is between an unboxed build
   and a boxed replay, which no store shares.
+
+**Note for the unit (2026-11-24, from a designer of the climb fork):**
+the ladder's growth guard (`SymRetry::max_forms` in `geom-core`'s
+`sym.rs`, checked per attempt per leaf) makes a decision's answer
+depend on the asks made earlier in the leaf. A store that serves a
+node skips its asks, so a later decision in that leaf can meet the cap
+at another point than in a fresh leaf: "the same with the store on or
+off" has to hold across the guard, or the guard's count has to belong
+to the node. (BOXFINISH orchestrator)
