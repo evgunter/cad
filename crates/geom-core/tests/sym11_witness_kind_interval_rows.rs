@@ -11,28 +11,27 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin};
+use geom_core::sym::contradiction;
+use geom_core::sym::revalue::record;
 use geom_core::sym::with_session_rules;
 use geom_core::tolerance::Tol;
 use geom_core::{Interval, ParamSymbol, Sym, SymRules};
 
 use crate::sym11_witness_kind_rows::{adversary_of, budget, pole_of, witness_agrees};
 
-/// **THE DISPUTE COLUMN IS ZERO AT THE EXACT WITNESS.** R2's adversary
-/// and R1's pole over boxes around the points the inexact lanes
-/// dispute: the enclosure of the adversary's margin over `x ∈ [1e8 ∓ 1]`
-/// straddles zero, so the numeric channel does not answer a definite
-/// sign at all and there is nothing to contradict; the box holding the
-/// pole is refused by clause 1.
+/// **NOTHING CONTRADICTS AT THE EXACT WITNESS.** R2's adversary and R1's
+/// pole over boxes around the points the inexact lanes misread: the
+/// enclosure of the adversary's margin over `x ∈ [1e8 ∓ 1]` straddles
+/// zero, so the numeric channel does not answer a definite sign at all
+/// and there is nothing to contradict; the box holding the pole is
+/// refused by clause 1.
 ///
 /// The row is the `Interval` twin of
-/// `sym11_witness_kind_rows::sym11_the_adversary_is_a_counted_dispute_at_sym_f64`,
-/// and what it PINS is the charge's arm at this scalar: the count is
-/// zero here because `Interval::WITNESS` is `Exact`, which routes the
-/// contradiction to the `debug_assert!` and never to the column. A
-/// non-zero count is that const having moved, not a document behaving
-/// badly.
+/// `sym11_witness_kind_rows::sym11_the_adversary_is_a_rounded_contradiction_at_sym_f64`:
+/// what the point channel reads as a contradiction is no claim the
+/// certified channel makes.
 #[test]
-fn sym11_the_exact_witness_disputes_nothing_on_either_mechanism() {
+fn sym11_the_exact_witness_contradicts_nothing_on_either_mechanism() {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
     let over = |name: &str, lo: f64, hi: f64| {
         Sym::param_over(
@@ -54,15 +53,20 @@ fn sym11_the_exact_witness_disputes_nothing_on_either_mechanism() {
         }),
     ];
     for (what, build) in cases {
-        let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
-            geom_core::k_stats::decide("sym11_witness_kind", Margin::of(build()), band)
+        let ((out, report), counts) = with_session_rules(budget(), SymRules::shipped(), || {
+            let (out, decisions) = record(|| {
+                geom_core::k_stats::decide("sym11_witness_kind", Margin::of(build()), band)
+            });
+            (
+                out,
+                contradiction::check(&decisions).expect("inside the session"),
+            )
         });
-        println!("  {what}: {out:?} | {counts:?}");
+        println!("  {what}: {out:?} | {counts:?} | {report:?}");
         assert_eq!(
-            counts.theorems_disputed, 0,
-            "{what}: this scalar's witness is EXACT, so the contradiction is routed to the \
-             `debug_assert!` and never to this column — a count here is `Interval::WITNESS` \
-             having moved: {counts:?}"
+            (report.checked, report.contradictions.len()),
+            (0, 0),
+            "{what}: no definite sign, so nothing to contradict: {report:?}"
         );
     }
 }
