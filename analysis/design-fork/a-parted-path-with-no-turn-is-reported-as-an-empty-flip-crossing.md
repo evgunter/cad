@@ -54,3 +54,14 @@ M13 (`probe/M13-REPORT.md` on `boxfinish/probe-build-record` at `447298e0b`): th
 ## Round 2 (dispatched 12:08 UTC)
 
 All three shown M13's report and `probe/briefs/fork-parted-path/round-2.md` (what was found; five questions: is certifying every known flip the right outcome or the sign of a wrong record; what a certificate claims and to whom; what `FlipCrossing` is for when no decided leaf builds another record; the fallback; what is measured or built first).
+
+Round-2 replies (all three in by 12:11 UTC; raw on `boxfinish/briefs` `probe/briefs/fork-parted-path/<label>-round-2.md` at `9a154f43411`):
+- **All three withdrew the cells gate** on the measurement, and all three now hold that a leaf across a turned structural choice is not the witness's part.
+- **A moved** (back to its first gate, changed): choices and standings against the `f64` witness; checks the leaf's own; a turned choice a named flip; a parting refused at once under its own class, never bisected (partings are present at zero width, 0 at a pruning query).
+- **B moved** to the same gate as A, in the same terms ("a part of the nominal's form"); a standing change is a flip only when the failure is proven definite.
+- **C moved** to its round-0 gate (the whole record, a turned check a flip, a parting bisected) with a new reference: the leaf is compared with the nominal's own replay at the box scalar over a zero-width box, which must build what the `f64` witness builds (the cell record's one job), else the drive refuses whole. Its fallback is A's and B's gate.
+- Positions moved and did not meet: A and B agree; C differs on the reference, on checks and on a parting.
+
+## Round 3 (dispatched 12:13 UTC)
+
+All three shown the other two's round-2 reports and `round-3.md` (the table of where they stand; the reference; checks; a parting; whether they now agree).
