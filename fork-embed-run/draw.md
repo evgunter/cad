@@ -27,7 +27,7 @@ Both delivered 2026-11-24 (A about 02:30Z, B about 02:45Z); neither saw the othe
 
 Agreement on the final state: **no** on the lever (far run against near run) and on the promise; **yes** on the rate (the wedge's sine capped at one, not the two rates summed), on the sector sliver (certified), and on the 0.6·K·ε strip at 2.6 rad (refuses).
 
-## Round 2 (2026-11-24, about 02:37Z to 02:45Z)
+## Round 2 (2026-11-24)
 
 Dispatched: both designers, by message to the same agents. Shown: each the other's first report in full (a copy at a neutral path, without this file), my reading of where the two stood, the other's three main claims against its own, four points of FACT about the tree to check at `273f765de5` (the fixture's geometry; what a passing edge cell discharges; which pair and path reads a far boundary in a finished body, curved faces included; each lever at the shared edge's ends), and the question whether something lies beneath both positions. Verbatim: `round2/A-r2.md`, `round2/B-r2.md`.
 
@@ -40,7 +40,7 @@ Position after round 2: agreed on the promise, the rate, the cases' verdicts (1,
 
 Tokens, cumulative as the harness reports: A 158,704; B 293,366.
 
-## Round 3 (2026-11-24, about 02:45Z to 02:55Z)
+## Round 3 (2026-11-24)
 
 Dispatched: both designers, same agents. Shown: each the other's round-2 report in full (neutral copy), my reading of the remaining difference (one reading at the near run, or two readings), and seven questions: what moved; whether the first fact is implied by the near-run reading; the second fact's form as a final state (a kept length or a rule on what a certified cell discharges); whether the wedge's reality is the question's to read; the rule A stated; which door owns "pieces that do not meet" for a face's own boundary; the sentence each would put to Ev. Verbatim: `round3/A-r3.md`, `round3/B-r3.md`.
 
@@ -53,7 +53,7 @@ Position after round 3: the same lever, rate, promise and form (one kept length 
 
 Tokens, cumulative: A 174,168; B as the harness reports at its round-3 notification (recorded with round 4).
 
-## Round 4 (2026-11-24, about 02:55Z to 03:05Z)
+## Round 4 (2026-11-24)
 
 Dispatched: both designers, same agents. Shown: each the other's round-3 report in full (neutral copy), my reading of what was agreed and of the one clause that differed (an adjacent edge that left the shared edge and has turned back), and three questions: whether it signs the other's sentence; whether the turned-back term is well defined and what it under-reads; its final sentence. Verbatim: `round4/A-r4.md`, `round4/B-r4.md`.
 
@@ -65,6 +65,8 @@ What moved:
 
 Tokens, cumulative as the harness reports: A 124,245 first report, 186,460 in total; B 253,477 first report, 327,534 in total.
 
-## The measurement lane (2026-11-24, reported about 03:05Z)
+## The measurement lane (2026-11-24)
 
 An Opus 5.5 lane (not a designer; it saw the problem statement and the readers' passages, not the designers' reports) built finished closed solids at `273f765de5` for the cases both designers left unchecked: branch `embed/run-probe`, commits `76c60cd198` and `95f6f188d0`; its report verbatim in `measure/probe-report.md`. It reported after round 4, so no designer saw it; both had said their recommendation does not rest on it.
+
+Clock: rounds 2 to 4 and the measurement lane's report all fell between 02:36Z and 02:50Z on 2026-11-24 (`date -u` at the commits); the `[ev]` PR is 7673, opened about 02:50Z.
