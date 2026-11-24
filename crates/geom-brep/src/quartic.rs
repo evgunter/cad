@@ -11,8 +11,9 @@ use geom_core::{Band, Decide, Margin, Sign};
 use crate::roots::{RootRefusal, Roots, Unsettled};
 
 /// **The two roots of `a·t² + 2b·t + c`**, `[(−b − √disc)/a,
-/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive by the
-/// caller, each spelled so that no sum in it cancels.
+/// (−b + √disc)/a]` with `disc = b² − a·c` decided positive and `a`
+/// decided nonzero by the caller, each spelled so that no sum in it
+/// cancels.
 ///
 /// Of the two numerators `−b ∓ √disc`, one adds magnitudes and the
 /// other cancels when `a·c` is small beside `b²`; divided by a lead `a`
@@ -22,14 +23,26 @@ use crate::roots::{RootRefusal, Roots, Unsettled};
 /// also `c` over the other numerator, which adds magnitudes, and that is
 /// the spelling taken for it. Which numerator adds magnitudes is the
 /// sign of `b`, read by [`geom_core::Real::select_le_zero`] as a value
-/// selection, not a decision: both spellings name the same root, so
-/// where an enclosure of `b` straddles zero the hull of the two is as
-/// narrow as either, and neither denominator nears zero there (it is
-/// `√disc` plus a sliver).
+/// selection, not a decision, and each arm reads `b` held to its own
+/// side of zero (`min(b, 0)` where `b ≤ 0` is read, `max(b, 0)` where
+/// `b > 0` is), so each divisor is at least `√disc` in magnitude
+/// wherever its arm is read.
+///
+/// - `f64`: the arm `b`'s sign picks, and `b` is its own clamp there, so
+///   each root is the plain spelling's bits.
+/// - `Interval`: where `b` is decided, that arm over the whole box;
+///   where it straddles zero, the hull of the two arms, each over its
+///   own half of `b` and bounded by `√disc` below its divisor: an
+///   enclosure of both roots over the box, finite wherever the inputs
+///   are.
+/// - `Dual<T>`: the value channel is the scalar's; the tangent follows
+///   `b`'s at a tie (`min` and `max` keep `self`).
+/// - `Sym<T>`: the value channel is `T`'s, the same arms recorded.
 pub fn quadratic_roots<T: Decide>(a: T, b: T, c: T, disc: T) -> [T; 2] {
     let root = disc.max(T::zero()).sqrt();
-    // `−b − √disc` adds magnitudes for `b > 0`, `√disc − b` for `b ≤ 0`.
-    let (minus, plus) = (T::zero() - b - root, root - b);
+    let (b_le, b_gt) = (b.min(T::zero()), b.max(T::zero()));
+    // `√disc − b` adds magnitudes for `b ≤ 0`, `−b − √disc` for `b > 0`.
+    let (plus, minus) = (root - b_le, T::zero() - b_gt - root);
     [
         b.select_le_zero(c / plus, minus / a),
         b.select_le_zero(plus / a, c / minus),

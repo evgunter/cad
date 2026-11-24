@@ -359,17 +359,32 @@ pub(super) fn wall_quadratic<T: Decide>(
     let w0p = wall.offset(q);
     let dp = d.get() - axis.get() * d.get().dot(axis.get());
     let a2 = dp.norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
-            .max(T::zero() - span)
-            .min(span),
+    let (shift, slope) = match about {
+        About::Start => (T::zero(), w0p.dot(dp)),
+        About::Nearest => {
+            let (shift, held) =
+                held_within((T::zero() - w0p.dot(dp)) / a2, (T::zero() - span, span));
+            (shift, a2 * held)
+        }
     };
     let w = w0p + dp * shift;
     Centred::new(
         (w0, d.get(), shift, w),
-        [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
+        [a2, slope, w.norm_squared() - radius.powi(2)],
         radius,
+    )
+}
+
+/// **A closest approach `free` held to the run `(lo, hi)`**, and how far
+/// the run moved it, `held − free`: zero wherever the approach is inside
+/// the run, as a fact rather than a difference, so that a quadratic read
+/// about the held point has its middle coefficient `|d|²·(held − free)`,
+/// zero by construction there, without the twice-counted offset that
+/// `w·d` recomputes it from.
+fn held_within<T: Decide>(free: T, (lo, hi): (T, T)) -> (T, T) {
+    (
+        free.max(lo).min(hi),
+        (hi - free).min(T::zero()) - (free - lo).min(T::zero()),
     )
 }
 
@@ -384,14 +399,16 @@ pub(super) fn sphere_quadratic<T: Decide>(
     let geom::Line { origin: q, dir: d } = line;
     let w0 = q - center;
     let a2 = d.get().norm_squared();
-    let shift = match about {
-        About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
+    // About the closest approach, which no run holds back, `w·d` is zero
+    // by construction.
+    let (shift, slope) = match about {
+        About::Start => (T::zero(), w0.dot(d.get())),
+        About::Nearest => ((T::zero() - w0.dot(d.get())) / a2, T::zero()),
     };
     let w = w0 + d.get() * shift;
     Centred::new(
         (w0, d.get(), shift, w),
-        [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)],
+        [a2, slope, w.norm_squared() - radius.powi(2)],
         radius,
     )
 }
@@ -557,13 +574,14 @@ pub(super) fn line_cone_quadratic<T: Decide>(
         dir: axis,
     } = cone;
     let w0 = q - apex;
-    let shift = line.param_within(apex, run);
+    let speed2 = d.get().norm_squared();
+    let (shift, held) = held_within(line.param(apex), run);
     let w = w0 + d.get() * shift;
     let cos2 = half_angle.cos().powi(2);
     let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
     let coeffs = [
-        da.powi(2) - d.get().norm_squared() * cos2,
-        da * wa - w.dot(d.get()) * cos2,
+        da.powi(2) - speed2 * cos2,
+        da * wa - speed2 * held * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
     Centred::new((w0, d.get(), shift, w), coeffs, T::zero())
