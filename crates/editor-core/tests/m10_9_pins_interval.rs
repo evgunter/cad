@@ -72,6 +72,10 @@ pub(crate) enum Door {
     Idle,
     /// Shut, the replay refuses at this predicate: the document
     /// certifies only through the door.
+    #[expect(
+        dead_code,
+        reason = "no measured document certifies only through the door now; the row keeps the arm for the next that does"
+    )]
     LoadBearing(&'static str),
     /// Shut, the replay still certifies and decides the same decisions,
     /// and this many of them move from `symbolic` to `numeric`: what the

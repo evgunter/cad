@@ -189,7 +189,7 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
             };
             let line = geom::Line {
                 origin: point(c) + lit3(x) * r,
-                dir: lit3(axis),
+                dir: geom_core::UnitVec3::squared(lit3(axis)),
             };
             let image = chart_pcurve(&Curve3::Line(line), &cylinder, band())
                 .unwrap_or_else(|e| panic!("along {name}: no image: {e:?}"));
@@ -204,7 +204,8 @@ fn a_ruling_built_on_a_cylinder_is_placed_at_its_own_angle_over_a_box() {
                     );
                     assert_eq!(
                         reading(
-                            (cylinder.eval(q.x, q.y) - (line.origin + line.dir * lit(t))).norm()
+                            (cylinder.eval(q.x, q.y) - (line.origin + line.dir.get() * lit(t)))
+                                .norm()
                         ),
                         PROVEN_ZERO,
                         "along {name} at {t}: the image maps onto the line"
@@ -653,7 +654,7 @@ fn an_extruded_circles_wall_places_its_seam_and_rims_at_zero() {
         };
         let seam = Curve3::Line(geom::Line {
             origin: start,
-            dir: lit3(axis),
+            dir: geom_core::UnitVec3::squared(lit3(axis)),
         });
         let rim = Curve3::Circle(geom::Circle::new(wall, r.abs()));
         for (name, carrier) in [("the seam", seam), ("a rim", rim)] {
