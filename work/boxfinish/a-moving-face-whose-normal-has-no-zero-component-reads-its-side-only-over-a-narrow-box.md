@@ -2,10 +2,11 @@
 id: a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box
 kind: issue
 title: A moving face whose normal has no zero component reads its side only over a box about a twentieth of its height wide
-status: open
+status: parked
 opened: 2026-11-23
 priority: P1
 cost: M
+blocked_on: [the-side-readers-ray-rides-the-body-it-reads-over-a-box]
 ---
 
 

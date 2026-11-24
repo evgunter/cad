@@ -189,11 +189,25 @@ pub mod solid_contain;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The cuts each of this thread's sphere cut-ins made, A's then B's,
+    /// one entry per cut-in in call order
+    /// ([`test_support::take_cut_ins`]): the witness a test reads to
+    /// count the cuts, which no result holds.
+    static CUT_INS: core::cell::RefCell<Vec<[usize; 2]>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one cut-in's cuts ([`CUT_INS`]).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn note_cut_ins(made: [usize; 2]) {
+    CUT_INS.with(|c| c.borrow_mut().push(made));
+}
+
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
 pub mod instance;
-pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod joint;
@@ -928,6 +942,14 @@ pub mod test_support {
         RemapKeys,
     }
 
+    /// The cuts every sphere cut-in this thread ran since the last call
+    /// made, A's then B's, one entry per cut-in in call order, draining
+    /// the record. The output stage closes every cut, so a result holds
+    /// none to count.
+    pub fn take_cut_ins() -> Vec<[usize; 2]> {
+        crate::CUT_INS.with(|c| core::mem::take(&mut *c.borrow_mut()))
+    }
+
     /// The bridge of every graft this thread ran since the last call,
     /// in call order, draining the record.
     pub fn take_graft_bridges() -> Vec<GraftBridge> {
@@ -1505,13 +1527,12 @@ pub use boolean::{
     OverlapRefusal, PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed,
     PlacedBooleanError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
     SelfCheck, SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode,
-    SlitFaceGap, SlitLineGap, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    ToolFuseRefusal, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_placed, boolean_reduce, decision_words, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, nary_placed, overlap, subtract,
-    tangent_pair_relation, union,
+    SlitFaceGap, SlitLineGap, SphereQuestion, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed,
+    boolean_reduce, decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
+    nary_boolean_apart, nary_placed, overlap, subtract, tangent_pair_relation, union,
 };
 pub use contain::{
     ArcEndGaps, ContainDecision, ContainError, FaceContainment, contfp, curved_face_containment,

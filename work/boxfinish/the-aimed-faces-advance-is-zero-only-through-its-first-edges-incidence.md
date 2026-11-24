@@ -2,11 +2,11 @@
 id: the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence
 kind: issue
 title: The aimed face's advance is zero only through its first edge's incidence, which the walk does not hold
-status: open
+status: parked
 opened: 2026-11-22
 priority: P1
 cost: M
-design: true
+blocked_on: [the-side-readers-ray-rides-the-body-it-reads-over-a-box]
 ---
 
 

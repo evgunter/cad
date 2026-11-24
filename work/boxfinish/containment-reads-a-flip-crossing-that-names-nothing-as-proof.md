@@ -2,10 +2,11 @@
 id: containment-reads-a-flip-crossing-that-names-nothing-as-proof
 kind: issue
 title: The drive's containment reads boundary leaves refused FlipCrossing as proven off the witness's branch, including ones whose evidence names nothing
-status: open
+status: parked
 opened: 2026-11-24
 priority: P1
 cost: M
+blocked_on: [a-parted-path-with-no-turn-is-reported-as-an-empty-flip-crossing]
 ---
 
 

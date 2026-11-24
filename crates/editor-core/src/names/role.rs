@@ -1618,6 +1618,13 @@ pub enum RoleSeg {
         /// The source pair edge whose band ends at the foot.
         edge: NameRef,
     },
+
+    // ---- Any op (appended: a variant's index feeds a name's hash) ----
+    /// **A closed edge's conventional vertex** (`topo::is_conventional_vertex`),
+    /// named for that edge alone: the vertex has no identity of its own
+    /// (`names/README.md`, "A conventional vertex"), so its name cites
+    /// no member, position or fold step, and it resolves to the edge.
+    ConventionalVertex(NameRef),
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1769,7 +1776,8 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -2384,6 +2392,7 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::ConventionalVertex(n) => R::ConventionalVertex(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
                 edge: rewrite_ref(edge, w)?,
@@ -2687,7 +2696,8 @@ impl RoleSeg {
             | R::Inner(_)
             | R::Rim(_)
             | R::HoleRim { .. }
-            | R::Member { .. } => Vec::new(),
+            | R::Member { .. }
+            | R::ConventionalVertex(_) => Vec::new(),
         }
     }
 }

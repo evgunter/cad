@@ -3583,6 +3583,20 @@ pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 /// the body rather than inferred from the surface it is a region of.
 /// An empty ring contributes its lone vertex: a pole is a vertex of
 /// the extent that bounds none of the face's edges.
+/// **A vertex's point, modulo a conventional vertex's position**: the
+/// point, or `None` for a closed edge's conventional vertex
+/// (`topo::is_conventional_vertex`), whose position is the kernel's
+/// convention and moves with member order while its name does not
+/// (`names/README.md`, "A conventional vertex"). Every row comparing a
+/// union's member orders by geometry reads its vertices through this.
+pub fn point_modulo_position(body: &Body<f64>, v: VertexKey) -> Option<Point3<f64>> {
+    if topo::is_conventional_vertex(body, v) {
+        return None;
+    }
+    let point = body.get_vertex(v).expect("a live vertex").point;
+    Some(*body.get_point(point).expect("a vertex's point"))
+}
+
 pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
     let mut out = HashSet::new();
     for (lk, _, _) in body.face(f).expect("a live face").loops() {
@@ -3975,7 +3989,8 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCut(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
-        | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
+        | RoleSeg::HoleRim { of: x, .. }
+        | RoleSeg::ConventionalVertex(x) => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
         | RoleSeg::TrimEdge {
             edge: x,

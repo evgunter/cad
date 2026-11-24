@@ -1025,27 +1025,6 @@ fn torus_plane<T: Decide>(
     }
 }
 
-/// **The loops a plane cuts on a ring torus**, by [`torus_plane`]'s own
-/// margins, so a refusal naming them and the certificate read one
-/// decision: `Ok(None)` where those margins decide a tangency or no
-/// section, and the diagnostics of the first margin they leave
-/// undecided. The plane runs through `p0` with normal `n`, the torus
-/// about `axis` has radii `(R, r)`; neither direction need be unit.
-pub(super) fn torus_plane_loops<T: Decide>(
-    (axis, big_r, r): (geom::Line<T>, T, T),
-    (p0, n): (Point3<T>, Vec3<T>),
-    band: Band,
-) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let a = axis.dir.get().normalize();
-    match geom_brep::PlaneTorusMeridian::new((axis.origin, a, [big_r, r]), (p0, n)).cut(band) {
-        Ok(geom_brep::PtCut::AroundAxis) => Ok(Some(super::SpiricLoops::AroundAxis)),
-        Ok(geom_brep::PtCut::AroundTube) => Ok(Some(super::SpiricLoops::AroundTube)),
-        Ok(geom_brep::PtCut::Null { .. }) => Ok(Some(super::SpiricLoops::Null)),
-        Ok(geom_brep::PtCut::Empty) | Err(geom_brep::PtPinch::Zero { .. }) => Ok(None),
-        Err(geom_brep::PtPinch::Undecided(diag)) => Err(diag),
-    }
-}
-
 /// **A cone against a cylinder or a cone**, read on the section value
 /// ([`geom_brep::pair_section()`]) over the operation's `region`, or,
 /// where there is none (a sweep-only door's), over the face pair's overlap
