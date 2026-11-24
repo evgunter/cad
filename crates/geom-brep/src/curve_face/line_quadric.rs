@@ -1872,4 +1872,64 @@ mod nearest_rows {
         }
         assert!(off.is_empty(), "the held-back approach's b: {off:#?}");
     }
+
+    /// **The wall's crossings of the boxed ray are bounded and hold every
+    /// sampled member's**, over a tenth of the box: the door's roots over
+    /// the nearest point's held `b`.
+    #[test]
+    fn the_boxed_rays_wall_crossings_are_bounded() {
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let read = |u: Interval| {
+            let (ray, (wall, radius)) = boxed(u);
+            line_wall_roots(
+                ray,
+                wall,
+                radius,
+                Interval::from_f64(0.1),
+                band,
+                About::Nearest,
+            )
+        };
+        let got = read(Interval::from_bounds(-0.1, 0.1));
+        let Ok(WallRoots::Two([t0, t1], slack)) = got else {
+            panic!("two crossings over the box: {got:?}");
+        };
+        println!(
+            "t0 [{:e}, {:e}], t1 [{:e}, {:e}]",
+            t0.lo(),
+            t0.hi(),
+            t1.lo(),
+            t1.hi()
+        );
+        let mut off = Vec::new();
+        for (k, t) in [t0, t1].iter().enumerate() {
+            if !(t.lo().is_finite() && t.hi().is_finite() && slack.hi().is_finite()) {
+                off.push(format!(
+                    "root {k}: [{:e}, {:e}], slack {:e}",
+                    t.lo(),
+                    t.hi(),
+                    slack.hi()
+                ));
+            }
+        }
+        for i in 0..=16 {
+            let u = -0.1 + f64::from(i) / 80.0;
+            let (ray, (wall, radius)) = boxed(u);
+            let Ok(WallRoots::Two(want, _)) =
+                line_wall_roots(ray, wall, radius, 0.1, band, About::Nearest)
+            else {
+                panic!("u = {u}: two crossings at f64");
+            };
+            for (k, (t, w)) in [t0, t1].iter().zip(want).enumerate() {
+                if !(t.lo() <= w && w <= t.hi()) {
+                    off.push(format!(
+                        "u = {u}: root {k} {w:e} outside [{:e}, {:e}]",
+                        t.lo(),
+                        t.hi()
+                    ));
+                }
+            }
+        }
+        assert!(off.is_empty(), "the boxed ray's crossings: {off:#?}");
+    }
 }
