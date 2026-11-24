@@ -2,10 +2,11 @@
 id: a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off
 kind: issue
 title: The symbolic tier's shape report renders a blocking form without bound: a boxed rectangle's replay runs out of memory with the switch's box arm off (0.18 s with it on)
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: E
+branch: boxfinish/report-bound
 ---
 
 
