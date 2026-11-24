@@ -570,3 +570,217 @@ mod tests {
         assert!(report.zeros.is_empty(), "{report:?}");
     }
 }
+
+/// Reviewer probes (boxfinish/review-refute-first-r2): margins the tier
+/// may prove zero by a rule that is true only on a domain or a branch,
+/// each asked two ways in one session: does the point reading refute it,
+/// and does the ladder (asked directly, no refuter) prove it zero. Both
+/// at once is a refuted identity: the claim-1 break.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_probes {
+    use super::super::{
+        ParamSymbol, Path, Sym, SymBudget, SymRules, discharge_in, with_session_rules,
+    };
+    use super::*;
+    use crate::tolerance::Tol;
+
+    type S = Sym<Interval>;
+
+    fn p(name: &str, lo: f64, hi: f64) -> S {
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id(name)),
+            Interval::from_bounds(lo, hi),
+            lo,
+            hi,
+        )
+    }
+    fn l(x: f64) -> S {
+        S::from_f64(x)
+    }
+
+    /// (refuted, proven zero by the ladder) for the margin `m` builds.
+    fn both(m: impl FnOnce() -> S) -> (bool, bool, String) {
+        with_session_rules(
+            SymBudget {
+                max_terms: 4096,
+                max_degree: 128,
+            },
+            SymRules::shipped(),
+            || {
+                let m = m();
+                let r = refutes(m.node());
+                let z = discharge_in(m.node(), Path::Decision).is_some();
+                (r, z, format!("{:?}", m.value()))
+            },
+        )
+        .0
+    }
+
+    #[test]
+    fn no_rung_proves_a_margin_the_point_refutes() {
+        type Row = (&'static str, fn() -> S);
+        let rows: Vec<Row> = vec![
+            ("sqrt(x^2) - x, x>0", || {
+                let x = p("x", 0.5, 2.0);
+                (x * x).sqrt() - x
+            }),
+            ("sqrt(x^2) + x, x<0", || {
+                let x = p("x", -2.0, -0.5);
+                (x * x).sqrt() + x
+            }),
+            ("sqrt(x^2) - x, x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                (x * x).sqrt() - x
+            }),
+            ("max(sqrt x - sqrt x, -1), x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                Real::max(x.sqrt() - x.sqrt(), l(-1.0))
+            }),
+            ("max(sqrt x - sqrt x, -1) + 0.5, x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                Real::max(x.sqrt() - x.sqrt(), l(-1.0)) + l(0.5)
+            }),
+            ("sqrt(x)^2 - x, x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                x.sqrt() * x.sqrt() - x
+            }),
+            ("x * (1/x) - 1, x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                x * (l(1.0) / x) - l(1.0)
+            }),
+            ("x/x - 1, x straddles", || {
+                let x = p("x", -1.0, 1.0);
+                x / x - l(1.0)
+            }),
+            ("x^-2 x^2 - 1", || {
+                let x = p("x", -1.0, 1.0);
+                x.powi(-2) * x.powi(2) - l(1.0)
+            }),
+            ("atan2(0, x^2+1)", || {
+                let x = p("x", -1.0, 1.0);
+                l(0.0).atan2(x * x + l(1.0))
+            }),
+            ("atan2(-0, x), x<0 cut", || {
+                let x = p("x", -2.0, -1.0);
+                l(-0.0).atan2(x) - l(0.0).atan2(x)
+            }),
+            ("atan2(-y, x) + atan2(y, x), y~0 x<0", || {
+                let x = p("x", -2.0, -1.0);
+                let y = p("y", -1e-3, 1e-3);
+                (-y).atan2(x) + y.atan2(x)
+            }),
+            ("copysign(y, x^2+1) - copysign(y, x^2+2)", || {
+                let x = p("x", -1.0, 1.0);
+                let y = p("y", -1.0, 1.0);
+                y.copysign(x * x + l(1.0)) - y.copysign(x * x + l(2.0))
+            }),
+            ("copysign(0, x)", || {
+                let x = p("x", -1.0, 1.0);
+                l(0.0).copysign(x)
+            }),
+            ("floor(x+1) - floor(x) - 1", || {
+                let x = p("x", 0.2, 0.8);
+                (x + l(1.0)).floor() - x.floor() - l(1.0)
+            }),
+            ("asin(sin x) - x", || {
+                let x = p("x", -1.0, 1.0);
+                x.sin().asin() - x
+            }),
+            ("asin(sin x) - x, past pi/2", || {
+                let x = p("x", 2.0, 3.0);
+                x.sin().asin() - x
+            }),
+            ("sin^2 + cos^2 - 1", || {
+                let x = p("x", -1.0, 1.0);
+                let (s, c) = x.sin_cos();
+                s * s + c * c - l(1.0)
+            }),
+            ("less_sin(x) - (x - sin x)", || {
+                let x = p("x", -1.0, 1.0);
+                x.less_sin() - (x - x.sin())
+            }),
+            ("select(x, x, -x) - |x| style, x<0 box", || {
+                let x = p("x", -2.0, -1.0);
+                x.select_le_zero(-x, x) + x
+            }),
+            ("max(x, -x) - x over [0, 1] tie", || {
+                let x = p("x", 0.0, 1.0);
+                Real::max(x, -x) - x
+            }),
+            ("min(x,y) + max(x,y) - x - y", || {
+                let x = p("x", -1.0, 1.0);
+                let y = p("y", -1.0, 1.0);
+                Real::min(x, y) + Real::max(x, y) - x - y
+            }),
+            ("select(d, a, a) - a, d straddles", || {
+                let x = p("x", -1.0, 1.0);
+                let a = x * x + l(0.3);
+                x.select_le_zero(a, a) - a
+            }),
+            ("sqrt(x^2 y^2) - x y, x,y>0", || {
+                let x = p("x", 0.5, 2.0);
+                let y = p("y", 0.5, 2.0);
+                (x * x * y * y).sqrt() - x * y
+            }),
+            ("tan(atan x) - x", || {
+                let x = p("x", -1.0, 1.0);
+                x.atan().tan() - x
+            }),
+            ("cos(acos x) - x", || {
+                let x = p("x", -1.0, 1.0);
+                x.acos().cos() - x
+            }),
+            ("|x| - sqrt(x^2)", || {
+                let x = p("x", -1.0, 1.0);
+                x.abs() - (x * x).sqrt()
+            }),
+        ];
+        let mut broken = Vec::new();
+        for (what, m) in rows {
+            let (r, z, v) = both(m);
+            eprintln!("{what:50} refuted={r:5} zero={z:5} box={v}");
+            if r && z {
+                broken.push(what);
+            }
+        }
+        assert!(broken.is_empty(), "refuted identities: {broken:?}");
+    }
+
+    /// A registered identity that is true over the reals at every point of
+    /// the box, through the door: is it ever refuted?
+    #[test]
+    fn a_true_registered_identity_is_not_refuted() {
+        let (r, z, _) = both(|| {
+            let x = p("x", 0.9, 1.1);
+            let a = (x * x).sqrt() * l(3.0);
+            let b = x * l(3.0);
+            let _ = a.register_equal(b, Tol::witness());
+            a - b
+        });
+        eprintln!("registered sqrt(x^2)*3 = 3x: refuted={r} zero={z}");
+        assert!(!r);
+    }
+
+    /// Point brackets, one-ulp brackets, huge brackets.
+    #[test]
+    fn the_point_rule_at_the_edges() {
+        for (lo, hi) in [
+            (1.0, 1.0),
+            (1.0, 1.0f64.next_up()),
+            (-1e308, 1e308),
+            (-f64::MAX, f64::MAX),
+            (0.0, f64::MIN_POSITIVE),
+            (1e300, f64::MAX),
+        ] {
+            for s in [1u64, 2, 3, 77, 1 << 40] {
+                let q = point_of(s, lo, hi);
+                eprintln!("[{lo:e}, {hi:e}] sym {s}: {q:?}");
+                let q = q.expect("finite ordered");
+                assert!(lo <= q && q <= hi);
+            }
+        }
+        assert_eq!(point_of(1, 2.0, 1.0), None, "reversed");
+        assert_eq!(point_of(1, f64::NAN, 1.0), None);
+    }
+}
