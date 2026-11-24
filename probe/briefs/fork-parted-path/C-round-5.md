@@ -1,0 +1,43 @@
+## For Ev
+
+**Recommendation (likely on the first part, unsure on the second).**
+1. *To close the defect as filed:* leave E6's comparison exactly as ratified (the leaf's whole record against the `f64` witness's). Add only this: a difference where one question has the other definite sign is `FlipCrossing`, named, never empty; any other difference is refused at once as `Parted`, naming the node, the step and what each run recorded. No reference run. No change to what is compared.
+2. *The larger finding is the same question and is yours:* on two thirds of today's flips the leaf's part is the nominal's part with a dimension moved. I think a leaf should certify on the **form** of what it builds, read off the finished body, and that the measurement now says what that record is. I lean to it, and it needs one more measurement before it is built.
+
+**Terms.** *Witness*: the nominal at `f64`. *Leaf*: a sub-box replayed in interval arithmetic. *Record*: per node, every logged definite decision in order. *Choice*: a decision whose other sign can change what is built. *Check*: a reading that can only refuse; the finished-body checks read the body after it is built. *Turn*: the same question with the other sign. *Parting*: any other first difference. *Reference*: the nominal replayed in the leaves' arithmetic at zero width. *Form*: the part's named cells, how they meet, and which way each crease turns.
+
+**What moved me on part 1.** My round-4 rule was "if no drive that certifies today would be refused, adopt the reference". The count is zero, and I still withdraw the reference, because the same table shows why: on every drive that certifies anything, the reference's whole log equals the witness's (342 of 347; 3 are a loft that fails; 2 are the plates, one known site already ruled). A second run that is equal to the first buys nothing. Then every proposed gate returns the same class on all 2,307 leaves, and what decides between gates that agree on everything measured is: the fewest moving parts, and mistakes that are refusals. E6 as written has both. It is the strictest comparison, so it cannot certify wrongly, and it needs no new run and no new sentence about what is compared. Where the two arithmetics log differently, it refuses, named as `Parted`, until the site is repaired; on driven documents that is one site today.
+
+**The strongest case for what I do not recommend in part 1.**
+- *For the reference:* an assembly with a mate, driven. At `f64` a carried frame is renormalized and logs `pose_unit_norm` three times; in interval arithmetic it is not (1,991 builds have this shape; none is driven today). Against the witness every leaf parts and the whole document is refused, though nothing is wrong with it. Against a reference it certifies. The witness gate errs by refusing a sound document until the kernel site is repaired. The reference errs the other way only if its tie tolerates partings, by certifying past a contradiction between the arithmetics that lies after the parting.
+- *For choices only:* the plate. Its leaf has the witness's choices and differs in how many times a premise check ran; choices-only certifies it, the whole record refuses it. In the other direction, a crease whose turn no choice decided (an edge a Boolean makes between two faces that tilt) would certify as a notch under choices-only and refuse under the whole record. No such leaf exists today.
+
+**Part 2: item 6 is this question.** Every report, mine included, said a turned choice means the leaf is across a wall from the nominal part. The measurement says that is true of 220 flips and false of 440:
+- `path_junction_turn` (220): a corner crosses its base line and one crease is concave where the witness's is convex. A different part.
+- `segment_gap` (300), `extrusion_normal_component` (122), `carrier_line_circle` (18): a corner nearer the base line on the same side, a thicker slab, a larger hole. Same cells, same meeting, same senses and kinds; only coordinates differ, and the leaf's own enclosures already carry them. These choices compare a dimension with a threshold to pick the build's route. They are not the part's shape.
+
+So the two records tried so far fail in opposite directions. Named cells are too weak: they certify the 220. The choices are too strong: they refuse the 440. The same measurement shows what separates them exactly: **on all 220, and on none of the 440, a finished-body check turns** (`dihedral_sign`, the crease's convexity). The readings the kernel takes off the finished body are the part's shape, they depend on the body and not on the route that built it, and each is about a cell that has a name.
+
+**What the certificate would claim if such a leaf certifies:** over this leaf the document builds; its bodies have the nominal's named cells, meeting the same way, each crease turning the same way, each face facing the same way; only dimensions move; every measure's enclosure contains its value at every point. It would not claim the build took the nominal's route.
+
+**What it rests on, and what is not known.**
+- The comparison is of two bodies, cell by name, so it does not depend on the two arithmetics logging alike; the decision log becomes the explanation of a flip (which choice turned at the node whose form changed).
+- Not measured: that convexity keyed by edge name is identical in both arithmetics at the nominal; that no form fact exists which neither the cells nor a finished-body reading states (the candidates: which configuration a measure read; a turned choice that changes a face's facing). Finished-body checks do not run on every leaf today (a leaf whose document is sweeps alone has not had them), and the gate needs them to.
+- It gives up "strictest". A missing form fact would be a wrong certificate, where today's gate can only refuse.
+
+**The split, as two final states to choose between.**
+- **Same decisions.** A certified leaf took the nominal's route, decision for decision. Cost: about two thirds of today's flips (440 of 660 leaves) are reported as the part changing where only a dimension moved, and the range search draws boundaries at the build's internal thresholds; in exchange nothing new must be shown complete.
+- **Same form.** A certified leaf builds the nominal's cells with every crease turning as at the nominal, whatever route built it. Cost: a record of form in production whose completeness must be shown first, and a certificate that is wrong if that record misses a fact; in exchange a flip is always a change a person looking at the part would call a change.
+
+I lean to the second, for the reason E6 gives for no-flips: the change of the part under tolerance is the finding. Part 1 is right under either and can land now.
+
+**Confidence.** Part 1: likely. "The reference is redundant where anything certifies": sure (measured). "Finished-body readings separate the 220 from the 440": sure for these four classes (measured), unsure beyond them. Same form over same decisions: likely as the right promise, unsure as buildable until measured.
+
+## For the orchestrator
+
+- **I ran nothing**; I rest on M13b sections 1 to 4 and addendum A2 and A4 as written.
+- **A correction to my round 4:** its decision rule for measurement 1 was mis-stated. It tested whether the reference costs certificates, and not whether it buys any. It buys none on today's drives.
+- **Where I stand against the other two:** their gate (choices and standings against `f64`, `Parted` terminal) and my part 1 differ only in whether checks are compared, and agree on every measured leaf once the plates' site is repaired. I keep checks because that is E6 unchanged and cannot certify wrongly; I would not hold the PR on it.
+- **The measurement part 2 needs, in order:** (1) a per-edge convexity table keyed by edge name, at `f64` and at the box scalar on a zero-width box, over the 347 witnesses: equal or not; (2) the 2,307 leaves re-sorted by named cells plus that table: expected 220 flips, 440 newly certified, the rest unchanged, and any other movement is the finding; (3) for each of the three form-neutral predicates, what the decision selects at its site, to confirm it is a route and not a shape; (4) a document where a measure's configuration turns, if one can be made to decide.
+- **Why `extrusion_normal_component` turns on a slab of depth 3e-8 becoming 1e-7** deserves a look on its own: a sign that turns while the slab stays on its side suggests the margin is not what its name says.
+- **Rows unchanged from earlier rounds**; drop "the extrude's failure is outside the funnel" until the measurement in flight says which it is.
