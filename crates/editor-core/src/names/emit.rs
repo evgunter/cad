@@ -44,7 +44,7 @@ use crate::node::RecipeNodeId;
 ///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
 ///    [`Self::HoldingsUnread`], [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
+///    [`Self::ClosedCarrierUnread`] and
 ///    [`Self::CarrierUnplaced`], reached from recipes nothing is wrong
 ///    with,
 ///    where the emitter has no rule for a construction the recipe
@@ -274,21 +274,6 @@ pub enum NamingError {
         node: RecipeNodeId,
         /// That face, in the operand's body.
         face: FaceKey,
-    },
-    /// A **conventional vertex** (`topo::is_conventional_vertex`: its
-    /// only edge is one closed edge, at both its ends) that a table
-    /// would name. It has no identity of its own (`docs/DESIGN.md`,
-    /// maximal edges), so no member- or position-citing name may stand
-    /// for it, and the edge-derived name it takes instead is unbuilt
-    /// (`work/borders/a-conventional-vertex-mints-no-edge-derived-name`).
-    /// A construction's own rim self-loop vertex
-    /// (`RoleSeg::MeridianVertex` at the seam) keeps its name and is
-    /// not refused.
-    ConventionalVertex {
-        /// The vertex, a key of the output body.
-        vertex: topo::VertexKey,
-        /// The output-body index it lives in.
-        body: u32,
     },
     /// A **closed joined edge on a carrier with no period**: the flush
     /// rule reads a closed edge over its carrier's whole period
@@ -929,13 +914,6 @@ impl crate::spoken::Say for NamingError {
                     topo::Operand::B => "B",
                 },
             ),
-            Self::ConventionalVertex { vertex, body } => write!(
-                f,
-                "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
-                 edge's conventional vertex, which has no identity of its own, and the name it \
-                 takes from its edge is not built yet \
-                 (work/borders/a-conventional-vertex-mints-no-edge-derived-name)"
-            ),
             Self::MemberEdgeTied { member, edge } => say!(
                 f,
                 format_args!("{UNRULED_FRAMING}: member "),
@@ -1028,7 +1006,6 @@ impl NamingError {
             | Self::SeamVertexPartners { .. }
             | Self::SharedRim { .. }
             | Self::ChordOffRim { .. }
-            | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
             | Self::MemberEdgeTied { .. }
@@ -1719,6 +1696,17 @@ pub(crate) fn conventional_vertex_name(edge: &super::role::NameRef) -> StableNam
     }
 }
 
+/// **What `name` resolves to**: a conventional vertex's name resolves
+/// to its closed edge, every other name to itself. A reference or a
+/// pick at the vertex binds to the edge, so no reference holds the
+/// vertex (`names/README.md`, "A conventional vertex").
+pub(crate) fn resolves_as(name: &StableName) -> &StableName {
+    match name.path.as_slice() {
+        [super::role::RoleSeg::ConventionalVertex(edge)] => edge,
+        _ => name,
+    }
+}
+
 /// **Names every conventional vertex of `body` (output body `ix`) for
 /// its closed edge**, replacing whatever row the emission gave it: the
 /// vertex has no identity of its own, so no member, position or fold
@@ -2183,17 +2171,6 @@ mod display_tests {
                 vec!["a vertex of a Boolean's result settles on a cell"],
             ),
             (
-                NamingError::ConventionalVertex {
-                    vertex: topo::VertexKey::default(),
-                    body: 3,
-                },
-                vec![
-                    "conventional vertex",
-                    "output body 3",
-                    "a-conventional-vertex",
-                ],
-            ),
-            (
                 NamingError::MemberEdgeTied {
                     member: crate::VarId::new(0, test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
@@ -2309,24 +2286,23 @@ mod display_tests {
                 NamingError::SeamVertexPartners { .. } => 8,
                 NamingError::Band(_) => 9,
                 NamingError::MemberEdgeTied { .. } => 10,
-                NamingError::ConventionalVertex { .. } => 11,
-                NamingError::ClosedCarrierUnread { .. } => 12,
-                NamingError::Settle(_) => 13,
-                NamingError::CarrierUnplaced { .. } => 14,
-                NamingError::PartnerUnread { .. } => 15,
-                NamingError::KindMismatch { .. } => 16,
-                NamingError::ShortTie { .. } => 17,
-                NamingError::EntityNamed { .. } => 18,
-                NamingError::ChordOffRim { .. } => 19,
-                NamingError::UnsupportedCrossingSenses { .. } => 20,
-                NamingError::UnsupportedSeamSides { .. } => 21,
-                NamingError::UnsupportedJoin { .. } => 22,
-                NamingError::UnsupportedUnionName { .. } => 23,
-                NamingError::WayInZeroBand { .. } => 24,
-                NamingError::BandVerdictsDisagree { .. } => 25,
-                NamingError::JoinedPieceOffRoot { .. } => 26,
-                NamingError::PastWidth { .. } => 27,
-                NamingError::HoldingsUnread { .. } => 28,
+                NamingError::ClosedCarrierUnread { .. } => 11,
+                NamingError::Settle(_) => 12,
+                NamingError::CarrierUnplaced { .. } => 13,
+                NamingError::PartnerUnread { .. } => 14,
+                NamingError::KindMismatch { .. } => 15,
+                NamingError::ShortTie { .. } => 16,
+                NamingError::EntityNamed { .. } => 17,
+                NamingError::ChordOffRim { .. } => 18,
+                NamingError::UnsupportedCrossingSenses { .. } => 19,
+                NamingError::UnsupportedSeamSides { .. } => 20,
+                NamingError::UnsupportedJoin { .. } => 21,
+                NamingError::UnsupportedUnionName { .. } => 22,
+                NamingError::WayInZeroBand { .. } => 23,
+                NamingError::BandVerdictsDisagree { .. } => 24,
+                NamingError::JoinedPieceOffRoot { .. } => 25,
+                NamingError::PastWidth { .. } => 26,
+                NamingError::HoldingsUnread { .. } => 27,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -2948,23 +2924,48 @@ mod conventional_vertex_tests {
     }
 
     #[test]
-    fn a_table_naming_a_conventional_vertex_refuses_typed() {
-        let (body, v) = self_loop();
+    fn a_conventional_vertex_named_for_anything_but_its_edge_is_an_emission_bug() {
+        let (body, _) = self_loop();
         let start = named(&body, |i| meridian_vertex(MeridianEnd::Start, NODE, at(i)));
         assert!(
             matches!(
                 check_total(&start, &body, 0),
-                Err(NamingError::ConventionalVertex { vertex, body: 0 }) if vertex == v
+                Err(NamingError::Emission { what }) if what.contains("conventional vertex")
             ),
             "a member- or position-citing name for a conventional vertex refuses"
         );
     }
 
     #[test]
+    fn a_conventional_vertex_is_named_for_its_closed_edge_alone() {
+        let (body, v) = self_loop();
+        let start = named(&body, |i| meridian_vertex(MeridianEnd::Start, NODE, at(i)));
+        let t = name_conventional_vertices(start, &body, 0).unwrap();
+        check_total(&t, &body, 0).unwrap();
+        let (edge, _) = body.edges().next().unwrap();
+        let edge = t.name_ref_of(&ent(0, EntityKey::Edge(edge))).unwrap();
+        assert_eq!(
+            t.name_of(&ent(0, EntityKey::Vertex(v))),
+            Some(&conventional_vertex_name(edge)),
+            "the vertex's name is its edge's, under `ConventionalVertex`"
+        );
+        assert_eq!(
+            t.lookup(&meridian_vertex(MeridianEnd::Start, NODE, at(0))),
+            None,
+            "the name the emission gave it is gone"
+        );
+    }
+
+    #[test]
     fn a_constructions_own_rim_self_loop_vertex_keeps_its_name() {
-        let (body, _) = self_loop();
+        let (body, v) = self_loop();
         let seam = named(&body, |i| meridian_vertex(MeridianEnd::Seam, NODE, at(i)));
-        assert!(check_total(&seam, &body, 0).is_ok());
+        let t = name_conventional_vertices(seam, &body, 0).unwrap();
+        assert!(check_total(&t, &body, 0).is_ok());
+        assert_eq!(
+            t.name_of(&ent(0, EntityKey::Vertex(v))),
+            Some(&meridian_vertex(MeridianEnd::Seam, NODE, at(0)))
+        );
     }
 
     #[test]

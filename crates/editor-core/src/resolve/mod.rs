@@ -1729,6 +1729,7 @@ fn resolve_rungs<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
     site: crate::VarId,
     name: &StableName,
 ) -> Resolution {
+    let name = crate::names::resolves_as(name);
     // 1. NodeGone: the minting node is not live.
     if let Some(error) = ResolveError::node_gone(name, new.doc)
         .filter(|_| !ResolveError::part_name(name, site, new.doc))
