@@ -1,102 +1,112 @@
 # The from_computed sites of scripts/gates/from-computed-sites.sh: one row per
-# (file, argument), tab-separated: file, count, class, argument, reason.
-crates/geom-core/src/solved.rs	1	door	candidate	geom_core::solved::admit: the stored solved value's check runs at T inside it
-crates/geom-core/src/dual.rs	1	scalar	x	Dual's impl forwards to its base scalar's
-crates/geom-core/src/sym.rs	1	scalar	x	Sym's impl: an opaque unknown over its numeric scalar's
-crates/geom/src/places.rs	1	place-step	x	geom::places::at_place, the private step of the place-taking evaluators
-crates/geom-brep/src/edge_nurbs.rs	1	place-step	t0 + (t1 - t0) * at	Schedule::station: a place stepped inside its own evaluator (the places unit's note)
-crates/topo/src/spline_trim.rs	1	place-step	s	Patch::split's cut point, a place stepped inside the module's own evaluator
-crates/topo/src/spline_trim.rs	1	place-step	v	refined's inserted cut point where no knot holds it, a place stepped inside the module's own evaluator
-crates/topo/src/replace_face.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	foot.t	carrier_foot: a re-anchored end, stored; its check is gap within ε in the caller, not on within the band
-crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	foot.x	measured_foot: a chart foot the plane x NURBS image is built on; checked by the image's limbs, not at the foot
-crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	foot.y	measured_foot: as foot.x
-crates/topo/src/pcurves/mint.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	<fn>	computed_foot: a measured chart foot a candidate iso line is built on, checked as the whole candidate at the probe
-crates/geom-brep/src/pair_section.rs	3	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	s	polished: a Newton foot kept by an f64 window (pad + escalation); foot_along decides it at T afterwards
-crates/geom/src/curves/on_carrier.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	crate::mid_param(lo, hi)	Curve3::polish's re-centred iterate at an enclosure scalar; OnCarrier::On admits the foot by its gap in the band at Decide, a dual reaching it
-crates/geom-brep/src/edge_nurbs.rs	2	owed(the-fitted-chart-image-is-c6s-fit-lift-and-a-pcurve-holds-it-at-t)	<fn>	on_carrier_domain: a fit's knots and poles, stored as Pcurve::General and certified afterwards
-crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	floor	limb2_enclosure_as: a bound hulled into T
-crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	upper	limb2_enclosure_as: a bound hulled into T
-crates/geom-core/src/predicate.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	<fn>	Allowance::apply: an allowance's f64 bound formed in T for the Sym reading
-crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull.sup	hull_limb: a limb bound held as T
-crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	clearance	tube_transversality: a clearance bound held as T
-crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	<fn>	certificate: rung.tube lifted into T
-crates/geom-brep/src/pair_section.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	<fn>	pad_and_reach: an f64 carrier lifted to Interval to read a tube bound
-crates/topo/src/replace_face.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	near_gap	corner_of_root: the lane's measured gap, a bound, carried as T in ReanchorPastCarrierEnd
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	abs_z(z).0	axial_floor: a hull bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	2	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	z.0	axial_floor and sheet_apex_reach: hull bounds as T operands
-crates/geom-brep/src/pcurve_cache/projected.rs	2	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	z.1	axial_floor and sheet_apex_reach: hull bounds as T operands
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	near	sheet_at_height: a bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	far	sheet_at_height: a bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	span.meters	apex_part: a span bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	at	over_at: a hull height squared at T
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	span.rho_lo	net_incidence: a span bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	span.rho_hi	net_incidence: a span bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	span.f_sup	net_incidence: a span bound as a T operand
-crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	floor	offset_rounds: Offset::Miss's floor held as T
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	cut_rounding(cell)	Net::floor: a cut's rounding charged as a T operand
-crates/editor-core/src/mate/value.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	arm.get()	read_as: an f64 arm entering Lever<T>
-crates/geom-brep/src/curvature_arm.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	<fn>	chart_curvature_arm: the lane's f64 arm entering Lever<T>
-crates/topo/src/boolean/vtxfac.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	arm	read_vertex_on_face: PierceLever::Within(T::from_computed(arm))
-crates/geom-core/src/linalg/rigid_motion.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	reach_f	least_turn_minted: an f64 reach in the room's T arithmetic
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	self.volume_pad	MassProperties::enclosure: a pad held as T
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	volume.lo()	deciding_walk: a bracket end held as a T field
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	volume.hi()	deciding_walk: a bracket end held as a T field
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	area.hi()	deciding_walk: a bracket end held as a T field
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	mid	carried: an f64 flux middle added at T
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	fc	quadrature_contribution: an f64 flux held as T
-crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	ac	quadrature_contribution: an f64 area held as T
-crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	lo	carrier_span: a bracket read re-entered, filed Payload
-crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	hi	carrier_span: a bracket read re-entered, filed Payload
-crates/geom/src/curves/periodic_nurbs.rs	2	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	shift	restated and reduced: a whole-turn shift, a count of periods
-crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	s0	restated: a stored end beside the shift
-crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	s1	restated: a stored end beside the shift
-crates/geom/src/surfaces/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	u	project_seed: a sweep's place under a bound that admits a dual
-crates/geom/src/surfaces/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	v	project_seed: a sweep's place under a bound that admits a dual
-crates/geom/src/curves/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	t	project_seed: a sweep's place under a bound that admits a dual
-crates/geom/src/surfaces/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	u	project_from_seed: Newton's iterate, the foot project returns
-crates/geom/src/surfaces/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	v	project_from_seed: Newton's iterate, the foot project returns
-crates/geom/src/surfaces/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	un	project_from_seed: the stagnation foot
-crates/geom/src/surfaces/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	vn	project_from_seed: the stagnation foot
-crates/geom/src/curves/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	t	project_from_seed: Newton's iterate, the foot project returns
-crates/geom/src/curves/projection.rs	1	owed(from-computed-re-entries-no-open-row-owns)	tn	project_from_seed: the stagnation foot
-crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	u	SplineWall::outward: a foot read at T
-crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	v	SplineWall::outward: a foot read at T
-crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	at	SplineWall::piece: a path's iso, decided on (path_parity), never stored
-crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	from.min(to)	SplineWall::piece: a path's span, decided on, never stored
-crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	from.max(to)	SplineWall::piece: a path's span, decided on, never stored
-crates/topo/src/pcurves_rings.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	room[1]	Ring::side: the v window a chart's arms are read over
-crates/topo/src/chart_region.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	x	interior_witness: a place read at T
-crates/topo/src/chart_region.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	y	interior_witness: a place read at T
-crates/sweep/src/blend/reach.rs	3	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	<fn>	new, prism_inside, band_reach: cell corners read at T
-crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	lo	Cell::new: a cell end read at T (Ruling::reads)
-crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	hi	Cell::new: a cell end read at T (Ruling::reads)
-crates/topo/src/face_normal.rs	1	owed(from-computed-re-entries-no-open-row-owns)	u	spline_outward_normal_at: a foot the normal is read at, to decide; a place held at T
-crates/topo/src/face_normal.rs	1	owed(from-computed-re-entries-no-open-row-owns)	v	spline_outward_normal_at: as u
-crates/geom-brep/src/dihedral_side.rs	1	owed(from-computed-re-entries-no-open-row-owns)	foot.u	foot_normal: a foot the side's normal is read at, to decide; a place held at T
-crates/geom-brep/src/dihedral_side.rs	1	owed(from-computed-re-entries-no-open-row-owns)	foot.v	foot_normal: as foot.u
-crates/geom-brep/src/certify.rs	1	owed(from-computed-re-entries-no-open-row-owns)	lo	run_checks: a row piece's ends, a place its image is bracketed at
-crates/geom-brep/src/certify.rs	1	owed(from-computed-re-entries-no-open-row-owns)	hi	run_checks: as lo
-crates/geom-brep/src/pair_section.rs	1	owed(from-computed-re-entries-no-open-row-owns)	r.run.0	witness: a tube run's end, the window a foot is searched in (a place)
-crates/geom-brep/src/pair_section.rs	1	owed(from-computed-re-entries-no-open-row-owns)	r.run.1	witness: as r.run.0
-crates/geom-brep/src/curve_pair/polish.rs	1	owed(from-computed-re-entries-no-open-row-owns)	s0 + ms	pair_held: a Gauss-Newton iterate re-centred at an enclosure scalar; Decide, so a Dual<Interval> takes a zero tangent
-crates/geom-brep/src/curve_pair/polish.rs	1	owed(from-computed-re-entries-no-open-row-owns)	t0 + mt	pair_held: as s0 + ms
-crates/geom-brep/src/pair_section/ruling.rs	1	owed(from-computed-re-entries-no-open-row-owns)	0.5 * cell.width()	form_ceiling: a cell's half width as a T lever of the ceiling, a bound
-crates/geom-brep/src/pair_section/ruling.rs	1	owed(from-computed-re-entries-no-open-row-owns)	<fn>	coverage: exact f64 rulings lifted to concrete Interval, a constant embed spelled as computed
-crates/geom-brep/src/pair_section/winds.rs	1	owed(from-computed-re-entries-no-open-row-owns)	v	lift: exact f64 values lifted to concrete Interval, a constant embed spelled as computed
-crates/geom-brep/src/props/curved.rs	1	owed(from-computed-re-entries-no-open-row-owns)	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom_core::bracket_mid((lo[0], hi[0]))	Net::of: the cell walk's translation origin, data (its row closed without it)
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom_core::bracket_mid((lo[1], hi[1]))	Net::of: as lo[0]
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom_core::bracket_mid((lo[2], hi[2]))	Net::of: as lo[0]
-crates/topo/src/spline_trim.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom::bracket_mid((lo[0], hi[0]))	bezier_cells: the cell walk's translation origin, data (its row closed without it)
-crates/topo/src/spline_trim.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom::bracket_mid((lo[1], hi[1]))	bezier_cells: as lo[0]
-crates/topo/src/spline_trim.rs	1	owed(from-computed-re-entries-no-open-row-owns)	geom::bracket_mid((lo[2], hi[2]))	bezier_cells: as lo[0]
-crates/topo/src/spline_trim.rs	1	owed(from-computed-re-entries-no-open-row-owns)	a	Patch::surface: a cell's knot, f64 structure (its row closed without it)
-crates/topo/src/spline_trim.rs	1	owed(from-computed-re-entries-no-open-row-owns)	b	Patch::surface: as a
-crates/topo/src/link.rs	2	owed(from-computed-re-entries-no-open-row-owns)	<fn>	Link::lowest_on, Round::lowest_on: a closed-form root at T read down to its point and re-entered (a place, decided on; reached by a dual)
-crates/topo/src/link.rs	1	owed(from-computed-re-entries-no-open-row-owns)	rd.band.zero()	crossing: the band's zero as a T operand, a bound
-crates/topo/src/test_support_fixtures.rs	5	owed(from-computed-re-entries-no-open-row-owns)	<fn>	cyl_wall_sheet_tilted: test support compiled into the library, f64 data lifted
-crates/topo/src/test_support_fixtures.rs	1	owed(from-computed-re-entries-no-open-row-owns)	pi - half	cyl_wall_sheet_tilted: as <fn>
-crates/topo/src/test_support_fixtures.rs	1	owed(from-computed-re-entries-no-open-row-owns)	pi + half	cyl_wall_sheet_tilted: as <fn>
-demos/tour/src/lily.rs	14	owed(from-computed-re-entries-no-open-row-owns)	<fn>	f64 frames and points a demo lifts into its scalar (its row closed: the demos were to build at T)
-demos/tour/src/klein.rs	2	owed(from-computed-re-entries-no-open-row-owns)	<fn>	as lily.rs
-demos/tour/src/projectbox.rs	2	owed(from-computed-re-entries-no-open-row-owns)	<fn>	as lily.rs
+# (file, fn, argument), tab-separated: file, count, class, fn, argument, reason.
+crates/editor-core/src/mate/value.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	read_as	arm.get()	read_as: an f64 arm entering Lever<T>
+crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	carrier_span	hi	carrier_span: a bracket read re-entered, filed Payload
+crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	carrier_span	lo	carrier_span: a bracket read re-entered, filed Payload
+crates/geom-brep/src/certify.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	run_checks	hi	run_checks: as lo
+crates/geom-brep/src/certify.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	run_checks	lo	run_checks: a row piece's ends, a place its image is bracketed at
+crates/geom-brep/src/curvature_arm.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	chart_curvature_arm	<fn>	chart_curvature_arm: the lane's f64 arm entering Lever<T>
+crates/geom-brep/src/curve_pair/polish.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	pair_held	s0 + ms	pair_held: a Gauss-Newton iterate re-centred at an enclosure scalar; Decide, so a Dual<Interval> takes a zero tangent
+crates/geom-brep/src/curve_pair/polish.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	pair_held	t0 + mt	pair_held: as s0 + ms
+crates/geom-brep/src/dihedral_side.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	foot_normal	foot.u	foot_normal: a foot the side's normal is read at, to decide; a place held at T
+crates/geom-brep/src/dihedral_side.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	foot_normal	foot.v	foot_normal: as foot.u
+crates/geom-brep/src/edge_nurbs.rs	2	owed(the-fitted-chart-image-is-c6s-fit-lift-and-a-pcurve-holds-it-at-t)	on_carrier_domain	<fn>	on_carrier_domain: a fit's knots and poles, stored as Pcurve::General and certified afterwards
+crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	limb2_enclosure_as	floor	limb2_enclosure_as: a bound hulled into T
+crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	measured_foot	foot.x	measured_foot: a chart foot the plane x NURBS image is built on; checked by the image's limbs, not at the foot
+crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	measured_foot	foot.y	measured_foot: as foot.x
+crates/geom-brep/src/edge_nurbs.rs	1	place-step	station	t0 + (t1 - t0) * at	Schedule::station: a place stepped inside its own evaluator (the places unit's note)
+crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	limb2_enclosure_as	upper	limb2_enclosure_as: a bound hulled into T
+crates/geom-brep/src/pair_section.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	pad_and_reach	<fn>	pad_and_reach: an f64 carrier lifted to Interval to read a tube bound
+crates/geom-brep/src/pair_section.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	witness	r.run.0	witness: a tube run's end, the window a foot is searched in (a place)
+crates/geom-brep/src/pair_section.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	witness	r.run.1	witness: as r.run.0
+crates/geom-brep/src/pair_section.rs	2	owed(places-held-at-t-re-enter-through-from-computed)	polished	s	polished: two Newton iterates, evaluated at (places)
+crates/geom-brep/src/pair_section.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	polished	s	polished: the kept foot, admitted by an f64 window (pad + escalation), then decided at T by foot_along
+crates/geom-brep/src/pair_section/ruling.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	form_ceiling	0.5 * cell.width()	form_ceiling: a cell's half width as a T lever of the ceiling, a bound
+crates/geom-brep/src/pair_section/ruling.rs	1	owed(constants-spelled-through-from-computed)	coverage	<fn>	coverage: exact f64 rulings lifted to concrete Interval, a constant embed spelled as computed
+crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	hi	Cell::new: a cell end read at T (Ruling::reads)
+crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	lo	Cell::new: a cell end read at T (Ruling::reads)
+crates/geom-brep/src/pair_section/winds.rs	1	owed(constants-spelled-through-from-computed)	lift	v	lift: exact f64 values lifted to concrete Interval, a constant embed spelled as computed
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	abs_z(z).0	axial_floor: a hull bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	over_at	at	over_at: a hull height squared at T
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_at_height	far	sheet_at_height: a bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	offset_rounds	floor	offset_rounds: Offset::Miss's floor held as T
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_at_height	near	sheet_at_height: a bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	net_incidence	span.f_sup	net_incidence: a span bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	apex_part	span.meters	apex_part: a span bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	net_incidence	span.rho_hi	net_incidence: a span bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	net_incidence	span.rho_lo	net_incidence: a span bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	z.0	axial_floor: a hull bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_apex_reach	z.0	sheet_apex_reach: a hull bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	z.1	axial_floor: a hull bound as a T operand
+crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	sheet_apex_reach	z.1	sheet_apex_reach: a hull bound as a T operand
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	floor	cut_rounding(cell)	Net::floor: a cut's rounding charged as a T operand
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[0], hi[0]))	Net::of: the cell walk's translation origin, data (its row closed without it)
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[1], hi[1]))	Net::of: as lo[0]
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[2], hi[2]))	Net::of: as lo[0]
+crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-computed)	sphere_region_cover	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
+crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
+crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T
+crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	hull.sup	hull_limb: a limb bound held as T
+crates/geom-core/src/dual.rs	1	scalar	from_computed	x	Dual's impl forwards to its base scalar's
+crates/geom-core/src/linalg/rigid_motion.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	least_turn_minted	reach_f	least_turn_minted: an f64 reach in the room's T arithmetic
+crates/geom-core/src/predicate.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	apply	<fn>	Allowance::apply: an allowance's f64 bound formed in T for the Sym reading
+crates/geom-core/src/solved.rs	1	door	decide_admit	candidate	geom_core::solved::admit: the stored solved value's check runs at T inside it
+crates/geom-core/src/sym.rs	1	scalar	from_computed	x	Sym's impl: an opaque unknown over its numeric scalar's
+crates/geom/src/curves/on_carrier.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	polish	crate::mid_param(lo, hi)	Curve3::polish's re-centred iterate at an enclosure scalar; OnCarrier::On admits the foot by its gap in the band at Decide, a dual reaching it
+crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	restated	s0	restated: a stored end beside the shift
+crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	restated	s1	restated: a stored end beside the shift
+crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	reduced	shift	reduced: a whole-turn shift, a count of periods
+crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	restated	shift	restated: a whole-turn shift, a count of periods
+crates/geom/src/curves/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	t	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/geom/src/curves/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	project_seed	t	project_seed: a sweep's place under a bound that admits a dual
+crates/geom/src/curves/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	tn	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/geom/src/places.rs	1	place-step	at_place	x	geom::places::at_place, the private step of the place-taking evaluators
+crates/geom/src/surfaces/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	u	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/geom/src/surfaces/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	project_seed	u	project_seed: a sweep's place under a bound that admits a dual
+crates/geom/src/surfaces/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	un	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/geom/src/surfaces/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	v	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/geom/src/surfaces/projection.rs	1	owed(project-seed-evaluates-at-computed-places-under-a-bound-that-admits-a-dual)	project_seed	v	project_seed: a sweep's place under a bound that admits a dual
+crates/geom/src/surfaces/projection.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	project_from_seed	vn	project_from_seed: Newton's iterate or the stagnation foot, the foot project returns
+crates/sweep/src/blend/reach.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	band_reach	<fn>	band_reach: a cell corner read at T
+crates/sweep/src/blend/reach.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	<fn>	new: a cell corner read at T
+crates/sweep/src/blend/reach.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	prism_inside	<fn>	prism_inside: a cell corner read at T
+crates/topo/src/boolean/vtxfac.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	read_vertex_on_face	arm	read_vertex_on_face: PierceLever::Within(T::from_computed(arm))
+crates/topo/src/chart_region.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	interior_witness	x	interior_witness: a place read at T
+crates/topo/src/chart_region.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	interior_witness	y	interior_witness: a place read at T
+crates/topo/src/face_normal.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	spline_outward_normal_at	u	spline_outward_normal_at: a foot the normal is read at, to decide; a place held at T
+crates/topo/src/face_normal.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	spline_outward_normal_at	v	spline_outward_normal_at: as u
+crates/topo/src/link.rs	2	owed(places-held-at-t-re-enter-through-from-computed)	lowest_on	<fn>	Link::lowest_on, Round::lowest_on: a closed-form root at T read down to its point and re-entered (a place, decided on; reached by a dual)
+crates/topo/src/link.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	crossing	rd.band.zero()	crossing: the band's zero as a T operand, a bound
+crates/topo/src/pcurves/mint.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	computed_foot	<fn>	computed_foot: a measured chart foot a candidate iso line is built on, checked as the whole candidate at the probe
+crates/topo/src/pcurves_rings.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	side	room[1]	Ring::side: the v window a chart's arms are read over
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	quadrature_contribution	ac	quadrature_contribution: an f64 area held as T
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	deciding_walk	area.hi()	deciding_walk: a bracket end held as a T field
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	quadrature_contribution	fc	quadrature_contribution: an f64 flux held as T
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	carried	mid	carried: an f64 flux middle added at T
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	enclosure	self.volume_pad	MassProperties::enclosure: a pad held as T
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	deciding_walk	volume.hi()	deciding_walk: a bracket end held as a T field
+crates/topo/src/props.rs	1	owed(volume-bracket-ends-are-t-fields-built-from-f64-bounds)	deciding_walk	volume.lo()	deciding_walk: a bracket end held as a T field
+crates/topo/src/replace_face.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	carrier_foot	foot.t	carrier_foot: a re-anchored end, stored; its check is gap within ε in the caller, not on within the band
+crates/topo/src/replace_face.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	corner_of_root	near_gap	corner_of_root: the lane's measured gap, a bound, carried as T in ReanchorPastCarrierEnd
+crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	piece	at	SplineWall::piece: a path's iso, decided on (path_parity), never stored
+crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	piece	from.max(to)	SplineWall::piece: a path's span, decided on, never stored
+crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	piece	from.min(to)	SplineWall::piece: a path's span, decided on, never stored
+crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	outward	u	SplineWall::outward: a foot read at T
+crates/topo/src/ring_path/spline_wall.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	outward	v	SplineWall::outward: a foot read at T
+crates/topo/src/spline_trim.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	surface	a	Patch::surface: a cell's knot, f64 structure (its row closed without it)
+crates/topo/src/spline_trim.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	surface	b	Patch::surface: as a
+crates/topo/src/spline_trim.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	bezier_cells	geom::bracket_mid((lo[0], hi[0]))	bezier_cells: the cell walk's translation origin, data (its row closed without it)
+crates/topo/src/spline_trim.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	bezier_cells	geom::bracket_mid((lo[1], hi[1]))	bezier_cells: as lo[0]
+crates/topo/src/spline_trim.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	bezier_cells	geom::bracket_mid((lo[2], hi[2]))	bezier_cells: as lo[0]
+crates/topo/src/spline_trim.rs	1	place-step	split	s	Patch::split's cut point, a place stepped inside the module's own evaluator
+crates/topo/src/spline_trim.rs	1	place-step	refined	v	refined's inserted cut point where no knot holds it, a place stepped inside the module's own evaluator
+crates/topo/src/test_support_fixtures.rs	5	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	cyl_wall_sheet_tilted	<fn>	cyl_wall_sheet_tilted: test support compiled into the library, f64 data lifted
+crates/topo/src/test_support_fixtures.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	cyl_wall_sheet_tilted	pi + half	cyl_wall_sheet_tilted: as <fn>
+crates/topo/src/test_support_fixtures.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	cyl_wall_sheet_tilted	pi - half	cyl_wall_sheet_tilted: as <fn>
+demos/tour/src/klein.rs	2	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	swept_loop	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	blade_station	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	bud	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	lantern	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/lily.rs	3	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	leaf	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/lily.rs	2	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	roll_the_mouth	<fn>	f64 frames and points a demo lifts into its scalar
+demos/tour/src/projectbox.rs	2	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	spring	<fn>	f64 frames and points a demo lifts into its scalar
