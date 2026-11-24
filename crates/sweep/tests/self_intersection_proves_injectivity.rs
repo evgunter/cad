@@ -2478,6 +2478,434 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_never_holds() {
     }
 }
 
+// ------------------------------------------- a two-line corner in pieces
+
+/// **The flush union of two cubes** of side `s`, the lower with its low
+/// corner at `at`, the upper standing on it, moved over by half a side
+/// along `x` (the other way where `mirrored`) and a quarter along `y`:
+/// one solid. The upper cube's corner lands inside the lower one's top
+/// edge and the lower one's top edge inside the upper's bottom edge, so
+/// each of those two walls has a vertex in the middle of a straight run
+/// of its boundary and the two meet at that vertex alone; the lower
+/// cube's top face is reflex there.
+fn flush_union_op<T: Scalar>(
+    at: [f64; 3],
+    s: f64,
+    mirrored: bool,
+) -> Result<topo::BooleanResult<T>, topo::BooleanError> {
+    use sweep::test_support::{brick, finished};
+    let [x, y, z] = at;
+    let over = if mirrored { -0.5 * s } else { 0.5 * s };
+    let lower = finished(
+        "the lower cube",
+        brick::<T>((x, x + s), (y, y + s), (z, z + s), tol()),
+        tol(),
+    );
+    let upper = finished(
+        "the upper cube",
+        brick::<T>(
+            (x + over, x + over + s),
+            (y + 0.25 * s, y + 1.25 * s),
+            (z + s, z + 2.0 * s),
+            tol(),
+        ),
+        tol(),
+    );
+    topo::union(&lower, &upper, tol())
+}
+
+/// [`flush_union_op`], built.
+fn flush_union<T: Scalar>(at: [f64; 3], s: f64, mirrored: bool) -> topo::AtRestBody<T> {
+    built(flush_union_op(at, s, mirrored))
+}
+
+/// **The same union of two extruded squares turned by `phi` in their
+/// sketch plane**, about the origin: every side wall's chart runs along
+/// a turned edge, and the reflex top face's corner is turned in its own
+/// chart.
+fn flush_union_of_turned_profiles<T: Scalar>(phi: f64) -> topo::AtRestBody<T> {
+    use sweep::test_support::{finished, prism_at};
+    let (c, s) = (phi.cos(), phi.sin());
+    let square = |x: f64, y: f64, z0: f64| {
+        let corner = |u: f64, v: f64| {
+            (
+                Point2::new(T::from_f64(c * u - s * v), T::from_f64(s * u + c * v)),
+                T::zero(),
+            )
+        };
+        let verts = vec![
+            corner(x, y),
+            corner(x + 1.0, y),
+            corner(x + 1.0, y + 1.0),
+            corner(x, y + 1.0),
+        ];
+        finished(
+            "a turned square's prism",
+            prism_at(verts, T::from_f64(z0), T::one(), tol()),
+            tol(),
+        )
+    };
+    built(topo::union(
+        &square(0.1, 0.2, 0.0),
+        &square(0.6, 0.45, 1.0),
+        tol(),
+    ))
+}
+
+/// The body is embedded at both scalars, through the verdict door and
+/// by its receipt ([`holds_at_both`]).
+fn embedded_at_both(
+    what: &str,
+    float: topo::AtRestBody<f64>,
+    interval: topo::AtRestBody<Interval>,
+) {
+    use topo::clearance::Embedding;
+    let (float, interval) = (float.into_body(), interval.into_body());
+    assert_eq!(
+        embedding(&float).verdict,
+        Embedding::Embedded,
+        "{what}: the door"
+    );
+    assert_eq!(
+        embedding(&interval).verdict,
+        Embedding::Embedded,
+        "{what}: the door at Interval"
+    );
+    holds_at_both(what, float, interval);
+}
+
+/// A generic turn: 0.7 rad about the axis `(2, 3, 6)/7` through a point
+/// off every face.
+fn generic_turn() -> geom_core::Affine3<f64> {
+    geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.3, -0.2, 0.1),
+        geom_core::Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+        0.7,
+    )
+}
+
+/// **A flush union holds across its straight and its reflex corners, at
+/// a dyadic placement.** Each wall's cell at the split vertex is two
+/// pieces, and the two walls depart piece pair by piece pair.
+///
+/// What this row and the nine holding rows after it pin is the reading
+/// as a whole: each is red on the landing branch without it (measured
+/// with this file copied onto `8d34076a9e`: a two-line corner read by
+/// its leans, both zero on the walls and negative on the top face,
+/// refuses `Uncertified { Departure }` at the vertex or runs out of
+/// depth). None of them sees a rule of the pieces on its own (which
+/// piece pairs are asked, a piece's zero): those are pinned by
+/// `injective::presentation_rows` and by
+/// [`a_flap_through_a_reflex_face_off_its_ray_never_holds`].
+#[test]
+fn a_flush_union_holds_across_its_straight_corners() {
+    embedded_at_both(
+        "the flush union",
+        flush_union::<f64>([0.0; 3], 1.0, false),
+        flush_union::<Interval>([0.0; 3], 1.0, false),
+    );
+}
+
+/// **The same union off the dyadic grid**: built at `(0.1, 0.2, 0.3)`,
+/// where no chart operation on its edges is exact. Red on a reading
+/// that needs the leans exactly zero, and on the departure metered at
+/// a cell's width (the L-shaped top face's cell across a shared edge is
+/// a strip a rounding wide there).
+#[test]
+fn a_flush_union_built_off_the_dyadic_grid_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the flush union built at (0.1, 0.2, 0.3)",
+        flush_union::<f64>(at, 1.0, false),
+        flush_union::<Interval>(at, 1.0, false),
+    );
+}
+
+/// **With sides 0.7**, built at `(0.1, 0.2, 0.3)`.
+#[test]
+fn a_flush_union_of_side_0_7_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the flush union of side 0.7",
+        flush_union::<f64>(at, 0.7, false),
+        flush_union::<Interval>(at, 0.7, false),
+    );
+}
+
+/// **Moved by `(1/3, 10.1, -7.7)`**: the placement at which a reading by
+/// exact leans held at `f64` and refused at `Interval`.
+#[test]
+fn a_flush_union_moved_off_the_dyadic_grid_holds() {
+    let by = geom_core::Affine3::translation(geom_core::Vec3::new(1.0 / 3.0, 10.1, -7.7));
+    embedded_at_both(
+        "the flush union moved by (1/3, 10.1, -7.7)",
+        moved(&flush_union::<f64>([0.0; 3], 1.0, false), &by),
+        moved(&flush_union::<Interval>([0.0; 3], 1.0, false), &by),
+    );
+}
+
+/// **At the session box's wall**, built several hundred units out on
+/// every axis. At the tightest band the `Interval` union itself does not
+/// build there: the Boolean escalates at `bool_contact_edge`, its
+/// contact edge's enclosure (1.5e-12 m at 700 units) wider than the
+/// band's zero
+/// (`work/contacthold/a-flush-union-at-the-session-boxs-wall-does-not-build-at-interval-at-the-tightest-eps.md`).
+/// That is the Boolean's refusal, not this reading's: the row then says
+/// so and asserts the `f64` body alone.
+#[test]
+fn a_flush_union_at_the_session_boxs_wall_holds() {
+    let at = [700.3, -600.7, 500.1];
+    let interval = match flush_union_op::<Interval>(at, 1.0, false) {
+        Err(e)
+            if tol().eps() < 1e-11
+                && format!("{e:?}").contains("predicate: Some(\"bool_contact_edge\")") =>
+        {
+            println!(
+                "SKIPPED at ε {:e}: the flush union at the wall does not build at Interval: {e:?}",
+                tol().eps()
+            );
+            let float = flush_union::<f64>(at, 1.0, false).into_body();
+            assert_eq!(
+                embedding(&float).verdict,
+                topo::clearance::Embedding::Embedded,
+                "the flush union at the wall, f64 alone: the door"
+            );
+            let report = injective(&float, None, BUDGET);
+            assert_holds("the flush union at the wall, f64 alone", &report, &float);
+            return;
+        }
+        op => built(op),
+    };
+    embedded_at_both(
+        "the flush union at the wall",
+        flush_union::<f64>(at, 1.0, false),
+        interval,
+    );
+}
+
+/// **Turned about a generic axis.** A straight corner's two edges are
+/// then two stored lines a rounding off one line, convex or reflex by
+/// that rounding. Red on a reading by the leans' signs, which the
+/// rounding decides either way (measured on the landing branch without
+/// the pieces: the turned walls split at their vertex down to the depth
+/// floor).
+#[test]
+fn a_turned_flush_union_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the turned flush union",
+        moved(&flush_union::<f64>(at, 1.0, false), &generic_turn()),
+        moved(&flush_union::<Interval>(at, 1.0, false), &generic_turn()),
+    );
+}
+
+/// **Its mirror image, turned**: the upper cube moved the other way.
+#[test]
+fn a_mirrored_turned_flush_union_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the mirrored flush union, turned",
+        moved(&flush_union::<f64>(at, 1.0, true), &generic_turn()),
+        moved(&flush_union::<Interval>(at, 1.0, true), &generic_turn()),
+    );
+}
+
+/// `b` mirrored across the plane through `(0.1, -0.2, 0.4)` normal to
+/// `(1, 2, 3)`, at rest: the mirror re-mints the body's stored rows.
+fn mirrored_across_a_generic_plane<T: Scalar>(b: &topo::AtRestBody<T>) -> topo::AtRestBody<T> {
+    use sweep::test_support::finished;
+    let at = T::from_f64;
+    let reflection = topo::Reflection::across(
+        Point3::new(at(0.1), at(-0.2), at(0.4)),
+        geom_core::Vec3::new(at(1.0), at(2.0), at(3.0)),
+        tol(),
+    )
+    .expect("a plane with a normal");
+    finished(
+        "the mirror image",
+        topo::mirror_body(b, &reflection, tol()).expect("the body mirrors"),
+        tol(),
+    )
+}
+
+/// **Mirrored across a generic plane**, by the mirror door.
+#[test]
+fn a_flush_union_mirrored_across_a_generic_plane_holds() {
+    let at = [0.1, 0.2, 0.3];
+    embedded_at_both(
+        "the flush union's mirror image",
+        mirrored_across_a_generic_plane(&flush_union::<f64>(at, 1.0, false)),
+        mirrored_across_a_generic_plane(&flush_union::<Interval>(at, 1.0, false)),
+    );
+}
+
+/// **A hundred units out**, moved off the grid on every axis.
+#[test]
+fn a_flush_union_a_hundred_units_out_holds() {
+    let by = geom_core::Affine3::translation(geom_core::Vec3::new(100.3, -99.7, 100.1));
+    embedded_at_both(
+        "the flush union a hundred units out",
+        moved(&flush_union::<f64>([0.1, 0.2, 0.3], 1.0, false), &by),
+        moved(&flush_union::<Interval>([0.1, 0.2, 0.3], 1.0, false), &by),
+    );
+}
+
+/// **With the profiles turned in their sketch plane**, so each face is
+/// turned in its own chart ([`flush_union_of_turned_profiles`]).
+#[test]
+fn a_flush_union_of_profiles_turned_in_their_sketch_plane_holds() {
+    embedded_at_both(
+        "the flush union of turned profiles",
+        flush_union_of_turned_profiles::<f64>(0.37),
+        flush_union_of_turned_profiles::<Interval>(0.37),
+    );
+}
+
+/// **The flush union with a triangle hung from one of its vertices**:
+/// the vertex at `v`, the face the flap is asked against (the one at
+/// the vertex normal to axis `target`), the horizontal or upright face
+/// whose loop the two struts hang in (normal to `strut`, so the target
+/// keeps its two edges at the vertex), and the flap's two far points.
+/// The body, the target face and the flap.
+fn flapped<T: Scalar>(
+    v: [f64; 3],
+    target: usize,
+    strut: usize,
+    far: [[f64; 3]; 2],
+) -> (Body<T>, FaceKey, FaceKey) {
+    use geom_brep::EdgeCurveSpec;
+    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+    use topo::test_support::plane;
+
+    let mut body = flush_union::<T>([0.0; 3], 1.0, false).into_body();
+    let at = |[x, y, z]: [f64; 3]| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let v_at = at(v);
+    let v = body
+        .vertices()
+        .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+        .unwrap()
+        .0;
+    // The half-edges that start at the vertex, each with its face and
+    // the axis its face's plane is normal to.
+    let face_of = |body: &Body<T>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let normal_to = |body: &Body<T>, f: FaceKey| {
+        let Surface::Plane { frame } = surface(body, f) else {
+            panic!("a brick's face is a plane");
+        };
+        let n = frame.axis();
+        [mid(n.x), mid(n.y), mid(n.z)]
+            .iter()
+            .position(|c| c.abs() > 0.5)
+            .unwrap()
+    };
+    let starts: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|&he| body.get_half_edge(he).unwrap().start == v)
+        .collect();
+    let on = |axis: usize| {
+        starts
+            .iter()
+            .copied()
+            .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
+            .unwrap()
+    };
+    let face = face_of(&body, on(target));
+    let h = on(strut);
+    let (a0, a1) = (at(far[0]), at(far[1]));
+    let fan = MevSite::Fan { he1: h, he2: h };
+    let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+    let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+    let flap = body
+        .mef(
+            MefSite::Chords {
+                he1: strut0.he_minus,
+                he2: strut1.he_minus,
+            },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New {
+                surface: plane(&[a0, v_at, a1], tol()),
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    (body, face, flap)
+}
+
+/// The face and the flap of [`flapped`] cross: `Violated` at both
+/// scalars.
+fn a_flap_crosses(what: &str, v: [f64; 3], target: usize, strut: usize, far: [[f64; 3]; 2]) {
+    let (body, face, flap) = flapped::<f64>(v, target, strut, far);
+    let report = injective(&body, Some(vec![face, flap]), BUDGET);
+    let (twin, tf, tfl) = flapped::<Interval>(v, target, strut, far);
+    let ireport = injective(&twin, Some(vec![tf, tfl]), BUDGET);
+    same_class(what, &report, &ireport);
+    println!("[pieces] {what}: {:?} {:?}", report.verdict, report.receipt);
+    for r in [&report, &ireport] {
+        assert!(
+            matches!(r.verdict, BoundVerdict::Violated(_)),
+            "{what}: the flap crosses the face at the vertex: {:?} {:?}",
+            r.verdict,
+            r.receipt
+        );
+    }
+}
+
+/// **A flap through a wall's run at its vertex never holds.** On the
+/// flush union's wall `x = 1`, whose top edge the vertex `(1, 0.25, 1)`
+/// splits, hangs a triangle from that vertex to `(1.3, 0.15, 0.2)` and
+/// `(0.7, 0.35, 0.2)`. It shares the vertex alone with the wall and
+/// crosses it along the segment from the vertex down to `(1, 0.25, 0.2)`.
+///
+/// This is the negative row of a straight corner as a whole, and it
+/// does NOT turn on a rule of the pieces: the crossing lies exactly on
+/// the ray that cuts the corner, which both pieces hold, and it runs on
+/// clear of the vertex, where it is found whatever the vertex's cells
+/// read. It stays `Violated` with one piece pair asked for all, with the
+/// carrier arm reading one piece, and with either piece dropped
+/// (measured). The row that turns on those is
+/// [`a_flap_through_a_reflex_face_off_its_ray_never_holds`].
+#[test]
+fn a_flap_through_a_run_at_its_vertex_never_holds() {
+    a_flap_crosses(
+        "the wall and the flap through its run",
+        [1.0, 0.25, 1.0],
+        0,
+        2,
+        [[1.3, 0.15, 0.2], [0.7, 0.35, 0.2]],
+    );
+}
+
+/// **A flap through the reflex top face, off its ray, never holds.** The
+/// lower cube's top face is L-shaped, reflex at `(0.5, 0.25, 1)`. A
+/// triangle from that vertex to `(0.4, 0.05, 1.3)` and `(0.5, 0.05, 0.7)`
+/// crosses it toward `-y`, inside one piece of the corner and off the
+/// ray. Every cell pair at the vertex has to refuse for the walk to
+/// reach the crossing: a wrong certificate there hides it, and the pair
+/// then runs out of depth with no witness.
+///
+/// Red (`Refused(Budget { Depth })` in place of `Violated`, measured)
+/// if one piece pair parted certifies the face pair, if a carrier that
+/// signs one piece of the other face certifies it, or if either piece
+/// of a two-piece corner is dropped.
+#[test]
+fn a_flap_through_a_reflex_face_off_its_ray_never_holds() {
+    a_flap_crosses(
+        "the reflex top face and the flap toward -y",
+        [0.5, 0.25, 1.0],
+        2,
+        0,
+        [[0.4, 0.05, 1.3], [0.5, 0.05, 0.7]],
+    );
+}
+
 // ------------------------------- a vertex on one line of a wall's edges
 
 /// **A half rod with a block under its flat face**: the half disc
