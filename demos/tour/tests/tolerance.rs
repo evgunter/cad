@@ -148,33 +148,26 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
         assert_eq!(lines, *pinned, "a plate verdict moved at eps={eps}");
     }
 
-    /// **The cut plate over the study box: its first `Subtract` takes a
-    /// hole whose arcs are exact, and stops at the volume reading.** The
-    /// tour's plate with its holes subtracted, evaluated over the whole
-    /// study box at `Sym<Interval>`: the blank, both hole extrudes and
-    /// their placed copies build, and the first node that refuses is the
-    /// first `Subtract`, whose operand does not finish on one finding:
-    /// its volume, where the closed form's rim premise `props_rim_fit`
-    /// is re-asked on the value channel at plain `Interval` and reads
-    /// `r − r` as wide as the radius box
-    /// (`work/boxfinish/the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel.md`
-    /// holds it). No finding is a `u_ref`'s length or an arc's own
-    /// vertex off its carrier: the circle verb stores the radius it
-    /// gated, the door turns its frame onto the recorded radial, and the
-    /// readers of a point against a radius read the rationalized gap.
+    /// **The cut plate evaluates over its whole study box, no node
+    /// refusing.** The tour's plate with its holes subtracted, evaluated
+    /// over the whole study box at `Sym<Interval>`: the blank, both hole
+    /// extrudes, their placed copies and both `Subtract`s build. The
+    /// circle verb stores the radius it gated, the door turns the bores'
+    /// and rims' frames onto the recorded radial, the readers of a point
+    /// against a radius read the rationalized gap, and the volume
+    /// reading's premises are walked at the scalar that built the body.
     ///
     /// Red under each of: the circle verb storing `radius.abs()`
-    /// (`profile::path::circle_loop`), which moves the refusal onto the
-    /// hole's own extrude, at `carrier_matches_mapped_source`; and the
-    /// door's arc arm turned onto the start vertex's normalized offset
-    /// in place of the recorded radial
-    /// (`sweep::swept::sketch_direction`), which refuses the same extrude
-    /// at `carrier_endpoint_start`.
+    /// (`profile::path::circle_loop`), which refuses the hole's own
+    /// extrude at `carrier_matches_mapped_source`; and the door's arc
+    /// arm turned onto the start vertex's normalized offset in place of
+    /// the recorded radial (`sweep::swept::sketch_direction`), which
+    /// refuses the same extrude at `carrier_endpoint_start`.
     #[test]
-    fn the_cut_plates_first_subtract_stops_at_the_volume_readings_rim_premise() {
+    fn the_cut_plate_evaluates_over_its_study_box_with_no_node_refusing() {
         use demo_tour::plate::cut_plate;
         use pncad::analysis::ParamBox;
-        use pncad::document::{Evaluation, Node, NodeErrorKind, NodeResult};
+        use pncad::document::{Evaluation, Node, NodeResult};
         use pncad::geom_core::{Interval, Sym, SymBudget, SymRules};
         let tol = Tol::witness();
         let p = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
@@ -188,41 +181,30 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             max_terms: 4096,
             max_degree: 128,
         };
-        let (subtract, findings, what) =
+        let (refused, subtracts) =
             pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
                 let ev: Evaluation<Sym<Interval>> =
                     evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
-                let (node, e) = ev
+                let refused: Vec<String> = ev
                     .order
                     .iter()
-                    .find_map(|id| match ev.result(*id) {
-                        Some(NodeResult::Failed(e)) => Some((*id, e)),
+                    .filter_map(|id| match ev.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some(format!("node {id:?}: {:?}", e.kind)),
                         _ => None,
                     })
-                    .expect("the cut plate refuses over the study box");
-                let findings = match &e.kind {
-                    NodeErrorKind::UnfinishedLeaf { findings, .. } => findings
-                        .as_slice()
-                        .iter()
-                        .map(|f| format!("{f:?}"))
-                        .collect::<Vec<_>>(),
-                    _ => Vec::new(),
-                };
-                (
-                    matches!(p.doc.node(node), Some(Node::Subtract { .. })),
-                    findings,
-                    format!("node {node:?}: {:?}", e.kind),
-                )
+                    .collect();
+                let subtracts = ev
+                    .order
+                    .iter()
+                    .filter(|id| {
+                        matches!(p.doc.node(**id), Some(Node::Subtract { .. }))
+                            && matches!(ev.result(**id), Some(NodeResult::Ok(_)))
+                    })
+                    .count();
+                (refused, subtracts)
             })
             .0;
-        assert!(subtract, "the first refusal is a Subtract's: {what}");
-        let [finding] = findings.as_slice() else {
-            panic!("the operand does not finish on one finding: {what}");
-        };
-        assert!(
-            finding.starts_with("VolumeUncomputable")
-                && finding.contains("predicate: Some(\"props_rim_fit\")"),
-            "the finding is the volume reading's rim premise: {what}"
-        );
+        assert!(refused.is_empty(), "no node refuses: {refused:#?}");
+        assert_eq!(subtracts, 2, "both holes are cut");
     }
 }

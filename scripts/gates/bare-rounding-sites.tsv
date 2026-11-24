@@ -75,7 +75,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	5	re-pose
 crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	1	oracle
 crates/geom-brep/src/piece.rs	test	3	oracle
 crates/geom-brep/src/props/curved.rs	prod	4	re-pose
-crates/geom-brep/src/props/curved.rs	test	2	oracle
+crates/geom-brep/src/props/curved.rs	test	3	oracle
 crates/geom-brep/src/props/loop_area.rs	test	1	oracle
 crates/geom-brep/src/props/quad/rotational/swap_rows/torus.rs	test	1	oracle
 crates/geom-brep/src/props/quad/trimmed.rs	test	1	oracle
@@ -177,12 +177,12 @@ crates/sweep/examples/near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/examples/split_near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/src/blend/open/end_face.rs	test	1	oracle
 crates/sweep/src/blend/reach.rs	test	4	oracle
-crates/sweep/src/swept.rs	test	4	oracle
+crates/sweep/src/swept.rs	test	3	oracle
 crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs	test	1	oracle
 crates/sweep/tests/a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle
-crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs	test	2	oracle
+crates/sweep/tests/a_sweep_keeps_the_frame_it_is_handed.rs	test	3	oracle
 crates/sweep/tests/a_thin_cap_keeps_its_digits.rs	test	2	oracle
 crates/sweep/tests/a_vertex_on_a_grazing_plane.rs	test	3	oracle
 crates/sweep/tests/blend2_r2_probes.rs	test	3	oracle

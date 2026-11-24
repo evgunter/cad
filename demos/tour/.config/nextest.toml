@@ -21,7 +21,7 @@ not (
     test(=projectbox::tests::the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids) |
     test(=tolerance::tests::the_cut_plates_first_subtract_refuses_a_bores_u_ref_over_the_study) |
     test(=teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite) |
-    test(=tolerance::tests::the_cut_plates_first_subtract_stops_at_the_volume_readings_rim_premise) |
+    test(=tolerance::tests::the_cut_plate_evaluates_over_its_study_box_with_no_node_refusing) |
     test(=wall_jets::the_klein_loops_walls_hold_against_themselves)
   )
 )
