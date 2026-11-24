@@ -444,8 +444,10 @@ fn a_parts_run_is_the_parts_and_its_identities_reach_its_instance() {
 /// documents, in leaves of two drives, the part's record is the same,
 /// whatever the instancing document is.
 ///
-/// Mutant: a part's scope opened over the registry of the scope it was
-/// entered from reads what the instancing document registered.
+/// No mutant is planted for the claim itself: a scope is opened over
+/// the records it is handed and nothing else, so no line hands a
+/// part's run the instancing document's registry. The floor fails if
+/// the part's run is in no scope of its own.
 #[test]
 fn a_parts_run_is_the_same_in_two_instancing_documents() {
     let tol = Tol::witness();
@@ -459,7 +461,12 @@ fn a_parts_run_is_the_same_in_two_instancing_documents() {
             &table(),
             tol,
         );
-        ev.parts_sym[0].counts()
+        let counts = ev.parts_sym[0].counts();
+        assert!(
+            counts.decisions() > 0,
+            "the part's run decided, in a scope of its own"
+        );
+        counts
     };
     assert_eq!(
         record_in("session-state-first"),
