@@ -762,7 +762,9 @@ fn a_rows_default_spacing_is_its_step_clear_of_rounded_up() {
     // figure would read back below it.
     for (clears, unit, want) in [
         (3.000_000_000_000_000_3e-4, MM, "0.4 mm"),
-        (0.0762, IN, "4 in"),
+        (0.0762_f64.next_up(), IN, "4 in"),
+        // `3 in` is the float nearest 0.0762 m, so that step is round.
+        (0.0762, IN, "3 in"),
     ] {
         let spacing = viewer::combine::row_spacing(clears, unit).expect("a positive step");
         assert_eq!(doc.unparse(&spacing), want, "{clears} m in {unit:?}");

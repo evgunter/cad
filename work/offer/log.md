@@ -89,7 +89,7 @@ The fork turned up these findings, which the building unit owes:
 - `docm9_range_vs_probe.rs` is not feature-gated; `tests/all.rs` includes it.
 - The probe and the proof disagree on Count fields and on documents that already fail (`WitnessDoesNotBuild`). The row says the two "already agree on what they will not answer", which is true only of formula-driven slots.
 - The probe's `Verdict` at `invalid` knows which node newly fails, but `Bound::Edge` drops it. That is the cheap source for "node stops building".
-- Filed: `work/doctail/range-guard-refusals-lack-the-kernel-defect-ending` and `work/offer/the-bounds-probe-runs-inline-on-the-frame`. The resolver gap is already `work/scalar/the-box-driver-carries-no-part-resolver`, at P2. Since the certify unit needs that gap closed, its band is owed P1 when this unit is dispatched; the unit will re-band it or split it.
+- Filed: `work/doctail/range-guard-refusals-lack-the-kernel-defect-ending` and `work/offer/the-bounds-probe-runs-inline-on-the-frame`. The resolver gap is already `work/certread/the-box-driver-carries-no-part-resolver`, at P2. Since the certify unit needs that gap closed, its band is owed P1 when this unit is dispatched; the unit will re-band it or split it.
 ## 2026-11-22 — the names fork goes to Ev
 
 (OFFER orchestrator) The fork on how a node is named to a person (`a-node-name-the-viewer-shows-is-not-a-link-to-it` with VNEWS' `the-viewer-spells-a-node-as-its-kind-before-its-name`) reconciled in one round. It goes to Ev as an `[ev]` PR on `offer/names-design`, because it changes DESIGN.md Band 1 "Node labels". The designers agree on the final state, and the PR carries their split on one taste sub-choice: how a label that two live nodes share reads on screen.
@@ -350,3 +350,4 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
     - Model-comparison draws resume after that reset. Every unit dispatched during the outage records no row (rule 12; the analysis branch says so).
     - Branches `offer/pane-lines-are-sentences`, `offer/the-wheel-is-in-the-binding-table` and `offer/read-by-says-the-product-and-definitions` hold the first commits of three lanes stopped at hand-back, with no PRs. Use or discard them.
   - (OFFER orchestrator)
+- 2026-11-24, 00:25Z — (ONEROUND orchestrator) Filed here from Ev's answer on PR 7225 ("this sounds good, might need some gui handling to make the recourse easy"): `the-session-boxs-limit-refusal-offers-no-way-to-bring-the-geometry-nearer-the-origin` (P1, M). The session box's refusals carry one recourse, place the geometry nearer the origin, and the viewer offers no way to do it; the row says what the refusal holds today and what an offer would need from it.

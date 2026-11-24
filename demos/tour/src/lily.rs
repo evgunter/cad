@@ -137,11 +137,12 @@
 //! rule: a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
 //! where narration begins.
 //!
-//! **The swept and lofted blades are the exception**: their frames
-//! and outlines are built from computed geometry (a spine, a curl), so
-//! they enter `S` as the computed values they are — the frame's inputs
-//! through `map(S::from_computed)` and minted at `S`, `lift_computed`
-//! on each loop.
+//! **The swept and lofted blades' frames are the exception**: they are
+//! built from computed geometry (a spine, a curl), so their inputs
+//! enter `S` as the computed values they are, through
+//! `map(S::from_computed)`, and the frame is minted at `S`. Their
+//! outlines are authored numbers and are drawn at `S` like every other
+//! sketch.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -149,9 +150,7 @@ use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 use pncad::topo::LeafBody as _;
 
-use pncad::geom_core::{
-    Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
-};
+use pncad::geom_core::{Affine3, Mat3, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
@@ -822,21 +821,21 @@ impl Lance {
     /// The lens, wound counterclockwise in the sketch `(s, t)` frame
     /// from the `+s` margin: over the ridge to the `−s` margin, then
     /// under the keel back.
-    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
+    fn outline<S: Scalar>(self, tol: Tol) -> Vec<ConstructedLoop<S>> {
         let half = 0.5 * self.width;
         let closed = Open
-            .at(Point2::new(half, 0.0))
+            .at(p2::<S>(half, 0.0))
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, self.ridge),
-                    p: Point2::new(-half, 0.0),
+                    q: p2::<S>(0.0, self.ridge),
+                    p: p2::<S>(-half, 0.0),
                 },
                 tol,
             )
             .expect("the blade's ridge arc")
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, -self.keel),
+                    q: p2::<S>(0.0, -self.keel),
                     p: Start,
                 },
                 tol,
@@ -1028,19 +1027,15 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The outline is built in `f64`, so it enters `S` as the computed
-    // values it is; the frame is minted at `S` from those values.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are, and the frame is minted at `S`.
     let place = sketch_frame::<S>(
         base.map(S::from_computed),
         u.map(S::from_computed),
         v.map(S::from_computed),
         tol,
     );
-    let outline: Vec<_> = section
-        .outline(tol)
-        .iter()
-        .map(|lp| lp.lift_computed())
-        .collect();
+    let outline = section.outline::<S>(tol);
     sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
@@ -1208,13 +1203,10 @@ fn blade_station<S: Scalar>(
     let (st, ct) = (roll.sin(), roll.cos());
     let uu = u * ct + vk * st;
     let vv = vk * ct - u * st;
-    // Built in `f64`, so they enter `S` as the computed values they are.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are.
     (
-        section
-            .outline(tol)
-            .iter()
-            .map(|lp| lp.lift_computed())
-            .collect(),
+        section.outline(tol),
         sketch_frame::<S>(
             p.map(S::from_computed),
             uu.map(S::from_computed),

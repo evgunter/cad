@@ -30,6 +30,10 @@ stored frames (`one_stated_plane`), and `one_conic`'s lifted arm still
 reads the lifted centres as one value. What that leaves this row on the
 EMBED side: a quarter turn
 (`a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart`),
-and an ellipse held at its centre against the same one held on its arc,
-both read as two today.
+read as two by both of the certificate's readings, and an ellipse held
+at its centre against the same one held on its arc, which the stated
+reading says are two and the lifts say are one exactly where every
+lifted component is a point, the derived centre among them (corrected
+on 24 Nov from "both read as two today", after the review of PR 7640
+showed the second through `one_conic`).
 

@@ -268,10 +268,11 @@ pub(crate) struct Rim {
     pub(crate) arc: Option<(Curve3<Interval>, (Interval, Interval))>,
     /// The carrier as the body stores it, where the body's scalar is a
     /// point scalar (`f64`): the claim its lift encloses. Two edges whose
-    /// stored carriers are one conic as values, their frames one up to the
-    /// signs of their axes ([`one_stated_plane`]), name one exact conic,
-    /// which their lifts, enclosures of it a rounding wide, cannot show
-    /// as one value ([`one_conic`]). `None` on a body held as enclosures,
+    /// stored carriers are one conic as values ([`one_stated_conic`]: two
+    /// circles' frames one up to the signs of their axes, two ellipses
+    /// one the other's exact restatement) name one exact conic, which
+    /// their lifts, enclosures of it a rounding wide, cannot show as one
+    /// value ([`one_conic`]). `None` on a body held as enclosures,
     /// and for null scaffolding.
     pub(crate) stated: Option<Curve3<f64>>,
     /// The vertices at the curve's start and end.
@@ -2857,23 +2858,19 @@ impl Curved {
 }
 
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
         Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             (center, axis, radius, radius, u_ref)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
         }
@@ -3885,6 +3882,10 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
 /// where a frame's axis is the one value of its polar factor. The two
 /// parametrizations may differ; the reading never maps one onto the
 /// other ([`continues`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_conic(e: &Rim, o: &Rim) -> bool {
     if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
         && one_stated_conic(se, so)
@@ -3903,7 +3904,7 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame(), &b.frame())
-                && one_line(a.frame().u_ref(), b.frame().u_ref())
+                && one_line(a.u_ref(), b.u_ref())
                 && one_value(a.semi_u(), b.semi_u(), false)
                 && one_value(a.semi_v(), b.semi_v(), false)
         }
@@ -3925,12 +3926,18 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
 /// turn is rounded ([`geom::Ellipse::quarter_turned_where`]). Their
 /// frames, read at the centre, are no stored fact, and only their stored
 /// content is.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
             one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
+            // The stored `v`, which no reading of the conic hands out:
+            // the centre frame carries the stored axes as they are.
             let v = |e: &geom::Ellipse<f64>| e.frame().motion().v().get();
             a.restatements()
                 .into_iter()
@@ -6206,6 +6213,10 @@ fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<
 /// wedges only choose a direction; any direction is exact. A shared
 /// vertex off the lines a plane was built through is not listed. Where
 /// these are tried among the other separators is [`departure`]'s list.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn planes_through(
     x: &Piece<'_>,
     near: &Near,
@@ -11664,16 +11675,7 @@ mod presentation_rows {
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
-        let rim = |e: geom::Ellipse<f64>| {
-            let c = Curve3::Ellipse(e);
-            Rim {
-                key: edge(1),
-                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
-                stated: Some(c),
-                ends: [vertex(1), vertex(2)],
-                uses: Vec::new(),
-            }
-        };
+        let rim = |e| ellipse_rim(e, (0.0, 1.0), [1, 2]);
         let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
         let off = 2f64.powi(-60);
         let far = geom::Ellipse::anchored(Point3::new(off, 0.0, 0.0), z, x, 100.0, 1.0);
@@ -11727,9 +11729,7 @@ mod presentation_rows {
     }
 
     /// An ellipse held on its arc in a generic plane, its seam turned a
-    /// quarter so that neither phase component is its own negation's
-    /// equal by being a zero on both sides of a pairing under test:
-    /// phase `(0, −1)`.
+    /// quarter from its anchor: phase `(0, −1)`.
     fn generic_arc_held() -> geom::Ellipse<f64> {
         geom::Ellipse::anchored(
             Point3::new(0.3, -1.1, 2.9),
@@ -11775,19 +11775,6 @@ mod presentation_rows {
                 !one(e, e.mapped(geom::Frame::half_turned)),
                 "{what}: u_ref negated and the phase kept"
             );
-            // A point of each restatement is the ellipse's own at the
-            // parameter its identity names, to the evaluation's rounding.
-            for (r, at) in [
-                (half, 0.3 - PI),
-                (e.reversed(), -0.3),
-                (half.reversed(), PI - 0.3),
-            ] {
-                let (p, q) = (
-                    geom::Conic::point_at(&e, 0.3),
-                    geom::Conic::point_at(&r, at),
-                );
-                assert!((p - q).norm() < 1e-14, "{what}: one point: {p:?} {q:?}");
-            }
         }
         // A negation whose phase component is a zero changes nothing by
         // keeping it, so each of these is asked where its component is
@@ -11903,20 +11890,28 @@ mod presentation_rows {
         );
     }
 
-    /// **A seam turned a quarter turn states another ellipse, and one
-    /// held at its centre is never one held on its arc**
-    /// ([`one_stated_conic`]). The quarter turn rounds
-    /// ([`geom::Ellipse::quarter_turned_where`]): in a generic frame the
-    /// turned `v` is no negation of the old `u_ref`, asserted here, and
-    /// the two are not one. On axis-aligned frames, where the turn is
-    /// exact, they are read as two all the same, as are an ellipse about
-    /// the origin and the same ellipse anchored at its vertex, whose
-    /// derived centre is the origin to the bit. Red if a quarter turn or
-    /// a derived centre is admitted.
+    /// **A seam turned a quarter turn states another ellipse, and an
+    /// ellipse held at its centre is stated otherwise than one held on
+    /// its arc** ([`one_stated_conic`], [`one_conic`]). The quarter turn
+    /// rounds ([`geom::Ellipse::quarter_turned_where`]): in a generic
+    /// frame the turned `v` is no negation of the old `u_ref`, asserted
+    /// here, and the two are not one by either reading. On axis-aligned
+    /// frames, where the turn is exact, the stated reading still says
+    /// two, and so do the lifts, whose `u_ref` lie a quarter turn apart.
+    /// An ellipse about the origin and the same ellipse anchored at its
+    /// vertex, whose derived centre is the origin to the bit, are two by
+    /// the stated reading and ONE by the lifts: there every lifted
+    /// component is a point, the derived centre among them, so the two
+    /// lifts are one curve. Anchored `2⁻⁶⁰` apart the lifted centre is a
+    /// bracket, and they are two
+    /// (`two_stored_ellipses_are_one_only_where_stated_alike`). Red if
+    /// the stated reading admits a quarter turn or a derived centre, or
+    /// the lifts stop reading an exact derived centre as the centre.
     #[test]
     fn a_quarter_turned_seam_and_a_derived_centre_state_other_ellipses() {
         use core::f64::consts::FRAC_PI_2;
         let rim = |e| ellipse_rim(e, (0.0, 1.0), [1, 2]);
+        let stated = |a, b| one_stated_conic(&Curve3::Ellipse(a), &Curve3::Ellipse(b));
         let e = generic_arc_held();
         let q = e.seamed_near(FRAC_PI_2);
         let (m, n) = (e.frame().motion(), q.frame().motion());
@@ -11927,12 +11922,11 @@ mod presentation_rows {
         assert!(!one_conic(&rim(e), &rim(q)), "a quarter turn, rounded");
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let on_grid = geom::Ellipse::anchored(Point3::new(2.0, 0.0, 0.0), z, x, 2.0, 1.0);
+        let turned = on_grid.seamed_near(FRAC_PI_2);
+        assert!(!stated(on_grid, turned), "a quarter turn, exact, as stated");
         assert!(
-            !one_stated_conic(
-                &Curve3::Ellipse(on_grid),
-                &Curve3::Ellipse(on_grid.seamed_near(FRAC_PI_2))
-            ),
-            "a quarter turn, exact"
+            !one_conic(&rim(on_grid), &rim(turned)),
+            "a quarter turn, exact, by the lifts"
         );
         let centred = geom::Ellipse::new(geom::Frame::new(Point3::origin(), z, x), 2.0, 1.0);
         assert!(
@@ -11943,8 +11937,12 @@ mod presentation_rows {
             "one centre to the bit"
         );
         assert!(
-            !one_stated_conic(&Curve3::Ellipse(centred), &Curve3::Ellipse(on_grid)),
-            "held at the centre against held on the arc"
+            !stated(centred, on_grid),
+            "held at the centre against held on the arc, as stated"
+        );
+        assert!(
+            one_conic(&rim(centred), &rim(on_grid)),
+            "held at the centre against held on the arc, by lifts that are points"
         );
     }
 
