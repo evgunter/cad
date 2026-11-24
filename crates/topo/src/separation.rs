@@ -25,21 +25,40 @@
 //!
 //! # What is proved, and what is not
 //!
-//! The certificate is **sufficient, not necessary**. Every face of the
-//! prototype gets a conservative axis-aligned box (the boolean sweep's own
-//! [`crate::boxes::face_box`], padded); a pair of placements is
-//! CERTIFIED SEPARATED when every face of one placement's copy is apart
-//! from every face of the other's: its box misses the other's box, or,
-//! behind a box overlap, the census reads the two faces apart
-//! ([`crate::census::faces_apart`]: a gap along a world axis, along a
-//! direction that turns with the pair, or in depth about an axis or
-//! centre either face proposes). Boxes are supersets of what they enclose
-//! and an affine image of a superset is a superset of the affine image,
-//! and each of the census's gaps is read off covers that hold their
-//! faces, so either is a genuine separation of the solids. The face
-//! reading is of the two faces alone, so whether a pair certifies does
-//! not depend on how the copies are turned against each other or in the
-//! world (D10 `[placement.frame]`).
+//! The certificate is **sufficient, not necessary**. Both doors prove the
+//! same thing of a pair (two placed copies, or two solids of one body):
+//! **their materials are disjoint**, in two parts.
+//!
+//! 1. **The boundaries are apart.** Every face of the prototype gets a
+//!    conservative axis-aligned box (the boolean sweep's own
+//!    [`crate::boxes::face_box`], padded). Each face of one side is
+//!    apart from each face of the other: either its box misses the
+//!    other's box, or, behind a box overlap, the one face-pair reading
+//!    parts the two faces ([`crate::census::faces_apart`]: a gap along a
+//!    direction that turns with the pair, or in depth about an axis or
+//!    centre either face proposes). Boxes are supersets of what they
+//!    enclose, an affine image of a superset is a superset of the affine
+//!    image, and each gap is read off covers that hold their faces, so
+//!    either proves the two faces' loci disjoint.
+//! 2. **Neither side lies in the other's material.** One boundary point
+//!    of each shell of each side is decided `Out` of the other side's
+//!    material ([`crate::point_in_solid_faces`]). With the boundaries
+//!    disjoint, each shell lies wholly in or wholly out of the other
+//!    side (it is connected and misses that side's boundary). So the
+//!    intersection of the two materials has no boundary point, and,
+//!    being compact, is empty. A point on the boundary, a point in the
+//!    material, or a placement the door refuses denies; it never
+//!    certifies. Part 1 alone proves nothing of the materials: a rod in a
+//!    tube's wall and a ball inside a cube have boundaries apart and
+//!    materials nested.
+//!
+//! A pair whose hulls miss is certified on the hulls alone, since each
+//! side's material lies in its boundary's hull. That world-box step
+//! still certifies first, so a pair certifies at every pose where its
+//! boxes happen to clear. Past it, every reading is of the pair's own
+//! geometry: whether a pair certifies there does not depend on how the
+//! copies are turned against each other or in the world (D10
+//! `[placement.frame]`).
 //!
 //! **That premise is the box module's contract, and it holds on every
 //! scalar**: the per-kind extents range over a bracketed description
@@ -122,13 +141,16 @@
 //! everything, so poison refuses — it never certifies.
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Band, Bounds, Decide, RigidMotion, Tol};
+use geom_core::{Band, Bounds, Decide, Point3, RigidMotion, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
 use crate::boxes::{face_box, sweep_pad};
 use crate::census::faces_apart;
-use crate::entity::{FaceKey, SolidKey};
+use crate::entity::{FaceKey, ShellKey, SolidKey};
+use crate::live::BoundaryMember;
+use crate::props::AtRestPolicy;
+use crate::solid_contain::{SolidContainment, SolidFaces, point_in_solid_faces};
 
 /// [`Separation`]'s query, a placed instance's faces against another's.
 const PLACED_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
@@ -148,6 +170,52 @@ fn read_apart<T: Decide>(x: (&Body<T>, FaceKey), y: (&Body<T>, FaceKey), band: B
     faces_apart(x, y, &[], sweep_pad(band), band)
 }
 
+/// One boundary point of each of `shells`: the first vertex of the first
+/// of its faces that has one. `None` where a shell has none, which the
+/// caller reads as "may meet".
+fn shell_points<T: Decide>(
+    body: &Body<T>,
+    shells: impl IntoIterator<Item = ShellKey>,
+) -> Option<Vec<Point3<T>>> {
+    shells
+        .into_iter()
+        .map(|shell| {
+            body.get_shell(shell)?.faces.iter().find_map(|&f| {
+                body.proven_face(f)
+                    .boundary()
+                    .next()
+                    .map(|member| match member {
+                        BoundaryMember::Isolated { point, .. } => point,
+                        BoundaryMember::Edge { edge, .. } => crate::cover::edge_end_point(
+                            body,
+                            edge.key(),
+                            edge.record().he_plus,
+                            "he_plus",
+                        ),
+                    })
+            })
+        })
+        .collect()
+}
+
+/// Whether every one of `points` lies definitely outside the material
+/// `sel` selects of `body` ([`point_in_solid_faces`]). A point on the
+/// boundary, in the material, or one the door refuses, answers no.
+fn all_out<T: Decide + AtRestPolicy>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    points: impl IntoIterator<Item = Point3<T>>,
+    band: Band,
+    tol: Tol,
+) -> bool {
+    points.into_iter().all(|p| {
+        matches!(
+            point_in_solid_faces(body, sel, p, band, tol),
+            Ok(SolidContainment::Out)
+        )
+    })
+}
+
 /// The prototype's separation certificate machinery: its padded face
 /// boxes, their hull, and the one tree over them, beside the prototype
 /// they were read off.
@@ -160,6 +228,14 @@ pub struct Separation<'b, T: geom_core::Real> {
     proto: &'b Body<T>,
     /// The band the boxes and the face reads take.
     band: Band,
+    /// The tolerance the containment read takes.
+    tol: Tol,
+    /// The prototype's whole material, for the containment read; `None`
+    /// where the selection refuses, which no pair certifies past.
+    material: Option<SolidFaces>,
+    /// One boundary point of each of the prototype's shells; `None` where
+    /// a shell has none.
+    points: Option<Vec<Point3<T>>>,
     /// The padded per-face boxes, in the prototype's face-arena order —
     /// the tree's input order, so a query's item index indexes here.
     boxes: Vec<Aabb>,
@@ -172,7 +248,7 @@ pub struct Separation<'b, T: geom_core::Real> {
     tree: Bvh,
 }
 
-impl<'b, T: Decide + Bounds> Separation<'b, T> {
+impl<'b, T: Decide + Bounds + AtRestPolicy> Separation<'b, T> {
     /// Builds the prototype's boxes and tree.
     ///
     /// # Errors
@@ -201,9 +277,18 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
             .reduce(|a, b| a.hull(&b))
             .unwrap_or_else(Aabb::poison);
         let tree = Bvh::build(&boxes);
+        let points = shell_points(
+            proto,
+            proto
+                .solids()
+                .flat_map(|(_, solid)| solid.shells.iter().copied()),
+        );
         Ok(Self {
             proto,
             band,
+            tol,
+            material: SolidFaces::of_body(proto).ok(),
+            points,
             boxes,
             faces,
             hull,
@@ -235,9 +320,11 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
     }
 
     /// Whether copies `i` and `j` may meet: their hulls `hulls` meet, and
-    /// some face of `j`, carried into `i`'s frame, has a box meeting a
-    /// face box of `i` and is not certainly apart from that face
-    /// ([`faces_apart`]).
+    /// either some face of `j`, carried into `i`'s frame, has a box
+    /// meeting a face box of `i` and is not certainly apart from that face
+    /// ([`faces_apart`]), or a point of some shell of either copy is not
+    /// decided outside the other's material (module docs: boundaries
+    /// apart is not material apart).
     fn may_meet(&self, hulls: &[Aabb], maps: &[RigidMotion<T>], i: usize, j: usize) -> bool {
         if !hulls[i].overlaps(&hulls[j]) {
             return false;
@@ -257,7 +344,7 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
         };
         // Copy `j` in `i`'s frame, read only where a box pair meets.
         let moved = std::cell::OnceCell::new();
-        self.boxes.iter().zip(&self.faces).any(|(b, fj)| {
+        let faces_meet = self.boxes.iter().zip(&self.faces).any(|(b, fj)| {
             let hits = self.tree.overlapping(PLACED_FACES, &image(b, &rel));
             if hits.is_empty() {
                 return false;
@@ -269,6 +356,33 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
             };
             hits.into_iter()
                 .any(|k| !read_apart((self.proto, self.faces[k]), (moved, *fj), self.band))
+        });
+        faces_meet || !self.contained_neither(&rel, &maps[j], &maps[i])
+    }
+
+    /// With the two copies' boundaries apart, whether neither copy lies in
+    /// the other's material: each shell's point of copy `j`, read into
+    /// `i`'s frame through `rel`, and of copy `i`, read into `j`'s through
+    /// `M_j⁻¹ ∘ M_i`, decided outside the prototype's material.
+    fn contained_neither(
+        &self,
+        rel: &RigidMotion<T>,
+        mj: &RigidMotion<T>,
+        mi: &RigidMotion<T>,
+    ) -> bool {
+        let (Some(material), Some(points), Some(back)) =
+            (&self.material, &self.points, relative(mj, mi))
+        else {
+            return false;
+        };
+        [rel, &back].into_iter().all(|m| {
+            all_out(
+                self.proto,
+                material,
+                points.iter().map(|&p| m.transform_point(p)),
+                self.band,
+                self.tol,
+            )
         })
     }
 }
@@ -371,7 +485,7 @@ pub struct SolidsMeet {
 /// One solid's separation machinery: its padded face boxes, their hull,
 /// and the tree over them.
 #[derive(Debug, Clone)]
-struct SolidBoxes {
+struct SolidBoxes<T: geom_core::Real> {
     /// The padded per-face boxes, in this solid's own face order.
     boxes: Vec<Aabb>,
     /// Each box's face, in `boxes`' order.
@@ -380,6 +494,12 @@ struct SolidBoxes {
     hull: Aabb,
     /// The tree over `boxes`.
     tree: Bvh,
+    /// The solid's material, for the containment read; `None` where the
+    /// selection refuses, which no pair certifies past.
+    material: Option<SolidFaces>,
+    /// One boundary point of each of the solid's shells; `None` where a
+    /// shell has none.
+    points: Option<Vec<Point3<T>>>,
 }
 
 /// **Certified separation of the solids of ONE body** — the
@@ -403,12 +523,9 @@ struct SolidBoxes {
 /// signature verbatim and carries the sibling's ratified answer with
 /// it: `geom-core/src/real.rs`'s `Bounds` scope rule settled that
 /// question for `separation` as **NO — the caller decides it, not the
-/// door**. Its callers have decided differently from one another, and
-/// the rule expects that: `editor_core::eval::wire` keeps the loose
-/// lane (it is beneath `evaluate<T>`, which a tighter bound would
-/// reach by propagation), while `editor_core::checks` is TIGHTENED to
-/// `Decide + CertifiedBounds` because nothing generic calls it. The
-/// rule's 2026-08-29 entry records that second caller.
+/// door**. `editor_core::eval::wire` keeps [`Separation`]'s loose lane
+/// (it is beneath `evaluate<T>`, which a tighter bound would reach by
+/// propagation).
 ///
 /// So it admits a `Dual` exactly as [`Separation`] does, and for the
 /// same reason: a `SolidsMeet` is a pair of arena keys, not a value in
@@ -424,8 +541,9 @@ struct SolidBoxes {
 /// product ROOT — had no establishment at all, so a document whose
 /// roots denote overlapping solids gathered them into a product that
 /// counted the same material twice and said nothing. This is that
-/// layer's establishment, and `editor_core`'s separation check is its
-/// consumer.
+/// layer's establishment. No production door reads it yet: its rows
+/// (`topo/tests/solid_separation.rs`, `sweep`'s
+/// `separation_reads_turned_directions`) are its only callers.
 #[derive(Debug, Clone)]
 pub struct SolidSeparation<'b, T: geom_core::Real> {
     /// The body, whose faces a pair the boxes do not part is read on.
@@ -433,13 +551,15 @@ pub struct SolidSeparation<'b, T: geom_core::Real> {
     /// The band the boxes and the face reads take.
     band: Band,
     /// Per-solid machinery, in the body's solid-arena order.
-    solids: Vec<(SolidKey, SolidBoxes)>,
+    solids: Vec<(SolidKey, SolidBoxes<T>)>,
+    /// The tolerance the containment read takes.
+    tol: Tol,
     /// Position in `solids` for each key, so a pair query is a lookup
     /// rather than a scan.
     index: slotmap::SecondaryMap<SolidKey, usize>,
 }
 
-impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
+impl<'b, T: Decide + Bounds + AtRestPolicy> SolidSeparation<'b, T> {
     /// Builds every solid's boxes and tree, once.
     ///
     /// # Errors
@@ -488,6 +608,8 @@ impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
                     faces,
                     hull,
                     tree,
+                    material: SolidFaces::of(body, key).ok(),
+                    points: shell_points(body, solid.shells.iter().copied()),
                 },
             ));
         }
@@ -495,6 +617,7 @@ impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
             body,
             band,
             solids,
+            tol,
             index,
         })
     }
@@ -565,7 +688,21 @@ impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
                 .into_iter()
                 .any(|k| !read_apart((body, *fx), (body, y.faces[k]), self.band))
         });
-        if meets { Err(pair) } else { Ok(()) }
+        // Boundaries apart, the two are disjoint unless one lies in the
+        // other's material (module docs).
+        let out_of = |p: &SolidBoxes<T>, m: &SolidBoxes<T>| {
+            p.points
+                .as_ref()
+                .zip(m.material.as_ref())
+                .is_some_and(|(points, material)| {
+                    all_out(body, material, points.iter().copied(), self.band, self.tol)
+                })
+        };
+        if meets || !out_of(x, y) || !out_of(y, x) {
+            Err(pair)
+        } else {
+            Ok(())
+        }
     }
 }
 
