@@ -2,12 +2,13 @@
 id: a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap
 kind: issue
 title: A pipe does not union with an elbow revolved off its own end cap: the union refuses a recorded contact as undecided at a margin of -7.07
-status: review
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: H
 branch: heldrecords/elbow
 pr: 7432
+closed: 2026-11-24
 ---
 
 
@@ -424,3 +425,19 @@ junction's two faces where it lies.
   through the other torus. Two coplanar rings tangent at the junction
   meet again only after one tube curls through the other's volume, and a
   second root off the face reads the same either way at union level.
+
+## Closed (2026-11-24, HELDRECORDS orchestrator)
+
+**A pipe unions with an elbow revolved off its own end cap.** The outward poses, the rod, turned axes up to ±1.22 rad and the hooked elbow build at their closed-form volumes and pass t3 and t3′ at three ε. It took a stack of three PRs, each dual-reviewed by two Opus reviewers and merged on local evidence (Ev, 2026-11-23):
+- **PR 7432** (`9863cf938e`): the glue door reads a rim both faces end on as a `Junction`, glued only on Seam with Opposite departures and both rim edges `Crease{Convex}`; everything else takes main's path.
+- **PR 7463** (`09be7534f2`): the crossing layer reads an edge ending on a glued junction by its end root (deflated, its order decided, its side decided on the glued stretch), refusing typed at a reflex corner.
+- **PR 7471** (`fa133fb26b`): the seam's description is `TangentIntersection` only where |κ_rel| is certified along the edge; the stand-in is fixed at its minter; the rim routing reads an aligned in-band bend as the π seam.
+
+**Residue, each on its own row:**
+- inward poses (`tang/an-elbow-bent-back-into-its-pipe-meets-it-along-a-rim-and-a-crossing`, P1);
+- the refusal belt near a neutral point (`the-junction-end-window-refuses-in-a-belt-around-a-neutral-point`, P1);
+- the side margin's full bends (P2);
+- the junction sector arms, which now refuse typed;
+- n-ary rim junctions (P2);
+- SELECT's drift P1, wedge-end P2 and in-band P2;
+- ONECOPY's composite P1.
