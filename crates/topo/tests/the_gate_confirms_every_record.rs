@@ -322,3 +322,34 @@ fn no_public_door_of_a_join_takes_records() {
         );
     }
 }
+
+/// A join names tier 3′ only where its census decided every meeting
+/// between two arrivals (`Bar::Tier3Prime`'s own sentence). RED on
+/// `bbb6955172`: two cubes whose facing faces stand in the band apart
+/// (its midpoint, at whichever ε the suite runs), each an arrival; the
+/// census hands back `CensusUndecidable` on that pair and the body was
+/// named `Tier3Prime`.
+#[test]
+fn a_joins_bar_is_not_tier_3_prime_where_its_census_left_a_meeting_undecided() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let gap = 0.5 * (band.zero() + band.escalate());
+    let mut join = Assembled::<f64>::new();
+    join.graft_finished(&cube(0.0, 0.0, 0.0), None, tol())
+        .unwrap();
+    join.graft_finished(&cube(1.0 + gap, 0.0, 0.0), None, tol())
+        .unwrap();
+    let done = finish_assembled(join, tol()).unwrap();
+    assert!(
+        done.findings
+            .iter()
+            .any(|f| matches!(f, ValidationError::CensusUndecidable { .. })),
+        "the census leaves the pair undecided: {:?}",
+        done.findings
+    );
+    assert_eq!(
+        done.body.bar(),
+        topo::Bar::Tier3,
+        "named tier 3' beside {:?}",
+        done.findings
+    );
+}

@@ -4431,9 +4431,26 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             "whether the faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
-        ContactRefusal::NotCertifiable { .. } => (
-            "the kernel cannot yet check a contact between faces of these kinds",
+        // No reading covers the kind: a record of it is held, so this
+        // sentence is a report, and there is nothing for its reader to
+        // do.
+        ContactRefusal::NotCertifiable {
+            reach: crate::contact::ContactReach::NoLane,
+            ..
+        } => (
+            "the kernel cannot yet check a contact between faces of these kinds, and holds a \
+             record of one on its citation",
             NOT_YET_ENDING,
+        ),
+        // A reading ran and did not decide: the body that holds the
+        // record refuses, so the sentence ends with the way out for
+        // each of a record's sources.
+        ContactRefusal::NotCertifiable {
+            reach: crate::contact::ContactReach::Unread,
+            ..
+        } => (
+            "the kernel read this contact and could not decide it",
+            crate::contact::UNREAD_CONTACT_RECOURSE,
         ),
     }
 }
@@ -18158,6 +18175,24 @@ mod tests {
         // append there was a false lead, and its absence is the fix
         // rather than a loss.
         assert!(!contact.contains("separate the geometry"), "{contact}");
+        assert!(
+            contact.contains("holds a record of one on its citation"),
+            "a kind no reading covers says its record is held: {contact}"
+        );
+        // A reading that ran and did not decide refuses the body, and
+        // says what each source of the record does about it.
+        let unread = says(CensusUnsupportedCause::ContactLane(
+            ContactRefusal::NotCertifiable {
+                what: "a face of the face-face record has no extent to read",
+                reach: crate::contact::ContactReach::Unread,
+            },
+        ));
+        assert!(
+            unread.contains("the kernel read this contact and could not decide it")
+                && unread.contains("remove that declaration")
+                && unread.contains("this is a kernel defect: report it"),
+            "{unread}"
+        );
         let unboundable = ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,

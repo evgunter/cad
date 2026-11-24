@@ -79,9 +79,30 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
                 what: "the supports meet at no definite angle",
                 reach: topo::ContactReach::NoLane,
             },
-            vec!["certified", "the supports meet at no definite angle"],
+            vec![
+                "certified",
+                "the supports meet at no definite angle",
+                "no reading covers a contact of this kind",
+                "held on its citation",
+            ],
         ),
     ];
+    // The other reach of the same variant: a reading that ran and did
+    // not decide refuses its body, and its text ends for both sources
+    // of a record.
+    let unread = ContactRefusal::NotCertifiable {
+        what: "a face with no extent",
+        reach: topo::ContactReach::Unread,
+    }
+    .to_string();
+    for want in [
+        "its reading ran and did not decide",
+        "a face with no extent",
+        "remove that declaration",
+        "this is a kernel defect: report it",
+    ] {
+        assert!(unread.contains(want), "{want}: {unread}");
+    }
     assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
     // The bare `Indeterminate` Display ends in the three-arm
     // coincidence sentence, whose "lower the tolerance" arm is wrong at

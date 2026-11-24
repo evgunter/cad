@@ -315,3 +315,131 @@ fn a_wall_against_the_cap_of_a_block_it_touches_along_a_ruling_is_still_held() {
         "a false record of a wall on a cap is held"
     );
 }
+
+/// **The residual is wider than a notch: nesting defeats every axis.**
+/// A tube, and a block wholly inside its bore, 0.3 clear all round. A
+/// cap of the block is a plane across the tube's axis, a pair the
+/// tangent locus has no line for, and it lies inside the footprint of
+/// each of the tube's walls, so no axis the gate reads parts them (the
+/// one that would is the cylinder's radial direction, which is not
+/// among them). A record of a wall touching a cap is false and held at
+/// tier 3: each of the tube's walls against each of the block's two
+/// caps. A pin in a bore is the commonest assembly there is.
+///
+/// Asserts the hold; red when
+/// `work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`
+/// lands a lane or an axis.
+#[test]
+fn a_cap_nested_in_a_bore_is_still_held_against_every_wall() {
+    let topo::BooleanResult::Body(tube) = topo::subtract(
+        &rod(0.0, 0.0, 1.0, 0.0, 1.0),
+        &rod(0.0, 0.0, 0.5, -0.5, 2.0),
+        tol(),
+    )
+    .unwrap() else {
+        panic!("a rod less its core is a tube")
+    };
+    let inner = finished(
+        "inner",
+        sweep::test_support::brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (0.4, 0.6), tol()),
+        tol(),
+    );
+    let (body, [(tube_faces, _), (inner_faces, _)]) = joined(&tube.body, &inner);
+    let walls: Vec<FaceKey> = tube_faces
+        .iter()
+        .copied()
+        .filter(|&f| kind(&body, f) == geom::SurfaceKind::Cylinder)
+        .collect();
+    let held = walls
+        .iter()
+        .flat_map(|&w| inner_faces.iter().map(move |&f| (w, f)))
+        .filter(|&(w, f)| {
+            handed(&body, Cell::Face(w), Cell::Face(f))
+                .is_ok_and(|done| done.bar() == topo::Bar::Tier3)
+        })
+        .count();
+    assert!(!walls.is_empty(), "the tube has walls");
+    assert_eq!(
+        held,
+        walls.len() * 2,
+        "each wall against each of the block's two caps"
+    );
+}
+
+/// **The residual's wall in a notch.** The rod standing in the notch of
+/// the L-shaped prism again, its foot on the carrier plane of the
+/// prism's top: the rod's wall and that top, a plane across the wall's
+/// axis that the L wraps round the rod. A record of the wall touching
+/// the top is false and held at tier 3.
+///
+/// Asserts the hold; red with the row above.
+#[test]
+fn a_wall_in_the_notch_of_a_plane_across_its_axis_is_still_held() {
+    let (body, [(rod_faces, _), (ell_faces, _)]) = joined(&rod(1.5, 1.5, 0.25, 0.0, 1.0), &ell());
+    let held = rod_faces
+        .iter()
+        .filter(|&&f| kind(&body, f) == geom::SurfaceKind::Cylinder)
+        .flat_map(|&w| ell_faces.iter().map(move |&f| (w, f)))
+        .filter(|&(w, f)| {
+            handed(&body, Cell::Face(w), Cell::Face(f))
+                .is_ok_and(|done| done.bar() == topo::Bar::Tier3)
+        })
+        .count();
+    assert!(held > 0, "a false record of the wall on the top is held");
+}
+
+/// A cone of half-angle 30°, its apex at `(0, 1, 0)`.
+fn cone() -> AtRestBody<f64> {
+    let r = 30.0_f64.to_radians().tan();
+    let body = sweep::test_support::revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        sweep::Revolution::Full,
+        tol(),
+    );
+    finished("cone", body, tol())
+}
+
+/// **A reading that ran and did not decide refuses at the gate.** A
+/// block stands on a cone's apex, an edge of it running through the
+/// apex. That edge and the cone's face, recorded as touching: the
+/// curve × face reading runs, finds the edge through the apex, where the
+/// cone has no tangent plane, and does not decide
+/// (`ContactReach::Unread`), so `finish` refuses the body. Red on a gate
+/// that takes every `NotCertifiable` as "no lane": it held the record.
+#[test]
+fn a_record_a_reading_ran_on_and_did_not_decide_refuses_at_the_gate() {
+    let block = finished(
+        "block",
+        sweep::test_support::brick::<f64>((-1.0, 1.0), (1.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let (body, [(cone_faces, _), (_, block_edges)]) = joined(&cone(), &block);
+    let unread = |r: &Result<AtRestBody<f64>, NotFinished>| {
+        matches!(r, Err(e) if e.as_slice().iter().any(|f| matches!(
+            f,
+            topo::ValidationError::CensusUnsupported {
+                cause: topo::CensusUnsupportedCause::ContactLane(
+                    topo::ContactRefusal::NotCertifiable {
+                        reach: topo::ContactReach::Unread,
+                        ..
+                    }
+                ),
+                ..
+            }
+        )))
+    };
+    let refused = cone_faces
+        .iter()
+        .filter(|&&f| kind(&body, f) == geom::SurfaceKind::Cone)
+        .flat_map(|&f| block_edges.iter().map(move |&e| (e, f)))
+        .filter(|&(e, f)| unread(&handed(&body, Cell::Edge(e), Cell::Face(f))))
+        .count();
+    assert!(
+        refused > 0,
+        "the edge through the apex refuses on a reading that did not decide"
+    );
+}
