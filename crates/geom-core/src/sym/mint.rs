@@ -1,6 +1,6 @@
 //! **Where a value with no expression gets its name.**
 //!
-//! [`Sym::opaque`](super::Sym::opaque) mints an unknown of its own, and
+//! [`Sym::opaque`](crate::sym::Sym::opaque) mints an unknown of its own, and
 //! an unknown needs a name no other unknown it can meet has: two
 //! different reals under one name are one unknown, and their difference
 //! is the zero polynomial, a `Zero` about two values that are not
@@ -41,7 +41,7 @@
 //! **The names are the same in every replay (D9).** A name is a hash of
 //! the scope's words and a count, and the count is advanced by the
 //! order ONE scope mints in: a session keeps its walks on the thread
-//! that installed it ([`super::decisions_are_thread_portable`]), so
+//! that installed it ([`crate::sym::decisions_are_thread_portable`]), so
 //! that order is the single-threaded walk of one node's op. The name of
 //! a node's k-th mint is a function of the node's id, the member, the
 //! enclosing scope and k.
