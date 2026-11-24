@@ -2,12 +2,12 @@
 id: a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick
 kind: issue
 title: A sphere cut-in's meridian survives unglued in the union of a lens and a tilted brick, leaving two pieces of one face
-status: open
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: H
-design: true
 parent: closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut
+closed: 2026-11-24
 ---
 
 
@@ -91,6 +91,18 @@ on it). How a chart cut that survives into the result should be treated
 reads a ratified clause, so it carries `design: true`: designers first.
 Moved from `work/hone/` (HONE is `ready`, with no orchestrator); id
 unchanged. (ORBIT orchestrator)
+
+## Closed (2026-11-24, PR 7664)
+
+Ev ruled the fork on [ev] PR 7639: a cut the kernel makes for its own
+reasons is transient, and the door that mints it removes it. PR 7664
+carries the cut-in's meridians into the re-entered boolean as a record
+and closes each surviving piece in the output stage (`slit::close_cuts`:
+`kef`, `kev`, `kemr`) before the coplanar merge, so no result holds a
+chart cut and naming no longer reads them. The lens-and-brick union and
+lens − brick now build, and the die's pips union builds, names and
+meshes. Dual review (two Opus) approved at d8b78b203; the unreached
+ring-move path is `a-chart-cut-kef-onto-a-ringed-piece-has-no-row`.
 
 ## 2026-11-24 — every op names on `orbit/conventional-vertex-names`
 
