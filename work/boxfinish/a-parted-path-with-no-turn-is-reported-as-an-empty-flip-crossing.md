@@ -49,61 +49,71 @@ classification as it is. (BOXFINISH orchestrator)
 
 ## Weighed (2026-11-24)
 
-Three designers (the draw), independently, on one statement of the
-problem, then one round in which each read the other two. Their
-reports are on `boxfinish/briefs`, `probe/briefs/fork-parted-path/`.
+Three designers, seven rounds (the record is on
+`analysis/design-fork/a-parted-path-with-no-turn-is-reported-as-an-empty-flip-crossing`;
+every report is on `boxfinish/briefs` under
+`probe/briefs/fork-parted-path/`). They end agreed.
 
-**At first report they split three ways on what the certificate
-compares**: the choices only; the build; the whole record with a
-turned check a named flip and a parting bisected. They agreed that a
-`FlipCrossing` names what turned by type, that a parted leaf is never
-one, and that the kernel disagreeing with itself is a test
-instrument's question.
+**E6's comparison stands as ratified:** a leaf certifies when its
+whole record of decisions, checks included, equals the `f64`
+witness's. Nothing new is compared and no second run is added. What
+changes is what a difference is called:
 
-**After one round all three recommend one final state: the certificate
-compares the build.** A leaf with every predicate definite certifies
-when it builds what the witness builds (per node: its standing, and
-its bodies' cells and their incidence under their names), and is
-refused `FlipCrossing` when it builds another, naming the first node
-that builds otherwise, what differs there, and the decision that
-turned where the log shows one. No third fate exists among decided
-leaves, so nothing parted is bisected and no refusal names nothing.
-The verdict vector rides every run as the explanation.
+- **A turn is `FlipCrossing`, and names the decision.** One question
+  answered with the other definite sign; the evidence is never empty
+  by type. It includes a node that fails on a decided answer where the
+  witness builds: 27,667 leaves of one drive family decide an
+  extrusion's depth `Zero` inside the band, a failure proven definite,
+  and are bisected to the budget today.
+- **Any other difference is `Parted`:** not proven the same part, not
+  proven another, never a flip. It names the node and step and is
+  refused at once.
+- **The two lanes recording alike at the nominal is a kernel rule**,
+  held by a parity test over the driven witnesses. A lane difference
+  is repaired at its site (as the plate's premise check was, PR 7716),
+  not tolerated by the gate.
+- **A certified leaf "takes the nominal build's decisions"**, where E6
+  says it "shares the nominal build's topology".
 
-**Three facts decided it, each read in the tree in the round:**
-- a check passes with either definite sign from geometry alone (an
-  edge's `dihedral_sign` read at rest: a crease convex at the nominal
-  and concave over a leaf is the same cells);
-- the extra candidates a box scalar's pruning query hands on do log
-  decisions (`topo::boolean::ops::walk_pairs`: a pair past the marked
-  box test is decided by the section certificate), so a wide leaf
-  lengthens its record with no change of build, and `VerdictVector`'s
-  doc ("decide nothing about them") is false;
-- a lane choice (`geom_brep::intersect::closed_form_shown`: the
-  closed form or the general lane for one result) is logged as a
-  choice, so a turned one refuses a leaf whose cells are the
-  witness's under any gate on the log.
+**What the measurements did to the other answers** (M13, its addendum
+and M13b, `probe/` on `boxfinish/probe-build-record`):
 
-**The kernel disagreeing with itself** is asked by a test instrument,
-never the drive: each corpus document replayed at a zero-width box on
-the witness has the witness's whole log, checks included. A leaf that
-holds the witness point and builds otherwise is a `debug_assert!` in
-the classifier.
+- *Certify on what is built (named cells and how they meet)*, the
+  first agreed answer: every one of 660 named flips builds the
+  witness's cells. Cells cannot gate.
+- *Compare with the nominal replayed at the leaves' own scalar:* that
+  replay equals the witness wherever anything certifies (342 of 347
+  driven witnesses; the rest are a loft that fails and the two
+  plates), so once the lanes agree it checks nothing, and a parity
+  test does its work off the drive.
+- *Compare choices only, leaving checks out:* it certifies a notch
+  wherever only a finished-body check reads a crease. No such leaf was
+  found; the whole record cannot make that mistake.
+- *Certify on form (cells plus what the finished body's checks
+  read):* 122 flips move the body across its sketch plane through its
+  frame, with no cell, sense or check differing. A record of what was
+  built has now missed a fact the decisions held three times.
+- All of these gates give every one of the 2,307 measured decided
+  leaves the same class.
 
-**Measure first** (all three): that the build's record exists and is
-the same at `f64` and at the box scalar on a zero-width leaf across
-the corpus; that leaves either side of known flips differ in it and
-no pair with equal choices does; what a reader uses that it leaves
-out; and how much of today's refused mass it re-sorts. **If the
-record cannot be made complete, the fallback all three name** is the
-gate on choices and standings: a turned choice is a flip, a parting is
-a third way a leaf is unsettled and bisects, and nothing in the drive
-panics.
+**A parting is refused at once, not bisected.** No decided leaf parts
+from a same-lane replay; every parting measured is between the two
+lanes and is there at zero width, where no split helps and bisecting
+spends the leaf budget to reach the same sentence. E6 bisects only an
+indeterminate decision. If a parting that a narrower box removes is
+ever measured, that kind gets its own arm.
 
-**Rows the reports found off the question**, each filed on this
-slate: `drive::contained` reads an empty `FlipCrossing` as containment
-(`containment-reads-a-flip-crossing-that-names-nothing-as-proof`); a
-`Budget` refusal drops the node it stopped on
-(`a-budget-refusal-drops-the-node-it-stopped-on`); `classify_replay`
-sends a node that fails definitely over the leaf to bisect until the
-budget (`a-node-that-fails-definitely-over-a-leaf-bisects-to-the-budget`).
+**Not settled here, and filed:** 318 flips (`segment_gap` 300,
+`carrier_line_circle` 18) turn a decision and move only coordinates.
+Whether each decision shapes the part or only routes the build is
+read at its site
+(`a-lane-choice-is-logged-as-a-choice-so-a-turned-one-refuses-a-leaf-the-general-lane-serves`).
+
+**The unit** (after the text is ratified): `FlipEvidence` holds at
+least one named decision by type and `is_empty`, `Unproven::FlipUnfounded`
+and the unnamed flip go; `classify_replay`'s failure arm reads the
+failed node's log; `Parted` with its node and step; the parity test;
+a row that plants a parting at zero width and pins what the drive
+spends on it. `drive::contained` then reads only named flips
+(`containment-reads-a-flip-crossing-that-names-nothing-as-proof`).
+(BOXFINISH orchestrator)

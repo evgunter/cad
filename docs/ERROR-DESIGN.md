@@ -310,7 +310,8 @@ The Q1-promised driver, built as an analysis-lane service on the
 drive(doc, box) -> ParamBoxVerdict {
   certified: [ Leaf { box, verdict_vector_key, results } ],
   refused:   [ Leaf { box, reason: SliverTerminal { predicate }
-               | FlipCrossing { flipped predicates }  // no-flips v1
+               | FlipCrossing { flipped predicates, never none }  // no-flips v1
+               | Parted { node, step }  // the vectors differ, no decision turned
                | Bifurcation(WitnessBifurcation) | Infeasible  // E8
                | Budget { depth/work bound hit }
                | ReadsNoVariable { node, undecided | failed } } ],
@@ -323,15 +324,19 @@ drive(doc, box) -> ParamBoxVerdict {
 **Leaf protocol**: replay the recipe at `T = Interval` over the leaf
 box (parameters = intervals; witness data verbatim per E8).
 
-- Every predicate definite AND the leaf building the witness's build
-  (per node: its standing, and its bodies' cells and their incidence
-  under their names; assertions excluded) → leaf **certified**;
+- Every predicate definite AND the verdict vector matching the
+  witness branch's → leaf **certified**: the leaf takes the nominal
+  build's decisions, each answered alike, and only dimensions move;
   Measure enclosures are containment-true over the whole leaf. The
-  verdict vector explains a leaf; it does not gate it.
+  witness and a zero-width replay of it record alike: a kernel rule,
+  held by a test over the driven witnesses.
 - **No-flips v1 (adopted round 3; Ev's proposal)**: a leaf
-  definite and building another build is **refused mass**
-  (`FlipCrossing`, naming the first node that builds otherwise and
-  the decision that turned there, where one did) — no branch
+  definite on a *different* verdict vector is **refused mass**.
+  Where a decision is answered with the other definite sign it is
+  `FlipCrossing`, that decision named, a node that fails on a decided
+  answer where the witness builds included. Where the vectors differ
+  and no decision turned it is `Parted`, naming the node and step:
+  not proven either way, never a flip, not bisected. No branch
   enumeration, no analysis of the far side. Topology change under
   tolerance is usually the reported defect itself; near a flip,
   subdivision only localizes the boundary to shrink refused mass.
