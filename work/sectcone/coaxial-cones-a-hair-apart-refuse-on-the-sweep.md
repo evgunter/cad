@@ -26,3 +26,10 @@ partner has `α₂ ≈ 0.969` with its apex `2.66·10⁻¹⁰` up the axis. That
 pose read `not classified: Intractable`, so `cone_search`'s excuse
 does not cover it. The seed reproduces on main `181f059dc5` (a local
 replay).
+
+A third draw, from CI's slow set on lane `orbit-onelever`'s PR 7713
+(`CAD_FUZZ_SEED=0x5cbb432e989993bc`, `CAD_FUZZ_EFFORT=1`, CI run
+45398921416, 2026-11-24): `coaxial cone`, the first cone `α ≈ 0.487`
+about 600 m from the origin, its coaxial partner `α₂ ≈ 0.828` with its
+apex `6.98·10⁻¹⁰` along the axis, read `not classified: Intractable`.
+It reproduces on main `68af2aa3e` (a local replay).
