@@ -1365,8 +1365,10 @@ impl SymNode {
     }
 
     /// An opaque value's node: its ordinal in the payload and its mint
-    /// scope's name in the first child slot, which the op's arity
-    /// leaves outside [`Self::kids`], so no walk reads it as a node.
+    /// scope's name in the first child slot. The slot holds no node:
+    /// the op's arity is zero, so [`Self::kids`], which is what a walk
+    /// of a node's children reads, is empty, and a reader of the raw
+    /// slots reads them by an op that has children.
     fn opaque(scope: u128, ordinal: u64) -> Self {
         SymNode {
             op: SymOp::Opaque,
@@ -3341,11 +3343,10 @@ pub fn session_counts() -> Option<SymCounts> {
 ///   numeric one. A unit on a worker would decide differently from its
 ///   siblings on the caller's thread — the one thing D9 forbids
 ///   outright.
-/// - **The receipt is written in place.** `count_decision` and
-///   `count_registration_refused` mutate the installed session's
-///   [`SymCounts`], and [`Sym::opaque`] advances the count of the mint
-///   scope open on its thread ([`mint`]), which a session keeps while
-///   the scope is closed. Neither is a
+/// - **The receipt is written in place.** `count_decision` mutates
+///   the installed session's [`SymCounts`], and [`Sym::opaque`] advances
+///   the count of the mint scope open on its thread ([`mint`]), which a
+///   session keeps while the scope is closed. Neither is a
 ///   value handed back, so neither can be spliced. (Node ids are NOT in
 ///   this list: `intern` is a content hash of the node, so the DAG a
 ///   replay builds is the same whatever order it is built in.)

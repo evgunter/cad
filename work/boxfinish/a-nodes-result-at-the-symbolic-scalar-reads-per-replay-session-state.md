@@ -53,6 +53,17 @@ that PR opens (it gives a value with no expression a name scoped to
 its minting node, the scope this unit extends), and reports a census
 of the session's state and its plan before it builds.
 
+**The split rule rests on this unit** (split-reads lane, 2026-11-22).
+`drive::bisect` splits only what the deciding node reads
+(`Doc::free_reads`), and a deciding node that reads nothing of the box
+refuses `ReadsNoVariable`: "no split changes it". That is exact when a
+node's result is a function of its inputs. While a node can read
+per-replay session state (the retry ladder's per-replay cap, the
+registry), an earlier node that reads another variable can move that
+state, and a split of that variable could change what the deciding node
+says. Not observed: no retry runs in the drives measured, and the
+corpus differential compares content keys, which do not see the session.
+
 **Evidence from the node-key unit** (its sweep and its audit of what a
 node reads against what its key hashes; by reading unless said):
 
@@ -134,14 +145,3 @@ after.
 **The taint and unrecorded branches (item 6)** are removed; the row
 they were filed under is closed with the list of the rows that pinned
 them (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`).
-
-**The split rule rests on this unit** (split-reads lane, 2026-11-22).
-`drive::bisect` splits only what the deciding node reads
-(`Doc::free_reads`), and a deciding node that reads nothing of the box
-refuses `ReadsNoVariable`: "no split changes it". That is exact when a
-node's result is a function of its inputs. While a node can read
-per-replay session state (the retry ladder's per-replay cap, the
-registry), an earlier node that reads another variable can move that
-state, and a split of that variable could change what the deciding node
-says. Not observed: no retry runs in the drives measured, and the
-corpus differential compares content keys, which do not see the session.

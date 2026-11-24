@@ -1898,11 +1898,6 @@ fn splice_channels(recording: Detached, escalations: bool) {
 /// asserts it (a `debug_assert!`, and this workspace builds every
 /// profile with debug assertions on), so a caller that skipped the test
 /// panics here rather than recording a schedule-shaped answer.
-///
-/// Each unit runs in a mint scope of its own, named by the caller's
-/// scope and the unit's index ([`crate::sym::mint`]), so a value with
-/// no expression minted inside a unit has the same name whichever
-/// worker ran it.
 pub fn map_detached<I: Sync, R: Send>(
     items: &[I],
     run: impl Fn(&I) -> R + Send + Sync,
@@ -1912,11 +1907,7 @@ pub fn map_detached<I: Sync, R: Send>(
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
-    let mints = crate::sym::MintScope::current();
-    par_map(0..items.len(), |i| {
-        let _mint = mints.child(&[i as u64]).enter();
-        detached(|| run(&items[i]))
-    })
+    par_map(items, |item| detached(|| run(item)))
 }
 
 /// How many brackets are open on this thread — the tests' witness that

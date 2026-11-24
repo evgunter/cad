@@ -79,7 +79,7 @@ fn split_rims<T: Decide + Bounds + topo::AtRestPolicy>(
     let rims: Vec<_> = body
         .pcurves()
         .filter(|(_, c)| match c.pcurve() {
-            Pcurve::IsoLine { pl, .. } => (pl.y.lo(), pl.y.hi()) == (0.0, 0.0),
+            Pcurve::IsoLine { line, .. } => line.axis == geom_brep::ChartAxis::V,
             Pcurve::IsoArc { .. } => true,
             _ => false,
         })

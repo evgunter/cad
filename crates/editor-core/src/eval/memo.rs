@@ -5,11 +5,13 @@
 //! so they are inputs by D9's replay identity). Bit-exact floats in,
 //! so same key ⇒ same inputs ⇒ (D9 determinism) same output: the key
 //! IS the correctness proof for reuse, within one document and one
-//! run's options. What no key hashes is held at the memo's door: a
-//! prior of another document, or run under other options an op reads,
-//! is refused whole (`PriorRefusal`); an instance is served only over
-//! the part row its prior carried; a clearance's verdict that cites the
-//! `f64` rebuild's point is served only at that point.
+//! run's options. A value's bits are its exact representation at its
+//! scalar ([`ContentBits`]): at the symbolic scalar that is its number
+//! and its expression's id. What no key hashes is held at the memo's
+//! door: a prior of another document, or run under other options an op
+//! reads, is refused whole (`PriorRefusal`); an instance is served only
+//! over the part row its prior carried; a clearance's verdict that
+//! cites the `f64` rebuild's point is served only at that point.
 //!
 //! # Hasher choice (spec D4)
 //!
@@ -44,7 +46,9 @@ pub struct ContentKey(pub u128);
 /// INCLUDING input node ids and the variable each read comes through,
 /// composing recursively through the DAG. Names embed minting node ids
 /// (N1) and the reads they are carried through, while content keys
-/// exclude both (D8), so the naming half of a memoized value is a pure
+/// exclude both (D8; the one id a content key can hash is in the name
+/// of a value with no expression at the symbolic scalar,
+/// `eval::node_mints`), so the naming half of a memoized value is a pure
 /// function of THIS key, not of the content key; a memo hit additionally requires
 /// naming-key equality, else the op re-runs (geometry bit-identical
 /// by D9, names honestly re-derived). The recursion is what catches

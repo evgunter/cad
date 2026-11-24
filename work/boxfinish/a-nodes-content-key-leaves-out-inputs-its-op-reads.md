@@ -2,8 +2,10 @@
 id: a-nodes-content-key-leaves-out-inputs-its-op-reads
 kind: issue
 title: A node's content key leaves out inputs its op reads: the clearance witness point, the computing twist, the sweep strategy, a part row's options, a family member's indexed read
-status: open
+status: closed
 opened: 2026-11-22
+closed: 2026-11-24
+pr: 7512
 ---
 
 
@@ -11,7 +13,11 @@ opened: 2026-11-22
 Found while auditing what `eval::eval_node` and `wire::run_op` read
 against what `eval::content_key` hashes, for the node-key unit
 (`a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression`).
-**By reading; none of these was executed into a wrong answer.** They
+Found here by reading. **All five have since been executed into a
+wrong answer** (the review of PR 7470, its probe
+`review_node_key_stale_member_read`, and PR 7512), and the fix is
+`a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body`
+(`boxfinish/member-read-key`). They
 are at every scalar, not the symbolic one alone, and each matters to
 whatever serves a node across two runs whose `EvalOptions` or box
 differ: the evaluator's prior today (a prior is refused only for
@@ -59,3 +65,17 @@ Not determined by this reading: that `PoseDef::scalars()` lists every
 scalar a pose definition evaluates, and that `Doc::read_ports` /
 `Doc::upstream_of` cover every operation a nested pose definition
 reaches.
+
+## Closed
+
+PR 7512 (2026-11-24) is the fix for all five: a node's keys hash what
+each read sees (the family read), the clearance's verdict citing a
+point is served only where the rebuild's point is this run's, and a
+prior run under another twist, sweep or symbol setting is refused at
+the door, which covers a part row built under other options. What this
+reading did not determine (that a pose definition's scalars and
+`Doc::read_ports` cover every operation a nested pose reaches) was
+probed by that PR's review (a pose of a selection of another member, at
+a mirror and a measure) and held; the general form of it, that the op
+and its keys walk a node's reads separately, is
+`a-nodes-op-and-its-keys-walk-its-reads-separately`.
