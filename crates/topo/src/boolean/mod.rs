@@ -2796,15 +2796,15 @@ pub enum AlongFace {
 /// this rung; the disposition table cites this paragraph as its home).
 /// A Rust caller can already name and match it — `pncad` re-exports
 /// `topo` whole — and the refusal's sentence names the loops, while the
-/// recourse it states is the same for all three (cut the torus with a
-/// plane the frame serves). Carrying it would add the CUR3 property row
-/// and a Python word with no reader that acts on the difference.
+/// recourse it states is the same for all three (turn the plane clearly
+/// off the torus's axis, where the section value marches every class, or
+/// onto its square or parallel). Carrying it would add the CUR3 property
+/// row and a Python word with no reader that acts on the difference.
 ///
 /// **The falsifier is a caller whose recourse depends on which loops a
-/// slanted plane cuts**: the day the general rung serves one class (the
-/// loops round the axis have a proved frame), a caller must tell it from
-/// the others to know whether the cut builds. Then carry it and delete
-/// this paragraph and the disposition row with it.
+/// slanted plane cuts**: the day one class refuses where another builds,
+/// a caller must tell them apart to know whether the cut builds. Then
+/// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpiricLoops {
     /// Two loops, each winding once round the torus's axis.
@@ -5932,14 +5932,16 @@ impl BooleanError {
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
-                "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). {}",
+                "a flat face of one part cuts a torus face of the other ({}) at a slant so \
+                 near square to the torus's axis, or so near parallel to it, that the cut \
+                 reads slanted where the faces meet and square or parallel over the whole \
+                 torus, so it is not traced. Recourse: turn the flat face clearly off the \
+                 torus's axis or exactly onto its square or parallel",
                 match loops {
                     SpiricLoops::AroundAxis => "two loops round the axis",
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
-                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
