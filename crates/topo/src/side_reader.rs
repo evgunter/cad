@@ -397,8 +397,8 @@ fn aim_at<T: Decide>(
 /// first half-edge aims elsewhere) at the golden section of its span
 /// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
 /// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
-/// distance from every other edge of every loop
-/// ([`crate::solid_contain::edge_clearance`]), and
+/// distance from every other edge of every loop, read in the face's
+/// plane ([`crate::solid_contain::edge_clearance`], across the normal), and
 /// by at most half its own arc's radius. The step's path meets no edge,
 /// so the aim lies in the face, off its middles and its boundary; a face
 /// narrower than the rounding there steps nowhere, and its aim only
@@ -429,7 +429,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         if e.edge == first.edge || e.across == face {
             continue;
         }
-        let room = crate::solid_contain::edge_clearance(body, e, m)? * half;
+        let room = crate::solid_contain::edge_clearance(body, e, m, Some(normal))? * half;
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
@@ -534,7 +534,11 @@ fn aim_turn() -> (f64, f64) {
 /// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
-/// is the answer. The volume's sign is certified by its enclosure alone,
+/// is the answer. A pair is a gap in band
+/// ([`crate::validate::in_band`]): two crossings whose gap is an
+/// enclosure reaching past the band (an `Interval`'s or a box's) are
+/// placed nowhere against each other, and the ray is set aside on that
+/// gap ([`SetAsideWhy::Crossing`], with its margin). The volume's sign is certified by its enclosure alone,
 /// never held against the band (D10), so it reads a thin selection as
 /// surely as a thick one. A ray that meets a corner or a wedge is set
 /// aside ([`SetAsideWhy::Corner`], [`SetAsideWhy::Wedge`]): it reads
@@ -773,6 +777,18 @@ fn aimed_ray<T: Decide>(
             |a, b| {
                 a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
+                        // A pair is a gap in band. One that reaches past
+                        // it places the two crossings nowhere against
+                        // each other: the ray is set aside on it, with
+                        // its margin.
+                        if !crate::validate::in_band(&gap) {
+                            return Unread::Mark(SetAsideWhy::Crossing(
+                                PointInSolidError::Escalated {
+                                    face: near,
+                                    diag: gap,
+                                },
+                            ));
+                        }
                         Unread::Pair(AimedPair {
                             shell,
                             aimed: face,
