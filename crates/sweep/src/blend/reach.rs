@@ -936,7 +936,7 @@ fn centroid<T: Real>(pts: &[Point3<T>]) -> Point3<T> {
         .fold(Vec3::new(T::zero(), T::zero(), T::zero()), |s, p| {
             s + (*p - Point3::origin())
         });
-    Point3::origin() + sum / T::from_f64(pts.len() as f64)
+    Point3::origin() + sum / T::count(pts.len())
 }
 
 /// The side bound of one support in space: its signed distance, signed
@@ -1359,7 +1359,9 @@ fn straight_reach<T: Decide + Bounds>(
     let mut replaces = Vec::new();
     for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
         let chord = (foot - st.p).norm();
-        let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
+        let slab = FaceBoxes::pad_width(band)
+            .times(geom_core::lit!(2.0))
+            .at::<T>();
         let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
         let tube = Bound::Tube {
             axis: geom::Line {
@@ -2166,7 +2168,8 @@ impl<T: Bounds> Least<T> {
     }
 
     fn done(self, band: Band) -> T {
-        self.least.unwrap_or_else(|| T::from_f64(band.escalate()))
+        self.least
+            .unwrap_or_else(|| band.escalate_width().at::<T>())
     }
 }
 
@@ -2313,7 +2316,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     }
     if misses(rect, band) {
         // The face's image misses the reach's box: nothing to meter.
-        return Some(T::from_f64(band.escalate()));
+        return Some(band.escalate_width().at::<T>());
     }
     let mut queue = VecDeque::from([rect]);
     let mut least = Least::new();
