@@ -1483,12 +1483,11 @@ impl<T: SpanLocate> Locus<T> {
         if let Some(line) = carrier.as_line() {
             return Self::About(Around::Line(line));
         }
-        if let Some(circle) = carrier.as_circle() {
+        // A circle's axis is read off its own points, as any closed
+        // curve's centre line is, and not off its stored frame.
+        if let (Some(circle), Some(axis)) = (carrier.as_circle(), centre_line(carrier)) {
             return Self::About(Around::Circle(Core {
-                axis: Line {
-                    origin: circle.frame().origin(),
-                    dir: circle.frame().axis_unit(),
-                },
+                axis,
                 radius: circle.radius(),
             }));
         }
