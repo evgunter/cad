@@ -2,8 +2,9 @@
 id: a-dispute-names-no-predicate-on-the-receipt
 kind: issue
 title: a theorems_disputed count names no predicate: a receipt reader cannot tell which decision disputed
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-11-24
 ---
 
 
@@ -46,3 +47,7 @@ than a user anything. It becomes real the day a fixture-scale row wants
 to attribute disputes across a document.
 
 - 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
+
+## Closed
+
+PR 7394 (2026-11-24): see `the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision`.

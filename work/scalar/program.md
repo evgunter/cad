@@ -1,16 +1,27 @@
 ---
 id: scalar
 kind: program
-title: SCALAR — the scalar doors and the readers over them: the certified-door family, margins and their recourse, unit directions, and the box driver's readings
+title: SCALAR — the doors between f64 and the scalar: what may be converted and where (DL5), unit directions and frames, margins and their recourse
 status: active
 opened: 2026-10-10
 group: kernel/geom/numeric
 prefix: scalar/
 tag: (SCALAR orchestrator)
 ab_band: 12400-12499
-paths: [crates/geom-core/src/predicate.rs, crates/geom-core/src/real.rs, crates/geom-core/src/k_stats.rs, crates/geom-core/src/tolerance.rs, crates/geom-core/src/linalg/unit_vec.rs, crates/geom/src/curves/boxes.rs, crates/editor-core/src/drive.rs, crates/editor-core/src/analysis.rs, crates/editor-core/tests/m10*, crates/editor-core/tests/e4_dual*, docs/ERROR-DESIGN.md, docs/DUAL-DESIGN.md, crates/geom-core/src/linalg/frame.rs]
+paths: [crates/geom-core/src/predicate.rs, crates/geom-core/src/real.rs, crates/geom-core/src/k_stats.rs, crates/geom-core/src/tolerance.rs, crates/geom-core/src/linalg/unit_vec.rs, crates/geom/src/curves/boxes.rs, crates/editor-core/tests/e4_dual*, docs/ERROR-DESIGN.md, docs/DUAL-DESIGN.md, crates/geom-core/src/linalg/frame.rs]
 keep_out: [opened 2026-10-10 by FLUX's priority-seam cut (FLUX measured 125.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and FLUX kept the curved closed-form arms. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/* is shared with QUAD and FLUX's successors CONEARM NEARPOINT SPIRICARM SPANFOLD and MEASUREDOOR, crates/geom-core/src/* with FLUX's siblings KNOT SCALAR and with FRAME NURBS SYM ENCL - run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled, FRAME merged in on 2026-11-20 (docs/doc-ledger/frame-merges-into-scalar.md) - it held no P0 or P1 row, from FRAME: CUT FROM PROPS 2026-09-20 with Ev's agreement in chat — the family's head is PROPS' sign-hull unit (PR #2468, from FRAME: Ev's option-1 ruling on #1944), from FRAME: which PROPS lands and this program inherits the rest of the family from, from FRAME: exactly as PROPS inherited from S-CERT at its exit walk, from FRAME: and it has landed (the sign hull in Vec3::orthonormal_basis); crates/geom-core/src/* and crates/geom/src/* stay PROPS' paths and this program reaches them by announced seam, from FRAME: which is the honest record of a family whose code is spread across two crates' door sets; SHARED GROUND IS EXPECTED and is not a conflict (Ev, from FRAME: in chat, from FRAME: 2026-09-20) — what is owed is awareness when a lane is live on the same file]
 ---
+
+**Cut on 2026-11-23** (81 points against 30; Ev asked in chat whether
+the track should split). SCALAR keeps one story: the doors between
+`f64` and the scalar under `crates/geom-core/README.md` DL5 (a solved
+value admitted by its check, `from_f64` split by where the number comes
+from, places, bounds that never become a `T`, the fitted image, which
+is with Ev on PR 7641), with the unit-direction and frame doors and the
+margin rows of the older charter below. Two successors took the rest,
+rows moved by `git mv` with ids unchanged: `work/told/` (a number told
+to a person) and `work/certread/` (reading what certified: endpoint
+reads, the certification files, the box driver's readings).
 
 **The scalar doors, and every reader that spells their contract by
 hand.** `CertifiedEnclosure`'s unswept fourth implementor and a bracket
