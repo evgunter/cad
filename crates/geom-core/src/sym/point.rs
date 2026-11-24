@@ -12,9 +12,9 @@
 //! # What is read
 //!
 //! The margin's expression graph, op by op, in the outward-rounded
-//! [`Interval`], with each document parameter at ONE point of the bracket
-//! the session recorded for it ([`super::Sym::param_over`]). Each node's
-//! reading is kept for the leaf's session ([`super::Session::points`]), so
+//! [`Interval`](crate::interval::Interval), with each document parameter at ONE point of the bracket
+//! the session recorded for it ([`Sym::param_over`](crate::sym::Sym::param_over)). Each node's
+//! reading is kept for the leaf's session (`Session::points`), so
 //! a sub-graph several margins share is read once; nothing outlives the
 //! leaf.
 //!
@@ -32,11 +32,11 @@
 //!   point, `select` takes the arm its decision's reading certifies there
 //!   and the hull of both arms where that reading straddles, and `min` /
 //!   `max` take the envelope of their arms, which holds whichever the
-//!   construction takes ([`Real::select_le_zero`], [`Real::min`] at
+//!   construction takes ([`Real::select_le_zero`](crate::Real::select_le_zero), [`Real::min`](crate::Real::min) at
 //!   `Interval`). An arm the reading does not take is not read;
 //! - a value whose expression the graph does not hold declines the whole
 //!   reading: an opaque value, a hull (a function of enclosures, not of
-//!   the reals they stand for), a [`super::SymOp::Free`] variable (the
+//!   the reals they stand for), a `SymOp::Free` variable (the
 //!   mark of [`crate::Decide::free_identity`], whose number is a measured
 //!   bound and not its expression's value), a node this session's table
 //!   does not hold, and a parameter with no finite bracket;
@@ -223,7 +223,7 @@ pub struct Refuted {
 /// left undecided and the point reading refutes, asked of the whole
 /// ladder anyway, the door included, inside the session that took them.
 /// `None` outside a session or at a zero-term budget. Asked last, as
-/// [`super::contradiction::check`] is and for its reason: its walks are in
+/// [`contradiction::check`](crate::sym::contradiction::check) is and for its reason: its walks are in
 /// the session's memos.
 #[cfg(feature = "sym-revalue-testing")]
 #[must_use]
