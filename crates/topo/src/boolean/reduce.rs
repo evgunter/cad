@@ -2446,14 +2446,18 @@ enum JunctionEndUnsettled {
 /// half-edge `t_P` about its outward normal `n_P`). Over arc length `s`
 /// its component along `ν` is at least `d·s·(1 − (κ_e·s)²/6)` (a line's
 /// `d·s`; a circle of curvature `κ_e` gives `d·sin(κ_e·s)/κ_e`), less its
-/// own bend `κ_e·s²/2` toward `ν`'s negative and the rim's `s²/(2R)` away
-/// from its tangent. So the margin (`junction_end_side`)
+/// own bend `κ_e·s²/2` toward `ν`'s negative and the rim's offset where it
+/// reaches the same tangent coordinate, `c·s²/(2R)` with the chord factor
+/// `c = (1 + s²/(3R²))²` ([`junction_reach_held`]). So the margin
+/// (`junction_end_side`)
 ///
-/// `g(σ) = d·σ·(1 − (κ_e·σ)²/6) − (κ_e + 1/R)·σ²/2`
+/// `g(σ) = d·σ·(1 − (κ_e·σ)²/6) − (κ_e + c/R)·σ²/2`
 ///
-/// decided Positive is the side held at the spread's end. `g` is concave
-/// in `σ` and zero at the end, so it stays above the band over `[σ*, σ]`,
-/// `σ*` where `g` meets the band's width `ε`.
+/// decided Positive is the side held at the spread's end, once the
+/// premises it is read under are proven over `σ` (`junction_end_reach`,
+/// `junction_end_chord`). `g` is concave in `σ` and zero at the end, so
+/// it stays above the band over `[σ*, σ]`, `σ*` where `g` meets the
+/// band's width `ε`.
 ///
 /// **The margin carries no charge.** A root inside the spread lies ON
 /// `face`'s carrier: what is asked of it is only its side of the rim,
@@ -2479,8 +2483,9 @@ enum JunctionEndUnsettled {
 ///
 /// # Errors
 ///
-/// [`JunctionEndUnsettled`]: no lane for the kinds, no window or a side
-/// not held ([`super::JunctionEndGap::Window`]), or a reading in band.
+/// [`JunctionEndUnsettled`]: no lane for the kinds, no window, a side
+/// premise not proven or a side not held
+/// ([`super::JunctionEndGap::Window`]), or a reading in band.
 fn junction_end_window<T: Decide>(
     q: &JunctionEnd<'_, T>,
     band: Band,
@@ -2529,9 +2534,14 @@ fn junction_end_window<T: Decide>(
     };
     let conormal = q.normal.cross(ridden);
     let departure = along.dot(conormal.normalize());
+    let bend_rim = T::one() / q.rim.radius;
+    let reach = junction_reach_radius(q.surface, q.p, window.spread);
+    if !junction_reach_held(window.spread, bend_rim, reach) {
+        return Err(no_window);
+    }
     match junction_side(
         departure,
-        (bend_e, T::one() / q.rim.radius),
+        (bend_e, bend_rim),
         window.spread,
         band,
     ) {
@@ -2543,7 +2553,7 @@ fn junction_end_window<T: Decide>(
 
 /// [`junction_end_window`]'s side margin `g(σ)` (`junction_end_side`),
 /// in metres: the signed `departure`'s lead over the spread, less the
-/// edge's and the rim's bends over it.
+/// edge's bend and the rim's, at its chord, over it.
 ///
 /// # Errors
 ///
@@ -2556,9 +2566,55 @@ fn junction_side<T: Decide>(
 ) -> Result<Sign, geom_core::Indeterminate> {
     let half = T::from_f64(0.5);
     let sixth = T::from_f64(1.0 / 6.0);
+    let third = T::from_f64(1.0 / 3.0);
     let lead = departure * spread * (T::one() - (bend_e * spread).powi(2) * sixth);
-    let bent = (bend_e + bend_rim) * spread.powi(2) * half;
+    let chord = (T::one() + (bend_rim * spread).powi(2) * third).powi(2);
+    let bent = (bend_e + bend_rim * chord) * spread.powi(2) * half;
     geom_core::k_stats::decide("junction_end_side", Margin::of(lead - bent), band)
+}
+
+/// **The side's premises over the spread `σ`**, each proven: the other
+/// face's carrier is one graph over the junction's tangent plane within
+/// `σ` of the end (`junction_end_reach`: `σ ≤ reach/2`, `reach` from
+/// [`junction_reach_radius`]), and the rim turns by at most half a
+/// radian over it (`junction_end_chord`: `κ_rim·σ ≤ ½`).
+///
+/// The projection along the normal at the end keeps every point's
+/// offset along the conormal, so on that graph a root whose offset beats
+/// the projected rim's at the root's own tangent coordinate lies on the
+/// edge's side of the rim within the carrier. A root `s` along the edge
+/// has tangent coordinate at most `s`; the rim reaches it by an arc
+/// `u ≤ s·(1 + κ_rim²s²/3)` (its tangent coordinate grows at least as
+/// `u − κ_rim²u³/6`, which passes `s` there while `κ_rim·s ≤ ½`), where
+/// its offset is at most `κ_rim·u²/2`: [`junction_side`]'s chord factor.
+fn junction_reach_held<T: Decide>(spread: T, bend_rim: T, reach: T) -> bool {
+    let half = T::from_f64(0.5);
+    let proven = |name, m: T| {
+        geom_core::k_stats::prove(name, Margin::sign_of(m)) == Ok(Sign::Positive)
+    };
+    proven("junction_end_reach", reach * half - spread)
+        && proven("junction_end_chord", half - bend_rim * spread)
+}
+
+/// **The radius within which `surface` is one graph over its tangent
+/// plane at `p`, out to `σ`**: its least radius of curvature
+/// ([`geom_brep::min_radius_of_curvature`], global for a plane, cylinder,
+/// sphere or torus, whose other sheets lie at least twice that away). A
+/// cone's is its parallel's radius at `p` less `σ`, the least within the
+/// reach, and no more than `p`'s distance from its other nappe, at least
+/// `|p − apex|·min(1, sin 2α)`.
+fn junction_reach_radius<T: Decide>(surface: &geom::Surface<T>, p: Point3<T>, spread: T) -> T {
+    let radius = geom_brep::min_radius_of_curvature(surface, p);
+    match *surface {
+        geom::Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let nappe = (p - frame.origin()).norm()
+                * (T::from_f64(2.0) * half_angle).sin().min(T::one());
+            (radius - spread).min(nappe)
+        }
+        _ => radius,
+    }
 }
 
 /// The rest of `[t0, t1]` past the window at `end`, which ends at `at`.
@@ -10458,10 +10514,125 @@ mod junction_end_rows {
         );
     }
 
-    /// **The rim's bend is charged.** The ruling read against a rim a
-    /// tenth of its own spread in radius, through its end (the rim's data,
-    /// not its faces'): over the spread that rim turns away from its
-    /// tangent by more than the ruling departs from it.
+    /// **The side's premises are proven over the spread**: the other
+    /// face's carrier one graph within half its reach radius
+    /// (`junction_end_reach`), and the rim turning by at most half a radian
+    /// (`junction_end_chord`), each refusing alone.
+    #[test]
+    fn the_sides_premises_are_proven_over_the_spread() {
+        assert!(junction_reach_held(0.1, 1.0, 1.0), "both premises hold");
+        assert!(
+            !junction_reach_held(0.1, 1.0, 0.19),
+            "a spread past half the reach radius"
+        );
+        assert!(
+            !junction_reach_held(0.1, 6.0, 1.0),
+            "a rim turning by 0.6 rad over the spread"
+        );
+    }
+
+    /// **The rim's offset is charged at its chord.** At `κ_rim·σ = ½` the
+    /// rim reaches the root's tangent coordinate by an arc up to `1/12`
+    /// longer than `σ`, so its offset is up to `(1 + 1/12)²` its bend's
+    /// `κ_rim·σ²/2`: a departure of 0.27 over `σ = 0.1`, `κ_rim = 5`, leads
+    /// that bend by 2e-3 and trails its chord's by 2.3e-3.
+    #[test]
+    fn the_rims_offset_is_charged_at_its_chord() {
+        assert_eq!(
+            junction_side(0.27, (0.0, 5.0), 0.1, band()),
+            Ok(Sign::Negative),
+            "the chord's offset outruns the departure"
+        );
+        assert_eq!(
+            junction_side(0.3, (0.0, 5.0), 0.1, band()),
+            Ok(Sign::Positive),
+            "a steeper departure clears it"
+        );
+    }
+
+    /// **A cone's reach stops short of its other nappe.** A cone opened
+    /// to 89° lies within `sin 2°` of its other nappe at unit distance
+    /// from its apex, far inside its parallel's radius there.
+    #[test]
+    fn a_wide_cones_reach_stops_short_of_its_other_nappe() {
+        let cone = geom::Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            half_angle: 89.0_f64.to_radians(),
+        };
+        let a = 89.0_f64.to_radians();
+        let p = Point3::new(a.sin(), 0.0, a.cos());
+        let reach = junction_reach_radius(&cone, p, 0.0);
+        let nappe = 2.0_f64.to_radians().sin();
+        assert!(
+            (reach - nappe).abs() < 1e-12,
+            "reach {reach} against the other nappe's {nappe}"
+        );
+    }
+
+    /// **A fat bend's reach refuses a spread its tube would allow.** The
+    /// elbow's pipe ending on a bend of `R = 1.1`, `r = 1`, whose inner
+    /// equator bends at `1/(R − r) = 10`: the ruling through the neutral
+    /// point `(0, 1, 2)` meets it at order 4 with spread 0.066 at
+    /// `ε = 1e-6`, past half the reach radius 0.1, while the rim (radius 1)
+    /// turns by 0.066 rad over it and the side margin holds. The same end
+    /// on the elbow's own bend (`R = 3`, spread 0.111) is read.
+    #[test]
+    fn a_fat_bends_reach_refuses_a_spread_its_tube_would_allow() {
+        let b = Band::linear_at(Tol::witness(), 1e-6).unwrap();
+        let ruling = geom::Curve3::Line(geom::Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: geom_core::UnitVec3::exact_z(),
+        });
+        let read = |major: f64| {
+            let bend = geom::Surface::Torus {
+                frame: geom::Frame::new(
+                    Point3::new(major, 0.0, 2.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                major_radius: major,
+                minor_radius: 1.0,
+            };
+            junction_end_window(
+                &JunctionEnd {
+                    carrier: &ruling,
+                    span: (0.0, 2.0),
+                    end: SpanEnd::End,
+                    p: Point3::new(0.0, 1.0, 2.0),
+                    surface: &bend,
+                    rim: rim(Point3::new(0.0, 0.0, 2.0), 1.0),
+                    normal: Vec3::new(0.0, 1.0, 0.0),
+                    rides: Sign::Negative,
+                },
+                b,
+            )
+        };
+        let fat = read(1.1);
+        assert!(
+            matches!(
+                fat,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
+            "the fat bend's reach: {fat:?}"
+        );
+        let w = read(3.0).expect("the elbow's bend").expect("not lying on");
+        assert!(
+            w.order == 4 && w.spread > 0.1 && w.spread < 0.5,
+            "the elbow's own bend reads its neutral point: {w:?}"
+        );
+    }
+
+    /// **A rim tighter than the spread holds no side.** The ruling read
+    /// against a rim a tenth of its own spread in radius, through its end
+    /// (the rim's data, not its faces'): over the spread that rim turns
+    /// away from its tangent by more than the ruling departs from it, and
+    /// by more than half a radian (`junction_end_chord`).
     #[test]
     fn a_rim_tighter_than_the_spread_holds_no_side() {
         let ruling = geom::Curve3::Line(geom::Line {

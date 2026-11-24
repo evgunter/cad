@@ -22,22 +22,29 @@
 //!   door acts on, as the glue does (D10), and the walk steps past it; one
 //!   in band refuses, and the walk never steps on it. Every coefficient
 //!   decided Zero is the carrier lying on the surface.
-//! - **The window** `[0, s_w]`, halved from `L` until the terms past `m`
-//!   are at most half the `m`-th over it (`curve_face_end_root_tail`), so
-//!   the quotient `Q(s) = Σ_{j≥m} c_j s^{j−m}` keeps `c_m`'s sign there
-//!   with `|Q| ≥ |c_m|/2`. A circle's `L` is a quarter turn at most
+//! - **The window** `[0, s_w]`, read against a pivot term `p ≥ m`,
+//!   halved from `L` until the terms past `p` are at most half the `p`-th
+//!   over it (`curve_face_end_root_tail`), so the quotient
+//!   `Q(s) = Σ_{j≥p} c_j s^{j−p}` keeps `c_p`'s sign there with
+//!   `|Q| ≥ |c_p|/2`. A circle's `L` is a quarter turn at most
 //!   (`curve_face_end_root_run`); the window is the whole span only where
-//!   `L` is the span's own and no halving was taken.
-//! - **The spread.** The terms below `m` are dropped and charged at the
-//!   most their verdicts admit: `c₀` at the zero band's width (the end
-//!   decided on the surface), and each coefficient the walk stepped past
+//!   `L` is the span's own and no halving was taken. The pivots are tried
+//!   from `m` up and the first window that holds is taken: a higher one
+//!   only where `c_m` is small against its tail, as near a point where
+//!   the two carriers curve alike, whose quotient has a root of its own
+//!   near the end that no window short of it holds clear at the band.
+//! - **The spread.** The terms below the pivot are dropped and charged at
+//!   the most their verdicts admit: `c₀` at the zero band's width (the
+//!   end decided on the surface), each coefficient the walk stepped past
 //!   at the zero band's width at its power over `L`, so a small true
-//!   coefficient cannot move a root out of what is charged. The roots in
-//!   the window then lie where `s^m·|c_m|/2` does not exceed the charge,
-//!   which must end strictly inside the window (`curve_face_end_root_spread`). There
-//!   the carrier runs within the charge of the surface, the zero band at
-//!   the end's scale: a double root's neighbourhood, `√(2ε/κ)` long and
-//!   not `ε`, which no reading at the band shortens. The door returns the
+//!   coefficient cannot move a root out of what is charged, and each from
+//!   `c_m` up to the pivot at its value plus that width, no verdict read
+//!   on it. The roots in the window then lie where `s^p·|c_p|/2` does not
+//!   exceed the charge, which must end strictly inside the window
+//!   (`curve_face_end_root_spread`). At the order's own pivot that is a
+//!   double root's neighbourhood, `√(2ε/κ)` long and not `ε`, which no
+//!   reading at the band shortens; at a higher pivot it also holds the
+//!   quotient's roots near the end. The door returns the
 //!   spread's length; what its roots are is the caller's to read (a
 //!   junction reads the edge's side of the rim over it).
 //! - **The window's far end** must stand definitely off the surface
@@ -367,85 +374,133 @@ pub fn end_window<T: Decide>(
         }
     }
     let m = order.ok_or(EndRootRefusal::LiesOn)?;
-    let lead = n[m].abs() * T::from_f64(0.5);
-    // The window: the terms past `m` at most half the `m`-th.
-    let mut s_w = run;
-    let mut unhalved = true;
-    let mut held = false;
-    for _ in 0..HALVINGS {
-        let tail = (m + 1..n.len()).fold(T::zero(), |acc, j| acc + n[j].abs() * pow(s_w, j - m));
-        if geom_core::k_stats::prove(END_ROOT_TAIL, Margin::sign_of(lead - tail))
-            == Ok(Sign::Positive)
-        {
-            held = true;
-            break;
+    // The pivots from the order up: each term the window passes over is
+    // charged at its value plus the zero band's width at its power, so no
+    // verdict on it is read. The order's own pivot goes first; where none
+    // holds, its refusal is the door's.
+    let mut first = None;
+    for p in m..n.len() {
+        if p > m {
+            charge.push(n[p - 1].abs() + zero * g / pow(run, p - 1));
         }
-        s_w = s_w * T::from_f64(0.5);
-        unhalved = false;
-    }
-    if !held {
-        return Err(EndRootRefusal::Window(None));
-    }
-    // The charge below the order against the order's term. Its sign
-    // changes once, from negative to positive: `excess(s) = s^m·(lead −
-    // Σ_{j<m} charge_j·s^{j−m})` and every `s^{j−m}` falls as `s` grows.
-    // So positive at `s` is positive past it, which the spread's
-    // bisection below reads. The window is halved further until its far
-    // end stands off the surface, the spread inside it.
-    let excess = |s: T| lead * pow(s, m) - abs_terms(&charge, 0..m, s);
-    let mut in_band = None;
-    for _ in 0..HALVINGS {
-        if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(s_w)))
-            != Ok(Sign::Positive)
-        {
-            return Err(EndRootRefusal::Spread(None));
+        let read = Pivot {
+            n: &n,
+            charge: &charge,
+            p,
         }
-        // The window is the whole span exactly when its run is the span's
-        // own, unhalved: its far end is then the span's other end.
-        let whole = unhalved && local.covers;
-        let at = if whole {
-            local.t_other
-        } else {
-            local.param(s_w)
-        };
-        let far: Point3<T> = carrier.eval(at);
-        match decide(
-            END_ROOT_WINDOW_CLEAR,
-            Margin::of(crate::implicit_residual(surface, far)),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Negative) => {
-                // The spread, bracketed from above: the least `s` the
-                // excess is proven positive at.
-                let (mut lo, mut hi) = (T::zero(), s_w);
-                for _ in 0..HALVINGS {
-                    let mid = geom_core::mid_param(lo, hi);
-                    if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
-                        == Ok(Sign::Positive)
-                    {
-                        hi = mid;
-                    } else {
-                        lo = mid;
-                    }
-                }
+        .window(carrier, surface, &local, band);
+        match read {
+            Ok((at, whole, spread)) => {
                 return Ok(EndWindow {
                     at,
                     whole,
                     order: u32::try_from(m).unwrap_or(u32::MAX),
-                    spread: hi * speed,
+                    spread: spread * speed,
                 });
             }
-            Ok(Sign::Zero) => {}
-            // A nearer window may clear; the first reading in band is the
-            // refusal's where none does.
-            Err(diag) => {
-                in_band.get_or_insert(diag);
+            Err(refusal) => {
+                first.get_or_insert(refusal);
             }
         }
-        s_w = s_w * T::from_f64(0.5);
-        unhalved = false;
     }
-    Err(EndRootRefusal::Window(in_band))
+    Err(first.unwrap_or(EndRootRefusal::Window(None)))
+}
+
+/// The window read against the composite's term `p`, every term below it
+/// dropped and charged.
+struct Pivot<'a, T> {
+    n: &'a [T],
+    charge: &'a [T],
+    p: usize,
+}
+
+impl<T: Decide> Pivot<'_, T> {
+    /// The window's far end as a carrier parameter, whether it is the
+    /// whole span, and the spread in the local parameter.
+    fn window(
+        &self,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        local: &Local<T>,
+        band: Band,
+    ) -> Result<(T, bool, T), EndRootRefusal> {
+        let (n, p) = (self.n, self.p);
+        let lead = n[p].abs() * T::from_f64(0.5);
+        // The window: the terms past `p` at most half the `p`-th.
+        let mut s_w = local.run;
+        let mut unhalved = true;
+        let mut held = false;
+        for _ in 0..HALVINGS {
+            let tail =
+                (p + 1..n.len()).fold(T::zero(), |acc, j| acc + n[j].abs() * pow(s_w, j - p));
+            if geom_core::k_stats::prove(END_ROOT_TAIL, Margin::sign_of(lead - tail))
+                == Ok(Sign::Positive)
+            {
+                held = true;
+                break;
+            }
+            s_w = s_w * T::from_f64(0.5);
+            unhalved = false;
+        }
+        if !held {
+            return Err(EndRootRefusal::Window(None));
+        }
+        // The charge below the pivot against the pivot's term. Its sign
+        // changes once, from negative to positive: `excess(s) = s^p·(lead −
+        // Σ_{j<p} charge_j·s^{j−p})` and every `s^{j−p}` falls as `s` grows.
+        // So positive at `s` is positive past it, which the spread's
+        // bisection below reads. The window is halved further until its far
+        // end stands off the surface, the spread inside it.
+        let excess = |s: T| lead * pow(s, p) - abs_terms(self.charge, 0..p, s);
+        let mut in_band = None;
+        for _ in 0..HALVINGS {
+            if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(s_w)))
+                != Ok(Sign::Positive)
+            {
+                return Err(EndRootRefusal::Spread(None));
+            }
+            // The window is the whole span exactly when its run is the
+            // span's own, unhalved: its far end is then the span's other end.
+            let whole = unhalved && local.covers;
+            let at = if whole {
+                local.t_other
+            } else {
+                local.param(s_w)
+            };
+            let far: Point3<T> = carrier.eval(at);
+            match decide(
+                END_ROOT_WINDOW_CLEAR,
+                Margin::of(crate::implicit_residual(surface, far)),
+                band,
+            ) {
+                Ok(Sign::Positive | Sign::Negative) => {
+                    // The spread, bracketed from above: the least `s` the
+                    // excess is proven positive at.
+                    let (mut lo, mut hi) = (T::zero(), s_w);
+                    for _ in 0..HALVINGS {
+                        let mid = geom_core::mid_param(lo, hi);
+                        if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
+                            == Ok(Sign::Positive)
+                        {
+                            hi = mid;
+                        } else {
+                            lo = mid;
+                        }
+                    }
+                    return Ok((at, whole, hi));
+                }
+                Ok(Sign::Zero) => {}
+                // A nearer window may clear; the first reading in band is
+                // the refusal's where none does.
+                Err(diag) => {
+                    in_band.get_or_insert(diag);
+                }
+            }
+            s_w = s_w * T::from_f64(0.5);
+            unhalved = false;
+        }
+        Err(EndRootRefusal::Window(in_band))
+    }
 }
 
 #[cfg(test)]
@@ -667,51 +722,106 @@ mod rows {
         );
     }
 
-    /// **A decided but tiny `c₂` refuses on its spread.** Just off the
-    /// neutral point the quartic tail shrinks the window to about
-    /// `√(3δ)`, where the zero band's charge on `c₀` outruns `c₂·s²`.
-    #[test]
-    fn a_tiny_decided_quadratic_term_refuses_on_its_spread() {
-        let b = band();
-        let delta = 6.0 * b.escalate();
-        let got = end_window(
-            &ruling(core::f64::consts::FRAC_PI_2 - delta),
-            (0.0, 2.0),
-            SpanEnd::End,
-            &bend(),
-            b,
-        );
-        assert!(
-            matches!(got, Err(EndRootRefusal::Spread(_))),
-            "δ = {delta}: {got:?}"
-        );
+    /// The ruling turned `δ` off the neutral point meets the bend's
+    /// carrier again `√(12·sin δ)` below the rim: there
+    /// `√((3 − sin δ)² + s²) = 3 + sin δ`.
+    fn near_root(delta: f64) -> f64 {
+        (12.0 * delta.sin()).sqrt()
     }
 
-    /// **The window's far end stands off the surface.** At `δ = 1e-4`
-    /// off the neutral point the quartic tail halves the window until its
-    /// far end lies about `3e-9` off the bend, in band at the witness
-    /// band; the door does not hand that end to the root doors as the rest
-    /// of the span's start, and no nearer window holds its spread. The
-    /// pose is placed by hand for `ε = 1e-9`, so the row reads that band
-    /// whatever the run's ε.
+    /// **Across the belt the window holds the near root in its spread.**
+    /// Off the neutral point by `δ` the quotient after the end's double
+    /// root has a root of its own at [`near_root`], and between the two
+    /// the ruling stands at most `δ²/2` off the bend: no window short of
+    /// it clears the band below `δ ≈ √(2Kε)`. The window pivots on the
+    /// quartic, reads the whole span, and its spread reaches past the near
+    /// root, which the junction reads by its side. Well past the belt the
+    /// order's own window holds and stops short of the near root, which
+    /// is the root doors'. At `ε` = 1e-6, 1e-9 and 1e-12, `δ` in band
+    /// units.
     #[test]
-    fn a_window_whose_far_end_reads_in_band_is_not_returned() {
-        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
-        if b.escalate() != 1e-8 {
-            test_utils::vacuity::stood_down(
-                "K ≠ 10",
-                "the far end's clearance is not driven in band: the pose is placed for K = 10",
+    fn a_ruling_off_a_neutral_point_reads_a_window_across_the_belt() {
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let b = Band::linear_at(Tol::witness(), eps).unwrap();
+            let root_eps = eps.sqrt();
+            let belt = [
+                3.0 * b.escalate(),
+                30.0 * b.escalate(),
+                0.1 * root_eps,
+                root_eps,
+            ];
+            for delta in belt {
+                let what = format!("ε {eps:e}, δ {delta:e}");
+                let w = end_window(
+                    &ruling(core::f64::consts::FRAC_PI_2 - delta),
+                    (0.0, 2.0),
+                    SpanEnd::End,
+                    &bend(),
+                    b,
+                )
+                .unwrap_or_else(|e| panic!("{what}: a window across the belt: {e:?}"));
+                assert_eq!(w.order, 2, "{what}: the end's root is double");
+                assert!(w.whole, "{what}: the quartic holds the whole span: {w:?}");
+                assert!(
+                    w.spread > near_root(delta),
+                    "{what}: the spread holds the near root at {}: {w:?}",
+                    near_root(delta)
+                );
+            }
+            let delta = 100.0 * root_eps;
+            let what = format!("ε {eps:e}, δ {delta:e}");
+            let w = end_window(
+                &ruling(core::f64::consts::FRAC_PI_2 - delta),
+                (0.0, 2.0),
+                SpanEnd::End,
+                &bend(),
+                b,
+            )
+            .unwrap_or_else(|e| panic!("{what}: a window past the belt: {e:?}"));
+            assert!(
+                !w.whole && 2.0 - w.at < near_root(delta) && w.spread < 2.0 - w.at,
+                "{what}: the order's window stops short of the near root at {}: {w:?}",
+                near_root(delta)
             );
-            return;
         }
-        let c = ruling(core::f64::consts::FRAC_PI_2 - 1e-4);
-        let got = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b);
+    }
+
+    /// **At the quartic's pivot every term below it is charged**: `c₀` and
+    /// the stepped-past `c₁` at the zero band's width at their powers,
+    /// `c₂` and `c₃` at their values plus that width. At `δ = √ε/3` off the
+    /// neutral point the spread `σ` solves
+    /// `|c₄|·σ⁴/2 = Σ_{j<4} charge_j·σ^j`, `L = 2` the span. Read at
+    /// `ε = 1e-9`, where `c₂`'s width is a part in 10⁴ of its value.
+    #[test]
+    fn the_spread_at_a_higher_pivot_charges_every_term_below_it() {
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        let delta = 1e-9_f64.sqrt() / 3.0;
+        let c = ruling(core::f64::consts::FRAC_PI_2 - delta);
+        let w = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b).expect("a window");
+        assert!(w.whole && w.order == 2, "the quartic's pivot: {w:?}");
+        let local = local(&c, (0.0, 2.0), SpanEnd::End).unwrap();
+        let (n, g) = composite(&bend(), &local).unwrap();
+        let width = |j: i32| b.zero() * g / 2.0_f64.powi(j);
+        let charge = [
+            n[0].abs().max(width(0)),
+            n[1].abs().max(width(1)),
+            n[2].abs() + width(2),
+            n[3].abs() + width(3),
+        ];
+        let (mut lo, mut hi) = (0.0_f64, 2.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            let below: f64 = (0..4).map(|j| charge[j] * mid.powi(j as i32)).sum();
+            if 0.5 * n[4].abs() * mid.powi(4) > below {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
         assert!(
-            matches!(
-                got,
-                Err(EndRootRefusal::Spread(_) | EndRootRefusal::Window(_))
-            ),
-            "{got:?}"
+            (w.spread - hi).abs() <= 1e-9 * hi,
+            "spread {} against {hi}",
+            w.spread
         );
     }
 

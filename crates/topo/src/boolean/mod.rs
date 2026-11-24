@@ -8100,7 +8100,9 @@ pub enum JunctionEndGap {
     },
     /// No window past the end holds its root's order, none ends clear of
     /// the surface, or the edge does not hold its own face's side of the
-    /// rim over the window's spread.
+    /// rim over the window's spread, or that spread reaches past where the
+    /// side is read: the other face's carrier one sheet over it, the rim
+    /// turning by at most half a radian.
     Window,
     /// The edge is closed, both its ends at the one point on the rim.
     Closed,

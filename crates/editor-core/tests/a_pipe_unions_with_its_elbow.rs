@@ -542,11 +542,12 @@ fn neutral_off_the_seam(delta: f64) -> OffCap {
 ///   builds at the closed form;
 /// - `ε` off it, the quadratic term reads in band: the end's order
 ///   escalates (`JunctionEndOrder`);
-/// - `√ε/3` off it (`1e-5` at `ε = 1e-9`), the quadratic term decides but
-///   no window holds its spread: the end is unread (`JunctionEndUnread`,
-///   `Window`), the belt
-///   `work/heldrecords/the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md`
-///   files.
+/// - `30ε`, `√ε/3` (`1e-5` at `ε = 1e-9`) and `3√ε` off it, the quadratic
+///   term decides, the ruling meets the bend's carrier again `√(12δ)`
+///   below the rim and stands at most `δ²/2` off it before that, so no
+///   window short of that root clears the band: the window pivots on the
+///   quartic, its spread holds the near root, which lies on the pipe's
+///   side of the rim, and the union builds at the closed form.
 #[test]
 fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
     let on = join(true, CapEnd::End, neutral_off_the_seam(0.0));
@@ -568,18 +569,14 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
         ),
         "ε off it, the order in band: {e:?}"
     );
-    let belt = join(true, CapEnd::End, neutral_off_the_seam(eps.sqrt() / 3.0));
-    let e = refusal(&belt, "√ε/3 off it");
-    assert!(
-        matches!(
-            e,
-            topo::BooleanError::JunctionEndUnread {
-                gap: topo::JunctionEndGap::Window,
-                ..
-            }
-        ),
-        "√ε/3 off it, no window: {e:?}"
-    );
+    for (delta, what) in [
+        (30.0 * eps, "30ε off it"),
+        (eps.sqrt() / 3.0, "√ε/3 off it"),
+        (3.0 * eps.sqrt(), "3√ε off it"),
+    ] {
+        let belt = join(true, CapEnd::End, neutral_off_the_seam(delta));
+        builds_at(&belt, closed_form(true, neutral_off_the_seam(delta)), what);
+    }
 }
 
 /// **A root of the rest of the span is found, not covered.** A pipe 4
@@ -607,7 +604,8 @@ fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_la
 /// (`neutral_off_the_seam`), the
 /// neutral point sits at a rim vertex the routing reads: the junction
 /// glues, and the union reaches the crossing layer, where the edge ending
-/// there stops on its end's order or window
+/// there stops on its end's order in band at `10ε` and is read past at
+/// `30ε` and `100ε`
 /// (`an_edge_ending_near_a_neutral_point_stops_where_its_distance_says`).
 /// The axis turned `20ε` puts the neutral point in band of a seam edge's
 /// station: the junction glues, and the seam's description, which its
@@ -622,20 +620,21 @@ fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
         let what = format!("δ {delta:e} off the seam");
         let j = join(true, CapEnd::End, off);
         glues_its_walls_a_junction(&j, 8, &what);
-        let e = refusal(&j, &what);
-        assert!(
-            matches!(
-                e,
-                topo::BooleanError::CurvedPierceEscalated {
-                    decision: topo::BooleanDecision::JunctionEndOrder,
-                    ..
-                } | topo::BooleanError::JunctionEndUnread {
-                    gap: topo::JunctionEndGap::Window,
-                    ..
-                }
-            ),
-            "{what}: past the glue door, at the crossing layer's end read: {e:?}"
-        );
+        if delta < 20.0 * eps {
+            let e = refusal(&j, &what);
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::CurvedPierceEscalated {
+                        decision: topo::BooleanDecision::JunctionEndOrder,
+                        ..
+                    }
+                ),
+                "{what}: past the glue door, the end's order in band: {e:?}"
+            );
+        } else {
+            builds_at(&j, closed_form(true, off), &what);
+        }
     }
     let (off, _) = turned(true, 20.0 * Tol::witness().eps());
     let j = join(true, CapEnd::End, off);
