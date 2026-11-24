@@ -59,6 +59,24 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     assert_solid(label, body, expected);
 }
 
+/// [`assert_solid`], and the mesher refuses the body at a ring it cannot
+/// place: a sphere face holding a section circle as a ring, whose outer
+/// row's chart box does not tighten under the ring reader
+/// (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+fn assert_ring_unread(label: &str, body: &Body<f64>, expected: f64) {
+    let drawn = mesh::tessellate(body, 1e-3, Tol::witness());
+    assert!(
+        matches!(
+            &drawn,
+            Err(mesh::TessellateError::DomainUnread { cause, .. })
+                if matches!(**cause, topo::pcurves::RingPlacementError::Undecided { .. })
+        ),
+        "{label}: the unplaced ring's refusal, got {:?}",
+        drawn.map(|m| m.positions.len())
+    );
+    assert_solid(label, body, expected);
+}
+
 /// [`assert_body`] short of the mesh.
 fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
@@ -904,16 +922,36 @@ fn assert_every_op(
     (y, vy): (&AtRestBody<f64>, f64),
     meet: f64,
 ) {
-    for (op, p, q, want) in [
+    assert_every_op_but(label, (x, vx), (y, vy), meet, [false; 6]);
+}
+
+/// [`assert_every_op`], where op `i` (in its order: `x ∪ y`, `y ∪ x`,
+/// `x ∩ y`, `y ∩ x`, `x ∖ y`, `y ∖ x`) is held to [`assert_ring_unread`]
+/// where `unread[i]`.
+fn assert_every_op_but(
+    label: &str,
+    (x, vx): (&AtRestBody<f64>, f64),
+    (y, vy): (&AtRestBody<f64>, f64),
+    meet: f64,
+    unread: [bool; 6],
+) {
+    for ((op, p, q, want), unread) in [
         (BooleanOp::Union, x, y, vx + vy - meet),
         (BooleanOp::Union, y, x, vx + vy - meet),
         (BooleanOp::Intersect, x, y, meet),
         (BooleanOp::Intersect, y, x, meet),
         (BooleanOp::Subtract, x, y, vx - meet),
         (BooleanOp::Subtract, y, x, vy - meet),
-    ] {
+    ]
+    .into_iter()
+    .zip(unread)
+    {
         let name = format!("{label}, ε {}: {op:?}", Tol::witness().eps());
-        assert_body(&name, &run(op, p, q), want);
+        if unread {
+            assert_ring_unread(&name, &run(op, p, q), want);
+        } else {
+            assert_body(&name, &run(op, p, q), want);
+        }
     }
 }
 
@@ -1073,16 +1111,20 @@ fn a_slab_cutting_a_cap_off_a_pole_strut_carve_builds() {
     let carve = run(BooleanOp::Subtract, &ball, &cutter);
     let v_carve = ball_volume(0.5) - (ball_volume(0.5) - cap_volume(0.5, 0.25)) / 2.0;
     let t = 10f64.to_radians();
-    for n in [
-        Vec3::new(0.0, t.sin(), t.cos()),
-        Vec3::new(0.866, 0.1, -0.5),
+    // Toward (0.866, 0.1, −0.5) the carve keeps the circle as a ring of
+    // its face under both unions and the carve less the slab, and the
+    // mesher cannot place it ([`assert_ring_unread`]).
+    let ring = [true, true, false, false, true, false];
+    for (n, unread) in [
+        (Vec3::new(0.0, t.sin(), t.cos()), [false; 6]),
+        (Vec3::new(0.866, 0.1, -0.5), ring),
     ] {
-        assert_cap_cut(
+        assert_every_op_but(
             &format!("pole strut, slab toward {n:?}"),
-            &carve,
-            v_carve,
-            &brick_toward(n, 0.4925, 3.0, 1.0),
+            (&carve, v_carve),
+            (&brick_toward(n, 0.4925, 3.0, 1.0), 36.0),
             cap_volume(0.5, 0.0075),
+            unread,
         );
     }
     // PR 5920's first review saw triangles folded over the chord beside
@@ -1251,13 +1293,19 @@ fn a_cut_ends_at_the_nearest_of_several_boundary_hits() {
         Tol::witness(),
     );
     let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
-    for lat in [60.0, -60.0] {
-        assert_cap_cut(
+    // Toward latitude −60° the carve keeps the circle as a ring of its
+    // face under both unions and the carve less the slab, and the mesher
+    // cannot place it ([`assert_ring_unread`]).
+    for (lat, unread) in [
+        (60.0, [false; 6]),
+        (-60.0, [true, true, false, false, true, false]),
+    ] {
+        assert_every_op_but(
             &format!("ball less a box, slab toward lat {lat} az 30"),
-            &carve,
-            ball_volume(1.0) - cap_volume(1.0, 0.5),
-            &brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0),
+            (&carve, ball_volume(1.0) - cap_volume(1.0, 0.5)),
+            (&brick_toward(dir(lat, 30.0), 0.999, 3.0, 1.0), 36.0),
             cap_volume(1.0, 0.001),
+            unread,
         );
         // THE SHARED EAR (PR 5920's review, B4). The cap of height 0.001
         // is one sphere face and one plane face on one circle, and its

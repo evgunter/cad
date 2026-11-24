@@ -405,6 +405,22 @@ fn probe_two_nonparallel_escapes_build_both_caps_under_every_op() {
                 "{what}: the result passes tier 3"
             );
             assert_eq!(body.solids().count(), solids, "{what}: its solids");
+            // Both cuts are closed again: the ball's part of each solid is
+            // connected, so it holds no more faces than the ball brought,
+            // and each further solid one more.
+            let on_sphere = |x: &topo::Body<f64>| {
+                x.faces()
+                    .filter(|&(f, _)| {
+                        matches!(x.face_surface(f), Some(topo::Surface::Sphere { .. }))
+                    })
+                    .count()
+            };
+            assert!(
+                on_sphere(body) < on_sphere(&b) + solids,
+                "{what}: sphere faces {} against the ball's {}",
+                on_sphere(body),
+                on_sphere(&b)
+            );
             assert!(
                 (vol(body) - want).abs() < slack(),
                 "{what}: volume {}, closed form {want}",
@@ -467,6 +483,7 @@ fn every_op_or_the_guard(what: &str, ball: &Body<f64>, r: f64, caps: f64, cuts: 
         (BooleanOp::Subtract, &ball, &slab, caps),
     ] {
         let label = format!("{what}, {op:?}");
+        topo::test_support::take_cut_ins();
         match boolean_op_with(
             op,
             x,
@@ -487,12 +504,11 @@ fn every_op_or_the_guard(what: &str, ball: &Body<f64>, r: f64, caps: f64, cuts: 
                     "{label}: volume {}, closed form {want}",
                     vol(body)
                 );
-                let naming = &out
-                    .body()
-                    .unwrap_or_else(|| panic!("{label}: a body"))
-                    .naming;
                 assert_eq!(
-                    naming.chart_cuts.iter().map(Vec::len).sum::<usize>(),
+                    topo::test_support::take_cut_ins()
+                        .iter()
+                        .flatten()
+                        .sum::<usize>(),
                     cuts,
                     "{label}: the ball's cuts"
                 );
