@@ -47,7 +47,7 @@ fn main() {
         Vec3::new(1.0, 0.0, 0.0),
         PI / 2.0,
     );
-    let a = topo::finish(cyl(1.0, 2.0), tol).unwrap();
+    let a = topo::finish(topo::Built::of(cyl(1.0, 2.0)), tol).unwrap();
     let unequal = moved(&cyl(0.6, 2.0), &quarter);
     let skew = moved(
         &moved(&cyl(1.0, 2.0), &quarter),
@@ -57,7 +57,7 @@ fn main() {
         if args.first().is_some_and(|p| p != pose) {
             continue;
         }
-        let b = topo::finish(b, tol).unwrap();
+        let b = topo::finish(topo::Built::of(b), tol).unwrap();
         for op in ["union", "intersect", "subtract"] {
             if args.get(1).is_some_and(|o| o != op) {
                 continue;

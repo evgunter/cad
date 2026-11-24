@@ -355,7 +355,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let y = joined_edge_touch(tol);
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ..y.contacts.carried()
+        ..y.contacts().carried()
     };
     for (at, rim, slab, piece) in [
         (
@@ -373,7 +373,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     ] {
         let corner = vertex_at(&y.body, at);
         let (_, joined) = y
-            .contacts
+            .contacts()
             .vertex_edge()
             .find(|&(v, _)| v == corner)
             .expect("the join leaves the corner's (vertex, edge) record");
@@ -393,7 +393,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             panic!("slab {slab:?}: empty");
         };
         let onto: Vec<_> = out
-            .contacts
+            .contacts()
             .vertex_edge()
             .filter(|&(v, _)| v == corner)
             .map(|(_, e)| ends(&out.body, e))
@@ -404,7 +404,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             "slab {slab:?}: the corner's record lands on its piece"
         );
         assert_eq!(
-            errors(&out.body, &out.contacts),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -446,7 +446,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
     };
     let corner = vertex_at(&y.body, [0.0, 0.0, 0.0]);
     assert_eq!(
-        y.contacts
+        y.contacts()
             .vertex_edge()
             .map(|(v, e)| (v, ends(&y.body, e)))
             .collect::<Vec<_>>(),
@@ -455,7 +455,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
     );
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ..y.contacts.carried()
+        ..y.contacts().carried()
     };
     let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {
         p.iter()
@@ -486,7 +486,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
             panic!("slab {slab:?}: empty");
         };
         let onto: Vec<_> = out
-            .contacts
+            .contacts()
             .vertex_edge()
             .filter(|&(v, _)| v == corner)
             .map(|(_, e)| ends(&out.body, e))
@@ -502,7 +502,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
                     "slab {slab:?}: no (vertex, edge) record: {onto:?}"
                 );
                 assert!(
-                    out.contacts.vertex_vertex().any(|(a, b)| {
+                    out.contacts().vertex_vertex().any(|(a, b)| {
                         let other = if a == corner {
                             b
                         } else if b == corner {
@@ -513,12 +513,12 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
                         point(&out.body, other) == [0.0, 0.0, 0.0]
                     }),
                     "slab {slab:?}: the corner pairs with the split's vertex: {:?}",
-                    out.contacts
+                    out.contacts()
                 );
             }
         }
         assert_eq!(
-            errors(&out.body, &out.contacts),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -583,19 +583,19 @@ fn a_crossing_the_join_makes_is_an_edge_edge_record() {
     );
     let cube_edge = edge_between(&joined.body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]);
     assert!(
-        joined.contacts.vertex_vertex().next().is_none(),
+        joined.contacts().vertex_vertex().next().is_none(),
         "no vertex is left at the crossing"
     );
     assert!(
         joined
-            .contacts
+            .contacts()
             .edge_edge()
             .any(|(a, b)| a == cube_edge || b == cube_edge),
         "the crossing is an edge-edge record on the cube's edge: {:?}",
-        joined.contacts
+        joined.contacts()
     );
     assert_eq!(
-        errors(&joined.body, &joined.contacts),
+        errors(&joined.body, joined.contacts()),
         vec![],
         "the joined union certifies"
     );
@@ -612,7 +612,7 @@ fn crossing_into(y: &topo::BooleanBody<f64>, slab: (f64, f64), tol: Tol) -> topo
     let inputs = topo::BooleanInputs {
         records_a: topo::OperandRecords {
             vf: Vec::new(),
-            ..y.contacts.carried()
+            ..y.contacts().carried()
         },
         ..topo::BooleanInputs::default()
     };
@@ -641,10 +641,10 @@ fn an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it() {
     let tol = Tol::witness();
     let y = skew_crossing(tol);
     assert_eq!(
-        y.contacts.edge_edge().count(),
+        y.contacts().edge_edge().count(),
         1,
         "the crossing's record: {:?}",
-        y.contacts
+        y.contacts()
     );
     for (slab, piece) in [
         ((0.9, 0.95), ([0.0, 0.0, 1.0], [0.9, 0.0, 1.0])),
@@ -653,14 +653,14 @@ fn an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it() {
         let out = crossing_into(&y, slab, tol);
         let held = edge_between(&out.body, piece.0, piece.1);
         assert!(
-            out.contacts
+            out.contacts()
                 .edge_edge()
                 .any(|(a, b)| a == held || b == held),
             "slab {slab:?}: the record lands on {piece:?}: {:?}",
-            out.contacts
+            out.contacts()
         );
         assert_eq!(
-            errors(&out.body, &out.contacts),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -684,15 +684,15 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
     let y = skew_crossing(tol);
     let across = crossing_into(&y, (0.3, 0.7), tol);
     assert_eq!(
-        across.contacts,
-        ContactRecords::default(),
+        across.contacts(),
+        &ContactRecords::default(),
         "the slab buries the crossing"
     );
-    assert_eq!(errors(&across.body, &across.contacts), vec![]);
+    assert_eq!(errors(&across.body, across.contacts()), vec![]);
     for slab in [(0.5, 0.6), (0.4, 0.5), (0.5, 0.95)] {
         let out = crossing_into(&y, slab, tol);
         let at_crossing: Vec<_> = out
-            .contacts
+            .contacts()
             .vertex_edge()
             .filter(|&(v, _)| same(point(&out.body, v), [0.5, 0.0, 1.0]))
             .collect();
@@ -700,10 +700,10 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
             at_crossing.len(),
             1,
             "slab {slab:?}: one vertex-on-edge record at the crossing: {:?}",
-            out.contacts
+            out.contacts()
         );
         assert_eq!(
-            errors(&out.body, &out.contacts),
+            errors(&out.body, out.contacts()),
             vec![],
             "slab {slab:?}: the result certifies"
         );
@@ -740,7 +740,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         panic!("a ∪ b came back empty");
     };
     assert_eq!(
-        y.contacts.vertex_edge().count(),
+        y.contacts().vertex_edge().count(),
         2,
         "a bound at each end of the overlap"
     );
@@ -777,7 +777,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         tol,
     );
     let near_end = y
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .position(|r| {
@@ -786,7 +786,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         })
         .expect("the bound at (1, 0, 1)");
     let inputs = topo::BooleanInputs {
-        records_a: y.contacts.carried(),
+        records_a: y.contacts().carried(),
         ..topo::BooleanInputs::default()
     };
     let topo::BooleanResult::Body(out) = united(&y.body, &plate, &inputs, tol).expect("y ∪ plate")
@@ -796,7 +796,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
     let at_end = |k: VertexKey| same(point(&out.body, k), [1.0, 0.0, 1.0]);
     let record = u32::try_from(near_end).unwrap();
     assert!(
-        out.contacts.rows().iter().any(|r| {
+        out.contacts().rows().iter().any(|r| {
             matches!(r.cells(), [topo::Cell::Vertex(a), topo::Cell::Vertex(b)]
                 if at_end(a) && at_end(b))
                 && r.cites
@@ -804,10 +804,10 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
                     .any(|c| c == topo::Backing::Carried { input: 0, record })
         }),
         "a vertex-vertex record at (1, 0, 1) citing the bound there: {:?}",
-        out.contacts
+        out.contacts()
     );
     assert_eq!(
-        errors(&out.body, &out.contacts),
+        errors(&out.body, out.contacts()),
         vec![],
         "the result certifies"
     );
@@ -825,7 +825,7 @@ fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
         tol,
     );
     let (live, _) = y
-        .contacts
+        .contacts()
         .edge_edge()
         .next()
         .expect("the crossing's record");
@@ -878,7 +878,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
     let tol = Tol::witness();
     let joined = skew_crossing(tol);
     let unrecorded: ContactRecords = joined
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .filter(|c| !matches!(c.kind(), topo::ContactKind::EdgeEdge(..)))
@@ -901,7 +901,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
         Cell::Edge(edge_between(&joined.body, [0.0, 1.0, 1.0], [1.0, 1.0, 1.0])),
     )
     .unwrap();
-    let mut stale = joined.contacts.clone();
+    let mut stale = joined.contacts().clone();
     stale.extend([topo::Cited::new(apart, topo::Cites::decided(0))]);
     let topo::ContactKind::EdgeEdge(apart_a, apart_b) = apart.kind() else {
         unreachable!("two edges")

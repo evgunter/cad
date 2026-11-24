@@ -116,7 +116,8 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &topo::finish(body.clone(), Tol::witness()).expect("the body is finished"),
+            &topo::finish(topo::Built::of(body.clone()), Tol::witness())
+                .expect("the body is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -136,7 +137,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match topo::finish(body.clone(), Tol::witness()) {
+    match topo::finish(topo::Built::of(body.clone()), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way

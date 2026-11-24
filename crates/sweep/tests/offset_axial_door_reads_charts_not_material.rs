@@ -44,7 +44,8 @@ fn drum(ccw: bool) -> Body<f64> {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &topo::finish(body.clone(), Tol::witness()).expect("the drum is finished"),
+            &topo::finish(topo::Built::of(body.clone()), Tol::witness())
+                .expect("the drum is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -64,7 +65,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match topo::finish(body.clone(), Tol::witness()) {
+    match topo::finish(topo::Built::of(body.clone()), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way
@@ -175,7 +176,8 @@ fn a_cap_tilted_between_its_scopes_two_reaches_escalates_at_the_gate() {
             },
         )
         .expect("the cap's key is live");
-    let finished = topo::finish(body, tol).expect("the tilt is within the tolerance");
+    let finished =
+        topo::finish(topo::Built::of(body), tol).expect("the tilt is within the tolerance");
     match topo::shell(&finished, 0.01, tol) {
         Err(topo::ShellError::Face { error, .. })
             if matches!(*error, topo::ReplaceFaceError::Escalated { .. }) =>

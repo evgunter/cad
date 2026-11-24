@@ -232,7 +232,7 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_but_its_parting() {
                 let body = &bb.body;
                 topo::validate_geometric(body, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                topo::validate_pseudomanifold(body, &bb.contacts, tol)
+                topo::validate_pseudomanifold(body, bb.contacts(), tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
                 let v = topo::test_support::pinned_volume("the measured body", body, tol).volume;
                 assert!(
@@ -249,7 +249,7 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_but_its_parting() {
                     census,
                     "{label}: F, E, V, shells"
                 );
-                let c = &bb.contacts;
+                let c = bb.contacts();
                 assert_eq!(
                     [
                         c.vertex_vertex().count(),
@@ -409,7 +409,7 @@ fn a_ruling_across_an_ellipse_builds_every_op_but_its_slit() {
             let body = &bb.body;
             topo::validate_geometric(body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-            topo::validate_pseudomanifold(body, &bb.contacts, tol)
+            topo::validate_pseudomanifold(body, bb.contacts(), tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
             let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap();
@@ -429,7 +429,7 @@ fn a_ruling_across_an_ellipse_builds_every_op_but_its_slit() {
                 census,
                 "{label}: F, E, V, shells"
             );
-            let c = &bb.contacts;
+            let c = bb.contacts();
             assert_eq!(
                 [
                     c.vertex_vertex().count(),
@@ -479,7 +479,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
         };
         let body = &bb.body;
         topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
-        topo::validate_pseudomanifold(body, &bb.contacts, tol)
+        topo::validate_pseudomanifold(body, bb.contacts(), tol)
             .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
         let m =
             topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
@@ -558,7 +558,7 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
             };
             topo::validate_geometric(&bb.body, tol)
                 .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", label(op)));
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                 .unwrap_or_else(|e| panic!("{}: tier 3′: {e:?}", label(op)));
             let m =
                 topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
@@ -756,7 +756,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-            let moved = topo::finish(moved, tol)
+            let moved = topo::finish(topo::Built::of(moved), tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));
@@ -934,7 +934,7 @@ fn one_body(label: &str, op: &str, res: Result<BooleanResult<f64>, BooleanError>
         panic!("{label}: one body: {res:?}");
     };
     topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+    topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
     let m = topo::test_support::pinned_volume(label, &bb.body, tol);
     let want = 3.0 * PI * 0.01 * 0.01;
@@ -1002,7 +1002,7 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
             };
             topo::validate_geometric(&bb.body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
             let m =
                 topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))

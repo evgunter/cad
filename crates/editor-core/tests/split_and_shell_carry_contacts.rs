@@ -58,8 +58,7 @@ fn split_of(
 fn held(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) -> usize {
     ev.value(id)
         .unwrap_or_else(|| panic!("{what}: {:?}", failure(ev, id)))
-        .carry
-        .contacts
+        .contacts()
         .rows()
         .len()
 }
@@ -140,7 +139,7 @@ fn the_product_of_a_side_holds_its_records() {
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness())
         .unwrap_or_else(|e| panic!("the product gathers: {e}"));
     assert_eq!(
-        product.contacts.rows().len(),
+        product.contacts().rows().len(),
         3,
         "the above side's product holds the side's records"
     );
@@ -253,16 +252,30 @@ fn a_sides_records_cite_the_operands_across_a_retired_one() {
     );
     let ev = run(&doc);
     assert_eq!(held(&ev, union, "the union"), 5, "the union's five records");
-    let sides = ev
+    let value = ev
         .value(split)
-        .unwrap_or_else(|| panic!("the split: {:?}", failure(&ev, split)))
-        .carry
-        .members
-        .clone()
-        .expect("a split carries each side's own");
+        .unwrap_or_else(|| panic!("the split: {:?}", failure(&ev, split)));
+    let editor_core::ValuePayload::Split { above, below } = &value.payload else {
+        panic!("a split's value is its two sides");
+    };
+    // Each side's records, read off its body as its own carry cites
+    // them, at its half's output body.
+    let sides: Vec<topo::ContactRecords> = [
+        (editor_core::SplitHalf::Above, above),
+        (editor_core::SplitHalf::Below, below),
+    ]
+    .into_iter()
+    .map(|(half, side)| match side {
+        editor_core::SplitSide::Body(body) => value
+            .carry
+            .member(half.output_body() as usize)
+            .contacts(body.holding().records())
+            .into_owned(),
+        editor_core::SplitSide::Empty => topo::ContactRecords::default(),
+    })
+    .collect();
     let cited = |side: usize| -> Vec<u32> {
         sides[side]
-            .contacts
             .cites()
             .flat_map(|cites| cites.iter().collect::<Vec<_>>())
             .map(|backing| match backing {

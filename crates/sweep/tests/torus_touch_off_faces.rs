@@ -296,7 +296,7 @@ fn the_off_face_touches_build_at_every_scale() {
             {
                 crate::common::frame_cost::assert_rod_refuses_its_finish(
                     &label,
-                    &topo::finish(b.clone(), Tol::witness()).map(|_| ()),
+                    &topo::finish(topo::Built::of(b.clone()), Tol::witness()).map(|_| ()),
                     (1.65e-12, 1.8e-12),
                 );
                 test_utils::vacuity::stood_down(

@@ -593,31 +593,25 @@ impl MassMeasurement {
 /// Arena keys never cross; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
 ///
-/// # The declared contacts ride WITH the body
+/// # The contact records are the body's own
 ///
-/// `contacts` is the tier-3′ second argument (M3 PR 6a): the
-/// declarations the op that produced this body minted for it. It is
-/// CAPTURED here rather than crossing as a value, which is the
-/// carrier-projection rule at a door whose Rust signature takes two
-/// things a Python caller can only hold one of. `ContactRecords` has
-/// no Python constructor and is curated `INTERIOR` — so a
-/// `validate_pseudomanifold(contacts)` door would be uncallable — and
-/// handing one body ANOTHER body's declarations is exactly the
+/// A finished body holds its contact records
+/// ([`topo::FinishedBody::records`]), so the tier-3′ rung reads them
+/// off the body it is asked about ([`HostBody::records`]):
+/// `ContactRecords` has no Python constructor and is curated `INTERIOR`,
+/// and handing one body ANOTHER body's records is exactly the
 /// mis-pairing the F1 contract exists to refuse (the validator never
-/// blesses discovered contacts). The demo tour states the same rule
-/// from the other side: its `SceneBody` carries `contacts` beside the
-/// body and runs 3′ "with the op's OWN declared contacts".
+/// blesses discovered contacts).
 ///
-/// Empty is the honest default, not a hole. With no declarations the
-/// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
-/// run, which is the STRICTEST rung of the ladder — so a door that
-/// mints a body without records can only make this gate refuse
-/// (`UnrecordedContact`), never falsely pass.
+/// Construction state holds none, which is the honest default, not a
+/// hole. With no records the kernel's own contract is that 3′ ≡ tier 3
+/// plus the census actually run, which is the STRICTEST rung of the
+/// ladder — so a door that mints a body without records can only make
+/// this gate refuse (`UnrecordedContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
     pub(crate) inner: HostBody,
-    contacts: Arc<topo::ContactRecords>,
 }
 
 /// **The body a host handle reads**: construction state a door minted,
@@ -642,6 +636,18 @@ impl core::ops::Deref for HostBody {
     }
 }
 
+impl HostBody {
+    /// **The contact records the body holds**: a finished body's own
+    /// ([`pncad::document::Held::records`]), none for construction
+    /// state.
+    fn records(&self) -> topo::ContactRecords {
+        match self {
+            Self::Plain(_) => topo::ContactRecords::default(),
+            Self::Held(body) => body.records().clone(),
+        }
+    }
+}
+
 impl From<Arc<topo::Body<f64>>> for HostBody {
     fn from(body: Arc<topo::Body<f64>>) -> Self {
         Self::Plain(body)
@@ -655,24 +661,11 @@ impl Body {
         HostBody::Held(body)
     }
 
-    /// A body with no contact records — every door but those that have
-    /// records to carry (an evaluated value, an import).
+    /// A body as a host handle: construction state a door minted, or a
+    /// finished body, which holds its own contact records.
     pub(crate) fn plain(inner: impl Into<HostBody>) -> Self {
         Self {
             inner: inner.into(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-        }
-    }
-
-    /// A body with the contact records its producer carries, each citing
-    /// the decision that backs it.
-    pub(crate) fn recorded(
-        inner: impl Into<HostBody>,
-        contacts: Arc<topo::ContactRecords>,
-    ) -> Self {
-        Self {
-            inner: inner.into(),
-            contacts,
         }
     }
 }
@@ -801,7 +794,7 @@ impl Body {
         self.run_validator(
             py,
             ValidationRefusal::Pseudomanifold,
-            topo::validate_pseudomanifold(&self.inner, &self.contacts, tol),
+            topo::validate_pseudomanifold(&self.inner, &self.inner.records(), tol),
         )
     }
 }
@@ -1164,13 +1157,6 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[derive(Clone)]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's contact records (ASM-R2b D-1), as its carry holds
-    /// them: a boolean's surviving contacts, or what a copy carries
-    /// from its source. [`Value::recorded_body`] reads them as
-    /// `editor_core::product::sources_of` does, because a Python caller
-    /// reading a body off a value and the gather reading the same body
-    /// must not disagree about the contacts it carries.
-    contacts: Arc<topo::ContactRecords>,
     node: NodeId,
     /// A family's members (D10 `[repetition]`), in index order: each
     /// member's index values, outermost first, and its value. Empty for
@@ -1183,7 +1169,6 @@ impl Value {
     pub(crate) fn of(node_value: &d::NodeValue<f64>, node: NodeId) -> Self {
         Self {
             payload: node_value.payload.clone(),
-            contacts: Arc::clone(&node_value.carry.contacts),
             node,
             members: node_value.members.as_ref().map_or_else(Vec::new, |family| {
                 family
@@ -1195,26 +1180,14 @@ impl Value {
         }
     }
 
-    /// One of this value's bodies with the contact records that body
-    /// carries — `sources_of`'s rule, restated at the boundary.
-    ///
-    /// Multi-output payloads carry no records (the `OpOut` invariant:
-    /// "output body 0" names nothing there), so `Instances` and
-    /// `Split` halves are plain — no home to read from, and none is
-    /// invented.
-    ///
-    /// The body is read as it stands in its space, through the façade's
-    /// read-out door ([`pncad::export::body_in_space`]); its records
-    /// cite it there as they cite its own coordinates, the rigid map
-    /// keeping every key.
+    /// One of this value's bodies, as it stands in its space, through
+    /// the façade's read-out door ([`pncad::export::body_in_space`]): a
+    /// finished body, holding the contact records its door finished it
+    /// with, the rigid map keeping every key.
     fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
-        let body = pncad::export::body_in_space(body, Tol::witness())
-            .map(Body::host)
-            .map_err(|err| compose_err(py, self.node, &err))?;
-        Ok(match self.payload.one_body() {
-            Some(Some(_)) => Body::recorded(body, Arc::clone(&self.contacts)),
-            _ => Body::plain(body),
-        })
+        pncad::export::body_in_space(body, Tol::witness())
+            .map(|body| Body::plain(Body::host(body)))
+            .map_err(|err| compose_err(py, self.node, &err))
     }
 }
 
@@ -2666,13 +2639,13 @@ pub(crate) fn import_step(
             eps_in,
             normalizations,
             instances,
-            contacts,
-            // The rows `contacts` cite: the body carries its records,
-            // and the rows are the import's own decisions, which no
-            // document reads through this door.
+            // The rows the body's records cite: the import's own
+            // decisions, which no document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::recorded(Arc::new(topo::Body::clone(&body)), Arc::new(contacts)),
+            body: Body::plain(Body::host(pncad::document::Held::Finished(Arc::new(
+                body.clone(),
+            )))),
             certified: body,
             eps_in,
             normalizations: normalizations

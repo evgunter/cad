@@ -841,7 +841,7 @@ pub(crate) fn finish_spend(
     tol: geom_core::Tol,
 ) -> usize {
     geom_core::k_stats::start_recording();
-    let finished = topo::finish(body.clone(), tol);
+    let finished = topo::finish(topo::Built::of(body.clone()), tol);
     let spent = geom_core::k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == predicate)

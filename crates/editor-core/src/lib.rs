@@ -144,8 +144,8 @@ pub use edit::{
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
-    ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
-    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
+    Citing, ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal,
+    Epoch, EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
     PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped,
     ValuePayload, evaluate, traced_faces,
@@ -188,9 +188,9 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactRefusal, CrossingSensesShape, CurveKind,
-    CurveKindSet, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind, EntityNamed,
-    EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactReach, ContactRefusal, CrossingSensesShape,
+    CurveKind, CurveKindSet, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
+    EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
     KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable,
     NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,
     ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine,

@@ -63,10 +63,10 @@ fn block_at(
 fn boolean_value(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
-) -> (&BooleanValue<f64>, &topo::ContactRecords) {
+) -> (&BooleanValue<f64>, topo::ContactRecords) {
     let value = ev.value(node).expect("boolean evaluated");
     match &value.payload {
-        ValuePayload::Boolean(b) => (b, &value.carry.contacts),
+        ValuePayload::Boolean(b) => (b, value.contacts()),
         other => panic!("expected boolean, got {}", other.kind_name()),
     }
 }
@@ -108,7 +108,7 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
         "the kiss's vertex-vertex record"
     );
     assert_eq!(
-        validate_pseudomanifold(body.body(), contacts, Tol::witness()),
+        validate_pseudomanifold(body.body(), &contacts, Tol::witness()),
         Ok(()),
         "the union over the reused kiss: 3′"
     );
@@ -243,7 +243,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), &contacts, Tol::witness()),
         Ok(())
     );
     // Resolution corpus seed (boolean-of-boolean DAG): the two slot
@@ -340,7 +340,7 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         "tier 3"
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), &contacts, Tol::witness()),
         Ok(())
     );
     // Review F6: the merged caps keep, on their boundary, the vertices
@@ -409,7 +409,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
-        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), &contacts, Tol::witness()),
         Ok(())
     );
     let corner = crate::fixture::table(&ev, s2)

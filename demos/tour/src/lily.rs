@@ -1584,6 +1584,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
     let rootstock = rootstock::<S>(tol);
+    let rootstock_contacts = rootstock.contacts().clone();
 
     let mut pieces = vec![
         Piece {
@@ -1591,7 +1592,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             color: BROWN_ROOTSTOCK,
             body: rootstock.body.into_body(),
             caps: None,
-            contacts: Some(rootstock.contacts),
+            contacts: Some(rootstock_contacts),
         },
         Piece {
             name: "lily_stem",

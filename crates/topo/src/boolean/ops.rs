@@ -168,32 +168,20 @@ pub enum BooleanResultKind {
 ///
 /// # Validity-class carriage (D2 — the F1 contract)
 ///
-/// The validity class rides THIS wrapper, never a mutable field on
+/// The validity class rides the finished type, never a mutable field on
 /// [`Body`]: `body` is the scalar's finished body
 /// ([`AtRestPolicy::Finished`]), which the door's finish made of these
-/// bits ([`AtRestPolicy::finish`]: an [`AtRestBody`](crate::AtRestBody) carrying the tier-3
-/// verdict at a certifying scalar, a [`crate::Replay`] that passed tier 2
-/// alone and carries no verdict at a dual). `contacts` are the machine-checkable record of every
-/// intentional touching the pipeline propagated (F2's explicit-intent
-/// condition), and `body.validate_pseudomanifold(&contacts, tol)` is
-/// the tier-3′ pass over them, empty or not. The door does not run
-/// that census: a curved solid within reach of another solid is
-/// beyond its cross-solid lane, which would refuse valid disjoint
-/// unions (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// bits ([`AtRestPolicy::finish`]) and which holds the result's contact
+/// records ([`Self::contacts`]): at a certifying scalar an
+/// [`AtRestBody`](crate::AtRestBody) whose gate confirmed each, at a dual
+/// a [`crate::Replay`] that passed tier 2 alone and carries no verdict.
 #[derive(Debug)]
 pub struct BooleanBody<T: AtRestPolicy> {
     /// The result body: one solid per piece of material
-    /// ([`crate::pieces`]), gated at tier 3 by the door that built it —
-    /// tier 3, not tier 3′: the census over [`Self::contacts`] is not run
-    /// here (type-level docs).
+    /// ([`crate::pieces`]), finished by the door that built it.
     pub body: T::Finished,
     /// How it was produced.
     pub kind: BooleanResultKind,
-    /// Contacts, declared or glued on a decided Zero, surviving into the
-    /// result, in result keys
-    /// (module docs) — what a tier-3′ pass over the result reads
-    /// (type-level docs); the door has not checked them.
-    pub contacts: ContactRecords,
     /// Naming emission (M4 PR 3, NAMING-DESIGN N4): the mint-time
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
@@ -209,6 +197,17 @@ pub struct BooleanBody<T: AtRestPolicy> {
     /// operand A at place 0 and B at place 1, read from the naming's
     /// records ([`Holdings::of_records`]).
     pub holdings: Holdings,
+}
+
+impl<T: AtRestPolicy> BooleanBody<T> {
+    /// **The result's contact records**, as its finished body holds
+    /// them ([`crate::FinishedBody::records`]): each touch, declared or
+    /// glued on a decided Zero, that survives into the result, in result
+    /// keys (module docs).
+    #[must_use]
+    pub fn contacts(&self) -> &ContactRecords {
+        crate::FinishedBody::records(&self.body)
+    }
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -677,7 +676,7 @@ where
         BooleanOp::Union,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )
@@ -706,7 +705,7 @@ where
         BooleanOp::Intersect,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )
@@ -735,7 +734,7 @@ where
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanInputs::default(),
+        &BooleanInputs::of(a, b),
         SweepStrategy::Realized,
         tol,
     )
@@ -1382,7 +1381,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         holdings: Holdings::unread(),
         body,
         kind: BooleanResultKind::Seamed,
-        contacts,
         naming,
         verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
@@ -6044,12 +6042,14 @@ impl<'a> Held<'a> {
 /// **The result gate every [`BooleanBody`] passes**, at the site that
 /// built it: the body is sorted one solid per piece of material
 /// ([`crate::pieces`]), and no shell holds both faces of a face–face
-/// record an operand carried in ([`Held::apart`]), then finished ([`AtRestPolicy::finish`]), so the
-/// finish rides the result and is taken on the bits the caller
-/// receives. A solid whose only shell check 7 certified in band passes:
-/// how thin a result is gets judged by its pairs alone (D10, Booleans).
-/// Last, the edges on every line where two or more lie are read for
-/// disjoint material ([`coincident_wedges_disjoint`]), at every scalar.
+/// record an operand carried in ([`Held::apart`]), then finished
+/// ([`AtRestPolicy::finish`]) holding the records the op decided, each
+/// confirmed there, so the finish rides the result and is taken on the
+/// bits the caller receives. A solid whose only shell check 7 certified
+/// in band passes: how thin a result is gets judged by its pairs alone
+/// (D10, Booleans). Last, the edges on every line where two or more lie
+/// are read for disjoint material ([`coincident_wedges_disjoint`]), at
+/// every scalar.
 ///
 /// # Errors
 ///
@@ -6073,7 +6073,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
     let kinds = refused_faces::kinds(&body);
-    let finished = T::finish(body, tol);
+    let finished = T::finish(crate::Built::of(body).recording(held.contacts.clone()), tol);
     #[cfg(any(test, feature = "test-support"))]
     if let Err(findings) = &finished {
         refused_faces::note(&kinds, findings.as_slice());
@@ -8273,7 +8273,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 holdings: Holdings::unread(),
                 body,
                 kind,
-                contacts,
                 naming,
                 verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
                 coincidences,
@@ -8620,7 +8619,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         holdings: Holdings::unread(),
         body,
         kind,
-        contacts,
         naming,
         verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
         coincidences,
@@ -9270,8 +9268,8 @@ mod tests {
         let tol = Tol::witness();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let raw = quad_prism(&square, 1.0, tol);
-        let errors =
-            crate::finish(raw.clone(), tol).expect_err("the box's chords are scaffolds at rest");
+        let errors = crate::finish(crate::Built::of(raw.clone()), tol)
+            .expect_err("the box's chords are scaffolds at rest");
         let mut named: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -9341,7 +9339,7 @@ mod tests {
         // gate that would hand it to the boolean refuses each of its
         // faces as uncertifiable, so no NURBS placeholder reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
-            let errors = crate::finish(body.clone(), Tol::witness())
+            let errors = crate::finish(crate::Built::of(body.clone()), Tol::witness())
                 .expect_err("a NURBS placeholder is not a finished body");
             let mut uncertifiable: Vec<_> = errors
                 .iter()

@@ -137,7 +137,7 @@ fn unread_volumes() -> usize {
 /// [`geometry_enclosing`] reads: not where its mass properties escalate
 /// (the 0.1° draft wall at `10⁻¹²`, `props_cone_circle_off_axis`).
 fn volume_read(solid: &Body<f64>) -> bool {
-    <f64 as topo::AtRestPolicy>::finish(solid.clone(), tol()).is_ok()
+    <f64 as topo::AtRestPolicy>::finish(topo::Built::of(solid.clone()), tol()).is_ok()
 }
 
 /// **The count relation**: `split` (`solid` with points on its line

@@ -573,7 +573,7 @@ fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> crate::AtRestBody<f64> 
 fn built(what: &str, r: Result<BooleanResult<f64>, crate::BooleanError>) -> crate::AtRestBody<f64> {
     match r {
         Ok(BooleanResult::Body(r)) => {
-            if let Err(e) = validate_pseudomanifold(&r.body, &r.contacts, tol()) {
+            if let Err(e) = validate_pseudomanifold(&r.body, r.contacts(), tol()) {
                 panic!("{what}: {e:?}");
             }
             r.body
@@ -594,7 +594,7 @@ fn a_pit_resting_its_apex_on_the_floor_holds_tier_three_prime() {
     };
     assert_eq!(pit.body.solids.len(), 1, "one solid");
     assert_eq!(
-        pit.contacts.vertex_face().count(),
+        pit.contacts().vertex_face().count(),
         1,
         "the apex on the floor"
     );
@@ -1058,12 +1058,12 @@ fn the_mould_of_a_pyramid_on_a_plate_holds_tier_three_prime() {
     };
     assert_eq!(body.body.solids.len(), 1, "one solid");
     assert_eq!(
-        body.contacts.vertex_face().count(),
+        body.contacts().vertex_face().count(),
         1,
         "its apex on the plate"
     );
     let inputs = crate::BooleanInputs {
-        records_b: body.contacts.carried(),
+        records_b: body.contacts().carried(),
         ..Default::default()
     };
     let Ok(BooleanResult::Body(mould)) = crate::boolean_op_with(
@@ -1077,12 +1077,12 @@ fn the_mould_of_a_pyramid_on_a_plate_holds_tier_three_prime() {
         panic!("the mould builds");
     };
     assert_eq!(
-        mould.contacts.vertex_face().count(),
+        mould.contacts().vertex_face().count(),
         1,
         "the cavity's corner"
     );
     assert_eq!(
-        validate_pseudomanifold(&mould.body, &mould.contacts, tol()),
+        validate_pseudomanifold(&mould.body, mould.contacts(), tol()),
         Ok(())
     );
 }

@@ -74,7 +74,7 @@ fn follow(cites: &Cites, at: [f64; 3], lists: &[(&BooleanBody<f64>, [&Body<f64>;
             Backing::Carried { input, record } => {
                 assert_eq!(input, 0, "only operand A carries records here");
                 let (prev, _) = rest.last().expect("an earlier op");
-                let cited = &prev.contacts.rows()[record as usize];
+                let cited = &prev.contacts().rows()[record as usize];
                 let [x, y] = cited.cells();
                 assert_eq!(point(&prev.body, x), at);
                 assert_eq!(point(&prev.body, y), at);
@@ -98,26 +98,26 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
         ..BooleanInputs::default()
     };
     let kiss = union(&a, &b, &BooleanInputs::default());
-    assert_eq!(kiss.contacts.len(), 1, "{:?}", kiss.contacts);
-    let r2 = union(&kiss.body, &c, &carrying(&kiss.contacts));
-    assert_eq!(r2.contacts.len(), 2, "{:?}", r2.contacts);
-    let r3 = union(&r2.body, &e, &carrying(&r2.contacts));
+    assert_eq!(kiss.contacts().len(), 1, "{:?}", kiss.contacts());
+    let r2 = union(&kiss.body, &c, &carrying(kiss.contacts()));
+    assert_eq!(r2.contacts().len(), 2, "{:?}", r2.contacts());
+    let r3 = union(&r2.body, &e, &carrying(r2.contacts()));
     // The edge–edge record first, then the vertex pairs: each vertex
     // pair's index in the list is past 0 and past its index among the
     // vertex pairs.
     let (edges, vertices): (Vec<_>, Vec<_>) = r3
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .cloned()
         .partition(|r| matches!(r.kind(), ContactKind::EdgeEdge(..)));
-    assert_eq!((edges.len(), vertices.len()), (1, 4), "{:?}", r3.contacts);
+    assert_eq!((edges.len(), vertices.len()), (1, 4), "{:?}", r3.contacts());
     let list: ContactRecords = edges.into_iter().chain(vertices).collect();
     let r4 = union(&r3.body, &far, &carrying(&list));
-    assert_eq!(r4.contacts.len(), 5, "{:?}", r4.contacts);
+    assert_eq!(r4.contacts().len(), 5, "{:?}", r4.contacts());
     let mut indices = Vec::new();
     let mut depth = Vec::new();
-    for rec in r4.contacts.rows() {
+    for rec in r4.contacts().rows() {
         let [Backing::Carried { input: 0, record }] = rec.cites.iter().collect::<Vec<_>>()[..]
         else {
             panic!("one carried citation: {:?}", rec.cites)

@@ -1548,6 +1548,7 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
+        SplitOpError::Finish(SplitFinishError::Carry { .. }) => "carry",
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1582,6 +1583,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",
         BlendError::NotFinished { .. } => "not_finished",
+        BlendError::Carry { .. } => "carry",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::WhollyInside { .. } => "wholly_inside",
@@ -1973,6 +1975,7 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Pcurve { .. } => "pcurve",
         ShellError::RimSeamMixed { .. } => "rim_seam_mixed",
         ShellError::Join { refusal } => join_refusal_tag(refusal),
+        ShellError::Carry { .. } => "carry",
         ShellError::NotValid { .. } => "not_valid",
     }
 }

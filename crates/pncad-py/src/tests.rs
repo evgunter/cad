@@ -3771,8 +3771,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
     use pncad::topo::{
-        CensusContact, CensusSubject, CensusUnsupportedCause, ContactRefusal, EntityId,
-        ValidationError,
+        CensusContact, CensusSubject, CensusUnsupportedCause, ContactReach, ContactRefusal,
+        EntityId, ValidationError,
     };
 
     // The arm whose subject is ONE entity: the recourse is that
@@ -3787,6 +3787,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
                 what: "a glued face's surface kind is outside the Rest ladder's \
                        inventory (plane, sphere, cylinder, torus, cone)",
+                reach: ContactReach::NoLane,
             }),
         }),
         Finding {
@@ -4455,6 +4456,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
+            "carry",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -5906,6 +5908,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "shell_error_tag",
         values: &[
             "band",
+            "carry",
             "cavity_crosses",
             "cavity_uncertified",
             "chart_sense_mixed",
@@ -6084,7 +6087,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "pieces", "reduce"],
+        values: &["carry", "finish", "join", "pcurves", "pieces", "reduce"],
         delegates: &["join_refusal_tag"],
     },
     TagEntry {
@@ -6493,6 +6496,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("assertion_dimension", 2),
     ("band", 17),
+    // One fact: an operand's contact record a door's carry refuses, at
+    // the split's, the shell's and the blend's door.
+    ("carry", 3),
     // One fact: a ring meeting its outer loop and a ring meeting
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.

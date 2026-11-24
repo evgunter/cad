@@ -88,7 +88,7 @@ fn carries_the_kiss(what: &str, body: &Body<f64>, carried: &ContactRecords) {
 #[test]
 fn every_surgery_verb_carries_a_corner_kiss() {
     let base = kiss();
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
+    assert_eq!(base.contacts().len(), 1, "{:?}", base.contacts());
 
     // Key-stable: every cell is itself.
     let moved = topo::transform_rigid(
@@ -96,35 +96,15 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         &geom_core::RigidMotion::translation(Vec3::new(0.3, 0.2, 0.1)).unwrap(),
     )
     .expect("a rigid move");
-    let carried = base.contacts.carried_from(0);
+    let carried = base.contacts().carried_from(0);
     carries_the_kiss("transform_rigid", &moved, &carried);
 
     let shelled = topo::shell(&base.body, 0.1, tol()).expect("the kiss shells");
-    carries_the_kiss(
-        "shell",
-        &shelled.body,
-        &shelled
-            .carry_contacts(
-                &base.contacts,
-                geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified()),
-            )
-            .unwrap(),
-    );
+    carries_the_kiss("shell", &shelled.body, shelled.body.records());
 
     let opened = topo::shell_open(&base.body, 0.1, &[face_at_x(&base.body, 0.0)], tol())
         .expect("the kiss shells open");
-    carries_the_kiss(
-        "shell_open",
-        &opened.body,
-        &opened
-            .carry_contacts(
-                &base.contacts,
-                geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified()),
-            )
-            .unwrap(),
-    );
+    carries_the_kiss("shell_open", &opened.body, opened.body.records());
 
     let mut offset = Body::clone(&base.body);
     let face = face_at_x(&offset, 0.0);
@@ -133,7 +113,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "replace_face_offset",
         &offset,
         &outcome
-            .carry_contacts(&base.contacts, &offset, band(), region())
+            .carry_contacts(base.contacts(), &offset, band(), region())
             .unwrap(),
     );
 
@@ -143,66 +123,52 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "merge_coplanar_faces",
         &merged,
         &outcome
-            .carry_contacts(&base.contacts, &merged, band(), region())
+            .carry_contacts(base.contacts(), &merged, band(), region())
             .unwrap(),
     );
 
     // The cut at x = 1/2 leaves the kiss whole on the side above it.
     let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
-    let sides = split
-        .carry_contacts(
-            &base.contacts,
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified()),
-        )
-        .unwrap();
     let above = split.above.body().expect("material above");
-    carries_the_kiss("split above", above, &sides.above);
+    carries_the_kiss("split above", above, above.records());
     let below = split.below.body().expect("material below");
-    assert!(sides.below.is_empty(), "{:?}", sides.below);
+    assert!(below.records().is_empty(), "{:?}", below.records());
     assert_eq!(
-        validate_pseudomanifold(below, &sides.below, tol()),
+        validate_pseudomanifold(below, below.records(), tol()),
         Ok(()),
         "split below: nothing touches"
     );
 }
 
-/// **A record whose cells the cut parts is refused**, never dropped: a
-/// pair of a cell below the cut and one above it (bookkeeping, not a
-/// touch) has no side to land on. Red if the carry drops it or files it
-/// on one side. Carried across the cut it refuses too: neither face is
-/// on the cut, so it is no touch between the sides.
+/// **A record between two faces that do not meet refuses at the gate.**
+/// The kiss's two far faces, paired as a record (bookkeeping, not a
+/// touch), are read by the gate that is handed them: they rest on two
+/// carriers, and the finish refuses the record. Red where the gate takes
+/// a record on its word. (A record a cut parts off the cut is
+/// `split_along_a_pinch_face`'s: only a real touch reaches a split.)
 #[test]
-fn a_record_the_cut_parts_is_refused() {
+fn a_record_between_faces_that_do_not_meet_refuses_at_the_gate() {
     let base = kiss();
     let below = face_at_x(&base.body, 0.0);
     let above = face_at_x(&base.body, 2.0);
-    let mut records = base.contacts.clone();
+    let mut records = base.contacts().clone();
     records.extend([Cited::new(
         Contact::new(&base.body, Cell::Face(below), Cell::Face(above)).unwrap(),
         Cites::decided(7),
     )]);
-    let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
-    assert_eq!(
-        split.carry_contacts(
-            &records,
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified())
+    let refused = topo::finish(
+        topo::Built::of(Body::clone(&base.body)).recording(records),
+        tol(),
+    )
+    .expect_err("the gate reads the record and does not confirm it");
+    assert!(
+        matches!(
+            refused.as_slice(),
+            [topo::ValidationError::ContactContradicted { record, .. }]
+                if [record.a, record.b] == [below, above] || [record.a, record.b] == [above, below]
         ),
-        Err(CarryRefusal::Parted { record: 1 })
-    );
-    assert_eq!(
-        split
-            .carry_contacts_across(
-                &records,
-                geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified())
-            )
-            .map(|(_, retired)| retired),
-        Err(CarryRefusal::Parted { record: 1 }),
-        "a parted record whose cells are off the cut refuses across it too"
+        "the one record refused is the bookkeeping pair: {refused:?}"
     );
 }
 
@@ -303,12 +269,12 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     };
-    assert!(apart.contacts.is_empty(), "{:?}", apart.contacts);
+    assert!(apart.contacts().is_empty(), "{:?}", apart.contacts());
     let mut moved = Body::clone(&apart.body);
     let wall = face_at_x(&moved, 1.0);
     let outcome = topo::replace_face_offset(&mut moved, wall, 0.1, tol()).expect("an offset");
     let carried = outcome
-        .carry_contacts(&apart.contacts, &moved, band(), region())
+        .carry_contacts(apart.contacts(), &moved, band(), region())
         .unwrap();
     assert!(carried.is_empty(), "{carried:?}");
     let refused = validate_pseudomanifold(&moved, &carried, tol()).expect_err("a new touch");
@@ -332,15 +298,13 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
 fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
     let (base, top) = a_corner_resting_on_a_slab(2.0, 2.0);
     assert_eq!(
-        base.contacts.vertex_face().count(),
+        base.contacts().vertex_face().count(),
         1,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
-    let carried = opened
-        .carry_contacts(&base.contacts, band(), region())
-        .unwrap();
+    let carried = opened.body.records().clone();
     assert!(carried.is_empty(), "the record is consumed: {carried:?}");
     assert_eq!(
         validate_pseudomanifold(&opened.body, &carried, tol()),
@@ -373,7 +337,7 @@ fn a_corner_resting_on_a_slab(x: f64, y: f64) -> (BooleanBody<f64>, FaceKey) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     };
-    assert_eq!(base.contacts.len(), 1, "one rest: {:?}", base.contacts);
+    assert_eq!(base.contacts().len(), 1, "one rest: {:?}", base.contacts());
     let top = face_at_z(&base.body, 1.0);
     (base, top)
 }
@@ -390,9 +354,7 @@ fn a_corner_resting_on_a_slab(x: f64, y: f64) -> (BooleanBody<f64>, FaceKey) {
 fn a_rest_on_the_openings_boundary_lands_on_the_ring() {
     let (base, top) = a_corner_resting_on_a_slab(0.1, 2.0);
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
-    let carried = opened
-        .carry_contacts(&base.contacts, band(), region())
-        .unwrap();
+    let carried = opened.body.records().clone();
     let on_ring: Vec<_> = carried
         .rows()
         .iter()
@@ -505,9 +467,9 @@ fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
 #[test]
 fn a_record_whose_cells_map_to_one_cell_is_consumed() {
     let base = kiss();
-    let [a, b] = base.contacts.rows()[0].cells();
+    let [a, b] = base.contacts().rows()[0].cells();
     let carried = base
-        .contacts
+        .contacts()
         .carried_through(
             0,
             &topo::Lineage::new()

@@ -63,7 +63,7 @@ fn threaded_collar_partial_engagement_unions() {
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the threaded mate must be tier-3 valid: {errs:?}");
     }
-    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+    if let Err(errs) = topo::validate_pseudomanifold(&body, body.records(), Tol::witness()) {
         panic!("the threaded mate must be pseudomanifold-clean: {errs:?}");
     }
     // ONE shell, genus 0: the bore's handle is closed by the peg.

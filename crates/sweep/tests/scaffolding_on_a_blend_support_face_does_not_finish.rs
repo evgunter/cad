@@ -53,7 +53,7 @@ fn fillet(body: &Body<f64>, edges: &[EdgeKey]) -> Result<(), BlendError> {
 
 /// What the at-rest gate says of a body that does not finish.
 fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
-    topo::finish(body.clone(), Tol::witness())
+    topo::finish(topo::Built::of(body.clone()), Tol::witness())
         .map(drop)
         .expect_err("a body carrying scaffolding does not finish")
         .into_findings()

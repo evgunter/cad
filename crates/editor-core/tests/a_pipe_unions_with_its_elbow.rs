@@ -457,8 +457,9 @@ fn built(j: &Joined) -> Built {
     let body = crate::corpus::body_of(&j.ev, j.union);
     let none = ContactRecords::default();
     let value = j.ev.value(j.union).expect("a value");
+    let held = value.contacts();
     let contacts = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => &*value.carry.contacts,
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => &held,
         _ => &none,
     };
     let finished = topo::test_support::finished("the union", body.clone(), Tol::witness());

@@ -398,7 +398,7 @@ impl BlendNaming {
     /// # Errors
     ///
     /// As [`topo::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: topo::AtRestPolicy>(
+    pub(super) fn carry_contacts<T: topo::AtRestPolicy>(
         &self,
         records: &topo::ContactRecords,
         body: &topo::Body<T>,

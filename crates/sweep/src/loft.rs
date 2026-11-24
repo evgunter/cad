@@ -210,7 +210,8 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             section_params,
         } = self;
         Ok(Lofted {
-            body: T::leaf(body, tol).map_err(|findings| LoftError::NotFinished { findings })?,
+            body: T::leaf(topo::Built::of(body), tol)
+                .map_err(|findings| LoftError::NotFinished { findings })?,
             solid,
             shell,
             top,

@@ -230,7 +230,7 @@ fn n2r2_class2_tessellate() {
 #[test]
 fn n2r2_class1_step_export() {
     let (body, _, _) = masqueraded(poison_x);
-    let body = match topo::finish(body, tol()) {
+    let body = match topo::finish(topo::Built::of(body), tol()) {
         Ok(body) => body,
         Err(e) => {
             eprintln!("[class 1 x-poison] at-rest gate -> Err: {e:?}");
@@ -284,7 +284,7 @@ fn n2r2_class10_replace_face_offset() {
 /// CARTESIAN_POINT coordinate, re-import.
 #[test]
 fn n2r2_class12_step_import_overflow_real() {
-    let body = topo::finish(loft(), tol()).expect("the loft is at rest");
+    let body = topo::finish(topo::Built::of(loft()), tol()).expect("the loft is at rest");
     let doc = step_export::step_string(&body, &step_export::StepOptions::default(), tol()).unwrap();
     // Find a CARTESIAN_POINT line and replace its first coordinate:
     // `#n = CARTESIAN_POINT('', (x, y, z));`

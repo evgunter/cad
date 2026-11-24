@@ -1368,15 +1368,17 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // tier-3 battery over the same body (its own product is the marks
     // channel). A gate grown there would be a third entry wearing a
     // fourth name.
-    // `topo::finish` is the scalar's finish, the tier-3 door `gate`
-    // goes through: the same battery under the one constructor of a
-    // finished body. `census_at_rest` is tier 3′'s census over a
-    // finished body, the rest of `validate_pseudomanifold`.
-    const DOORS: [&str; 5] = [
+    // `topo::finish` is the scalar's finish, the door `gate` goes
+    // through: the battery under the one constructor of a finished body.
+    // `topo::finish_assembled` is the same constructor as a `⊔`'s gate,
+    // its census the deciding operation between the file's solids, the
+    // door `gate3` goes through.
+    const DOORS: [&str; 6] = [
         "validate_geometric",
         "validate_pseudomanifold",
         "contact_marks",
         "topo::finish(",
+        "topo::finish_assembled(",
         "census_at_rest",
     ];
     for path in test_utils::source::rust_sources(&src) {
@@ -1388,13 +1390,13 @@ fn exactly_one_validation_call_site_in_the_reader() {
         }
     }
     // Two doors, still zero opinions: the finish (`gate`) and the
-    // aggregate's census over the finished body (`gate3`). Anything
+    // aggregate's finish, whose census records (`gate3`). Anything
     // beyond these two is validation logic growing in the reader.
     assert_eq!(
         sites.len(),
         2,
         "the reader must call the kernel's at-rest validators at exactly the two named \
-         doors — the finish (`gate`) and the aggregate's census (`gate3`). Every \
+         doors — the finish (`gate`) and the aggregate's finish (`gate3`). Every \
          spelling of both door families is counted, and so is `contact_marks`, which \
          runs the same battery; what is NOT counted is a battery hand-composed out of \
          non-gate parts (see this row's docs): {sites:?}"

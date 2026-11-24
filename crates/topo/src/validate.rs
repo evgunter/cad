@@ -4431,9 +4431,26 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             "whether the faces touch is too close to call",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
-        ContactRefusal::NotCertifiable { .. } => (
-            "the kernel cannot yet check a contact between faces of these kinds",
+        // No reading covers the kind: a record of it is held, so this
+        // sentence is a report, and there is nothing for its reader to
+        // do.
+        ContactRefusal::NotCertifiable {
+            reach: crate::contact::ContactReach::NoLane,
+            ..
+        } => (
+            "the kernel cannot yet check a contact between faces of these kinds, and holds a \
+             record of one on its citation",
             NOT_YET_ENDING,
+        ),
+        // A reading ran and did not decide: the body that holds the
+        // record refuses, so the sentence ends with the way out for
+        // each of a record's sources.
+        ContactRefusal::NotCertifiable {
+            reach: crate::contact::ContactReach::Unread,
+            ..
+        } => (
+            "the kernel read this contact and could not decide it",
+            crate::contact::UNREAD_CONTACT_RECOURSE,
         ),
     }
 }
@@ -5175,8 +5192,9 @@ impl ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration, \
-                 or move the geometry so the contact exists"
+                 Recourse: where you declared the contact, remove that declaration, \
+                 or move the geometry so the contact exists; where an operation \
+                 recorded it, this is a kernel defect: report it"
             ),
             Self::ContactContradicted { record, verdict } => write!(
                 f,
@@ -10635,6 +10653,61 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
+/// **The bar a finished body's gate paid on its contact records**
+/// ([`AtRestBody::bar`]; `[topology.tiers]`: a result "names the bar it
+/// paid (tier 3, or 3′) rather than letting one verdict mean both").
+///
+/// No gate yet searches a body for a meeting its records do not state
+/// (`work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`),
+/// so tier 3′ here is tier 3′ over what the body holds and, at a `⊔`,
+/// between its arrivals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bar {
+    /// **Tier 3.** The body holds no record the census confirmed
+    /// against a search: either it holds none and nothing was read past
+    /// tier 3, or at least one record it holds is held on its citation
+    /// alone, the census having no lane that reads its pair.
+    Tier3,
+    /// **Tier 3′ over its records.** The census read every record the
+    /// body holds and confirmed each; at a `⊔` of two arrivals or more,
+    /// it also decided every meeting between two arrivals.
+    Tier3Prime,
+}
+
+impl Bar {
+    /// **A deciding door's gate's**, from its reading of the records it
+    /// was handed, `holds_none` where it was handed none. It takes the
+    /// reading, so no bar is named before the records are read.
+    fn of_gate(holds_none: bool, read: &crate::census::Confirmation) -> Self {
+        if holds_none || !read.no_lane.is_empty() {
+            Self::Tier3
+        } else {
+            Self::Tier3Prime
+        }
+    }
+
+    /// **A `⊔`'s gate's**, from its reading of what the arrivals
+    /// carried (`carried_none` where they carried none) and from the
+    /// census it ran between them, `joined` arrivals: tier 3′ only where every carried record confirmed, the
+    /// census had something to decide (two arrivals, or a record), and
+    /// it left no finding. It takes the census's finished report, so a
+    /// join's bar cannot be named ahead of the reading that decides it,
+    /// which is how one came to stand beside an undecided meeting.
+    fn of_join(
+        carried_none: bool,
+        read: &crate::census::Confirmation,
+        census: &crate::census::RecordedAtRest,
+        joined: usize,
+    ) -> Self {
+        let decided = joined >= 2 || !carried_none;
+        if decided && read.no_lane.is_empty() && census.findings.is_empty() {
+            Self::Tier3Prime
+        } else {
+            Self::Tier3
+        }
+    }
+}
+
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10667,6 +10740,42 @@ pub fn validate_pseudomanifold_certificate_structural<
 ///
 /// [`AtRestPolicy::finish`]: crate::AtRestPolicy::finish
 ///
+/// **Nothing outside the gate pairs a body with records and calls the
+/// pair finished.** The fields are private, so no literal builds one:
+///
+/// ```compile_fail,E0451
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let records = topo::ContactRecords::default();
+/// let _ = topo::AtRestBody { body, records };
+/// ```
+///
+/// and the constructors behind `finish` and `finish_assembled` are the
+/// crate's own:
+///
+/// ```compile_fail,E0624
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let _ = topo::AtRestBody::validate(topo::Built::of(body), geom_core::Tol::witness());
+/// ```
+///
+/// ```compile_fail,E0624
+/// let assembled = topo::Assembled::<f64>::new(
+///     topo::Body::new(),
+///     topo::ContactRecords::default(),
+///     std::sync::Arc::new(|_| None),
+/// );
+/// let _ = topo::AtRestBody::validate_assembled(assembled, geom_core::Tol::witness());
+/// ```
+///
+/// A finished body's records change only in what they cite
+/// ([`crate::FinishedBody::try_recite`]); no door hands one a record its
+/// gate did not read:
+///
+/// ```compile_fail,E0599
+/// fn add(body: &mut topo::AtRestBody<f64>, record: topo::Cited<topo::Contact>) {
+///     body.records_mut().extend([record]);
+/// }
+/// ```
+///
 /// **A sweep leaf's finish record** (`AtRestPolicy::leaf`, the box
 /// scalars' switch): at `f64` and `Probe` a door behind the switch (the
 /// sweep doors, the twist, the mirror, the `⊔` graft) finishes its leaf
@@ -10678,11 +10787,15 @@ pub fn validate_pseudomanifold_certificate_structural<
 #[derive(Clone)]
 pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     body: Body<T>,
+    records: crate::boolean::ContactRecords,
+    bar: Bar,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
-impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
+impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::CertifiedBounds>
+    AtRestBody<T>
+{
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
     /// certifying scalars' [`crate::AtRestPolicy::finish`]. Every decision
     /// it takes is a check ([`geom_core::k_stats::checking`]): it reads a
@@ -10692,20 +10805,148 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     ///
     /// As [`validate_geometric`], verbatim; the body is dropped with the
     /// refusal.
-    pub(crate) fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
-    where
-        T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
-    {
+    pub(crate) fn validate(
+        built: crate::finish::Built<T>,
+        tol: Tol,
+    ) -> Result<Self, Vec<ValidationError>> {
         crate::finish::count_finish();
+        let crate::finish::Built { body, records } = built;
         let sign = std::sync::Arc::new(
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
+        // The records, each read where it lies: one the census read and
+        // did not confirm refuses; one no lane reads is held on its
+        // citation, and the bar says so.
+        let read = crate::census::confirm_only(
+            &body,
+            &records,
+            linear_band(tol)?,
+            Some(CertifiedLanes::<T>::held().region),
+        );
+        if !read.refused.is_empty() {
+            return Err(read.refused);
+        }
+        let bar = Bar::of_gate(records.is_empty(), &read);
         Ok(Self {
             body,
+            records,
+            bar,
             sign,
             held: None,
         })
+    }
+
+    /// **Tier 3 over a `⊔`'s graft, then its census as the deciding
+    /// operation** ([`crate::census::record_at_rest`]): the certifying
+    /// scalars' [`crate::AtRestPolicy::finish_assembled`]. The finished
+    /// body holds the records its arrivals carried and each touch the
+    /// census recorded between two of them; what the census reports
+    /// besides is handed back, and none of it refuses.
+    ///
+    /// # Errors
+    ///
+    /// As [`validate_geometric`], verbatim, and the band's.
+    pub(crate) fn validate_assembled(
+        assembled: crate::finish::Assembled<T>,
+        tol: Tol,
+    ) -> Result<crate::finish::Censused<T>, Vec<ValidationError>> {
+        crate::finish::count_finish();
+        let crate::finish::Assembled {
+            body,
+            carried,
+            arrivals,
+            first_row,
+        } = assembled;
+        let sign = std::sync::Arc::new(
+            geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
+                .into_parts(),
+        );
+        let band = linear_band(tol)?;
+        let region = CertifiedLanes::<T>::held().region;
+        // What the arrivals carried in, confirmed where the graft put it
+        // as a deciding door's gate confirms its own: a record that does
+        // not confirm here is the graft's defect, and refuses.
+        let read = crate::census::confirm_only(&body, &carried, band, Some(region));
+        if !read.refused.is_empty() {
+            return Err(read.refused);
+        }
+        let recorded = crate::census::record_at_rest(
+            &body,
+            &carried,
+            |records| crate::census::census_and_certify(&body, records, band, tol, Some(region)),
+            &|solid| arrivals.get(&solid).copied(),
+            first_row,
+        );
+        let joined = arrivals
+            .values()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        let bar = Bar::of_join(carried.is_empty(), &read, &recorded, joined);
+        // A record the census minted beside a finding is still a touch
+        // it decided, with its row, and is held; what the findings take
+        // away is the bar ([`crate::census::RecordedAtRest::records`]).
+        let mut records = carried;
+        records.extend(recorded.records.rows().iter().cloned());
+        Ok(crate::finish::Censused {
+            body: Self {
+                body,
+                records,
+                bar,
+                sign,
+                held: None,
+            },
+            rows: recorded.rows,
+            findings: recorded.findings,
+        })
+    }
+}
+
+impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
+    /// **Its contact records**: the ones its gate confirmed
+    /// ([`crate::FinishedBody::records`]).
+    #[must_use]
+    pub fn records(&self) -> &crate::boolean::ContactRecords {
+        &self.records
+    }
+
+    /// **The bar its gate paid on its records** ([`Bar`]). A move keeps
+    /// it: an isometry changes no reading.
+    #[must_use]
+    pub const fn bar(&self) -> Bar {
+        self.bar
+    }
+
+    /// This body, the image of `source` under an isometry and finished
+    /// again where it stands, at the bar `source`'s gate paid: an
+    /// isometry changes no reading, and the image's gate, which reads
+    /// the records again, does not see what a `⊔`'s census decided
+    /// between the source's arrivals. It takes the source, not a bar,
+    /// so no caller names a bar no gate computed.
+    pub(crate) fn at_the_bar_of(self, source: &Self) -> Self {
+        Self {
+            bar: source.bar,
+            ..self
+        }
+    }
+
+    /// **Maps its records' citations**
+    /// ([`crate::ContactRecords::try_recited`]): each record keeps its
+    /// two cells, which are what the gate confirmed, and cites what `f`
+    /// makes of each citation. A citation names a row or a record of the
+    /// op that holds the body, so a holder that renumbers those re-cites
+    /// here. A refusal leaves it as it was.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::ContactRecords::try_recited`].
+    pub(crate) fn try_recite<E>(
+        &mut self,
+        f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<(), E> {
+        self.records = self.records.clone().try_recited(f, uncited)?;
+        Ok(())
     }
 
     /// **This finished body holding its finish's record** for the taker
@@ -10740,6 +10981,8 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         let body = crate::finish::moved_and_asked(&self.body, iso, true, tol)?;
         Ok(Self {
             body,
+            records: self.records.clone(),
+            bar: self.bar,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
             held: self.held.clone(),
         })
@@ -10832,9 +11075,17 @@ impl<T: crate::props::AtRestPolicy> fmt::Debug for AtRestBody<T> {
     /// The body, its certificate as [`crate::SignCertificate`]'s render
     /// reads it over this body, and whether it holds a finish record.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { body, sign, held } = self;
+        let Self {
+            body,
+            records,
+            bar,
+            sign,
+            held,
+        } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
+            .field("records", records)
+            .field("bar", bar)
             .field("sign", &sign.of(body))
             .field("held", &held.is_some())
             .finish()
@@ -17915,6 +18166,7 @@ mod tests {
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
                 what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
+                reach: crate::contact::ContactReach::NoLane,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -17923,6 +18175,24 @@ mod tests {
         // append there was a false lead, and its absence is the fix
         // rather than a loss.
         assert!(!contact.contains("separate the geometry"), "{contact}");
+        assert!(
+            contact.contains("holds a record of one on its citation"),
+            "a kind no reading covers says its record is held: {contact}"
+        );
+        // A reading that ran and did not decide refuses the body, and
+        // says what each source of the record does about it.
+        let unread = says(CensusUnsupportedCause::ContactLane(
+            ContactRefusal::NotCertifiable {
+                what: "a face of the face-face record has no extent to read",
+                reach: crate::contact::ContactReach::Unread,
+            },
+        ));
+        assert!(
+            unread.contains("the kernel read this contact and could not decide it")
+                && unread.contains("remove that declaration")
+                && unread.contains("this is a kernel defect: report it"),
+            "{unread}"
+        );
         let unboundable = ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
@@ -17980,7 +18250,10 @@ mod tests {
         );
         let contact = ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(EdgeKey::default())),
-            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what,
+                reach: crate::contact::ContactReach::NoLane,
+            }),
         }
         .render(geom_brep::recourse::Reading::AtRest);
         assert!(
@@ -19045,7 +19318,7 @@ mod door_roster {
                 major_radius,
                 minor_radius: 0.5,
             };
-            crate::AtRestBody::validate(body, tol)
+            crate::AtRestBody::validate(crate::Built::of(body), tol)
                 .err()
                 .unwrap_or_default()
                 .into_iter()
@@ -19108,7 +19381,7 @@ mod door_roster {
             major_radius,
             minor_radius,
         };
-        crate::AtRestBody::validate(body, tol)
+        crate::AtRestBody::validate(crate::Built::of(body), tol)
             .err()
             .unwrap_or_default()
             .into_iter()
@@ -19236,6 +19509,96 @@ mod door_roster {
         }
         let findings = brick_face_on_a_sheet(top, center, major, minor);
         assert_eq!(reached(&findings).len(), 2, "{findings:?}");
+    }
+}
+
+/// **A finished body holding a record no gate confirmed**, for the rows
+/// that pin a door's gate reading the records its carry lands. No door
+/// stages one: a finished operand holds no record its own gate did not
+/// confirm, and a `⊔` takes its records off its arrivals. So this
+/// writes one into a finished body's fields, which only this module can
+/// reach, and is compiled for tests alone (the `test-support` feature
+/// for the crates above this one).
+#[cfg(any(test, feature = "test-support"))]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+pub mod unconfirmed {
+    use super::*;
+    use crate::test_support_fixtures::brick;
+    use crate::{BooleanResult, Cell, Cited, Cites, Contact, union};
+
+    /// `finished` holding `extra` beside its own records, unread.
+    #[must_use]
+    pub fn holding<T: crate::props::AtRestPolicy>(
+        finished: &AtRestBody<T>,
+        extra: crate::ContactRecords,
+    ) -> AtRestBody<T> {
+        let mut records = finished.records.clone();
+        records.extend(extra.rows().iter().cloned());
+        AtRestBody {
+            records,
+            ..finished.clone()
+        }
+    }
+
+    /// Two cubes kissing at (1, 1, 1), finished, holding the kiss and a
+    /// record of the first cube's `x = 0` face on the second's `x = 2`
+    /// face, which do not meet.
+    #[must_use]
+    pub fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
+        let at_rest = |b| crate::finish(b, tol).unwrap();
+        let a = at_rest(crate::Built::of(brick::<f64>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        )));
+        let b = at_rest(crate::Built::of(brick::<f64>(
+            (1.0, 2.0),
+            (1.0, 2.0),
+            (1.0, 2.0),
+            tol,
+        )));
+        let BooleanResult::Body(kiss) = union(&a, &b, tol).unwrap() else {
+            panic!("the kiss is empty");
+        };
+        let face_at_x = |x: f64| {
+            kiss.body
+                .faces()
+                .find(|(f, _)| {
+                    kiss.body.face(*f).is_some_and(|face| {
+                        matches!(
+                            face.surface(),
+                            crate::Surface::Plane { frame }
+                                if frame.axis().x.abs() == 1.0 && frame.origin().x == x
+                        )
+                    })
+                })
+                .map(|(f, _)| f)
+                .unwrap()
+        };
+        let mut records = kiss.body.records().clone();
+        records.extend([Cited::new(
+            Contact::new(
+                &kiss.body,
+                Cell::Face(face_at_x(0.0)),
+                Cell::Face(face_at_x(2.0)),
+            )
+            .unwrap(),
+            Cites::decided(7),
+        )]);
+        AtRestBody {
+            records,
+            ..kiss.body.clone()
+        }
+    }
+
+    /// Whether `findings` are the one false record, refused.
+    #[must_use]
+    pub fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
+        matches!(
+            findings.as_slice(),
+            [ValidationError::ContactContradicted { .. }]
+        )
     }
 }
 

@@ -137,7 +137,7 @@ fn touches(
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::test_support::pinned_volume(
         "the measured body",
@@ -552,5 +552,91 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
             "{what}: volume {v}, the first order's {want}"
         );
         touches(&doc, what, &members, (plate, rod), 1, v, 2);
+    }
+}
+
+/// **A document's cut refuses a record its gate does not confirm.** A
+/// pocket of radius 0.5 about (0, 1.5), half the plate's height, tangent
+/// to the plate's y = 2 face from inside: the cut records the crescent
+/// between the pocket's wall and that face as a tangency, the gate reads
+/// the pair as an overlap, and the node refuses on that one record
+/// (`work/heldrecords/a-cut-by-a-rod-tangent-from-inside-records-its-material-crescent-as-a-tangent-contact.md`).
+/// Red where a gate takes the records it is handed on their word: the
+/// cut evaluates, holding the record.
+#[test]
+fn a_cut_whose_record_its_gate_contradicts_refuses_at_the_node() {
+    let (doc, plate) = plate();
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle_split(0.0, 1.5, 0.5, 2, 0.0).expect("a finite circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, pocket) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+        },
+    );
+    let (doc, pocket) = against(
+        doc,
+        plate,
+        pocket,
+        &axes_at([0.0, 0.0, 0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: plate.into(),
+            tool: pocket.into(),
+        },
+    );
+    let ev = run(&doc);
+    let refused = failure(&ev, cut).expect("the cut refuses");
+    let text = format!("{refused:?}");
+    assert!(
+        text.contains("ResultInvalid") && text.matches("ContactContradicted").count() == 1,
+        "the cut refuses on its one contradicted record: {text}"
+    );
+}
+
+/// **A record past the certifier's set is held on its citation, and the
+/// union names tier 3** (`[topology.tiers]`). The leaning rod on the
+/// plate alone: the census confirms the tangency over the pair's own
+/// extent, and the union is tier 3′ over its records. With the 298-long
+/// neighbour merged into the plate's face, no closed-form tangent locus
+/// spans the merged face, so the census has no lane that reads the
+/// recorded pair: the union holds the record as its fold step cited it,
+/// and its bar is tier 3
+/// (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
+/// Red where the gate refuses a record no lane reads, or where it holds
+/// one and still names tier 3′.
+#[test]
+fn a_record_no_lane_reads_is_held_at_tier_3() {
+    let (doc, plate) = plate();
+    let (doc, rod) = leaning_rod(doc, plate, 0.1 * Tol::witness().eps());
+    let (doc, long) = block_on(doc, plate, (2.0, 300.0), (-2.0, 2.0), 0.0, 1.0);
+    for (what, members, bar) in [
+        ("plate, rod", vec![plate, rod], topo::Bar::Tier3Prime),
+        ("plate, long, rod", vec![plate, long, rod], topo::Bar::Tier3),
+        ("rod, plate, long", vec![rod, plate, long], topo::Bar::Tier3),
+    ] {
+        let (doc, u) = union_over(doc.clone(), &members);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{what}: refused: {e:?}");
+        }
+        let value = ev.value(u).expect("the union evaluated");
+        let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+            panic!("{what}: not a boolean body");
+        };
+        let finished = body
+            .holding()
+            .finished(Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: a union's body is finished: {e:?}"));
+        assert_eq!(finished.bar(), bar, "{what}");
     }
 }

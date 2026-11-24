@@ -515,7 +515,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body { body, kind } => {
                     let contacts = canonical(
-                        &KeyFree::new(body.body()).resolved(format!("{:?}", value.carry.contacts)),
+                        &KeyFree::new(body.body()).resolved(format!("{:?}", value.contacts())),
                     );
                     feed(format!("{kind:?}{}", id_free(ev, &contacts)).as_bytes());
                     feed_body(&mut feed, &super::in_space(body));

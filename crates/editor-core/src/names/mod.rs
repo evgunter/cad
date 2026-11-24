@@ -104,7 +104,7 @@ pub use table::{
 };
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
-pub use topo::{CONTACT_RECOURSE, ContactPair, ContactRefusal};
+pub use topo::{CONTACT_RECOURSE, ContactPair, ContactReach, ContactRefusal};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

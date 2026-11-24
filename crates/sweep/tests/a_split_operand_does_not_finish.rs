@@ -20,7 +20,8 @@ fn a_split_cube_does_not_finish() {
         .unwrap()
         .params();
     let split = cube.split_edge(edge, (t0 + t1) * 0.5, tol).unwrap();
-    let refused = topo::finish(cube, tol).expect_err("a split vertex is construction state");
+    let refused =
+        topo::finish(topo::Built::of(cube), tol).expect_err("a split vertex is construction state");
     assert_eq!(
         refused.into_findings(),
         vec![ValidationError::JoinableVertexAtRest {

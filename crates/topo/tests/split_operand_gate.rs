@@ -47,7 +47,7 @@ fn mid_height<T: Decide>() -> SplitPlane<T> {
 
 /// `body` finished at a dual: tier 2 alone.
 fn replay(body: Body<Dual64>) -> Replay<Dual64> {
-    topo::finish(body, Tol::witness()).expect("tier 2 passes")
+    topo::finish(topo::Built::of(body), Tol::witness()).expect("tier 2 passes")
 }
 
 /// **At a certifying scalar the inside-out wedge does not finish**: the
@@ -71,10 +71,13 @@ fn the_inside_out_wedge_does_not_finish_at_f64_or_interval() {
         "the clockwise wedge encloses minus its area times its height: {volume}"
     );
     for (scalar, errors) in [
-        ("f64", topo::finish(wedge::<f64>(false), tol).map(|_| ())),
+        (
+            "f64",
+            topo::finish(topo::Built::of(wedge::<f64>(false)), tol).map(|_| ()),
+        ),
         (
             "Interval",
-            topo::finish(wedge::<Interval>(false), tol).map(|_| ()),
+            topo::finish(topo::Built::of(wedge::<Interval>(false)), tol).map(|_| ()),
         ),
     ] {
         let errors = errors.expect_err("an inside-out body is not a finished body");
@@ -146,7 +149,8 @@ fn an_inside_out_part_beside_an_ordinary_one_does_not_finish() {
         .filter(|&k| parts.faces_of_solid(k).map(|f| f.len()) == Some(5))
         .collect();
     assert_eq!(wedge_solid.len(), 1, "one solid is the five-faced wedge");
-    let errors = topo::finish(parts, tol).expect_err("an inside-out part is not finished");
+    let errors =
+        topo::finish(topo::Built::of(parts), tol).expect_err("an inside-out part is not finished");
     assert!(
         errors.contains(&ValidationError::NegativeVolume {
             solid: wedge_solid[0]
@@ -175,7 +179,7 @@ fn an_inside_out_shell_under_one_solid_does_not_finish_at_f64() {
         .filter(|&sh| one_solid.get_shell(sh).map(|s| s.faces.len()) == Some(5))
         .collect();
     assert_eq!(wedge_shell.len(), 1, "one shell is the five-faced wedge");
-    let errors = topo::finish(one_solid, tol)
+    let errors = topo::finish(topo::Built::of(one_solid), tol)
         .map(|_| ())
         .expect_err("an inside-out shell is not a finished body");
     assert!(
@@ -197,7 +201,8 @@ fn a_reduced_body_does_not_finish_at_a_dual_on_its_null_edges() {
     let red = split_reduce(&replay(wedge::<Dual64>(true)), &mid_height::<Dual64>(), tol)
         .expect("the outward wedge reduces");
     assert!(!red.null_edges.is_empty(), "the reduction mints null edges");
-    let errors = topo::finish(red.body, tol).expect_err("null edges are tier 2's scaffolding");
+    let errors = topo::finish(topo::Built::of(red.body), tol)
+        .expect_err("null edges are tier 2's scaffolding");
     assert!(
         errors
             .iter()

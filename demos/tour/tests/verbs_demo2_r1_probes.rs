@@ -237,6 +237,6 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    pncad::topo::finish(body, tol)
+    pncad::topo::finish(pncad::topo::Built::of(body), tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

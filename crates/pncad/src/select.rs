@@ -90,17 +90,18 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactRefusal, CrossingSensesShape, CurveKind,
-    CurveKindSet, Denotation, DisagreeShape, DuplicateName, EntityKind, EntityNamed, GeomPred,
-    InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NamingError, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces,
-    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
-    SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,
-    Selector, Sense, ShortTie, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, UnionNameShape,
-    WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
-    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, family_entity, leaf_role, member_entity, member_table, meridian_vertex,
-    one_body, role_leaf, select, select_member, select_where, select_where_member, vertex_position,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactReach, ContactRefusal,
+    CrossingSensesShape, CurveKind, CurveKindSet, Denotation, DisagreeShape, DuplicateName,
+    EntityKind, EntityNamed, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole,
+    PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath,
+    RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape, SeatingRefusal,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf,
+    StepId, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
+    edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
+    family_entity, leaf_role, member_entity, member_table, meridian_vertex, one_body, role_leaf,
+    select, select_member, select_where, select_where_member, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class" — the last part of a vocabulary this list already carried the

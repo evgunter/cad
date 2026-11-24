@@ -156,7 +156,25 @@ pub enum ContactRefusal {
     NotCertifiable {
         /// Why the configuration is outside the lane.
         what: &'static str,
+        /// Whether anything was read of it ([`ContactReach`]), stated where
+        /// the refusal is raised.
+        reach: ContactReach,
     },
+}
+
+/// **What stands behind a [`ContactRefusal::NotCertifiable`]**, stated
+/// by the site that raises it. A gate reads it to tell a pair nothing
+/// can speak to from a reading that ran and did not decide: only the
+/// first is a record it may hold on its citation
+/// (`[topology.tiers]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContactReach {
+    /// No reading the kernel has speaks to the configuration: its
+    /// kinds are outside every lane's set, and nothing was measured.
+    NoLane,
+    /// A reading ran, or was handed input it could not read, and did
+    /// not decide.
+    Unread,
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -175,6 +193,13 @@ pub enum ContactRefusal {
 // [`Self::NotCertifiable`] carries no recourse: moving the geometry
 // within the band does not move a configuration inside the certifiable
 // set, and `what` is the only honest steering there is.
+/// What follows a contact a reading ran on and did not decide
+/// ([`ContactReach::Unread`]), for both of a record's sources, as a
+/// stale record's text ends ([`crate::ValidationError::StaleContactDeclaration`]).
+pub const UNREAD_CONTACT_RECOURSE: &str = "Recourse: where you declared the contact, remove that \
+     declaration, or move the geometry so the contact is one the kernel reads; where an \
+     operation recorded it, this is a kernel defect: report it";
+
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -183,9 +208,26 @@ impl core::fmt::Display for ContactRefusal {
                 "whether the faces touch escalated ({}); {CONTACT_RECOURSE}",
                 diag.payload()
             ),
-            Self::NotCertifiable { what } => {
-                write!(f, "this contact cannot be certified ({what})")
-            }
+            // The two reaches end differently because a gate does: a
+            // record no reading covers is held, one a reading did not
+            // decide refuses its body, and that text owes its reader the
+            // way out.
+            Self::NotCertifiable {
+                what,
+                reach: ContactReach::NoLane,
+            } => write!(
+                f,
+                "this contact cannot be certified: no reading covers a contact of this kind \
+                 ({what}), so a record of it is held on its citation"
+            ),
+            Self::NotCertifiable {
+                what,
+                reach: ContactReach::Unread,
+            } => write!(
+                f,
+                "this contact cannot be certified: its reading ran and did not decide ({what}). \
+                 {UNREAD_CONTACT_RECOURSE}"
+            ),
         }
     }
 }
@@ -309,6 +351,16 @@ pub enum Uncertified {
 }
 
 impl Uncertified {
+    /// What stands behind it: the lane's own boundary reads nothing; a
+    /// span bound the schedule did not reach is a reading that ran.
+    #[must_use]
+    pub const fn reach(self) -> ContactReach {
+        match self {
+            Self::OutsideLane | Self::NoSpanBounds => ContactReach::NoLane,
+            Self::SagUnreached => ContactReach::Unread,
+        }
+    }
+
     /// Why, as a clause.
     #[must_use]
     pub const fn what(self) -> &'static str {

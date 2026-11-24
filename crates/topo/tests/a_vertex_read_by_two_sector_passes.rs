@@ -190,7 +190,7 @@ fn three_prime(
     ray: Option<[f64; 3]>,
     glued: Option<[[f64; 3]; 4]>,
 ) -> bool {
-    let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
+    let Err(errors) = validate_pseudomanifold(&r.body, r.contacts(), t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
@@ -423,6 +423,13 @@ fn builds_along(
 ///   wedges overlap, which every tier passed. They return with the
 ///   re-pairing
 ///   (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+/// - `ResultInvalid`: in `y − x` the cutter's apex is at the point
+///   where the lying pyramid's vertex rests on the top, and lands on the
+///   top's boundary there. Both recorded cells keep their keys, the
+///   cut's carry lands their record again, and the result's gate reads
+///   it stale, that finding alone ([`pinned`]): the touch is on the
+///   face's boundary now
+///   (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. The pyramid out the bottom of the glued
 ///   blocks: `y − x` leaves an edge in the glued face, which its
@@ -445,14 +452,34 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
         "a pyramid through the glued faces, out the bottom, y − x",
         BooleanErrorKind::EdgeInFace,
     ),
+    (
+        "under the lying pyramid's ray, y − x",
+        BooleanErrorKind::ResultInvalid,
+    ),
+    (
+        "continuing the lying pyramid's face, y − x",
+        BooleanErrorKind::ResultInvalid,
+    ),
 ];
 
 /// Whether `e` is the refusal [`REFUSING`] names for the cell.
 fn pinned(label: &str, op: &str, e: &BooleanError) -> bool {
     let key = format!("{label}, {op}");
-    REFUSING
-        .iter()
-        .any(|&(cell, kind)| cell == key && e.kind() == kind)
+    // The result gate's pins are on one finding alone, the record read
+    // stale: the day either reader of that pair changes its answer, the
+    // cell refuses on something else and the pin goes red.
+    let stale = matches!(
+        e,
+        BooleanError::ResultInvalid { findings } if matches!(
+            findings.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration {
+                declaration: topo::StaleDeclaration::VertexOnFace { .. },
+            }]
+        )
+    );
+    REFUSING.iter().any(|&(cell, kind)| {
+        cell == key && e.kind() == kind && (kind != BooleanErrorKind::ResultInvalid || stale)
+    })
 }
 
 /// A cell [`REFUSING`] names that builds is a pin gone stale.
@@ -1124,14 +1151,15 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
 /// the arches' faces part around the ray, so the edge is on the solid's
 /// (`vtxfac::along_partners`). The pyramid lies outside both arches,
 /// inside the wedge between their far faces, or with a face in each,
-/// at every pose. Tier 3′ holds in one result of the first pyramid and
+/// at every pose. Tier 3′ holds in all four results of the first
+/// pyramid, the plain doors carrying the arches' own records in, and in
 /// three of each other, at every pose; elsewhere it refuses only as
 /// [`three_prime`] allows.
 /// Slow set; the row below is its per-PR pose.
 #[test]
 fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
     for pose in &poses() {
-        for (shape, held) in ARCH_PYRAMIDS.iter().zip([1, 3, 3]) {
+        for (shape, held) in ARCH_PYRAMIDS.iter().zip([4, 3, 3]) {
             assert_eq!(
                 along_two_arches_shared_ray(pose, shape),
                 held,
@@ -1148,7 +1176,7 @@ fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
 fn a_touching_vertex_along_two_arches_shared_ray_builds_at_rest() {
     assert_eq!(
         along_two_arches_shared_ray(&Pose::rest(), &ARCH_PYRAMIDS[0]),
-        1
+        4
     );
 }
 
@@ -1529,7 +1557,7 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
             let Ok(BooleanResult::Body(r)) = r else {
                 panic!("{what}: builds, got {:?}", r.map(|_| ()));
             };
-            let errors = validate_pseudomanifold(&r.body, &r.contacts, t()).err();
+            let errors = validate_pseudomanifold(&r.body, r.contacts(), t()).err();
             let pairs: Vec<_> = errors
                 .iter()
                 .flatten()
@@ -1818,7 +1846,15 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
-                let pins = (f64::abs(k) < 1.0).then_some(label);
+                // Off the top past the band the apex still rests on it,
+                // recorded, so the cut under it refuses as it does in
+                // band (`REFUSING`'s `ResultInvalid` cells).
+                let stale = [
+                    "under the lying pyramid's ray",
+                    "continuing the lying pyramid's face",
+                ]
+                .contains(&label);
+                let pins = (f64::abs(k) < 1.0 || stale).then_some(label);
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses((&label, pins), x, &y, &pose, &|e| {
                     matches!(e, BooleanError::Escalated { .. })

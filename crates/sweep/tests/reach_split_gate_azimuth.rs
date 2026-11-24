@@ -459,7 +459,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
             let at_rest = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
                 .map_err(|e| format!("posing it refused ({e})"))
                 .and_then(|posed| {
-                    topo::finish(posed, tol)
+                    topo::finish(topo::Built::of(posed), tol)
                         .map_err(|e| format!("the posed body is not finished ({e:?})"))
                 });
             match at_rest {

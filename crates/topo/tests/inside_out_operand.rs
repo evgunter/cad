@@ -59,7 +59,7 @@ fn refused_inside_out<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     body: &Body<T>,
     inside_out: usize,
 ) {
-    let errors = topo::finish(body.clone(), Tol::witness())
+    let errors = topo::finish(topo::Built::of(body.clone()), Tol::witness())
         .expect_err("an inside-out body is not a finished body");
     assert!(
         errors.len() == inside_out

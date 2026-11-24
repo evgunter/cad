@@ -42,6 +42,20 @@ parted record, so the README's carry paragraph stays true of it. Only
 `wire_split` calls the `_across` form. The `[ev]` question is unchanged:
 whether the README's carry paragraph gains this as a consumption case.
 
+## The split's door carries (2026-11-18, `embed/records`)
+
+`topo::split` now carries its operand's records itself, with the
+across-the-cut policy, and `SplitResult::carry_contacts[_across]` are
+gone. A parted record with a cell that has no image on the cut refuses
+at the kernel door (`SplitFinishError::Carry { Parted }`), where the
+kernel API dropped it silently. Witness:
+`crates/topo/tests/split_along_a_pinch_face.rs`: two bricks united
+along the line `(1, 1, z)`, split by `x = 1`, which holds a face of
+each and cuts neither. The pinch's vertex pair is parted, neither side
+holds a face of the cut for it to lie on, and the split refuses; the
+same bits finished bare split as before. The consumption rule this row
+asks for would retire that record (the touch lies in the cut plane).
+
 Moved from WIREHOLD to DOCTAIL on 2026-11-20, by `git mv`, when WIREHOLD merged into DOCTAIL: WIREHOLD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOCTAIL carries.
 
 ## Claimed by HELDRECORDS and re-banded P1 (2026-11-23, HELDRECORDS orchestrator)

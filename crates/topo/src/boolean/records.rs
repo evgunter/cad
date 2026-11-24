@@ -104,6 +104,39 @@ pub enum CarryRefusal {
 }
 
 impl CarryRefusal {
+    /// **What the refused touch does**, as a door that carried it says
+    /// it of "a touch its operand records": the predicate of that
+    /// sentence, naming no key.
+    #[must_use]
+    pub const fn of_the_touch(&self) -> &'static str {
+        match self {
+            Self::Unmapped { .. } => "lies on geometry it lost without removing it",
+            Self::Pair { .. } => "lands only on cells that are one or adjacent",
+            Self::Parted { .. } => "lands on both sides of the cut away from the cut",
+            Self::Unread { .. } => "could not be read where it divided the touch",
+            Self::Stale { .. } => "no longer touches where it put the touch",
+            Self::MintedMeeting { .. } => "meets where it minted cells it cannot back",
+        }
+    }
+
+    /// The refusal as a door that carried the record states it, with
+    /// its recourse.
+    ///
+    /// # Errors
+    ///
+    /// The formatter's.
+    pub fn write_at_a_door(&self, f: &mut impl core::fmt::Write) -> core::fmt::Result {
+        write!(
+            f,
+            "a touch its operand records {}. {}",
+            self.of_the_touch(),
+            geom_core::Recourse(Self::RECOURSE)
+        )
+    }
+
+    /// What follows a carried record's refusal at any door.
+    pub const RECOURSE: &'static str = "move the touch, or this operation's geometry off it";
+
     /// The refused record's index.
     pub(crate) fn record(self) -> u32 {
         match self {
@@ -229,6 +262,23 @@ impl Contact {
             [Cell::Edge(_) | Cell::Face(_), Cell::Vertex(_)] | [Cell::Face(_), Cell::Edge(_)] => {
                 unreachable!("a contact's cells are in canonical order")
             }
+        }
+    }
+}
+
+impl ContactKind {
+    /// **This record read stale**, as the census names it
+    /// ([`crate::StaleDeclaration`]).
+    #[must_use]
+    pub const fn stale(self) -> crate::StaleDeclaration {
+        use crate::StaleDeclaration as Stale;
+        match self {
+            Self::VertexVertex(a, b) => Stale::VertexVertex { a, b },
+            Self::VertexEdge(vertex, edge) => Stale::VertexOnEdge { vertex, edge },
+            Self::VertexFace(vertex, face) => Stale::VertexOnFace { vertex, face },
+            Self::EdgeEdge(a, b) => Stale::EdgeEdge { a, b },
+            Self::EdgeFace(edge, face) => Stale::EdgeFace { edge, face },
+            Self::FaceFace(face_a, face_b) => Stale::Patch { face_a, face_b },
         }
     }
 }
@@ -455,6 +505,22 @@ impl ContactRecords {
             .iter()
             .position(|c| c.record == pair)
             .map(super::reduce::index)
+    }
+
+    /// **These records, record `k` citing `cites[k]`** in place of what
+    /// it cited: the same pairs in the same order, as a holder that
+    /// names each record's backing in its own terms reads them. `None`
+    /// where `cites` is not one entry per record.
+    #[must_use]
+    pub fn citing(&self, cites: &[Cites]) -> Option<Self> {
+        (cites.len() == self.rows.len()).then(|| Self {
+            rows: self
+                .rows
+                .iter()
+                .zip(cites)
+                .map(|(c, cites)| Cited::new(c.record, cites.clone()))
+                .collect(),
+        })
     }
 
     /// These records as an op's that carries them from its input
@@ -928,6 +994,68 @@ mod tests {
     /// One pair has one spelling whichever order it is given in, and
     /// its kind reads off the canonical order. Red if the constructor
     /// keeps the given order.
+    /// A cell with no cover is not read as apart: the gate's separation
+    /// reading ([`crate::census::decided_apart`]) grants only what a
+    /// cover proves, so a record on such a cell goes on to the lanes. A
+    /// null strut hung at a cube's corner has no carrier, so no cover;
+    /// against an edge across the cube it is not apart, where an edge at
+    /// that corner is.
+    #[test]
+    fn a_cell_with_no_cover_is_not_read_as_apart() {
+        let tol = geom_core::Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(tol);
+        let mut body = cube.body;
+        let corner = cube.seed.vertex;
+        let he = body.get_vertex(corner).unwrap().emanating.unwrap();
+        let strut = body
+            .mev_null(
+                crate::construction::MevSite::Fan { he1: he, he2: he },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        let ends = |e| {
+            let (a, b) = body.edge_vertices(e).unwrap();
+            [a, b]
+        };
+        let edges: Vec<crate::EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| e != strut.edge)
+            .collect();
+        let at_corner: Vec<crate::EdgeKey> = edges
+            .iter()
+            .copied()
+            .filter(|&e| ends(e).contains(&corner))
+            .collect();
+        let beside: Vec<crate::VertexKey> = at_corner.iter().flat_map(|&e| ends(e)).collect();
+        // An edge neither at the corner nor at one of its neighbours: a
+        // cube has three.
+        let far = *edges
+            .iter()
+            .find(|&&e| {
+                ends(e)
+                    .iter()
+                    .all(|v| !beside.contains(v) && *v != strut.vertex)
+            })
+            .unwrap();
+        let pair = |a, b| Contact::of(Cell::Edge(a), Cell::Edge(b)).unwrap();
+        assert!(
+            at_corner.iter().any(|&near| crate::census::decided_apart(
+                &body,
+                pair(near, far),
+                band
+            )
+            .is_some()),
+            "two covered edges a side apart are apart, so the reading is not vacuous"
+        );
+        assert_eq!(
+            crate::census::decided_apart(&body, pair(strut.edge, far), band),
+            None,
+            "an edge with no cover grants nothing"
+        );
+    }
+
     #[test]
     fn a_pair_is_canonical_in_either_order() {
         let p = prism();

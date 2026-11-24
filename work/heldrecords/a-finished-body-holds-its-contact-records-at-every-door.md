@@ -52,3 +52,162 @@ a parted record off the cut refuses `Parted`. The default
 `carry_contacts` still refuses every parted record. When the split's
 door carries its own records, it adopts this policy or replaces it
 deliberately; it is not settled by this unit's text.
+
+## Built and measured (2026-11-18, `embed/records`, for EMBED's gate)
+
+**What landed.**
+- `AtRestBody` holds body, records and verdict, fields private;
+  `Replay` (a dual's finished type, a box scalar's leaf) holds its
+  records too. `FinishedBody::records` is the read.
+- `finish` takes `Built` (a body and the records its door decided; a
+  bare body converts, touching nothing). A `⊔`'s gate is
+  `finish_assembled(Assembled)`: tier 3, then the census as the
+  deciding operation between arrivals, the records it mints held on
+  the finished body, its rows and findings handed back (`Censused`).
+  Both end in the one private constructor pair in `validate.rs`.
+- The gate certifies every record it is handed: stale or contradicted
+  refuses at that door. It raises no unbacked meeting, and runs no
+  census where there is no record. `AtRestBody::bar` names which half
+  was paid (`Bar::RecordsConfirmed`, a `⊔`'s `Bar::ArrivalsDecided`).
+- Doors: the Boolean's gate hands the records it decided; the plain
+  `union`/`subtract`/`intersect` carry their operands' own in
+  (`BooleanInputs::of`); split, shell and blend carry
+  `operand.records()` through their own lineage (new
+  `SplitFinishError::Carry`, `ShellError::Carry`, `BlendError::Carry`;
+  the evaluator maps all three to `ContactCarry`). The split adopts the
+  document's policy (`carry_contacts_across`: a record the cut parts,
+  each cell with an image on the cut, retires).
+- Retired: `SplitResult::carry_contacts[_across]`, `SplitContacts`,
+  `Shelled::carry_contacts`, `Blended::carry_contacts`, the
+  `BooleanBody.contacts` field (a method reading the body),
+  `StepImport::Solid.contacts`, `Product.contacts` (a method), the
+  Python `Body`'s field, and the evaluator's `Carry.contacts`: `Carry`
+  holds `Citing` (how the body's records cite at this value) and no
+  cell of any record.
+- The assemble node's census is eager, in the graft's finish; the lazy
+  `product::Census` reads that body and its rows and no longer
+  re-grafts or re-finishes. The laziness was a lane's choice
+  (`520e0c8c72`, INTENT's D′3 fix pass, 2026-10-26), not a ruling.
+
+**Against this row's text, not done.**
+- `MergeCoplanarOutcome::carry_contacts` and the face-offset verbs'
+  carries stay caller-side: those doors return construction state, not
+  a finished body, so there is no gate for a door-side carry to feed.
+- `BooleanInputs` and `MemberInputs` still carry operand records into
+  the Boolean beside the operand. The plain doors fill them from the
+  body, so the shorthand's drop is gone; `boolean_op_with` handed fewer
+  records than its operand holds still drops them.
+- The split's side gate confirms what it carried and does not yet
+  raise an unbacked meeting: the flip is
+  `the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build`.
+  The A-cause tests (`divided_cell_carry`, `one_record_carry`,
+  `review_4730_divided_carry_probes`, `census::split_wedge_tests`,
+  `a_carried_record_no_reading_covers`) pass with the door's carry.
+
+**The price** (one box, CI's build, `ci` profile, default ε; 17,185
+tests before, 17,197 after).
+
+| | wall | test time | census calls | census s |
+|---|---|---|---|---|
+| main `763d6fe0` | 144.9 s | 576 s | 6,835 | 12.5 |
+| full tier 3′ in every finish (not built) | 159.7 s | 663 s | 58,711 | 54.9 |
+| records confirmed + unbacked in-solid refused (not built) | 162.0 s | 657 s | 59,672 | 59.6 |
+| as landed | 142.4 s | 567 s | 9,341 | 21.5 |
+
+As landed, by finish site (calls / s): assemble graft 2,679 / 10.2;
+Boolean gate 847 / 3.2; product 2,450 / 0.56 (was 3,561 / 4.5: it
+reads the graft's body); import aggregate 370 / 0.28; distribute graft
+22 / 0.11; split 29 / 0.10; blend 15 / 0.10; shell 5 / 0.06; sweep
+leaves 10 / 0.03; bare finishes 6 / 0.02; direct tier-3′ calls by
+tests 2,908 / 6.8. Wall and test time are within the run-to-run spread
+of this box (a later unmetered run of the same tree: 165 s, 658 s).
+The eager graft census is the one new cost: 10.2 s over 2,679 calls.
+
+**Verdicts that moved**, each with its test:
+- A record with no touch behind it refuses at the gate:
+  `one_record_carry::a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell`,
+  `…::a_carried_record_with_no_touch_behind_it_refuses_at_the_booleans_gate`
+  (was `…lands_unread`: the union built holding it),
+  `surgery_carries_records::a_record_between_faces_that_do_not_meet_refuses_at_the_gate`,
+  `splitting::gate_reads_carried_records`, `shell::gate_reads_carried_records`, and
+  sweep's `contained_flush_cylinder`, `blend_carries_records`,
+  `review_4996_blend_cap` rows.
+- `face_face_touch::a_bore_tangent_from_inside_refuses_on_the_tangent_record_its_cut_wrote`
+  and `the_void_and_material_pinches_read_alike_at_every_pose`: the
+  plate less a rod tangent from inside built and shipped missing its
+  cusp edges; it refuses `ContactContradicted` on the record the cut
+  wrote
+  (`work/heldrecords/a-cut-by-a-rod-tangent-from-inside-records-its-material-crescent-as-a-tangent-contact.md`).
+  `a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared`
+  is deleted (its fixture is that cut).
+- `split_along_a_pinch_face`: a plane along a face through a union
+  pinch refuses `Carry { Parted }` at the kernel door, where the kernel
+  dropped the record silently and the document already refused
+  (`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`).
+- `a_vertex_read_by_two_sector_passes::a_touching_vertex_along_two_arches_shared_ray_*`:
+  tier 3′ holds in 4 results of the first pyramid, was 1 (the plain
+  doors carry the arches' records).
+- `product_finishes_once`: a gather over mapped sources runs 2
+  finishes, was 3; `corpus_finish_count`: 655, was 662.
+
+**The three ATREST rows.**
+- `a-boolean-result-reused-without-its-records-…`: answered; the
+  records ride the operand and the plain doors carry them.
+- `a-boolean-reading-two-bodies-of-one-arrival-…`: remains (the record
+  is on the `⊔`'s body, not on either pick).
+- `a-boolean-over-an-instance-drops-its-parts-census-findings`:
+  remains whole (findings, not records).
+
+## Review fix pass (2026-11-22, `embed/records`)
+
+Both reviews of PR 7124 found three public ways a finished body could
+hold a record its gate had not confirmed. As the code stands after the
+fix pass:
+
+- The gate runs the census's confirmation direction alone over the
+  records it is handed (`census::confirm_only`) and takes each answer
+  as one of three: confirmed; read and not confirmed (stale,
+  contradicted, in the band, undecided), which refuses; no lane reads
+  the pair, which holds the record on its citation. The lane causes
+  are matched whole, and one is classed as no lane today
+  (`a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation`).
+- A `⊔`'s gate takes arrivals, never a record list:
+  `Assembled::graft_finished` / `graft_leaf` graft an arrival and carry
+  the records it holds; `Assembled::of_solids` is an import's solids
+  with none. The gate confirms what the arrivals carried in before its
+  census decides between them, and a record that does not confirm
+  refuses.
+- `FinishedBody::try_recite` takes a `KernelOnly`, which no other crate
+  can build, and a refusal leaves the body as it was.
+- `AtRestBody::bar` names the bar the gate paid: `Bar::Tier3Prime`
+  where the census confirmed every record the body holds (and, at a
+  `⊔` of two arrivals or more, decided between them), `Bar::Tier3`
+  where a record waits on a lane or the body holds none. A move keeps
+  it.
+- `From<Body> for Built` is gone: every finish spells what it hands
+  (`Built::of(body)` is a body with no record).
+
+## Second review fix pass (2026-11-23, `embed/records`)
+
+Both delta re-reads found the three paths closed and two more ways a
+finished body said more than its gate read:
+
+- **A record of two cells that touch nowhere was held** where its
+  pair's lane answered "not mine" before reading any distance. A gate
+  now holds a record on its citation only where the raise site says
+  nothing reads the pair (`ContactReach::NoLane`) and the two cells'
+  cells are not decided apart. What that leaves open is on
+  `a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation`
+  (P0 now): a kind no lane reads, whose cells no separating direction
+  parts, with a row that demonstrates one held.
+- **A join named tier 3′ beside an undecided meeting.** A join's bar
+  is decided after its census and from its findings (`Bar::of_join`
+  takes the census's report).
+
+Left open with rows of their own, since this unit closes at merge:
+`records-ride-beside-the-operand-at-the-boolean-doors`,
+`merge-faces-and-replace-face-carry-records-at-the-caller`, the flip
+(`the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build`),
+`the-cusp-edge-refusal-and-a-true-curved-record-through-a-split-are-pinned-nowhere`,
+`is-a-row-a-joins-census-mints-among-the-values-coincidences`,
+`a-join-pays-for-readings-it-does-not-use`.

@@ -516,12 +516,15 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
     // The records and findings a body carries are keyed in its arena:
     // each member of a family, and each half of a split, brings its own
     // ([`crate::Carry::member`]).
-    let carried = || Arc::clone(&value.carry.contacts);
+    // Each body's records, as its carry cites them.
+    let of = |carry: &crate::Carry<T>, body: &crate::eval::Framed<T>| {
+        Arc::new(carry.contacts(body.holding().records()).into_owned())
+    };
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     if let Some(body) = value.payload.one_body() {
         return Some(
-            body.map(|body| (0, body.clone(), carried(), rows()))
+            body.map(|body| (0, body.clone(), of(&value.carry, body), rows()))
                 .into_iter()
                 .collect(),
         );
@@ -547,7 +550,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
                     Some((
                         ix,
                         body.clone(),
-                        Arc::clone(&member.contacts),
+                        of(member, body),
                         Arc::clone(&member.findings),
                     ))
                 })
@@ -564,7 +567,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
                 .filter_map(|(half, side)| match side {
                     SplitSide::Body(body) => {
                         let at = half.output_body() as usize;
-                        let records = Arc::clone(&value.carry.member(at).contacts);
+                        let records = of(value.carry.member(at), body);
                         Some((half.output_body(), body.clone(), records, norows()))
                     }
                     SplitSide::Empty => None,
@@ -673,12 +676,6 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
     pub(crate) frame: crate::eval::Frame<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
-    /// Its contact records: each source's, re-keyed onto the aggregate
-    /// through the graft's own descendant map, citing that source's
-    /// record ([`Self::cited_inputs`]); and each the census recorded for
-    /// a touch between copies, mated or not, citing its own row of
-    /// [`Self::coincidences`] ([`topo::record_at_rest`]).
-    pub contacts: ContactRecords,
     /// **The at-rest census's decisions** ([`topo::DecisionSite::CensusAtRest`]):
     /// the contacts between copies no carried record backs, then the
     /// flush pairs between copies, each in the census's order, each cell
@@ -734,6 +731,17 @@ pub struct Product<T: topo::AtRestPolicy + Decide> {
 }
 
 impl<T: topo::AtRestPolicy + Decide> Product<T> {
+    /// **Its contact records**, as its finished body holds them
+    /// ([`topo::FinishedBody::records`]): each source's, re-keyed onto
+    /// the aggregate through the graft's own descendant map, citing
+    /// that source's record ([`Self::cited_inputs`]); and each the
+    /// census recorded for a touch between copies, mated or not, citing
+    /// its own row of [`Self::coincidences`].
+    #[must_use]
+    pub fn contacts(&self) -> &ContactRecords {
+        topo::FinishedBody::records(&self.body)
+    }
+
     /// A copy of this verdict a reader owns: every field but
     /// [`Self::assembles`], which only the product slot's gather fills.
     #[must_use]
@@ -745,7 +753,6 @@ impl<T: topo::AtRestPolicy + Decide> Product<T> {
             body,
             frame,
             names,
-            contacts,
             coincidences,
             cited_inputs,
             census,
@@ -763,7 +770,6 @@ impl<T: topo::AtRestPolicy + Decide> Product<T> {
             body: body.clone(),
             frame: frame.clone(),
             names: names.clone(),
-            contacts: contacts.clone(),
             coincidences: coincidences.clone(),
             cited_inputs: cited_inputs.clone(),
             census: census.clone(),
@@ -990,7 +996,39 @@ pub struct Census<T: topo::AtRestPolicy + Decide> {
     /// The node whose door it is.
     pub node: RecipeNodeId,
     pieces: Arc<crate::eval::Pieces<T>>,
+    /// What the door's finish decided, where it finished its graft: the
+    /// verdict reads it, and runs no census of its own.
+    decided: Option<Decided<T>>,
     verdict: std::sync::OnceLock<Product<T>>,
+}
+
+/// **What a `⊔` door's finish decided over its graft**
+/// (`topo::AtRestPolicy::finish_assembled`): the body it finished, which
+/// holds the records, and the census's rows and findings.
+#[derive(Debug)]
+pub struct Decided<T: topo::AtRestPolicy + Decide> {
+    /// The door's body.
+    pub body: crate::eval::Held<T>,
+    /// The census's rows, which the body's new records cite.
+    pub rows: Vec<topo::Coincidence>,
+    /// What the census reports and does not record.
+    pub findings: Vec<ValidationError>,
+}
+
+impl<T: topo::AtRestPolicy + Decide> Decided<T> {
+    /// This as the gate's own result over the finished body; `None`
+    /// where the body is a leaf no gate has finished (a box scalar's).
+    fn censused(&self) -> Option<topo::Censused<T>> {
+        let body = match &self.body {
+            crate::eval::Held::Finished(body) => T::Finished::clone(body),
+            crate::eval::Held::Leaf(leaf) => T::leaf_as_finished(leaf)?.clone(),
+        };
+        Some(topo::Censused {
+            body,
+            rows: self.rows.clone(),
+            findings: self.findings.clone(),
+        })
+    }
 }
 
 impl<T: topo::AtRestPolicy + Decide> std::fmt::Debug for Census<T> {
@@ -998,6 +1036,7 @@ impl<T: topo::AtRestPolicy + Decide> std::fmt::Debug for Census<T> {
         let Self {
             node,
             pieces: _,
+            decided: _,
             verdict,
         } = self;
         f.debug_struct("Census")
@@ -1008,12 +1047,19 @@ impl<T: topo::AtRestPolicy + Decide> std::fmt::Debug for Census<T> {
 }
 
 impl<T: Decide + AtRestPolicy> Census<T> {
-    /// The census of `node`'s door over `pieces`, not yet run.
+    /// The census of `node`'s door over `pieces`, holding what the
+    /// door's finish decided where it finished its graft; its report is
+    /// not yet read.
     #[must_use]
-    pub fn new(node: RecipeNodeId, pieces: Arc<crate::eval::Pieces<T>>) -> Self {
+    pub fn new(
+        node: RecipeNodeId,
+        pieces: Arc<crate::eval::Pieces<T>>,
+        decided: Option<Decided<T>>,
+    ) -> Self {
         Self {
             node,
             pieces,
+            decided,
             verdict: std::sync::OnceLock::new(),
         }
     }
@@ -1021,6 +1067,9 @@ impl<T: Decide + AtRestPolicy> Census<T> {
     /// **The door's verdict**: run the first time it is asked for and
     /// kept. A refusal is not kept: it is run again where it is asked
     /// for again, and refuses again.
+    /// `tol` is the run's one committed tolerance, the one the door's
+    /// finish ran at ([`Tol`] is a witness of it), so the verdict kept is
+    /// the one every reader in the run asks for.
     ///
     /// # Errors
     ///
@@ -1034,22 +1083,9 @@ impl<T: Decide + AtRestPolicy> Census<T> {
         if let Some(verdict) = self.verdict.get() {
             return Ok(verdict);
         }
-        let verdict = census_of(doc, self.node, &self.pieces, tol)?;
+        let decided = self.decided.as_ref().and_then(Decided::censused);
+        let verdict = census_of(doc, self.node, &self.pieces, decided, tol)?;
         Ok(self.verdict.get_or_init(|| verdict))
-    }
-
-    /// The records the door kept: each piece's own, and each touch it
-    /// recorded between two of them, keyed in the door's body (and so in
-    /// any copy of it, which re-mints no key). `None` where the census
-    /// refuses: a reader then has the pieces' own records alone.
-    pub(crate) fn records<P: crate::ProfilePayload>(
-        &self,
-        doc: &Doc<P>,
-        tol: Tol,
-    ) -> Option<Arc<ContactRecords>> {
-        self.verdict(doc, tol)
-            .ok()
-            .map(|verdict| Arc::new(verdict.contacts.clone()))
     }
 }
 
@@ -1061,6 +1097,7 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     pieces: &Arc<crate::eval::Pieces<T>>,
+    decided: Option<topo::Censused<T>>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
@@ -1082,15 +1119,9 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             unreachable!("a member's table keyed by its read stays a table: {e:?}")
         }));
         for (i, body) in piece.bodies.iter().enumerate() {
-            // A piece whose own door censused it brings that door's
-            // records, the touches inside it among them; each member of
-            // a family brings its own.
+            // Each member of a family brings its own carry; its records
+            // are its body's.
             let carry = piece.carry.member(i);
-            let contacts = carry
-                .census
-                .as_ref()
-                .and_then(|census| census.records(doc, tol))
-                .unwrap_or_else(|| Arc::clone(&carry.contacts));
             let ix = if piece.family {
                 crate::names::narrow(i, crate::names::Numbered::OutputBody).unwrap_or_else(|e| {
                     unreachable!("piece {i} outlived its minting op's index refusal: {e}")
@@ -1104,13 +1135,12 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 ix,
                 body: body.clone(),
                 table: Arc::clone(&keyed),
-                contacts: Arc::clone(&contacts),
                 rows: Arc::clone(&carry.findings),
                 censused: carry.censused,
             });
         }
     }
-    let mut product = gather_sources(doc, tol, sources)?;
+    let mut product = gather_sources(doc, tol, sources, decided)?;
     product.pieces = Some(Arc::clone(pieces));
     product.parts = pieces.pieces.iter().map(|piece| piece.carry.parts).sum();
     Ok(product)
@@ -1160,11 +1190,6 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .then(|| SplitHalf::of_output_body(u32::from(port)))
                 .flatten()
                 .map(SplitHalf::output_body);
-            // A copy of a door's body brings the records that door kept.
-            let kept = carry
-                .census
-                .as_ref()
-                .and_then(|census| census.records(doc, tol));
             let table = evaluation
                 .shared_table_at(var)
                 .unwrap_or_else(crate::names::empty);
@@ -1174,28 +1199,20 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let sources = bodies
                 .into_iter()
                 .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
-                .map(|(ix, body, contacts, rows)| {
+                .map(|(ix, body, _, rows)| {
                     let member = carry.member(ix as usize);
-                    let kept = match &carry.members {
-                        Some(_) => member
-                            .census
-                            .as_ref()
-                            .and_then(|census| census.records(doc, tol)),
-                        None => kept.clone(),
-                    };
                     Source {
                         node,
                         var,
                         ix,
                         body,
                         table: Arc::clone(&table),
-                        contacts: kept.unwrap_or(contacts),
                         rows,
                         censused: member.censused,
                     }
                 })
                 .collect();
-            let mut product = gather_sources(doc, tol, sources)?;
+            let mut product = gather_sources(doc, tol, sources, None)?;
             product.pieces = carry.pieces.clone();
             product.parts = carry.parts;
             product
@@ -1230,10 +1247,6 @@ fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     }
     let piece = picked(doc, evaluation, var)?;
     let carry = &piece.carry;
-    let kept = carry
-        .census
-        .as_ref()
-        .and_then(|census| census.records(doc, tol));
     let node = doc
         .operation_of(var)
         .unwrap_or_else(|| unreachable!("a pick that reached a piece reads a live copy"));
@@ -1245,26 +1258,18 @@ fn gather_pick<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
                 .unwrap_or_else(|e| unreachable!("piece body {i} outlived its place refusal: {e}"));
             let member = carry.member(i);
-            let kept = match &carry.members {
-                Some(_) => member
-                    .census
-                    .as_ref()
-                    .and_then(|census| census.records(doc, tol)),
-                None => kept.clone(),
-            };
             Source {
                 node,
                 var,
                 ix,
                 body: body.clone(),
                 table: Arc::clone(&piece.table),
-                contacts: kept.unwrap_or_else(|| Arc::clone(&member.contacts)),
                 rows: Arc::clone(&member.findings),
                 censused: member.censused,
             }
         })
         .collect();
-    let mut product = gather_sources(doc, tol, sources)?;
+    let mut product = gather_sources(doc, tol, sources, None)?;
     product.pieces = carry.pieces.clone();
     product.parts = carry.parts;
     product.document = doc.id();
@@ -1329,13 +1334,14 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     tol: Tol,
     sources: Vec<Source<T>>,
+    decided: Option<topo::Censused<T>>,
 ) -> Result<Product<T>, ProductError> {
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
     // source holding N solids goes through as one call: the keyed graft
     // is the N-solid door (#381), and its per-entity bridge is total
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
-    let mut aggregate = Body::new();
+    let mut aggregate = topo::Assembled::new();
     // The gather computes in its first non-empty source's frame
     // ([`crate::eval::Framed::computing_among`]), and grafts each into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
@@ -1370,6 +1376,10 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                     node: *node,
                     kind: Box::new(read.into()),
                 },
+                crate::eval::GraftIn::Carry(refusal) => ProductError::ContactLineage {
+                    node: *node,
+                    what: crate::eval::GraftIn::lost(&refusal),
+                },
             },
         )?;
         grafted.push((source, Arc::new(keys)));
@@ -1379,14 +1389,52 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // carried, so a product that is not a finished body refuses as that
     // before any naming collision is read. The census over this product
     // reads the finished body and pays the census alone.
-    let aggregate =
-        T::finish(aggregate, tol).map_err(|findings| ProductError::ProductInvalid { findings })?;
+    let topo::Censused {
+        body: aggregate,
+        rows: recorded_rows,
+        findings: recorded_findings,
+    } = match decided {
+        // A door that finished this graft decided it: its body is these
+        // bits under these keys (a graft is a function of its sources in
+        // their order), and the gather reads what its gate decided. The
+        // gather's own graft is what the keys below are read off, so the
+        // two are held to one arena here.
+        Some(decided) => {
+            assert!(
+                same_keys(aggregate.body(), &decided.body),
+                "a product's graft and the graft its `⊔` door finished mint the same keys: \
+                 every name, record and census row below is keyed through the first \
+                 onto the second"
+            );
+            decided
+        }
+        // Each source's records rode the aggregate across the key bridge
+        // its graft minted, each citing the source by its position among
+        // the product's inputs ([`topo::Assembled::graft_finished`]); the
+        // census runs inside the finish and records each touch between
+        // two arrivals (`topo::AtRestPolicy::finish_assembled`, D1
+        // (iii)), mated or not, which the `unproven-coincidence` check
+        // reads and the door proves by its mate where one rests the
+        // pair; the rest is what the at-rest check reports
+        // ([`Product::census`]).
+        None => T::finish_assembled(aggregate, tol)
+            .map_err(|findings| ProductError::ProductInvalid { findings })?,
+    };
+    // Each graft is one arrival of the product's census.
+    let groups: std::collections::BTreeMap<topo::SolidKey, u32> = grafted
+        .iter()
+        .enumerate()
+        .flat_map(|(input, (_, keys))| {
+            let input = crate::names::to_u32(input, GRAFTED_WITHIN_U32);
+            keys.solids().iter().map(move |&solid| (solid, input))
+        })
+        .collect();
+    let groups = Arc::new(groups);
 
     // Pass 3: the carries, per grafted source, each across the key
     // bridge its graft minted: the source's name rows, its contact
     // records, and the findings below it.
     let mut names = NameTable::new();
-    let mut contacts = ContactRecords::default();
     let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
     let mut carried_interference: Vec<crate::checks::at_rest::CarriedInterference> = Vec::new();
@@ -1400,7 +1448,6 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             ix,
             body,
             table,
-            contacts: records,
             rows,
             censused: _,
         },
@@ -1423,20 +1470,12 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // Each source's records cite the source by its position among
         // the product's inputs, which names the read it entered through:
         // the copy's records are its body's, in their order.
-        let input = crate::names::to_u32(cited_inputs.len(), GRAFTED_WITHIN_U32);
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
                 crate::coincide::CitedInput::Part(*doc_ref)
             }
             _ => crate::coincide::CitedInput::Read(*var),
         });
-        carry_contacts(
-            &aggregate,
-            &mut contacts,
-            &records.carried_from(input),
-            keys,
-        )
-        .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         // A part's census findings carry verbatim too, spelled in its
         // own document, each reported once per part row, by the first
         // route in gather order (`once_per_part_row`).
@@ -1465,20 +1504,6 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     }
     // Each touch between copies names its cells as the census reads
     // them: in its copy, as that copy's placement output names it.
-    let groups = crate::checks::at_rest::copy_groups(&copies);
-    // The tier-3′ census over the product and its records, here and
-    // nowhere else: each touch it finds between two copies is a row of
-    // the product and a record citing it (`topo::record_at_rest`, D1
-    // (iii)), mated or not, which the `unproven-coincidence` check reads
-    // and the door proves by its mate where one rests the pair; the rest
-    // is what the at-rest check reports ([`Product::census`]).
-    let recorded = topo::record_at_rest(
-        &aggregate,
-        &contacts,
-        |records| T::census_at_rest(&aggregate, records, tol),
-        &|solid| groups.get(&solid).copied(),
-        0,
-    );
     // The flush pairs between copies are rows of their own, which no
     // record cites (`topo::AtRestPolicy::flush_at_rest`).
     let flush = match geom_core::Band::linear(tol) {
@@ -1488,14 +1513,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             ..topo::FlushAtRest::default()
         },
     };
-    contacts.extend(recorded.records.rows().iter().cloned());
     let coincidences = crate::checks::at_rest::copy_rows(
         &aggregate,
         &names,
         &copies,
-        recorded.rows.into_iter().chain(flush.rows).collect(),
+        recorded_rows.into_iter().chain(flush.rows).collect(),
     );
-    let mut census = recorded.findings;
+    let mut census = recorded_findings;
     census.extend(flush.findings);
     // A meeting inside one arrival a door already decided is that
     // door's (D10 `[assertions]`): a `⊔`'s pieces were censused at its
@@ -1519,7 +1543,6 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         body: aggregate,
         frame,
         names,
-        contacts,
         coincidences,
         cited_inputs,
         census,
@@ -1546,7 +1569,6 @@ struct Source<T: topo::AtRestPolicy + Decide> {
     ix: u32,
     body: crate::eval::Framed<T>,
     table: Arc<NameTable>,
-    contacts: Arc<ContactRecords>,
     rows: Arc<crate::checks::at_rest::CarriedFindings>,
     /// Whether a door already decided the meetings inside it
     /// ([`crate::Carry::censused`]).
@@ -1562,58 +1584,6 @@ pub(crate) type Source0<T> = (
     Arc<ContactRecords>,
     Arc<crate::checks::at_rest::CarriedFindings>,
 );
-
-/// Re-keys one grafted body's contact records onto the aggregate,
-/// through the graft's DESCENDANT MAP (`product_recorded`'s contacts
-/// carry). INVARIANT: every key here is `keys.<kind>(old)` — the
-/// lineage the graft recorded. Nothing is looked up by position, by
-/// name, or by re-measuring the aggregate.
-///
-/// The bridge is total and incidence-keeping over a source it grafted,
-/// so a missing image, or a pair the bridge made one cell or incident
-/// in the aggregate, is a bridge bug, not a dropped declaration: it refuses typed rather
-/// than silently weakening the at-rest gate the records feed.
-///
-/// [`ProductError::ContactLineage`] is therefore DEFENSIVE and has no
-/// test: no public API can reach it without first breaking the graft's
-/// own key-bridge contract. Stated rather than left to be discovered —
-/// an arm that cannot be exercised is worth knowing about, and the
-/// alternative (dropping the record) is the failure this guards.
-pub(crate) fn carry_contacts<T: geom_core::Real>(
-    body: &Body<T>,
-    into: &mut ContactRecords,
-    from: &ContactRecords,
-    keys: &topo::GraftKeys,
-) -> Result<(), &'static str> {
-    use topo::Cell;
-    let moved = from
-        .rekeyed(body, |cell| match cell {
-            Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
-            Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
-            Cell::Face(f) => keys.face(f).map(Cell::Face),
-        })
-        .map_err(|refusal| match refusal {
-            topo::CarryRefusal::Unmapped {
-                cell: Cell::Vertex(_),
-                ..
-            } => "vertex",
-            topo::CarryRefusal::Unmapped {
-                cell: Cell::Edge(_),
-                ..
-            } => "edge",
-            topo::CarryRefusal::Unmapped {
-                cell: Cell::Face(_),
-                ..
-            } => "face",
-            topo::CarryRefusal::Pair { .. }
-            | topo::CarryRefusal::Parted { .. }
-            | topo::CarryRefusal::Unread { .. }
-            | topo::CarryRefusal::Stale { .. }
-            | topo::CarryRefusal::MintedMeeting { .. } => "cell pair",
-        })?;
-    into.extend(moved.rows().iter().cloned());
-    Ok(())
-}
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same
 /// stable names, pointing at the entities the graft minted. Body index
@@ -1653,6 +1623,18 @@ fn carry_names(
             "{node:?} carried a name twice, {e:?}: a copy's names are qualified by its placement"
         )
     }
+}
+
+/// Whether two bodies hold the same solid, face, edge and vertex keys,
+/// in order: what two grafts of the same sources in the same order
+/// leave. It compares keys only, not what they name.
+fn same_keys<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
+    a.solids().map(|(k, _)| k).eq(b.solids().map(|(k, _)| k))
+        && a.faces().map(|(k, _)| k).eq(b.faces().map(|(k, _)| k))
+        && a.edges().map(|(k, _)| k).eq(b.edges().map(|(k, _)| k))
+        && a.vertex_points()
+            .map(|(k, _)| k)
+            .eq(b.vertex_points().map(|(k, _)| k))
 }
 
 #[cfg(test)]

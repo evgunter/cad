@@ -97,7 +97,7 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
             .expect("a finite translation"),
     )
     .expect("the ball moves");
-    pncad::topo::finish(moved, t).expect("the ball is a finished body")
+    pncad::topo::finish(pncad::topo::Built::of(moved), t).expect("the ball is a finished body")
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -308,7 +308,8 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
 /// dome-topped boss (`ring_clearance_forms`).
 #[test]
 fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
-    let vase = pncad::topo::finish(vase(), tol()).expect("the vase is a finished body");
+    let vase = pncad::topo::finish(pncad::topo::Built::of(vase()), tol())
+        .expect("the vase is a finished body");
     let out = subtract(&vase, &ball(0.45, 1.8, 0.08), tol())
         .expect("a ball subtracted into the vase's top annulus builds");
     let body = &out.body().expect("material remains").body;
@@ -448,6 +449,6 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    pncad::topo::finish(body, tol)
+    pncad::topo::finish(pncad::topo::Built::of(body), tol)
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

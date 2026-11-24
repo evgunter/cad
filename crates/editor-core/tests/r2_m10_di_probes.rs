@@ -583,7 +583,7 @@ fn direct_validation_door_behavior_at_dual64() {
     // called at a dual at all.
     let direct = topo::validate_geometric_structural(&body, tol);
     let policy: Result<topo::Replay<Dual64>, _> =
-        <Dual64 as topo::AtRestPolicy>::finish(body.clone(), tol);
+        <Dual64 as topo::AtRestPolicy>::finish(topo::Built::of(body.clone()), tol);
     assert!(
         policy.is_ok(),
         "the policy arm replays tier 2 and grants nothing: {policy:?}"

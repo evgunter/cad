@@ -642,7 +642,8 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
         .flatten()
         .unwrap_or_else(|| panic!("expected a body, got {:?}", value.payload));
     pncad::topo::mass_properties(
-        &pncad::topo::finish(body.body().clone(), tol).expect("the measured body passes tier 3"),
+        &pncad::topo::finish(pncad::topo::Built::of(body.body().clone()), tol)
+            .expect("the measured body passes tier 3"),
         tol,
         pncad::topo::test_support::pinned_resolution(tol),
     )

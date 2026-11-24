@@ -274,14 +274,18 @@ fn probe_records_partialeq_bites_on_mutation() {
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("union is a body");
     };
-    let mut mutated = out.contacts.clone();
+    let mut mutated = out.contacts().clone();
     let mut faces = out.body.faces().map(|(k, _)| k);
     let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
     mutated.extend([topo::Cited::new(
         topo::Contact::new(&out.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
         topo::Cites::decided(0),
     )]);
-    assert_ne!(out.contacts, mutated, "PartialEq must see the new fields");
+    assert_ne!(
+        out.contacts(),
+        &mutated,
+        "PartialEq must see the new fields"
+    );
 }
 
 /// CLAIM 7 — exactly-equal carriers are one carrier, and a definite

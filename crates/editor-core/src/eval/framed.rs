@@ -233,6 +233,16 @@ impl<T: topo::AtRestPolicy> Held<T> {
             .map_err(topo::MoveError::under_a_motion)
     }
 
+    /// **The contact records its body holds**
+    /// ([`topo::FinishedBody::records`], [`topo::LeafBody::records`]).
+    #[must_use]
+    pub fn records(&self) -> &topo::ContactRecords {
+        match self {
+            Self::Finished(body) => topo::FinishedBody::records(&**body),
+            Self::Leaf(body) => topo::LeafBody::records(&**body),
+        }
+    }
+
     /// Whether the two hold one body, by `Arc`.
     #[must_use]
     pub fn same(&self, other: &Self) -> bool {
@@ -480,6 +490,36 @@ pub(crate) enum GraftIn {
     Moved(topo::NotFinished),
     /// The graft's own refusal.
     Graft(Box<topo::BooleanError>),
+    /// A record the copy holds has no image through the graft's key
+    /// bridge ([`topo::AssembleError::Carry`]): the bridge's defect.
+    Carry(topo::CarryRefusal),
+}
+
+impl GraftIn {
+    /// Which kind of cell a [`GraftIn::Carry`] lost, as the refusals
+    /// that report it name it.
+    pub(crate) fn lost(refusal: &topo::CarryRefusal) -> &'static str {
+        use topo::Cell;
+        match refusal {
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Vertex(_),
+                ..
+            } => "vertex",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Edge(_),
+                ..
+            } => "edge",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Face(_),
+                ..
+            } => "face",
+            topo::CarryRefusal::Pair { .. }
+            | topo::CarryRefusal::Parted { .. }
+            | topo::CarryRefusal::Unread { .. }
+            | topo::CarryRefusal::Stale { .. }
+            | topo::CarryRefusal::MintedMeeting { .. } => "cell pair",
+        }
+    }
 }
 
 impl From<GraftIn> for super::NodeErrorKind {
@@ -489,16 +529,9 @@ impl From<GraftIn> for super::NodeErrorKind {
             GraftIn::Motion(e) => Self::Motion(e),
             GraftIn::Moved(findings) => Self::NotFinished { findings },
             GraftIn::Graft(e) => Self::Boolean(*e),
-        }
-    }
-}
-
-impl<T: topo::AtRestPolicy> Held<T> {
-    /// Which kind of value it is ([`topo::HeldKind`]).
-    pub(crate) fn kind(&self) -> topo::HeldKind {
-        match self {
-            Self::Finished(_) => topo::HeldKind::Finished,
-            Self::Leaf(_) => topo::HeldKind::Leaf,
+            GraftIn::Carry(refusal) => Self::Naming(crate::names::NamingError::Emission {
+                what: GraftIn::lost(&refusal),
+            }),
         }
     }
 }
@@ -548,33 +581,38 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 
 impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
     /// **`other` grafted into `dst`, an aggregate computed in `frame`**
-    /// ([`Self::computing_among`], [`topo::boolean::graft_placed`]): its
-    /// body as it stands where `other` is in that frame, else its data
-    /// moved through its placement into it and the image asked the
+    /// ([`Self::computing_among`], [`topo::Assembled::graft_finished`]):
+    /// its body as it stands where `other` is in that frame, else its
+    /// data moved through its placement into it and the image asked the
     /// session box, as a move of what `other` holds asks and logs it. The
     /// image is the aggregate's data, so this door, which places it,
-    /// asks. The aggregate's own finish decides the rest.
+    /// asks. The records `other`'s body holds ride in with it, the
+    /// kernel's carry. The aggregate's own finish decides the rest.
     ///
     /// # Errors
     ///
     /// [`GraftIn::Motion`]: the motion's overflow;
     /// [`GraftIn::Moved`]: the image is past the session box;
-    /// [`GraftIn::Graft`]: the graft's.
+    /// [`GraftIn::Graft`]: the graft's; [`GraftIn::Carry`]: the carry's.
     pub(crate) fn graft_into(
         frame: &Frame<T>,
-        dst: &mut Body<T>,
+        dst: &mut topo::Assembled<T>,
         other: &Self,
         tol: Tol,
     ) -> Result<topo::GraftKeys, GraftIn> {
-        let seat = topo::Seat::from_motion(
-            other.body(),
-            other.moving_into(frame).map_err(GraftIn::Motion)?,
-        );
-        topo::boolean::graft_placed(dst, seat, other.body.kind(), tol).map_err(|e| match e {
-            topo::boolean::PlacedGraftError::Move(e) => {
+        let motion = other.moving_into(frame).map_err(GraftIn::Motion)?;
+        let grafted = match other.holding() {
+            Held::Finished(body) => dst.graft_finished(body, motion, tol),
+            Held::Leaf(body) => dst.graft_leaf(body, motion, tol),
+        };
+        grafted.map_err(|e| match e {
+            topo::AssembleError::Graft(topo::boolean::PlacedGraftError::Move(e)) => {
                 GraftIn::Moved(topo::MoveError::under_a_motion(e))
             }
-            topo::boolean::PlacedGraftError::Graft(e) => GraftIn::Graft(Box::new(e)),
+            topo::AssembleError::Graft(topo::boolean::PlacedGraftError::Graft(e)) => {
+                GraftIn::Graft(Box::new(e))
+            }
+            topo::AssembleError::Carry(refusal) => GraftIn::Carry(refusal),
         })
     }
 }

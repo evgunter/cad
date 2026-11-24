@@ -42,7 +42,7 @@ pub trait Operand<S: Scalar> {
 
 impl<S: Scalar> Operand<S> for Body<S> {
     fn finished(self, what: &str, tol: Tol) -> AtRestBody<S> {
-        pncad::topo::finish(self, tol)
+        pncad::topo::finish(pncad::topo::Built::of(self), tol)
             .unwrap_or_else(|e| panic!("{what} is not a finished body: {e}"))
     }
 }

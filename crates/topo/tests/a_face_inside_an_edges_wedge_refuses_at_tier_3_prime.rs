@@ -170,7 +170,7 @@ fn the_booleans_slit_keel_passes_tier_3_prime() {
         let trench = along_x("a trench", &[(2.0, 0.0), (2.6, 2.0), (1.4, 2.0)], span);
         let r = built(what, subtract(&slab, &trench, tol));
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, tol),
+            validate_pseudomanifold(&r.body, r.contacts(), tol),
             Ok(()),
             "{what}: the slit keel's wedges lie on either side of the floor"
         );
@@ -196,13 +196,13 @@ fn a_ridge_resting_on_its_own_solids_floor_passes_tier_3_prime() {
     let r = built("the ridge on the floor", union(&c.body, &ridge, tol));
     assert_eq!(r.body.solids().count(), 1, "one solid");
     assert_eq!(
-        r.contacts.edge_face().count(),
+        r.contacts().edge_face().count(),
         1,
         "the keel lies in the floor on record: {:?}",
-        r.contacts
+        r.contacts()
     );
     assert_eq!(
-        validate_pseudomanifold(&r.body, &r.contacts, tol),
+        validate_pseudomanifold(&r.body, r.contacts(), tol),
         Ok(()),
         "the keel's wedge lies outside the floor's material"
     );
@@ -221,12 +221,12 @@ fn a_glued_tip_subtracted_with_its_records_passes_tier_3_prime() {
     let tool = built("the glued tip", union(&base, &tip, tol));
     assert_eq!(tool.body.solids().count(), 2, "the tip rests on the slab");
     assert_eq!(
-        validate_pseudomanifold(&tool.body, &tool.contacts, tol),
+        validate_pseudomanifold(&tool.body, tool.contacts(), tol),
         Ok(()),
         "the tip's keel lies on the slab's top from outside its wedge"
     );
     let inputs = BooleanInputs {
-        records_b: tool.contacts.carried(),
+        records_b: tool.contacts().carried(),
         ..BooleanInputs::default()
     };
     for (what, from, to) in [
@@ -256,7 +256,7 @@ fn a_glued_tip_subtracted_with_its_records_passes_tier_3_prime() {
             ),
         );
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, tol),
+            validate_pseudomanifold(&r.body, r.contacts(), tol),
             Ok(()),
             "{what}: the slit keel's wedges lie on either side of the pocket's floor"
         );

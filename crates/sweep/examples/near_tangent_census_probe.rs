@@ -197,7 +197,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
     let band = Band::linear(tol()).unwrap();
     let (errors, trace) = topo::census_traces(
         &body.body,
-        &body.contacts,
+        body.contacts(),
         band,
         tol(),
         Some(RegionLane::certified()),
@@ -250,7 +250,7 @@ fn run_all(
                 Ok(res) => {
                     if let Some(bb) = res.body()
                         && let Err(errors) =
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
                     {
                         for e in &errors {
                             after.push(format!("  T3 {line} | {}", finding(e)));

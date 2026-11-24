@@ -323,7 +323,7 @@ fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume:
     };
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "op {op:?}: tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol),
         Ok(()),
         "op {op:?}: tier 3′"
     );
@@ -709,7 +709,7 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     );
     let (edges, hes) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors = topo::finish(b, Tol::witness())
+    let errors = topo::finish(topo::Built::of(b), Tol::witness())
         .expect_err("a cone face over a brick's lines does not finish");
     assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
     assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
@@ -780,8 +780,8 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     .unwrap();
     let (edges, _) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors =
-        topo::finish(b, Tol::witness()).expect_err("a placeholder NURBS wall does not finish");
+    let errors = topo::finish(topo::Built::of(b), Tol::witness())
+        .expect_err("a placeholder NURBS wall does not finish");
     assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
     assert_eq!(
         errors[0],

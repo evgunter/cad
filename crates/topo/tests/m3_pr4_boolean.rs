@@ -350,7 +350,7 @@ fn null_edge_operand_refuses() {
             topo::construction::NewVertexSide::Above,
         )
         .unwrap();
-    let errors = topo::finish(b, Tol::witness()).unwrap_err();
+    let errors = topo::finish(topo::Built::of(b), Tol::witness()).unwrap_err();
     assert_eq!(
         errors,
         [
@@ -414,7 +414,7 @@ fn non_maximal_operand_refuses() {
     let [seam] = seams[..] else {
         panic!("one seam edge splits the top face: {seams:?}");
     };
-    let scaffold = topo::finish(b.clone(), tol).unwrap_err();
+    let scaffold = topo::finish(topo::Built::of(b.clone()), tol).unwrap_err();
     assert_eq!(
         scaffold,
         [ValidationError::ScaffoldAtRest { edge: seam }],

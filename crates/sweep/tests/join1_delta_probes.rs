@@ -298,7 +298,7 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
             topo::Cell::Vertex(_) => false,
         };
         let spans = bb
-            .contacts
+            .contacts()
             .cell_pairs()
             .filter(|&(x, y)| match (x, y) {
                 (topo::Cell::Edge(e), c) | (c, topo::Cell::Edge(e)) => apex(e) && holder(c),
@@ -306,14 +306,15 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
             })
             .count();
         assert_eq!(
-            spans, 1,
+            spans,
+            1,
             "tri ∪ {name}: one record of the apex edge's span against what holds it, in {:?}",
-            bb.contacts
+            bb.contacts()
         );
         // Tier 3′ confirms the record: no finding is a stale record or
         // an unrecorded touch. A curved partner's only findings are the
         // cross-solid backstop's.
-        match topo::validate_pseudomanifold(body, &bb.contacts, tol()) {
+        match topo::validate_pseudomanifold(body, bb.contacts(), tol()) {
             Ok(()) => assert_eq!(name, "tri", "tri ∪ {name}: the backstop refuses"),
             Err(es) => assert!(
                 name != "tri"

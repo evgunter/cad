@@ -901,7 +901,7 @@ pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    T::finish(body, tol)
+    T::finish(crate::Built::of(body), tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either
@@ -1310,7 +1310,7 @@ pub fn posed_crown_kept(
     pose: &Pose,
     tol: Tol,
 ) -> Result<AtRestBody<f64>, crate::NotFinished> {
-    crate::finish(crown_body(ring, bottom, pose, tol), tol)
+    crate::finish(crate::Built::of(crown_body(ring, bottom, pose, tol)), tol)
 }
 
 /// [`posed_crown`]'s body as built, before the at-rest gate.

@@ -394,7 +394,8 @@ pub fn sectioned(tol: Tol) -> Body<f64> {
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
     );
-    let quarter = pncad::topo::finish(quarter, tol).expect("the sectioned vessel is a valid body");
+    let quarter = pncad::topo::finish(pncad::topo::Built::of(quarter), tol)
+        .expect("the sectioned vessel is a valid body");
     pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body
@@ -405,7 +406,8 @@ pub fn sectioned(tol: Tol) -> Body<f64> {
 pub const SCENE_DELTA: f64 = DELTA;
 
 pub fn stops(tol: Tol) -> Vec<TourStop> {
-    let body = pncad::topo::finish(bellied(tol), tol).expect("the operand: tier 3");
+    let body = pncad::topo::finish(pncad::topo::Built::of(bellied(tol)), tol)
+        .expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).h(), Ok(0), "a vessel is a ball");
     let props =
@@ -527,7 +529,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let trip = crate::step_round_trip("torusvessel", &sealed, tol);
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
-    let twin = pncad::topo::finish(waisted(tol), tol).expect("the twin is a finished body");
+    let twin = pncad::topo::finish(pncad::topo::Built::of(waisted(tol)), tol)
+        .expect("the twin is a finished body");
     assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")

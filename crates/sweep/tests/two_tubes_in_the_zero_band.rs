@@ -27,7 +27,7 @@ fn band() -> Band {
 }
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
-    topo::finish(b, tol()).unwrap()
+    topo::finish(topo::Built::of(b), tol()).unwrap()
 }
 
 /// A point rounded far above the band, so both orders' cells compare.
@@ -58,7 +58,7 @@ fn records(r: &topo::BooleanBody<f64>) -> Vec<String> {
         topo::Cell::Face(f) => format!("face {}", face_kind(body, f)),
     };
     let mut rows: Vec<String> = r
-        .contacts
+        .contacts()
         .cell_pairs()
         .map(|(x, y)| {
             let mut pair = [cell(x), cell(y)];
@@ -80,7 +80,7 @@ fn findings(r: &topo::BooleanBody<f64>) -> Vec<String> {
         topo::EntityId::Solid(_) => "Solid".to_owned(),
         other => format!("{other:?}"),
     };
-    let mut out: Vec<String> = topo::validate_pseudomanifold(body, &r.contacts, tol())
+    let mut out: Vec<String> = topo::validate_pseudomanifold(body, r.contacts(), tol())
         .err()
         .unwrap_or_default()
         .into_iter()

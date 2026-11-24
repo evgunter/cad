@@ -817,7 +817,7 @@ fn p12_a_plane_through_the_middle_of_a_diamond_holes_edge() {
         panic!("p12 diamond A ∖ B");
     };
     assert_eq!(
-        topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).err(),
+        topo::validate_pseudomanifold(&r.body, r.contacts(), tol()).err(),
         None,
         "p12 diamond A ∖ B: tier 3′"
     );

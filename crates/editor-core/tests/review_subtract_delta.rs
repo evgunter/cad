@@ -149,8 +149,7 @@ fn shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> Result<Shape, String> {
     };
     let value = ev.value(id).unwrap();
     let mut records: Vec<String> = value
-        .carry
-        .contacts
+        .contacts()
         .cell_pairs()
         .map(|(x, y)| {
             let mut two = [cell(x), cell(y)];

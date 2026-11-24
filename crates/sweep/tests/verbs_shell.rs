@@ -1554,8 +1554,8 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
 
     // The inner wall now wears a carrier its edges do not lie on, so
     // the body is not finished and the verb is never handed it.
-    let errors =
-        topo::finish(body, Tol::witness()).expect_err("the re-charted tube is not a finished body");
+    let errors = topo::finish(topo::Built::of(body), Tol::witness())
+        .expect_err("the re-charted tube is not a finished body");
     assert!(
         errors
             .iter()

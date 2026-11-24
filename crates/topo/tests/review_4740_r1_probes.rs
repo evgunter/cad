@@ -38,14 +38,14 @@ fn run(op: Op, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Option<BooleanBody<f
 /// its own records; and how many `EdgeEdgeOverlap` refusals stripping
 /// those rows leaves, every other refusal failing the row.
 fn ee_rows(what: &str, r: &BooleanBody<f64>) -> (usize, usize) {
-    let verdict = validate_pseudomanifold(&r.body, &r.contacts, tol());
+    let verdict = validate_pseudomanifold(&r.body, r.contacts(), tol());
     assert!(
         verdict.is_ok(),
         "{what}: 3′ with its records: {verdict:?}\n{:?}",
-        r.contacts
+        r.contacts()
     );
     let bounds: topo::ContactRecords = r
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .filter(|c| !matches!(c.record.kind(), topo::ContactKind::EdgeEdge(..)))
@@ -64,7 +64,7 @@ fn ee_rows(what: &str, r: &BooleanBody<f64>) -> (usize, usize) {
         )),
         "{what}: stripped: {errs:?}"
     );
-    (r.contacts.edge_edge().count(), errs.len())
+    (r.contacts().edge_edge().count(), errs.len())
 }
 
 /// Asserts `got` is the result gate's refusal of overlapping wedges on

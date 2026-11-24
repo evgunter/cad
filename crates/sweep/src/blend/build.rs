@@ -122,26 +122,6 @@ pub struct Blended<T: topo::AtRestPolicy> {
 }
 
 impl<T: topo::AtRestPolicy> Blended<T> {
-    /// `records`, the operand's, carried onto the blended body
-    /// ([`super::naming::BlendNaming::carry_contacts`]). A body with no
-    /// birth records carries through [`Self::lineage`]'s read-everything
-    /// lineage.
-    ///
-    /// # Errors
-    ///
-    /// As [`topo::ContactRecords::carried_through`].
-    pub fn carry_contacts(
-        &self,
-        records: &topo::ContactRecords,
-        band: geom_core::Band,
-        region: Option<T::RegionLane>,
-    ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
-        match &self.naming {
-            Some(naming) => naming.carry_contacts(records, &self.body, band, region),
-            None => records.carried_through(0, &self.lineage(), &self.body, band, region),
-        }
-    }
-
     /// **What the blend made of each source cell** (D1):
     /// [`super::naming::BlendNaming::lineage`]. A body with no birth
     /// records names no carve and carries no source, so every record is
@@ -209,7 +189,8 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    let (body, band) = operand_gate::<T>(body, tol)?;
+    let operand = body;
+    let (body, band) = operand_gate::<T>(operand, tol)?;
     nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
 
@@ -222,7 +203,7 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    super::surgery::blend_surgery(body, &verdict, band, tol)
+    super::surgery::blend_surgery(operand, &verdict, band, tol)
 }
 
 /// **Both doors' operand read** (module docs): the finished body as a
@@ -488,7 +469,8 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
-    let (body, band) = operand_gate::<T>(body, tol)?;
+    let operand = body;
+    let (body, band) = operand_gate::<T>(operand, tol)?;
     nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 
@@ -498,7 +480,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
         size: distance,
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
-    super::surgery::blend_surgery(body, &verdict, band, tol)
+    super::surgery::blend_surgery(operand, &verdict, band, tol)
 }
 
 #[cfg(test)]

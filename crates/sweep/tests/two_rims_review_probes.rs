@@ -36,7 +36,7 @@ fn read_voided(
     match r {
         Ok(BooleanResult::Body(bb)) => {
             let t3 = topo::validate_geometric(&bb.body, tol());
-            let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+            let t3p = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol());
             let (shells, solids) = (bb.body.shells().count(), bb.body.solids().count());
             eprintln!("  tier 3 {t3:?}, tier 3' {t3p:?}, shells {shells}, solids {solids}");
             if t3.is_err() || t3p.is_err() || shells != solids + voids {

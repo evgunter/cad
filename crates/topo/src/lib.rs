@@ -345,6 +345,9 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub use crate::validate::unconfirmed;
+
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
     /// reads them rather than copying their words.
@@ -806,7 +809,7 @@ pub mod test_support {
         #[allow(clippy::panic)]
         #[track_caller]
         fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
-            match T::finish(self, tol) {
+            match T::finish(crate::Built::of(self), tol) {
                 Ok(body) => body,
                 Err(e) => panic!("{what} is not a finished body: {e:?}"),
             }
@@ -1531,14 +1534,16 @@ pub use chart_window::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
     CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
-    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
+    census_contact_row, census_entity_solid, census_finding_solids, census_interference_solids,
+    census_rest_decision, census_uncleared_solids, line_segments_meet, line_segments_overlap,
+    record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass,
-    RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict, Uncertified,
+    CONTACT_RECOURSE, ContactFinding, ContactPair, ContactReach, ContactRefusal, ContactVerdict,
+    GlueClass, RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict,
+    UNREAD_CONTACT_RECOURSE, Uncertified,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1608,8 +1613,9 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
-    session_box_at, take,
+    AssembleError, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, HeldKind,
+    KernelOnly, LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at,
+    take,
 };
 pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
@@ -1638,15 +1644,14 @@ pub use splitting::{
     BoundClass, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision,
     NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge,
     SectionError, SectionGermFault, SectionGermReading, SectionPolygon, SectionRegion,
-    SectorReading, SplitContacts, SplitError, SplitFinishError, SplitPart, SplitPlane,
-    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
-    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
-    vertex_sides,
+    SectorReading, SplitError, SplitFinishError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
+    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{Isometry, TransformError, transform_rigid};
 pub use unresolved::Unresolved;
 pub use validate::{
-    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
+    AtRestBody, Bar, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
     SCAFFOLDING_RECOURSE, SingularityLies, StaleDeclaration, Undecidable, ValidationError,
     WedgeCheck, contact_marks, contact_marks_structural, validate, validate_closed,

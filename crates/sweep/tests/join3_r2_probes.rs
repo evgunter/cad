@@ -219,7 +219,7 @@ fn far_brick() -> AtRestBody<f64> {
 
 /// `body` as a boolean operand, or the at-rest gate's findings.
 fn as_operand(body: Body<f64>) -> Result<AtRestBody<f64>, String> {
-    topo::finish(body, tol()).map_err(|e| format!("not a finished body: {e:?}"))
+    topo::finish(topo::Built::of(body), tol()).map_err(|e| format!("not a finished body: {e:?}"))
 }
 
 /// The six ops over `a` and `b`; an operand the at-rest gate refuses is

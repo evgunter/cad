@@ -106,7 +106,8 @@ fn measured<T: Decide + Bounds + geom_core::CertifiedBounds + topo::CertifiedPol
     body: Body<T>,
     what: &str,
 ) -> (f64, f64) {
-    let finished = topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what} finishes: {e:?}"));
+    let finished = topo::finish(topo::Built::of(body), tol())
+        .unwrap_or_else(|e| panic!("{what} finishes: {e:?}"));
     let m = topo::mass_properties(
         &finished,
         tol(),

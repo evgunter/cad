@@ -54,7 +54,7 @@ fn carried_union(
     )]
     .into_iter()
     .collect();
-    let base = topo::finish(base.clone(), tol()).unwrap();
+    let base = topo::finish(topo::Built::of(base.clone()), tol()).unwrap();
     let far = common::finished("far", brick((10.0, 11.0), (10.0, 11.0), (0.0, 1.0)), tol());
     let inputs = BooleanInputs {
         records_a: record.carried(),
@@ -116,8 +116,8 @@ fn a_carried_vertex_pair_that_is_one_point_shares_a_key() {
     let Ok(BooleanResult::Body(r)) = carried_union(&base, a, b) else {
         panic!("the union builds");
     };
-    let [(x, y)] = r.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
-        panic!("the record survives: {:?}", r.contacts);
+    let [(x, y)] = r.contacts().vertex_vertex().collect::<Vec<_>>()[..] else {
+        panic!("the record survives: {:?}", r.contacts());
     };
     assert_eq!(
         key(&r.body, x),

@@ -42,7 +42,7 @@ fn r2_multi_spike_corner_meet_is_tier_three() {
                     if let Err(e) = topo::validate_closed(&bb.body) {
                         bad.push(format!("tier 2 {e:?}"));
                     }
-                    if let Err(e) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, t) {
+                    if let Err(e) = topo::validate_pseudomanifold(&bb.body, bb.contacts(), t) {
                         bad.push(format!("tier 3′ {e:?}"));
                     }
                     if let Err(e) = topo::validate_geometric_certificate(&bb.body, t) {

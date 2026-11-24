@@ -37,3 +37,4 @@ here from CARVETAIL, which took CARVE's skin-arc row in the same cut
 `skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`.
 
 Signed: (CARVE orchestrator)
+- 2026-11-22 — **Seam (HELDRECORDS's first unit, PR 7124, `embed/records`):** the loft door's leaf is `T::leaf(topo::Built::of(body), tol)` (`crates/sweep/src/loft.rs`). (embed/records implementer)

@@ -734,14 +734,12 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
 fn r1_the_kiss_certifies_with_its_touch_recorded() {
     let text = fixture("../step-export/tests/fixtures/kiss_assembly.step");
     let StepImport::Solid {
-        body,
-        contacts,
-        coincidences,
-        ..
+        body, coincidences, ..
     } = import_step(&text, &ImportOptions::default(), Tol::witness()).expect("the kiss imports")
     else {
         panic!("the kiss imports as a solid");
     };
+    let contacts = body.records();
     assert_eq!(body.solids().count(), 2, "both kissing solids ship");
     assert!(
         !coincidences.is_empty()
@@ -759,7 +757,7 @@ fn r1_the_kiss_certifies_with_its_touch_recorded() {
         contacts.decided().iter().all(|&k| k < rows),
         "every record cites a row the import ships"
     );
-    topo::validate_pseudomanifold(&*body, &contacts, Tol::witness())
+    topo::validate_pseudomanifold(&*body, contacts, Tol::witness())
         .expect("the shipped records confirm at rest");
 }
 

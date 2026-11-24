@@ -188,11 +188,53 @@ fn sphere_sphere<T: Decide>(
     coincident(dist, big - small, cb + out * big, band, errors)
 }
 
-fn refused(subject: CensusSubject, what: &'static str) -> ValidationError {
+/// **Why the curve × face reading handed back no touch and no margin**,
+/// as a gate takes it. An arm the table has not built, and a spline
+/// arm with no closed pose, are kinds the reading does not cover:
+/// nothing was read ([`crate::contact::ContactReach::NoLane`]). A meter
+/// that refused, a torus outside its convention, a method that did not
+/// run to an answer and a kernel fault are a reading that ran, or was
+/// handed what it could not read, and did not decide
+/// ([`crate::contact::ContactReach::Unread`]); so is a refusal with no
+/// window to say why.
+fn unread_point_touch(
+    why: Option<geom_brep::curve_face::CrossWhy>,
+) -> (&'static str, crate::contact::ContactReach) {
+    use crate::contact::ContactReach;
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal};
+    match why {
+        Some(CrossWhy::Pose(PoseRefusal::Unbuilt(_) | PoseRefusal::Enclosed)) => (
+            "an edge–face point touch of a pair the curve × face reading has no arm for (an \
+             unbuilt pair, or a spline arm with no closed pose)",
+            ContactReach::NoLane,
+        ),
+        Some(
+            CrossWhy::Pose(
+                PoseRefusal::Meter { .. }
+                | PoseRefusal::Torus(_)
+                | PoseRefusal::Fault(_)
+                | PoseRefusal::InBand { .. },
+            )
+            | CrossWhy::Method { .. },
+        )
+        | None => (
+            "an edge–face point touch the curve × face reading ran on and did not read: a \
+             meter that refused, a torus outside its convention, or a method that reached no \
+             answer",
+            ContactReach::Unread,
+        ),
+    }
+}
+
+fn refused(
+    subject: CensusSubject,
+    what: &'static str,
+    reach: crate::contact::ContactReach,
+) -> ValidationError {
     ValidationError::CensusUnsupported {
         subject,
         cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable { what },
+            crate::contact::ContactRefusal::NotCertifiable { what, reach },
         ),
     }
 }
@@ -216,6 +258,7 @@ fn in_face<T: Decide>(
             errors.push(refused(
                 CensusSubject::Entity(EntityId::Face(face)),
                 "a point-touch record on a face whose trim the containment door does not read",
+                super::TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
             ));
             None
         }
@@ -261,6 +304,7 @@ pub(super) fn edge_face<T: Decide>(
         errors.push(refused(
             CensusSubject::Entity(EntityId::Face(face)),
             "a point-touch record on a face with no surface",
+            crate::contact::ContactReach::Unread,
         ));
         return Read::Pushed;
     };
@@ -276,6 +320,7 @@ pub(super) fn edge_face<T: Decide>(
                     subject,
                     "an edge lying on a face's carrier away from a conventional vertex: the \
                      census builds no curve-touch lane along an edge's carrier",
+                    crate::contact::ContactReach::NoLane,
                 ));
                 return Read::Pushed;
             }
@@ -284,6 +329,7 @@ pub(super) fn edge_face<T: Decide>(
                     subject,
                     "an edge through a cone face's apex: a point the cone has no tangent \
                      plane at, read by the apex vertex's records",
+                    crate::contact::ContactReach::Unread,
                 ));
                 return Read::Pushed;
             }
@@ -297,14 +343,11 @@ pub(super) fn edge_face<T: Decide>(
                 },
                 CrossWhy::Pose(_) => None,
             });
+            let why = refusal.windows.first().map(|w| w.why);
             errors.push(cause.map_or_else(
                 || {
-                    refused(
-                        subject,
-                        "an edge–face point touch the curve × face reading does not read: an \
-                         unbuilt or spline pair, a meter that refused, or a torus outside its \
-                         convention",
-                    )
+                    let (what, reach) = unread_point_touch(why);
+                    refused(subject, what, reach)
                 },
                 |cause| ValidationError::CensusEscalated { cause },
             ));
@@ -442,6 +485,40 @@ mod tests {
         assert!(
             off <= 1e-15,
             "the touch point stands {off:e} off the circle's"
+        );
+    }
+}
+
+#[cfg(test)]
+mod reach_tests {
+    use super::unread_point_touch;
+    use crate::contact::ContactReach;
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal};
+
+    /// The bundled refusal, split: a pair the reading has no arm for is
+    /// no lane's; a meter that refused, a fault, or no window at all is
+    /// a reading that did not decide.
+    #[test]
+    fn a_point_touch_with_no_arm_is_no_lane_and_a_meter_that_refused_is_unread() {
+        let reach = |why| unread_point_touch(why).1;
+        assert_eq!(
+            reach(Some(CrossWhy::Pose(PoseRefusal::Enclosed))),
+            ContactReach::NoLane
+        );
+        assert_eq!(
+            reach(Some(CrossWhy::Pose(PoseRefusal::Fault("a fault")))),
+            ContactReach::Unread
+        );
+        assert_eq!(reach(None), ContactReach::Unread);
+    }
+
+    /// A trim the containment door does not read is a kind outside its
+    /// lanes at each of the four sites that raise it.
+    #[test]
+    fn a_trim_outside_the_containment_door_is_no_lane() {
+        assert_eq!(
+            super::super::TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
+            ContactReach::NoLane
         );
     }
 }

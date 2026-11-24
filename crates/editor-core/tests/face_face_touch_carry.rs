@@ -69,7 +69,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let ValuePayload::Boolean(BooleanValue::Body { .. }) = &rested_value.payload else {
         panic!("plate ∪ rod: a boolean body")
     };
-    let contacts = &rested_value.carry.contacts;
+    let contacts = &rested_value.contacts();
     let mut kinds: Vec<_> = contacts
         .kinds()
         .map(|k| match k {
@@ -97,7 +97,7 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
         let ValuePayload::Boolean(BooleanValue::Body { .. }) = &value.payload else {
             panic!("{what}: a boolean body")
         };
-        let carried = &value.carry.contacts;
+        let carried = &value.contacts();
         assert_eq!(
             (carried.edge_face().count(), carried.face_face().count()),
             (2, 1),

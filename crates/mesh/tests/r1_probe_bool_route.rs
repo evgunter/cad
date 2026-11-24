@@ -108,7 +108,10 @@ fn attempt(r: f64, gap: f64) {
             None
         }
     };
-    let (Some(a), Some(b)) = (finish("ball", a), finish("slab", b)) else {
+    let (Some(a), Some(b)) = (
+        finish("ball", topo::Built::of(a)),
+        finish("slab", topo::Built::of(b)),
+    ) else {
         return;
     };
     match topo::boolean::subtract(&b, &a, Tol::witness()) {

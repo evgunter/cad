@@ -4560,7 +4560,7 @@ mod tests {
             })
             .expect("the cube's near face, outward along -m");
         let cube_body = cube.clone();
-        let cube = crate::finish(cube, tol).unwrap();
+        let cube = crate::finish(crate::Built::of(cube), tol).unwrap();
         let built = prism::<f64>(&profile, 1.0, tol);
         let corner = built.top[3];
         let orbit = built.body.vertex_orbit_linked(corner);
@@ -4599,7 +4599,7 @@ mod tests {
                     .map(|e| e.dangling)
                     .collect::<Vec<_>>(),
             );
-            let body = crate::finish(body, tol).unwrap();
+            let body = crate::finish(crate::Built::of(body), tol).unwrap();
             let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
                 r.unwrap().body().map_or(0.0, |b| {
                     mass_properties(&b.body, tol, crate::test_support::pinned_resolution(tol))

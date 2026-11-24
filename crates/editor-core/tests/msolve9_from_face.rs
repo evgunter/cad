@@ -22,8 +22,6 @@ use crate::fixture;
 use crate::wire;
 use test_utils::refusal::tagged;
 
-use std::sync::Arc;
-
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
@@ -715,7 +713,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.carry.contacts, &b.carry.contacts),
+        (Some(a), Some(b)) => same_carry(a, b),
         _ => false,
     };
     let placed = move |doc: &ProfileDoc, opts: &EvalOptions| {
@@ -938,4 +936,10 @@ fn every_mate(value: &serde_json::Value, f: &mut dyn FnMut(&serde_json::Value)) 
         serde_json::Value::Array(items) => items.iter().for_each(|v| every_mate(v, f)),
         _ => {}
     }
+}
+
+/// Whether two values hold one carry, by the allocation of the inputs
+/// it cites: every op that runs mints its own.
+fn same_carry(a: &editor_core::NodeValue<f64>, b: &editor_core::NodeValue<f64>) -> bool {
+    std::sync::Arc::ptr_eq(&a.carry.cited_inputs, &b.carry.cited_inputs)
 }

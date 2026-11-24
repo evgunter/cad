@@ -3899,7 +3899,7 @@ fn posed<T: Scalar>(
     for pose in poses {
         let rigid = geom_core::test_support::rigid(&pose.map(T::from_f64), tol());
         let moved = topo::transform_rigid(&body, &rigid).expect("the rod moves");
-        body = match <T as topo::AtRestPolicy>::finish(moved, tol()) {
+        body = match <T as topo::AtRestPolicy>::finish(topo::Built::of(moved), tol()) {
             Ok(b) => b,
             Err(e)
                 if e.as_slice().iter().all(|f| {

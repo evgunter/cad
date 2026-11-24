@@ -402,7 +402,7 @@ fn judge(
             },
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
+                let t3 = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                 let far = finished(
                     "the far brick",
@@ -748,7 +748,7 @@ impl NtPrism {
     /// The prism as an operand.
     pub fn body(&self, tol: Tol) -> AtRestBody<f64> {
         topo::finish(
-            topo::test_support::prism::<f64>(&self.profile, self.h, tol).body,
+            topo::Built::of(topo::test_support::prism::<f64>(&self.profile, self.h, tol).body),
             tol,
         )
         .expect("a near-tangent prism is a valid operand")
@@ -816,7 +816,7 @@ pub fn nt_cube(v: V3, m: V3, tol: Tol) -> AtRestBody<f64> {
         },
         tol,
     );
-    topo::finish(cube, tol).expect("a mapped cube is a valid operand")
+    topo::finish(topo::Built::of(cube), tol).expect("a mapped cube is a valid operand")
 }
 
 /// The near-tangent census's prisms, by name.

@@ -251,8 +251,8 @@ pub use ops::{
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use overlap::{OverlapRefusal, OverlapUnread, overlap};
+pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
-pub(crate) use records::{Parting, incident};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::SweepStrategy;
@@ -1084,6 +1084,65 @@ pub struct CarriedRecord<R> {
 }
 
 impl OperandRecords {
+    /// **These records as `body`'s own list**, in the order of the
+    /// operand's list they index, each citing the operand's record it
+    /// is as input `input`'s: what a door that built `body` to hold
+    /// them hands its gate.
+    ///
+    /// # Errors
+    ///
+    /// [`ContactPairError`] for a record whose two cells are one cell or
+    /// incident in `body`.
+    pub(in crate::boolean) fn records<T: geom_core::Real>(
+        &self,
+        body: &crate::Body<T>,
+        input: u32,
+    ) -> Result<ContactRecords, ContactPairError> {
+        use Cell::{Edge, Face, Vertex};
+        let Self {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = self;
+        let mut rows: Vec<(u32, [Cell; 2])> = Vec::new();
+        rows.extend(
+            vv.iter()
+                .map(|c| (c.record, [Vertex(c.contact.a), Vertex(c.contact.b)])),
+        );
+        rows.extend(
+            vf.iter()
+                .map(|c| (c.record, [Vertex(c.contact.vertex), Face(c.contact.face)])),
+        );
+        rows.extend(
+            ve.iter()
+                .map(|c| (c.record, [Vertex(c.contact.vertex), Edge(c.contact.edge)])),
+        );
+        rows.extend(
+            ee.iter()
+                .map(|c| (c.record, [Edge(c.contact.a), Edge(c.contact.b)])),
+        );
+        rows.extend(
+            ef.iter()
+                .map(|c| (c.record, [Edge(c.contact.edge), Face(c.contact.face)])),
+        );
+        rows.extend(
+            ff.iter()
+                .map(|c| (c.record, [Face(c.contact.a), Face(c.contact.b)])),
+        );
+        rows.sort_by_key(|&(record, _)| record);
+        let mut out = ContactRecords::default();
+        for (record, [x, y]) in rows {
+            out.push(Cited::new(
+                Contact::new(body, x, y)?,
+                Cites::one(crate::Backing::Carried { input, record }),
+            ));
+        }
+        Ok(out)
+    }
+
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
         let Self {
@@ -1114,6 +1173,20 @@ pub struct BooleanInputs {
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
+}
+
+impl BooleanInputs {
+    /// **The records two finished operands hold**
+    /// ([`crate::FinishedBody::records`]), carried in as each one's own:
+    /// what the plain doors (`union`, `subtract`, `intersect`) hand
+    /// their op, so a result reused as an operand keeps its records.
+    #[must_use]
+    pub fn of<F: crate::FinishedBody>(a: &F, b: &F) -> Self {
+        Self {
+            records_a: a.records().carried(),
+            records_b: b.records().carried(),
+        }
+    }
 }
 
 /// **A face pair a boolean glued on its own decision**: a face of
@@ -8379,11 +8452,14 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     use crate::contact::ContactRefusal;
     let ((sa, _), (sb, _)) = (record_face(body, fa), record_face(body, fb));
     let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
+        // The line's reading was handed a face it could not read: a
+        // reading that failed, not a pair outside every lane.
         ContactRefusal::NotCertifiable {
             what: match e {
                 BooleanError::InvalidInput { what, .. } => what,
                 _ => "a face of the face-face record has no extent to read",
             },
+            reach: crate::contact::ContactReach::Unread,
         }
     })?;
     let line = match line {

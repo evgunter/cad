@@ -339,7 +339,7 @@ fn kiss_record(ev: &Evaluation<f64>, id: RecipeNodeId) -> editor_core::NamedCoin
     let ValuePayload::Boolean(BooleanValue::Body { .. }) = &value.payload else {
         panic!("a boolean body: {:?}", value.payload);
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     let [record] = contacts.rows() else {
         panic!("one vertex pair: {contacts:?}");
     };

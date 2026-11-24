@@ -51,7 +51,7 @@ use topo::Body;
 /// A tube's mass properties at f64, through the typed door.
 fn measured(body: &topo::Body<f64>) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
-    let finished = topo::finish(topo::Body::clone(body), tol)
+    let finished = topo::finish(topo::Built::of(topo::Body::clone(body)), tol)
         .unwrap_or_else(|errors| panic!("tier 3 refuses the tube: {errors:?}"));
     topo::test_support::pinned_volume("props", &finished, tol)
 }
@@ -412,12 +412,13 @@ mod certified {
             let t = built.unwrap_or_else(|e| panic!("refusal at Interval for R={major}: {e}"));
             // The revolve's leaf at Interval is tier 2 alone
             // (`topo::AtRestPolicy::leaf`); the measurement finishes it.
-            let finished =
-                topo::finish(topo::Body::clone(&t.body), Tol::witness()).unwrap_or_else(|errors| {
-                    panic!(
-                        "R={major} win={window:?}: tier 3 refuses the tube at Interval: {errors:?}"
-                    )
-                });
+            let finished = topo::finish(
+                topo::Built::of(topo::Body::clone(&t.body)),
+                Tol::witness(),
+            )
+            .unwrap_or_else(|errors| {
+                panic!("R={major} win={window:?}: tier 3 refuses the tube at Interval: {errors:?}")
+            });
             let m = topo::mass_properties(
                 &finished,
                 Tol::witness(),

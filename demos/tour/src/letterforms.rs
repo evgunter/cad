@@ -223,7 +223,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             name,
             [0.80, 0.44, 0.30],
             (*three.body).clone(),
-            three.contacts.clone(),
+            three.contacts().clone(),
         )],
     };
     let shadows = vec![
@@ -252,11 +252,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::seamed(
+            bodies: vec![SceneBody::finished(
                 "silhouette",
                 [0.85, 0.62, 0.28],
-                two.body.into_body(),
-                two.contacts,
+                two.body,
             )],
         },
         TourStop {
@@ -276,11 +275,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::seamed(
+            bodies: vec![SceneBody::finished(
                 "silhouette3",
                 [0.80, 0.44, 0.30],
-                three.body.into_body(),
-                three.contacts,
+                three.body,
             )],
         },
     ]

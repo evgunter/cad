@@ -98,15 +98,20 @@ pub fn rest_pair_verdict<T: Decide>(
 ) -> Result<RestVerdict, ContactRefusal> {
     let outcome =
         super::carrier_pair::carrier_pair_decided(a, fa, b, fb, band).map_err(|unread| {
-            ContactRefusal::NotCertifiable {
-                what: match unread {
-                    super::carrier_pair::PairUnread::OutsideInventory => {
-                        geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY
+            // A kind outside the inventory has no description to
+            // compare: nothing is read. An extent that cannot be read is
+            // a reading that failed.
+            match unread {
+                super::carrier_pair::PairUnread::OutsideInventory => {
+                    ContactRefusal::NotCertifiable {
+                        what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
+                        reach: crate::contact::ContactReach::NoLane,
                     }
-                    super::carrier_pair::PairUnread::Extent(_) => {
-                        "a recorded face's consumed extent cannot be read (its box has no claim to \
-                     make, or its boundary cannot be walked)"
-                    }
+                }
+                super::carrier_pair::PairUnread::Extent(_) => ContactRefusal::NotCertifiable {
+                    what: "a recorded face's consumed extent cannot be read (its box has no \
+                           claim to make, or its boundary cannot be walked)",
+                    reach: crate::contact::ContactReach::Unread,
                 },
             }
         })?;
@@ -141,6 +146,7 @@ pub fn rest_pair_verdict<T: Decide>(
             geom_brep::TorusStanding::InvalidInput(_) => ContactRefusal::NotCertifiable {
                 what: "a recorded face's torus is outside the ring convention (a horn or \
                        spindle torus, or one with no tube), which no carrier is compared on",
+                reach: crate::contact::ContactReach::Unread,
             },
         }),
     }
@@ -192,9 +198,11 @@ pub fn tangent_pair_relation<T: Decide>(
     let (face_a, face_b) = (
         a.face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
+            reach: crate::contact::ContactReach::Unread,
         })?,
         b.face(fb).ok_or(ContactRefusal::NotCertifiable {
             what: "the B-side face does not resolve",
+            reach: crate::contact::ContactReach::Unread,
         })?,
     );
     Ok(tangent_locus_relation(

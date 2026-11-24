@@ -73,7 +73,7 @@ fn unions_at(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: f64) {
             "{what}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
             Ok(()),
             "{what}: tier 3′"
         );

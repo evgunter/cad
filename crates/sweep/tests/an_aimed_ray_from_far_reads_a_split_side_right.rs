@@ -22,14 +22,18 @@ use crate::split_seam_vanishing_tilt::carrier_resolution;
 /// The unit cylinder `0 ≤ z ≤ 1`, turned `phi` about its axis.
 fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let body = topo::finish(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
+    let body = topo::finish(
+        topo::Built::of(sweep::test_support::prism(circle, 1.0, tol)),
+        tol,
+    )
+    .unwrap();
     let turn = geom_core::Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
         phi,
     );
     let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol)).unwrap();
-    topo::finish(turned, tol).unwrap()
+    topo::finish(topo::Built::of(turned), tol).unwrap()
 }
 
 /// How a split of the census reads: both sides built and holding the

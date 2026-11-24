@@ -156,7 +156,7 @@ fn edge_family(pr: &NtPrism, body: &AtRestBody<f64>) {
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    topo::finish(body, tol()).expect("a valid operand")
+    topo::finish(topo::Built::of(body), tol()).expect("a valid operand")
 }
 
 fn circle(r: f64) -> Vec<(Point2<f64>, f64)> {

@@ -83,7 +83,7 @@ fn cut_by(
         &rested.body,
         slab,
         &BooleanInputs {
-            records_a: rested.contacts.carried(),
+            records_a: rested.contacts().carried(),
             ..BooleanInputs::default()
         },
         topo::SweepStrategy::Realized,
@@ -150,19 +150,19 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
         let cube = corner_at(Point3::origin() + n, n, 0.03);
         let rested = rested(&format!("az {az}"), &banded, &cube);
         assert_eq!(
-            rested.contacts.vertex_face().count(),
+            rested.contacts().vertex_face().count(),
             1,
             "az {az}: the corner rests on the half-band: {:?}",
-            rested.contacts
+            rested.contacts()
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract] {
             let what = format!("az {az}, {op:?}");
             let r = cut_by(&what, op, &rested, &slab);
             // Red on the carry that read the face by its key alone: at
             // azimuth 60 the record was dropped.
-            let rests: Vec<_> = r.contacts.vertex_face().collect();
-            let (&[(_, face)], 1) = (&rests[..], r.contacts.len()) else {
-                panic!("{what}: the rest lands once: {:?}", r.contacts)
+            let rests: Vec<_> = r.contacts().vertex_face().collect();
+            let (&[(_, face)], 1) = (&rests[..], r.contacts().len()) else {
+                panic!("{what}: the rest lands once: {:?}", r.contacts())
             };
             let xs = face_xs(&r.body, face);
             assert!(
@@ -194,26 +194,26 @@ fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
         let cube = corner_at(p, (p - Point3::origin()) + up, 0.03);
         let rested = rested(&format!("az {az}"), &banded, &cube);
         assert_eq!(
-            rested.contacts.vertex_edge().count(),
+            rested.contacts().vertex_edge().count(),
             1,
             "az {az}: the corner rests on the rim arc: {:?}",
-            rested.contacts
+            rested.contacts()
         );
         for op in [BooleanOp::Union, BooleanOp::Subtract] {
             let what = format!("az {az}, {op:?}");
             let r = cut_by(&what, op, &rested, &slab);
             assert_eq!(
-                r.contacts.len(),
+                r.contacts().len(),
                 1,
                 "{what}: the rest lands once: {:?}",
-                r.contacts
+                r.contacts()
             );
             if az == 90.0 {
-                let pairs: Vec<_> = r.contacts.vertex_vertex().collect();
+                let pairs: Vec<_> = r.contacts().vertex_vertex().collect();
                 let &[(v, w)] = &pairs[..] else {
                     panic!(
                         "{what}: the rest lands on the split's vertex: {:?}",
-                        r.contacts
+                        r.contacts()
                     )
                 };
                 let gap = (point_of(&r.body, v) - point_of(&r.body, w)).norm();
@@ -222,9 +222,9 @@ fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
             }
             // Red on the carry that read the arc by its key alone: at
             // azimuth 120 the record named the arc's piece at x > 0.
-            let rests: Vec<_> = r.contacts.vertex_edge().collect();
+            let rests: Vec<_> = r.contacts().vertex_edge().collect();
             let &[(_, edge)] = &rests[..] else {
-                panic!("{what}: the rest lands on an arc piece: {:?}", r.contacts)
+                panic!("{what}: the rest lands on an arc piece: {:?}", r.contacts())
             };
             let xs = edge_xs(&r.body, edge);
             assert!(

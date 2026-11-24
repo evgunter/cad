@@ -78,7 +78,7 @@ fn the_edge_face_lane_escalates_no_proxy_on_the_near_tangent_poses() {
                 continue;
             };
             built += 1;
-            let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+            let errors = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
                 .err()
                 .unwrap_or_default();
             let lane: Vec<_> = errors.iter().filter(|e| edge_face_lane(e)).collect();

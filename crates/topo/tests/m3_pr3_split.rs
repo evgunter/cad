@@ -1134,7 +1134,7 @@ fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     _plane: &SplitPlane<T>,
 ) -> Vec<topo::ValidationError> {
-    let errors = match topo::finish(body.clone(), Tol::witness()) {
+    let errors = match topo::finish(topo::Built::of(body.clone()), Tol::witness()) {
         Err(errors) => errors.into_findings(),
         Ok(_) => panic!("{what}: the finish took a body tier 2 refuses"),
     };
@@ -1238,9 +1238,12 @@ fn a_strut_bearing_operand_refuses_at_the_door() {
 /// no split door is handed the strut tip.
 #[test]
 fn a_strut_bearing_body_does_not_finish_at_a_dual() {
-    let errors = topo::finish(strutted_brick::<geom_core::Dual64>(), Tol::witness())
-        .map(|_| ())
-        .expect_err("a strut is tier 2's scaffolding");
+    let errors = topo::finish(
+        topo::Built::of(strutted_brick::<geom_core::Dual64>()),
+        Tol::witness(),
+    )
+    .map(|_| ())
+    .expect_err("a strut is tier 2's scaffolding");
     assert!(
         matches!(
             &errors[..],

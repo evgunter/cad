@@ -121,7 +121,7 @@ fn run(
             .as_ref()
             .ok()
             .and_then(|built| built.body())
-            .and_then(|bb| topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err())
+            .and_then(|bb| topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()).err())
             .map(|e| {
                 let e = format!("{e:?}");
                 let name = e.split("predicate: Some(\"").nth(1);

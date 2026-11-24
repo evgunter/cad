@@ -102,7 +102,7 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
         SplitSide::Body(body) => {
             pncad::topo::test_support::pinned_volume(
                 "mass properties",
-                &pncad::topo::finish(pncad::topo::Body::clone(body.body()), tol)
+                &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(body.body())), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
             )
@@ -3492,7 +3492,7 @@ fn product_volume(session: &mut DocSession, tol: Tol) -> f64 {
     let body = pncad::document::product(landed, ev, tol).expect("the product gathers");
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), tol)
+        &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(&body)), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -3522,7 +3522,7 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     let body = pncad::document::product(&doc, &ev, tol).expect("the world gathers");
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), tol)
+        &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(&body)), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )

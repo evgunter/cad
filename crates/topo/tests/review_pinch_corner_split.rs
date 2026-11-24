@@ -231,7 +231,6 @@ fn review_sweep_normals_through_the_pinch() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(40);
-    let band = geom_core::Band::linear(t()).unwrap();
     let mut wrong = 0;
     let mut refused = 0;
     let mut cells = 0;
@@ -272,17 +271,17 @@ fn review_sweep_normals_through_the_pinch() {
             );
             let r = match split(&case.union.body, &plane, t()) {
                 Ok(r) => r,
+                Err(topo::SplitError::Finish(topo::SplitFinishError::Carry { refusal })) => {
+                    carry_refused += 1;
+                    println!("CARRY {} n={n:?} cones {cones}: {refusal:?}", case.what);
+                    continue;
+                }
                 Err(e) => {
                     refused += 1;
                     println!("REFUSED {} n={n:?}: {e:?}", case.what);
                     continue;
                 }
             };
-            let carried = r.carry_contacts(
-                &case.union.contacts,
-                band,
-                Some(topo::RegionLane::certified()),
-            );
             let kept: Vec<usize> = [&r.above, &r.below]
                 .iter()
                 .map(|p| match p {
@@ -290,20 +289,11 @@ fn review_sweep_normals_through_the_pinch() {
                     _ => 0,
                 })
                 .collect();
-            match &carried {
-                Err(e) => {
-                    carry_refused += 1;
-                    println!(
-                        "CARRY {} n={n:?} cones {cones} kept {kept:?}: {e:?}",
-                        case.what
-                    );
-                }
-                Ok(_) => println!(
-                    "CARRYOK {} n={n:?} cones {cones} kept {kept:?} records {}",
-                    case.what,
-                    case.union.contacts.len()
-                ),
-            }
+            println!(
+                "CARRYOK {} n={n:?} cones {cones} kept {kept:?} records {}",
+                case.what,
+                case.union.contacts().len()
+            );
             for (above, part) in [(true, &r.above), (false, &r.below)] {
                 let what = format!(
                     "{} n={n:?} {}",
@@ -327,17 +317,7 @@ fn review_sweep_normals_through_the_pinch() {
                 if let Err(e) = validate_geometric(b, t()) {
                     bad.push(format!("tier3 {e:?}"));
                 }
-                let records = match &carried {
-                    Ok(c) => {
-                        if above {
-                            c.above.clone()
-                        } else {
-                            c.below.clone()
-                        }
-                    }
-                    Err(_) => topo::ContactRecords::default(),
-                };
-                if let Err(e) = validate_pseudomanifold(b, &records, t()) {
+                if let Err(e) = validate_pseudomanifold(b, b.records(), t()) {
                     bad.push(format!("tier3' {e:?}"));
                 }
                 let got = at_corner(b);
@@ -392,7 +372,8 @@ fn a_fused_cones_vertex_has_a_live_image_in_the_splits_lineage() {
         Vec3::new(n[0], n[1], n[2]),
         t(),
     );
-    let r = split(&three.body, &plane, t()).expect("the split builds");
+    let r = split(&three.body, &plane, t())
+        .expect("the split builds, and the union's records carry through it");
     let sides: Vec<&AtRestBody<f64>> = [&r.above, &r.below]
         .into_iter()
         .filter_map(|p| match p {
@@ -413,12 +394,6 @@ fn a_fused_cones_vertex_has_a_live_image_in_the_splits_lineage() {
         .filter(|(_, images)| images.iter().any(|&c| !live(c)))
         .collect();
     assert_eq!(dead, vec![], "pinch vertices whose lineage images are dead");
-    let band = geom_core::Band::linear(t()).unwrap();
-    assert!(
-        r.carry_contacts(&three.contacts, band, Some(topo::RegionLane::certified()))
-            .is_ok(),
-        "the union's records carry through the split"
-    );
 }
 
 /// **Every lineage image of every operand vertex and edge is live**
@@ -443,8 +418,13 @@ fn every_operand_cells_split_images_are_live_through_chained_fusions() {
                 Vec3::new(n[0], n[1], n[2]),
                 t(),
             );
-            let Ok(r) = split(&case.union.body, &plane, t()) else {
-                continue;
+            let r = match split(&case.union.body, &plane, t()) {
+                Ok(r) => r,
+                Err(topo::SplitError::Finish(topo::SplitFinishError::Carry { refusal })) => {
+                    println!("CARRY {} n={n:?}: {refusal:?}", case.what);
+                    continue;
+                }
+                Err(_) => continue,
             };
             built += 1;
             if r.naming.vertex_fusions.rows().len() > 2 {
@@ -474,14 +454,6 @@ fn every_operand_cells_split_images_are_live_through_chained_fusions() {
                     topo::Cell::Face(f) => b.get_face(f).is_some(),
                 })
             };
-            let band = geom_core::Band::linear(t()).unwrap();
-            if let Err(e) = r.carry_contacts(
-                &case.union.contacts,
-                band,
-                Some(topo::RegionLane::certified()),
-            ) {
-                println!("CARRY {} n={n:?} fusions {}: {e:?}", case.what, rows.len());
-            }
             let lineage = r.lineage();
             let u = &case.union.body;
             let cells: Vec<topo::Cell> = u
@@ -537,7 +509,7 @@ fn review_trace_a_four_cone_parted_cell() {
         );
         let r = split(&four.body, &plane, t()).expect("builds");
         println!("n={n:?} fusions {:?}", r.naming.vertex_fusions.rows());
-        let (x, y) = four.contacts.cell_pairs().nth(rec).unwrap();
+        let (x, y) = four.contacts().cell_pairs().nth(rec).unwrap();
         let lineage = r.lineage();
         for c in [x, y] {
             let at = |p: &SplitPart<f64>, c: topo::Cell| match (p, c) {

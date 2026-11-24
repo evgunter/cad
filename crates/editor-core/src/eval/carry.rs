@@ -4,9 +4,10 @@
 //! records and census decisions, which stay the source's".
 //!
 //! [`Carry`] is that one bundle, on every body value, every piece of a
-//! `⊔` and every part an instance copies: the records keyed in the
-//! body's arena and what each input they cite is, the findings of the
-//! documents below, the pieces and their door's census. Every value
+//! `⊔` and every part an instance copies: how the body's own records
+//! cite at this value and what each input they cite is, the findings of
+//! the documents below, the pieces and their door's census. The records
+//! themselves are the body's ([`topo::FinishedBody::records`]). Every value
 //! that carries its source's takes it through one door,
 //! [`Carry::copied`]: a placement's copy, an instance's, each member of
 //! a placed family, a pick of one piece, a union or an intersect of one
@@ -37,16 +38,18 @@ use crate::coincide::CitedInput;
 /// arena. It holds no records, pieces or census of its own.
 #[derive(Debug, Clone)]
 pub struct Carry<T: topo::AtRestPolicy + Decide> {
-    /// **The contact records its body carries**, keyed in its arena:
-    /// a boolean's own, declared across an instance seam, kept by its
-    /// source's door, or its source's own.
-    pub contacts: Arc<topo::ContactRecords>,
+    /// **How its body's contact records cite, at this value**
+    /// ([`Citing`]). The records are the body's
+    /// ([`topo::FinishedBody::records`]); this holds none of their
+    /// cells, only what each one's backing is in the value's terms
+    /// ([`Self::contacts`]).
+    pub citing: Citing,
     /// **What each input its records cite is**: a record's
     /// [`topo::Backing::Carried`] names an input by position, and this
     /// is that position's input ([`CitedInput`]); a
     /// [`topo::Backing::Decided`] names a row of the value's own
     /// coincidences ([`super::NodeValue::coincidences`]). It rides with
-    /// the records, so a carry taken whole keeps the list its records
+    /// the citing, so a carry taken whole keeps the list its records
     /// cite. A door that grafts a piece's boolean result reads it to
     /// renumber that result's carried citations into its own list
     /// (`wire::distribute`); every other reader re-cites a carry it
@@ -54,7 +57,7 @@ pub struct Carry<T: topo::AtRestPolicy + Decide> {
     pub cited_inputs: Arc<[CitedInput]>,
     /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
     /// each with the route it came by: what an instance reports as its
-    /// part's, keyed in the same arena as `contacts`.
+    /// part's, keyed in the same arena as the body's records.
     pub findings: Arc<crate::checks::at_rest::CarriedFindings>,
     /// How many parts its body is (`crates/editor-core/ASSEMBLY.md`, A2
     /// and A10): a document's product is its pieces, so an instance's
@@ -100,7 +103,7 @@ impl<T: topo::AtRestPolicy + Decide> Default for Carry<T> {
     /// A body of its own: no records, findings or pieces, one part.
     fn default() -> Self {
         Self {
-            contacts: Arc::default(),
+            citing: Citing::Own,
             cited_inputs: Arc::new([]),
             findings: Arc::default(),
             parts: 1,
@@ -156,15 +159,12 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
             Stands::Moved(map) => moved_pieces(self.pieces.as_ref(), map)?,
             Stands::Reflected => None,
         };
-        let (contacts, cited_inputs) = match source {
-            Some(source) => (
-                Arc::new(self.contacts.carried_from(0)),
-                Arc::from([source.clone()]),
-            ),
-            None => (Arc::clone(&self.contacts), Arc::clone(&self.cited_inputs)),
+        let (citing, cited_inputs) = match source {
+            Some(source) => (Citing::Copied, Arc::from([source.clone()])),
+            None => (self.citing.clone(), Arc::clone(&self.cited_inputs)),
         };
         Ok(Self {
-            contacts,
+            citing,
             cited_inputs,
             pieces,
             members,
@@ -172,13 +172,38 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
         })
     }
 
+    /// **Its body's contact records as this value cites them**: `held`,
+    /// the records the value's body holds, each backed as [`Citing`]
+    /// says.
+    ///
+    /// # Panics
+    ///
+    /// Where the value cites record by record ([`Citing::Each`]) and
+    /// `held` is not the body the citations were written over: an
+    /// evaluator bug.
+    #[must_use]
+    pub fn contacts<'h>(
+        &self,
+        held: &'h topo::ContactRecords,
+    ) -> std::borrow::Cow<'h, topo::ContactRecords> {
+        use std::borrow::Cow;
+        match &self.citing {
+            Citing::Own => Cow::Borrowed(held),
+            Citing::Copied => Cow::Owned(held.carried_from(0)),
+            Citing::Each(cites) => Cow::Owned(held.citing(cites).unwrap_or_else(|| {
+                unreachable!(
+                    "a value cites {} records and its body holds {}",
+                    cites.len(),
+                    held.len()
+                )
+            })),
+        }
+    }
+
     /// **This carry as a reader of its body reads it**: where its door's
-    /// census kept records over its pieces, those records (the touches
-    /// it recorded between them among them, keyed in this body, which
-    /// any copy of it shares), citing the census's own inputs; else
-    /// this. A census that refuses leaves the pieces' own records. The
-    /// census runs lazily, once, where a reader first asks, so a door's
-    /// value cannot hold what it keeps.
+    /// census names the inputs its body's records cite (each arrival, an
+    /// instance by its part), those inputs; else this. The records are
+    /// the body's either way.
     pub(crate) fn kept(
         &self,
         doc: &crate::doc::Doc<crate::program::ProfileProgram>,
@@ -193,7 +218,7 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
             .and_then(|census| census.verdict(doc, tol).ok())
         {
             Some(verdict) => Self {
-                contacts: Arc::new(verdict.contacts.clone()),
+                citing: Citing::Own,
                 cited_inputs: verdict.cited_inputs.clone().into(),
                 ..self.clone()
             },
@@ -201,14 +226,11 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
         }
     }
 
-    /// This, its records `contacts`, each input they cite `cited`.
-    pub(crate) fn recording(
-        self,
-        contacts: Arc<topo::ContactRecords>,
-        cited: Vec<CitedInput>,
-    ) -> Self {
+    /// This, its body's records citing as `citing` says, each input
+    /// they cite `cited`.
+    pub(crate) fn recording(self, citing: Citing, cited: Vec<CitedInput>) -> Self {
         Self {
-            contacts,
+            citing,
             cited_inputs: cited.into(),
             ..self
         }
@@ -241,7 +263,7 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
             }
         }
         Self {
-            contacts: Arc::default(),
+            citing: Citing::Own,
             cited_inputs: Arc::new([]),
             findings: Arc::new(findings),
             parts: members.iter().map(|member| member.parts).sum(),
@@ -254,11 +276,34 @@ impl<T: topo::AtRestPolicy + Decide> Carry<T> {
 
     /// **Body `i`'s carry** ([`Self::members`]): a family's member's
     /// own, a split's side's own, and this on a value of one body.
-    pub(crate) fn member(&self, i: usize) -> &Self {
+    pub fn member(&self, i: usize) -> &Self {
         self.members
             .as_ref()
             .and_then(|members| members.get(i))
             .unwrap_or(self)
+    }
+}
+
+/// **How a value's body's contact records cite**, in the value's terms:
+/// which row or which input's record backs each. It holds no cell of
+/// any record; [`Carry::contacts`] reads the records off the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Citing {
+    /// As the body holds them: the value's door finished the body
+    /// with these citations.
+    Own,
+    /// A copy's: record `k` cites record `k` of its source, its one
+    /// input.
+    Copied,
+    /// Record `k` cites `.0[k]`: an op whose rows and inputs the
+    /// evaluator names in the node's own space (a union's fold).
+    Each(Arc<[topo::Cites]>),
+}
+
+impl Citing {
+    /// Each record of `contacts` citing what it cites there.
+    pub(crate) fn each(contacts: &topo::ContactRecords) -> Self {
+        Self::Each(contacts.cites().cloned().collect())
     }
 }
 

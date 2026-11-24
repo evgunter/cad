@@ -78,7 +78,7 @@ fn pose(s: f64, seed: u64) -> Affine3<f64> {
 /// skips: the question is the boolean's, not the move's).
 fn posed(body: &Body<f64>, map: &Affine3<f64>) -> Option<AtRestBody<f64>> {
     let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol())).ok()?;
-    topo::finish(b, tol()).ok()
+    topo::finish(topo::Built::of(b), tol()).ok()
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -310,7 +310,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op_ro
                                 BooleanResult::Empty => (true, true),
                                 BooleanResult::Body(bb) => (
                                     bb.kind == topo::BooleanResultKind::Assembly,
-                                    bb.contacts != topo::ContactRecords::default(),
+                                    *bb.contacts() != topo::ContactRecords::default(),
                                 ),
                             };
                             if disjoint && !(excluded && touch_recorded) {

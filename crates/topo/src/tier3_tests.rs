@@ -4126,12 +4126,15 @@ fn tier_three_and_tier_two_record_every_decision_as_a_check() {
     let body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 3.0), tol);
     let bracket = Bracket::open();
     assert!(
-        crate::AtRestBody::validate(body.clone(), tol).is_ok(),
+        crate::AtRestBody::validate(crate::Built::of(body.clone()), tol).is_ok(),
         "tier 3 passes the brick"
     );
     let tier3 = bracket.finish();
     let bracket = Bracket::open();
-    assert!(crate::Replay::of(body).is_ok(), "tier 2 passes the brick");
+    assert!(
+        crate::Replay::of(crate::Built::of(body)).is_ok(),
+        "tier 2 passes the brick"
+    );
     let tier2 = bracket.finish();
     // Tier 2 is combinatorial and decides nothing on a brick; its scope
     // is held for what it reads on a body that has curves to replay.
@@ -4145,4 +4148,25 @@ fn tier_three_and_tier_two_record_every_decision_as_a_check() {
             .collect();
         assert!(choices.is_empty(), "{what} recorded choices: {choices:?}");
     }
+}
+
+/// **A re-cite that refuses leaves a finished body as it was**: its
+/// records, and what each cites ([`crate::FinishedBody::try_recite`],
+/// the kernel's alone). Red on a re-cite that takes the records before
+/// its map can refuse: the body came back holding none.
+#[test]
+fn a_refused_recite_leaves_a_finished_body_its_records() {
+    use crate::FinishedBody;
+    let tol = geom_core::Tol::witness();
+    let mut kiss = crate::validate::unconfirmed::kiss_holding_a_false_record(tol);
+    let held = kiss.records().clone();
+    assert!(!held.is_empty(), "the fixture holds records");
+    let refused: Result<(), &str> = FinishedBody::try_recite(
+        &mut kiss,
+        crate::finish::KernelOnly(()),
+        |_| Err("no"),
+        |_| "uncited",
+    );
+    assert_eq!(refused, Err("no"));
+    assert_eq!(kiss.records(), &held, "the refusal changed nothing");
 }

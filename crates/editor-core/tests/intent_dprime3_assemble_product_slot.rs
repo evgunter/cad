@@ -377,7 +377,7 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
         product.census
     );
     assert!(
-        !product.coincidences.is_empty() && !product.contacts.is_empty(),
+        !product.coincidences.is_empty() && !product.contacts().is_empty(),
         "the meeting is recorded: rows and the record citing them"
     );
     crate::fixture::could_look(&doc, &ev).expect("the halves assemble at rest");
@@ -709,7 +709,7 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself() {
     }) else {
         panic!("the union builds: {:?}", ev.result(kept))
     };
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     assert_eq!(
         contacts.face_face().count(),
         1,
@@ -922,12 +922,12 @@ fn a_placed_seat_made_the_product_is_at_rest() {
     );
     let decided = kept(&doc, &ev, seat);
     assert_eq!(
-        decided.contacts.face_face().count(),
+        decided.contacts().face_face().count(),
         1,
         "the `⊔` records the seat"
     );
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         1,
         "and the copy carries that record"
     );
@@ -980,12 +980,12 @@ fn a_nested_assemble_records_what_the_flat_one_records_once() {
     let inner_rows = kept(&nested, &ev, inner).coincidences.len();
 
     assert_eq!(
-        flat_product.contacts.face_face().count(),
+        flat_product.contacts().face_face().count(),
         2,
         "the seat and the nut"
     );
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         2,
         "the outer carries the seat's record and records the nut's"
     );

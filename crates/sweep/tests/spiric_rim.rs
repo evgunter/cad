@@ -350,7 +350,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = topo::finish(cavity, tol())
+    let cavity = topo::finish(topo::Built::of(cavity), tol())
         .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
     let delta = 1e-3;
     let mesh = mesh::tessellate(&cavity, delta, tol())

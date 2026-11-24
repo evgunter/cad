@@ -63,7 +63,7 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
 
 /// What the at-rest gate says of a body that does not finish.
 fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
-    topo::finish(body.clone(), tol())
+    topo::finish(topo::Built::of(body.clone()), tol())
         .map(drop)
         .expect_err("a body carrying scaffolding does not finish")
         .into_findings()
@@ -296,7 +296,7 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
             "the disc stays ring-free"
         );
 
-        let verdict = topo::finish(body, tol());
+        let verdict = topo::finish(topo::Built::of(body), tol());
         if mirrored {
             let errors = verdict
                 .map(drop)
@@ -417,7 +417,7 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         let mut slit = body.clone();
         slit.kef(dying).expect("the meridian kills");
         assert_eq!(
-            topo::finish(slit, tol())
+            topo::finish(topo::Built::of(slit), tol())
                 .map(drop)
                 .map_err(topo::NotFinished::into_findings),
             Err(
@@ -467,7 +467,7 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         // (tier 3's check 11) and no blend door takes it: the join would
         // take each rim back into one closed edge first.
         assert_eq!(
-            topo::finish(body, tol())
+            topo::finish(topo::Built::of(body), tol())
                 .map(drop)
                 .map_err(topo::NotFinished::into_findings),
             Err(joinable().collect()),

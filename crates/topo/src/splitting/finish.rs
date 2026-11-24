@@ -201,56 +201,51 @@ pub struct SplitResult<T: crate::props::AtRestPolicy> {
 }
 
 /// The operand's contact records carried onto the split's two sides
-/// ([`SplitResult::carry_contacts`]): each side's own list, each record
+/// ([`Sides::carried_across`]): each side's own list, each record
 /// citing the operand's record it is.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct SplitContacts {
+pub(in crate::splitting) struct SplitContacts {
     /// The records the above side holds.
     pub above: crate::boolean::ContactRecords,
     /// The records the below side holds.
     pub below: crate::boolean::ContactRecords,
 }
 
-impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
-    /// `records`, the operand's, carried onto the split's two sides
-    /// through [`Self::lineage`] ([`crate::ContactRecords::carried_through`],
-    /// at `band` through `region`), each side's records citing the
-    /// operand's.
+/// **The split's two sides and its naming, before or after the gate**:
+/// what its lineage and its record carry read.
+pub(in crate::splitting) struct Sides<'a, T: Real> {
+    pub(in crate::splitting) above: Option<&'a Body<T>>,
+    pub(in crate::splitting) below: Option<&'a Body<T>>,
+    pub(in crate::splitting) naming: &'a SplitNaming,
+}
+
+impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
+    /// **`records`, the operand's, carried onto the two sides** through
+    /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at
+    /// `band` through `region`), each side's records citing the
+    /// operand's, **a record the cut parts across the cut retired**: a
+    /// record whose two cells the cut puts on different sides, each cell
+    /// with an image on the cut, is a touch between the two sides, as
+    /// their meeting across the cut is, and no one side's records state
+    /// it. An image is on the cut where it is a face its side holds of
+    /// the plane ([`SplitNaming::plane_pieces`]) or a cell bounding one.
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through`]; [`CarryRefusal::Parted`]
-    /// for a record whose cells the cut put on different sides.
-    pub fn carry_contacts(
+    /// As [`crate::ContactRecords::carried_through`];
+    /// [`CarryRefusal::Parted`] for a parted record a cell of which has
+    /// no image on the cut.
+    pub(in crate::splitting) fn carried_across(
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
         region: Option<T::RegionLane>,
     ) -> Result<SplitContacts, CarryRefusal> {
-        self.carried(records, band, region, None)
-    }
-
-    /// **[`Self::carry_contacts`], a record the cut parts across the cut
-    /// retired**: a record whose two cells the cut puts on different
-    /// sides, each cell with an image on the cut, is a touch between the
-    /// two sides, as their meeting across the cut is, and no one side's
-    /// records state it. An image is on the cut where it is a face its
-    /// side holds of the plane ([`SplitNaming::plane_pieces`]) or a cell
-    /// bounding one. The records retired, by index in `records`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::carry_contacts`], whose [`CarryRefusal::Parted`] stands
-    /// for a parted record a cell of which has no image on the cut.
-    pub fn carry_contacts_across(
-        &self,
-        records: &crate::boolean::ContactRecords,
-        band: geom_core::Band,
-        region: Option<T::RegionLane>,
-    ) -> Result<(SplitContacts, Vec<u32>), CarryRefusal> {
+        let sides = self.listed();
+        let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
         let mut parted = Vec::new();
-        let carried = self.carried(records, band, region, Some(&mut parted))?;
-        let sides = self.sides();
+        let lists =
+            records.carried_onto(0, &self.lineage(), &bodies, band, region, Some(&mut parted))?;
         let pieces: Vec<Vec<FaceKey>> = sides
             .iter()
             .map(|&(side, body)| self.naming.plane_pieces(side, body).faces)
@@ -271,7 +266,6 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
                     .is_some_and(|faces| faces.into_iter().any(piece)),
             }
         };
-        let mut retired = Vec::with_capacity(parted.len());
         for parting in parted {
             if !parting
                 .held
@@ -282,36 +276,9 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
                     record: parting.record,
                 });
             }
-            retired.push(parting.record);
         }
-        Ok((carried, retired))
-    }
-
-    /// The sides that hold material, each with its body.
-    fn sides(&self) -> Vec<(PlaneSide, &Body<T>)> {
-        [
-            (PlaneSide::Above, self.above.body()),
-            (PlaneSide::Below, self.below.body()),
-        ]
-        .into_iter()
-        .filter_map(|(side, body)| body.map(|b| (side, &**b)))
-        .collect()
-    }
-
-    /// `records` carried onto the sides, each record the cut parts
-    /// listed in `parted` where it is given.
-    fn carried(
-        &self,
-        records: &crate::boolean::ContactRecords,
-        band: geom_core::Band,
-        region: Option<T::RegionLane>,
-        parted: Option<&mut Vec<crate::boolean::Parting>>,
-    ) -> Result<SplitContacts, CarryRefusal> {
-        let sides = self.sides();
-        let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region, parted)?;
         let mut out = SplitContacts::default();
-        for ((side, _), list) in sides.iter().zip(carried) {
+        for ((side, _), list) in sides.iter().zip(lists) {
             match side {
                 PlaneSide::Above => out.above = list,
                 _ => out.below = list,
@@ -321,25 +288,21 @@ impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
     }
 }
 
-impl<T: crate::props::AtRestPolicy> SplitResult<T> {
-    /// **What the split made of each operand cell** (D1), in the scratch
-    /// keys both sides were carved from, read through each side's merges and joins:
-    /// a vertex the cut copied is kept under its key and its copies
-    /// (`SplitNaming::vertex_pairs`); an edge the cut split
-    /// (`SplitNaming::edge_pieces`) or a face it divided
-    /// (`SplitNaming::face_fragments`, the section faces excluded) is
-    /// divided, exhaustively, into its pieces and the cells the cut
-    /// minted between them, which are the cells of its pieces on a
-    /// section face. One plane made every cell the cut minted, so two
-    /// it minted on a record's two cells meet where the record puts them.
-    #[must_use]
-    pub fn lineage(&self) -> crate::Lineage {
+impl<'a, T: Real> Sides<'a, T> {
+    /// The sides that hold material, each with its body.
+    fn listed(&self) -> Vec<(PlaneSide, &'a Body<T>)> {
+        [
+            (PlaneSide::Above, self.above),
+            (PlaneSide::Below, self.below),
+        ]
+        .into_iter()
+        .filter_map(|(side, body)| body.map(|b| (side, b)))
+        .collect()
+    }
+
+    fn lineage(&self) -> crate::Lineage {
         use crate::lineage::{Descent, Division, Fate, Remainder, roots};
-        let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
-            .into_iter()
-            .flatten()
-            .map(|b| &**b)
-            .collect();
+        let bodies: Vec<&Body<T>> = [self.above, self.below].into_iter().flatten().collect();
         let section = |f: FaceKey| self.naming.holds_section(f);
         let joins: Vec<crate::boolean::EdgeJoin> =
             self.naming.edge_joins.iter().map(|&(_, j)| j).collect();
@@ -437,6 +400,28 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
             );
         }
         lineage
+    }
+}
+
+impl<T: crate::props::AtRestPolicy> SplitResult<T> {
+    /// **What the split made of each operand cell** (D1), in the scratch
+    /// keys both sides were carved from, read through each side's merges and joins:
+    /// a vertex the cut copied is kept under its key and its copies
+    /// (`SplitNaming::vertex_pairs`); an edge the cut split
+    /// (`SplitNaming::edge_pieces`) or a face it divided
+    /// (`SplitNaming::face_fragments`, the section faces excluded) is
+    /// divided, exhaustively, into its pieces and the cells the cut
+    /// minted between them, which are the cells of its pieces on a
+    /// section face. One plane made every cell the cut minted, so two
+    /// it minted on a record's two cells meet where the record puts them.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        Sides {
+            above: self.above.body().map(|b| &**b),
+            below: self.below.body().map(|b| &**b),
+            naming: &self.naming,
+        }
+        .lineage()
     }
 }
 
@@ -1043,6 +1028,13 @@ pub enum SplitFinishError {
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
+    /// A contact record of the operand does not carry onto the sides
+    /// through the split's lineage
+    /// ([`crate::ContactRecords::carried_through`]).
+    Carry {
+        /// The carry's refusal.
+        refusal: CarryRefusal,
+    },
     /// A side, sorted into its solids, is not a finished body
     /// ([`crate::AtRestPolicy::finish`], the gate the Boolean's result
     /// passes): every finding, each read through its family. `side` is
@@ -1350,6 +1342,7 @@ impl SplitFinishError {
                 side.word(),
                 read_at(error, at)
             ),
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
             Self::ResultNotAtRest { side, findings } => write!(
                 f,
                 "the piece on the {} side of the plane is not a finished body, so no body is \

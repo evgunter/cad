@@ -333,7 +333,7 @@ fn the_rim_crossing_rods_build_in_every_op() {
                         .unwrap_or_else(|| panic!("{label}: a body is owed"));
                     assert!(topo::validate_closed(&bb.body).is_ok(), "{label}: tier 2");
                     assert!(
-                        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok(),
+                        topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol).is_ok(),
                         "{label}: tier 3′"
                     );
                     assert!(
@@ -440,7 +440,9 @@ fn try_tipped(r: f64, c: f64, half: f64, theta: f64) -> Result<Pose, topo::NotFi
     let m = Affine3::rotation_about_axis(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
     let rod_b = rod(r, (c, 0.0), (-half, half));
     let b = topo::finish(
-        topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
+        topo::Built::of(
+            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
+        ),
         tol,
     )?;
     Ok(Pose {
@@ -613,7 +615,7 @@ fn a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band() {
                 res.map(|_| ())
             );
         };
-        let escalated = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+        let escalated = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol)
             .expect_err("tier 3′ escalates on the seam");
         assert!(
             escalated.iter().all(|e| {

@@ -205,8 +205,11 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round = pncad::topo::finish(pncad::topo::Body::clone(&round), tol)
-        .unwrap_or_else(|e| panic!("the round-wire coil passes tier 3: {e:?}"));
+    let round = pncad::topo::finish(
+        pncad::topo::Built::of(pncad::topo::Body::clone(&round)),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the round-wire coil passes tier 3: {e:?}"));
     let measured = pncad::topo::mass_properties(&round, tol, crate::printed())
         .unwrap_or_else(|e| panic!("wall 1 (the round-wire spring's volume) refuses: {e:?}"));
     assert_eq!(
@@ -445,11 +448,10 @@ pub fn stop(tol: Tol) -> TourStop {
             azim: 55.0,
             up: 'z',
         },
-        bodies: core::iter::once(SceneBody::seamed(
+        bodies: core::iter::once(SceneBody::finished(
             "projectbox",
             [0.40, 0.60, 0.72],
-            acc.body.into_body(),
-            acc.contacts,
+            acc.body,
         ))
         .chain(core::iter::once(SceneBody::plain(
             "spring",

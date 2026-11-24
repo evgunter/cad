@@ -245,7 +245,7 @@ fn void_birth_cube_minus_inner_cube() {
         }
     );
     assert_props(&body.body, 26.0, 60.0);
-    assert!(body.contacts.vertex_vertex().next().is_none());
+    assert!(body.contacts().vertex_vertex().next().is_none());
 }
 
 // ---------------------------------------------------------------
@@ -330,10 +330,10 @@ fn corner_kiss_operands() {
         }
     );
     assert_props(&body.body, 2.0, 12.0);
-    assert_eq!(body.contacts.vertex_vertex().count(), 1);
+    assert_eq!(body.contacts().vertex_vertex().count(), 1);
     // The kiss point is one position, two distinct vertices (3′
     // touching via distinct entities — F2's representable class).
-    let (va, vb) = body.contacts.vertex_vertex().next().unwrap();
+    let (va, vb) = body.contacts().vertex_vertex().next().unwrap();
     assert!(body.body.get_vertex(va).is_some());
     assert!(body.body.get_vertex(vb).is_some());
     // ∩: regularized empty. ∖: A, contacts dropped (B not in result).
@@ -341,7 +341,7 @@ fn corner_kiss_operands() {
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
-    assert!(body.contacts.vertex_vertex().next().is_none());
+    assert!(body.contacts().vertex_vertex().next().is_none());
 }
 
 // ---------------------------------------------------------------
@@ -501,7 +501,7 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
     .expect("the pinned resolution is met")
     .volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
-    let refused = topo::finish(b.revert().unwrap(), Tol::witness())
+    let refused = topo::finish(topo::Built::of(b.revert().unwrap()), Tol::witness())
         .expect_err("a complement is not a finished body");
     assert!(
         !refused.is_empty()

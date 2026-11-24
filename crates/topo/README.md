@@ -835,11 +835,40 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    op records them, straight or curved alike, citing its decision; the
    census confirms the record, by reconstruction from its bounds for a
    straight pair, and infers no record from shared bounds.
-   The Boolean door's result meets tier 3 without the census: its
-   contact records, each citing the coincidence that backs it, ride
-   beside it (`BooleanBody::contacts`), and the
-   census over them is parked on CONTACT's cross-solid curved lane
-   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+   **Where the code stands against that today.** A finished body
+   holds no record its gate read and did not confirm: the gate reads
+   each record it is handed where it lies, and one the census read and
+   did not confirm (stale, contradicted, in the band, undecided)
+   refuses at the door that handed it over. A record no census lane
+   can read (the lane says so where it declines:
+   `ContactReach::NoLane`) is held on its citation only where no
+   reading decides its two cells apart; where the tangent locus reads
+   the pair's carriers (a plane parallel to a cylinder's axis, two
+   parallel cylinders) that is only where they are tangent within the
+   band. The body names the bar it paid (`AtRestBody::bar`): tier 3′ over its records where the
+   census confirmed every one and, at a `⊔`, left no finding between
+   its arrivals; tier 3 where one waits on a lane or the body holds
+   none. `finish` takes the body with its records (`Built`); a
+   `⊔`'s gate (`finish_assembled`) takes its arrivals, reads the
+   records off them, runs the census as the deciding operation between
+   them and holds what it records. That is short of the sentence above
+   in two respects, each with the rows that owe it. A record held on
+   its citation is held unread: a recorded tangency past the tangent
+   certifier's set is the one a suite reaches today
+   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`),
+   and a false one of such a kind, whose cells no separating
+   direction parts, is held too (the same row, with the test that
+   demonstrates it): each kind owes the census a lane.
+   And no gate yet searches a body for a meeting its records do not
+   state, so a body handed no record is finished at tier 3 and no
+   census reads it: the search waits on lanes the census does not have
+   for shapes the doors build (two curved solids within reach,
+   `work/reachhold/boolean-door-runs-the-census-over-its-result.md`;
+   the split's own touches and curved counts,
+   `work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`),
+   and
+   `work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`
+   owes it.
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.

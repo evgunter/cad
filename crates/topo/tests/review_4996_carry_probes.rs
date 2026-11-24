@@ -54,8 +54,8 @@ fn point(body: &Body<f64>, c: Cell) -> geom_core::Point3<f64> {
 #[test]
 fn an_offset_moving_a_kissing_corner_off_the_kiss_consumes_the_record() {
     let base = kiss();
-    assert_eq!(base.contacts.len(), 1);
-    let [x, y] = base.contacts.rows()[0].record.cells();
+    assert_eq!(base.contacts().len(), 1);
+    let [x, y] = base.contacts().rows()[0].record.cells();
     let faces = faces_at_x(&base.body, 1.0);
     assert_eq!(faces.len(), 2, "each cube's face at x = 1");
     for face in faces {
@@ -66,7 +66,7 @@ fn an_offset_moving_a_kissing_corner_off_the_kiss_consumes_the_record() {
             let gap = (point(&moved, x) - point(&moved, y)).norm();
             assert!(gap > 0.09, "face {face:?} by {d}: the corners part: {gap}");
             let carried = outcome.carry_contacts(
-                &base.contacts,
+                base.contacts(),
                 &moved,
                 geom_core::Band::linear(tol()).unwrap(),
                 Some(topo::RegionLane::certified()),

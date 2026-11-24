@@ -4756,6 +4756,7 @@ fn curved_overlap_cells<T: Decide>(
                     crate::contact::ContactRefusal::NotCertifiable {
                         what: "a line edge on a curved face's ruling whose trim the \
                                containment door does not read",
+                        reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
                     },
                 ),
             }),
@@ -7332,6 +7333,7 @@ fn line_unread(
             crate::contact::ContactRefusal::NotCertifiable {
                 what: "a face of a two-carrier face pair whose trim the containment door does \
                        not read",
+                reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
             },
         )),
         crate::boolean::FaceUnread::Placement(e) => {
@@ -7442,7 +7444,10 @@ fn same_solid_tangent_pair<T: Decide>(
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
             b,
-            crate::contact::ContactRefusal::NotCertifiable { what: why.what() },
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: why.what(),
+                reach: why.reach(),
+            },
         )),
     }
 }
@@ -7933,8 +7938,14 @@ enum Recorded {
 // section too, from this banner to the backstop's header, and holds
 // that it decides nothing of its own.
 
+mod confirm_only;
 mod curved;
+mod finding_solids;
+#[cfg(test)]
+pub(crate) use confirm_only::decided_apart;
+pub(crate) use confirm_only::{Confirmation, confirm_only};
 pub(crate) use curved::{EdgeSpan, edge_span};
+pub use finding_solids::census_finding_solids;
 pub(crate) mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
@@ -11144,6 +11155,18 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
+/// **What stands behind "a trim the containment door does not read"**:
+/// the door places a point in a face whose trim it has a reading for,
+/// and answers nothing (`Some(None)`, its remainder, no error behind it)
+/// for a face of any other kind of trim. That is a kind outside its
+/// lanes, not a reading that ran: nothing was read of whether the touch
+/// lies in the face, so a record there is no lane's to refuse
+/// ([`crate::contact::ContactReach::NoLane`]). One constant for the
+/// four sites that raise it (three here, one in [`point`]), so they
+/// cannot be classed apart.
+pub(crate) const TRIM_OUTSIDE_THE_CONTAINMENT_DOOR: crate::contact::ContactReach =
+    crate::contact::ContactReach::NoLane;
+
 fn confirm_records<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -11341,6 +11364,7 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 cause: CensusUnsupportedCause::ContactLane(
                     crate::contact::ContactRefusal::NotCertifiable {
                         what: "a face of the face-face record has no extent to read",
+                        reach: crate::contact::ContactReach::Unread,
                     },
                 ),
             });
@@ -11377,7 +11401,9 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 b,
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a face-face record on two carriers with no closed-form tangent locus \
-                           (plane x cylinder along a ruling, parallel cylinders)",
+                           (the locus holds a plane along a cylinder's ruling and two parallel \
+                           cylinders, and this pair is neither)",
+                    reach: crate::contact::ContactReach::NoLane,
                 },
             ));
             return;
@@ -11414,7 +11440,10 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
             b,
-            crate::contact::ContactRefusal::NotCertifiable { what: why.what() },
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: why.what(),
+                reach: why.reach(),
+            },
         )),
     }
 }
@@ -11521,6 +11550,7 @@ fn confirm_vertex_on_face<T: Decide>(
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a vertex-on-face record on a curved face whose trim \
                            the containment door does not read",
+                    reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
                 },
             ),
         }),
@@ -22264,11 +22294,24 @@ mod split_wedge_tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let at_rest = |b| crate::finish(b, tol).unwrap();
-        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
-        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), tol));
+        let a = at_rest(crate::Built::of(brick::<f64>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        )));
+        let b = at_rest(crate::Built::of(brick::<f64>(
+            (1.0, 2.0),
+            (1.0, 2.0),
+            (0.0, 1.0),
+            tol,
+        )));
         let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {
             panic!("the pinch is empty");
         };
+        // Read with its record given up: the plane along a face parts it
+        // (`split_along_a_pinch_face`), and this row reads wedges.
+        let pinch = at_rest(crate::Built::of(crate::FinishedBody::into_body(pinch.body)));
         let mut read = 0;
         for (what, origin, normal) in [
             ("across the line", [1.0, 1.0, 0.5], [0.0, 0.0, 1.0]),
@@ -22284,7 +22327,7 @@ mod split_wedge_tests {
                 Vec3::new(normal[0], normal[1], normal[2]),
                 tol,
             );
-            let r = split(&pinch.body, &plane, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let r = split(&pinch, &plane, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
             for side in [r.above, r.below] {
                 let SplitPart::Body(body) = side else {
                     continue;

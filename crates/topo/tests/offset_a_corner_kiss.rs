@@ -40,8 +40,8 @@ fn kiss(r: [[f64; 3]; 3]) -> Body<f64> {
     let Ok(BooleanResult::Body(u)) = union(&a, &b, tol()) else {
         panic!("the kiss builds");
     };
-    let [(x, y)] = u.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
-        panic!("one vertex-vertex record: {:?}", u.contacts);
+    let [(x, y)] = u.contacts().vertex_vertex().collect::<Vec<_>>()[..] else {
+        panic!("one vertex-vertex record: {:?}", u.contacts());
     };
     let key = |v| u.body.get_vertex(v).unwrap().point;
     assert_eq!(key(x), key(y), "the kissing corners share one key");

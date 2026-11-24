@@ -412,7 +412,7 @@ fn split_missing_at_a_dual(
     body: Body<geom_core::Dual64>,
 ) -> Result<topo::SplitResult<geom_core::Dual64>, topo::SplitError> {
     use geom_core::Real as _;
-    let operand = topo::finish(body, tol()).expect("a dual's gate runs nothing");
+    let operand = topo::finish(topo::Built::of(body), tol()).expect("a dual's gate runs nothing");
     let plane = topo::test_support::split_plane(
         geom_core::Point3::new(0.0, 0.0, 10.0).map(geom_core::Dual64::from_f64),
         geom_core::Vec3::new(0.0, 0.0, 1.0).map(geom_core::Dual64::from_f64),
@@ -462,7 +462,7 @@ fn a_cube_inside_a_cube_under_one_solid_refuses_as_overlapping() {
 /// `body`'s one solid holds two outer shells, and the at-rest gate
 /// refuses it on that alone.
 fn refused_as_two_outer_shells(what: &str, body: &topo::Body<f64>) {
-    let errors = topo::finish(body.clone(), tol())
+    let errors = topo::finish(topo::Built::of(body.clone()), tol())
         .expect_err("two outer shells under one solid is not a finished body");
     assert!(
         matches!(

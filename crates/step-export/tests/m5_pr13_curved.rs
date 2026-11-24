@@ -868,7 +868,7 @@ fn an_inside_out_ball_cannot_reach_the_writer() {
     let reverted = common::ball().revert().unwrap();
     let solid = reverted.solids().next().expect("one solid").0;
     assert_eq!(
-        topo::finish(reverted, Tol::witness())
+        topo::finish(topo::Built::of(reverted), Tol::witness())
             .err()
             .map(topo::NotFinished::into_findings),
         Some(vec![topo::ValidationError::NegativeVolume { solid }]),

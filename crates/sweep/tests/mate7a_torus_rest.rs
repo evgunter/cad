@@ -195,7 +195,7 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
     let bb = r.body().expect("a union of two solids is not empty");
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
     assert_eq!(
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+        topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
         Ok(()),
         "tier 3′"
     );
@@ -270,7 +270,7 @@ fn two_coincident_full_tori_are_one_body() {
             "{op}: tier 3"
         );
         assert_eq!(
-            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
             Ok(()),
             "{op}: tier 3′"
         );
@@ -392,7 +392,7 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
                     "{what}: tier 3"
                 );
                 assert_eq!(
-                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+                    topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness()),
                     Ok(()),
                     "{what}: tier 3′"
                 );
@@ -529,7 +529,8 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
         let s = b.get_face(fb).expect("the wall face resolves").sense;
         b.set_face_sense(fb, !s).expect("the key is live");
     }
-    let errors = topo::finish(b, Tol::witness()).expect_err("inward walls are not a finished body");
+    let errors = topo::finish(topo::Built::of(b), Tol::witness())
+        .expect_err("inward walls are not a finished body");
     let mut inverted: Vec<_> = errors
         .iter()
         .map(|e| match e {

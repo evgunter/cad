@@ -489,6 +489,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "a_record_no_lane_reads.rs"]
+mod a_record_no_lane_reads;
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
 #[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
@@ -585,6 +587,8 @@ mod blend_seam_split_rim;
 mod blend_tworims;
 #[path = "blend_value_decided_rows.rs"]
 mod blend_value_decided_rows;
+#[path = "bodies_that_touch_nowhere_hold_no_record.rs"]
+mod bodies_that_touch_nowhere_hold_no_record;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
 #[path = "census_reads_conic_records.rs"]

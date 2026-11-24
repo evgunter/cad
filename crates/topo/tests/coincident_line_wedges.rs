@@ -246,7 +246,7 @@ fn asymmetric_keels_subtract_as_a_valid_slit() {
             let trench = finished("the trench", b, t());
             match subtract(&slab, &trench, t()) {
                 Ok(BooleanResult::Body(r)) => {
-                    let recs = r.contacts.clone();
+                    let recs = r.contacts().clone();
                     assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                     if let Err(errs) = validate_pseudomanifold(&r.body, &recs, t()) {
                         panic!(

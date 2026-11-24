@@ -257,7 +257,10 @@ fn contact_refusals() -> Vec<ContactRefusal> {
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
-        .map(|what| ContactRefusal::NotCertifiable { what }),
+        .map(|what| ContactRefusal::NotCertifiable {
+            what,
+            reach: crate::contact::ContactReach::NoLane,
+        }),
     );
     v
 }

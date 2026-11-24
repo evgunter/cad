@@ -128,7 +128,7 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
 /// order.
 #[track_caller]
 pub fn construction_state(body: &Body<f64>, t: Tol) -> Vec<VertexKey> {
-    let Err(errors) = topo::finish(body.clone(), t) else {
+    let Err(errors) = topo::finish(topo::Built::of(body.clone()), t) else {
         panic!("a body holding stations is not at rest");
     };
     errors

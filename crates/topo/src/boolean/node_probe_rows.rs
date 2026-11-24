@@ -206,7 +206,7 @@ fn the_bicylinder_built_by_hand_is_a_finished_body() {
     assert_eq!((c.v, c.e, c.f), (2, 4, 4));
     assert!(
         matches!(
-            crate::finish(bicylinder(false), tol)
+            crate::finish(crate::Built::of(bicylinder(false)), tol)
                 .as_ref()
                 .map_err(|e| &e[..]),
             Err([crate::ValidationError::NegativeVolume { .. }])
@@ -399,6 +399,6 @@ fn both_pieces_of_the_subtraction_as_one_body() {
     eprintln!("PROBE both pieces, census: {census:?}");
     eprintln!(
         "PROBE both pieces, gate: {:?}",
-        crate::finish(both, tol).map(|_| "finished")
+        crate::finish(crate::Built::of(both), tol).map(|_| "finished")
     );
 }

@@ -222,7 +222,7 @@ pub fn brick<T: Decide + topo::AtRestPolicy>(
 /// well inside `|x| < 50`; a body that reached the brick would be read
 /// as an overlap, not as a gate.
 pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
-    let body = topo::finish(body.clone(), tol)
+    let body = topo::finish(topo::Built::of(body.clone()), tol)
         .unwrap_or_else(|e| panic!("{what}: the result is no finished body: {e:?}"));
     let far = finished(
         "the far brick",
@@ -2202,9 +2202,9 @@ pub fn rod_with_flat_at(
         .collect(),
     );
     let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
-    let rod =
-        topo::finish(rod, tol).map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
-    let cutter = topo::finish(cutter, tol)
+    let rod = topo::finish(topo::Built::of(rod), tol)
+        .map_err(|e| format!("the rod is not a finished body: {e:?}"))?;
+    let cutter = topo::finish(topo::Built::of(cutter), tol)
         .map_err(|e| format!("the cutter is not a finished body: {e:?}"))?;
     Ok(topo::subtract(&rod, &cutter, tol)
         .map_err(|e| format!("the flat does not mill: {e:?}"))?

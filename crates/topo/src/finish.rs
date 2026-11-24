@@ -30,8 +30,245 @@ use std::sync::Arc;
 use geom_core::{Real, Tol};
 
 use crate::body::Body;
+use crate::boolean::ContactRecords;
 use crate::props::AtRestPolicy;
 use crate::validate::{AtRestBody, ValidationError};
+
+/// **What a door hands the gate** ([`AtRestPolicy::finish`]): the body
+/// it built and the contact records it decided for it, in the body's
+/// keys: those it wrote and those it carried from its operands through
+/// its lineage (`[topology.records]`). The gate confirms each record
+/// where it lies and refuses one it does not confirm. It searches a
+/// body for no meeting its records do not state, so a body handed with
+/// none is finished at tier 3 and no census reads it
+/// (`work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`).
+#[derive(Clone, Debug)]
+pub struct Built<T: Real> {
+    pub(crate) body: Body<T>,
+    pub(crate) records: ContactRecords,
+}
+
+impl<T: Real> Built<T> {
+    /// `body` with no record: its door decided no contact of it.
+    #[must_use]
+    pub fn of(body: Body<T>) -> Self {
+        Self {
+            body,
+            records: ContactRecords::default(),
+        }
+    }
+
+    /// This body with `records` beside those it holds already, the
+    /// contacts its door decided.
+    #[must_use]
+    pub fn recording(mut self, records: ContactRecords) -> Self {
+        self.records.extend(records.rows().iter().cloned());
+        self
+    }
+}
+
+/// **What a `⊔` hands the gate** ([`AtRestPolicy::finish_assembled`]):
+/// the graft of its arrivals, the records they hold re-keyed through
+/// the graft, and which arrival each solid came by. A record enters it
+/// only off an arrival it grafts ([`Self::graft_finished`],
+/// [`Self::graft_leaf`]): no door hands it a list. The census inside
+/// the gate is this door's deciding operation (`[assertions]`): it
+/// records each touch between two arrivals and reports the rest; a
+/// record an arrival carried in that it does not confirm refuses.
+///
+/// No constructor or method takes records: `new` takes nothing (below),
+/// and a census of this type's `pub fn`s over the source goes red on
+/// one whose signature names a record
+/// (`the_gate_confirms_every_record::no_pub_fn_of_assembled_in_finish_rs_names_a_record_type`,
+/// which says what it does not see).
+///
+/// ```compile_fail,E0061
+/// let body: topo::Body<f64> = topo::Body::new();
+/// let _ = topo::Assembled::<f64>::new(body, topo::ContactRecords::default());
+/// ```
+#[derive(Clone, Debug)]
+pub struct Assembled<T: Real> {
+    pub(crate) body: Body<T>,
+    pub(crate) carried: ContactRecords,
+    pub(crate) arrivals: Arc<std::collections::BTreeMap<crate::SolidKey, u32>>,
+    pub(crate) first_row: u32,
+}
+
+/// **Why an arrival did not join an [`Assembled`]**.
+#[derive(Debug)]
+pub enum AssembleError {
+    /// It did not graft ([`crate::boolean::graft_placed`]).
+    Graft(crate::boolean::PlacedGraftError),
+    /// A record it holds has no image through the graft's key bridge:
+    /// the bridge's defect, since a graft maps every cell of its source.
+    Carry(crate::CarryRefusal),
+}
+
+impl<T: Real> Assembled<T> {
+    /// No arrival yet.
+    #[must_use]
+    #[allow(clippy::new_without_default)] // one spelling: `new`
+    pub fn new() -> Self {
+        Self {
+            body: Body::new(),
+            carried: ContactRecords::default(),
+            arrivals: Arc::default(),
+            first_row: 0,
+        }
+    }
+
+    /// `body`, each of its solids one arrival, holding no record: an
+    /// import's solids, which no gate has read.
+    #[must_use]
+    pub fn of_solids(body: Body<T>) -> Self {
+        let arrivals = body.solids().map(|(solid, _)| solid).zip(0..).collect();
+        Self {
+            body,
+            carried: ContactRecords::default(),
+            arrivals: Arc::new(arrivals),
+            first_row: 0,
+        }
+    }
+
+    /// The graft so far.
+    #[must_use]
+    pub fn body(&self) -> &Body<T> {
+        &self.body
+    }
+
+    /// Which arrival `solid` came by.
+    #[must_use]
+    pub fn arrival_of(&self, solid: crate::SolidKey) -> Option<u32> {
+        self.arrivals.get(&solid).copied()
+    }
+
+    /// This, its census's rows numbered from `first_row` in the door's
+    /// own list ([`crate::Backing::Decided`]): the rows the door's value
+    /// holds ahead of them.
+    #[must_use]
+    pub fn numbering_from(self, first_row: u32) -> Self {
+        Self { first_row, ..self }
+    }
+}
+
+impl<T: geom_core::Decide + AtRestPolicy> Assembled<T> {
+    /// **A finished arrival grafted in** at `motion` (`None` where it
+    /// stands in the graft's frame), its records with it
+    /// ([`FinishedBody::records`], confirmed at its own gate), each
+    /// citing the arrival by its position ([`crate::Backing::Carried`]).
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError`].
+    pub fn graft_finished(
+        &mut self,
+        arrival: &T::Finished,
+        motion: Option<geom_core::RigidMotion<T>>,
+        tol: Tol,
+    ) -> Result<crate::GraftKeys, AssembleError> {
+        self.graft(arrival, arrival.records(), HeldKind::Finished, motion, tol)
+    }
+
+    /// **A leaf arrival grafted in** ([`Self::graft_finished`]), its
+    /// records with it ([`LeafBody::records`]): the finished body's
+    /// where the leaf is one, and a replay's unread, which the taker's
+    /// gate reads.
+    ///
+    /// # Errors
+    ///
+    /// [`AssembleError`].
+    pub fn graft_leaf(
+        &mut self,
+        arrival: &T::Leaf,
+        motion: Option<geom_core::RigidMotion<T>>,
+        tol: Tol,
+    ) -> Result<crate::GraftKeys, AssembleError> {
+        self.graft(arrival, arrival.records(), HeldKind::Leaf, motion, tol)
+    }
+
+    fn graft(
+        &mut self,
+        body: &Body<T>,
+        records: &ContactRecords,
+        held: HeldKind,
+        motion: Option<geom_core::RigidMotion<T>>,
+        tol: Tol,
+    ) -> Result<crate::GraftKeys, AssembleError> {
+        use crate::Cell;
+        let arrival = self
+            .arrivals
+            .values()
+            .max()
+            .map_or(0, |last| last.saturating_add(1));
+        let keys = crate::boolean::graft_placed(
+            &mut self.body,
+            crate::Seat::from_motion(body, motion),
+            held,
+            tol,
+        )
+        .map_err(AssembleError::Graft)?;
+        let carried = records
+            .carried_from(arrival)
+            .rekeyed(&self.body, |cell| match cell {
+                Cell::Vertex(v) => keys.vertex(v).map(Cell::Vertex),
+                Cell::Edge(e) => keys.edge(e).map(Cell::Edge),
+                Cell::Face(f) => keys.face(f).map(Cell::Face),
+            })
+            .map_err(AssembleError::Carry)?;
+        self.carried.extend(carried.rows().iter().cloned());
+        Arc::make_mut(&mut self.arrivals)
+            .extend(keys.solids().iter().map(|&solid| (solid, arrival)));
+        Ok(keys)
+    }
+}
+
+/// **A `⊔` graft's leaf and what its census decided**
+/// ([`AtRestPolicy::leaf_assembled`]): [`Censused`] where the leaf is
+/// the finished body; where it is a replay (the box scalars), no census
+/// has run, and its taker's decides.
+#[derive(Debug)]
+pub struct CensusedLeaf<T: AtRestPolicy> {
+    /// The leaf.
+    pub leaf: T::Leaf,
+    /// The census's rows ([`Censused::rows`]); none where none ran.
+    pub rows: Vec<crate::Coincidence>,
+    /// The census's findings ([`Censused::findings`]); none where none
+    /// ran.
+    pub findings: Vec<ValidationError>,
+}
+
+/// **A `⊔`'s finished body and what its census decided**
+/// ([`AtRestPolicy::finish_assembled`]).
+#[derive(Debug)]
+pub struct Censused<T: AtRestPolicy> {
+    /// The finished body, holding the records its arrivals carried and
+    /// each touch the census recorded between two of them.
+    pub body: T::Finished,
+    /// The census's decisions those new records cite, in the order it
+    /// made them ([`crate::DecisionSite::CensusAtRest`]).
+    pub rows: Vec<crate::Coincidence>,
+    /// What the census reports and does not record
+    /// ([`crate::RecordedAtRest::findings`]).
+    pub findings: Vec<ValidationError>,
+}
+
+/// **A call only this crate can make**: the argument of a trait method
+/// that is the kernel's alone ([`FinishedBody::try_recite`]). Its field
+/// is private, so no other crate builds one.
+///
+/// ```compile_fail,E0423
+/// let _ = topo::KernelOnly(());
+/// ```
+///
+/// It is `Copy` and reaches every [`FinishedBody::try_recite`]
+/// implementation, so what keeps it in the kernel is that no other crate
+/// can write one: [`FinishedBody`] is sealed by its own bound,
+/// `Scalar: AtRestPolicy<Finished = Self>`. A scalar is the kernel's
+/// (`AtRestPolicy: Decide: SpanLocate`, which `geom-core` seals), and
+/// each names one finished type, so no type outside this crate is any
+/// scalar's `Finished`.
+#[derive(Clone, Copy, Debug)]
+pub struct KernelOnly(pub(crate) ());
 
 /// **What every scalar's finished type is**: a body read through
 /// [`Deref`] and never borrowed mutably, handed back only by
@@ -49,6 +286,31 @@ pub trait FinishedBody:
     /// The body, its finish given up: construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
+
+    /// **Its contact records** (`[topology.records]`), in its own keys:
+    /// the ones the gate that made it was handed, none for a body that
+    /// touches nothing.
+    #[must_use]
+    fn records(&self) -> &ContactRecords;
+
+    /// **Maps its records' citations** ([`ContactRecords::try_recited`]):
+    /// each record keeps its two cells, which are what a gate confirms,
+    /// and cites what `f` makes of each citation. A citation names a row
+    /// or a record of the op that holds the body, so a holder that
+    /// renumbers those re-cites here; no verdict is derived. A refusal
+    /// leaves it as it was. **The kernel's alone**: it takes a
+    /// [`KernelOnly`], which no other crate can make, so no caller
+    /// outside rewrites what a finished body's records cite.
+    ///
+    /// # Errors
+    ///
+    /// As [`ContactRecords::try_recited`].
+    fn try_recite<E>(
+        &mut self,
+        kernel: KernelOnly,
+        f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<(), E>;
 
     /// **This finished body under an isometry**, finished: its data
     /// mapped, every verdict and certificate carried, and every family
@@ -148,6 +410,19 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
         AtRestBody::into_body(self)
     }
 
+    fn records(&self) -> &ContactRecords {
+        AtRestBody::records(self)
+    }
+
+    fn try_recite<E>(
+        &mut self,
+        _: KernelOnly,
+        f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<(), E> {
+        AtRestBody::try_recite(self, f, uncited)
+    }
+
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         AtRestBody::moved_by(self, iso, tol)
     }
@@ -179,27 +454,103 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// finished body ([`AtRestPolicy::leaf`]): no door that takes a
 /// finished body accepts it, and the consumer that needs one finishes
 /// it ([`take`]).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Replay<T: Real> {
     body: Body<T>,
+    records: ContactRecords,
+    /// A `⊔`'s leaf at a box scalar: the arrivals its taker's census
+    /// decides between ([`AtRestPolicy::take`]).
+    assembled: Option<(Arc<std::collections::BTreeMap<crate::SolidKey, u32>>, u32)>,
+}
+
+impl<T: Real> fmt::Debug for Replay<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            body,
+            records,
+            assembled,
+        } = self;
+        f.debug_struct("Replay")
+            .field("body", body)
+            .field("records", records)
+            .field("assembled", &assembled.is_some())
+            .finish()
+    }
 }
 
 impl<T: Real> Replay<T> {
-    /// Tier 2 over `body`, the replay kept where it passes.
+    /// Tier 2 over `built`'s body, the replay kept where it passes,
+    /// holding the records it was handed, unread: a replay carries no
+    /// verdict, on its records as on its body.
     ///
     /// # Errors
     ///
     /// Tier 2's findings.
-    pub(crate) fn of(body: Body<T>) -> Result<Self, NotFinished> {
+    pub(crate) fn of(built: Built<T>) -> Result<Self, NotFinished> {
+        let Built { body, records } = built;
         geom_core::k_stats::checking(|| crate::validate::validate_closed(&body))
             .map_err(NotFinished::new)?;
-        Ok(Self { body })
+        Ok(Self {
+            body,
+            records,
+            assembled: None,
+        })
+    }
+
+    /// Tier 2 over a `⊔`'s graft, the replay holding the records its
+    /// arrivals carried and the arrivals themselves, for the taker
+    /// whose census decides between them.
+    ///
+    /// # Errors
+    ///
+    /// Tier 2's findings.
+    pub(crate) fn of_assembled(assembled: Assembled<T>) -> Result<Self, NotFinished> {
+        let Assembled {
+            body,
+            carried,
+            arrivals,
+            first_row,
+        } = assembled;
+        geom_core::k_stats::checking(|| crate::validate::validate_closed(&body))
+            .map_err(NotFinished::new)?;
+        Ok(Self {
+            body,
+            records: carried,
+            assembled: Some((arrivals, first_row)),
+        })
     }
 
     /// The body, the replay given up.
     #[must_use]
     pub fn into_body(self) -> Body<T> {
         self.body
+    }
+
+    /// The contact records it was handed.
+    #[must_use]
+    pub fn records(&self) -> &ContactRecords {
+        &self.records
+    }
+
+    /// The body and its records as a door hands them to a gate: what
+    /// the box scalars' taker finishes ([`AtRestPolicy::take`]).
+    pub(crate) fn built(&self) -> Built<T> {
+        Built {
+            body: self.body.clone(),
+            records: self.records.clone(),
+        }
+    }
+
+    /// A `⊔`'s leaf as its door hands it to a gate; `None` for any
+    /// other leaf.
+    pub(crate) fn assembled(&self) -> Option<Assembled<T>> {
+        let (arrivals, first_row) = self.assembled.as_ref()?;
+        Some(Assembled {
+            body: self.body.clone(),
+            carried: self.records.clone(),
+            arrivals: Arc::clone(arrivals),
+            first_row: *first_row,
+        })
     }
 }
 
@@ -240,7 +591,11 @@ impl<T: AtRestPolicy> Replay<T> {
     /// [`MoveError::NotFinished`] holding the session box's finding.
     pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         let body = moved_and_asked(&self.body, iso, !T::TAKE_FINISHES, tol)?;
-        Ok(Self { body })
+        Ok(Self {
+            body,
+            records: self.records.clone(),
+            assembled: self.assembled.clone(),
+        })
     }
 }
 
@@ -384,6 +739,20 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
         Replay::into_body(self)
     }
 
+    fn records(&self) -> &ContactRecords {
+        Replay::records(self)
+    }
+
+    fn try_recite<E>(
+        &mut self,
+        _: KernelOnly,
+        f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
+        uncited: impl FnOnce(usize) -> E,
+    ) -> Result<(), E> {
+        self.records = self.records.clone().try_recited(f, uncited)?;
+        Ok(())
+    }
+
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         Replay::moved_by(self, iso, tol)
     }
@@ -402,6 +771,10 @@ pub trait LeafBody:
     /// The body, construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
+
+    /// The contact records its door decided ([`FinishedBody::records`]).
+    #[must_use]
+    fn records(&self) -> &ContactRecords;
 
     /// **This leaf under an isometry**, a leaf of the same kind: the
     /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
@@ -463,6 +836,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
         AtRestBody::into_body(self)
     }
 
+    fn records(&self) -> &ContactRecords {
+        AtRestBody::records(self)
+    }
+
     /// The image's data ([`moved_body`]) finished as a leaf
     /// ([`AtRestPolicy::leaf`]). It does not go through
     /// [`moved_and_asked`]: where the leaf is an `AtRestBody` (`f64`,
@@ -472,7 +849,11 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     /// decisions off the log as the leaf's rule says
     /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
+        let image = moved_body(self, iso, tol).map_err(MoveError::Map)?;
+        // The image's gate reads its records again; the bar is its
+        // source's, which an isometry does not change.
+        T::leaf(Built::of(image).recording(self.records().clone()), tol)
+            .map(|image| image.at_the_bar_of(self))
             .map_err(MoveError::NotFinished)
     }
 }
@@ -483,6 +864,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
+    }
+
+    fn records(&self) -> &ContactRecords {
+        Replay::records(self)
     }
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
@@ -532,14 +917,30 @@ pub fn finishes_on_this_thread() -> u64 {
     FINISHES.with(std::cell::Cell::get)
 }
 
-/// **`body` finished at its scalar** ([`AtRestPolicy::finish`]), the
-/// one spelling a caller outside the policy names.
+/// **`built` finished at its scalar** ([`AtRestPolicy::finish`]), the
+/// one spelling a caller outside the policy names: a body with the
+/// records its door decided ([`Built`]), or a bare body, which touches
+/// nothing.
 ///
 /// # Errors
 ///
 /// [`NotFinished`]: every finding the scalar's gate made.
-pub fn finish<T: AtRestPolicy>(body: Body<T>, tol: Tol) -> Result<T::Finished, NotFinished> {
-    T::finish(body, tol)
+pub fn finish<T: AtRestPolicy>(built: Built<T>, tol: Tol) -> Result<T::Finished, NotFinished> {
+    T::finish(built, tol)
+}
+
+/// **A `⊔`'s graft finished at its scalar**
+/// ([`AtRestPolicy::finish_assembled`]).
+///
+/// # Errors
+///
+/// [`NotFinished`]: tier 3's findings. Nothing the census finds
+/// refuses.
+pub fn finish_assembled<T: AtRestPolicy>(
+    assembled: Assembled<T>,
+    tol: Tol,
+) -> Result<Censused<T>, NotFinished> {
+    T::finish_assembled(assembled, tol)
 }
 
 /// **Why a body is not a finished body**: the non-empty list of what

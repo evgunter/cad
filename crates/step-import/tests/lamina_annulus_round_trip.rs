@@ -55,7 +55,8 @@ fn unslit_plane_annuli_round_trip_through_step() {
             .map(|(k, _)| k)
             .collect();
         assert_eq!(bore.len(), 1, "the bottom bore rim is one edge");
-        let operand = topo::finish(washer.clone(), tol()).expect("the washer is finished");
+        let operand =
+            topo::finish(topo::Built::of(washer.clone()), tol()).expect("the washer is finished");
         sweep::blend::build::fillet_edges(&operand, &bore, 0.2, tol())
             .unwrap()
             .body

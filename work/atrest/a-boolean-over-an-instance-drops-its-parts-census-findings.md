@@ -58,3 +58,9 @@ A row: a host unioning an instance of the overlapping part
 its product, reports the part's overlap once as `CarriedInterference`.
 Whether the fix reads every evaluated value (as the coincidence rows
 do) or carries the rows through the boolean's value is the lane's call.
+
+## After `embed/records` (2026-11-18)
+
+Untouched. The finished body holds records, not findings: an
+assembly's reported overlap riding the body is PR 7068's third decision
+(`work/embed/an-op-over-an-assembly-answers-only-for-what-it-made.md`).

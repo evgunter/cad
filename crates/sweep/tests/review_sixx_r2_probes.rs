@@ -155,7 +155,7 @@ impl Shape {
             tol(),
         );
         fixtures::describe_as_intersections(&mut b, tol());
-        topo::finish(b, tol()).unwrap_or_else(|e| panic!("{}: {e:?}", self.name))
+        topo::finish(topo::Built::of(b), tol()).unwrap_or_else(|e| panic!("{}: {e:?}", self.name))
     }
     /// Convex pieces: triangles fanned from the corner (each profile here
     /// is star-shaped from it), posed.
@@ -335,7 +335,7 @@ fn cube_parts(v: V3, f: [V3; 3], edge: bool) -> (AtRestBody<f64>, Vec<Half>) {
         planes.push((dir.map(|c| -c), -(base + lo[axis])));
         planes.push((dir, base + lo[axis] + SIDE));
     }
-    (topo::finish(body, tol()).unwrap(), planes)
+    (topo::finish(topo::Built::of(body), tol()).unwrap(), planes)
 }
 
 const IDENT: [V3; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -397,7 +397,7 @@ fn pose_lines(a: &Shape, other: &Other, f: [V3; 3], what: &str) -> Vec<String> {
                 Ok(r) => {
                     let why = match &r {
                         Ok(res) => res.body().and_then(|bb| {
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
                                 .err()
                                 .map(|e| format!(" T3WHY {e:?}"))
                         }),
@@ -611,9 +611,9 @@ fn review_sixx_pinch() {
     };
     eprintln!(
         "pinch contacts vv {}",
-        pinch.contacts.vertex_vertex().count()
+        pinch.contacts().vertex_vertex().count()
     );
-    let carried = rest_rows(&pinch.contacts);
+    let carried = rest_rows(pinch.contacts());
     let pp: Vec<Vec<Half>> = ws.iter().flat_map(|w| w.pieces(IDENT, v)).collect();
     let va: f64 = pp.iter().map(|p| convex_volume(p)).sum();
     let mut found = Vec::new();
@@ -690,7 +690,7 @@ fn review_sixx_pinch() {
                 Ok(r) => {
                     let why = match &r {
                         Ok(res) => res.body().and_then(|bb| {
-                            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+                            topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol())
                                 .err()
                                 .map(|e| format!(" T3WHY {e:?}"))
                         }),

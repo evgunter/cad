@@ -280,7 +280,7 @@ fn assert_refused_at_the_gate<T: Decide + topo::AtRestPolicy + Bounds>(
     slit: &Body<T>,
     poles: &[(f64, f64, f64)],
 ) {
-    let Err(errors) = topo::finish(slit.clone(), Tol::witness()) else {
+    let Err(errors) = topo::finish(topo::Built::of(slit.clone()), Tol::witness()) else {
         panic!("{what}: a slit body is not a finished body");
     };
     assert_eq!(
@@ -364,7 +364,7 @@ fn a_slit_body_does_not_finish_at_a_dual() {
     let tol = Tol::witness();
     let whole = dome::<Dual64>();
     let rim = sweep::test_support::rim_arcs_at(&whole, 1.0, 0.0);
-    let whole = topo::finish(whole, tol).expect("the unslit dome passes tier 2");
+    let whole = topo::finish(topo::Built::of(whole), tol).expect("the unslit dome passes tier 2");
     let filleted = sweep::blend::fillet_edges(&whole, &rim, f(0.05), tol).map(|_| ());
     assert!(
         filleted.is_ok(),
@@ -372,7 +372,7 @@ fn a_slit_body_does_not_finish_at_a_dual() {
     );
     for (i, slit) in slits::<Dual64>().iter().enumerate() {
         assert_eq!(
-            topo::finish(slit.clone(), tol)
+            topo::finish(topo::Built::of(slit.clone()), tol)
                 .map(|_| ())
                 .map_err(topo::NotFinished::into_findings),
             validate_closed(slit),

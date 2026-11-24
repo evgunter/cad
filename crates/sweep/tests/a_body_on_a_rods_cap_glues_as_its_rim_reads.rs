@@ -267,7 +267,7 @@ fn outcome(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Result<f64, String>; 2]
         Ok(BooleanResult::Body(bb)) => {
             let solids = bb.body.solids().count();
             let t3 = topo::validate_geometric(&bb.body, Tol::witness());
-            let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness());
+            let t3p = topo::validate_pseudomanifold(&bb.body, bb.contacts(), Tol::witness());
             if solids != 1 || t3.is_err() || t3p.is_err() {
                 return Err(format!("BUILT solids {solids} t3 {t3:?} t3' {t3p:?}"));
             }

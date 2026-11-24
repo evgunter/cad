@@ -232,7 +232,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         want_solid,
         "the meridian mints every analytic kind once, the plane and the cylinder twice"
     );
-    let solid = pncad::topo::finish(solid, tol).expect("the operand: tier 3");
+    let solid =
+        pncad::topo::finish(pncad::topo::Built::of(solid), tol).expect("the operand: tier 3");
 
     // ---- the hollow ----
     let sealed = pncad::topo::shell(&solid, WALL, tol)

@@ -113,7 +113,7 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
         crate::common::shared_surfaces(&apart).is_empty(),
         "control: no chart shared"
     );
-    let apart = topo::finish(apart, tol).expect("control: the Z-step is finished");
+    let apart = topo::finish(topo::Built::of(apart), tol).expect("control: the Z-step is finished");
     topo::shell(&apart, 0.1, tol).expect("control: the Z-step on two planes shells");
 
     let shared = imported(&share_the_y0_plane(&text));
@@ -124,7 +124,7 @@ fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
     );
     assert_eq!(shared.solids().count(), 1, "one solid wears it");
     let wearers = [charts[0][0].0, charts[0][1].0];
-    let shared = topo::finish(shared, tol)
+    let shared = topo::finish(topo::Built::of(shared), tol)
         .unwrap_or_else(|e| panic!("the shared-chart Z-step is a finished body: {e:?}"));
     match topo::shell(&shared, 0.1, tol) {
         Err(ShellError::ChartSenseMixed { face, other }) => assert!(
@@ -201,6 +201,6 @@ fn a_face_restated_on_an_antiparallel_record_still_faces_its_own_way() {
         crate::common::shared_surfaces(&body).is_empty(),
         "the two y = 0 faces stay on two records"
     );
-    let body = topo::finish(body, tol).expect("the restated Z-step is finished");
+    let body = topo::finish(topo::Built::of(body), tol).expect("the restated Z-step is finished");
     topo::shell(&body, 0.1, tol).expect("the restated Z-step shells");
 }

@@ -86,7 +86,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
             None => format!("BAD empty want={want}"),
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).is_ok();
+                let t3 = topo::validate_pseudomanifold(&bb.body, bb.contacts(), tol()).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol()).is_ok();
                 let Some(v) = volume(&bb.body) else {
                     return format!("UNMEAS t2={t2} t3p={t3} cert={cert}");
@@ -119,7 +119,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
 /// volume and the overlap volume. A tool the at-rest gate refuses is
 /// one `ERR` line.
 fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
-    let t = match topo::finish(t, tol()) {
+    let t = match topo::finish(topo::Built::of(t), tol()) {
         Ok(t) => t,
         Err(e) => {
             let s: String = format!("{e:?}").chars().take(120).collect();

@@ -229,9 +229,10 @@ fn none(_: &[usize]) -> Option<BooleanErrorKind> {
 }
 
 /// The left fold of `members` by union in `order`, or the step that
-/// refused and why. A kernel op called without `BooleanInputs` records
-/// carries none of its operands' records, so the fold's contact record
-/// is its last step's.
+/// refused and why, each step handed no record of its operands
+/// (`BooleanInputs::default()`, where the plain `union` hands the
+/// operands' own): the uncarried fold, whose contact record is its last
+/// step's.
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
@@ -239,7 +240,14 @@ fn fold(
     let mut body = members[order[0]].clone();
     let mut last = None;
     for (k, &i) in order.iter().enumerate().skip(1) {
-        match union(&body, &members[i], t()) {
+        match topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            &body,
+            &members[i],
+            &topo::BooleanInputs::default(),
+            topo::SweepStrategy::Realized,
+            t(),
+        ) {
             Ok(BooleanResult::Body(r)) => {
                 body = r.body.clone();
                 last = Some(r);
@@ -477,7 +485,7 @@ fn every_order(
         ];
         assert_eq!(got, counts, "{what}: faces, edges, vertices");
         assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
-        let verdict = validate_pseudomanifold(body, &r.contacts, t()).err();
+        let verdict = validate_pseudomanifold(body, r.contacts(), t()).err();
         let undecided = verdict.iter().flatten().any(|e| {
             matches!(
                 e,
@@ -762,13 +770,13 @@ fn the_line_less_the_moved_bridge_passes_three_prime_with_its_records() {
         let mut records = topo::OperandRecords::default();
         for &i in &order[1..] {
             let r = op(topo::BooleanOp::Union, &line, &members[i], records);
-            records = r.contacts.carried();
+            records = r.contacts().carried();
             line = r.body;
         }
         let r = op(topo::BooleanOp::Subtract, &line, &bridge, records);
         let what = format!("the line from {order:?} less the moved bridge");
         assert_eq!(
-            validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+            validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
             None,
             "{what}: tier 3′"
         );
@@ -984,7 +992,7 @@ fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f6
                 Ok(BooleanResult::Empty) => continue,
                 Err(e) => panic!("{what}: builds, got {e:?}"),
             };
-            if let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) {
+            if let Err(errors) = validate_pseudomanifold(&r.body, r.contacts(), t()) {
                 let wrong = errors.iter().find(|e| {
                     matches!(
                         e,
@@ -1435,7 +1443,7 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
                     &members[i],
                     [records, topo::OperandRecords::default()],
                 );
-                records = r.contacts.carried();
+                records = r.contacts().carried();
                 carried_body = r.body.clone();
             }
             let line = Closed {
@@ -1459,7 +1467,7 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
                         carried_union(&b, &carried_body, [none(), records.clone()])
                     };
                     assert_eq!(
-                        validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                        validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
                         None,
                         "{what}, the line body first: {line_first}: the carried union at 3′"
                     );
@@ -1626,7 +1634,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
                 Err((s, e)) => panic!("{what}: step {s} refused {e:?}"),
                 Ok(r) => {
                     assert!(k > 5.0, "{what}: built inside the band");
-                    let es = validate_pseudomanifold(&r.body, &r.contacts, t()).unwrap_err();
+                    let es = validate_pseudomanifold(&r.body, r.contacts(), t()).unwrap_err();
                     assert!(
                         es.iter()
                             .any(|e| matches!(e, topo::ValidationError::CensusEscalated { .. })),
@@ -1734,17 +1742,17 @@ fn the_carried_fold_passes_three_prime_in_every_member_order() {
                     Ok(BooleanResult::Body(r)) => r,
                     other => panic!("{what}: step {k}: {other:?}"),
                 };
-                carried = r.contacts.carried();
+                carried = r.contacts().carried();
                 body = r.body.clone();
                 last = Some(r);
             }
             assert!(shape(&body) == uncarried, "{what}: another body");
             let r = last.expect("at least two members");
             assert_eq!(
-                validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                validate_pseudomanifold(&r.body, r.contacts(), t()).err(),
                 None,
                 "{what}: the carried fold at 3′ ({} e-e rows)",
-                r.contacts.edge_edge().count()
+                r.contacts().edge_edge().count()
             );
         }
     }

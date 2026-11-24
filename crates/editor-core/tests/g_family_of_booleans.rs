@@ -395,7 +395,7 @@ fn product_with_an_empty_member(empty: usize) -> (usize, usize, Vec<topo::Valida
         .unwrap_or_else(|e| panic!("the product of the cut (member {empty} empty): {e:?}"));
     (
         product.body.solids().count(),
-        product.contacts.rows().len(),
+        product.contacts().rows().len(),
         product.census,
     )
 }

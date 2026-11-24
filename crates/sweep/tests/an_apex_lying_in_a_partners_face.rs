@@ -55,7 +55,7 @@ fn edge_face_records(r: &BooleanResult<f64>) -> Vec<EdgeInPlane> {
         panic!("the op builds a body: {r:?}");
     };
     let body = &b.body;
-    b.contacts
+    b.contacts()
         .cell_pairs()
         .filter_map(|pair| match pair {
             (topo::Cell::Edge(e), topo::Cell::Face(f))

@@ -298,7 +298,7 @@ fn findings(result: &Result<AtRest, editor_core::ProductError>) -> Vec<String> {
 /// **The record set of a gathered product.**
 fn gate_records(result: &Result<AtRest, editor_core::ProductError>) -> &topo::ContactRecords {
     match result {
-        Ok(at_rest) => &at_rest.product.contacts,
+        Ok(at_rest) => at_rest.product.contacts(),
         Err(other) => panic!("the product gathers: {other}"),
     }
 }
@@ -340,13 +340,13 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let part_ev = run(&part, &EvalOptions::default());
     let part_product = product_recorded(&part, &part_ev, Tol::witness()).expect("the part gathers");
     assert_eq!(
-        part_product.contacts.vertex_vertex().count(),
+        part_product.contacts().vertex_vertex().count(),
         1,
         "the kiss union records one v-v contact: {:?}",
-        part_product.contacts
+        part_product.contacts()
     );
     let part_pair = {
-        let (a, b) = part_product.contacts.vertex_vertex().next().unwrap();
+        let (a, b) = part_product.contacts().vertex_vertex().next().unwrap();
         (
             names_of(&part_product.names, EntityKey::Vertex(a)),
             names_of(&part_product.names, EntityKey::Vertex(b)),
@@ -365,12 +365,12 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
     let _ = instance;
 
     assert_eq!(
-        product.contacts.vertex_vertex().count(),
+        product.contacts().vertex_vertex().count(),
         1,
         "the record crossed the seam, exactly once: {:?}",
-        product.contacts
+        product.contacts()
     );
-    let (a, b) = product.contacts.vertex_vertex().next().unwrap();
+    let (a, b) = product.contacts().vertex_vertex().next().unwrap();
     let moved = (
         names_of(&product.names, EntityKey::Vertex(a)).map(|n| unwrap_in_part(&n)),
         names_of(&product.names, EntityKey::Vertex(b)).map(|n| unwrap_in_part(&n)),
@@ -414,9 +414,9 @@ fn row3_a_an_unmated_touching_pair_is_rows_of_the_two_copies() {
     );
     let rows = u32::try_from(product.coincidences.len()).expect("few rows");
     assert!(
-        !product.contacts.is_empty() && product.contacts.decided().iter().all(|&k| k < rows),
+        !product.contacts().is_empty() && product.contacts().decided().iter().all(|&k| k < rows),
         "each record cites one of those rows: {:?}",
-        product.contacts
+        product.contacts()
     );
     at_rest(&doc, &ev).expect("an unmated touching pair assembles");
 }
@@ -845,10 +845,10 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     assert!(after.is_empty(), "the moved seat assembles: {after:?}");
     let product = product_recorded(&moved, &ev2, Tol::witness()).expect("the pair gathers");
     assert_eq!(
-        product.contacts.face_face().count(),
+        product.contacts().face_face().count(),
         1,
         "and the census records the seat the mate makes: {:?}",
-        product.contacts
+        product.contacts()
     );
 }
 
@@ -960,7 +960,7 @@ fn row7_the_recorded_set_is_deterministic() {
     let b = run(&doc, &with_resolver(store));
     let pa = product_recorded(&doc, &a, Tol::witness()).expect("gathers");
     let pb = product_recorded(&doc, &b, Tol::witness()).expect("gathers");
-    assert_eq!(pa.contacts, pb.contacts, "the carried records replay");
+    assert_eq!(pa.contacts(), pb.contacts(), "the carried records replay");
     let ra = at_rest(&doc, &a);
     let rb = at_rest(&doc, &b);
     assert_eq!(
@@ -970,7 +970,8 @@ fn row7_the_recorded_set_is_deterministic() {
     );
     match (&ra, &rb) {
         (Ok(x), Ok(y)) => assert_eq!(
-            x.product.contacts, y.product.contacts,
+            x.product.contacts(),
+            y.product.contacts(),
             "and so does the recorded set"
         ),
         (Err(_), Err(_)) => {}
@@ -1427,7 +1428,7 @@ fn two_solids_of_one_arrival_are_the_parts_own_meeting() {
     // And no mate's record relates them either: every record rode up
     // from the part, so the suppression under test is the subject check
     // and only the subject check.
-    let contacts = &product.contacts;
+    let contacts = &product.contacts();
     assert!(
         contacts.rows().iter().all(|record| record
             .cites

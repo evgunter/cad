@@ -54,7 +54,8 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 fn volume(body: &Body<f64>) -> f64 {
     topo::test_support::pinned_volume(
         "the measured body",
-        &topo::finish(Body::clone(body), Tol::witness()).expect("the body is finished"),
+        &topo::finish(topo::Built::of(Body::clone(body)), Tol::witness())
+            .expect("the body is finished"),
         Tol::witness(),
     )
     .volume
@@ -103,7 +104,7 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
         ),
     ];
     for (what, operand, pick, d, want_v, rings) in rows {
-        topo::finish(operand.clone(), tol).expect("the operand is finished");
+        topo::finish(topo::Built::of(operand.clone()), tol).expect("the operand is finished");
         let face = face_where(&operand, pick);
         let mut moved = operand;
         topo::replace_face_offset(&mut moved, face, d, tol).unwrap_or_else(|e| {
@@ -128,7 +129,7 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
             want_v < 0.0 && (v - want_v).abs() <= 1e-12,
             "{what}: signed volume {v}, want the moved meridian's {want_v}"
         );
-        let errors = topo::finish(moved, tol)
+        let errors = topo::finish(topo::Built::of(moved), tol)
             .expect_err(&format!("{what}: the inverted body is not finished"));
         rings_outside(what, &errors, rings);
     }
@@ -145,7 +146,7 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
         ("the tube", tube(), 0.15, 0.25, 2),
     ];
     for (what, operand, finishes, crosses, rings) in rows {
-        let operand = topo::finish(operand, tol).expect("the operand is finished");
+        let operand = topo::finish(topo::Built::of(operand), tol).expect("the operand is finished");
         // The shell door finishes what it ships, so a wall that shells
         // is a finished body.
         topo::shell(&operand, finishes, tol).unwrap_or_else(|e| {
@@ -164,7 +165,7 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
     }
     // The tube's finishing wall, closed form: the tube less its cavity
     // `[0.55, 0.65] × [0.15, 0.45]`.
-    let tube = topo::finish(tube(), tol).unwrap();
+    let tube = topo::finish(topo::Built::of(tube()), tol).unwrap();
     let v = volume(&topo::shell(&tube, 0.15, tol).unwrap().body);
     let want = PI * (0.8f64.powi(2) - 0.4f64.powi(2)) * 0.6
         - PI * (0.65f64.powi(2) - 0.55f64.powi(2)) * 0.3;

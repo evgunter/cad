@@ -1487,9 +1487,10 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
         "the stand must be at rest: {}",
         report.spoken(doc)
     );
+    let contacts = product.contacts().clone();
     AtRest {
         body: product.body.into_body(),
-        contacts: product.contacts,
+        contacts,
     }
 }
 

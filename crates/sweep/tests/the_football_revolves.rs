@@ -262,7 +262,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 )
                 .unwrap();
         }
-        let errors = topo::finish(body, tol).expect_err(what);
+        let errors = topo::finish(topo::Built::of(body), tol).expect_err(what);
         // An edge read off the moved sheet: its incidence read decided
         // off, on the chart the refusal names a sheet.
         let off_sheet = |e: &topo::ValidationError| match e {
@@ -616,7 +616,7 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
                     .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
                     .unwrap();
             }
-            let errors = topo::finish(body, tol).expect_err("a flipped bit");
+            let errors = topo::finish(topo::Built::of(body), tol).expect_err("a flipped bit");
             let refused = if keys.len() == 1 {
                 errors
                     .iter()

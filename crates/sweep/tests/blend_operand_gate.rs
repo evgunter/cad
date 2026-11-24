@@ -87,7 +87,8 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
         other => panic!("no measured volume for {other}"),
     };
     let at_f64 = both_doors(&at_rest(&wedge::<f64>(true), tol));
-    let dual = topo::finish(wedge::<Dual64>(true), tol).expect("tier 2 passes the wedge");
+    let dual =
+        topo::finish(topo::Built::of(wedge::<Dual64>(true)), tol).expect("tier 2 passes the wedge");
     let at_dual = both_doors(&dual);
     for ((verb, f), (_, d)) in at_f64.into_iter().zip(at_dual) {
         let f = f

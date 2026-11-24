@@ -74,7 +74,7 @@ fn a_disc_moved_by_a_boxed_turn_meets_no_frame_finding_at_check_1() {
         let angle = Interval::from_bounds(theta - delta, theta + delta);
         let turn = RigidMotion::rotation(UnitVec3::<Interval>::exact_y(), angle).expect("a turn");
         let moved = topo::transform_rigid(&flat, &turn).expect("the disc moves");
-        let findings: Vec<ValidationError> = match topo::finish(moved, tol) {
+        let findings: Vec<ValidationError> = match topo::finish(topo::Built::of(moved), tol) {
             Ok(_) => Vec::new(),
             Err(not) => not
                 .as_slice()

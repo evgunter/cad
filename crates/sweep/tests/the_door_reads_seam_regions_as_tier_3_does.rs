@@ -621,7 +621,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         let c = b.with_entity_removed_for_tests(id).unwrap();
         // The typed door is not reached: no removal finishes.
         assert!(
-            topo::finish(c.clone(), tol).is_err(),
+            topo::finish(topo::Built::of(c.clone()), tol).is_err(),
             "{id:?}: the body with it removed finishes"
         );
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -669,7 +669,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     for curve in curves {
         let c = b.with_curve_removed_for_tests(curve).unwrap();
         assert!(
-            topo::finish(c.clone(), tol).is_err(),
+            topo::finish(topo::Built::of(c.clone()), tol).is_err(),
             "{curve:?}: the body with it removed finishes"
         );
         let door = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -715,7 +715,7 @@ fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wro
     for (shell, s) in hollow.shells() {
         let fl = flipped(&hollow, &s.faces);
         assert!(
-            topo::finish(fl.clone(), tol).is_err(),
+            topo::finish(topo::Built::of(fl.clone()), tol).is_err(),
             "{shell:?} flipped does not finish"
         );
         // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.

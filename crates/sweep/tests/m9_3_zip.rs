@@ -117,7 +117,7 @@ fn two_peg_plate_union_is_exactly_additive() {
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );
-    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+    if let Err(errs) = topo::validate_pseudomanifold(&body, body.records(), Tol::witness()) {
         panic!("the mated pair must be pseudomanifold-clean: {errs:?}");
     }
 }
@@ -323,7 +323,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     );
     // 3′ judges the rim as tier 3 does — its local battery reads no
     // record — over the contacts the op itself emitted.
-    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+    if let Err(errs) = topo::validate_pseudomanifold(&body, body.records(), Tol::witness()) {
         panic!("the kissing rounds must be pseudomanifold-clean: {errs:?}");
     }
 }

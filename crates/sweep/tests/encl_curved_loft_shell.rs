@@ -908,7 +908,7 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     // section through the plane × NURBS lane over the fit, and takes the
     // volume over the fitted cap's trimmed region: a bicubic chart, past
     // the exact outer rule's window, so the composite arm's.
-    let at_rest = topo::finish(moved, Tol::witness())
+    let at_rest = topo::finish(topo::Built::of(moved), Tol::witness())
         .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
     let props = topo::mass_properties(
         &at_rest,

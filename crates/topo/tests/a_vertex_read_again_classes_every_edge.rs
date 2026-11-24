@@ -216,6 +216,37 @@ const OVERLAPPING: &[(&str, usize)] = &[
     ("inside the lying pyramid", 5),
 ];
 
+/// The scenes some of whose cells the result gate refuses on a record
+/// its carry landed stale (`BooleanError::ResultInvalid`), with how many
+/// over every pose and op: in `y − x` the cutter's apex lands on the
+/// top's boundary at the point where the lying pyramid's vertex rests on
+/// it, both recorded cells keep their keys, and the gate reads the
+/// record stale, that finding alone ([`INVALID`])
+/// (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
+const STALE: &[(&str, usize)] = &[
+    ("under the lying pyramid's ray", 5),
+    ("continuing the lying pyramid's face", 5),
+];
+
+/// The tally's key for the result gate's refusal of the finished body
+/// on exactly one finding, a vertex-on-face record read stale. Any other
+/// finding keys as the bare arm, which no table pins.
+const INVALID: &str = "ResultInvalid: one stale vertex-on-face record";
+
+/// Whether `e` is the result gate refusing on one finding alone, a
+/// vertex-on-face record read stale.
+fn stale_vertex_on_face(e: &BooleanError) -> bool {
+    matches!(
+        e,
+        BooleanError::ResultInvalid { findings } if matches!(
+            findings.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration {
+                declaration: topo::StaleDeclaration::VertexOnFace { .. },
+            }]
+        )
+    )
+}
+
 /// A refusal's kind as a tally keys it: the error's arm, and for the
 /// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
 /// overlap.
@@ -228,6 +259,9 @@ fn refusal_kind(e: &BooleanError) -> String {
         }
     ) {
         return OVERLAP.to_owned();
+    }
+    if stale_vertex_on_face(e) {
+        return INVALID.to_owned();
     }
     let kind = format!("{e:?}");
     kind.split([' ', '{', '(']).next().unwrap_or("").to_owned()
@@ -1002,18 +1036,26 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             tally.doubled,
             tally.refused_cells
         );
-        // The result gate's overlap refusals are pinned, by count
-        // ([`OVERLAPPING`]); nothing else refuses.
+        // The result gate's overlap refusals and its stale-record
+        // refusals are pinned, by count ([`OVERLAPPING`], [`STALE`]);
+        // nothing else refuses.
         let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
             .refused_cells
             .iter()
             .partition(|cell| cell.ends_with(&format!(": {OVERLAP}")));
-        let pinned = OVERLAPPING
-            .iter()
-            .find(|(scene, _)| scene == label)
-            .map_or(0, |&(_, n)| n);
+        let (stale, others): (Vec<&String>, Vec<&String>) = others
+            .into_iter()
+            .partition(|cell| cell.ends_with(&format!(": {INVALID}")));
+        let pinned_in = |table: &[(&str, usize)]| {
+            table
+                .iter()
+                .find(|(scene, _)| scene == label)
+                .map_or(0, |&(_, n)| n)
+        };
+        let pinned = pinned_in(OVERLAPPING);
         if !others.is_empty()
             || overlaps.len() != pinned
+            || stale.len() != pinned_in(STALE)
             || tally.wrong + tally.missing + tally.doubled > 0
         {
             failures.push(format!("{label}: {tally:?}"));

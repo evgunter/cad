@@ -888,7 +888,7 @@ mod kernel {
             ConvexitySignFlip, UnbuiltEnd, ObliqueMixedCorner, SpineUnsupported,
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
-            NotFinished, SurgeryInvariant,
+            NotFinished, Carry, SurgeryInvariant,
             RingClearance, WhollyInside, PcurveMint, Op, Join,
         ];
     }
@@ -997,7 +997,7 @@ mod kernel {
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             UnplacedHole, NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
-            ResultNotAtRest, EdgeJoin, Merge,
+            ResultNotAtRest, Carry, EdgeJoin, Merge,
         ];
     }
 
@@ -1009,7 +1009,7 @@ mod kernel {
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
             Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
-            Join, NotValid,
+            Join, Carry, NotValid,
         ];
     }
 
@@ -1236,6 +1236,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::Pcurve { .. }
                 | S::RimSeamMixed { .. }
                 | S::Join { .. }
+                | S::Carry { .. }
                 | S::NotValid { .. } => {}
             }
             welded(levels)
@@ -2958,6 +2959,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "Carry",
+            F::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            },
+        ),
+        (
             "Merge",
             F::Merge {
                 side: topo::PlaneSide::Above,
@@ -4072,6 +4079,12 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::JoinableVertexAtRest { vertex },
                 ]),
+            },
+        ),
+        (
+            "Carry",
+            E::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
             },
         ),
         (
@@ -6025,6 +6038,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "Carry",
+                S::Carry {
+                    refusal: topo::CarryRefusal::Stale { record: 0 },
+                },
+            ),
+            (
                 "NotValid",
                 S::NotValid {
                     findings: topo::NotFinished::for_tests(vec![
@@ -6422,12 +6441,12 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     let head = "check connectedness: placement 000000000004 output 0: ";
     if (tol.eps() - 1e-9).abs() < 1e-15 {
         let at_rest = |b| topo::finish(b, tol).expect("the brick is at rest");
-        let outer = at_rest(topo::test_support::brick::<f64>(
+        let outer = at_rest(topo::Built::of(topo::test_support::brick::<f64>(
             (-1.0, 2.0),
             (-1.0, 2.0),
             (-1.0, 2.0),
             tol,
-        ));
+        )));
         let w = 10.5 * tol.eps();
         // Turned off the axes: every aimed ray at the cavity meets a wedge
         // (a face it passes within the band of two edges of), where along
@@ -6443,14 +6462,14 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
             [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
         ];
-        let needle = at_rest(topo::test_support::mapped_cube::<f64>(
+        let needle = at_rest(topo::Built::of(topo::test_support::mapped_cube::<f64>(
             move |a, b, cc| {
                 let p = [a, b * w, cc * w];
                 let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
                 geom_core::Point3::new(at(0), at(1), at(2))
             },
             tol,
-        ));
+        )));
         let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
         let body = &cut.body().expect("a body").body;
         // The door names the first ray set aside at a corner or a wedge

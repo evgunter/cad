@@ -23,7 +23,7 @@ where
         + geom_core::CertifiedBounds
         + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 {
-    match topo::finish(Body::clone(body), tol) {
+    match topo::finish(topo::Built::of(Body::clone(body)), tol) {
         Ok(finished) => Some(finished),
         Err(errors) => {
             assert!(

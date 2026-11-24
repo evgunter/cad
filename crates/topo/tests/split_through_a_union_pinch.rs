@@ -259,7 +259,6 @@ fn united(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
 fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
     let two = united(&ell(), &cube());
     let three = united(&two.body, &wedge());
-    let band = geom_core::Band::linear(t()).expect("a band at the run's tolerance");
     let at_corner = |b: &AtRestBody<f64>| {
         b.vertex_points()
             .filter(|(_, p)| [p.x, p.y, p.z] == PINCH_AT)
@@ -282,17 +281,15 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
         for up in [true, false] {
             let s = if up { 1.0 } else { -1.0 };
             let plane = split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(s, 0.0, 0.0), t());
-            let r = split(&u.body, &plane, t())
-                .unwrap_or_else(|e| panic!("{union}, up {up}: refused: {e:?}"));
-            let carried = r
-                .carry_contacts(&u.contacts, band, Some(topo::RegionLane::certified()))
-                .unwrap_or_else(|e| panic!("{union}, up {up}: the records carry: {e:?}"));
+            let r = split(&u.body, &plane, t()).unwrap_or_else(|e| {
+                panic!("{union}, up {up}: refused, or its records do not carry: {e:?}")
+            });
             let parts = if up {
-                [(&r.above, &carried.above), (&r.below, &carried.below)]
+                [&r.above, &r.below]
             } else {
-                [(&r.below, &carried.below), (&r.above, &carried.above)]
+                [&r.below, &r.above]
             };
-            for ((part, records), (want, vertices), what) in parts
+            for (part, (want, vertices), what) in parts
                 .into_iter()
                 .zip(sides)
                 .zip(["x ≥ 1", "x ≤ 1"])
@@ -313,7 +310,7 @@ fn a_split_through_a_union_pinch_fuses_its_cones_on_the_side_that_joins_them() {
                 assert_eq!(at_corner(b), vertices, "{what}: vertices at the corner");
                 assert_eq!(validate_geometric(b, t()), Ok(()), "{what}: tier 3");
                 assert_eq!(
-                    validate_pseudomanifold(b, records, t()),
+                    validate_pseudomanifold(b, b.records(), t()),
                     Ok(()),
                     "{what}: tier 3′"
                 );

@@ -460,6 +460,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "quantity",
  "topo",
 ]
 

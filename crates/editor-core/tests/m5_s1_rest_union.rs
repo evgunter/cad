@@ -62,7 +62,7 @@ fn rest_union_evaluates_green() {
         Tol::witness(),
     );
     let value = ev.value(u).expect("union evaluated");
-    let contacts = &value.carry.contacts;
+    let contacts = &value.contacts();
     let ValuePayload::Boolean(BooleanValue::Body { body, kind }) = &value.payload else {
         panic!("expected a boolean body, got {}", value.payload.kind_name());
     };

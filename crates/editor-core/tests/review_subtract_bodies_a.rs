@@ -157,8 +157,7 @@ fn said(ev: &Evaluation<f64>, id: RecipeNodeId) -> Said {
     rows.sort();
     let inputs = value.carry.cited_inputs.as_ref();
     let mut records: Vec<String> = value
-        .carry
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .map(|r| {
@@ -416,8 +415,7 @@ fn carried_inputs(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<String> {
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.result(id)));
     let mut out: Vec<String> = value
-        .carry
-        .contacts
+        .contacts()
         .rows()
         .iter()
         .flat_map(|r| r.cites.iter().collect::<Vec<_>>())
@@ -464,7 +462,7 @@ fn a_fold_cites_its_plate_and_each_tool_by_its_read_in_every_order() {
         want.contains(&plate_read),
         "the pair cut carries the plate's kiss and the punches': {:?}",
         ev.value(lone_cut)
-            .map(|v| (&v.carry.contacts, &v.carry.cited_inputs))
+            .map(|v| (v.contacts(), &v.carry.cited_inputs))
     );
     for order in [
         vec![hole, punches],
@@ -478,8 +476,7 @@ fn a_fold_cites_its_plate_and_each_tool_by_its_read_in_every_order() {
             carried_inputs(&ev, cut),
             want,
             "{order:?}: {:?}",
-            ev.value(cut)
-                .map(|v| (&v.carry.contacts, &v.carry.cited_inputs))
+            ev.value(cut).map(|v| (v.contacts(), &v.carry.cited_inputs))
         );
         census_of(&ev, cut).unwrap_or_else(|e| panic!("{order:?}: {e:?}"));
         let listed: Vec<String> = core::iter::once(p)
@@ -525,7 +522,7 @@ fn a_fold_cites_its_plate_and_each_tool_by_its_read_in_every_order() {
             "{order:?} less its first: {:?}",
             later
                 .value(survivor)
-                .map(|v| (&v.carry.contacts, &v.carry.cited_inputs))
+                .map(|v| (v.contacts(), &v.carry.cited_inputs))
         );
         // The undo: the document before, over the evaluation after.
         let undone = fixture::run_with_prior(&doc, &later);

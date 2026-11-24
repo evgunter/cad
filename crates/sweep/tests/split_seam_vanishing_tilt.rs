@@ -29,13 +29,16 @@ fn tol() -> Tol {
 
 fn cylinder(phi: f64) -> AtRestBody<f64> {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let body = topo::finish(sweep::test_support::prism(circle, 1.0, tol()), tol())
-        .expect("the unit cylinder is finished");
+    let body = topo::finish(
+        topo::Built::of(sweep::test_support::prism(circle, 1.0, tol())),
+        tol(),
+    )
+    .expect("the unit cylinder is finished");
     let turn =
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), phi);
     let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()))
         .expect("a rigid turn");
-    topo::finish(turned, tol()).expect("the turned cylinder is finished")
+    topo::finish(topo::Built::of(turned), tol()).expect("the turned cylinder is finished")
 }
 
 /// The findings the ellipse's centre-form rounding, amplified by its

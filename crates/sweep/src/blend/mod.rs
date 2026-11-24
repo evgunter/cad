@@ -1885,6 +1885,13 @@ pub enum BlendError {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
+    /// **A contact record of the operand does not carry onto the
+    /// blended body** through the blend's lineage
+    /// ([`topo::ContactRecords::carried_through`]).
+    Carry {
+        /// The carry's refusal.
+        refusal: topo::CarryRefusal,
+    },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
     /// own earlier steps rule out.
@@ -2107,6 +2114,7 @@ impl BlendError {
             | Self::Escalated { .. }
             | Self::NonpositiveSize { .. }
             | Self::NotFinished { .. }
+            | Self::Carry { .. }
             | Self::RingClearance { .. }
             | Self::PcurveMint { .. }
             | Self::Op { .. }
@@ -2342,6 +2350,7 @@ impl BlendError {
             Self::NotFinished { findings } => {
                 write!(f, "the blended body is not a finished body: {findings}")
             }
+            Self::Carry { refusal } => refusal.write_at_a_door(f),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
@@ -2614,6 +2623,7 @@ mod recourse_tests {
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
             BlendError::NotFinished { .. } => Recourse::None,
+            BlendError::Carry { .. } => Recourse::Exactly(topo::CarryRefusal::RECOURSE),
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::PcurveMint { .. } => Recourse::None,

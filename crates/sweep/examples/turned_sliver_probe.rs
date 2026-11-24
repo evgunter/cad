@@ -22,7 +22,11 @@ fn tol() -> Tol {
 
 fn main() {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let cyl = topo::finish(sweep::test_support::prism(circle, 1.0, tol()), tol()).unwrap();
+    let cyl = topo::finish(
+        topo::Built::of(sweep::test_support::prism(circle, 1.0, tol())),
+        tol(),
+    )
+    .unwrap();
     let axes = [
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::new(1.0, 0.0, 0.0),

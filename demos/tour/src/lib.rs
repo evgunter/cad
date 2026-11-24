@@ -186,6 +186,17 @@ impl SceneBody {
         }
     }
 
+    /// A door's finished RESULT, validated as [`Self::seamed`] against
+    /// the contact records it holds.
+    fn finished(
+        name: impl Into<String>,
+        color: [f64; 3],
+        body: pncad::topo::AtRestBody<f64>,
+    ) -> Self {
+        let contacts = body.records().clone();
+        Self::seamed(name, color, body.into_body(), contacts)
+    }
+
     /// A boolean RESULT: validated at tier 3′ against the op's own
     /// contact records rather than through the plain geometric gate.
     /// Curved results (M5 PR 11's boss ∪ plate, whose cylinder walls
@@ -370,7 +381,7 @@ pub struct StepRoundTrip {
 /// of one true volume, plus a fold-order slop of `1e-12·|V|`)
 /// ([`StepRoundTrip`]).
 pub fn step_round_trip(label: &str, body: &Body<f64>, tol: Tol) -> StepRoundTrip {
-    let finished = pncad::topo::finish(body.clone(), tol)
+    let finished = pncad::topo::finish(pncad::topo::Built::of(body.clone()), tol)
         .unwrap_or_else(|e| panic!("{label}: the at-rest gate refused: {e:?}"));
     let text = pncad::step_export::step_string(
         &finished,
@@ -686,7 +697,7 @@ fn run_body(
     // carriers, all as EXACT native AP214 entities, and a solid with
     // cavities leaves as BREP_WITH_VOIDS, so any refusal fails the tour.
     let step = format!("{label}.step");
-    let finished = pncad::topo::finish(sb.body.clone(), tol)
+    let finished = pncad::topo::finish(pncad::topo::Built::of(sb.body.clone()), tol)
         .unwrap_or_else(|e| panic!("{label}: the STEP lane's at-rest gate refused: {e:?}"));
     let doc = pncad::step_export::step_string(
         &finished,

@@ -243,7 +243,7 @@ fn sweep_rows(radii: &[f64], tilts: &[f64]) -> (Vec<String>, Vec<String>) {
                                     let t2 = topo::validate_closed(body).is_ok();
                                     let t3 = topo::validate_geometric(body, tol()).is_ok();
                                     let t3p =
-                                        topo::validate_pseudomanifold(body, &res.contacts, tol());
+                                        topo::validate_pseudomanifold(body, res.contacts(), tol());
                                     let m = catch_unwind(AssertUnwindSafe(|| {
                                         topo::test_support::pinned_volume("v", body, tol())
                                     }));
@@ -362,7 +362,7 @@ fn a_brick_corner_on_a_rim_vertex_prints_its_volumes() {
                             Some(res) => {
                                 let ok3 = topo::validate_geometric(&res.body, tol()).is_ok();
                                 let ok3p =
-                                    topo::validate_pseudomanifold(&res.body, &res.contacts, tol())
+                                    topo::validate_pseudomanifold(&res.body, res.contacts(), tol())
                                         .is_ok();
                                 let m = catch_unwind(AssertUnwindSafe(|| {
                                     topo::test_support::pinned_volume("v", &res.body, tol())

@@ -237,8 +237,8 @@ fn review_6020_boolean_seam_poses() {
                 ] {
                     let n = n * s;
                     let [below, above] = quadrature(false, p, n);
-                    let tube = topo::finish(revolved(&TUBE), tol()).unwrap();
-                    let cube = topo::finish(cube_on(p, n), tol()).unwrap();
+                    let tube = topo::finish(topo::Built::of(revolved(&TUBE)), tol()).unwrap();
+                    let cube = topo::finish(topo::Built::of(cube_on(p, n)), tol()).unwrap();
                     let cases: [(&str, Result<_, _>, f64); 4] = [
                         ("tube − cube", topo::subtract(&tube, &cube, tol()), below),
                         ("tube ∩ cube", topo::intersect(&tube, &cube, tol()), above),
@@ -264,7 +264,7 @@ fn review_6020_boolean_seam_poses() {
                                     .volume;
                                     let t3p = topo::validate_pseudomanifold(
                                         &bb.body,
-                                        &bb.contacts,
+                                        bb.contacts(),
                                         tol(),
                                     );
                                     assert!(

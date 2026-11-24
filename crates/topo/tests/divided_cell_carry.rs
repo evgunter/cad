@@ -6,7 +6,7 @@
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 use crate::common;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanResult, Cell, ContactRecords, FaceKey, Surface,
     union, validate_pseudomanifold,
@@ -14,10 +14,6 @@ use topo::{
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
@@ -77,19 +73,31 @@ fn cites_its_record(what: &str, carried: &ContactRecords, record: u32) {
     }
 }
 
-/// Splits `base` by the plane through `origin` across `normal`, carries
-/// its records, and asserts each side passes at rest with what it got.
+/// The records each side of a split holds, an empty side holding none.
+#[derive(Debug)]
+struct Sides {
+    above: ContactRecords,
+    below: ContactRecords,
+}
+
+/// Splits `base` by the plane through `origin` across `normal`, which
+/// carries its records, and asserts each side passes at rest with what
+/// it holds.
 fn split_passes(
     what: &str,
     base: &BooleanBody<f64>,
     origin: Point3<f64>,
     normal: Vec3<f64>,
-) -> topo::SplitContacts {
+) -> Sides {
     let plane = common::split_plane(origin, normal, tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the body splits");
-    let sides = split
-        .carry_contacts(&base.contacts, band(), Some(topo::RegionLane::certified()))
-        .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
+    let split = topo::split(&base.body, &plane, tol())
+        .unwrap_or_else(|refusal| panic!("{what}: the body splits, its records land: {refusal:?}"));
+    let held =
+        |part: &topo::SplitPart<f64>| part.body().map(|b| b.records().clone()).unwrap_or_default();
+    let sides = Sides {
+        above: held(&split.above),
+        below: held(&split.below),
+    };
     for (side, body, records) in [
         ("above", split.above.body(), &sides.above),
         ("below", split.below.body(), &sides.below),
@@ -117,12 +125,12 @@ fn a_cut_across_a_rest_face_lands_the_record_on_the_fragment_holding_the_corner(
         &box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab"),
     );
     assert_eq!(
-        base.contacts.vertex_face().count(),
+        base.contacts().vertex_face().count(),
         1,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
-    let (_, top) = base.contacts.vertex_face().next().unwrap();
+    let (_, top) = base.contacts().vertex_face().next().unwrap();
     let sides = split_passes(
         "x = 1",
         &base,
@@ -154,12 +162,12 @@ fn a_cut_across_a_rest_edge_lands_the_record_on_the_piece_holding_the_corner() {
     let c = box_of((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), "c");
     let base = union_of(&a, &c);
     assert_eq!(
-        base.contacts.vertex_edge().count(),
+        base.contacts().vertex_edge().count(),
         2,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
-    let before: Vec<_> = base.contacts.vertex_edge().collect();
+    let before: Vec<_> = base.contacts().vertex_edge().collect();
     for (what, x, moved) in [("x = 1/4", 0.25, 1), ("x = 5/4", 1.25, 0)] {
         let sides = split_passes(
             what,
@@ -207,9 +215,14 @@ fn a_cut_across_a_crossing_edge_lands_the_record_on_the_piece_that_still_crosses
         tol(),
     );
     let base = union_of(&cube, &common::finished("box", turned, tol()));
-    assert_eq!(base.contacts.edge_edge().count(), 1, "{:?}", base.contacts);
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
-    let [before] = base.contacts.edge_edge().collect::<Vec<_>>()[..] else {
+    assert_eq!(
+        base.contacts().edge_edge().count(),
+        1,
+        "{:?}",
+        base.contacts()
+    );
+    assert_eq!(base.contacts().len(), 1, "{:?}", base.contacts());
+    let [before] = base.contacts().edge_edge().collect::<Vec<_>>()[..] else {
         unreachable!()
     };
     let mut off_key = 0;
@@ -255,7 +268,7 @@ fn a_rim_around_a_hole_lands_a_resting_corners_record_on_the_holes_rim() {
         other => panic!("the hole cuts: {other:?}"),
     };
     let base = union_of(&tilted_cube(), &holed);
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
+    assert_eq!(base.contacts().len(), 1, "{:?}", base.contacts());
     let top = face_at_z(&base.body, 1.0);
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the top opens");
     let [rim] = &opened.naming.rims[..] else {
@@ -264,10 +277,8 @@ fn a_rim_around_a_hole_lands_a_resting_corners_record_on_the_holes_rim() {
     let [hole_rim] = &rim.holes[..] else {
         panic!("one hole rim: {:?}", rim.holes)
     };
-    let carried = opened
-        .carry_contacts(&base.contacts, band(), Some(topo::RegionLane::certified()))
-        .expect("the record lands");
-    let (corner, _) = base.contacts.vertex_face().next().unwrap();
+    let carried = opened.body.records().clone();
+    let (corner, _) = base.contacts().vertex_face().next().unwrap();
     assert_eq!(
         carried.cell_pairs().collect::<Vec<_>>(),
         [(Cell::Vertex(corner), Cell::Face(hole_rim.face))],
@@ -309,10 +320,10 @@ fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner()
     );
     let base = union_of(&cube, &u);
     assert_eq!(
-        base.contacts.vertex_face().count(),
+        base.contacts().vertex_face().count(),
         1,
         "{:?}",
-        base.contacts
+        base.contacts()
     );
     let plane = common::split_plane(Point3::new(0.0, 3.0, 0.0), Vec3::new(0.0, 1.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the arms split");
