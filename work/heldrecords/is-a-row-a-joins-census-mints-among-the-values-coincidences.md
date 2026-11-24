@@ -69,3 +69,8 @@ gate reads the citation (a record is certified by the census's reading
 of it, never by what it cites), so nothing refuses it and nothing is
 misled by it today; a reader that resolved it would be. Not built
 here.
+
+`Assembled::numbering_from` is the last public knob on a join's
+records: it sets the number the census's rows start from, for its one
+caller (the distribute). It goes, or stays, with this question's
+answer.

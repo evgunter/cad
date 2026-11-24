@@ -280,13 +280,20 @@ fn a_finished_body_names_the_bar_its_gate_paid() {
     );
 }
 
-/// A `⊔`'s gate takes arrivals, never a list: no `pub fn` of
-/// [`Assembled`] names a record in its signature. A census of the
-/// source, so a constructor or a method added with one goes red here.
+/// No `pub fn` written in an inherent `impl … Assembled<T>` block of
+/// `crates/topo/src/finish.rs` names a record type in its signature
+/// (`ContactRecords`, `OperandRecords`, `Cited`, `Contact`, `Backing`,
+/// `Cites`). That is all this reads: a line scan of that one file. It
+/// does not see an `impl` in another file, a trait impl, a `pub` field
+/// (the type has none: its fields are `pub(crate)`), or a free function
+/// that takes an `Assembled`; the type's own doc pins `new`'s arity by
+/// `compile_fail`. It goes red on the likeliest regression, a
+/// constructor or method added beside the others with a list in hand.
 #[test]
-fn no_public_door_of_a_join_takes_records() {
+fn no_pub_fn_of_assembled_in_finish_rs_names_a_record_type() {
     let source = include_str!("../src/finish.rs");
     let mut inside = false;
+    let mut declared = 0;
     let mut signatures: Vec<String> = Vec::new();
     let mut open: Option<String> = None;
     for line in source.lines() {
@@ -299,6 +306,7 @@ fn no_public_door_of_a_join_takes_records() {
             continue;
         }
         if line.trim_start().starts_with("pub fn ") {
+            declared += 1;
             open = Some(String::new());
         }
         if let Some(signature) = open.as_mut() {
@@ -309,16 +317,25 @@ fn no_public_door_of_a_join_takes_records() {
             }
         }
     }
-    assert!(
-        signatures.len() >= 7,
-        "the census read the type's doors: {signatures:#?}"
+    assert!(declared > 0, "the scan found the type's impl blocks");
+    assert_eq!(
+        signatures.len(),
+        declared,
+        "every `pub fn` the scan met was read to its body: {signatures:#?}"
     );
     for signature in &signatures {
         assert!(
-            !["ContactRecords", "Cited", "Contact"]
-                .iter()
-                .any(|record| signature.contains(record)),
-            "a public door of a join takes records: {signature}"
+            ![
+                "ContactRecords",
+                "OperandRecords",
+                "Cited",
+                "Contact",
+                "Backing",
+                "Cites"
+            ]
+            .iter()
+            .any(|record| signature.contains(record)),
+            "a `pub fn` of a join names a record type: {signature}"
         );
     }
 }

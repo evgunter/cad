@@ -76,18 +76,35 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     let held = records
         .records(&body, 0)
         .map_err(|_| BooleanError::JoinDesync { what: UNREAD })?;
-    let handed = held.len();
     let body = T::finish(crate::Built::of(body).recording(held), tol)
         .map_err(|findings| BooleanError::ResultInvalid { findings })?;
     // The material's records leave here twice: on the finished body,
     // and as `records` beside it, which is what the cut reads
     // (`work/onecopy/a-fold-and-a-scene-keep-a-working-copy-of-records-beside-the-body.md`).
-    // The two are one list, so a body that holds another count is a
-    // carry that dropped or doubled a record.
-    if crate::FinishedBody::records(&body).len() != handed {
+    // The two name one set of touches: the list beside the body is read
+    // back onto the finished body again here, after the gate, and the
+    // pairs it names are held to the pairs the body holds, as sets (two
+    // rows of the tool's that land on one pair are one record on the
+    // body, and that is no fault).
+    let beside = records
+        .records(&body, 0)
+        .map_err(|_| BooleanError::JoinDesync { what: UNREAD })?;
+    if !same_pairs(
+        crate::FinishedBody::records(&body).cell_pairs(),
+        beside.cell_pairs(),
+    ) {
         return Err(BooleanError::JoinDesync { what: UNHELD });
     }
     Ok((body, records, through))
+}
+
+/// Whether two lists of records name the same pairs of cells, whatever
+/// their order and however often each names one.
+fn same_pairs(
+    a: impl Iterator<Item = (crate::Cell, crate::Cell)>,
+    b: impl Iterator<Item = (crate::Cell, crate::Cell)>,
+) -> bool {
+    a.collect::<std::collections::BTreeSet<_>>() == b.collect::<std::collections::BTreeSet<_>>()
 }
 
 /// A material whose finished body does not hold the records read back
@@ -1054,4 +1071,23 @@ fn last_holdings<T: AtRestPolicy>(material: &ToolMaterial<T>) -> &Holdings {
         .last()
         .unwrap_or_else(|| unreachable!("a tool of two or more solids folds at least once"))
         .holdings
+}
+
+#[cfg(test)]
+mod same_pairs_tests {
+    use super::same_pairs;
+    use crate::Cell;
+
+    /// Two of a tool's rows landing on one pair are one record on the
+    /// material's body: the body and the list beside it agree, and the
+    /// cut builds. A body holding no record beside a list that names
+    /// one does not.
+    #[test]
+    fn two_rows_on_one_pair_are_the_pair_and_a_dropped_record_is_not() {
+        let face = |n: u64| Cell::Face(slotmap::KeyData::from_ffi(n).into());
+        let (p, q) = ((face(1), face(2)), (face(1), face(3)));
+        assert!(same_pairs([p, q].into_iter(), [q, p, p].into_iter()));
+        assert!(!same_pairs(std::iter::empty(), [p].into_iter()));
+        assert!(!same_pairs([p].into_iter(), [p, q].into_iter()));
+    }
 }

@@ -99,3 +99,31 @@ record (`crates/topo/README.md`, tier 3), so each kind above owes a
 reading, and "held on its citation" is the shortfall until it has
 one. The citation is the document's trail and is not what certifies a
 record.
+
+**Nesting defeats the axis set** (PR 7124's last review, 2026-11-24).
+The separation reading tries the axis between the two cells, the
+world's axes and each planar cell's normal. A planar face across a
+cylinder's axis that lies inside the cylinder's footprint is parted by
+none of them. Demonstrated by a reviewer and pinned as held: a tube
+joined with a block, or a thin rod, wholly inside its bore, 0.3 clear:
+a planted record between each of the tube's cylinder faces and each
+inner cap is held at tier 3, 16 of 16
+(`sweep a_record_no_lane_reads::a_cap_nested_in_a_bore_is_still_held_against_every_wall`
+pins the block's eight). A pin in a bore is the commonest assembly
+there is. The notch has a second shape too, the rod's wall against the
+L's top (4 and 8 of 532 held in the same reviewer's plants;
+`…::a_wall_in_the_notch_of_a_plane_across_its_axis_is_still_held`).
+
+*The first thing to try*: the cylinder's radial direction as a
+separating axis in `census::decided_apart` (through the nearer cell's
+anchor, perpendicular to the cylinder's axis), which parts a cap in a
+bore from the bore's wall by the 0.3 between them. Not added in PR
+7124 by ruling: it is this row's.
+
+*More kinds say "no lane" since that review*: a face whose trim the
+containment door has no reading for (four sites, one constant,
+`census::TRIM_OUTSIDE_THE_CONTAINMENT_DOOR`), and an edge and a face
+the curve × face reading has no arm for (an unbuilt pair, a spline
+arm). Each was `Unread` and refused; a kind outside every lane is not
+a reading that ran, and refusing it would refuse a true record of that
+kind for good. Neither reviewer could construct a record at either.

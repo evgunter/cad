@@ -144,17 +144,18 @@ fn reading(finding: &ValidationError) -> Reading {
             // site that raised it states ([`ContactReach::NoLane`]: two carriers
             // with no closed-form tangent locus, a kind outside the rest
             // inventory, a pair outside the jet certificate's lane, an
-            // edge lying on a face's carrier). Each lane is owed by
+            // edge lying on a face's carrier, a face whose trim the
+            // containment door has no reading for, an edge and a face
+            // the curve × face reading has no arm for). Each lane is owed by
             // `work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`.
             CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
                 reach: ContactReach::NoLane,
                 ..
             }) => Reading::NoLane,
             // A reading ran, or was handed what it could not read, and
-            // did not decide ([`ContactReach::Unread`]: a trim the containment
-            // door does not read, a face with no extent or no surface,
-            // a span bound the schedule did not reach, a meter that
-            // refused).
+            // did not decide ([`ContactReach::Unread`]: a face with no extent
+            // or no surface, a span bound the schedule did not reach, a
+            // meter that refused, an edge through a cone's apex).
             CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
                 reach: ContactReach::Unread,
                 ..

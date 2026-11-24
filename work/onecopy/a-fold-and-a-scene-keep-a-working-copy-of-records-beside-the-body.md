@@ -29,3 +29,13 @@ each source's records off its body). What each needs: the fold to read
 its accumulated body's records and keep only how each cites
 (`Citing`), as a value's carry does; the scenes to hold the finished
 body.
+
+**A third copy, with a check on it** (PR 7124, 2026-11-24). The cut's
+tool material (`topo::boolean::material::assembled`) returns its
+records twice: on the finished body, and as a list beside it, which is
+what the cut reads. Nothing read the body's own, so a mutant that
+finished the material with no records survived. Until the list beside
+the body goes, the site reads it back onto the finished body after the
+gate and refuses `JoinDesync` where the two name different pairs (as
+sets, so two of the tool's rows on one pair are no fault). That check
+goes with the copy.

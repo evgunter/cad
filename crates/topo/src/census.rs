@@ -4756,7 +4756,7 @@ fn curved_overlap_cells<T: Decide>(
                     crate::contact::ContactRefusal::NotCertifiable {
                         what: "a line edge on a curved face's ruling whose trim the \
                                containment door does not read",
-                        reach: crate::contact::ContactReach::Unread,
+                        reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
                     },
                 ),
             }),
@@ -7333,7 +7333,7 @@ fn line_unread(
             crate::contact::ContactRefusal::NotCertifiable {
                 what: "a face of a two-carrier face pair whose trim the containment door does \
                        not read",
-                reach: crate::contact::ContactReach::Unread,
+                reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
             },
         )),
         crate::boolean::FaceUnread::Placement(e) => {
@@ -11155,6 +11155,18 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
+/// **What stands behind "a trim the containment door does not read"**:
+/// the door places a point in a face whose trim it has a reading for,
+/// and answers nothing (`Some(None)`, its remainder, no error behind it)
+/// for a face of any other kind of trim. That is a kind outside its
+/// lanes, not a reading that ran: nothing was read of whether the touch
+/// lies in the face, so a record there is no lane's to refuse
+/// ([`crate::contact::ContactReach::NoLane`]). One constant for the
+/// four sites that raise it (three here, one in [`point`]), so they
+/// cannot be classed apart.
+pub(crate) const TRIM_OUTSIDE_THE_CONTAINMENT_DOOR: crate::contact::ContactReach =
+    crate::contact::ContactReach::NoLane;
+
 fn confirm_records<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -11389,7 +11401,8 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 b,
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a face-face record on two carriers with no closed-form tangent locus \
-                           (plane x cylinder along a ruling, parallel cylinders)",
+                           (the locus holds a plane along a cylinder's ruling and two parallel \
+                           cylinders, and this pair is neither)",
                     reach: crate::contact::ContactReach::NoLane,
                 },
             ));
@@ -11537,7 +11550,7 @@ fn confirm_vertex_on_face<T: Decide>(
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a vertex-on-face record on a curved face whose trim \
                            the containment door does not read",
-                    reach: crate::contact::ContactReach::Unread,
+                    reach: TRIM_OUTSIDE_THE_CONTAINMENT_DOOR,
                 },
             ),
         }),

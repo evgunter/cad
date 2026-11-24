@@ -79,7 +79,8 @@ impl<T: Real> Built<T> {
 /// No constructor or method takes records: `new` takes nothing (below),
 /// and a census of this type's `pub fn`s over the source goes red on
 /// one whose signature names a record
-/// (`the_gate_confirms_every_record::no_public_door_of_a_join_takes_records`).
+/// (`the_gate_confirms_every_record::no_pub_fn_of_assembled_in_finish_rs_names_a_record_type`,
+/// which says what it does not see).
 ///
 /// ```compile_fail,E0061
 /// let body: topo::Body<f64> = topo::Body::new();
