@@ -4,7 +4,7 @@ kind: issue
 title: A centre-held far conic's touch is dropped: the carrier walk's clear_by reads the conic clear of its own point at u·far, and line_conic answers Apart
 status: open
 opened: 2026-11-23
-priority: P2
+priority: P1
 cost: M
 refs: [7553, 7258]
 ---
@@ -37,3 +37,5 @@ Ev's ruling on PR 7258 (recorded on the closed `oneround/a-conics-point-is-evalu
 ## Settles when
 
 A touch on a centre-held far conic is either placed or refused typed, never dropped to `Apart`. The walk's clearance of a point on the conic is read to its own digits, or the walk refuses where the carrier's points cannot resolve the radius. The line row's `placed` count then reads 0 at far 1e4, 1e5 and 1e6 on seed `0x310ae3910d809302` and fresh seeds at three ε, and the row drops its exception.
+
+- 2026-11-24 (GERM orchestrator) — priority raised to P1. This is a definite wrong answer (`Apart` on a touch within the zero band) against Ev's PR 7258 ruling ("refuses those poses typed and reads nothing wrong"), reproduced at seed `0x310ae3910d809302` on PR 7553's gate.

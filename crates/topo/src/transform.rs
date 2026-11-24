@@ -231,18 +231,6 @@ impl<T: Real> Isometry<T> {
     }
 }
 
-impl Hand {
-    /// `v` under `map`'s linear part, negated under an improper map:
-    /// the axis that keeps a right-handed frame's sense of turning
-    /// (`(−M·a) × (M·u) = M·(a × u)` when `det M = −1`).
-    fn axial<T: Real>(self, map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
-        match self {
-            Hand::Proper => map_vec(map, v),
-            Hand::Improper => -map_vec(map, v),
-        }
-    }
-}
-
 /// Every datum of one surface under `map` at `hand` (module docs: what
 /// maps how).
 ///
@@ -262,15 +250,15 @@ impl Hand {
 ///
 /// `motion` is the map as the rigid motion it is, where it is one: an
 /// analytic frame is then that frame moved ([`geom::Frame::moved`]), a
-/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's. A
-/// reflection, or a map handed only as an affine, maps the frame's three
-/// data and squares them ([`geom::Frame::new`]), the plane's normal as
-/// the axial image.
+/// rigid image of a rigid frame, as [`map_carrier_stretched`] moves a conic's.
+/// Under a reflection, where `motion` is `None`, the frame's image is the
+/// reflected frame ([`geom::Frame::reflected`]), the plane's normal as the
+/// axial image.
 /// **A carrier's frame under the map**: under a proper motion the
 /// frame's own image ([`geom::Frame::moved`]); under a reflection its
-/// mapped data squared ([`geom::Frame::new`]), the axis as the axial
-/// image where `axial` (a plane's normal, a conic's axis, so the image
-/// keeps its side and its parameter) and as a plain vector elsewhere.
+/// reflected image ([`geom::Frame::reflected`]), kept right-handed by
+/// reversing its `w` where `axial` (a plane's normal, a conic's axis, so
+/// the image keeps its side and its parameter) and its `v` elsewhere.
 fn map_frame<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
@@ -280,15 +268,25 @@ fn map_frame<T: Real>(
 ) -> geom::Frame<T> {
     match motion {
         Some(motion) => f.moved(motion),
-        None => geom::Frame::new(
-            map.transform_point(f.origin()),
-            if axial {
-                hand.axial(map, f.axis())
-            } else {
-                map_vec(map, f.axis())
-            },
-            map_vec(map, f.u_ref()),
-        ),
+        // The axis is the axial image `−M·a` where `axial` (`(−M·a) × (M·u)
+        // = M·(a × u)` when `det M = −1`, so the turning is kept), so the
+        // frame's `w` is reversed; elsewhere the axis is `M·a` and the parameter
+        // keeps `M·u`, so `v` is. Either is the frame `Frame::new` squared
+        // from those data, held as a rigid image rather than squared.
+        None => {
+            debug_assert!(
+                matches!(hand, Hand::Improper),
+                "a rigid map carries its motion"
+            );
+            f.reflected(
+                map,
+                if axial {
+                    geom_core::Negated::W
+                } else {
+                    geom_core::Negated::V
+                },
+            )
+        }
     }
 }
 
@@ -459,25 +457,17 @@ pub(crate) fn map_carrier_stretched<T: Real>(
                 minor_radius,
                 offset,
             } => {
-                let (center, axis, u_ref) = (
-                    carrier_frame.origin(),
-                    carrier_frame.axis(),
-                    carrier_frame.u_ref(),
-                );
                 // `(axis, u_ref, offset)` and `(−axis, −u_ref, −offset)` name
                 // one oval; under a reflection the image keeps its `v` with
                 // `axis` mapped and the plane's side negated.
                 // Under a motion the frame is moved, as a conic's is.
                 let (frame, offset) = match iso {
                     Isometry::Proper(motion) => (carrier_frame.moved(motion), offset),
-                    Isometry::Improper(_) => (
-                        geom::Frame::new(
-                            map.transform_point(center),
-                            map_vec(map, axis),
-                            -map_vec(map, u_ref),
-                        ),
-                        -offset,
-                    ),
+                    // `(M·a, −M·u)`, its `v` then `M·v`: the frame
+                    // with `u` reversed.
+                    Isometry::Improper(_) => {
+                        (carrier_frame.reflected(map, geom_core::Negated::U), -offset)
+                    }
                 };
                 Curve3::Spiric {
                     frame,
@@ -872,8 +862,9 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
                 axis: geom::Line {
                     origin: map.transform_point(axis.origin),
                     // An isometry's image of the unit axis, its sense
-                    // kept under either hand ([`Hand::axial`]); an axis
-                    // has no span to stretch.
+                    // kept under either hand (negated under an improper
+                    // map, `(−M·a) × (M·u) = M·(a × u)` when `det M = −1`);
+                    // an axis has no span to stretch.
                     dir: match hand {
                         Hand::Proper => axis.dir.through_isometry(map.linear).0,
                         Hand::Improper => -axis.dir.through_isometry(map.linear).0,
@@ -1106,6 +1097,54 @@ mod tests {
                     "{kind}: the image at {t} is {off} off the reflected point"
                 );
             }
+        }
+    }
+
+    /// **A frame's image under a reflection is the frame its mapped data
+    /// state, hand for hand**: a plane's (its normal axial, `w`
+    /// reversed), a chart of revolution's (its axis forward, `v`
+    /// reversed) and a spiric's (`u` reversed) each read, axis by axis,
+    /// what squaring the mapped origin, axis and seam stated before
+    /// (`Frame::new(M·o, ∓M·a, ±M·u)`), to rounding, and each is
+    /// right-handed. Red with any other axis reversed.
+    #[test]
+    fn a_reflected_frame_is_the_frame_its_mapped_data_state() {
+        let r = reflection();
+        let m = r.to_affine();
+        let (o, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u_ref = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        let frame = geom::Frame::new(o, a, u_ref);
+        let mv = |v: Vec3<f64>| m.linear * v;
+        let close = |x: Vec3<f64>, y: Vec3<f64>| (x - y).norm() < 1e-15;
+        let plane = map_frame(&m, Hand::Improper, None, &frame, true);
+        let chart = map_frame(&m, Hand::Improper, None, &frame, false);
+        let spiric = match map_carrier(
+            &Isometry::Improper(r),
+            &Curve3::Spiric {
+                frame,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                offset: 0.3,
+            },
+        )
+        .expect("an analytic carrier")
+        {
+            Curve3::Spiric { frame, .. } => frame,
+            other => panic!("a spiric maps to a spiric: {other:?}"),
+        };
+        for (kind, image, axis, seam) in [
+            ("plane", plane, -mv(a), mv(u_ref)),
+            ("chart", chart, mv(a), mv(u_ref)),
+            ("spiric", spiric, mv(a), -mv(u_ref)),
+        ] {
+            let stated = geom::Frame::new(m.transform_point(o), axis, seam);
+            assert!(close(image.axis(), stated.axis()), "{kind}: axis");
+            assert!(close(image.u_ref(), stated.u_ref()), "{kind}: u_ref");
+            assert!(close(image.v_ref(), stated.v_ref()), "{kind}: v_ref");
+            assert!(
+                (image.origin() - stated.origin()).norm() < 1e-15,
+                "{kind}: origin"
+            );
         }
     }
 
