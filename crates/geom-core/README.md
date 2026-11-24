@@ -201,6 +201,23 @@ unknown and claims nothing. The admitting doors are bounded `Certifies`
 (DL5.3), so a dual cannot reach them, and with the evaluators' private
 step for a place they are the only callers of `Real::from_computed`.
 
+Nothing is decided from an admitted proposal beyond what its check
+bounded. Another candidate the same check would admit could have been
+drawn, so a reader that reaches a decision (a point at an end or clear
+of it, inside a trim or on its edge, two roots apart or one) gives the
+answer every admissible candidate gives: it asks its question of the
+model's own description, the proposal only saying where to look, or it
+carries the check's bound as an allowance, and where it can do neither
+it refuses as unresolved at the band. The door therefore returns the
+admitted value with that bound: how far another admissible candidate
+could lie from it, in each direction a reader decides on (for a fitted
+image, the certificate's envelope; for a crossing parameter, the reach
+along the edge as well as the distance across the face). A check that
+bounds less than its readers decide on is widened, or the reader
+re-posed. The check is the one decision a proposal may change, and its
+refusal says which it is: no candidate passes, which a person can act
+on, or the one drawn did not, which is the kernel's own frontier.
+
 The door is for a value the body stores: a parameter an edge is split
 at, an end an edge is re-anchored to. A solved value that is only
 evaluated at, to decide (a normal read at a foot, an iterate of a
