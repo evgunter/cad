@@ -1304,7 +1304,7 @@ fn dd_split(
     net: &[[Dd; 4]],
     (pu, pv): (usize, usize),
     along_u: bool,
-    s: f64,
+    t: Dd,
     left: bool,
 ) -> Vec<[Dd; 4]> {
     let (n, m) = if along_u { (pu, pv) } else { (pv, pu) };
@@ -1315,7 +1315,6 @@ fn dd_split(
             k * (pv + 1) + i
         }
     };
-    let t = Dd::of(s);
     let mut out = net.to_vec();
     for k in 0..=m {
         let mut row: Vec<[Dd; 4]> = (0..=n).map(|i| net[at(i, k)]).collect();
@@ -1378,9 +1377,11 @@ fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
 /// **The cut's rounding bound holds the cut's drift**: single-span
 /// rational patches of degree one to four, `1` to `1e6` across, placed
 /// up to `1e6` away, weights up to eight decades apart, each cut along a
-/// random path of six quarterings and one split at a random fraction
-/// (as [`super::Patch::restricted`] cuts), against the same cut in
-/// double-double. No point drifts past its bound. The insertion's bound
+/// random path of six quarterings and one restriction at a random place
+/// `w` of the cell's range `[r0, r1]` (as [`super::Patch::restricted`]
+/// cuts, at the ratio `(w − r0)/(r1 − r0)` with its rounding), against the
+/// same cut in double-double at the true ratio. No point drifts past its
+/// bound. The insertion's bound
 /// is `geom_brep`'s spline incidence's, measured there against a
 /// knotted cut (`the_cut_rounding_bound_holds_a_knotted_cuts_drift`).
 #[test]
@@ -1416,14 +1417,23 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
         let mut exact = dd_net(&chart, cell.centre);
         worst = worst.max(drift_over_bound(&cell, &exact));
         for step in 0..7 {
-            let (along_u, s, left) = if step == 3 {
-                (rng.below(2) == 0, rng.range(0.05, 0.95), rng.below(2) == 0)
+            let (along_u, left) = if step == 3 {
+                (rng.below(2) == 0, rng.below(2) == 0)
             } else {
-                (step % 2 == 0, 0.5, rng.below(2) == 0)
+                (step % 2 == 0, rng.below(2) == 0)
+            };
+            let (s, t) = if step == 3 {
+                let (r0, r1) = if along_u { cell.rect.u } else { cell.rect.v };
+                let w = r0 + (r1 - r0) * rng.range(0.05, 0.95);
+                let ratio = (w - r0) / (r1 - r0);
+                let truth = Dd::of(w).sub(Dd::of(r0)).div(Dd::of(r1).sub(Dd::of(r0)));
+                (Rounded::ratio(ratio), truth)
+            } else {
+                (Rounded::exact(0.5), Dd::of(0.5))
             };
             let (l, r) = cell.split(along_u, s);
             cell = if left { l } else { r };
-            exact = dd_split(&exact, (pu, pv), along_u, s, left);
+            exact = dd_split(&exact, (pu, pv), along_u, t, left);
             worst = worst.max(drift_over_bound(&cell, &exact));
         }
     }
@@ -1432,6 +1442,82 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
         worst <= 1.0,
         "a cut point drifts {worst} times its rounding bound; {}",
         test_utils::fuzz::replay()
+    );
+}
+
+/// **A restriction whose ratio rounds to the half holds its drift**
+/// ([`super::Patch::restricted`]): `(w0 − r0)/(r1 − r0)` for the knots
+/// below rounds to exactly `0.5` while the true ratio is about `0.99u`
+/// off it, so a split that took the half as exact would drop the ratio's
+/// own rounding. The cut point, judged in exact arithmetic against the
+/// restriction at the true ratio, lies within the worst bound its channel
+/// carries over the cell.
+#[test]
+fn a_restriction_at_a_ratio_rounded_to_the_half_holds_its_drift() {
+    use geom_core::exact::Expansion;
+    fn times(a: &Expansion, b: &Expansion) -> Expansion {
+        let mut out = Expansion::default();
+        for &c in a.components() {
+            out.add_expansion(&b.scaled(c));
+        }
+        out
+    }
+    fn diff(a: f64, b: f64) -> Expansion {
+        let mut e = Expansion::product(a, 1.0);
+        e.add(-b);
+        e
+    }
+    fn sum(e: &Expansion) -> f64 {
+        e.components().iter().sum()
+    }
+    let (r0, w0, r1) = (
+        -0.028_895_572_897_523_092,
+        1.990_979_372_367_584,
+        4.010_854_317_632_69,
+    );
+    assert_eq!((w0 - r0) / (r1 - r0), 0.5, "the ratio rounds to the half");
+    let (xa, xb) = (-0.723_449_517_348_052, -0.638_406_370_805_139_3);
+    let (wa, wb) = (0.012_119_248_256_316_217, 0.011_717_390_114_376_844);
+    let ku = KnotVector::clamped(vec![r0, r0, r1, r1], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    // Row-major in `u`: index i·2 + j.
+    let control = vec![
+        Point3::new(xa, 0.0, 0.0),
+        Point3::new(xa, 1.0, 0.0),
+        Point3::new(xb, 0.0, 0.0),
+        Point3::new(xb, 1.0, 0.0),
+    ];
+    let chart = NurbsSurface::new(ku, kv, control, vec![wa, wa, wb, wb]).unwrap();
+    let cell = bezier_cells(&chart).unwrap().remove(0);
+    let c = cell.centre.x;
+    let cut = cell.restricted(super::Rect {
+        u: (w0, r1),
+        v: (0.0, 1.0),
+    });
+    let worst = cut
+        .net
+        .iter()
+        .map(|h| patch_bound(h)[0])
+        .fold(0.0f64, f64::max);
+    // The exact cut point at the true ratio, times `r1 − r0`.
+    let (d1, d2) = (diff(r1, r0), diff(w0, r0));
+    let ha = diff(xa, c).scaled(wa);
+    let hb = diff(xb, c).scaled(wb);
+    let mut hd = hb.clone();
+    hd.add_expansion(&ha.negated());
+    let mut h = times(&ha, &d1);
+    h.add_expansion(&times(&hd, &d2));
+    let mut w = d1.scaled(wa);
+    w.add_expansion(&d2.scaled(wb));
+    w.add_expansion(&d2.scaled(-wa));
+    let p = value(&cut.net[0], 0) / value(&cut.net[0], 3);
+    let mut gap = w.scaled(p);
+    gap.add_expansion(&h.negated());
+    let drift = sum(&gap).abs() / sum(&w).abs();
+    assert!(
+        drift <= worst,
+        "the cut point drifts {drift:e}, {} times the channel's worst bound {worst:e}",
+        drift / worst
     );
 }
 
@@ -1534,7 +1620,7 @@ mod knotted {
     use super::Dd;
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Point2, Point3, Vec3};
+    use geom_core::{Point2, Point3, Rounded, Vec3};
 
     fn knots(rng: &mut test_utils::fuzz::Rng, p: usize) -> KnotVector {
         let mut interior: Vec<f64> = (0..rng.below(5)).map(|_| rng.range(0.05, 0.95)).collect();
@@ -1674,9 +1760,9 @@ mod knotted {
                             },
                             rng.below(2) == 0,
                         );
-                        let (l, r) = cell.split(along_u, s);
+                        let (l, r) = cell.split(along_u, Rounded::exact(s));
                         cell = if left { l } else { r };
-                        exact = super::dd_split(&exact, (pu, pv), along_u, s, left);
+                        exact = super::dd_split(&exact, (pu, pv), along_u, super::Dd::of(s), left);
                     }
                     for (got, ex) in cell.net.iter().zip(&exact) {
                         let bound = super::patch_bound(got);

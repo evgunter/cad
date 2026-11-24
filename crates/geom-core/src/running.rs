@@ -13,8 +13,11 @@
 //! does, so a shadowed value is bit-identical to the plain one.
 //!
 //! It is a rounding ESTIMATE in the `f64` lane's sense, not an
-//! enclosure: at `Interval` the value is already an enclosure of the
-//! chain and the bound rides along as a second one.
+//! enclosure: at `Interval` a [`Rounded`]'s value is already an enclosure
+//! of the chain and its bound rides along as a second one. A [`Tracked`]
+//! value carries the same arithmetic for a value at any scalar, on an
+//! `f64` shadow of its value channel, and charges nothing at an
+//! enclosure.
 
 use core::ops::{Add, Mul, Neg, Sub};
 
@@ -276,9 +279,16 @@ impl Rounded<f64> {
     /// share of their bounds is `|1 − t|·e_self + |t|·e_y + |y − self|·e_t`,
     /// and its own roundings add `u·|y − self|·|t|` (the difference's,
     /// through the product), `u·|(y − self)·t|` (the product's, none where
-    /// `t` is a power of two, whose product is exact) and `u·|result|` (the
-    /// sum's). Sharper than the same step through [`Sub`], [`Mul`] and
-    /// [`Add`], which charge `self`'s bound twice (`1 + |t|`, not `1 − t`).
+    /// `t` is a normal power of two and the product does not underflow,
+    /// since that product is exact) and `u·|result|` (the sum's). Sharper
+    /// than the same step through [`Sub`], [`Mul`] and [`Add`], which
+    /// charge `self`'s bound twice (`1 + |t|`, not `1 − t`).
+    ///
+    /// The bound is first order, as the module's: the products of two
+    /// bounds, `e_t·(e_self + e_y)` and `u·|y − self|·e_t`, are dropped.
+    /// They show where every first-order share vanishes: at `t = 1`
+    /// carrying a bound, from an operand `0 ± e` to an exact `0`, the
+    /// bound reads zero against an error of `e·e_t`.
     #[must_use]
     pub fn step(self, y: Self, t: Self) -> Self {
         let d = y.value - self.value;
@@ -293,11 +303,35 @@ impl Rounded<f64> {
                 + UNIT_ROUNDOFF * (d.abs() * t.value.abs() + product + value.abs()),
         }
     }
+
+    /// **A ratio of two differences of exact values**, `(a − b)/(c − d)`,
+    /// formed by the caller in `f64` as one quotient of two differences:
+    /// three roundings of it, `3u·|t|`, the first-order bound of those
+    /// three operations. It takes the caller's word for how `t` was
+    /// formed: a ratio formed otherwise (a reciprocal of one, a ratio of
+    /// rounded operands) owes more, and a fraction that is exact by
+    /// construction (a halving's `½`) is [`Rounded::exact`].
+    #[must_use]
+    pub fn ratio(t: f64) -> Self {
+        Self {
+            value: t,
+            error: 3.0 * UNIT_ROUNDOFF * t.abs(),
+        }
+    }
+
+    /// **The ends of `value ± error`, rounded outward**: the `f64`s next
+    /// below [`Rounded::lower_end`] and above [`Rounded::upper_end`], which
+    /// each round to nearest, so the pair holds every value within the
+    /// bound of the value whatever those two subtractions round to.
+    #[must_use]
+    pub fn outward_ends(self) -> (f64, f64) {
+        (self.lower_end().next_down(), self.upper_end().next_up())
+    }
 }
 
 /// Whether `x` is a normal power of two, so a product by it is exact
-/// (to first order: an underflow is not charged here, as nowhere in this
-/// module).
+/// where the product is normal (an underflow is not charged here, as
+/// nowhere in this module).
 fn power_of_two(x: f64) -> bool {
     x.is_normal() && x.to_bits() & ((1 << 52) - 1) == 0
 }
@@ -307,7 +341,9 @@ fn power_of_two(x: f64) -> bool {
 /// `(e_c + |h_c / w|·e_w)/(|w| − e_w) + u·|h_c / w|` ([`Rounded::quotient`]),
 /// and the weight's channel the exact `1`. `None` where the weight's
 /// bound reaches it ([`Rounded::divisor`], under `name`): there the exact
-/// weight may be zero and no bound holds.
+/// weight may be zero and no bound holds. The guard is on the weight's
+/// magnitude: a negative weight clear of its bound reads a point, and a
+/// reader that needs the weight's sign (a convex hull) asks it itself.
 #[must_use]
 pub fn dehomogenized<const N: usize>(
     h: [Rounded<f64>; N],
@@ -323,10 +359,12 @@ pub fn dehomogenized<const N: usize>(
     }))
 }
 
-/// **A value at any scalar, with its value channel's rounding**: the
-/// [`Rounded`] arithmetic carried for a value that is not itself an
-/// `f64`. The bound is a size, so it is an `f64` at every scalar, and it
-/// means one thing at each:
+/// **A value at any scalar beside its shadow**: the value at `T`, and a
+/// [`Rounded<f64>`] holding its value channel's middle and that channel's
+/// rounding. Every door is the shadow's [`Rounded`] door beside the
+/// value's own operation, so the arithmetic is `Rounded`'s alone. The
+/// bound is a size, so it is an `f64` at every scalar, and it means one
+/// thing at each:
 ///
 /// - at `f64` (and the `Probe` that records it), a first-order bound on
 ///   `|value − exact|`, a [`Rounded<f64>`]'s;
@@ -337,71 +375,63 @@ pub fn dehomogenized<const N: usize>(
 /// - at `Sym`, its value channel's, at its base's witness: a `Sym<f64>`
 ///   evaluates as the `f64` it wraps, a `Sym<Interval>` as the enclosure.
 ///
-/// The bound is charged only where the scalar's comparison is a
+/// The shadow is charged only where the scalar's comparison is a
 /// measurement ([`Witness::Inexact`](crate::Witness::Inexact)), so at an
-/// enclosure it is zero by construction: every door that charges reads
-/// the witness, and nothing else builds one. Each door evaluates the
-/// value as the plain expression at `T` does, and charges the bound by
-/// the same [`Rounded<f64>`] door on the value channel's middle, which at
-/// a measuring scalar is that channel's own `f64`.
+/// enclosure its bound is zero by construction: the fields are private,
+/// and the one constructor sets the shadow's value to the value channel's
+/// middle and its bound to zero where the scalar does not measure. At a
+/// measuring scalar the shadow door's own `f64` value is that channel's.
 #[derive(Debug, Clone, Copy)]
 pub struct Tracked<T> {
     value: T,
-    rounding: f64,
+    shadow: Rounded<f64>,
 }
 
 impl<T: SpanLocate> Tracked<T> {
-    /// Whether this scalar's arithmetic rounds uncharged, so its doors
-    /// carry a bound.
+    /// Whether this scalar's arithmetic rounds uncharged, so its shadow
+    /// carries a bound.
     fn tracks() -> bool {
         T::WITNESS == crate::Witness::Inexact
     }
 
-    /// The value channel's middle with this bound: the operand of the
-    /// [`Rounded<f64>`] door that charges a measuring scalar.
-    fn shadow(self) -> Rounded<f64> {
-        Rounded {
-            value: self
-                .value
-                .structure_bracket()
-                .map_or(f64::NAN, crate::bracket_mid),
-            error: self.rounding,
-        }
+    /// The middle of a value channel's bracket; NaN for the poison.
+    fn middle(value: T) -> f64 {
+        value
+            .structure_bracket()
+            .map_or(f64::NAN, crate::bracket_mid)
     }
 
-    /// `value` by `op` at `T`, its bound by `charge` on the operands'
-    /// shadows where the scalar measures, else zero.
-    fn charged<const N: usize>(
-        value: T,
-        operands: [Self; N],
-        charge: impl FnOnce([Rounded<f64>; N]) -> Rounded<f64>,
-    ) -> Self {
-        let rounding = if Self::tracks() {
-            charge(operands.map(Self::shadow)).error
-        } else {
-            0.0
-        };
-        Self { value, rounding }
+    /// The one constructor: `value` beside the shadow `door` charges, read
+    /// only where the scalar measures.
+    fn of(value: T, door: impl FnOnce() -> Rounded<f64>) -> Self {
+        let error = if Self::tracks() { door().error } else { 0.0 };
+        Self {
+            value,
+            shadow: Rounded {
+                value: Self::middle(value),
+                error,
+            },
+        }
     }
 
     /// An input taken as exact.
     pub fn exact(value: T) -> Self {
-        Self {
-            value,
-            rounding: 0.0,
-        }
+        Self::of(value, || Rounded::exact(Self::middle(value)))
     }
 
-    /// A ratio of two differences of exact values, `(a − b)/(c − d)`, formed
-    /// at `T` by the caller: three roundings of it at a measuring scalar
-    /// (the two differences and the quotient, each `u` of it relative).
+    /// A ratio of two differences of exact values formed at `T` by the
+    /// caller, its shadow [`Rounded::ratio`] (which says what it charges
+    /// and what it assumes).
     pub fn ratio(value: T) -> Self {
-        let rounding = if Self::tracks() {
-            3.0 * UNIT_ROUNDOFF * Self::exact(value).shadow().value.abs()
-        } else {
-            0.0
-        };
-        Self { value, rounding }
+        Self::of(value, || Rounded::ratio(Self::middle(value)))
+    }
+
+    /// **An `f64` with its rounding, entered into the scalar** as a
+    /// computed place ([`Real::from_computed`]): a fraction the caller
+    /// formed in `f64` and hands with what it owes, [`Rounded::exact`] for
+    /// one exact by construction, [`Rounded::ratio`] for a ratio.
+    pub fn computed(r: Rounded<f64>) -> Self {
+        Self::of(T::from_computed(r.value), || r)
     }
 
     /// The value.
@@ -409,38 +439,45 @@ impl<T: SpanLocate> Tracked<T> {
         self.value
     }
 
+    /// The bound on the value channel's rounding (type docs); zero at an
+    /// enclosure.
+    pub fn rounding(self) -> f64 {
+        self.shadow.error
+    }
+
     /// **[`Rounded::step`] at `T`**: the value by
-    /// [`SpanLocate::homogeneous_step`], the bound by the `f64` step.
+    /// [`SpanLocate::homogeneous_step`], the shadow by the `f64` step.
     #[must_use]
     pub fn step(self, y: Self, t: Self) -> Self {
-        Self::charged(
-            T::homogeneous_step(self.value, y.value, t.value),
-            [self, y, t],
-            |[x, y, t]| x.step(y, t),
-        )
+        Self::of(T::homogeneous_step(self.value, y.value, t.value), || {
+            self.shadow.step(y.shadow, t.shadow)
+        })
     }
 
     /// **A homogeneous point out of homogeneous form** at `T`: each
-    /// coordinate's value `h_c / w` at `T`, its bound [`dehomogenized`]'s,
+    /// coordinate's value `h_c / w` at `T`, its shadow [`dehomogenized`]'s,
     /// and the weight's channel the exact `1`. `None` where the weight's
     /// bound reaches it; at an enclosure, where nothing is charged, never.
     #[must_use]
     pub fn dehomogenized<const N: usize>(h: [Self; N], name: &'static str) -> Option<[Self; N]> {
         let w = h.last()?.value;
-        let roundings = if Self::tracks() {
-            dehomogenized(h.map(Self::shadow), name)?.map(|c| c.error)
+        let shadows = if Self::tracks() {
+            Some(dehomogenized(h.map(|c| c.shadow), name)?)
         } else {
-            [0.0; N]
+            None
         };
-        Some(core::array::from_fn(|c| Self {
-            value: if c + 1 == N { T::one() } else { h[c].value / w },
-            rounding: roundings[c],
+        Some(core::array::from_fn(|c| {
+            let value = if c + 1 == N { T::one() } else { h[c].value / w };
+            Self::of(value, || shadows.map_or(Rounded::exact(0.0), |s| s[c]))
         }))
     }
 
-    /// **This value read in `f64`**: its value channel's middle, off the
-    /// exact value by its bound and by the half-width of its bracket (the
-    /// whole of it at an enclosure, nothing at `f64`). The poison reads
+    /// **This value read in `f64`**: its value channel's middle, with a
+    /// bound on its distance from every member of the value's bracket: its
+    /// rounding, and the larger of the middle's reaches to the two ends,
+    /// each a difference charged its own rounding (a whole ulp at an
+    /// enclosure one ulp wide, whose middle rounds onto an end; nothing at
+    /// `f64`). First order, as the module's bounds are. The poison reads
     /// NaN.
     #[must_use]
     pub fn at_middle(self) -> Rounded<f64> {
@@ -450,16 +487,12 @@ impl<T: SpanLocate> Tracked<T> {
                 error: f64::NAN,
             };
         };
+        let mid = crate::bracket_mid((lo, hi));
+        let reach = |end: f64| (Rounded::exact(end) - Rounded::exact(mid)).magnitude();
         Rounded {
-            value: crate::bracket_mid((lo, hi)),
-            error: self.rounding + (hi - lo) * 0.5,
+            value: mid,
+            error: self.shadow.error + reach(hi).max(reach(lo)),
         }
-    }
-
-    /// The bound on the value channel's rounding (type docs); zero at an
-    /// enclosure.
-    pub fn rounding(self) -> f64 {
-        self.rounding
     }
 }
 
@@ -467,7 +500,7 @@ impl<T: SpanLocate> Sub for Tracked<T> {
     type Output = Self;
 
     fn sub(self, o: Self) -> Self {
-        Self::charged(self.value - o.value, [self, o], |[a, b]| a - b)
+        Self::of(self.value - o.value, || self.shadow - o.shadow)
     }
 }
 
@@ -475,7 +508,7 @@ impl<T: SpanLocate> Mul for Tracked<T> {
     type Output = Self;
 
     fn mul(self, o: Self) -> Self {
-        Self::charged(self.value * o.value, [self, o], |[a, b]| a * b)
+        Self::of(self.value * o.value, || self.shadow * o.shadow)
     }
 }
 
@@ -1050,7 +1083,7 @@ mod tests {
         let (x, y, t) = (0.1, 0.7, 0.3);
         let [p, w] = chain(x, y, t);
         let rw = (Rounded::exact(y) - Rounded::exact(x)) * Rounded::exact(y);
-        let rh = Rounded::exact(x).step(rw, Rounded::exact(t).with_charge(3.0 * UNIT_ROUNDOFF * t));
+        let rh = Rounded::exact(x).step(rw, Rounded::ratio(t));
         let rp = dehomogenized([rh, rw], "running_test_divisor").unwrap()[0];
         assert_eq!(
             (w.value().to_bits(), w.rounding().to_bits()),

@@ -289,8 +289,10 @@ impl<T: Decide<Value = T>> Patch<T> {
     }
 
     /// The cell split at the fraction `s` of its `u` range (`along_u`)
-    /// or its `v` range, by de Casteljau on each row.
-    pub(crate) fn split(&self, along_u: bool, s: f64) -> (Self, Self) {
+    /// or its `v` range, by de Casteljau on each row. The caller hands the
+    /// fraction with what it owes: a halving's exact `½`, or a ratio of the
+    /// window's differences with its rounding ([`Patch::restricted`]).
+    pub(crate) fn split(&self, along_u: bool, s: Rounded<f64>) -> (Self, Self) {
         let (n, m) = if along_u {
             (self.pu, self.pv)
         } else {
@@ -300,15 +302,7 @@ impl<T: Decide<Value = T>> Patch<T> {
         let mut right = self.clone();
         // The split point is a place: the step to the scalar is this
         // evaluator's own.
-        let st = T::from_computed(s);
-        // The exact half is a halving's; any other fraction is a ratio of
-        // the window's differences ([`Patch::restricted`]).
-        #[allow(clippy::float_cmp)]
-        let st = if s == 0.5 {
-            Tracked::exact(st)
-        } else {
-            Tracked::ratio(st)
-        };
+        let st = Tracked::computed(s);
         for k in 0..=m {
             let mut row: Vec<Control<T, 4>> = (0..=n)
                 .map(|i| {
@@ -340,7 +334,7 @@ impl<T: Decide<Value = T>> Patch<T> {
             }
         }
         let (r0, r1) = if along_u { self.rect.u } else { self.rect.v };
-        let cut = r0 + (r1 - r0) * s;
+        let cut = r0 + (r1 - r0) * s.value;
         if along_u {
             left.rect.u = (r0, cut);
             right.rect.u = (cut, r1);
@@ -353,8 +347,9 @@ impl<T: Decide<Value = T>> Patch<T> {
 
     /// The four quarters, `((u-lo v-lo, u-lo v-hi), (u-hi v-lo, u-hi v-hi))`.
     pub(crate) fn quartered(&self) -> ((Self, Self), (Self, Self)) {
-        let (a, b) = self.split(true, 0.5);
-        (a.split(false, 0.5), b.split(false, 0.5))
+        let half = Rounded::exact(0.5);
+        let (a, b) = self.split(true, half);
+        (a.split(false, half), b.split(false, half))
     }
 
     /// The cell restricted to `rect`, a rectangle inside its own.
@@ -367,11 +362,11 @@ impl<T: Decide<Value = T>> Patch<T> {
                 (cell.rect.v, rect.v)
             };
             if w0 > r0 {
-                cell = cell.split(along_u, (w0 - r0) / (r1 - r0)).1;
+                cell = cell.split(along_u, Rounded::ratio((w0 - r0) / (r1 - r0))).1;
             }
             let (r0, r1) = if along_u { cell.rect.u } else { cell.rect.v };
             if w1 < r1 {
-                cell = cell.split(along_u, (w1 - r0) / (r1 - r0)).0;
+                cell = cell.split(along_u, Rounded::ratio((w1 - r0) / (r1 - r0))).0;
             }
         }
         cell
