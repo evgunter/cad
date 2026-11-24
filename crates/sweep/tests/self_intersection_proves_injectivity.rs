@@ -1265,6 +1265,71 @@ fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
     }
 }
 
+/// A unit plate with one top edge bevelled: the bevel `width` wide,
+/// falling from the top at the angle `phi`, extruded one unit.
+fn bevelled_plate<T: Scalar>(width: f64, phi: f64) -> Result<Body<T>, String> {
+    let drop = width * phi.tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        lifted::<T>(&[ProfileLoop::polygon(
+            [
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0 - drop),
+                (1.0 - width, 1.0),
+                (0.0, 1.0),
+            ]
+            .map(|(x, y)| Point2::new(x, y)),
+        )]),
+    )
+    .validate(tol())
+    .map_err(|e| format!("the profile: {e:?}"))?;
+    let built = extrude(&profile, to_offset(1.0), tol()).map_err(|e| format!("extrude: {e:?}"))?;
+    sweep::test_support::taken::<T>(built.body, tol())
+        .map(topo::AtRestBody::into_body)
+        .map_err(|e| format!("the finish: {e:?}"))
+}
+
+/// **No body is built whose bevel is inside the band at its own
+/// width, and one past it holds.** The plate's bevel, `1e-4` wide,
+/// falling from the top at an angle whose sine times that width is:
+/// - half the band: the profile door refuses the junction between the
+///   top and the bevel (`PathJunctionTurn`, its turn in band), so the
+///   embedding question is never asked of a finished body whose
+///   narrower face is inside the band at its far side. That is why no
+///   body row's VERDICT moves when the lever is the farther face's run:
+///   the door before the question refuses the bodies that would feel
+///   it;
+/// - three times the band: built, and embedded, its receipt pinned.
+///
+/// Red if such a bevel builds (the first half then pins what the
+/// question reads of it), or if the built one's receipt moves.
+#[test]
+fn a_bevel_inside_the_band_is_not_built_and_one_past_it_holds() {
+    let k = band().escalate();
+    let width = 1e-4;
+    let inside = bevelled_plate::<f64>(width, 0.5 * k / width);
+    assert!(
+        inside
+            .as_ref()
+            .is_err_and(|e| e.contains("PathJunctionTurn")),
+        "a bevel inside the band is refused at the profile door: {:?}",
+        inside.map(|_| "built")
+    );
+    let body = bevelled_plate::<f64>(width, 3.0 * k / width).expect("a bevel past the band");
+    let report = embedding(&body);
+    assert!(
+        matches!(report.verdict, topo::clearance::Embedding::Embedded),
+        "{report:?}"
+    );
+    let r = report.receipt;
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.certified, r.by_kind),
+        (22, 45, 23, 23, 7),
+        "the bevelled plate's receipt: {report:?}"
+    );
+}
+
 /// **A cone that owns its apex, cut through its axis, holds in every
 /// pose.** Tier 3 classes each ruling a convex crease and keeps one
 /// extent for it (the narrower face's run from the ruling's line, 0.70

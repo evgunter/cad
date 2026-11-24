@@ -506,8 +506,17 @@ pub struct Windows<'b, T: Real> {
 
 impl<T: CertifiedBounds> Windows<'_, T> {
     /// These windows with tier 3's facts on each face's boundary
-    /// ([`injective::Facts::of`]), each kept length crossed once, here,
-    /// through the lane's crossing ([`Interval::from_certified`]).
+    /// ([`injective::Facts::of`]), each kept length crossed once, here
+    /// ([`geom_core::Lever::certified`]).
+    ///
+    /// `kept` must be the facts of the body these windows were read off.
+    /// Nothing in the types ties the two; what holds it is that this is
+    /// private and has two callers, each of which reads both from one
+    /// body: [`Side::windows_of`] builds its side from the
+    /// [`crate::Geometric`]'s own body, and the lane's battery
+    /// (`ClearanceLane::battery_of`) runs tier 3 over the body it is
+    /// handed beside the windows. A face the facts do not hold reads no
+    /// run and no class, and a pair on it is not certified.
     fn reading(mut self, kept: &crate::Tier3Facts<T>) -> Self {
         for w in &mut self.of {
             w.boundary.facts = Some(injective::Facts::of(
@@ -515,7 +524,6 @@ impl<T: CertifiedBounds> Windows<'_, T> {
                 w.face,
                 &w.boundary.edges,
                 &w.boundary.vertices,
-                Interval::from_certified,
             ));
         }
         self
@@ -5416,6 +5424,13 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
+///
+/// **`band` beside a verdict decided at a tolerance.** `of`'s facts are
+/// classes, runs and keys: none is a reading against a band, and a body
+/// tier 3 passed at one tolerance holds the same ones at another it
+/// passes at. `band` is the question's own, the one its departures are
+/// held against; a caller that asks at a band other than the verdict's
+/// tolerance's asks a coarser or finer question of the same facts.
 pub fn embedded<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy>(
     of: &crate::Geometric<'_, T>,
     faces: Vec<FaceKey>,

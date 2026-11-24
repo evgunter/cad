@@ -904,18 +904,19 @@ impl<T: crate::real::Real> Lever<T> {
         self.0
     }
 
-    /// **This arm at another scalar**, its length carried through
-    /// `cross`: the arm a verdict kept at the body's scalar, read by a
-    /// question asked in enclosures (the embedding question reads tier
-    /// 3's kept extents through the clearance lane's one certified
-    /// crossing, `Interval::from_certified`). The source is the arm's
-    /// own; `cross` states the same length at the other scalar and
-    /// brings none of its own. An enclosure's lower end is then the arm
-    /// from below, which is the end a definite reading levered at it is
-    /// decided on.
+    /// **This arm on the `Interval` lane**, its length carried through
+    /// the one certified crossing ([`crate::Interval::from_certified`]):
+    /// the arm a verdict kept at the body's scalar, read by a question
+    /// asked in enclosures. The source is the arm's own and the crossing
+    /// is fixed here, so no caller can state a length of its own through
+    /// it. The enclosure's lower end is then the arm from below, which
+    /// is the end a definite reading levered at it is decided on.
     #[must_use]
-    pub fn crossed<U>(self, cross: impl FnOnce(T) -> U) -> Lever<U> {
-        Lever(cross(self.0))
+    pub fn certified(self) -> Lever<crate::Interval>
+    where
+        T: crate::CertifiedBounds,
+    {
+        Lever(crate::Interval::from_certified(self.0))
     }
 
     /// The larger of two arms: a read of the union of their extents
