@@ -6339,7 +6339,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_slot_backpointer_mismatch",
             "emanating_start_mismatch",
             "empty_loop_vertex_with_emanating",
-            "end_not_jet_determinate",
             "essential_cycles_unpaired",
             "face_through_edge_wedge",
             "face_through_edge_wedge_undecided",

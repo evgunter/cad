@@ -4747,6 +4747,40 @@ mod bend_rows {
         );
     }
 
+    /// **Today's reading of a wedge end over a bend crossing zero off
+    /// its stations** (R1's probe arc): over the converse arc, both
+    /// neutral points in its end gaps, the faces facing each other read
+    /// one end at every station, so the fold hands out a legal `End`
+    /// whose bend is under-determined, and tier 3 accepts it. MATE-7 makes
+    /// a wedge end legal only where it is jet-determinate; this pins the
+    /// stations' reading of that until the drift bound lets the certified
+    /// walk decide it
+    /// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`).
+    #[test]
+    fn an_opposed_bend_crossing_zero_off_its_stations_reads_one_uncertified_end() {
+        let rim = rim();
+        let (pipe, bend) = (pipe(), bend());
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        for (t0, t1) in [
+            (FRAC_PI_2 - 0.05, 3.0 * FRAC_PI_2 + 0.05),
+            (FRAC_PI_2 - 0.3, 3.0 * FRAC_PI_2 + 0.3),
+        ] {
+            let walk =
+                crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, false), &rim, t0, t1);
+            let v = crate::edge_wedge_over(&walk, fixture_lever(1.0), band());
+            assert!(
+                matches!(
+                    v,
+                    crate::WedgeVerdict::End {
+                        bend: crate::Bend::UnderDetermined,
+                        ..
+                    }
+                ),
+                "[{t0}, {t1}]: one end, its bend uncertified: {v:?}"
+            );
+        }
+    }
+
     /// The certificate's half of the same rows: what the rule leaves
     /// undemanded is what the tangency certificate's tube cannot certify,
     /// read through the one [`tube_separation`].

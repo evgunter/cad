@@ -3269,7 +3269,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
-        ValidationError::EndNotJetDeterminate { .. } => "end_not_jet_determinate",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",

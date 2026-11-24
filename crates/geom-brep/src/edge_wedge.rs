@@ -68,10 +68,11 @@ pub enum Bend {
 /// | [`Lamina`](Self::Lamina) | 0 or 2π, osculating | refused |
 ///
 /// The fold hands out an end only over a tangency whose jets separate at
-/// every station; whether that separation is certified along the whole
-/// edge is the end's [`Bend`]. An end is jet-determinate, and legal, only
-/// where it is `Determinate`; tier 3 refuses one that is not. A seam's
-/// bend decides the description it stores and not its legality. In-band readings escalate
+/// every station, and "jet-determinate" here is read at the stations: an
+/// end it returns is legal. Whether that separation is certified along
+/// the whole edge is the end's and the seam's [`Bend`], which decides the
+/// description they store and not their legality
+/// (`work/select/a-wedge-end-is-legal-by-its-stations-not-certified-along-the-edge.md`). In-band readings escalate
 /// ([`InBand`](Self::InBand)); stations that disagree are
 /// [`Mixed`](Self::Mixed).
 #[derive(Clone, Copy, Debug, PartialEq)]
