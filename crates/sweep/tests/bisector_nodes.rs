@@ -477,43 +477,6 @@ fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) ->
     )
 }
 
-/// The single-cap cells at `δ = 1e-8` whose rim arc reads its
-/// transversality to the partner's wall at the band's escalation edge
-/// ([`rim_transversality_in_band`]), as measured: (cap, pose, order, op).
-const RIM_IN_BAND: [(&str, &str, &str, &str); 4] = [
-    ("A's cap", "direct", "B, A", "∪"),
-    ("B's cap", "direct", "A, B", "∪"),
-    ("B's cap", "direct", "A, B", "∩"),
-    ("B's cap", "direct", "A, B", "∖"),
-];
-
-/// Whether `r` is a single cap's rim arc refusing its transversality to
-/// the partner's wall in band, its carrier re-based or minted: the
-/// dihedral between them is `δ`, and at `δ = 1e-8` it reads a few parts
-/// in 10⁸ under the witness band's escalation edge (`dihedral_arm_wedge`,
-/// measured 9.99999991e-9 and 9.99999997e-9).
-fn rim_transversality_in_band(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
-    use geom_brep::{CertCheck, CertifyError};
-    use topo::EulerOpError;
-    use topo::JoinError;
-    let error = match r {
-        Err(topo::BooleanError::Euler(EulerOpError::RebasedCarrier { error, .. })) => error,
-        Err(topo::BooleanError::Join(join)) => match join.error() {
-            JoinError::Euler(EulerOpError::DescriptionUncertified { error, .. }) => error,
-            _ => return false,
-        },
-        _ => return false,
-    };
-    matches!(
-        error,
-        CertifyError::Escalated {
-            check: CertCheck::TransversalityArm,
-            cause,
-            ..
-        } if geom_core::test_support::escalated(cause, "dihedral_arm_wedge", (9.999_999_9e-9, 1e-8))
-    )
-}
-
 /// Whether `r` is a pcurve's chart map refusing its residual, at the
 /// merge or at rest.
 fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
@@ -546,6 +509,26 @@ fn map_residual(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
 ///   re-posed order). D4's ε < δ < K·ε.
 #[test]
 fn the_near_node_poses_at_the_witness_band() {
+    // Pinned red: a single cap's rim at δ = 1e-8 refuses on its rebased
+    // carrier's dihedral arm, not its placement
+    // (`work/sectcone/conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-9],
+        "the near-node poses",
+        &[
+            "A's cap δ = 1e-8, direct (B, A), ∪: the rim's placement in band, got \
+             Err(Euler(RebasedCarrier { edge: EdgeKey(15v3), error: Escalated { check: \
+             TransversalityArm, sample: 1, cause: Indeterminate { margin: \
+             MarginDiag(Value(9.999999911469715e-9, None, ZeroWord(0)))",
+            "predicate: Some(\"dihedral_arm_wedge\")",
+        ],
+        the_near_node_poses_at_the_witness_band_row,
+    );
+}
+
+/// The row [`the_near_node_poses_at_the_witness_band`] runs, under its pin.
+fn the_near_node_poses_at_the_witness_band_row() {
     let tol = Tol::witness();
     if geom_core::Band::linear(tol).unwrap().zero() != 1e-9 {
         test_utils::vacuity::stood_down(
@@ -668,20 +651,7 @@ fn the_near_node_poses_at_the_witness_band() {
                             }
                             // A single cap: its rim's placement in the
                             // partner's face, `δ` off its boundary, lands
-                            // either side of the edge by its rounding. In
-                            // the cells `RIM_IN_BAND` names, the rim arc's
-                            // transversality to that wall, a dihedral of
-                            // `δ`, reads at the edge first.
-                            if RIM_IN_BAND
-                                .iter()
-                                .any(|&cell| cell == (what, pose, order, op))
-                            {
-                                assert!(
-                                    rim_transversality_in_band(&r),
-                                    "{cut}: the rim's transversality in band, got {r:?}"
-                                );
-                                continue;
-                            }
+                            // either side of the edge by its rounding.
                             if r.is_err() {
                                 assert!(
                                     matches!(
