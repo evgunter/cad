@@ -1052,6 +1052,10 @@ pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
                 } else {
                     [sides[0], sides[1]]
                 };
+            // No measured pose reaches this move yet: in every cut-in row
+            // the dying piece holds no ring (PR 7664's review replaced it
+            // with a no-op and every row stayed green). The pose that does
+            // is `work/orbit/a-chart-cut-kef-onto-a-ringed-piece-has-no-row.md`.
             let rings = proven(&body.faces, dying, EntityId::Face).rings.clone();
             for ring in rings {
                 body.ring_move_minting(ring, kept, tol)?;
