@@ -82,4 +82,5 @@ Another seed, from CI's slow set on lane `orbit-tilt`'s PR 7617
 `Tangent("section_torus_square_wall_fold_half")`. The first is at
 `R 13.60, r 11.48`, tilt 0, `top` 3.79e-9. The second is at
 `R 0.0239, r 0.0201`, tilt 4.7e-12, `top` 1.57e-9. The PR leaves the
-square-wall arm untouched, and the run is not replayed here.
+square-wall arm untouched. The seed reproduces both mismatches on
+main `341d62e9a6` (a local replay).
