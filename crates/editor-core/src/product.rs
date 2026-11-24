@@ -1335,10 +1335,15 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // is the N-solid door (#381), and its per-entity bridge is total
     // over the source however many solids it spans, so the carries
     // below are the same code for N as for 1.
-    let mut aggregate = Body::new();
     // The gather computes in its first non-empty source's frame
-    // ([`crate::eval::Framed::computing_among`]), and grafts each into it
-    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    // ([`crate::eval::Framed::computing_among`]), and gathers there
+    // ([`crate::eval::Framed::gathered`]): finished sources carry their
+    // verdicts into the aggregate, else the aggregate finishes, once,
+    // below, before any name is carried, so a product that is not a
+    // finished body refuses as that before any naming collision is read.
+    // The census over this product reads the finished body and pays the
+    // census alone. An empty source contributes nothing; the graft door
+    // refuses a solidless body, so the skip is here rather than there.
     let frame = crate::eval::Framed::computing_among(
         sources
             .iter()
@@ -1346,41 +1351,35 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             .filter(|body| body.body().solids().next().is_some()),
     )
     .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
-    let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
-    for source in &sources {
-        let Source { node, body, .. } = source;
-        // An empty source contributes nothing; the graft door refuses a
-        // solidless body, so the skip is here rather than there.
-        if body.body().solids().next().is_none() {
-            continue;
-        }
-        // A source is read, not taken: its body as it stands, or mapped
-        // into the product's frame as construction state. The aggregate
-        // is what finishes, once, below.
-        let keys = crate::eval::Framed::graft_into(&frame, &mut aggregate, body, tol).map_err(
-            |e| match e {
-                crate::eval::GraftIn::Graft(source) => ProductError::Graft {
-                    node: *node,
-                    source,
-                },
+    let live: Vec<&Source<T>> = sources
+        .iter()
+        .filter(|source| source.body.body().solids().next().is_some())
+        .collect();
+    let bodies: Vec<&crate::eval::Framed<T>> = live.iter().map(|source| &source.body).collect();
+    let (aggregate, keys) =
+        crate::eval::Framed::gathered(&frame, &bodies, tol).map_err(|(at, e)| {
+            let node = live[at].node;
+            match e {
+                crate::eval::GraftIn::Graft(source) => ProductError::Graft { node, source },
                 // The image is the aggregate's data: past the box, it is
                 // the aggregate that stands there.
                 crate::eval::GraftIn::Moved(findings) => ProductError::ProductInvalid { findings },
                 read @ crate::eval::GraftIn::Motion(_) => ProductError::Frame {
-                    node: *node,
+                    node,
                     kind: Box::new(read.into()),
                 },
-            },
-        )?;
-        grafted.push((source, Arc::new(keys)));
-    }
-
-    // The graft's finish, ONCE, on the aggregate — before any name is
-    // carried, so a product that is not a finished body refuses as that
-    // before any naming collision is read. The census over this product
-    // reads the finished body and pays the census alone.
-    let aggregate =
-        T::finish(aggregate, tol).map_err(|findings| ProductError::ProductInvalid { findings })?;
+            }
+        })?;
+    let grafted: Vec<Grafted<'_, T>> = live
+        .into_iter()
+        .zip(keys)
+        .map(|(source, keys)| (source, Arc::new(keys)))
+        .collect();
+    let aggregate = match aggregate {
+        crate::eval::Gathered::Finished(body) => body,
+        crate::eval::Gathered::Grafted(aggregate) => T::finish(aggregate, tol)
+            .map_err(|findings| ProductError::ProductInvalid { findings })?,
+    };
 
     // Pass 3: the carries, per grafted source, each across the key
     // bridge its graft minted: the source's name rows, its contact

@@ -96,7 +96,93 @@ pub trait FinishedBody:
     ) -> Result<Self, MoveError> {
         self.moved_by(&crate::Isometry::Improper(*reflection), tol)
     }
+
+    /// **`parts` grafted beside each other, finished**: the disjoint
+    /// graft of each in order ([`crate::graft_disjoint_all_keyed`], one
+    /// solid per source solid, every entity fresh), its verdict each
+    /// part's, carried, and the keys each graft minted. The door is
+    /// [`gather`], which hands it the members' images.
+    ///
+    /// # Errors
+    ///
+    /// [`GatherError::Graft`]: a part's graft refused, or there is no
+    /// part. [`GatherError::Aggregate`]: at a dual, tier 2's findings.
+    fn grafted(parts: &[&Self]) -> Result<(Self, Vec<crate::GraftKeys>), GatherError>;
 }
+
+/// **Why a gather did not finish** ([`gather`]), naming the member by
+/// its position where one is at fault.
+#[derive(Debug)]
+pub enum GatherError {
+    /// The member's image reaches past the session box.
+    Moved {
+        /// Its position among the members.
+        member: usize,
+        /// The session box's finding.
+        findings: NotFinished,
+    },
+    /// The member's graft refused; `member` is `0` for a gather of none.
+    Graft {
+        /// Its position among the members.
+        member: usize,
+        /// The graft's refusal.
+        error: crate::BooleanError,
+    },
+    /// At a dual, tier 2 refused the aggregate.
+    Aggregate(NotFinished),
+}
+
+/// **The gather** (`⊔`, a pattern's assembly, a product's census): each
+/// member in the computing frame ([`crate::Placed::taken`]: moved once,
+/// its verdict carried and the session box asked of its image), the
+/// images grafted beside each other in order, and the aggregate
+/// finished by carrying ([`FinishedBody::grafted`]).
+///
+/// It derives nothing tier 3 asks of each member again, because the
+/// aggregate asks nothing else: the graft is disjoint (one solid per
+/// source solid, no entity shared), every check of tier 3 is local to
+/// one face, edge, vertex, loop or solid, and the session box is one
+/// decision on the largest reach, which no image's reach is definitely
+/// past. A member is handed over as a finished body by type, under a
+/// rigid motion by type, so a body in construction state or a map that
+/// is not an isometry cannot be one. What lies between members is the
+/// tier-3′ census's (`crate::AtRestPolicy::census_at_rest`), which
+/// reads the aggregate this returns.
+///
+/// At each scalar: at `f64` and `Probe`, the members' verdicts at a
+/// point; at `Interval` and `Sym`, their verdicts over the box, which a
+/// rigid motion keeps for every member of the motion's family; at a
+/// dual, the replays grafted and tier 2 run on the aggregate.
+///
+/// # Errors
+///
+/// [`GatherError`]: a member's move, or the graft.
+pub fn gather<F: FinishedBody>(
+    members: &[crate::Placed<'_, F>],
+    tol: Tol,
+) -> Result<(F, Vec<crate::GraftKeys>), GatherError> {
+    let images = members
+        .iter()
+        .enumerate()
+        .map(|(member, placed)| {
+            placed
+                .taken(tol)
+                .map_err(|findings| GatherError::Moved { member, findings })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let parts: Vec<&F> = images.iter().map(|image| &**image).collect();
+    F::grafted(&parts)
+}
+
+/// **Whether a leaf is a finished body at every certifying scalar**:
+/// read off the switch's own types ([`AtRestPolicy::TAKE_FINISHES`] at
+/// the box scalars), so a door that hands a leaf to a [`gather`]
+/// (through [`take`]) does so at every lane of one build or at none,
+/// and every lane logs the same gather. False while the box scalars'
+/// leaf is tier 2 alone; it goes with the switch.
+pub const LEAVES_ARE_FINISHED: bool =
+    !<geom_core::interval::Interval as AtRestPolicy>::TAKE_FINISHES
+        && !<geom_core::Sym<geom_core::interval::Interval> as AtRestPolicy>::TAKE_FINISHES;
 
 /// **Why a move refused**: the data map's own refusal, or the image's
 /// finding where the move asks one ([`FinishedBody::moved_by`]).
@@ -150,6 +236,10 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         AtRestBody::moved_by(self, iso, tol)
+    }
+
+    fn grafted(parts: &[&Self]) -> Result<(Self, Vec<crate::GraftKeys>), GatherError> {
+        AtRestBody::grafted(parts)
     }
 }
 
@@ -387,6 +477,42 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         Replay::moved_by(self, iso, tol)
     }
+
+    /// The replays grafted, and tier 2 run on the aggregate: a replay
+    /// carries no verdict but tier 2's.
+    fn grafted(parts: &[&Self]) -> Result<(Self, Vec<crate::GraftKeys>), GatherError> {
+        let (body, keys) = graft_all(parts.iter().map(|part| &part.body))?;
+        Ok((Self::of(body).map_err(GatherError::Aggregate)?, keys))
+    }
+}
+
+/// **`bodies` grafted beside each other** into a fresh body, in order
+/// ([`crate::graft_disjoint_all_keyed`]), with each graft's keys.
+///
+/// # Errors
+///
+/// [`GatherError::Graft`]: a graft's refusal, or no body at all.
+pub(crate) fn graft_all<'b, T: geom_core::Decide + 'b>(
+    bodies: impl IntoIterator<Item = &'b Body<T>>,
+) -> Result<(Body<T>, Vec<crate::GraftKeys>), GatherError> {
+    let mut fused = Body::new();
+    let keys = bodies
+        .into_iter()
+        .enumerate()
+        .map(|(member, body)| {
+            crate::graft_disjoint_all_keyed(&mut fused, body)
+                .map_err(|error| GatherError::Graft { member, error })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if keys.is_empty() {
+        return Err(GatherError::Graft {
+            member: 0,
+            error: crate::BooleanError::JoinDesync {
+                what: "a gather of no body",
+            },
+        });
+    }
+    Ok((fused, keys))
 }
 
 /// **What every scalar's leaf is** ([`AtRestPolicy::Leaf`]): a sweep

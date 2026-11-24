@@ -1623,8 +1623,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
-    session_box_at, take,
+    FindingFamily, FinishedBody, GatherError, HeldKind, LEAVES_ARE_FINISHED, LeafBody, MoveError,
+    NotFinished, Replay, finish, gather, session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
