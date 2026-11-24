@@ -20,8 +20,9 @@
 //!   its axis, whose one-corner loops are charted by
 //!   `section_loops::chord_u_ref`'s fallback;
 //! - the union of two balls offset along the sketch normal, whose
-//!   sphere groups the boolean re-charts about their centre line with
-//!   seams turned to the pair's own (`boolean/ops.rs`, `pair_seam`).
+//!   sphere faces the boolean cuts along a meridian of each one's own
+//!   chart through the pair's section circle (`boolean/ops.rs`,
+//!   `apply_cut_ins`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
