@@ -4842,3 +4842,112 @@ mod bend_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_r1_delta {
+    //! Review probes (PR 7471 delta, R1): rule 1 on constant-κ_rel
+    //! tangencies, where `kappa_drift` is a bound and κ_rel never drifts.
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn row(what: &str, s1: &Surface<f64>, s2: &Surface<f64>, c: &geom::Curve3<f64>, t0: f64, t1: f64, reach: f64) {
+        let v = must_carry_over_edge(s1, s2, c, t0, t1, fixture_lever(reach), band());
+        let b = crate::tangent_span_bounds(s1, s2, c, t0, t1).map(|b| b.kappa_drift);
+        let st = Station::on(c, 0.5 * (t0 + t1));
+        let k = crate::tangent::tangent_jet(s1, s2, st.p, st.tau).kappa_rel;
+        eprintln!("R1D {what} [{t0},{t1}] kappa_rel {k:.4} drift {b:?} -> {v:?}");
+    }
+
+    #[test]
+    fn r1d_constant_kappa_tangencies_under_rule_1() {
+        // A rod r=1 on the plane z=0, along x.
+        let rod = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x(), Vec3::unit_y()),
+            radius: 1.0,
+        };
+        let floor = Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        };
+        let line = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
+        for l in [0.1, 0.5, 1.0, 2.0, 10.0] {
+            row(&format!("rod-on-plane L={l}"), &rod, &floor, &line, 0.0, l, l.max(2.0));
+        }
+        // The same rod in a bore r=2, touching along the same line.
+        let bore = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_x(), Vec3::unit_y()),
+            radius: 2.0,
+        };
+        for l in [0.5, 2.0, 10.0] {
+            row(&format!("rod-in-bore L={l}"), &rod, &bore, &line, 0.0, l, l.max(4.0));
+        }
+        // A ball r=1 in a sleeve r=1 along its equator (circle).
+        let ball = Surface::Sphere {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        let sleeve = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        let eq = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        for span in [0.5, core::f64::consts::PI, core::f64::consts::TAU] {
+            row(&format!("ball-in-sleeve span={span:.3}"), &ball, &sleeve, &eq, 0.0, span, 2.0);
+        }
+        // A torus R=3 r=1 (axis z) on the plane z=1 along its top circle,
+        // and in a sleeve r=4 along its outer equator.
+        let ring = Surface::Torus {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let lid = Surface::Plane {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+        };
+        let top = geom::Curve3::circle(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), 3.0, Vec3::unit_x());
+        let sleeve4 = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 4.0,
+        };
+        let outer = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 4.0, Vec3::unit_x());
+        let ball4 = Surface::Sphere {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 4.0,
+        };
+        for span in [0.5, core::f64::consts::PI, core::f64::consts::TAU] {
+            row(&format!("torus-on-lid span={span:.3}"), &ring, &lid, &top, 0.0, span, 8.0);
+            row(&format!("torus-in-sleeve span={span:.3}"), &ring, &sleeve4, &outer, 0.0, span, 8.0);
+            row(&format!("torus-in-ball span={span:.3}"), &ring, &ball4, &outer, 0.0, span, 8.0);
+        }
+    }
+
+    /// The converse arc, faces opposed: every station one end, the end
+    /// flipping in the end gaps.
+    #[test]
+    fn r1d_opposed_converse_arc_reads_one_end() {
+        let pipe = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        let bend = Surface::Torus {
+            frame: geom::Frame::new(Point3::new(3.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_z()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let rim = geom::Curve3::circle(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), 1.0, Vec3::unit_x());
+        let h = core::f64::consts::FRAC_PI_2;
+        let side = |surface, sense| crate::SideFace { surface, sense };
+        for (t0, t1) in [(h - 0.05, 3.0 * h + 0.05), (h - 0.3, 3.0 * h + 0.3)] {
+            for sense in [false, true] {
+                let walk = crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1);
+                let v = crate::edge_wedge_over(&walk, fixture_lever(1.0), band());
+                eprintln!("R1D opposed? sense {sense} [{t0:.3},{t1:.3}] -> {v:?}");
+            }
+        }
+    }
+}
