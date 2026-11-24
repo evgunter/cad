@@ -68,8 +68,9 @@ fn an_arc_rims_rate_bounds_its_image_at_every_end_weight() {
     let breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     for ends in [vec![], vec![1.0, 2.0], vec![2.0, 1.0], vec![1.0, 1e4]] {
         let image = Pcurve::IsoArc {
-            p0: Point2::new(0.0, 0.0),
-            pd: Vec2::new(1.0, 0.0),
+            line: crate::ChartLine::row(0.0),
+            g0: 0.0,
+            gd: 1.0,
             t0: 0.0,
             angle,
             breaks: breaks.clone(),
@@ -304,15 +305,15 @@ fn a_harmonic_images_bound_is_its_sup_and_an_iso_lines_is_its_velocity() {
             "{what}: attained, not ({ru}, {rv})"
         );
     }
-    let line = Pcurve::IsoLine {
-        p0: Point2::new(0.0, 1.0),
-        pl: Vec2::new(-0.25, 3.0),
-        ends: None,
+    let column = Pcurve::IsoLine {
+        line: crate::ChartLine::column(0.0),
+        at0: 1.0,
+        rate: -3.0,
     };
     assert_eq!(
-        line.speed_bound(0.0, 2.0),
-        Ok((0.25, 3.0)),
-        "an iso line moves at |pl|"
+        column.speed_bound(0.0, 2.0),
+        Ok((0.0, 3.0)),
+        "an iso line moves at its rate along its line, and not across it"
     );
 }
 
@@ -1138,13 +1139,14 @@ fn a_non_finite_coefficient_refuses_on_every_form() {
             Vec2::new(0.0, 0.0),
         ),
         Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(nan, 1.0),
-            ends: None,
+            line: crate::ChartLine::column(0.0),
+            at0: 0.0,
+            rate: nan,
         },
         Pcurve::IsoArc {
-            p0: Point2::new(0.0, 0.0),
-            pd: Vec2::new(nan, 0.0),
+            line: crate::ChartLine::row(0.0),
+            g0: 0.0,
+            gd: nan,
             t0: 0.0,
             angle: FRAC_PI_2,
             breaks,
