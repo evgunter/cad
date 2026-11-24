@@ -59,6 +59,8 @@ mod fixture;
 // one is not, because its subject is `serde_json`.
 mod wire;
 
+#[path = "probe_build_record.rs"]
+mod probe_build_record;
 #[path = "a_blend_refusal_names_its_edge.rs"]
 mod a_blend_refusal_names_its_edge;
 #[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]

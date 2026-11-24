@@ -349,10 +349,10 @@ fn value_lines<T: topo::AtRestPolicy + Decide>(prefix: &str, v: &NodeValue<T>, r
             "{prefix}coin {i} {:?} at {:?} origin {:?} cells {:?}",
             c.relation, c.site, c.origin, c.cells
         ));
-        rec.extras.push(format!(
-            "{prefix}coin {i} discharge {:?} margin {:?}",
-            c.discharge, c.margin
-        ));
+        // The margin itself is a number at the run's scalar and is in
+        // neither list.
+        rec.extras
+            .push(format!("{prefix}coin {i} discharge {:?}", c.discharge));
     }
     if let Some(members) = &v.members {
         for (at, m) in &members.members {
@@ -491,7 +491,12 @@ fn body_lines<T: topo::AtRestPolicy + Decide>(
         extras.push(format!(
             "{prefix}edge {ename} carrier {}",
             match body.get_curve_geom(e.curve) {
-                Some(topo::CurveGeom::Certified(c)) => head(c),
+                Some(topo::CurveGeom::Certified(c)) => format!(
+                    "{} stored {} described {}",
+                    head(c.carrier()),
+                    head(c.stored_carrier()),
+                    head(c.description())
+                ),
                 Some(topo::CurveGeom::NullScaffold(_)) => "NullScaffold".into(),
                 None => "?".into(),
             }
