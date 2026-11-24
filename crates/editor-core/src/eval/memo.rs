@@ -208,7 +208,7 @@ where
     geom_core::Sym<T>: Real,
 {
     fn feed(&self, h: &mut KeyHasher) {
-        self.value.feed(h);
+        self.value().feed(h);
     }
 }
 

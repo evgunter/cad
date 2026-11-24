@@ -128,8 +128,10 @@ source-scope = { path = "../source-scope" }
 # (see the deviation note in src/dual.rs module docs).
 num-dual = { workspace = true }
 # Self dev-dependency: turns `test-support` on for THIS crate's own
-# integration tests under `cargo test -p` (scripts/gates/test-support-self-edge.sh).
-geom-core = { path = ".", features = ["test-support"] }
+# integration tests under `cargo test -p` (scripts/gates/test-support-self-edge.sh),
+# and `sym-revalue-testing` for the contradiction instrument's planted
+# rows (`sym::contradiction`), which read the recorder.
+geom-core = { path = ".", features = ["test-support", "sym-revalue-testing"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
