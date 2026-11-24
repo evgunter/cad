@@ -920,25 +920,29 @@ fn a_cancellation_above_a_frozen_read_is_refused_with_the_read_on() {
     assert_eq!(got, [false, true], "(read on, read shut) proven");
 }
 
-/// **The door's instances** (S9, S12): `x·x` registered equal to `x`
-/// over `[0.9, 1.1]`.
-/// - S9 `max(x·x, 3) − max(x, 3)`: the read settles it at the early
+/// **The door's instances** (S9, S12): `√(x·x)` registered equal to `x`
+/// over `[0.9, 1.1]`, an identity there that no rung but the door
+/// proves (`sqrt(r²) − r` over a positive bracket is not folded, above).
+/// The registration is true over the box because a false one is refuted
+/// at the point before the door is asked (`sym::point`).
+/// - S9 `max(√(x·x), 3) − max(x, 3)`: the read settles it at the early
 ///   rung (`3 − 3` over the box); with the read shut the door does.
-/// - S12 `(max(x·x, 3) − max(x, 3)) + (x·x − x)`: zero in the door walk
-///   alone, with the read on as with it shut.
-/// - `(x·x − x) · min(x, 3)`: the door's zero times a factor the read
+/// - S12 `(max(√(x·x), 3) − max(x, 3)) + (√(x·x) − x)`: zero in the door
+///   walk alone, with the read on as with it shut.
+/// - `(√(x·x) − x) · min(x, 3)`: the door's zero times a factor the read
 ///   settles.
 #[test]
 fn the_doors_zero_beside_the_read_is_proven() {
     type Build = fn(Sym<Interval>, Sym<Interval>) -> Sym<Interval>;
     let cases: [(&str, Build); 3] = [
-        ("S9 max(x·x, 3) - max(x, 3)", |sq, x| {
+        ("S9 max(√(x·x), 3) - max(x, 3)", |sq, x| {
             sq.max(lit(3.0)) - x.max(lit(3.0))
         }),
-        ("S12 (max(x·x, 3) - max(x, 3)) + (x·x - x)", |sq, x| {
-            (sq.max(lit(3.0)) - x.max(lit(3.0))) + (sq - x)
-        }),
-        ("(x·x - x) · min(x, 3)", |sq, x| {
+        (
+            "S12 (max(√(x·x), 3) - max(x, 3)) + (√(x·x) - x)",
+            |sq, x| (sq.max(lit(3.0)) - x.max(lit(3.0))) + (sq - x),
+        ),
+        ("(√(x·x) - x) · min(x, 3)", |sq, x| {
             (sq - x) * x.min(lit(3.0))
         }),
     ];
@@ -949,7 +953,7 @@ fn the_doors_zero_beside_the_read_is_proven() {
         ] {
             let ((out, value), counts) = with_session_rules(budget(), rules, || {
                 let x = over("x", 0.9, 1.1);
-                let sq = x * x;
+                let sq = (x * x).sqrt();
                 let reg = sq.register_equal(x, Tol::witness());
                 assert!(
                     matches!(reg, geom_core::sym::SymRegistration::Recorded),
@@ -961,7 +965,7 @@ fn the_doors_zero_beside_the_read_is_proven() {
                     m.value(),
                 )
             });
-            let what = format!("[x·x = x, {dial}] {what}");
+            let what = format!("[√(x·x) = x, {dial}] {what}");
             let l = row(&what, (label(out, counts), value.enclosure_probe()));
             assert_eq!(l, "proven", "{what}: {counts:?}");
         }

@@ -323,7 +323,7 @@ mod tests {
 
     /// `m` decided in the installed session: its sign where one was
     /// returned, and the forms the decision built.
-    fn decide(m: S) -> (Option<Sign>, usize) {
+    fn asked(m: S) -> (Option<Sign>, usize) {
         let before = forms_built();
         let band = Band::linear(Tol::witness()).expect("a linear band");
         let sign = crate::k_stats::decide("point_test", Margin::of(m), band).ok();
@@ -342,7 +342,7 @@ mod tests {
     fn a_nonzero_margin_undecided_over_the_box_builds_no_form() {
         let ((sign, forms), counts) = shipped(|| {
             let x = param("x", -1.0, 1.0);
-            decide(x * x - lit(0.01))
+            asked(x * x - lit(0.01))
         });
         assert_eq!(forms, 0, "refuted margins build no form");
         assert_ne!(sign, Some(Sign::Zero), "and decide nothing: {counts:?}");
@@ -364,10 +364,10 @@ mod tests {
     fn an_identity_still_proves_zero_and_its_parent_box_is_refuted() {
         let (name, _) = below_centre();
         let m = |x: S| Real::max(x, -x) - x;
-        let ((sign, forms), counts) = shipped(|| decide(m(param(&name, -1.0, 1.0))));
+        let ((sign, forms), counts) = shipped(|| asked(m(param(&name, -1.0, 1.0))));
         assert_eq!(forms, 0, "over [-1, 1]: refuted ({counts:?})");
         assert_ne!(sign, Some(Sign::Zero));
-        let ((sign, _), counts) = shipped(|| decide(m(param(&name, 0.25, 1.0))));
+        let ((sign, _), counts) = shipped(|| asked(m(param(&name, 0.25, 1.0))));
         assert_eq!(sign, Some(Sign::Zero), "over [0.25, 1]: an identity");
         assert_eq!(counts.symbolic, 1, "{counts:?}");
     }
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn a_margin_that_vanishes_at_the_point_climbs() {
         let p = point_of(symbol("x"), -1.0, 1.0).unwrap();
-        let ((sign, forms), _) = shipped(|| decide(param("x", -1.0, 1.0) - lit(p)));
+        let ((sign, forms), _) = shipped(|| asked(param("x", -1.0, 1.0) - lit(p)));
         assert!(forms > 0, "the tier is asked");
         assert_ne!(sign, Some(Sign::Zero), "and proves nothing");
     }
@@ -394,18 +394,18 @@ mod tests {
         let (name, p) = below_centre();
         let ((taken, forms), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
-            decide(x.select_le_zero(lit(1.0), x - lit(p)))
+            asked(x.select_le_zero(lit(1.0), x - lit(p)))
         });
         assert_eq!(forms, 0, "the arm it takes reads 1: refuted");
         assert_ne!(taken, Some(Sign::Zero));
         let ((_, forms), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
-            decide(x.select_le_zero(x - lit(p), lit(1.0)))
+            asked(x.select_le_zero(x - lit(p), lit(1.0)))
         });
         assert!(forms > 0, "the arm it takes reads 0 at the point: asked");
         let ((_, forms), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
-            decide(x.select_le_zero(lit(1.0), S::opaque(Interval::from_bounds(-1.0, 1.0))))
+            asked(x.select_le_zero(lit(1.0), S::opaque(Interval::from_bounds(-1.0, 1.0))))
         });
         assert_eq!(forms, 0, "the arm it does not take is not read");
     }
@@ -420,13 +420,13 @@ mod tests {
         let ((_, forms), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
             let d = S::pi() - lit(core::f64::consts::PI);
-            decide(d.select_le_zero(x - lit(p), lit(1.0)))
+            asked(d.select_le_zero(x - lit(p), lit(1.0)))
         });
         assert!(forms > 0, "the hull holds 0: asked");
         let ((_, forms), _) = shipped(|| {
             let x = param(&name, -1.0, 1.0);
             let d = S::pi() - lit(core::f64::consts::PI);
-            decide(d.select_le_zero(x - lit(p) + lit(0.05), lit(0.5)))
+            asked(d.select_le_zero(x - lit(p) + lit(0.05), lit(0.5)))
         });
         assert_eq!(forms, 0, "the hull excludes 0: refuted");
     }
@@ -458,7 +458,7 @@ mod tests {
             }),
         ];
         for (what, m) in rows {
-            let ((_, forms), _) = shipped(|| decide(m()));
+            let ((_, forms), _) = shipped(|| asked(m()));
             assert!(
                 forms > 0,
                 "{what}: the reading declines and the tier is asked"
@@ -558,8 +558,8 @@ mod tests {
         let ((report, decisions), _) = shipped(|| {
             let ((), decisions) = super::super::revalue::record(|| {
                 let x = param("x", -1.0, 1.0);
-                let _ = decide(x * x - lit(0.01));
-                let _ = decide((x * lit(3.0)).sin() * x - lit(0.2));
+                let _ = asked(x * x - lit(0.01));
+                let _ = asked((x * lit(3.0)).sin() * x - lit(0.2));
             });
             (check(&decisions).expect("in a session"), decisions.len())
         });
