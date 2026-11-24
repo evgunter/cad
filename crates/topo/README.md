@@ -926,8 +926,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      one lineage, which states for each cell what the op made of it:
      kept; substituted by a cell that holds its interior (a merge's
      face, a join's edge, a seam); divided, into its pieces and the
-     cells the op minted between them, the division exhaustive or with
-     its remainder removed; or removed. One carry, for the boolean and
+     cells the op minted between them, and the cells it removed, each
+     named; or removed whole. One carry, for the boolean and
      every surgery verb alike, lands a record whose two cells the op kept
      or substituted on their images by lineage, unread, each image on
      its cell's carrier and holding its old interior and the record read
@@ -942,9 +942,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      op that cuts with many surfaces (the boolean's tool) decides every
      such meeting at its door ([coincidence]), and the landing cites the decision
      beside the record; any other op refuses one. A record
-     that lands on no pair, every pair read definitely, is consumed
-     where one of its cells was removed, divided with its remainder
-     removed, or moved, or where the op put its two cells in different
+     that lands on no kept pair is read the same way against the
+     cells the op removed, and is consumed where it lands only on
+     them, or where the op put its two cells in different
      result bodies, each holding images of one cell alone and each
      reaching the cut by a decision the op made: the touch is
      then a meeting between two bodies, as a split's two sides meet
