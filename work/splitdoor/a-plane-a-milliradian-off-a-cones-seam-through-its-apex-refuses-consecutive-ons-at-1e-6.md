@@ -35,3 +35,17 @@ On entries before reading them; an On edge beside an On subdivision
 ruling of the same apex sector is one contact (the sliver within the
 band); the off-seam pose lands, by inference reading its On ruling as a
 lone duplicate (unmeasured).
+
+## 2026-11-23: the seam pose refuses ahead of rule (b) on main
+
+(GREEN U19.) Since PR 7299 (`germ/crossing-consumers`, `54e6a5c5b8`) the
+split's classify reads every edge through `curve_face::cross`. At ε 1e-6
+the 30° and 45° seam poses, either normal, now refuse there first:
+`Reduce(CrossingEscalated { edge, fault: Method { door: PlaneCrossing,
+fault: Unsettled(Tangency) } })`, on the seam edge lying in the plane.
+So rule (b) is not reached on main. Off the seam both still land.
+Measured on hosted CI, probe run 45317834459: `ConsecutiveOnSectors` on
+`f7dd37696d` (7299's first parent), `CrossingEscalated` on `54e6a5c5b8`
+and on `a433ff83d6`. `a_plane_through_a_cones_apex.rs` pins the crossing
+refusal now. This row's question (two consecutive Ons read as one contact)
+has no witness on main until the crossing settles the in-plane edge.
