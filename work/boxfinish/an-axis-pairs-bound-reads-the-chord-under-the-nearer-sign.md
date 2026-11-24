@@ -34,6 +34,15 @@ does not carry (a literal axis beside a chord over its own length).
   sign read off an enclosure: there the sign is decided, and the chord
   is an enclosure's slack and not a zero claim.
 
+**A neighbour with the sign fixed by the question** (read, not run):
+`topo/src/shell.rs`'s moved-walls pairing reads two walls as opposed
+through `(a.normal + b.normal).norm()` (`shell_walls_antiparallel`) and
+`−a.normal·b.normal − 1` decided Zero
+(`shell_walls_antiparallel_cosine`). No sign is decided and the Zero is
+recorded nowhere (it selects which pairs are read), but it is zero as
+an expression only where the two normals are spelled as exact
+negations.
+
 **Measured** (the unit's head, a scratch probe, not kept): two
 cylinders on one axis with one radius, over a unit ball, in a deferring
 `Sym<f64>` session, through `geom_brep::carrier_eq::pair_door_reading`.
