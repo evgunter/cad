@@ -387,8 +387,10 @@ fn a_map_past_its_carrier_in_band_is_in_the_envelope() {
 /// ends, is held at `hi` itself, and lifted back is `lo`. The sum
 /// `lo + (hi − lo)` misses `hi` at `f64` on three of these four domains
 /// and has width at `Interval` on all of them. A column an ulp off an end
-/// is laid off from the other end by that ulp (`hi + (x − lo)`), not on
-/// it; a row's moving coordinate moves by the period's length.
+/// is laid off from the other end by that ulp (`hi + (x − lo)`: at `f64`
+/// an offset under `hi`'s own rounding rounds onto `hi`, at `Interval`
+/// it is an enclosure and no point); a row's moving coordinate moves by
+/// the period's length.
 ///
 /// Red under [`Period::moved`] adding `k·(hi − lo)` to every value.
 #[test]
@@ -410,17 +412,17 @@ fn a_period_moved_seam_column_is_its_other_end() {
                 Some(lo),
                 "{scalar} [{lo}, {hi}]: and lifted back is the end it started at"
             );
-            // An ulp inside the domain is no end: it lands its own
-            // offset past the other end.
+            // An ulp inside the domain is no end: it is laid off from
+            // the other end by its own offset.
             let inside = f64::from_bits(lo.to_bits() + 1);
             let near = Pcurve::iso_column(f(inside), (T::zero(), T::one()), (T::zero(), T::one()));
             let moved = held(&near.shift_branch(1, period));
             let want = f(hi) + (f(inside) - f(lo));
             assert_eq!(
-                (moved.lo(), moved.hi(), moved.hi() > hi),
-                (want.lo(), want.hi(), true),
+                (moved.lo(), moved.hi()),
+                (want.lo(), want.hi()),
                 "{scalar} [{lo}, {hi}]: a column an ulp off the end is laid off from the \
-                 other end, past it"
+                 other end by that ulp"
             );
             // A row's line is not the channel moved: its map's origin
             // takes the period as a length.

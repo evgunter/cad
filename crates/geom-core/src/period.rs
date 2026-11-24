@@ -2011,7 +2011,7 @@ mod turn_rows {
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod domain_rows {
-    use crate::{Bounds, Dual, Interval, ParamSymbol, Real, Sym};
+    use crate::{Bounds as _, Dual, Interval, ParamSymbol, Real, Sym};
 
     use super::{DomainEnd, Period, domain_end};
 
@@ -2023,9 +2023,13 @@ mod domain_rows {
         f64::from_bits(x.to_bits() + 1)
     }
 
-    /// A bracket's two ends.
-    fn ends<T: Bounds>(x: T) -> (f64, f64) {
-        (x.lo(), x.hi())
+    /// A bracket's two ends. A macro: the rows read brackets at several
+    /// scalars and name no bound to do it.
+    macro_rules! ends {
+        ($x:expr) => {{
+            let x = $x;
+            (x.lo(), x.hi())
+        }};
     }
 
     /// **The length is `hi − lo`, and the ends are kept as stated**: a
@@ -2042,8 +2046,8 @@ mod domain_rows {
             let c = Interval::from_f64;
             let q = Period::of_domain(c(lo), c(hi));
             assert_eq!(
-                ends(q.length()),
-                ends(c(hi) - c(lo)),
+                ends!(q.length()),
+                ends!(c(hi) - c(lo)),
                 "[{lo}, {hi}] at Interval: the enclosure of the difference"
             );
         }
@@ -2148,14 +2152,18 @@ mod domain_rows {
                 for (lo, hi) in DOMAINS {
                     let p = Period::of_domain(f(lo), f(hi));
                     let case = format!("{} [{lo}, {hi}]", $scalar);
-                    assert_eq!(ends(p.moved(f(lo), 1)), (hi, hi), "{case}: lo up one is hi");
                     assert_eq!(
-                        ends(p.moved(f(hi), -1)),
+                        ends!(p.moved(f(lo), 1)),
+                        (hi, hi),
+                        "{case}: lo up one is hi"
+                    );
+                    assert_eq!(
+                        ends!(p.moved(f(hi), -1)),
                         (lo, lo),
                         "{case}: hi down one is lo"
                     );
                     assert_eq!(
-                        ends(p.moved(p.moved(f(lo), 1), -1)),
+                        ends!(p.moved(p.moved(f(lo), 1), -1)),
                         (lo, lo),
                         "{case}: there and back"
                     );
@@ -2163,23 +2171,23 @@ mod domain_rows {
                     // near end, laid off from the far one.
                     for x in [hi, up(lo), 0.5 * (lo + hi), lo - 0.25] {
                         assert_eq!(
-                            ends(p.moved(f(x), 1)),
-                            ends(f(hi) + (f(x) - f(lo))),
+                            ends!(p.moved(f(x), 1)),
+                            ends!(f(hi) + (f(x) - f(lo))),
                             "{case}: {x} up one is hi + (x − lo)"
                         );
                     }
                     for x in [lo, up(hi), 0.5 * (lo + hi), hi + 0.25] {
                         assert_eq!(
-                            ends(p.moved(f(x), -1)),
-                            ends(f(lo) + (f(x) - f(hi))),
+                            ends!(p.moved(f(x), -1)),
+                            ends!(f(lo) + (f(x) - f(hi))),
                             "{case}: {x} down one is lo + (x − hi)"
                         );
                     }
                     // Every other `k` forms the sum, as the scalar computes it.
                     for (x, k) in [(lo, 0), (hi, 0), (lo, 2), (hi, -2), (lo, -3), (up(lo), 5)] {
                         assert_eq!(
-                            ends(p.moved(f(x), k)),
-                            ends(f(x) + f(f64::from(k)) * (f(hi) - f(lo))),
+                            ends!(p.moved(f(x), k)),
+                            ends!(f(x) + f(f64::from(k)) * (f(hi) - f(lo))),
                             "{case}: {x} moved {k} is the sum"
                         );
                     }
@@ -2187,8 +2195,8 @@ mod domain_rows {
                     let stated = Period::new(f(hi) - f(lo));
                     for (x, k) in [(lo, 1), (hi, -1)] {
                         assert_eq!(
-                            ends(stated.moved(f(x), k)),
-                            ends(f(x) + f(f64::from(k)) * (f(hi) - f(lo))),
+                            ends!(stated.moved(f(x), k)),
+                            ends!(f(x) + f(f64::from(k)) * (f(hi) - f(lo))),
                             "{case}: a period stated as a length moves {x} by the sum"
                         );
                     }
@@ -2214,10 +2222,22 @@ mod domain_rows {
             [true; 4],
             "Interval: the sum has width"
         );
-        // A value an ulp off the end lands off the other end, never on it.
+        // A value an ulp off the end is laid off from the other end by
+        // that ulp. At `f64` an offset under the far end's own rounding
+        // rounds onto it; at `Interval` the result encloses the end and
+        // the offset both, and is no point.
         let (lo, hi) = (0.4, 1.7);
-        let past = Period::of_domain(lo, hi).moved(up(lo), 1);
-        assert!(past > hi, "f64: an ulp past lo moves past hi: {past:e}");
+        assert_eq!(
+            Period::of_domain(lo, hi).moved(up(lo), 1),
+            hi + (up(lo) - lo),
+            "f64: an ulp past lo is hi + that ulp, as f64 rounds it"
+        );
+        let wide = Period::of_domain(c(lo), c(hi)).moved(c(up(lo)), 1);
+        assert_eq!(
+            (wide.lo() <= hi, hi < wide.hi()),
+            (true, true),
+            "Interval: an ulp past lo is an enclosure past hi, no point"
+        );
     }
 
     /// **A move carries the value's derivative**, at `Dual`: the move's
@@ -2273,19 +2293,19 @@ mod domain_rows {
         let (lo, hi) = (p("moved_lo", 0.4), p("moved_hi", 1.7));
         let period = Period::of_domain(lo, hi);
         assert_eq!(
-            ends(period.moved(lo, 1).value),
+            ends!(period.moved(lo, 1).value),
             (1.7, 1.7),
             "lo up one is hi"
         );
         assert_eq!(
-            ends(period.moved(hi, -1).value),
+            ends!(period.moved(hi, -1).value),
             (0.4, 0.4),
             "hi down one is lo"
         );
         let near = p("moved_near", up(0.4));
         assert_eq!(
-            ends(period.moved(near, 1).value),
-            ends(c(1.7) + (c(up(0.4)) - c(0.4))),
+            ends!(period.moved(near, 1).value),
+            ends!(c(1.7) + (c(up(0.4)) - c(0.4))),
             "a value an ulp off moves with its offset"
         );
     }

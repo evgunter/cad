@@ -12,7 +12,7 @@ use crate::joint::{Deck, Winding};
 use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real};
+use geom_core::{Bounds as _, Decide, Interval, Point3, Real};
 
 /// A span end that is a computed length, `1.2 + 1`.
 fn length<T: Real>() -> T {
@@ -20,14 +20,22 @@ fn length<T: Real>() -> T {
 }
 
 /// `p` as `(u, v)` point brackets, `None` for a coordinate with width.
-fn points<T: Bounds>(p: Point2<T>) -> (Option<f64>, Option<f64>) {
-    let point = |x: T| (x.lo() == x.hi()).then(|| x.lo());
-    (point(p.x), point(p.y))
+/// A macro, like `brackets!`: the rows read brackets at two scalars and
+/// name no bound to do it.
+macro_rules! points {
+    ($p:expr) => {{
+        let p = $p;
+        let point = |lo: f64, hi: f64| (lo == hi).then_some(lo);
+        (point(p.x.lo(), p.x.hi()), point(p.y.lo(), p.y.hi()))
+    }};
 }
 
 /// `p` as its two brackets.
-fn brackets<T: Bounds>(p: Point2<T>) -> [(f64, f64); 2] {
-    [(p.x.lo(), p.x.hi()), (p.y.lo(), p.y.hi())]
+macro_rules! brackets {
+    ($p:expr) => {{
+        let p = $p;
+        [(p.x.lo(), p.x.hi()), (p.y.lo(), p.y.hi())]
+    }};
 }
 
 /// A span neither of whose ends is zero or a literal: `(0.1 + 0.2,
@@ -104,10 +112,10 @@ fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
                     let (a, b) = lift.rows()[i].entry_exit_points();
                     let p = if entry { a } else { b };
                     assert_eq!(
-                        (points(p).0.is_some(), points(p).1.is_some()),
+                        (points!(p).0.is_some(), points!(p).1.is_some()),
                         (i % 2 == 0 && i != 0, i == 0 || i % 2 == 1),
                         "{scalar}: row {i}'s own end has width along its line: {:?}",
-                        brackets(p)
+                        brackets!(p)
                     );
                 }
             }
@@ -119,13 +127,13 @@ fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
                 (4, (0.0, 1.0)),
             ] {
                 assert_eq!(
-                    points(lift.joint_point(i)),
+                    points!(lift.joint_point(i)),
                     (Some(corner.0), Some(corner.1)),
                     "{scalar}: the joint into row {i} is the meet of its two lines"
                 );
                 let before = (i + 4) % 5;
                 assert_eq!(
-                    points(lift.exit_point(before)),
+                    points!(lift.exit_point(before)),
                     (Some(corner.0), Some(corner.1)),
                     "{scalar}: row {before} leaves at the corner row {i} enters at"
                 );
@@ -134,20 +142,20 @@ fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
             let rows = lift.rows();
             let entering = rows[1].pcurve.eval(cut);
             assert_eq!(
-                brackets(lift.joint_point(1)),
-                brackets(entering),
+                brackets!(lift.joint_point(1)),
+                brackets!(entering),
                 "{scalar}: the cut is the entering image's value there"
             );
             assert_eq!(
-                brackets(lift.exit_point(0)),
-                brackets(rows[0].pcurve.eval(cut)),
+                brackets!(lift.exit_point(0)),
+                brackets!(rows[0].pcurve.eval(cut)),
                 "{scalar}: the piece before the cut leaves at its own value"
             );
             assert_eq!(
                 (entering.x.lo() > 0.0, entering.x.hi() < 1.0),
                 (true, true),
                 "{scalar}: the cut is no chart end: {:?}",
-                brackets(entering)
+                brackets!(entering)
             );
         }};
     }
