@@ -15,3 +15,9 @@ B round7: subagent_tokens 458720 (cumulative as reported), 26 tool uses, 1151911
 A round8 (final): subagent_tokens 341828 (cumulative as reported, the total), 1 tool use, 37424 ms; saved at 21:24:41Z by the clock
 B round8 (final): subagent_tokens 468214 (cumulative as reported, the total), 27 tool uses, 1269958 ms (as reported); saved at 21:25:12Z by the clock
 First reports: A 207,147; B 282,869. Totals: A 341,828; B 468,214.
+A round9 (Ev's question): subagent_tokens 348168 (cumulative as reported), 1 tool use, 54854 ms; saved at 00:28:27Z on 2026-11-24 by the clock
+B round9 (Ev's question): subagent_tokens 487233 (cumulative as reported), 4 tool uses, 168475 ms; saved at 00:30:50Z on 2026-11-24 by the clock
+A round10: subagent_tokens 358971 (cumulative as reported), 3 tool uses, 60322 ms; saved at 00:31:53Z by the clock
+B round10: subagent_tokens 505504 (cumulative as reported), 7 tool uses, 297904 ms; saved before 00:32:52Z by the clock
+A round11 (final): subagent_tokens 361258 (cumulative, the total); B round11 (final): 507102 (cumulative, the total); both saved by 00:33:45Z
+Totals after Ev's question: A 361,258; B 507,102 (at the PR's opening: A 341,828; B 468,214).
