@@ -2789,33 +2789,6 @@ pub enum AlongFace {
     FacesInOnePlane,
 }
 
-/// **The loops a plane cuts on a ring torus**, as the section
-/// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
-///
-/// **NOT carried to the façade's curated list, and that is a decision
-/// rather than an omission** (`scripts/payload-rung-sweep.py` names
-/// this rung; the disposition table cites this paragraph as its home).
-/// A Rust caller can already name and match it — `pncad` re-exports
-/// `topo` whole — and the refusal's sentence names the loops, while the
-/// recourse it states is the same for all three (cut the torus with a
-/// plane the frame serves). Carrying it would add the CUR3 property row
-/// and a Python word with no reader that acts on the difference.
-///
-/// **The falsifier is a caller whose recourse depends on which loops a
-/// slanted plane cuts**: the day the general rung serves one class (the
-/// loops round the axis have a proved frame), a caller must tell it from
-/// the others to know whether the cut builds. Then carry it and delete
-/// this paragraph and the disposition row with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpiricLoops {
-    /// Two loops, each winding once round the torus's axis.
-    AroundAxis,
-    /// Two loops, each winding once round the tube.
-    AroundTube,
-    /// One loop on the tube that winds round neither.
-    Null,
-}
-
 /// **Whose record a [`BooleanError::CarryRefused`] refused**, which says
 /// what the refusal's record index counts.
 ///
@@ -4173,29 +4146,6 @@ pub enum BooleanError {
         /// The conic.
         conic: geom_brep::OpenConic,
     },
-    /// **A germ pair whose plane cuts a torus face in a general spiric
-    /// quartic**: a plane neither through the torus's axis, nor square to
-    /// it, nor parallel to it short of its inner equator. The C5 table
-    /// routes that section to its general rung, which is unbuilt, and no
-    /// carrier holds the curve, so the pair is refused at its frame.
-    /// `loops` is the section certificate's own classification of the
-    /// section, and `section` the table's refusal.
-    ///
-    /// A limit: a section not built (row 2).
-    GermSectionSpiric {
-        /// The A-side germ face.
-        a_face: FaceKey,
-        /// Its kind.
-        a_kind: geom::SurfaceKind,
-        /// The B-side germ face.
-        b_face: FaceKey,
-        /// Its kind.
-        b_kind: geom::SurfaceKind,
-        /// The loops the plane cuts.
-        loops: SpiricLoops,
-        /// The section table's refusal.
-        section: geom_brep::SectionError,
-    },
     /// **A node of an equal cylinder pair's section that the Boolean
     /// does not build.** Two equal cylinder walls whose axes meet cut
     /// each other in two ellipses that cross at two NODES, `p ± r·n̂`
@@ -4601,7 +4551,8 @@ pub enum BooleanError {
     /// slit or zero-area ring, whose two edges the zip glued into one
     /// edge of that face with a free end, a strut, and deleting a strut
     /// from a curved face is not built (`slit::close_struts`,
-    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// `crate::strut`'s `StrutRefusal::Curved`), or of a chart cut's
+    /// piece with a free end (`slit::close_cuts`). Of a strut with both
     /// ends free, the lone ring's bridge is a line chord, which lies in
     /// no curved face; the strut deleted with one free end by `kev`
     /// mints nothing and is refused with it. A construction gap, with
@@ -4815,8 +4766,6 @@ pub enum BooleanErrorKind {
     GermSectionUnbuilt,
     /// [`BooleanError::GermSectionOpenConic`].
     GermSectionOpenConic,
-    /// [`BooleanError::GermSectionSpiric`].
-    GermSectionSpiric,
     /// [`BooleanError::NodeUnbuilt`].
     NodeUnbuilt,
     /// [`BooleanError::Euler`].
@@ -5188,7 +5137,6 @@ impl BooleanError {
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermSectionUnbuilt { .. } => BooleanErrorKind::GermSectionUnbuilt,
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
-            Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -5336,7 +5284,6 @@ impl BooleanError {
             | Self::GermFrameUnsupported { .. }
             | Self::GermSectionUnbuilt { .. }
             | Self::GermSectionOpenConic { .. }
-            | Self::GermSectionSpiric { .. }
             | Self::NodeUnbuilt { .. }
             | Self::JoinCarrierUnsupported { .. }
             | Self::Revert { .. }
@@ -5880,17 +5827,6 @@ impl BooleanError {
                  edges. Recourse: tilt the parts so the flat face cuts the cone all the \
                  way round, or keep it clear of the cone face",
                 conic.named(),
-            ),
-            Self::GermSectionSpiric { loops, .. } => write!(
-                f,
-                "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). {}",
-                match loops {
-                    SpiricLoops::AroundAxis => "two loops round the axis",
-                    SpiricLoops::AroundTube => "two loops round the tube",
-                    SpiricLoops::Null => "one loop on the tube",
-                },
-                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
@@ -10397,17 +10333,6 @@ mod tests {
                 b_kind: geom::SurfaceKind::Cone,
                 conic: geom_brep::OpenConic::Hyperbola,
             },
-            BooleanError::GermSectionSpiric {
-                a_face: face,
-                a_kind: geom::SurfaceKind::Plane,
-                b_face: face,
-                b_kind: geom::SurfaceKind::Torus,
-                loops: SpiricLoops::Null,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "a folded loop",
-                },
-            },
             BooleanError::NodeUnbuilt {
                 a_face: face,
                 b_face: face,
@@ -10583,7 +10508,6 @@ mod tests {
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionUnbuilt => "GermSectionUnbuilt",
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
-                BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

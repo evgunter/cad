@@ -72,9 +72,10 @@
 //!
 //! # The pairs it serves
 //!
-//! Cylinder × sphere, the four torus pairs (a ring torus against a
-//! sphere, a cylinder or another ring torus, [`torus`], and against a
-//! cone off its axis, [`cone_torus`]), two cylinders ([`cylinders`]),
+//! Cylinder × sphere, the five torus pairs (a ring torus against a
+//! sphere, a cylinder or another ring torus, [`torus`], against a cone
+//! off its axis, [`cone_torus`], and against a plane tilted from its
+//! axis, [`plane_torus`]), two cylinders ([`cylinders`]),
 //! which have no bounded side and are read over the operation's region,
 //! and the closed-form conic pairs ([`conic_pairs`]): plane × sphere and
 //! sphere × sphere, read over a sphere's ball, and plane × cylinder, read
@@ -85,13 +86,15 @@
 //! reads and the boolean's join carries). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
-//! [`TorusTorusPose`], [`ConeTorusPose`], [`CylinderCylinderPose`]) is
+//! [`TorusTorusPose`], [`ConeTorusPose`], [`PlaneTorusPose`],
+//! [`CylinderCylinderPose`]) is
 //! decided once, and
 //! every reader of the pair
 //! reads it: the C5 table's pose question ([`crate::route_pose`]), the
 //! ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`],
 //! [`crate::ssi::sphere_torus_ssi`], [`crate::ssi::cylinder_torus_ssi`],
-//! [`crate::ssi::torus_torus_ssi`], [`crate::ssi::cone_torus_ssi`]), and
+//! [`crate::ssi::torus_torus_ssi`], [`crate::ssi::cone_torus_ssi`],
+//! [`crate::ssi::plane_torus_ssi`]), and
 //! through this value the
 //! Boolean's section table and the section certificate. A torus pair's
 //! tangency is its critical gap's ([`gap`]), the one place it is
@@ -111,6 +114,7 @@ pub mod cones;
 pub mod conic_pairs;
 pub mod cylinders;
 pub mod gap;
+pub mod plane_torus;
 pub(crate) mod ruling;
 pub mod spline_implicit;
 pub mod spline_pair;
@@ -124,6 +128,9 @@ pub use cones::{ConeDecision, ConeRead, ConeRuledPose, ConeStance};
 pub use conic_pairs::{PlaneCylinderPose, PlaneSpherePose, SphereSpherePose};
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
+pub use plane_torus::{
+    PlaneTorusMeridian, PlaneTorusPose, PtCut, PtPinch, PtStance, plane_torus_closed_form,
+};
 pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
@@ -1235,6 +1242,8 @@ pub enum PairPose<T: Real> {
     TorusTorus(TorusTorusPose<T>),
     /// Cone × torus, off the axis.
     ConeTorus(ConeTorusPose<T>),
+    /// Plane × torus, tilted against the axis.
+    PlaneTorus(PlaneTorusPose<T>),
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
     /// A cone and a cylinder.
@@ -1262,6 +1271,7 @@ impl<T: Real> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::ConeTorus(_)
+            | Self::PlaneTorus(_)
             | Self::CylinderCylinder(_)
             | Self::ConeCylinder(_)
             | Self::ConeCone(_)
@@ -1283,6 +1293,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
             Self::ConeTorus(p) => p.operands(),
+            Self::PlaneTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
             Self::ConeCylinder(p) | Self::ConeCone(p) => p.operands(),
             Self::SplineImplicit(p) => p.operands(),
@@ -1312,6 +1323,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
             Self::ConeTorus(p) => p.ball(),
+            Self::PlaneTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.region(),
             Self::ConeCylinder(p) | Self::ConeCone(p) => p.region(),
             Self::SplineImplicit(p) => p.ball(),
@@ -1335,6 +1347,7 @@ impl<T: Decide> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::ConeTorus(_)
+            | Self::PlaneTorus(_)
             | Self::SplineImplicit(_)
             | Self::SplinePair(_)
             | Self::PlaneSphere(_)
@@ -1424,6 +1437,33 @@ pub enum SectionRead<T: Real> {
     Elsewhere(PairRoute),
 }
 
+/// What [`pair_section_held`] answers: [`SectionRead`], save that a
+/// plane × torus pose the value reads closed comes back whole, holding
+/// the closed form's reading ([`PlaneTorusPose::closed_form`]).
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+pub enum HeldRead<T: Real> {
+    /// The value's reading.
+    Read(SectionRead<T>),
+    /// A closed plane × torus pose, which [`pair_section`] reads
+    /// elsewhere.
+    ClosedPlaneTorus(PlaneTorusPose<T>),
+}
+
+impl<T: Decide> HeldRead<T> {
+    /// The value's reading, a closed pose read elsewhere.
+    #[must_use]
+    pub fn read(self) -> SectionRead<T> {
+        match self {
+            Self::Read(read) => read,
+            Self::ClosedPlaneTorus(pose) => {
+                let (a, b) = pose.operands();
+                SectionRead::Elsewhere(route(a.kind(), b.kind()))
+            }
+        }
+    }
+}
+
 /// **The section of `a` and `b`** (module docs): the one dispatch on
 /// kind pairs this value has, exhaustive with no wildcard arm.
 ///
@@ -1458,10 +1498,27 @@ pub fn pair_section<T: Decide>(
     lane: Option<impl SsiLaneOf<T>>,
     band: Band,
 ) -> Result<SectionRead<T>, SectionError> {
+    pair_section_held(a, b, region, lane, band).map(HeldRead::read)
+}
+
+/// [`pair_section`], holding a closed plane × torus pose
+/// ([`HeldRead::ClosedPlaneTorus`]) for a reader that serves its closed
+/// form from the pose the value decided.
+///
+/// # Errors
+///
+/// As [`pair_section`].
+pub fn pair_section_held<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    region: Option<ExtentBall<T>>,
+    lane: Option<impl SsiLaneOf<T>>,
+    band: Band,
+) -> Result<HeldRead<T>, SectionError> {
     let (ka, kb) = (a.kind(), b.kind());
     let wrong = |expected| Err(SectionError::WrongLane { expected });
     let region_of = |pair| region.ok_or(SectionError::NoRegion { pair });
-    match arm(ka, kb) {
+    let read = match arm(ka, kb) {
         Arm::CylinderSphere => match CylinderSpherePose::decide(a, b, band) {
             Some(pose) => cylinder_sphere(pose?, band).map(SectionRead::Built),
             None => wrong("a cylinder and a sphere"),
@@ -1485,6 +1542,17 @@ pub fn pair_section<T: Decide>(
             }
             Some(pose) => cone_torus::cone_torus(pose?).map(SectionRead::Built),
             None => wrong("a cone and a torus"),
+        },
+        Arm::PlaneTorus => match PlaneTorusPose::decide(a, b, band) {
+            Some(pose) => {
+                let pose = pose?;
+                return match pose.stance() {
+                    PtStance::Closed => Ok(HeldRead::ClosedPlaneTorus(pose)),
+                    PtStance::Tilted(_) => plane_torus::plane_torus(pose)
+                        .map(|s| HeldRead::Read(SectionRead::Built(s))),
+                };
+            }
+            None => wrong("a plane and a torus"),
         },
         Arm::CylinderCylinder => {
             let region = region_of("cylinder×cylinder")?;
@@ -1527,7 +1595,8 @@ pub fn pair_section<T: Decide>(
                 .map(SectionRead::Built)
         }
         Arm::Elsewhere => Ok(SectionRead::Elsewhere(route(ka, kb))),
-    }
+    };
+    read.map(HeldRead::Read)
 }
 
 /// **The value's arm for a kind pair**: the one dispatch on kinds, which
@@ -1539,6 +1608,7 @@ enum Arm {
     CylinderTorus,
     TorusTorus,
     ConeTorus,
+    PlaneTorus,
     CylinderCylinder,
     ConeRuled,
     PlaneSphere,
@@ -1559,6 +1629,7 @@ fn arm(ka: SurfaceKind, kb: SurfaceKind) -> Arm {
         (Cylinder, Torus) | (Torus, Cylinder) => Arm::CylinderTorus,
         (Torus, Torus) => Arm::TorusTorus,
         (Cone, Torus) | (Torus, Cone) => Arm::ConeTorus,
+        (Plane, Torus) | (Torus, Plane) => Arm::PlaneTorus,
         (Cylinder, Cylinder) => Arm::CylinderCylinder,
         (Cone, Cylinder | Cone) | (Cylinder, Cone) => Arm::ConeRuled,
         (Plane, Sphere) | (Sphere, Plane) => Arm::PlaneSphere,
@@ -1567,10 +1638,9 @@ fn arm(ka: SurfaceKind, kb: SurfaceKind) -> Arm {
         (Plane | Cylinder | Sphere | Torus, Nurbs | Approx)
         | (Nurbs | Approx, Plane | Cylinder | Sphere | Torus) => Arm::SplineImplicit,
         (Nurbs | Approx, Nurbs | Approx) => Arm::SplinePair,
-        (Plane, Plane | Cone | Torus)
+        (Plane, Plane | Cone)
         | (Cone, Plane | Sphere | Nurbs | Approx)
         | (Sphere, Cone)
-        | (Torus, Plane)
         | (Nurbs | Approx, Cone)
         | (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
         | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => Arm::Elsewhere,
@@ -1607,8 +1677,9 @@ pub fn spline_pair_section<T: Decide>(
 /// cone against a cylinder or a cone: classified, but carried by no march
 /// yet ([`uncarried`]), so no reader that carries what it reads asks it.
 /// A cone against a torus is among them, though its coaxial pose is read
-/// elsewhere ([`ConeTorusPose`]), so a reader of a served pair still
-/// meets `Elsewhere` there.
+/// elsewhere ([`ConeTorusPose`]), as is a plane against a torus,
+/// though its axis-aligned poses are ([`PlaneTorusPose`]), so a reader
+/// of a served pair still meets `Elsewhere` there.
 #[must_use]
 pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
     match arm(a, b) {
@@ -1617,6 +1688,7 @@ pub fn serves(a: SurfaceKind, b: SurfaceKind) -> bool {
         | Arm::CylinderTorus
         | Arm::TorusTorus
         | Arm::ConeTorus
+        | Arm::PlaneTorus
         | Arm::CylinderCylinder
         | Arm::PlaneSphere
         | Arm::SphereSphere
@@ -2658,6 +2730,7 @@ fn march_over_the_ball(
         }
         PairPose::TorusTorus(p) => crate::ssi::march_torus_torus(p, domain, band).map(branches),
         PairPose::ConeTorus(p) => crate::ssi::march_cone_torus(p, domain, band).map(branches),
+        PairPose::PlaneTorus(p) => crate::ssi::march_plane_torus(p, domain, band).map(branches),
         PairPose::CylinderCylinder(p) => {
             crate::ssi::march_cylinder_cylinder(p, &section.seeds(), domain, band)
         }

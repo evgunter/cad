@@ -2,11 +2,13 @@
 id: move-the-tests-both-first-drift-runs-named-into-the-slow-set
 kind: unit
 title: Move the ~95 tests both of the first drift runs named over 0.25 s alone into the slow set
-status: open
+status: review
 opened: 2026-11-23
 priority: P1
 cost: E
 refs: [7448, a-test-timed-alone-still-reads-the-runners-speed-class]
+pr: 7697
+branch: green/move-drift-tests
 ---
 
 

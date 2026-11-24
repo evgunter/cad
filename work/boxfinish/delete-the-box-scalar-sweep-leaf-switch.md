@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, the-gathers-finish-re-derives-certificates-its-moved-members-carry, the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -39,8 +39,12 @@ this final state, but … keep it disabled/selectively disabled for now".
   and since the n-ary fold and the at-rest intersection take placed
   operands (fork 288 stage 1: each member finished in its own frame,
   then moved by the door) 390;
-- the `⊔` graft's `T::leaf` end, which becomes `T::finish`
-  (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
+- the `⊔` graft's `T::leaf` end, which becomes a finish that reads
+  what its finished, moved members carry and derives only what the
+  merge adds (`crates/editor-core/src/eval/wire.rs`;
+  `the-gathers-finish-re-derives-certificates-its-moved-members-carry`:
+  a plain `T::finish` there re-certifies every member from values and
+  refuses the tour's chain at plain `Interval`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
 - `NodeErrorKind::UnfinishedLeaf`: with no leaf, every held body is
   finished and a moved one stays finished, so nothing refuses where an
@@ -153,3 +157,9 @@ PRs 7370, 7480 and 7686 were not on main):
   two frames rows; and new since M9, `the_plates_largest_form_is_under_the_growth_guard`
   and `sym11`'s far placement at `Sym<f64>`. The report has each by
   name.
+
+- 2026-11-24 — the ray-readings unit closed (PR 7480) and leaves `blocked_on`; the radial readers' row left with PR 7370. In the rays' place stand the three rows PR 7480 measured and left: the aimed face's advance, the wall's aim hanging from its moving edge, and a moving face whose normal has no zero component (a tilted or rotated cap reads its side only over a narrow box). (BOXFINISH orchestrator)
+- 2026-11-24 — `blocked_on` gains `a-chains-link-refuses-at-an-edges-stored-curve-with-the-box-arm-off`: M11 attributed the tour command's exit to the box arm (the one-link chain certifies with it on and refuses at an edge's stored curve with it off). (BOXFINISH orchestrator)
+- 2026-11-24 — M12 (main with PRs 7370 and 7480, the box arm off): neither PR moved the tour's hole finish or its exit. The chain's link is the plain `Interval` scalar having no tier to answer an identity, a design question on its row; the two-parameter plate now refuses mostly on a junction margin that is not a number (`the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number`, added to `blocked_on`); and one row is red only with the arm off that was not at M10: PR 7480's `a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair` (its fixture asks the door for a slab over a wide box, which the door does not finish at the box scalar: the wall's-aim and advance rows). (BOXFINISH orchestrator)
+- 2026-11-24 — the gather-carries unit (`the-gathers-finish-re-derives-certificates-its-moved-members-carry`) builds a gather that carries a `Held::Finished` member's certificate at every lane and a `Held::Leaf` member's only where the box scalars' leaf is itself finished, read off this switch's types in one const, so that every lane logs the same. **That const and the gather's `T::leaf` end go with the switch**; after the deletion every member is carried. The alternative, taking every member through `topo::take` at the gather with the switch on, would have added box-lane finishes on main and changed which doors DESIGN `[one-way.places]`' exception covers. (BOXFINISH orchestrator)
+- 2026-11-24 — the shape report's bound landed (PR 7704) and its row leaves `blocked_on`: with the box arm off the boxed rectangle's row runs in bounded memory (10 s, 291 MB peak, on the probe tree with the head's renderer) and is green there. (BOXFINISH orchestrator)

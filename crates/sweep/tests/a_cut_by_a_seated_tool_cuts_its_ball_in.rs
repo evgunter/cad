@@ -7,7 +7,7 @@
 //! into its material and keeps the ball standing beside them. No edge of
 //! either body crosses the other, so the extent scan cuts the ball's face
 //! along its meridian through the circle
-//! (`topo::BooleanNaming::chart_cuts`), on the material. (A brick that
+//! (`topo::test_support::take_cut_ins`), on the material. (A brick that
 //! crossed the slab would put the op on the crossings path, where the
 //! ball meets the interior-loop guard, `work/germ/interior-loop-cut-in.md`.)
 //! Everything the cut states of its tool is read back to the tool
@@ -63,6 +63,7 @@ fn a_cut_by_a_seated_tool_cuts_its_ball_in_and_reads_back_to_the_tool() {
         },
         record: 0,
     });
+    topo::test_support::take_cut_ins();
     let out = topo::boolean_op_with(
         BooleanOp::Subtract,
         &slab,
@@ -83,7 +84,9 @@ fn a_cut_by_a_seated_tool_cuts_its_ball_in_and_reads_back_to_the_tool() {
     let v = topo::test_support::pinned_volume("the cut", &out.body, t()).volume;
     assert!((v - want).abs() < 1e-9, "volume {v}, closed form {want}");
     assert!(
-        !out.naming.chart_cuts[1].is_empty(),
+        topo::test_support::take_cut_ins()
+            .iter()
+            .any(|&[_, b]| b > 0),
         "the ball's face is cut in on the material"
     );
     let tool_faces: std::collections::BTreeSet<topo::FaceKey> =

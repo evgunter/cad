@@ -906,7 +906,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::BandCut(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
-        | RoleSeg::HoleRim { of: x, .. } => under(x),
+        | RoleSeg::HoleRim { of: x, .. }
+        | RoleSeg::ConventionalVertex(x) => under(x),
         // A crossing: its line, its face, and the things its sense
         // names on the line.
         RoleSeg::CrossingVertex { edge, sense } => under(edge) || sensed(sense, &under),
