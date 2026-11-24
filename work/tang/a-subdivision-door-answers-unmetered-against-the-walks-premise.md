@@ -29,3 +29,5 @@ Found by the TANGRIM review of PR 6257 (`tangrim/coplanar-conic-touch`).
 Either the docs name the curve-pair reader's `Span::contact` reading as what stands in for the meter, with the argument, or `subdivided` meters its roots. Not fixed in 6257.
 
 Moved from TANGRIM to TANG on 2026-11-20, by `git mv`, when TANGRIM merged into TANG: TANGRIM held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one TANG carries.
+
+- 2026-11-24 (sectcone, PR 7637): the `section_cert/ruling.rs` call site in the list above is retired with that module (the section value's sweep reads no `certified_subdivision` walk); nothing is left to check there.

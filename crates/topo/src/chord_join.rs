@@ -232,7 +232,7 @@ pub enum SectionPinMiss {
         check: geom_brep::CertCheck,
         /// The pin's diagnostics.
         diag: Indeterminate,
-        /// The carrier's resolution `K` times over, as the band read it.
+        /// The carrier's resolution, as the band one K-step finer read it.
         resolution: geom_core::MarginDiag,
     },
     /// An end pin read past the band, by a miss the carrier's
@@ -1546,7 +1546,7 @@ impl<T: Real> SectionCurve<T> {
     /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.conic().frame().u_ref(),
+            Self::Conic(c) => c.conic().u_ref(),
             Self::Oval(o) => match o.carrier {
                 geom::Curve3::Spiric { frame, .. } => frame.axis(),
                 _ => unreachable!(
@@ -2243,8 +2243,8 @@ impl<T: Real> SectionChord<T> {
 }
 
 /// K name: a section chord's carrier's own resolution over its span
-/// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
-/// against the zero band (metres), where the gate refuses one of its
+/// ([`geom_brep::carrier_resolution::resolution`]) against the `ε/K`
+/// share of the band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
 /// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
@@ -7932,9 +7932,9 @@ mod segment_curve_tests {
             Some(spec(geom_brep::EdgeDescriptionSpec::chart_image(
                 surface,
                 geom_brep::Pcurve::IsoLine {
-                    p0: geom_core::Point2::new(0.0, 0.0),
-                    pl: geom_core::Vec2::new(0.0, 1.0),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(0.0),
+                    at0: 0.0,
+                    rate: 1.0,
                 },
             ))),
         );

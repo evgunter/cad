@@ -582,7 +582,7 @@ fn set_members_on_a_loft_keeps_its_section_ids() {
         .apply(
             &DocEdit::SetMembers {
                 node: loft,
-                members: editor_core::Bodies::Spelled(vec![p[0].into(), other.into()]),
+                members: editor_core::Bodies::spelled(vec![p[0].into(), other.into()]),
             },
             Tol::witness(),
         )

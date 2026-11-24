@@ -241,6 +241,11 @@ pub mod oracles;
 /// suites' rows run as one fixture. Body authoring, so it routes here.
 pub mod sphere_recut;
 
+/// Whether a result's sphere faces are maximal over the cuts its
+/// operands wrote ([`maximal_spheres::assert_spheres_maximal`]). A reader
+/// over stored carriers that evaluates no surface, so it routes here.
+pub mod maximal_spheres;
+
 /// The `shell` verb's operands — the vessel, the tube, the hollow box
 /// and the two-void box — and the two role readers a shell row runs
 /// over them. Body authoring plus readers that evaluate no surface, so

@@ -211,9 +211,10 @@ impl<T: Decide> IsoPiece<T> {
         if self.forward { (lo, hi) } else { (hi, lo) }
     }
 
-    /// The piece's extent from below ([`geom_brep::edge_extent_inf`]),
-    /// the arm its readings are levered at (no longer than the piece),
-    /// and its direction of travel where it stops.
+    /// The piece's extent from below ([`geom_brep::edge_extent_inf`], no
+    /// longer than the piece), which the wall's arrival reads as its
+    /// length and [`Self::reach`] bounds the lean's arm by, and its
+    /// direction of travel where it stops.
     pub(super) fn travel(&self) -> (Lever<T>, Vec3<T>) {
         let carrier = self.carrier();
         let extent = geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1);

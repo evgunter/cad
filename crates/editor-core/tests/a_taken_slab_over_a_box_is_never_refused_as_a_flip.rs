@@ -45,7 +45,7 @@ fn slab(half: f64, taken: bool) -> editor_core::ProfileDoc {
     });
     if taken {
         r.insert(Node::Union {
-            members: Bodies::Spelled(vec![body.into()]),
+            members: Bodies::spelled(vec![body.into()]),
         });
     }
     r.doc

@@ -1530,7 +1530,7 @@ struct Along {
 /// the site into the face along the germ, and the sweep would split it
 /// where it crossed out. Called by every site kind, before that site's
 /// surgery moves the orbit the bounds are read from.
-pub(super) fn germ_locus<T: Decide>(
+pub(super) fn germ_locus<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
@@ -1814,7 +1814,7 @@ impl ClosedReach {
 /// inside and the reading leaves the edge's carrier unread against some
 /// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
-fn closed_reach<T: Decide>(
+fn closed_reach<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     e: Along,
     (body, faces): (&Body<T>, &[FaceKey]),
@@ -3144,13 +3144,13 @@ mod tests {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 1.0, 0.0);
         let h = core::f64::consts::FRAC_PI_4;
-        let apex = ConeApex {
-            apex: o,
-            axis: geom_core::UnitVec3::exact_y(),
-            half_angle: h,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        };
+        let apex = ConeApex::stated(
+            o,
+            geom_core::UnitVec3::exact_y(),
+            h,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        );
         let start = Vec3::new(h.sin(), -h.cos(), 0.0);
         for turn in [0.25, 0.45, 0.75] {
             let azimuth = turn * core::f64::consts::TAU;
@@ -3176,7 +3176,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis.get()) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis().get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(
@@ -5202,7 +5202,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
+            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex().equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

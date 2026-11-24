@@ -36,7 +36,7 @@ crates/viewer/src/sketch.rs :: tell :: vertex
 #
 # Inner sentences with no `Tell` of their own, which read in metres
 # and radians whatever the notation: geom-core's band and undecided
-# sentences (work/scalar/an-indeterminates-sentence-is-composed-as-a-string-in-metres.md),
+# sentences (work/told/an-indeterminates-sentence-is-composed-as-a-string-in-metres.md),
 # profile's structure and validation refusals and the viewer's own
 # lowering and resolve errors, which hold no told quantity today.
 crates/profile/src/path.rs :: tell :: source.undecided(gate.subject(), gate.kind().end(source))

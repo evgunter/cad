@@ -1066,7 +1066,15 @@ pub(super) fn cylinder_torus<T: Decide>(
                 rc,
                 band,
             ) {
-                Err(tan) => torus_arms::parallel_cylinder_touch(tan, axis.origin, (e, toward), rc),
+                Err(tan) => pose.cylinder.axis_line().and_then(|wall| {
+                    torus_arms::parallel_cylinder_touch(
+                        tan,
+                        (axis, radii),
+                        (e, slack),
+                        (wall, rc),
+                        band,
+                    )
+                }),
                 Ok(_) => None,
             };
             tangent(touch)

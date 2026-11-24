@@ -7,7 +7,7 @@ opened: 2026-11-22
 priority: P1
 cost: H
 refs: [7258, 7203]
-blocked_on: [one-stored-form-waits-on-the-readers-of-a-conics-centre, a-section-conic-is-anchored-at-a-general-point-of-its-arc, the-cone-sections-chart-image-and-its-kin-are-stated-from-the-conics-centre, a-conic-made-from-a-conic-is-rebuilt-from-its-centre-and-frame, the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre]
+blocked_on: [a-section-conic-is-anchored-at-a-general-point-of-its-arc, the-cone-sections-chart-image-and-its-kin-are-stated-from-the-conics-centre, a-conic-made-from-a-conic-is-rebuilt-from-its-centre-and-frame, the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre]
 ---
 
 

@@ -926,6 +926,7 @@ pub enum SegmentKind<T: Real> {
     },
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl<T: Real> SegmentKind<T> {
     /// The same kind read at another scalar: `f` on every stored
     /// component (an arc's carrier through [`Arc2::map`]), the turn
@@ -961,6 +962,7 @@ pub struct ValidatedSegment<T: Real> {
     pub kind: SegmentKind<T>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: every stored field through
     /// `from_f64` — the endpoints, an arc's carrier and sweep and the
@@ -1179,6 +1181,7 @@ impl<T: Real> ValidatedLoop<T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedLoop<f64> {
     /// The `f64` loop embedded at `U`: each vertex through
     /// [`Point2::map`], the segments in place, the role and the joint
@@ -1249,10 +1252,10 @@ pub struct BlendArc<T: Real> {
 /// **Its mints**, the one list of them: [`Profile::validate`],
 /// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
 /// a raw profile; [`ConstructedProfile`]'s three validations from a
-/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
-/// [`ValidatedProfile::value_channel`] from one at another scalar; and
-/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
-/// else mints one.
+/// replayed one; [`ValidatedProfile::value_channel`] from one at
+/// another scalar; and [`ValidatedProfile::on_plane`] from one at the
+/// same scalar. Nothing else mints one in a shipped build; a fixture
+/// lifts an `f64` one (`lift_onto`, behind `test-support`).
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1392,11 +1395,9 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                     let kind = match s.kind {
                         SegmentKind::Line { director } => {
                             let frame = seg::ChordFrame::of(start, end);
+                            let Ok(mint) = seg::mint_director(frame.chord, frame.unit);
                             SegmentKind::Line {
-                                director: vec2(
-                                    director,
-                                    seg::mint_director(frame.chord, frame.unit),
-                                ),
+                                director: vec2(director, mint),
                             }
                         }
                         SegmentKind::Arc {
@@ -1409,13 +1410,12 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                                 radius: arc.radius.point_value().ok_or(site)?,
                                 sweep: arc.sweep.point_value().ok_or(site)?,
                             };
+                            let Ok(at_start) = seg::mint_radial(arc, start);
+                            let Ok(at_end) = seg::mint_radial(arc, end);
                             SegmentKind::Arc {
                                 arc,
                                 turn,
-                                radials: [
-                                    vec2(rs, seg::mint_radial(arc, start)),
-                                    vec2(re, seg::mint_radial(arc, end)),
-                                ],
+                                radials: [vec2(rs, at_start), vec2(re, at_end)],
                             }
                         }
                     };
@@ -1435,6 +1435,12 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     }
 }
 
+/// **The fixture door for a canonical form**: an `f64` one read as if a
+/// validation at `U` had made it. It exists for the rows that need a
+/// validated profile at a lane scalar holding exactly the `f64` form's
+/// points and decisions. Absent from every shipped build: no
+/// construction takes its sections' canonical form from `f64`.
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
@@ -1459,11 +1465,9 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: the door is for a build whose structure is the
-    /// `f64` one by construction (sweep's loft at an enclosure scalar,
-    /// which encloses the `f64` loft its sections' value channel
-    /// describes), while a profile elaborated at its own scalar
-    /// re-verifies every decision there through
+    /// at `U` would agree: the door is for a fixture whose structure is
+    /// the `f64` one by construction, while a profile elaborated at its
+    /// own scalar re-verifies every decision there through
     /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
@@ -2562,7 +2566,15 @@ fn canonicalize_loop<T: Decide>(
                 None => StructureRefusal::shape(rec.segments.len(), n),
             }));
         }
-        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
+        let kind = seg::validated_kind(&s, made.get(k).copied().flatten()).map_err(|unsigned| {
+            ProfileError::escalated(
+                EscalationSite::Segment(SegmentRef {
+                    loop_index,
+                    segment_index: k,
+                }),
+                unsigned.source,
+            )
+        })?;
         shapes.push(shape);
         segments.push(ValidatedSegment {
             start: s.a,

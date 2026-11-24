@@ -116,7 +116,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
             count: (1..levels).fold(Formula::var(n, editor_core::Dimension::Count), |e, _| {
                 Formula::add(e, Formula::count(1)).unwrap()
             }),
-            within: None,
+            after: None,
         },
     });
     (r, extrude, measure)

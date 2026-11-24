@@ -20,6 +20,11 @@
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
+//! The one reading of two faces behind a box overlap,
+//! `census::faces_apart`, starts with [`apart`] and reads on past it
+//! with [`apart_by`]; it lives beside the census's depth and in-plane
+//! readers, which it also reads, so this module reads no census.
+//!
 //! **Soundness.** Every cover holds its item's locus, so a gap decided
 //! positive after both items' pads proves the loci disjoint: the same
 //! certificate a non-overlap of the two padded world boxes gives, read
@@ -70,16 +75,13 @@ pub(crate) enum Item<T: Real> {
     },
 }
 
-/// The full circle about `center` of radius `radius` in the plane of
-/// the orthonormal `u_ref`, `v_ref`.
+/// The full circle of radius `radius` about its frame's origin, in the
+/// plane square to its frame's axis.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Circle<T: Real> {
-    /// The centre.
-    pub(crate) center: Point3<T>,
-    /// One in-plane unit direction.
-    pub(crate) u_ref: Vec3<T>,
-    /// The other, perpendicular to it.
-    pub(crate) v_ref: Vec3<T>,
+    /// The circle's frame: its centre, and the plane it lies in as the
+    /// face it was read on holds it.
+    pub(crate) frame: geom::Frame<T>,
     /// The radius.
     pub(crate) radius: T,
 }
@@ -87,9 +89,13 @@ pub(crate) struct Circle<T: Real> {
 impl<T: Real> Circle<T> {
     /// The circle's cover: its arc over the whole turn. `None` for a
     /// datum that is not a finite number.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
-            &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
+            &self.frame,
             (self.radius, self.radius),
             // The circle's one turn (a circle's period).
             ParamWindow::new(T::zero(), geom::conic_period::<T>().length()),
@@ -322,7 +328,7 @@ fn cover<T: Decide>(
         Item::Edge(e) => crate::cover::edge_cover(body, e).ok(),
         Item::Circle(circle) => circle.cover(),
         Item::Ball { center, radius } => Cover::tube(
-            &geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+            &geom::Frame::of_motion(&geom_core::RigidMotion::identity().with_origin(center)),
             T::zero(),
             radius,
         ),
@@ -353,7 +359,8 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
                 });
             }
         }
-        Item::Circle(Circle { center, .. }) | Item::Ball { center, .. } => return Some(center),
+        Item::Circle(Circle { frame, .. }) => return Some(frame.origin()),
+        Item::Ball { center, .. } => return Some(center),
     }
     mean(points)
 }

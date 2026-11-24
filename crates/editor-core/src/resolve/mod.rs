@@ -1729,6 +1729,7 @@ fn resolve_rungs<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
     site: crate::VarId,
     name: &StableName,
 ) -> Resolution {
+    let name = crate::names::resolves_as(name);
     // 1. NodeGone: the minting node is not live.
     if let Some(error) = ResolveError::node_gone(name, new.doc)
         .filter(|_| !ResolveError::part_name(name, site, new.doc))
@@ -2733,6 +2734,7 @@ pub fn apply_with_names<T: topo::AtRestPolicy + Decide>(
         | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::SetProduct { .. }
+        | DocEdit::SetYields { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
@@ -2879,6 +2881,8 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::SplitFragment { parent: n }
             | RoleSeg::OnToolVertex { of: n }
             | RoleSeg::Member { of: n, at: _ }
+            // A conventional vertex is its closed edge's.
+            | RoleSeg::ConventionalVertex(n)
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.

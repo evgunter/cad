@@ -119,6 +119,10 @@ impl<T: geom_core::Real> Read<T> {
 ///
 /// Where `f` or a record on the walk from it does not resolve, as
 /// [`face_cover`]: a torn boundary is not one with no claim.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<Read<T>> {
     let face = body.proven_face(f);
     let cover = face_cover(body, f, band).ok()?;
@@ -275,20 +279,31 @@ pub(crate) fn gaps_in_depth<'r, T: Decide>(
         })
 }
 
-/// **Whether the faces `a`, `b`, read as `ra`, `rb` ([`face_read`]),
-/// are apart in some depth** either proposes (module docs): whether a
-/// gap of [`gaps_in_depth`] is definitely positive.
+/// **Whether the faces `a` of `x` and `b` of `y`, read as `ra`, `rb`
+/// ([`face_read`]) in one frame, are apart in some depth** either
+/// proposes (module docs): whether a gap of [`gaps_in_depth`] is
+/// definitely positive.
 ///
 /// # Panics
 ///
 /// As [`face_read`].
 pub(super) fn apart_in_depth<T: Decide>(
-    body: &Body<T>,
-    (a, ra): (FaceKey, &Read<T>),
-    (b, rb): (FaceKey, &Read<T>),
+    (x, a, ra): (&Body<T>, FaceKey, &Read<T>),
+    (y, b, rb): (&Body<T>, FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    gaps_in_depth((body, a, ra), (body, b, rb), band).any(|gap| clears(gap, band))
+    gaps_in_depth((x, a, ra), (y, b, rb), band).any(|gap| clears(gap, band))
+}
+
+/// [`toward`], then [`across`].
+pub(super) fn proposed<T: Decide>(
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let mut dirs = toward(ra, rb, band);
+    dirs.extend(across(ra, rb, band));
+    dirs
 }
 
 /// **The directions the depths of two faces, read as `ra` and `rb`
@@ -623,12 +638,12 @@ mod tests {
         let body = Body::<f64>::new();
         let f = FaceKey::default();
         assert!(
-            apart_in_depth(&body, (f, &inner), (f, &outer), band()),
+            apart_in_depth((&body, f, &inner), (&body, f, &outer), band()),
             "nested tubes 0.05 apart"
         );
         let touching = face(0.4);
         assert!(
-            !apart_in_depth(&body, (f, &inner), (f, &touching), band()),
+            !apart_in_depth((&body, f, &inner), (&body, f, &touching), band()),
             "one tube against itself touches"
         );
     }
@@ -664,7 +679,7 @@ mod tests {
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
         assert_eq!(rb.cover.range_about(&axis), (1.05, 1.05), "the outer wall");
         assert!(
-            apart_in_depth(&body, (a, &ra), (b, &rb), band()),
+            apart_in_depth((&body, a, &ra), (&body, b, &rb), band()),
             "walls 0.05 apart"
         );
     }

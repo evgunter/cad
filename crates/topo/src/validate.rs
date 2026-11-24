@@ -474,8 +474,9 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 }
 
 /// **Whether a reading's own rounding leaves an in-band reading the
-/// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within an `ε/K` share of the band. This is an amplification
+/// input's**: the rounding decided Zero under `name` in the band one
+/// K-step finer ([`Band::a_step_finer`]), so it lies within an `ε/K`
+/// share of the band. This is an amplification
 /// share, kept until `work/oneround/site-rounding-charges-owed-a-re-posing.md`
 /// re-poses the readings that need it: a reading whose chain amplifies
 /// its rounding past the run's admission rule — a quotient by a small
@@ -488,22 +489,13 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 ///
 /// # Errors
 ///
-/// The rounding `K` times over, as the band read it, where it is past
-/// that share.
+/// The rounding, as the finer band read it, where it is past that share.
 pub(crate) fn resolved_as<T: Decide>(
     name: &'static str,
     rounding: T,
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
-    let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(
-        name,
-        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
-        // dimensionless datum is levered across; no extent, curvature or session box is it.
-        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
-        band,
-    ) {
+    match decide_reported(name, Margin::of(rounding), band.a_step_finer()) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -8365,6 +8357,8 @@ pub(crate) fn tier3_local_checks_marked<
         };
         for (point, _) in singular_points(surface) {
             match point {
+                // A horn's cusp is both apexes, one per copy of `v`, and
+                // each copy is unshown: two findings at one point.
                 Singularity::SheetApexUp | Singularity::SheetApexDown => {
                     errors.push(ValidationError::SheetApexReached { face, point });
                 }
@@ -9701,6 +9695,10 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 /// the report names the shape it can — and an escalation with no
 /// meeting found is [`RingOuterVerdict::Escalated`], never
 /// `Disjoint`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn ring_outer_meeting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
@@ -9842,14 +9840,11 @@ enum MeetSegment<T: Real> {
     },
     /// An arc of a circle, over `[t0, t1]` of its carrier.
     Arc {
-        /// The circle's centre.
-        center: geom_core::Point3<T>,
-        /// Its unit axis.
-        axis: geom_core::Vec3<T>,
+        /// The circle's frame, as its carrier holds it: its centre, its
+        /// axis and its seam.
+        frame: geom::Frame<T>,
         /// Its radius.
         radius: T,
-        /// Its seam direction.
-        u_ref: geom_core::Vec3<T>,
         /// The window's start.
         t0: T,
         /// The window's end.
@@ -9860,6 +9855,10 @@ enum MeetSegment<T: Real> {
 /// The edge under `he` as a [`MeetSegment`], or `None` for a carrier
 /// arm 5 has no meeting point for (`Ellipse`, `Spiric`, `Nurbs`) or an
 /// edge it cannot resolve.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, MeetSegment<T>)> {
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
@@ -9869,18 +9868,11 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             MeetSegment::Line { a, b }
         }
         geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
-                center,
-                axis,
+                frame: circle.frame(),
                 radius,
-                u_ref,
                 t0,
                 t1,
             }
@@ -9925,8 +9917,9 @@ fn segments_meet<T: Decide>(
         (MeetSegment::Line { a: a0, b: a1 }, MeetSegment::Line { a: b0, b: b1 }) => {
             lines_meet(a0, a1, b0, b1, normal, band)
         }
-        (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { center, radius, .. })
-        | (arc @ MeetSegment::Arc { center, radius, .. }, MeetSegment::Line { a, b }) => {
+        (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { frame, radius, .. })
+        | (arc @ MeetSegment::Arc { frame, radius, .. }, MeetSegment::Line { a, b }) => {
+            let center = frame.origin();
             let e = UnitVec3::squared(b - a);
             // The foot of the centre on the line, and the half-chord
             // either side of it.
@@ -9972,16 +9965,17 @@ fn segments_meet<T: Decide>(
         }
         (
             first @ MeetSegment::Arc {
-                center: c1,
+                frame: f1,
                 radius: r1,
                 ..
             },
             second @ MeetSegment::Arc {
-                center: c2,
+                frame: f2,
                 radius: r2,
                 ..
             },
         ) => {
+            let (c1, c2) = (f1.origin(), f2.origin());
             let circles = circles_of(c1, r1, c2, r2);
             let (existence, tangent) = match circle_pair(circles, band) {
                 Ok(CirclePair::Apart | CirclePair::Nested) => return EdgePair::Apart,
@@ -10208,17 +10202,12 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             }
         }
         MeetSegment::Arc {
-            center,
-            axis,
+            frame,
             radius,
-            u_ref,
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle(geom::Circle::new(
-                geom::Frame::new(center, axis, u_ref),
-                radius,
-            ));
+            let carrier = geom::Curve3::Circle(geom::Circle::new(frame, radius));
             let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
             match span.place(p, geom::mid_param(t0, t1), band) {
                 Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
@@ -10408,13 +10397,17 @@ fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_bre
 /// form and without a single comparison. `None` for a kind this
 /// inversion does not implement — check 9's recorded residue,
 /// `Ellipse` and `Nurbs`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
     match carrier {
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(circle) => {
-            let (center, axis) = (circle.frame().origin(), circle.frame().axis_unit());
+            let (center, axis) = (circle.frame().origin(), circle.axis_unit());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,
@@ -11702,6 +11695,25 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         errors,
         shell_components,
     }
+}
+
+/// Whether `shell`'s faces of `body` are one component across their
+/// edges: the connectedness tier 2's check 3 reads
+/// ([`ValidationError::ShellDisconnected`]), for a door that takes a body
+/// it has not validated. A shell with no face is not connected.
+pub(crate) fn shell_connected<T: Real>(body: &Body<T>, shell: ShellKey) -> bool {
+    let faces: Vec<FaceKey> = body
+        .faces
+        .iter()
+        .filter(|(_, f)| f.shell == shell)
+        .map(|(k, _)| k)
+        .collect();
+    let Some(&seed) = faces.first() else {
+        return false;
+    };
+    let mut visited: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    shell_component(body, shell, seed, &mut visited);
+    faces.iter().all(|f| visited.contains_key(*f))
 }
 
 /// Marks in `visited` every face of `shell`'s connected component that
@@ -16955,10 +16967,12 @@ mod tests {
     /// `to` degrees, counter-clockwise, as arm 5 reads it.
     fn arc_segment(center: Point3<f64>, radius: f64, from: f64, to: f64) -> MeetSegment<f64> {
         MeetSegment::Arc {
-            center,
-            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                center,
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             t0: from.to_radians(),
             t1: to.to_radians(),
         }
@@ -17181,10 +17195,12 @@ mod tests {
         type Arc = (f64, f64, f64, f64, f64);
         fn seg<T: Real>((x, y, r, t0, t1): Arc) -> MeetSegment<T> {
             MeetSegment::Arc {
-                center: Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
-                axis: geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
+                frame: geom::Frame::new(
+                    Point3::new(T::from_f64(x), T::from_f64(y), T::zero()),
+                    geom_core::Vec3::new(T::zero(), T::zero(), T::one()),
+                    geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                ),
                 radius: T::from_f64(r),
-                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
                 t0: T::from_f64(t0),
                 t1: T::from_f64(t1),
             }
@@ -17288,10 +17304,12 @@ mod tests {
             );
             let n = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
             let arc = |center, from: f64, to: f64| MeetSegment::Arc {
-                center,
-                axis: n,
+                frame: geom::Frame::new(
+                    center,
+                    n,
+                    geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+                ),
                 radius: T::one(),
-                u_ref: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
                 t0: T::from_f64(from.to_radians()),
                 t1: T::from_f64(to.to_radians()),
             };

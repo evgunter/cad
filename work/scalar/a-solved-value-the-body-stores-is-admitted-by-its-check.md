@@ -2,14 +2,16 @@
 id: a-solved-value-the-body-stores-is-admitted-by-its-check
 kind: unit
 title: A solved value the body stores is admitted by its check, through one door that is from_computed's only caller
-status: open
+status: closed
+closed: 2026-11-24
+pr: 7651
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
 ---
 
-The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table (Ev, PR 7176). Not specified yet: it follows `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (the door is bounded `Certifies`) and `a-place-is-an-f64-argument-answered-on-the-value-channel` (which takes the evaluate-only solved values off `from_computed` first).
+The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table (Ev, PR 7176). Dispatched 2026-11-23 (letter H, dual review: one door every stored solved value passes, and a gate that makes it `from_computed`'s only caller; later code is written against both). Both units it follows have merged (PR 7190, PR 7250). It follows `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (the door is bounded `Certifies`) and `a-place-is-an-f64-argument-answered-on-the-value-channel` (which takes the evaluate-only solved values off `from_computed` first).
 
 ## Scope, as the designers read it (re-measure)
 
@@ -30,3 +32,9 @@ The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table
 A place is handed to `geom`'s place-taking evaluators as an `f64` (`crates/geom/src/places.rs`: `eval_at`, `deriv_at`, `eval_in_span_at`, `project_at`), which exist only at a scalar that carries no tangent. Their one step to the scalar, `at_place`, is private to that module and is `T::from_computed(x)`: at `Sym` a place has to be its own unknown, or a re-valuation reads at a point chosen for the nominal values (pinned by `ssi::one_arc::tests::a_window_ends_parameter_enters_as_a_computed_value` and the projection sweep pins in `geom`). So it is a second caller of `from_computed` beside this unit's door. It is private, so no caller can spell a solved value through it. The gate this unit adds either names `geom::places::at_place` as the second caller or gives a place its own `Sym` spelling.
 
 The modules that keep a place's step inside their own evaluator (`topo::spline_trim`'s split point and inserted cut point, `edge_nurbs::Schedule::station`) are further `from_computed` callers of the same kind; the gate's list would name them too.
+
+## Closed, 2026-11-24 (PR 7651)
+
+Built: the door `geom_core::solved::decide_admit` (bounded `Certifies`; the candidate enters `T` only inside it; the residual runs there; a Zero reading at the band admits; `Unadmitted` otherwise), with `composite::settle` and `spline_face::settle` on it, `corner_of_root` no longer converting, and `scripts/gates/from-computed-sites.sh` classing every production caller with each class tied to where it may stand.
+
+Not built, and where it is owed: the title's "only caller" is not reached. 122 of 129 production callers are listed as owed to open rows: the stored solved values whose check differs in kind (`stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door`, P1: `carrier_foot`, `measured_foot`, `computed_foot`, `polished`'s kept value, `Curve3::polish`, `corner_of_root`'s root), places held at `T`, bounds, constants and lifted data (four rows the unit filed), and the fitted image (`[ev]` PR 7641). The door does not return what its check bounded; that and the readers that decide along the edge are `a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge` (P1), measured against the paragraph PR 7641 adds to DL5.2.

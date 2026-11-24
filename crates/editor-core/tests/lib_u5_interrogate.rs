@@ -394,7 +394,7 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, poisoned) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![failed.into(), good_in.into()]),
+            members: editor_core::Bodies::spelled(vec![failed.into(), good_in.into()]),
         },
     );
     (doc, good, failed, poisoned)

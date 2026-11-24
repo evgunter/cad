@@ -319,7 +319,8 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
             EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::chart_image(
                     surface,
-                    geom_brep::Pcurve::IsoLine { p0, pl, ends: None },
+                    geom_brep::Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y])
+                        .expect("a box edge's image on its face is a row or a column"),
                 ),
                 carrier: curve.carrier().clone(),
                 param_start,
@@ -405,12 +406,13 @@ pub struct ReattachRefusal {
 fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
     let geom_brep::EdgeDescriptionSpec::Chart {
         surface,
-        image: Some(geom_brep::Pcurve::IsoLine { p0, pl, .. }),
+        image: Some(ref image),
         ..
     } = spec.description
     else {
         return None;
     };
+    let (p0, pl) = image.iso_line_form()?;
     let (u, v0, v1) = (
         p0.x,
         p0.y + pl.y * spec.param_start,

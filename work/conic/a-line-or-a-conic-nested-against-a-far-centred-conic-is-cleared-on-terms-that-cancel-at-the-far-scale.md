@@ -88,3 +88,23 @@ stored); a plain `c + u·a` still rounds at `u·far`.
 ## Moved to CONIC (2026-11-23)
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
+
+## 2026-11-23 — both sites removed (HELDRECORDS, PR 7436)
+
+PR 7436 (`heldrecords/nesting`) deletes `line_clears_conic` and
+`conics_clear`. `outlines_disjoint` now reads every pair with an
+ellipse edge through `geom_brep::curve_pair::meet` over the two edges'
+spans (`section_loops::edges_clear`), and nothing reads the whole
+carriers. What this row owes at those two sites is gone with them. The
+pose family here now reaches the nesting through `meet`'s line–conic
+and conic–conic closed forms (`curve_pair::pose`). Whether those read
+a far-centred conic soundly is the question
+`a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` lists
+them under, so it moves there. Not probed at far scale here.
+
+## 2026-11-23 — probed at far scale through `edges_clear` (GERM, PR 7553)
+
+PR 7553 re-poses the extreme nearer zero of `line_conic`'s first harmonic and of `conic_conic`'s parallel screen (`Conic::belly_along`, exact on the stored data). After PR 7436's merge, PR 7553's row `splitting::section_loops::far_clear_rows::a_segment_clears_a_far_centred_conic_only_where_it_is_clear` reads `edges_clear` on a ten-metre segment beside a centre-held far ellipse.
+- **The judge:** an exact dyadic oracle on the stored data.
+- **The exception:** a touch dropped by the carrier walk is counted apart, and is filed as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`.
+- **What it reads:** that row's PR body has the counts. Conic × conic nesting at far scale is not probed there.

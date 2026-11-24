@@ -1025,7 +1025,8 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 `Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
-sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
+sphere×torus, cylinder×torus, torus×torus, plane×torus off the
+axis-aligned poses, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
@@ -1242,6 +1243,19 @@ gap undecided beside an apex within a sixty-fourth of the tube radius
 of the torus escalates as the apex's question, the near-node's. A
 coaxial cone is `cone_torus_section`'s closed form, which the value
 reads elsewhere. A cone against a sphere refuses.
+A plane against a torus (`PlaneTorusPose`) is read first by the C5
+table's own axis rows (`plane_torus_section`), levered over the torus's
+ball: a plane holding the axis, square to it, or parallel to it short of
+the inner equator is the closed form's, which the value reads
+elsewhere. Every other pose has a closed-form gap: the plane touches
+the torus only on the tube circles about the two core points of extreme
+height over it, so the rows `r − |h ∓ s·R|` (`s` the normal's part
+square to the axis, `h` the plane's height over the centre) decide its
+tangency, and with `s·R − r − |h|` they count its loops, two round the
+axis, two round the tube, one null loop or none, each the general
+rung's, marched over the torus's ball (`ssi::plane_torus_ssi`) and
+matched to the count by its winding about the torus; the null loop
+carries a witness on the tube circle it cuts.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
@@ -1326,8 +1340,10 @@ It reads the count again on the two lines of the spiric's plane that
 stand the band's escalation above and below the cutting plane, and
 refuses as a tangency where either differs: an oval with one extreme of
 its height within the band of the cutting plane, a near miss or a shallow
-dip. An oval wholly within the band on one side of the cutting plane
-keeps a count of none on all three lines and reads as a miss.
+dip. The oval is convex, so where the count is none on all three lines
+it lies wholly on one side of each, and one of its points read across
+the line says whether it lies within the band on one side of the
+cutting plane; there it refuses too.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached
