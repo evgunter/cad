@@ -389,9 +389,12 @@ fn an_elbow_whose_neutral_points_sit_in_the_end_gaps_unions() {
 /// junction, then comes back round into the pipe's wall away from the
 /// rim. The arcs ending on the rim turn past a quarter turn, so their
 /// windows are not the whole span and the crossing is the root doors'.
-/// The union passes the crossing layer and stops at the finish (the
-/// seams' descriptions); once the finish builds, the row owes a typed
-/// refusal or the hand-checked body, never a wrong one.
+/// The union builds the hand-checked body: in the bend's plane a point of
+/// the swept tube below the cap (`z < 2`) has its bend angle in
+/// `(π, 3π/2]`, so it lies at `x > 1.5`, outside the pipe; the angle is
+/// read off `(x, z)` alone, so the same holds off that plane. The two meet
+/// only on the
+/// cap, so the union is the section times `LENGTH + 1.5·|angle|`.
 #[test]
 fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
     use topo::boolean::RimDoor;
@@ -414,7 +417,8 @@ fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
                 rest.iter().all(|d| *d == RimDoor::NotTangent),
                 "{what}: every other pair meets at a corner: {rest:?}"
             );
-            println!("PROBE hooked {what}: {}", outcome(&j, 0.0));
+            let want = section(hollow) * (LENGTH + 1.5 * angle.abs());
+            builds_at(&j, want, &what);
         }
     }
 }
