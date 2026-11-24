@@ -218,10 +218,6 @@ pub fn tangent_certificate_lane<T: Real>(
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
 pub fn tangent_span_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -229,10 +225,27 @@ pub fn tangent_span_bounds<T: Real>(
     t0: T,
     t1: T,
 ) -> Option<TangentSpanBounds<T>> {
+    let step = (t1 - t0) / T::count(crate::certify::CERT_SAMPLES - 1);
+    tangent_step_bounds(s1, s2, carrier, step)
+}
+
+/// [`tangent_span_bounds`] for samples `step` apart in `carrier`'s
+/// parameter: no bound reads the span's ends, only how far apart the
+/// samples it stands between are (a closed rim's walk reads its phases
+/// at a step of its own).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
+pub(crate) fn tangent_step_bounds<T: Real>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    carrier: &Curve3<T>,
+    step: T,
+) -> Option<TangentSpanBounds<T>> {
     if !tangent_certificate_lane(carrier, s1, s2) {
         return None;
     }
-    let step = (t1 - t0) / T::count(crate::certify::CERT_SAMPLES - 1);
     if let Curve3::Circle(circle) = carrier {
         let f = circle.frame();
         return circle_span_bounds(
