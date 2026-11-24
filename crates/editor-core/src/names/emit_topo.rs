@@ -1318,7 +1318,8 @@ fn name_split_edges_vertices<T: Decide>(
             // The plane through the target's conventional vertex crosses
             // its closed edge's interior there, as a plane a hair away
             // would: the vertex has no identity of its own.
-            let through_conventional = super::emit::conventional_edge(target_body, src, src_name);
+            let through_conventional =
+                super::emit::cut_through_conventional(target_body, src, src_name, body, v);
             if src_name.is_some() && through_conventional.is_none() {
                 // The plane passed THROUGH an operand vertex: its
                 // copies in this half, named below. Its own birth
@@ -2823,11 +2824,9 @@ fn name_boolean_vertices<T: Decide>(
         |v: VertexKey, side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
             let (op, k) = side.of(a, b);
             let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
-            let cut_through = || {
-                super::emit::is_named_conventional(op.body, k, name)
-                    && !topo::is_conventional_vertex(body, v)
-            };
-            if name.is_none() || cut_through() {
+            if name.is_none()
+                || super::emit::cut_through_conventional(op.body, k, name, body, v).is_some()
+            {
                 return Ok(None);
             }
             upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)

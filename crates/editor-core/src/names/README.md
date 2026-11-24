@@ -577,8 +577,10 @@ once its edges are named, through the one door that then runs its
 totality check (`emit::finish`); a vertex the emission tied leaves the tie,
 and vertices on two edges sharing one tied name tie. Nothing cites it: a piece's `Ends` skip it, so a closed piece's name
 reads none of its vertex, and no member- or operand-vertex reading takes it.
-So a later cut through its point reads the edge's interior: the vertex it
-leaves there is named as the crossing a cut a hair away leaves, and the
+So a later cut through its point reads the edge's interior: where the op's
+vertex there is no longer conventional, it is named as the crossing a cut a
+hair away leaves, by one condition the pair boolean's and the split's vertex
+carries both read (`emit::cut_through_conventional`), and the
 totality check refuses any vertex that carries a conventional vertex's name
 and is none. A reference to its name, and a pick at it, resolve to the edge
 (`names::resolves_as`), and no listing or selector hands the name out

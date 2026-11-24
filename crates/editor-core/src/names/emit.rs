@@ -1708,6 +1708,23 @@ pub(crate) fn conventional_edge<T: geom_core::Real>(
     Some(body.get_half_edge(first)?.edge)
 }
 
+/// **The closed edge an operand's conventional vertex `k` lies on, where
+/// an op cut through its point**: `k` is a conventional vertex of
+/// `operand` under `name` ([`conventional_edge`]) and the op's result
+/// vertex `v` there is no longer one, so `v` is a point of the edge's
+/// interior and no copy of `k`. Where `v` is still conventional its
+/// edge names it ([`finish`]). The one condition the pair boolean's and
+/// the split's vertex carries read.
+pub(crate) fn cut_through_conventional<T: geom_core::Real>(
+    operand: &Body<T>,
+    k: VertexKey,
+    name: Option<&StableName>,
+    result: &Body<T>,
+    v: VertexKey,
+) -> Option<EdgeKey> {
+    conventional_edge(operand, k, name).filter(|_| !topo::is_conventional_vertex(result, v))
+}
+
 /// The name of the conventional vertex of closed edge `edge`: that
 /// edge's name, and nothing else (`names/README.md`, "A conventional
 /// vertex").
@@ -1725,8 +1742,8 @@ pub(crate) fn conventional_vertex_name(edge: &super::role::NameRef) -> StableNam
 /// vertex (`names/README.md`, "A conventional vertex"). A table holds
 /// a conventional vertex's name bare ([`check_total`]).
 pub(crate) fn resolves_as(name: &StableName) -> &StableName {
-    match (conventional_vertex_edge(name), name.path.as_slice()) {
-        (Some(edge), [_]) => edge,
+    match name.path.as_slice() {
+        [super::role::RoleSeg::ConventionalVertex(edge)] => edge,
         _ => name,
     }
 }
@@ -1742,7 +1759,7 @@ pub(crate) fn binds(name: &StableName) -> bool {
 /// **The one door every emitter and every evaluation door that
 /// publishes a table finishes it through**: each conventional vertex
 /// of `body` (output body `ix`) named for its closed edge
-/// ([`conventional_renames`]), then the totality check
+/// ([`conventional_renames`], [`renamed_table`]), then the totality check
 /// ([`check_total`]).
 ///
 /// # Errors
@@ -1784,34 +1801,17 @@ pub(crate) fn finish_shared<T: geom_core::Real>(
     Ok(table)
 }
 
-/// **Names every conventional vertex of `body` (output body `ix`) for
-/// its closed edge**, replacing whatever row the emission gave it: the
-/// vertex has no identity of its own, so no member, position or fold
-/// step it was met at stands in its name ([`conventional_vertex_name`]).
-/// A vertex the emission tied with others leaves that tie; vertices
-/// whose edges share one tied name tie.
-///
-/// No edge name read here cites the vertex: a piece's `Ends` skip it
+/// **Each conventional vertex of `body` (output body `ix`) → its
+/// name, for its closed edge** ([`conventional_vertex_name`]), where it
+/// holds another: the vertex has no identity of its own, so no member,
+/// position or fold step it was met at stands in its name. No edge name
+/// read here cites the vertex: a piece's `Ends` skip it
 /// (`emit_topo::name_edge_pieces`).
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] where a conventional vertex's edge is
-/// unnamed; [`SeatingRefusal`]s as the insert doors'.
-#[cfg(test)]
-pub(crate) fn name_conventional_vertices<T: geom_core::Real>(
-    table: NameTable,
-    body: &Body<T>,
-    ix: u32,
-) -> Result<NameTable, NamingError> {
-    let renamed = conventional_renames(&table, body, ix)?;
-    if renamed.is_empty() {
-        return Ok(table);
-    }
-    renamed_table(&table, &renamed)
-}
-
-/// Each conventional vertex of `body` (output body `ix`) → its name.
+/// unnamed.
 fn conventional_renames<T: geom_core::Real>(
     table: &NameTable,
     body: &Body<T>,
@@ -3042,7 +3042,7 @@ mod conventional_vertex_tests {
     fn a_conventional_vertex_is_named_for_its_closed_edge_alone() {
         let (body, v) = self_loop();
         let start = named(&body, |i| meridian_vertex(MeridianEnd::Start, NODE, at(i)));
-        let t = name_conventional_vertices(start, &body, 0).unwrap();
+        let t = finish(start, &body, 0).unwrap();
         check_total(&t, &body, 0).unwrap();
         let (edge, _) = body.edges().next().unwrap();
         let edge = t.name_ref_of(&ent(0, EntityKey::Edge(edge))).unwrap();
@@ -3178,11 +3178,113 @@ mod conventional_vertex_tests {
         );
     }
 
+    /// **Only a bare conventional vertex's name resolves to its edge**: a
+    /// name that carries one under another segment is no name a table
+    /// publishes ([`check_total`]), so it resolves as itself and takes
+    /// the resolution ladder, never the inner edge under an upstream
+    /// node. Neither is a name a reference may hold.
+    #[test]
+    fn only_a_bare_conventional_vertex_name_resolves_to_its_edge() {
+        use crate::names::role::NameRef;
+        let edge = NameRef::new(name1(EntityKind::Edge, NODE, RoleSeg::BandRim(at(0))));
+        let bare = conventional_vertex_name(&edge);
+        let wrapped = StableName {
+            kind: EntityKind::Vertex,
+            node: RecipeNodeId::new(0, 8),
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(0, 3),
+                of: NameRef::new(bare.clone()),
+            }],
+        };
+        assert_eq!(
+            resolves_as(&bare),
+            &*edge,
+            "the bare name resolves to its edge"
+        );
+        assert_eq!(
+            resolves_as(&wrapped),
+            &wrapped,
+            "a carried one resolves as itself"
+        );
+        assert!(
+            !binds(&bare) && !binds(&wrapped),
+            "no reference holds either"
+        );
+    }
+
+    /// **A tie the emission left between a conventional vertex and an
+    /// ordinary one narrows to the ordinary one**: the conventional
+    /// vertex leaves for its edge's name, and the one candidate left
+    /// keeps the tied name and its candidate number, as a projection
+    /// that separates a tie's candidates narrows it (`NameTable::project`).
+    #[test]
+    fn a_tie_of_a_conventional_and_an_ordinary_vertex_narrows_to_the_ordinary() {
+        let (mut body, cv) = self_loop();
+        let born = body
+            .mvfs(geom_core::Point3::new(5.0, 0.0, 0.0), true)
+            .expect("mvfs births a solid, shell, face and lone vertex");
+        body.mev_line(
+            topo::construction::MevSite::Lone {
+                r#loop: born.r#loop,
+            },
+            geom_core::Point3::new(6.0, 0.0, 0.0),
+            geom_core::Tol::witness(),
+        )
+        .expect("mev on an empty loop grows it by one edge");
+        let w = born.vertex;
+        assert!(!topo::is_conventional_vertex(&body, w));
+        let tied = meridian_vertex(MeridianEnd::Start, NODE, at(0));
+        let mut t = NameTable::new();
+        t.insert(
+            name1(EntityKind::Body, NODE, RoleSeg::OutputBody),
+            ent(0, EntityKey::Body),
+        )
+        .unwrap();
+        for (i, (f, _)) in (0u64..).zip(body.faces()) {
+            let piece = ProfileEdgeRef::Piece {
+                step: StepId::new(0, i),
+                role: PieceRole::RunOut,
+            };
+            t.insert(band(NODE, piece), ent(0, EntityKey::Face(f)))
+                .unwrap();
+        }
+        for (i, (e, _)) in (0u64..).zip(body.edges()) {
+            t.insert(
+                name1(EntityKind::Edge, NODE, RoleSeg::BandRim(at(i))),
+                ent(0, EntityKey::Edge(e)),
+            )
+            .unwrap();
+        }
+        t.insert_tied(
+            tied.clone(),
+            vec![ent(0, EntityKey::Vertex(cv)), ent(0, EntityKey::Vertex(w))],
+        )
+        .unwrap();
+        for (i, (v, _)) in (1u64..).zip(body.vertices().filter(|&(v, _)| v != cv && v != w)) {
+            t.insert(
+                meridian_vertex(MeridianEnd::End, NODE, at(i)),
+                ent(0, EntityKey::Vertex(v)),
+            )
+            .unwrap();
+        }
+        let t = finish(t, &body, 0).unwrap();
+        assert!(
+            matches!(t.lookup(&tied), Some(super::super::table::Entry::Unique(e)) if *e == ent(0, EntityKey::Vertex(w))),
+            "the tied name holds the ordinary vertex alone: {:?}",
+            t.lookup(&tied)
+        );
+        assert!(matches!(
+            t.name_of(&ent(0, EntityKey::Vertex(cv)))
+                .map(|n| n.path.as_slice()),
+            Some([RoleSeg::ConventionalVertex(_)])
+        ));
+    }
+
     #[test]
     fn a_constructions_own_rim_self_loop_vertex_keeps_its_name() {
         let (body, v) = self_loop();
         let seam = named(&body, |i| meridian_vertex(MeridianEnd::Seam, NODE, at(i)));
-        let t = name_conventional_vertices(seam, &body, 0).unwrap();
+        let t = finish(seam, &body, 0).unwrap();
         assert!(check_total(&t, &body, 0).is_ok());
         assert_eq!(
             t.name_of(&ent(0, EntityKey::Vertex(v))),
