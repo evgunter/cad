@@ -64,3 +64,7 @@ What moved:
 **Agreement: yes**, on the final state: one reading beside a shared cell, the wedge's sine capped at one, levered at the narrower face's near run and never more than its far run, kept by tier 3 as one length per face and shared cell; the promise; the far run left to tier 3; the derivation in the PR body, not in ratified text. The two final reports word the same lever in two ways (each took the other's words); the `[ev]` PR's diff carries the sentence written by A in round 3 and signed by B in round 4 as written.
 
 Tokens, cumulative as the harness reports: A 124,245 first report, 186,460 in total; B 253,477 first report, 327,534 in total.
+
+## The measurement lane (2026-11-24, reported about 03:05Z)
+
+An Opus 5.5 lane (not a designer; it saw the problem statement and the readers' passages, not the designers' reports) built finished closed solids at `273f765de5` for the cases both designers left unchecked: branch `embed/run-probe`, commits `76c60cd198` and `95f6f188d0`; its report verbatim in `measure/probe-report.md`. It reported after round 4, so no designer saw it; both had said their recommendation does not rest on it.
