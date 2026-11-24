@@ -1554,6 +1554,11 @@ pub(super) fn of_pair_section<T: Decide>(
             return Section::Tangent(diag.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE));
         }
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
+        // A cone's aperture or seam guard decided `Zero` over the region:
+        // a margin in the band's zero, which a tighter band may part.
+        Err(SectionError::ConeAtTheBand { .. }) => {
+            return Section::Tangent("section_cone_at_the_band");
+        }
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
         // is certified, as at a tangency. Two tori (`tt_coincident`), two
@@ -1570,7 +1575,6 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(
             SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateOperand { .. }
-            | SectionError::ConeAtTheBand { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }
