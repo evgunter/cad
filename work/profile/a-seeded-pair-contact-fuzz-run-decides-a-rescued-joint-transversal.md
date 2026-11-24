@@ -45,4 +45,4 @@ passed. (WIRE orchestrator)
 > next (1610.8310571740537, 671.5476809433922) → (751.2760171087576, 1452.5690146370716)
 > — reproduce with `CAD_FUZZ_SEED=0x9d0258ee65da0008 CAD_FUZZ_EFFORT=1`
 
-Replayed locally on that head: it fails the same way at the default ε, at 1e-6 and at 1e-12.
+Replayed locally on that head: it fails the same way at the default ε, at 1e-6 and at 1e-12. Replayed on main `f21ca495` at the default ε: the same pair, the same verdict.

@@ -56,3 +56,14 @@ The same row is red on main `61a3d77a0b`'s sources on seed `0x856e9c81e4b404d1` 
 **The fuzzer is red on main at random seeds often (GREEN U13, 2026-11-23).** PR 7558's gate (run 45195294885, default ε) drew seed `0xc960ef101b854219`, and the sweep failed the same way: draw 58, `f64` `Recedes` on a circle of radius 523, 405 m out, contradicted at the needle's band. That is three seeds seen red in one day: this one, `0x22eb45feecea31d9` above, and the nightly's `0x4071461b4c688a45`. The row is in the slow set, so every nightly leg and every PR that edits `oracle.rs` draws it. Since its bands do not read ε, a red seed is red at every leg.
 - 2026-11-23 (GERM, PR 7553's fix pass): another seed. At `CAD_FUZZ_SEED=0xabba8ad2f01a1859`, ε 1e-12, `each_window_reading_holds_on_a_dense_distance` reads draw 34 at `f64` as `Recedes` on `(1.68e-8, 2.66e-8)` where the dense distance contradicts it. It does the same on main `9eb483e0c7`.
 - 2026-11-23 (GERM, PR 7553): seed `0x1` reds the row too, at ε 1e-12. Draw 58 at `f64` is read `Recedes` against the dense distance, the same on main `64aeba04f9`.
+
+## Another seed (2026-11-24)
+
+The slow-set step of `test (kernel)` on PR 7721's head 178df821 (the `from_f64` split), run 45491038880, at ε 1e-12:
+
+    ε 0.000000000001: 1 readings contradicted (reproduce with CAD_FUZZ_SEED=0xf1a52b3870a3ff2d CAD_FUZZ_EFFORT=1): [
+      "draw 2 f64: Recedes on (-8.294407381257752e-8, -7.49411029936634e-8) ring None: a Circle(Circle { at: Frame {
+        origin: (-34.31712592948188, -520.0918498430135, -6.57769710515127e-7), axis: (-4.416980757276639e-10, 1.2879276924040873e-9, -1.0),
+        u_ref: (0.013641054092152391, 0.9999069564930805, 1.2817826317515264e-9) }, radius: 513.1685708671345 }) b (121.2632798098247, 7.154933522639548)" ]
+
+That PR edits `curve_pair/pose/window.rs` (six band widths now enter through `BandWidth::at`, the same `f64` each), so the row ran on it. Replayed locally with that seed at ε 1e-12 on that head and on main `f21ca495`: both fail, with the same contradicted reading to the last digit, so the draw is main's and the PR moves nothing in it.
