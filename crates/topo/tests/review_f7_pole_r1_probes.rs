@@ -379,3 +379,52 @@ fn p4_mixed_pair_refuses() {
         bridge.edge
     );
 }
+
+/// Review probe (a3df17): the embedding certificate's verdict and receipt
+/// on P3's body, its seams at rest as `assert_refused_on_its_seams` leaves
+/// them.
+#[test]
+fn rp_p3_embedding_receipt() {
+    use topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Side, embedded};
+    let (b, _top, _psrq, _ring) = inset_patch_prism();
+    let tol = Tol::witness();
+    let edges = common_plane_seams(&b);
+    let mut rested = b.clone();
+    for &edge in &edges {
+        let e = rested.get_edge(edge).unwrap();
+        let at = |he| {
+            let v = rested.get_half_edge(he).unwrap().start;
+            *rested
+                .get_point(rested.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let (p0, p1) = (at(e.he_plus), at(e.he_minus));
+        let face = rested
+            .get_loop(rested.get_half_edge(e.he_plus).unwrap().parent_loop)
+            .unwrap()
+            .face;
+        let chart = rested.get_face(face).unwrap().surface;
+        rested
+            .set_edge_curve(
+                edge,
+                geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+                tol,
+            )
+            .unwrap();
+    }
+    for (what, body) in [("as split", &b), ("rested", &rested)] {
+        let side = Side {
+            body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let report = embedded(
+            &side,
+            geom_core::Band::linear(tol).unwrap(),
+            Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 65_536,
+            },
+        );
+        println!("RP p3 {what}: {report:?}");
+    }
+}

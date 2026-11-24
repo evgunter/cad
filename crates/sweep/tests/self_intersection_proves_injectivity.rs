@@ -2841,6 +2841,169 @@ fn a_flap_through_a_run_at_its_vertex_never_holds() {
     );
 }
 
+/// Review probe (a3df17): [`a_flap_through_a_run_at_its_vertex_never_holds`]'s
+/// construction with the vertex, the strut loop's axis, the target face's
+/// axis and the flap's two far points as parameters.
+fn rp_flapped<T: Scalar>(
+    v_xyz: [f64; 3],
+    target_axis: usize,
+    strut_axis: usize,
+    a0: [f64; 3],
+    a1: [f64; 3],
+) -> (Body<T>, FaceKey, FaceKey) {
+    use geom_brep::EdgeCurveSpec;
+    use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+    use topo::test_support::plane;
+
+    let mut body = flush_union::<T>([0.0; 3], 1.0, false).into_body();
+    let at = |[x, y, z]: [f64; 3]| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let v_at = at(v_xyz);
+    let v = body
+        .vertices()
+        .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+        .unwrap()
+        .0;
+    let face_of = |body: &Body<T>, he| {
+        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let normal_to = |body: &Body<T>, f: FaceKey| {
+        let Surface::Plane { frame } = surface(body, f) else {
+            panic!("a brick's face is a plane");
+        };
+        let n = frame.axis();
+        [mid(n.x), mid(n.y), mid(n.z)]
+            .iter()
+            .position(|c| c.abs() > 0.5)
+            .unwrap()
+    };
+    let starts: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|&he| body.get_half_edge(he).unwrap().start == v)
+        .collect();
+    let on = |axis: usize| {
+        starts
+            .iter()
+            .copied()
+            .find(|&he| normal_to(&body, face_of(&body, he)) == axis)
+            .unwrap()
+    };
+    let target = face_of(&body, on(target_axis));
+    let h = on(strut_axis);
+    let (a0, a1) = (at(a0), at(a1));
+    let fan = MevSite::Fan { he1: h, he2: h };
+    let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+    let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+    let flap = body
+        .mef(
+            MefSite::Chords {
+                he1: strut0.he_minus,
+                he2: strut1.he_minus,
+            },
+            EdgeCurveSpec::line_between(a0, a1),
+            FaceSurface::New {
+                surface: plane(&[a0, v_at, a1], tol()),
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    (body, target, flap)
+}
+
+/// Review probe (a3df17): flaps through a face at its two-line vertex, on
+/// the ray, on each side of it, close along an edge; at the wall's straight
+/// corner and at the top face's reflex corner. None may hold.
+#[test]
+fn rp_flaps_on_and_off_the_ray_never_hold() {
+    let straight = [1.0, 0.25, 1.0];
+    let reflex = [0.5, 0.25, 1.0];
+    let cases: Vec<(&str, [f64; 3], usize, usize, [f64; 3], [f64; 3])> = vec![
+        ("straight, on the ray", straight, 0, 2, [1.3, 0.15, 0.2], [0.7, 0.35, 0.2]),
+        ("straight, toward +y", straight, 0, 2, [1.3, 0.45, 0.2], [0.7, 0.65, 0.2]),
+        ("straight, toward -y", straight, 0, 2, [1.3, 0.0, 0.2], [0.7, 0.1, 0.2]),
+        ("straight, close along the edge", straight, 0, 2, [1.3, 0.85, 0.95], [0.7, 0.95, 0.95]),
+        ("straight, a hair off the edge", straight, 0, 2, [1.3, 0.85, 0.999], [0.7, 0.95, 0.999]),
+        ("reflex, on the ray", reflex, 2, 0, [0.35, 0.0, 1.3], [0.25, 0.1, 0.7]),
+        ("reflex, toward -x", reflex, 2, 0, [0.2, 0.15, 1.3], [0.2, 0.25, 0.7]),
+        ("reflex, toward -y", reflex, 2, 0, [0.4, 0.05, 1.3], [0.5, 0.05, 0.7]),
+        ("reflex, close along the +x edge's line", reflex, 2, 0, [0.9, 0.2, 1.3], [0.9, 0.24, 0.7]),
+    ];
+    let mut bad = Vec::new();
+    for (what, v, target, strut, a0, a1) in cases {
+        let (body, face, flap) = rp_flapped::<f64>(v, target, strut, a0, a1);
+        let report = injective(&body, Some(vec![face, flap]), BUDGET);
+        let (twin, tf, tfl) = rp_flapped::<Interval>(v, target, strut, a0, a1);
+        let ireport = injective(&twin, Some(vec![tf, tfl]), BUDGET);
+        println!(
+            "RP flap {what}: f64 {:?} | Interval {:?}",
+            report.verdict, ireport.verdict
+        );
+        for r in [&report, &ireport] {
+            if !matches!(r.verdict, BoundVerdict::Violated(_)) {
+                bad.push(format!("{what}: {:?}", r.verdict));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "a crossing flap not Violated: {bad:#?}");
+}
+
+/// Review probe (a3df17): bodies of the families the census gained, asked
+/// at the verdict door at both scalars; prints verdict and receipt.
+#[test]
+fn rp_gained_family_bodies_at_the_door() {
+    use sweep::test_support::{brick, finished};
+    fn bricks<T: Scalar>(boxes: &[[(f64, f64); 3]]) -> Result<topo::AtRestBody<T>, String> {
+        let mut acc = finished(
+            "a brick",
+            brick::<T>(boxes[0][0], boxes[0][1], boxes[0][2], tol()),
+            tol(),
+        );
+        for b in &boxes[1..] {
+            let next = finished("a brick", brick::<T>(b[0], b[1], b[2], tol()), tol());
+            acc = match topo::union(&acc, &next, tol()) {
+                Ok(r) => match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| built(Ok(r)))) {
+                    Ok(b) => b,
+                    Err(_) => return Err("the union's result does not finish".to_owned()),
+                },
+                Err(e) => return Err(format!("{e:?}").chars().take(160).collect()),
+            };
+        }
+        Ok(acc)
+    }
+    let cases: Vec<(&str, Vec<[(f64, f64); 3]>)> = vec![
+        ("m9_1 flush union", vec![[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], [(0.5, 1.5), (0.25, 1.25), (1.0, 2.0)]]),
+        ("a staircase of three", vec![[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], [(0.5, 1.5), (0.25, 1.25), (1.0, 2.0)], [(1.0, 2.0), (0.5, 1.5), (2.0, 3.0)]]),
+        ("a small block inside a face", vec![[(0.0, 2.0), (0.0, 2.0), (0.0, 1.0)], [(0.5, 1.0), (0.5, 1.0), (1.0, 1.5)]]),
+        ("a block flush with one wall", vec![[(0.0, 2.0), (0.0, 2.0), (0.0, 1.0)], [(0.0, 1.0), (0.5, 1.0), (1.0, 1.5)]]),
+        ("a block flush with a corner", vec![[(0.0, 2.0), (0.0, 2.0), (0.0, 1.0)], [(0.0, 1.0), (0.0, 1.0), (1.0, 1.5)]]),
+        ("an L of two bricks side by side", vec![[(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], [(1.0, 2.0), (0.3, 0.7), (0.0, 1.0)]]),
+        ("off-grid block flush with one wall", vec![[(0.1, 2.3), (0.2, 2.1), (0.3, 1.4)], [(0.1, 1.2), (0.7, 1.3), (1.4, 1.9)]]),
+    ];
+    for (what, boxes) in cases {
+        let f = bricks::<f64>(&boxes);
+        let i = bricks::<Interval>(&boxes);
+        let line = |r: Result<String, String>| r.unwrap_or_else(|e| format!("DID NOT BUILD: {e}"));
+        println!(
+            "RP body {what}: f64 {} | Interval {}",
+            line(f.map(|b| {
+                let b = b.into_body();
+                let r = embedding(&b);
+                format!("{} {:?}", embedding_class(&r.verdict), r.receipt)
+            })),
+            line(i.map(|b| {
+                let b = b.into_body();
+                let r = embedding(&b);
+                format!("{} {:?}", embedding_class(&r.verdict), r.receipt)
+            })),
+        );
+    }
+}
+
 // ------------------------------------------- curved shared edges
 
 /// The surface kind of `f`, by name.
