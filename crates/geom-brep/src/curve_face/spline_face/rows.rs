@@ -1144,6 +1144,13 @@ fn a_stored_meeting_is_admitted_by_its_check_at_interval() {
         ),
         "a candidate whose point reads definitely off the chart refuses by the door's row: {off:?}"
     );
+    // Between the band's zero and its escalation: a door deciding
+    // against a looser band would admit this family.
+    let spread = settled_at(&flat_family(3.0 * band().zero()), 1.0);
+    assert!(
+        matches!(spread, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_on")),
+        "a family spread 3·zero about the meeting refuses at the door, named: {spread:?}"
+    );
     let wide = settled_at(&flat_family(100.0 * band().escalate()), 1.0);
     assert!(
         matches!(wide, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_root_on")),

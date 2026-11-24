@@ -54,14 +54,14 @@
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
-use geom_core::solved::{Unadmitted, admit};
+use geom_core::solved::decide_admit;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::{Unsettled, touch_or_tangency};
+use crate::roots::{Unsettled, touch_or_tangency, unadmitted};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
@@ -227,14 +227,15 @@ pub fn crossings<T: geom_core::Certifies>(
         Ok(Sign::Zero) => Reading::Near(None),
         Err(diag) => Reading::Near(Some(diag)),
     };
+    // The surface's residual at a point of the carrier, read under one
+    // row by two askers: the bisection at a place it chose (`residual`),
+    // to stop on a reading in the zero, and the door at the stored
+    // crossing (`on`, in `settle`). They are one margin, so the door
+    // admits what the search stopped on.
+    let off = |p: Point3<T>| Margin::of(crate::implicit_residual(surface, p));
     let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
-        let p = net.eval_at(t);
-        decide(
-            "spline_composite_root_on",
-            Margin::of(crate::implicit_residual(surface, p)),
-            band,
-        )
-        .map_err(CompositeRefusal::Escalated)
+        decide("spline_composite_root_on", off(net.eval_at(t)), band)
+            .map_err(CompositeRefusal::Escalated)
     };
     // The knot at which a piece ended within the band, that piece, and
     // its other end's side: read with the piece that starts there.
@@ -298,8 +299,7 @@ pub fn crossings<T: geom_core::Certifies>(
         return Err(read(end_value(&piece, false)).refused());
     }
     let creases = creases(net, (a, b), &cross)?;
-    let on = |t: T| Margin::of(crate::implicit_residual(surface, net.eval(t)));
-    settle(net, params, band, &creases, meetings, &on)
+    settle(net, params, band, &creases, meetings, &off)
 }
 
 /// [`framed_form`]'s answer: the points' coordinates in the chart frame,
@@ -737,17 +737,18 @@ fn knot_crossing(
     }
 }
 
-/// The meetings found, each placed in metres: against the creases, then
-/// on the surface (`on`, the surface's residual at a parameter, through
-/// the solved-value door), then against the span's ends and the crossing
-/// before it.
+/// The meetings found, each placed in metres: against the creases (at
+/// the candidate as a place, deciding only), then on the surface (`off`,
+/// the surface's residual at a point of the carrier, through the
+/// solved-value door), then, at the point the door read, against the
+/// span's ends and the crossing before it.
 fn settle<T: geom_core::Certifies>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
     band: Band,
     creases: &[f64],
     meetings: Vec<Meeting>,
-    on: &impl Fn(T) -> Margin<T>,
+    off: &impl Fn(Point3<T>) -> Margin<T>,
 ) -> Result<Vec<T>, CompositeRefusal> {
     let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
@@ -760,9 +761,9 @@ fn settle<T: geom_core::Certifies>(
     let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
     for meeting in meetings {
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
-        let p = net.eval_at(t);
+        let place = net.eval_at(t);
         for &crease in &creases {
-            if !apart_as("spline_composite_root_at_crease", p, crease)? {
+            if !apart_as("spline_composite_root_at_crease", place, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
@@ -770,14 +771,16 @@ fn settle<T: geom_core::Certifies>(
             return Err(refusal);
         }
         // Definitely off at the located crossing: the residual's step
-        // between two adjacent scalars is past the band.
-        let (at, ()) =
-            admit("spline_composite_root_on", t, band, |at| (on(at), ())).map_err(|refused| {
-                match refused {
-                    Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
-                    Unadmitted::Undecided(diag) => CompositeRefusal::Escalated(diag),
-                }
-            })?;
+        // between two adjacent scalars is past the band. The check bounds
+        // the point's distance ACROSS the surface; the readers below decide
+        // where it stands ALONG the carrier, which two admissible
+        // candidates can differ in by up to the band over the crossing's
+        // sine (`work/scalar/a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge.md`).
+        let (at, p) = decide_admit("spline_composite_root_on", t, band, |at| {
+            let p = net.eval(at);
+            (off(p), p)
+        })
+        .map_err(|refused| unadmitted(refused, CompositeRefusal::Escalated))?;
         let mut at_end = false;
         for end in ends {
             at_end |= !apart_as("spline_composite_root_at_end", p, end)?;

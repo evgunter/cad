@@ -88,7 +88,7 @@ use geom::{Curve3, NurbsSurface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::interval::dot;
 use geom_core::k_stats::decide;
-use geom_core::solved::{Unadmitted, admit};
+use geom_core::solved::decide_admit;
 use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
@@ -98,7 +98,7 @@ use geom_core::{
 use crate::krawczyk::{
     det3, image, inverse3, mag, meet3, midpoint, midpoints, norm, solution_reach,
 };
-use crate::roots::Unsettled;
+use crate::roots::{Unsettled, unadmitted};
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
 /// Why [`isolate`] or [`settle`] gave no answer.
@@ -139,7 +139,7 @@ impl From<Unsettled> for SplineFaceRefusal {
 #[derive(Clone, Copy, Debug)]
 pub struct ChartMeeting<T: Real> {
     /// The parameter on the span, admitted by its point reading on the
-    /// chart ([`geom_core::solved::admit`]).
+    /// chart ([`geom_core::solved::decide_admit`]).
     pub t: T,
     /// The chart point, `(u, v)`: the place the meeting was read at, an
     /// `f64` beside the stored `t` (`geom-core` README, DL5.2: a place
@@ -1149,15 +1149,15 @@ pub fn settle<T: geom_core::Certifies>(
         let [tm, um, vm] = root.mid();
         let foot = chart.eval_at(um, vm);
         // Definitely off at the located meeting: the enclosure's point
-        // is not resolved to the band.
-        let (t, point) = admit("spline_face_root_on", tm, band, |t| {
+        // is not resolved to the band. The check bounds the distance
+        // between the carrier's point and the chart's at the box's middle,
+        // in metres; the readers below decide where that point stands
+        // along the span, against the box the walk proved and charged.
+        let (t, point) = decide_admit("spline_face_root_on", tm, band, |t| {
             let point = carrier.eval(t);
             (Margin::of((point - foot).norm()), point)
         })
-        .map_err(|refused| match refused {
-            Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
-            Unadmitted::Undecided(diag) => SplineFaceRefusal::Escalated(diag),
-        })?;
+        .map_err(|refused| unadmitted(refused, SplineFaceRefusal::Escalated))?;
         let mut at_end = false;
         for end in ends {
             at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;

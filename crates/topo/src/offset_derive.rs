@@ -150,9 +150,12 @@ impl<T: Real> core::fmt::Display for CornerVerdict<T> {
 }
 
 /// A spline root's answer at the lane's scalar `T`: the parameter, or
-/// where the carrier stops short of the surface. The lane's one
-/// constructor is at `f64` ([`SectionLane::f64`]), so the root is the
-/// solver's own number, and no scalar without a lane holds one.
+/// where the carrier stops short of the surface. The one lane is
+/// [`SectionLane::f64`], so the root a run stores is the `f64` solver's
+/// own number, admitted by no check at `T` (the corner's pairwise
+/// agreement is its check). The type does not hold this: a
+/// `SplineRoot<T>` can be built at any `T`
+/// (`work/scalar/stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door.md`).
 #[derive(Clone, Copy, Debug)]
 pub enum SplineRoot<T> {
     /// The surface meets the carrier at this parameter.

@@ -478,14 +478,12 @@ pub trait Real:
     /// it. Declared, never defaulted: a scalar that defaulted it to
     /// `from_f64` would re-enter every computed value as a constant.
     ///
-    /// Its callers are the admitting door a stored solved value enters
-    /// by ([`crate::solved::admit`], which runs the value's check at
-    /// `Self`), a scalar's own impl, and the private step from a place
-    /// to the scalar inside a place-taking evaluator. A bound never
-    /// becomes a `Self`, and every other computed value takes its own
-    /// row of DL5.2 (the crate README, "Reading a bracket where nothing
-    /// certifies"); `scripts/gates/from-computed-sites.sh` lists the
-    /// re-entries still owed.
+    /// Which code may call it is DL5.2 (the crate README, "Reading a
+    /// bracket where nothing certifies"): the solved-value door
+    /// ([`crate::solved::decide_admit`]), a scalar's own impl, and a
+    /// place-taking evaluator's private step. The calls the rule does not
+    /// yet allow are owed, each listed with the work item that retires it
+    /// (`scripts/gates/from-computed-sites.sh`).
     fn from_computed(x: f64) -> Self;
 
     /// **What this scalar reads as in a sentence**: its value, its

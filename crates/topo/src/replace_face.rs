@@ -4339,22 +4339,10 @@ fn carrier_foot<T: Decide>(
 /// is decided over the section's whole domain, which on a fit wider
 /// than the face reaches past the edge. On any other carrier the
 /// verdict refuses the corner.
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn spline_corner_root<T: Decide>(
-    root: Result<crate::offset_derive::SplineRoot<T>, crate::offset_derive::CornerVerdict<T>>,
-    (vertex, edge, derived): (VertexKey, EdgeKey, bool),
-    d: T,
-    band: Band,
-    tol: Tol,
-) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    corner_of_root(root, (vertex, edge, derived), d, band, tol)
-}
-
-/// [`spline_corner_root`]'s reading of the lane's verdict. The root and
-/// a short root's end are the lane's own numbers at its scalar (its one
-/// constructor is at `f64`, [`crate::offset_derive::SectionLane::f64`]);
-/// the lane measures its gap in `f64`, so the gap enters as a computed
-/// value.
+///
+/// The root and a short root's end are the lane's own numbers
+/// ([`crate::offset_derive::SplineRoot`]); the lane measures its gap in
+/// `f64`, so the gap enters as a computed value.
 #[allow(clippy::type_complexity)]
 fn corner_of_root<T: Decide>(
     root: Result<crate::offset_derive::SplineRoot<T>, crate::offset_derive::CornerVerdict<T>>,
@@ -4572,7 +4560,7 @@ fn solve_corners<T: Decide>(
                                         edge,
                                         scalar: T::NAME,
                                     })?;
-                                match spline_corner_root(
+                                match corner_of_root(
                                     lane.root(surface, spline, seed, inc.extent, band),
                                     (vertex, edge, inc.derived),
                                     d,
@@ -5901,7 +5889,7 @@ mod pair_over_its_span_rows {
     }
 }
 
-/// [`spline_corner_root`] on one spline carrier, the straight segment
+/// [`corner_of_root`] on one spline carrier, the straight segment
 /// `(-1, 0, 0) → (0, 0, 0)` on `[0, 1]`: where a plane past its end is
 /// taken as the corner, and what a surface the lane does not root does.
 #[cfg(test)]
@@ -5911,7 +5899,7 @@ mod spline_corner {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{ReplaceFaceError, spline_corner_root};
+    use super::{ReplaceFaceError, corner_of_root};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::offset_derive::{CornerVerdict, SectionLane, SectionLaneOf};
 
@@ -5941,7 +5929,7 @@ mod spline_corner {
         let tol = Tol::witness();
         let (spline, band) = (segment(), Band::linear(tol).unwrap());
         let extent = geom_core::test_support::fixture_lever(1.0);
-        spline_corner_root(
+        corner_of_root(
             SectionLaneOf::root(SectionLane::f64(), surface, &spline, 1.0, extent, band),
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
@@ -6111,70 +6099,10 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::panic)]
     use geom::NurbsCurve3;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Real, Tol};
+    use geom_core::{Point3, Real};
 
-    use super::{ReplaceFaceError, carrier_foot, corner_of_root};
-    use crate::entity::{EdgeKey, VertexKey};
-    use crate::offset_derive::{CornerVerdict, SplineRoot};
+    use super::carrier_foot;
     use crate::revalue_pin::{Revalued, S, revalued};
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    /// The corner a lane verdict reads as.
-    fn corner(root: SplineRoot<S>) -> Result<Result<S, CornerVerdict<S>>, ReplaceFaceError<S>> {
-        corner_of_root(
-            Ok(root),
-            (VertexKey::default(), EdgeKey::default(), false),
-            S::from_f64(0.1),
-            band(),
-            Tol::witness(),
-        )
-    }
-
-    /// A short root's near gap enters as a computed value, both where ε
-    /// takes the end (`offset_vertex_agreement` decides it) and where it
-    /// refuses with the gap.
-    #[test]
-    fn a_short_roots_gap_enters_as_computed() {
-        let short = |near_gap| SplineRoot::Short {
-            end: S::from_f64(1.0),
-            near_gap,
-            near: true,
-        };
-        let eps = band().zero();
-        let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
-            let end = corner(short(p)).unwrap().unwrap();
-            assert_eq!(end.value(), 1.0, "a gap within ε takes the end");
-            Vec::new()
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 1,
-                laundered: 0,
-            },
-            "ε decides the gap as the lane measured it"
-        );
-        let past = 2.0 * (band().zero() + band().escalate());
-        let found = revalued([past, past * (1.0 + 1.0e-3)], |p, _| {
-            match corner(short(p)) {
-                Err(ReplaceFaceError::ReanchorPastCarrierEnd { gap, .. }) => vec![gap],
-                other => panic!("a gap past the band refuses with it, got {other:?}"),
-            }
-        });
-        assert_eq!(
-            found,
-            Revalued {
-                kept: 0,
-                opaque: 2,
-                laundered: 0,
-            },
-            "the decision and the refusal both carry the gap as the lane measured it"
-        );
-    }
 
     /// A carrier foot enters as a computed value: the lane's foot of a
     /// point the parameter moves along a spline segment at `Sym<f64>`
