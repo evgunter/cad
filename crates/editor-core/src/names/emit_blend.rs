@@ -33,7 +33,7 @@
 //! that is neither — a key minted without a record — has no upstream
 //! name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
-//! around. The final [`check_total`] closes the other direction.
+//! around. The final totality check ([`super::emit::finish`]) closes the other direction.
 //!
 //! One guard sits between those two cases, because "keeps its source
 //! arena key" is a claim about NUMBERING and nothing here re-checks

@@ -52,7 +52,7 @@
 //! non-designated source face there, so a face that is neither minted
 //! nor listed has no provenance and panics the same way. Anything that
 //! is neither a survivor nor a recorded mint is
-//! [`NamingError::MissingUpstream`], loudly; the final [`check_total`]
+//! [`NamingError::MissingUpstream`], loudly; the final totality check ([`super::emit::finish`])
 //! closes the other direction.
 //!
 //! # An upstream tie PROPAGATES (B1)

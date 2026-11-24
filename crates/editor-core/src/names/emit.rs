@@ -1742,7 +1742,7 @@ pub(crate) fn binds(name: &StableName) -> bool {
 /// **The one door every emitter and every evaluation door that
 /// publishes a table finishes it through**: each conventional vertex
 /// of `body` (output body `ix`) named for its closed edge
-/// ([`name_conventional_vertices`]), then the totality check
+/// ([`conventional_renames`]), then the totality check
 /// ([`check_total`]).
 ///
 /// # Errors

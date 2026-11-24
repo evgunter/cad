@@ -256,7 +256,7 @@ fn keyed(
 /// `body` the body it names. The rewrite is one-to-one on rows —
 /// distinct entities keep distinct names, and a collision would be an
 /// emission bug, refused typed by [`NameTable::insert`] rather than
-/// aliased. [`check_total`] re-runs afterwards, so the rewritten table
+/// aliased. The totality check ([`super::emit::finish`]) re-runs afterwards, so the rewritten table
 /// is held to the same totality the fold's was.
 pub(crate) fn name_union<T: geom_core::Decide>(
     node: RecipeNodeId,
