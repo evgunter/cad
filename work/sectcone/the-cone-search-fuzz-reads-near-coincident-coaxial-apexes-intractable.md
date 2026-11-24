@@ -36,3 +36,12 @@ A second seed reproduces the class, on PR 7457's CI run of `5c97fce38f`:
 `CAD_FUZZ_SEED=0x7e0e64c77639b551 CAD_FUZZ_EFFORT=1`, a coaxial partner
 whose apex stands 4.4e-10 from the cone's at a scale near 75 m (α 0.3325,
 α₂ 0.6417), `Intractable`.
+
+A third, on `55815e7ae8`: `CAD_FUZZ_SEED=0x5bb0e2144c8691f3`, apex gap 3.3e-10
+at a scale near 160 m. On PR 7457 the row failed on three of its last five
+runs. Main's last three nightly jobs that ran it passed (job ids 138289046100,
+138289046159, 138289046193). Reading the code path, this is not PR 7457's: the
+pair reaches `section_cert::classify_known`'s `cone_ruled` arm (PR 7637),
+the value's two-cone pose (`against_cone`, unchanged by 7457), and topo's
+`cone_pair` → `cone_cone` on `Elsewhere`. But the frequency is not
+established either way; replaying the seeds on main settles it.
