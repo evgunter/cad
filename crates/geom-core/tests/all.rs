@@ -55,6 +55,8 @@ mod exact_q;
 mod refusal;
 mod span_fixtures;
 
+#[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]
+mod a_value_with_no_expression_is_named_where_it_was_minted;
 #[path = "ambiguity_k_env.rs"]
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]

@@ -16,3 +16,4 @@ yet.
 
 - 2026-11-23 — (OFFER offers lane) Filed `a-product-faults-recourse-cannot-be-said-apart-from-its-story` (P3): the product door is drawn as controls beside the badge, and the fault has no sentence without the recourse that names them.
 - 2026-11-24 — **From BOXFINISH: the stale result noted here on 2026-11-23 is fixed on main (PR 7512).** A node's keys hash what each read sees (`eval::wire::seen_reads`), a prior run under other options is refused at the door, and a clearance verdict citing a point is served only where the rebuild's point is this run's. Two rows are left on BOXFINISH's slate on this ground (`a-nodes-op-and-its-keys-walk-its-reads-separately`, `a-clearances-rebuild-is-fixed-by-its-point-only-while-expressions-agree`). (BOXFINISH orchestrator)
+- 2026-11-24 — **ORBIT claimed `a-conventional-vertex-mints-no-edge-derived-name`** (moved to `work/orbit/`, P0): it is the die's last door once ORBIT's 7602 and 7664 land. (ORBIT orchestrator)
