@@ -919,42 +919,43 @@ impl Mints {
             .map(|&(_, by)| by)
     }
 
-    /// The keys of `edge`'s pieces after `operand`'s splits, in order
-    /// along it (a split keeps the parent's leading span, so its child is
-    /// the piece right after the parent), and every vertex a split minted
-    /// on it.
-    pub(crate) fn pieces(
-        &self,
-        operand: Operand,
-        edge: crate::entity::EdgeKey,
-    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
-        self.pieces_since(operand, edge, SplitMark(0))
-    }
-
     /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
     /// the splits made after it.
     pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
         SplitMark(self.vertices[operand.index()].len())
     }
 
-    /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
-    /// splits made since cut it into, and the vertices they minted on it.
+    /// The pieces of `edge` as it stood at `mark`, in order along it: the
+    /// pieces `operand`'s splits made since cut it into, and the vertices
+    /// they minted on it ([`split_pieces`]).
     pub(crate) fn pieces_since(
         &self,
         operand: Operand,
         edge: crate::entity::EdgeKey,
         SplitMark(mark): SplitMark,
     ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
-        let mut keys = vec![edge];
-        let mut minted = Vec::new();
-        for (parent, vertex, child) in self.of(operand).skip(mark) {
-            if let Some(i) = keys.iter().position(|&k| k == parent) {
-                keys.insert(i + 1, child);
-                minted.push(vertex);
-            }
-        }
-        (keys, minted)
+        split_pieces(edge, self.of(operand).skip(mark))
     }
+}
+
+/// **`edge`'s pieces after `splits`**, `(parent, vertex, child)` in the
+/// order made, in order along it, and every vertex a split minted on it.
+/// A split keeps the parent's leading span under the parent's key, so
+/// its child is the piece right after the parent. No reader relies on
+/// the order beyond an unsplit edge's one piece, so no test pins it.
+pub(crate) fn split_pieces(
+    edge: crate::entity::EdgeKey,
+    splits: impl IntoIterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)>,
+) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+    let mut keys = vec![edge];
+    let mut minted = Vec::new();
+    for (parent, vertex, child) in splits {
+        if let Some(i) = keys.iter().position(|&k| k == parent) {
+            keys.insert(i + 1, child);
+            minted.push(vertex);
+        }
+    }
+    (keys, minted)
 }
 
 /// One cell of a body: what a contact record names, two at a time
@@ -6890,7 +6891,15 @@ pub(crate) fn through_the_join(
     tol: Tol,
 ) -> Result<Option<crate::test_support::JoinedOperands>, BooleanError> {
     Ok(
-        match ops::through_the_join(op, a, b, &Glue::none(), SweepStrategy::Realized, true, tol)? {
+        match ops::through_the_join(
+            op,
+            a,
+            b,
+            &Glue::none(),
+            SweepStrategy::Realized,
+            &ops::Pass::First,
+            tol,
+        )? {
             ops::Joined::Answered(_) => None,
             ops::Joined::Connected {
                 red,

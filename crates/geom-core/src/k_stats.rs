@@ -2250,6 +2250,14 @@ impl Real for Probe {
         ))
     }
 
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        Self(f64::harmonic_belly(
+            curve.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+        ))
+    }
+
     fn abs(self) -> Self {
         Self(Real::abs(self.0))
     }
