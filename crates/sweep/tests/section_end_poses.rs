@@ -610,7 +610,8 @@ const TORUS_SQUARE: [(f64, f64); 5] = [
 /// op and order as [`SectionEndReading::SquareToAxis`], with its
 /// question and lever. The face moved square builds in every op and
 /// order; turned clearly off square it cuts the spiric quartic, which
-/// the section value marches, and the union builds a valid body.
+/// the section value marches, and the union and the intersection build
+/// valid bodies at their volumes.
 #[test]
 fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
     let tol = Tol::witness();
@@ -673,15 +674,39 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                 }
             }
         }
-        // Each op marches the tilted face's section, so one op in one
-        // order stands for the lever.
-        match topo::union(&torus, &block(h, CLEARLY_TILTED), tol) {
-            Ok(r) => {
-                if let Some(Err(e)) = r.body().map(|b| topo::validate_geometric(&b.body, tol)) {
-                    wrong.push(format!("h{h} turned clearly off square: invalid {e:?}"));
-                }
+        // Each op marches the tilted face's section, so ∪ and ∩ in one
+        // order and at one tilt stand for the lever
+        // (`work/orbit/the-torus-square-lever-row-reads-one-tilt-one-order.md`
+        // names what they stand for), held to the block's volume and a
+        // quadrature of the torus past its face.
+        let tilted = block(h, CLEARLY_TILTED);
+        let (st, ct) = CLEARLY_TILTED.sin_cos();
+        let past = crate::germ_plane_torus_frame::torus_past_a_plane(
+            Point3::new(0.0, h, 0.0),
+            Vec3::new(-st, ct, 0.0),
+        );
+        let (torus_v, block_v) = (core::f64::consts::PI.powi(2), 64.0 * (h + 4.0));
+        for (op, got, want) in [
+            ("∪", topo::union(&torus, &tilted, tol), block_v + past),
+            ("∩", topo::intersect(&torus, &tilted, tol), torus_v - past),
+        ] {
+            match got {
+                Ok(r) => match r.body() {
+                    Some(b) => {
+                        if let Err(e) = topo::validate_geometric(&b.body, tol) {
+                            wrong.push(format!("h{h} turned off square, {op}: invalid {e:?}"));
+                        }
+                        let v = topo::test_support::pinned_volume(op, &b.body, tol).volume;
+                        if (v - want).abs() > 1e-5 * torus_v {
+                            wrong.push(format!(
+                                "h{h} turned off square, {op}: volume {v} against {want}"
+                            ));
+                        }
+                    }
+                    None => wrong.push(format!("h{h} turned off square, {op}: empty")),
+                },
+                Err(e) => wrong.push(format!("h{h} turned off square, {op}: {e:?}")),
             }
-            Err(e) => wrong.push(format!("h{h} turned clearly off square: {e:?}")),
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

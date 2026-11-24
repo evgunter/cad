@@ -1158,6 +1158,7 @@ fn a_tilted_plane_counts_its_loops_on_the_torus() {
         ("round the axis", 0.1, 0.0, 2, true),
         ("round the tube", 0.5, 0.0, 2, true),
         ("one null loop", 0.5, 0.9, 1, false),
+        ("one null loop on the far tube circle", 0.5, -0.9, 1, false),
         ("missing it", 0.5, 2.0, 0, false),
     ] {
         let plane = tilted_plane(s, h);
@@ -1206,13 +1207,14 @@ fn a_tilted_plane_counts_its_loops_on_the_torus() {
 }
 
 /// **A tilted plane's loops carry through the march**, matched to the
-/// count: two closed loops round the tube, one null loop, each a
-/// certified periodic cubic; and a plane square to the axis is the
+/// count: two closed loops round the axis (`2s < 0.5`), two round the
+/// tube, one null loop on the near tube circle and one on the far, each
+/// a certified periodic cubic; and a plane square to the axis is the
 /// closed form's, read elsewhere.
 #[test]
 fn a_tilted_plane_carries_its_loops_through_the_march() {
     let torus = ring();
-    for (s, h, loops) in [(0.5, 0.0, 2), (0.5, 0.9, 1)] {
+    for (s, h, loops) in [(0.1, 0.0, 2), (0.5, 0.0, 2), (0.5, 0.9, 1), (0.5, -0.9, 1)] {
         let carried = built(&tilted_plane(s, h), &torus)
             .carry(Some(SsiLane::marched()), band())
             .unwrap_or_else(|e| panic!("s {s}, h {h}: carries, got {e:?}"));
@@ -1237,4 +1239,136 @@ fn a_tilted_plane_carries_its_loops_through_the_march() {
         ),
         "square to the axis, the closed form's"
     );
+}
+
+/// **A tangent plane's component is a point at an extreme and a loop at a
+/// saddle.** Against the ring torus `(2, 0.5)` a plane tilted by the sine
+/// `0.5` has critical heights `±(sR + r) = ±1.5`, the maximum and the
+/// minimum, where it touches the tube's outer half at an elliptic point,
+/// and `±(sR − r) = ±0.5`, the two saddles on its inner half, where the
+/// section is a node. At an extreme the one component is a point whose
+/// witness lies on both surfaces; at a saddle it is a loop with no
+/// witness, classification only.
+#[test]
+fn a_tangent_plane_lists_a_point_at_an_extreme_and_a_loop_at_a_saddle() {
+    use geom_brep::Components;
+    let torus = ring();
+    for (what, h, point) in [
+        ("the maximum", 1.5, true),
+        ("the minimum", -1.5, true),
+        ("the upper saddle", 0.5, false),
+        ("the lower saddle", -0.5, false),
+    ] {
+        let plane = tilted_plane(0.5, h);
+        let section = built(&plane, &torus);
+        assert!(
+            matches!(
+                section.decided(),
+                [geom_brep::ZeroVerdict {
+                    decision: geom_brep::SectionDecision::Tangency(_),
+                    ..
+                }]
+            ),
+            "{what}: a tangency, {:?}",
+            section.decided()
+        );
+        let Components::Counted(listed) = section.components() else {
+            panic!("{what}: counted");
+        };
+        let [c] = &listed[..] else {
+            panic!("{what}: one tangent component, got {}", listed.len());
+        };
+        if point {
+            assert_eq!(c.shape, ComponentShape::Point, "{what}: a point");
+            let w = c.witness.unwrap_or_else(|| panic!("{what}: its witness"));
+            on_both(w, &plane, &torus, what);
+        } else {
+            assert_eq!(c.shape, ComponentShape::Loop, "{what}: a loop");
+            assert!(c.witness.is_none(), "{what}: no point stands for a node");
+        }
+    }
+}
+
+/// **The count is the Morse count, at every pose near every critical
+/// height** (the review's probe, as a row). The ring torus `(2, 0.5)` in
+/// a turned frame off the origin; the plane tilted from its axis by the
+/// sine `s`, at height `h` over its centre. The height `n·x` on the torus
+/// has four critical values `±sR ± r`; between the sorted values the
+/// level set has 1, 2 and 1 components, and none outside. At every `s`
+/// and every `h` (0, 0.01, −0.3, and each critical value offset by
+/// `±1e-2`, `±1e-4`, `±1e-6`), in both orders, the value either counts
+/// exactly that many loops, or decides a tangency, or refuses in band;
+/// it never miscounts. A transverse pose carries (in one order, the
+/// offsets `±1e-2` and the three plain heights) to exactly the counted
+/// loops, or refuses typed; it never desyncs.
+#[test]
+fn the_count_is_the_morse_count_at_every_pose_near_every_critical_height() {
+    use geom_brep::Components;
+    let axis = Vec3::new(0.2, 0.9, -0.4).normalize();
+    let u = axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+    let center = Point3::new(0.3, -0.7, 1.1);
+    let torus = Surface::Torus {
+        frame: geom::Frame::new(center, axis, u),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+    };
+    let (big, r) = (2.0_f64, 0.5_f64);
+    let mut checked = 0;
+    for s in [
+        0.05, 0.2, 0.24, 0.249, 0.251, 0.26, 0.3, 0.5, 0.7, 0.9, 0.99,
+    ] {
+        let n = u * s + axis * (1.0 - s * s).sqrt();
+        let side = n.cross(axis).normalize();
+        let mut crit = [s * big + r, s * big - r, -s * big + r, -s * big - r];
+        crit.sort_by(f64::total_cmp);
+        let morse = |h: f64| match crit.iter().filter(|&&c| c < h).count() {
+            1 | 3 => 1,
+            2 => 2,
+            _ => 0,
+        };
+        let mut heights: Vec<(f64, bool)> = vec![(0.0, true), (0.01, true), (-0.3, true)];
+        for c in crit {
+            for d in [1e-2, 1e-4, 1e-6] {
+                heights.push((c + d, d == 1e-2));
+                heights.push((c - d, d == 1e-2));
+            }
+        }
+        for (h, carry) in heights {
+            let plane = Surface::Plane {
+                frame: geom::Frame::new(center + n * h, n, side),
+            };
+            let what = format!("s {s}, h {h}");
+            for (k, (a, b)) in [(&plane, &torus), (&torus, &plane)].into_iter().enumerate() {
+                let section =
+                    match geom_brep::pair_section(a, b, None, None::<geom_core::NoLane>, band()) {
+                        Ok(SectionRead::Built(section)) => section,
+                        Ok(SectionRead::Elsewhere(_)) => {
+                            panic!("{what}: a tilted plane is the value's")
+                        }
+                        Err(SectionError::Escalated(_)) => continue,
+                        Err(e) => panic!("{what}: {e:?}"),
+                    };
+                if !section.decided().is_empty() {
+                    continue;
+                }
+                let Components::Counted(listed) = section.components() else {
+                    panic!("{what}: counted");
+                };
+                assert_eq!(listed.len(), morse(h), "{what}: the Morse count");
+                checked += 1;
+                if carry && k == 0 && !listed.is_empty() {
+                    match section.carry(Some(SsiLane::marched()), band()) {
+                        Ok(carried) => assert_eq!(
+                            carried.components().len(),
+                            morse(h),
+                            "{what}: the carried loops"
+                        ),
+                        Err(CarryError::Desync(why)) => panic!("{what}: the carry desyncs: {why}"),
+                        Err(CarryError::Refused(_) | CarryError::Escalated(_)) => {}
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked >= 500, "{checked} transverse poses counted of 594");
 }

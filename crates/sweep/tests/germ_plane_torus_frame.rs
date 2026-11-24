@@ -307,6 +307,7 @@ fn a_general_pose_builds_to_its_volume() {
     let o1 = past(Point3::new(0.0, 0.1, 0.0), tilt(20.0));
     let o2 = past(Point3::origin(), tilt(70.0));
     let off3 = past(Point3::new(0.0, 0.2, 0.0), tilt(3.0));
+    let (mut held, mut sorted) = (0, Vec::new());
     for (pose, p, want) in [
         ("S3", s3.0, s3.1),
         ("B3", b3, None),
@@ -354,7 +355,10 @@ fn a_general_pose_builds_to_its_volume() {
                 Err(BooleanError::Pieces(topo::PieceSortError::Probe {
                     source: topo::PointInSolidError::PartialTorusFace { .. },
                     ..
-                })) if !op.contains('∪') => continue,
+                })) if !op.contains('∪') => {
+                    sorted.push(format!("{pose}, {op}"));
+                    continue;
+                }
                 // B3's null loops leave a ring on the torus face, whose
                 // run winding reads no marched edge
                 // (`work/orbit/a-ring-on-a-torus-face-bounded-by-a-marched-edge-has-no-ring-run-winding.md`).
@@ -379,9 +383,17 @@ fn a_general_pose_builds_to_its_volume() {
                     "{pose}, {op}: volume {got} against {}",
                     wants[k]
                 );
+                held += usize::from(!op.contains('∪'));
             }
         }
     }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // some build and are held to their quadratures.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
 }
 
 /// **The donut's part past a plane**, `n·(p − o) ≥ 0`, `n` unit: at a
@@ -426,6 +438,7 @@ fn the_donuts_corner_bar_builds_at_its_end_squares() {
     let z = (rho * rho - w * w).sqrt();
     let (vt, vp) = (core::f64::consts::PI.powi(2), 4.0 * w * w * 2.0 * z);
     let vo = crate::germ_interior_oval::corner_bar_overlap(w, z);
+    let (mut held, mut sorted) = (0, Vec::new());
     for ((op, r), want) in
         six(&d, &b)
             .into_iter()
@@ -437,7 +450,10 @@ fn the_donuts_corner_bar_builds_at_its_end_squares() {
             Err(BooleanError::Pieces(topo::PieceSortError::Probe {
                 source: topo::PointInSolidError::PartialTorusFace { .. },
                 ..
-            })) if !op.contains('∪') => continue,
+            })) if !op.contains('∪') => {
+                sorted.push(op);
+                continue;
+            }
             r => r.unwrap_or_else(|e| panic!("{op}: builds, got {e:?}")),
         };
         let body = r.body().unwrap_or_else(|| panic!("{op}: a body"));
@@ -451,7 +467,15 @@ fn the_donuts_corner_bar_builds_at_its_end_squares() {
             (got - want).abs() < 1e-8,
             "{op}: volume {got} against {want}"
         );
+        held += usize::from(!op.contains('∪'));
     }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // at least one builds and is held to its truth.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
 }
 
 /// **The lily's stem glue passes the chord, undeclared, in both member

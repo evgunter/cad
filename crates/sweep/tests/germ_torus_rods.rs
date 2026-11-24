@@ -64,6 +64,7 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
     .body;
     let vol_donut = volume(&donut);
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    let (mut answered, mut checked) = (0_usize, 0_usize);
     for i in 0..fuzz::scaled(60) {
         let theta = rng.range(0.0, std::f64::consts::TAU);
         let phi = rng.range(0.0, std::f64::consts::TAU);
@@ -87,6 +88,7 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
             )
         };
         let mut vols = [None; 3];
+        let (mut bodies, mut p_read) = ([false; 3], [false; 3]);
         for (k, (op, r)) in subtract_both_orders_and_intersect(&donut, &rod)
             .into_iter()
             .enumerate()
@@ -115,6 +117,8 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
                     // trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`):
                     // the body is then held by its tier-3 validity and
                     // the volumes below alone.
+                    bodies[k] = true;
+                    p_read[k] = at_p.is_ok();
                     if matches!(at_p, Err(topo::PointInSolidError::PartialTorusFace { .. })) {
                         *counts
                             .entry("p unread on a trimmed torus face".into())
@@ -145,19 +149,44 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
                 }
             }
         }
-        if let [Some(a_minus_b), Some(b_minus_a), Some(a_and_b)] = vols {
-            let vol_rod = volume(&rod);
-            assert!(
-                (a_minus_b + a_and_b - vol_donut).abs() <= 1e-8 * vol_donut,
-                "{}",
-                what("vol(A ∖ B) + vol(A ∩ B) = vol(A)")
-            );
-            assert!(
-                (b_minus_a + a_and_b - vol_rod).abs() <= 1e-8 * vol_donut,
-                "{}",
-                what("vol(B ∖ A) + vol(A ∩ B) = vol(B)")
-            );
+        // Each identity is held wherever both its volumes were met, so a
+        // body whose `p` is unread is still held by its volume.
+        let vol_rod = volume(&rod);
+        let mut held = [false; 3];
+        for (k, total, name) in [
+            (0, vol_donut, "vol(A ∖ B) + vol(A ∩ B) = vol(A)"),
+            (1, vol_rod, "vol(B ∖ A) + vol(A ∩ B) = vol(B)"),
+        ] {
+            if let (Some(part), Some(meet)) = (vols[k], vols[2]) {
+                assert!(
+                    (part + meet - total).abs() <= 1e-8 * vol_donut,
+                    "{}",
+                    what(name)
+                );
+                held[k] = true;
+                held[2] = true;
+            }
+        }
+        for k in 0..3 {
+            if bodies[k] {
+                answered += 1;
+                if p_read[k] || held[k] {
+                    checked += 1;
+                }
+            }
         }
     }
-    println!("germ_torus_rods: outcomes over every rod and op: {counts:?}");
+    println!(
+        "germ_torus_rods: outcomes over every rod and op: {counts:?}; {checked} of {answered} \
+         bodies held past tier 3"
+    );
+    // A body is held past tier 3 by `p`'s place in it or by a volume
+    // identity; one whose `p` is unread and whose identities each want an
+    // unmet volume (`work/orbit/a-marched-torus-bodys-volume-stops-at-its-floor.md`)
+    // is held by tier 3 alone, and they stay the exception.
+    assert!(
+        checked * 10 >= answered * 9,
+        "only {checked} of {answered} bodies held past tier 3; {}",
+        fuzz::replay()
+    );
 }

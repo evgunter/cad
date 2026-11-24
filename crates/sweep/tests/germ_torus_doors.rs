@@ -1226,13 +1226,17 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
         // moves: each difference lies between its minuend less the bar
         // and its minuend, and ∩ under the bar.
         let (donut_v, bar_v) = (core::f64::consts::PI.powi(2), 1e-6 * 4.5);
-        for ((op, r), (lo, hi)) in subtract_both_orders_and_intersect(&d, &b).into_iter().zip([
-            (donut_v - bar_v, donut_v),
-            (0.0, bar_v),
-            (0.0, bar_v),
-        ]) {
+        let (mut vols, mut pierce) = ([None; 3], 0);
+        for (k, ((op, r), (lo, hi))) in subtract_both_orders_and_intersect(&d, &b)
+            .into_iter()
+            .zip([(donut_v - bar_v, donut_v), (0.0, bar_v), (0.0, bar_v)])
+            .enumerate()
+        {
             let r = match r {
-                Err(BooleanError::CurvedPierceUnsupported { .. }) => continue,
+                Err(BooleanError::CurvedPierceUnsupported { .. }) => {
+                    pierce += 1;
+                    continue;
+                }
                 // The piece sort's probe reads no torus face a marched
                 // edge trims
                 // (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`).
@@ -1256,7 +1260,23 @@ fn subtract_and_intersect_reach_the_doors_union_does() {
                 v > lo - pad && v < hi + pad,
                 "{name}, {op}: volume {v} outside [{lo}, {hi}]"
             );
+            vols[k] = Some(v);
         }
+        // The donut is its part outside the bar and its part inside.
+        if let [Some(outside), _, Some(inside)] = vols {
+            assert!(
+                (outside + inside - donut_v).abs() < 1e-8 * donut_v,
+                "{name}: vol(A ∖ B) + vol(A ∩ B) = {} against vol(A) = {donut_v}",
+                outside + inside
+            );
+        }
+        // Where the run's band leaves the pierce to the crossing layer
+        // every op stops there; otherwise both ops on the donut build and
+        // close the identity.
+        assert!(
+            pierce == 3 || matches!(vols, [Some(_), _, Some(_)]),
+            "{name}: A ∖ B and A ∩ B build and close on the donut, got {vols:?}"
+        );
     }
     let far = topo::transform_rigid(
         &d,

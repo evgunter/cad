@@ -588,6 +588,7 @@ fn the_corner_bar_builds_its_lenses() {
         corner_bar_overlap(hw, z),
     );
     assert!(vo > 0.0, "the bar's ends cut the tube");
+    let (mut held, mut sorted) = (0, Vec::new());
     for (what, r, want) in [
         ("∪", topo::union(&d, &b, Tol::witness()), vd + vb - vo),
         ("∩", topo::intersect(&d, &b, Tol::witness()), vo),
@@ -604,7 +605,10 @@ fn the_corner_bar_builds_its_lenses() {
             Err(topo::BooleanError::Pieces(topo::PieceSortError::Probe {
                 source: topo::PointInSolidError::PartialTorusFace { .. },
                 ..
-            })) if what != "∪" => continue,
+            })) if what != "∪" => {
+                sorted.push(what);
+                continue;
+            }
             r => r.unwrap_or_else(|e| panic!("{what}: the corner bar builds, got {e:?}")),
         };
         let body = r.body().unwrap_or_else(|| panic!("{what}: a body"));
@@ -618,7 +622,15 @@ fn the_corner_bar_builds_its_lenses() {
             (got - want).abs() < 1e-8,
             "{what}: volume {got} against {want}"
         );
+        held += usize::from(what != "∪");
     }
+    // The ops past ∪ that stop at the piece sort read no torus face a
+    // marched edge trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`);
+    // at least one builds and is held to its truth.
+    assert!(
+        held >= 1,
+        "no op past ∪ builds to its truth; at the piece sort: {sorted:?}"
+    );
 }
 
 /// **The corner bar's overlap with the donut** `R = 2`, `r = 0.5` about
