@@ -1,0 +1,50 @@
+== BASE:      Summary [ 103.294s] 234 tests run: 234 passed (3 slow), 8474 skipped
+== Mx1row:      Summary [ 102.599s] 234 tests run: 233 passed (3 slow), 1 failed, 8474 skipped
+        FAIL [   0.459s] (  6/234) topo clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme
+error: test run failed
+== Mtenth:      Summary [ 101.378s] 234 tests run: 233 passed (3 slow), 1 failed, 8474 skipped
+        FAIL [   0.160s] (  6/234) topo clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme
+error: test run failed
+== M9:      Summary [  31.605s] 234 tests run: 228 passed, 6 failed, 8474 skipped
+        FAIL [   0.176s] (  6/234) topo clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme
+        FAIL [   0.717s] (  1/234) sweep::all self_intersection_proves_injectivity::a_cut_cone_that_keeps_its_apex_holds_between_its_halves
+        FAIL [   0.790s] (  2/234) sweep::all self_intersection_proves_injectivity::a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone
+        FAIL [   0.799s] (  4/234) sweep::all self_intersection_proves_injectivity::a_needle_and_a_near_flat_cone_cut_read_as_any_cone
+        FAIL [   0.911s] (  3/234) sweep::all self_intersection_proves_injectivity::a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap
+        FAIL [   6.180s] ( 49/234) sweep::all self_intersection_proves_injectivity::a_body_through_a_cut_cones_wall_beside_its_section_crosses
+error: test run failed
+== RnearLine:      Summary [ 104.689s] 234 tests run: 233 passed (3 slow), 1 failed, 8474 skipped
+        FAIL [   0.203s] ( 15/234) topo injective::focal_rows::a_cones_corner_at_a_gap_is_two_points_at_each_reading_of_a_tall_rectangle
+error: test run failed
+== RnearLeave:      Summary [ 102.295s] 234 tests run: 233 passed (3 slow), 1 failed, 8474 skipped
+        FAIL [   0.191s] ( 15/234) topo injective::focal_rows::a_cones_corner_at_a_gap_is_two_points_at_each_reading_of_a_tall_rectangle
+error: test run failed
+== Rregular:      Summary [  96.701s] 234 tests run: 233 passed (3 slow), 1 failed, 8474 skipped
+        FAIL [   0.198s] ( 14/234) topo injective::focal_rows::a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading
+error: test run failed
+== Mside:      Summary [ 101.390s] 234 tests run: 231 passed (3 slow), 3 failed, 8474 skipped
+        FAIL [   0.161s] ( 13/234) topo injective::focal_rows::a_cone_cell_beside_a_section_arc_is_presented_by_the_arcs_graph
+        FAIL [   0.171s] ( 11/234) topo injective::focal_rows::a_closed_section_is_read_through_its_join
+        FAIL [   0.176s] ( 15/234) topo injective::focal_rows::a_cones_corner_at_a_gap_is_two_points_at_each_reading_of_a_tall_rectangle
+error: test run failed
+== M8:      Summary [  69.640s] 234 tests run: 228 passed (1 slow), 6 failed, 8474 skipped
+        FAIL [   0.157s] ( 13/234) topo injective::focal_rows::a_cone_cell_beside_a_section_arc_is_presented_by_the_arcs_graph
+        FAIL [   0.180s] ( 15/234) topo injective::focal_rows::a_cones_corner_at_a_gap_is_two_points_at_each_reading_of_a_tall_rectangle
+        FAIL [   0.192s] ( 14/234) topo injective::focal_rows::a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading
+        FAIL [   0.203s] ( 24/234) topo injective::focal_rows::a_villarceau_row_on_a_torus_is_still_unread
+        FAIL [   0.215s] ( 11/234) topo injective::focal_rows::a_closed_section_is_read_through_its_join
+        FAIL [   4.869s] (  2/234) sweep::all self_intersection_proves_injectivity::a_body_through_a_cut_cones_wall_beside_its_section_crosses
+error: test run failed
+== Mdelete:      Summary [  15.689s] 234 tests run: 228 passed, 6 failed, 8474 skipped
+        FAIL [   0.165s] (  6/234) topo clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme
+        FAIL [   0.340s] (  1/234) sweep::all self_intersection_proves_injectivity::a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone
+        FAIL [   0.385s] (  3/234) sweep::all self_intersection_proves_injectivity::a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap
+        FAIL [   0.669s] (  2/234) sweep::all self_intersection_proves_injectivity::a_cut_cone_that_keeps_its_apex_holds_between_its_halves
+        FAIL [   0.792s] (  4/234) sweep::all self_intersection_proves_injectivity::a_needle_and_a_near_flat_cone_cut_read_as_any_cone
+        FAIL [   5.000s] ( 49/234) sweep::all self_intersection_proves_injectivity::a_body_through_a_cut_cones_wall_beside_its_section_crosses
+error: test run failed
+== Mhullin:      Summary [ 100.699s] 234 tests run: 232 passed (3 slow), 2 failed, 8474 skipped
+        FAIL [   0.182s] ( 19/234) topo injective::focal_rows::a_focal_images_enclosure_over_an_arc_holds_its_ends_and_its_slants_extreme
+        FAIL [  23.016s] (  2/234) sweep::all self_intersection_proves_injectivity::a_cut_cone_that_keeps_its_apex_holds_between_its_halves
+error: test run failed
+ALLDONE
