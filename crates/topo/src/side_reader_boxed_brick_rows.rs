@@ -27,10 +27,15 @@ const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 
 /// The brick over `[0, right] × [0, 1] × [0, top]`, every stated normal
 /// negated where `inside_out`.
-fn brick_at(top: Boxed, right: Boxed, inside_out: bool, tol: Tol) -> Body<Boxed> {
-    let iv = Boxed::from_f64;
+fn brick_at<T: Decide + crate::props::AtRestPolicy>(
+    top: T,
+    right: T,
+    inside_out: bool,
+    tol: Tol,
+) -> Body<T> {
+    let iv = T::from_f64;
     let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let mut body = Body::<Boxed>::new();
+    let mut body = Body::<T>::new();
     prism_ops(
         &mut body,
         &SQUARE,
@@ -408,8 +413,8 @@ fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
 /// direction there is as wide as its chord. This restates how a door
 /// states a line; nothing keeps it in step with the doors, and the
 /// door-built rows are `sweep`'s `an_aimed_ray_over_boxed_door_bodies`.
-fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
-    let mut body = brick_at(top, Boxed::from_f64(1.0), false, tol);
+fn lined_brick<T: Decide + crate::props::AtRestPolicy>(top: T, tol: Tol) -> Body<T> {
+    let mut body = brick_at(top, T::from_f64(1.0), false, tol);
     let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
     let mut stated = std::collections::BTreeSet::new();
     for (face, _) in twin.faces() {
@@ -437,13 +442,9 @@ fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
             spec.carrier = geom::Curve3::line(
                 ends[0],
                 // An axis direction of the unit brick: unit, exactly.
-                geom_core::UnitVec3::checked(dir.map(Boxed::from_f64)),
+                geom_core::UnitVec3::checked(dir.map(T::from_f64)),
             );
-            spec.param_end = if dir.z == 0.0 {
-                Boxed::from_f64(1.0)
-            } else {
-                top
-            };
+            spec.param_end = if dir.z == 0.0 { T::from_f64(1.0) } else { top };
             body.set_edge_curve(e.edge, spec, tol)
                 .expect("the edge takes its line");
         }

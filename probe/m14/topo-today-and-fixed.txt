@@ -1,0 +1,108 @@
+===== today.out
+-- ('brick', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_advance[-18.5,3.51] | Crossing:sai_winding
+  aim 1 bottom           OUT | OUT | Graze | Crossing:sai_advance[-0.138,15.2]
+  aim 2 wall(+0,-1)      Crossing:sai_edge[0,0.682] | Crossing:sai_edge[0,1.26] | Crossing:sai_winding | Crossing:sai_winding
+  aim 3 wall(+1,+0)      Crossing:sai_edge[0,0.682] | Crossing:sai_edge[0,1.26] | Crossing:sai_winding | Crossing:sai_winding
+  aim 4 wall(+0,+1)      Crossing:sai_edge[0,0.682] | Crossing:sai_edge[0,1.26] | Crossing:sai_winding | Crossing:sai_winding
+  aim 5 wall(-1,+0)      Crossing:sai_edge[0,0.682] | Crossing:sai_edge[0,1.26] | Crossing:sai_winding | Crossing:sai_winding
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+  census                 0 findings | 0 findings | 0 findings | 8 findings
+   census findings w=0.45: 4x CensusEscalated curve_carrier_gap [0,6.1]; 4x CensusEscalated pm_census_ee_line_gap [0,3.16]
+-- ('brick', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('lined', 'sym')
+  aim 0 top              OUT | OUT | OUT | Crossing:sai_order[-8.97e-15,2.39]
+  aim 1 bottom           OUT | OUT | OUT | OUT
+  aim 2 wall(+0,-1)      OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.22] | Crossing:sai_edge[0,1.44]
+  aim 3 wall(+1,+0)      OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.22] | Crossing:sai_edge[0,1.44]
+  aim 4 wall(+0,+1)      OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.34] | Crossing:sai_edge[0,1.33]
+  aim 5 wall(-1,+0)      OUT | Crossing:sai_edge[0,0.641] | Crossing:sai_edge[0,1.34] | Crossing:sai_edge[0,1.33]
+  reader                 OUT | OUT | OUT | OUT
+  census                 0 findings | 0 findings | 0 findings | 0 findings
+-- ('lined', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(0.3,0.2)', 'sym')
+  aim 0 top              Crossing:sai_winding | Crossing:sai_edge[0,0.824] | Crossing:sai_edge[0,1.74] | Crossing:sai_winding
+  aim 1 bottom           OUT | Crossing:sai_winding[-6.66,9.01] | Crossing:sai_winding[-8.39,15] | Crossing:sai_winding
+  aim 2 wall(+0,-1)      Crossing:sai_edge[0,0.921] | Crossing:sai_edge[0,0.479] | Crossing:sai_winding | Crossing:sai_winding
+  aim 3 wall(+1,+0)      Crossing:sai_edge[0,0.856] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_winding
+  aim 4 wall(+0,+1)      Crossing:sai_edge[0,0.847] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_winding
+  aim 5 wall(-1,+0)      Crossing:sai_edge[0,0.828] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_winding
+  reader                 OUT | Unread aimed=6 | Unread aimed=6 | Unread aimed=6
+  census                 6 findings | 6 findings | 6 findings | 14 findings
+   census findings w=0.05: 3x CensusEscalated pm_census_ef_residual [-0.0941,0.0941]; 1x CensusEscalated bool_contact_vertex [0,0.347]; 1x CensusEscalated bool_contact_vertex [0,0.335]; 1x CensusEscalated bool_contact_vertex [0,0.33]
+   census findings w=0.1: 3x CensusEscalated pm_census_ef_residual [-0.188,0.188]; 1x CensusEscalated bool_contact_vertex [0,0.829]; 1x CensusEscalated bool_contact_vertex [0,0.76]; 1x CensusEscalated bool_contact_vertex [0,0.733]
+   census findings w=0.25: 3x CensusEscalated pm_census_ef_residual [-0.47,0.47]; 1x CensusEscalated bool_contact_vertex [0,5.5]; 1x CensusEscalated bool_contact_vertex [0,3.32]; 1x CensusEscalated bool_contact_vertex [0,2.83]
+   census findings w=0.45: 1x CensusEscalated curve_carrier_gap [0,8.02]; 1x CensusEscalated curve_carrier_gap [0,7.84]; 1x CensusEscalated curve_carrier_gap [0,8.16]; 1x CensusEscalated curve_carrier_gap [0,11.3]; 3x CensusEscalated pm_census_ef_residual [-0.847,0.847]; 1x CensusEscalated pm_census
+-- ('tilt(0.3,0.2)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(-0.45,0.6)', 'sym')
+  aim 0 top              Crossing:sai_edge[0,0.392] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_denom[-9.67,0]
+  aim 1 bottom           OUT | Crossing:sai_winding[-6.67,9.67] | Crossing:sai_winding | Crossing:sai_winding
+  aim 2 wall(+0,-1)      Crossing:sai_winding | Crossing:sai_edge[0,1.16] | Crossing:sai_winding | Crossing:sai_winding
+  aim 3 wall(+1,+0)      Crossing:sai_edge[0,0.367] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_winding
+  aim 4 wall(+0,+1)      Crossing:sai_edge[0,1.09] | Crossing:sai_winding | Crossing:sai_winding | Crossing:sai_winding
+  aim 5 wall(-1,+0)      Crossing:sai_edge[0,0.917] | Crossing:sai_edge[0,0.928] | Crossing:sai_winding | Crossing:sai_winding
+  reader                 OUT | Unread aimed=6 | Unread aimed=6 | Unread aimed=6
+  census                 6 findings | 6 findings | 9 findings | 14 findings
+   census findings w=0.05: 3x CensusEscalated pm_census_ef_residual [-0.08,0.08]; 1x CensusEscalated bool_contact_vertex [0,0.347]; 1x CensusEscalated bool_contact_vertex [0,0.4]; 1x CensusEscalated bool_contact_vertex [0,0.34]
+   census findings w=0.1: 3x CensusEscalated pm_census_ef_residual [-0.16,0.16]; 1x CensusEscalated bool_contact_vertex [0,0.829]; 1x CensusEscalated bool_contact_vertex [0,1.24]; 1x CensusEscalated bool_contact_vertex [0,0.788]
+   census findings w=0.25: 1x CensusEscalated curve_carrier_gap [0,8.1]; 1x CensusEscalated curve_carrier_gap [0,4.5]; 3x CensusEscalated pm_census_ef_residual [-0.4,0.4]; 1x CensusEscalated bool_contact_vertex [0,5.5]; 1x CensusEscalated pm_census_ef_pierce_lever [0,1.04]; 1x CensusEscalated bool_c
+   census findings w=0.45: 1x CensusEscalated curve_carrier_gap [0,22.4]; 1x CensusEscalated curve_carrier_gap [0,13]; 1x CensusEscalated curve_carrier_gap [0,8.39]; 1x CensusEscalated curve_carrier_gap [0,9.79]; 3x CensusEscalated pm_census_ef_residual [-0.72,0.72]; 1x CensusEscalated pm_census_ef_
+-- ('tilt(-0.45,0.6)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+===== fix.out
+-- ('brick', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_advance[-15.8,3.46] | Crossing:sai_advance[-120,7.76]
+  aim 1 bottom           OUT | OUT | Graze | Crossing:sai_advance[-0.138,15.2]
+  aim 2 wall(+0,-1)      OUT | Crossing:sai_advance[-10,11.3] | Crossing:sai_advance[-59.2,54.3] | Crossing:sai_winding[-18.9,3.45]
+  aim 3 wall(+1,+0)      OUT | Crossing:sai_advance[-15.6,7.45] | Crossing:sai_advance[-66.9,49.5] | Crossing:sai_winding[-18.9,3.45]
+  aim 4 wall(+0,+1)      OUT | Crossing:sai_advance[-15.6,7.45] | Crossing:sai_advance[-66.9,49.5] | Crossing:sai_winding[-18.9,3.45]
+  aim 5 wall(-1,+0)      OUT | Crossing:sai_advance[-10,11.3] | Crossing:sai_advance[-59.2,54.3] | Crossing:sai_winding[-18.9,3.45]
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+  census                 0 findings | 0 findings | 0 findings | 8 findings
+   census findings w=0.45: 4x CensusEscalated curve_carrier_gap [0,6.1]; 4x CensusEscalated pm_census_ee_line_gap [0,3.16]
+-- ('brick', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('lined', 'sym')
+  aim 0 top              OUT | OUT | OUT | OUT
+  aim 1 bottom           OUT | OUT | OUT | OUT
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 3 wall(+1,+0)      OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 4 wall(+0,+1)      OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  aim 5 wall(-1,+0)      OUT | OUT | Crossing:sai_winding[-5.11,0.03] | Crossing:sai_winding
+  reader                 OUT | OUT | OUT | OUT
+  census                 0 findings | 0 findings | 0 findings | 0 findings
+-- ('lined', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(0.3,0.2)', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_winding[-2.41,16.1] | Crossing:sai_winding
+  aim 1 bottom           OUT | Crossing:sai_winding[-6.66,9.01] | Crossing:sai_winding[-8.39,15] | Crossing:sai_winding
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_advance[-106,63.8] | Crossing:sai_advance[-0.266,13.6]
+  aim 3 wall(+1,+0)      Graze | Crossing:sai_advance[-11.3,20.3] | Crossing:sai_winding[-9.67,0.585] | Crossing:sai_winding[-19.3,2.12]
+  aim 4 wall(+0,+1)      Graze | Crossing:sai_advance[-10.2,21.3] | Crossing:sai_advance[-70.5,101] | Crossing:sai_advance[-0.202,19.2]
+  aim 5 wall(-1,+0)      OUT | OUT | Crossing:sai_advance[-125,78.7] | Crossing:sai_advance[-526,397]
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+  census                 6 findings | 6 findings | 6 findings | 14 findings
+   census findings w=0.05: 3x CensusEscalated pm_census_ef_residual [-0.0941,0.0941]; 1x CensusEscalated bool_contact_vertex [0,0.347]; 1x CensusEscalated bool_contact_vertex [0,0.335]; 1x CensusEscalated bool_contact_vertex [0,0.33]
+   census findings w=0.1: 3x CensusEscalated pm_census_ef_residual [-0.188,0.188]; 1x CensusEscalated bool_contact_vertex [0,0.829]; 1x CensusEscalated bool_contact_vertex [0,0.76]; 1x CensusEscalated bool_contact_vertex [0,0.733]
+   census findings w=0.25: 3x CensusEscalated pm_census_ef_residual [-0.47,0.47]; 1x CensusEscalated bool_contact_vertex [0,5.5]; 1x CensusEscalated bool_contact_vertex [0,3.32]; 1x CensusEscalated bool_contact_vertex [0,2.83]
+   census findings w=0.45: 1x CensusEscalated curve_carrier_gap [0,8.02]; 1x CensusEscalated curve_carrier_gap [0,7.84]; 1x CensusEscalated curve_carrier_gap [0,8.16]; 1x CensusEscalated curve_carrier_gap [0,11.3]; 3x CensusEscalated pm_census_ef_residual [-0.847,0.847]; 1x CensusEscalated pm_census
+-- ('tilt(0.3,0.2)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
+-- ('tilt(-0.45,0.6)', 'sym')
+  aim 0 top              OUT | OUT | Crossing:sai_winding | Crossing:sai_denom[-9.67,0]
+  aim 1 bottom           OUT | Crossing:sai_winding[-6.67,9.67] | Crossing:sai_winding | Crossing:sai_winding
+  aim 2 wall(+0,-1)      OUT | OUT | Crossing:sai_advance[-80.6,47.2] | Crossing:sai_advance[-932,652]
+  aim 3 wall(+1,+0)      OUT | OUT | Crossing:sai_advance[-151,123] | Crossing:sai_advance[-771,522]
+  aim 4 wall(+0,+1)      OUT | Crossing:sai_winding | Crossing:sai_winding[-12.2,0.715] | Crossing:sai_advance[-1.94,24.8]
+  aim 5 wall(-1,+0)      Crossing:sai_edge[0,0.566] | Crossing:sai_edge[0,1.21] | Crossing:sai_advance[-65.5,192] | Crossing:sai_advance[-361,801]
+  reader                 OUT | OUT | Unread aimed=6 | Unread aimed=6
+  census                 6 findings | 6 findings | 9 findings | 14 findings
+   census findings w=0.05: 3x CensusEscalated pm_census_ef_residual [-0.08,0.08]; 1x CensusEscalated bool_contact_vertex [0,0.347]; 1x CensusEscalated bool_contact_vertex [0,0.4]; 1x CensusEscalated bool_contact_vertex [0,0.34]
+   census findings w=0.1: 3x CensusEscalated pm_census_ef_residual [-0.16,0.16]; 1x CensusEscalated bool_contact_vertex [0,0.829]; 1x CensusEscalated bool_contact_vertex [0,1.24]; 1x CensusEscalated bool_contact_vertex [0,0.788]
+   census findings w=0.25: 1x CensusEscalated curve_carrier_gap [0,8.1]; 1x CensusEscalated curve_carrier_gap [0,4.5]; 3x CensusEscalated pm_census_ef_residual [-0.4,0.4]; 1x CensusEscalated bool_contact_vertex [0,5.5]; 1x CensusEscalated pm_census_ef_pierce_lever [0,1.04]; 1x CensusEscalated bool_c
+   census findings w=0.45: 1x CensusEscalated curve_carrier_gap [0,22.4]; 1x CensusEscalated curve_carrier_gap [0,13]; 1x CensusEscalated curve_carrier_gap [0,8.39]; 1x CensusEscalated curve_carrier_gap [0,9.79]; 3x CensusEscalated pm_census_ef_residual [-0.72,0.72]; 1x CensusEscalated pm_census_ef_
+-- ('tilt(-0.45,0.6)', 'iv')
+  construction           REFUSES EndpointEnd carrier_endpoint_end [0,0.211] | REFUSES EndpointEnd carrier_endpoint_end [0,0.444] | REFUSES EndpointEnd carrier_endpoint_end [0,1.33] | REFUSES EndpointEnd carrier_endpoint_end [0,3.27]
