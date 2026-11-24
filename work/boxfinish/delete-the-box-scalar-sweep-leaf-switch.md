@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, an-iso-arc-rims-end-reads-through-its-map-at-interval]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -118,3 +118,38 @@ table says `built`, at `Sym<f64>` too); the turned-disc union fixture
 (`a_turned_discs_union_refuses_on_the_widened_copy`); and two sweep
 files that name `topo::Replay` as the leaf
 (`an_aimed_ray_keeps_its_line_over_a_box.rs` among them).
+
+## What stands between the tree and the deletion (2026-11-24, M10)
+
+Measured on main after PR 7394 with the box arm off
+(`probe/M10-REPORT.md` on `boxfinish/probe-switch-off` at `7901e1b078`;
+PRs 7370, 7480 and 7686 were not on main):
+
+- **Gone since M4 and M9:** the `u_ref` length (kind A) from every
+  study and the tour; the turning wall's `side_at_infinity_denom`
+  (kind C); every refusing finish in `docm9`.
+- **Still there:** every ray set aside on a depth-boxed slab past
+  ± 0.215 (kind B; 32 finishes in `m10_3`, 2 in `m10_8`): PR 7480's
+  row and what it leaves.
+- **New first refusals:** check 7's volume reading on
+  `props_meridian_on_surface` (60 finishes; the two-parameter and
+  band-parameter plates refuse in every replay), which is
+  radial-readers' row (PR 7370), now named in `blocked_on`; one row
+  that runs out of memory
+  (`a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off`).
+- **Cost:** the tour's first drive is 328 s of wall time, seven times
+  M9's leaf time, because the holes now build in every leaf: the cost
+  row, re-parked on the store and on the hole finish's ladder climbs.
+- **No arc rim reaches the quadrature** in any study, the tour or the
+  five crates' suites with the box arm off, so
+  `an-iso-arc-rims-end-reads-through-its-map-at-interval` leaves
+  `blocked_on` (it was there by inference) and is re-banded P3.
+- **Red only with the box arm off, to be re-baselined or explained at
+  the deletion (21 rows):** the three `m10_3` rows above, `m10_8`'s
+  pin, three `m10_10` pins, three `m10_bulge` rows,
+  `m10_9_what_the_registry_buys`, `sym_9`'s ladder receipt, `sym11`'s
+  two past-the-ceiling rows, the plains ledger, `decide_3`'s
+  no-predicate row, the flagged census, a lofted arc wall's row, the
+  two frames rows; and new since M9, `the_plates_largest_form_is_under_the_growth_guard`
+  and `sym11`'s far placement at `Sym<f64>`. The report has each by
+  name.

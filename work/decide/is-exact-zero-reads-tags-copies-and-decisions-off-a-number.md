@@ -95,3 +95,8 @@ not `is_exact_zero`: `ValidatedProfile::value_channel` picks the `f64`
 witness's spelling of a recorded direction by whether its components
 are single points (`point_value`), a structural read off a number that
 learns no identity and stores the same real either way.
+
+**What PR 7393 (BOXFINISH's iso-image unit) changed in this list, and one home it adds (2026-11-24):**
+- Class 1's iso-line sites are closed: `replace_face::iso_image_row`, `description::row_of` and `pcurve_cache/patch.rs` read the image's `ChartLine`, a variant, and `topo::clearance::iso_of` (a fourth, found by that unit's sweep) does too.
+- Class 2's "a row's fixed value against the chart's domain end" has one home now: `geom_core::period::domain_end(x, (lo, hi))` (`crates/geom-core/src/period.rs`), which `description::domain_side` and `boolean/spline_known.rs` `corners` both call. It is still `is_exact_zero` of the difference: at `Dual` and `Sym` it reads the value channel alone, pinned at each scalar by `period::domain_rows::a_value_is_at_an_end_only_as_the_same_stored_number` (two symbols with one value read as one; an identity by expression whose numeric channel has width does not). **This is a site that asks the expression once `Real::Expression` / `Expression::proves_zero` (PR 7488) is on main**: whether a held value IS the domain's end is a question about the two expressions, not their values at this evaluation.
+- `Period::moved` reads no exactness: one period up is `hi + (x − lo)` and one down `lo + (x − hi)`, arithmetic at every scalar (the `Dual` derivative is the move's own, the `Sym` result an expression of `x`), so it is not on this list. A first cut of that unit did read `is_exact_zero` there; the review found it dropped a derivative at `Dual`.

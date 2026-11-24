@@ -1206,10 +1206,13 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
             spec.description,
             geom_brep::EdgeDescriptionSpec::Chart {
                 surface,
-                image: Some(geom_brep::Pcurve::IsoLine { p0, pl, .. }),
+                image: Some(geom_brep::Pcurve::IsoLine { line, rate, .. }),
                 wrap: true,
                 ..
-            } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0
+            } if surface == wall_key
+                && line.axis == geom_brep::ChartAxis::U
+                && line.value == 0.0
+                && rate == -1.0
         ),
         "the wrap edge is the u = 0 wrap row of the wall's chart, run back \
          (`pl = (0, −1)`), got {:?}",

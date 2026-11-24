@@ -1147,7 +1147,7 @@ mod tests {
 mod r2_line_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2};
+    use geom_core::{Band, Point3};
 
     use super::{PairRow, Section};
     use crate::ssi::{BranchEnd, SsiDomain};
@@ -1179,14 +1179,14 @@ mod r2_line_rows {
         let zero = geom_core::Tol::witness().eps();
         let (a, b) = (wall(0.0, 0.0, (0.0, 1.0)), wall(20.0, 0.06, (-0.5, 1.5)));
         let image = crate::Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(1.0, 0.0),
-            ends: None,
+            line: crate::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let image_b = crate::Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.0),
-            pl: Vec2::new(0.5, 0.0),
-            ends: None,
+            line: crate::ChartLine::row(0.0),
+            at0: 0.25,
+            rate: 0.5,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1231,14 +1231,14 @@ mod r2_line_rows {
             wall(20.0, 0.005 * zero, (-0.5, 1.5)),
         );
         let image = crate::Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(1.0, 0.0),
-            ends: None,
+            line: crate::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let image_b = crate::Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.0),
-            pl: Vec2::new(0.5, 0.0),
-            ends: None,
+            line: crate::ChartLine::row(0.0),
+            at0: 0.25,
+            rate: 0.5,
         };
         let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();
@@ -1279,7 +1279,7 @@ mod r2_line_rows {
 mod r2_ellipse_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2};
+    use geom_core::{Band, Point3};
 
     use super::{PairRow, Section};
     use crate::ssi::{BranchEnd, SsiDomain, SsiError};
@@ -1338,9 +1338,9 @@ mod r2_ellipse_rows {
         c[0][3] = k / (r * r);
         let (a, b) = (poly([[0.0; 4]; 3], (0.0, 1.0), 1.0), poly(c, (0.0, 1.0), s));
         let image = crate::Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(1.0, 0.0),
-            ends: None,
+            line: crate::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let row = PairRow::new((&a, image.clone()), (&b, image), (0.0, 1.0)).unwrap();
         let band = Band::new(zero, 10.0 * zero).unwrap();

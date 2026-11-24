@@ -4,18 +4,18 @@
 //! ball 0.08 from a neighbour's, so the two dimples run together.
 //!
 //! The n-ary union of the 21 balls builds: the step joining the moved
-//! pip re-charts its ball and the neighbour's it crosses
-//! (`topo::BooleanNaming::recharted`), and the fold reads each turned
-//! face through its input shell. The document's union then refuses to
-//! name the turned seam ([`ROW`]), typed, and the cut and the fillets
-//! over it are poisoned.
+//! pip cuts its ball and the neighbour's it crosses along their own
+//! charts' meridians (`topo::BooleanNaming::chart_cuts`). The output
+//! stage does not glue the cut away where gluing it would close the
+//! sphere's period (`topo::merge_faces`, `PeriodClosure`), so the union
+//! keeps a piece of the cut between two pieces of one ball face, which
+//! no name reads. The document's union refuses there, and the cut and the
+//! fillets over it are poisoned ([`CUT_LEFT`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::emit_sphere_cut_in_cap::CUT_LEFT;
 use editor_core::{DocEdit, FreeValue, FreeVar, NamingError, Node, NodeErrorKind, NodeResult};
 use geom_core::Tol;
-
-const ROW: &str =
-    "work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md";
 
 /// Each moved variable, as the document speaks it, with its nominal.
 const MOVED: [(&str, f64); 8] = [
@@ -30,7 +30,7 @@ const MOVED: [(&str, f64); 8] = [
 ];
 
 #[test]
-fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam() {
+fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_surviving_cut() {
     let d = crate::corpus::die_composed_tour::document();
     for (spoken, nominal) in MOVED {
         let (var, value) = d
@@ -79,12 +79,10 @@ fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam() {
         assert!(
             matches!(
                 kind,
-                NodeErrorKind::Naming(NamingError::UnsupportedTurnedCell {
-                    cell: topo::Cell::Edge(_),
-                    ..
-                })
+                NodeErrorKind::Naming(NamingError::Emission { what })
+                    if what.contains("a chart cut survives in the result")
             ),
-            "{spoken} = {to}: the union refuses at a turned seam piece ({ROW}), not {kind:?}"
+            "{spoken} = {to}: the union refuses at the cut it keeps ({CUT_LEFT}), not {kind:?}"
         );
     }
 }

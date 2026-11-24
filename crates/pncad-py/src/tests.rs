@@ -4547,7 +4547,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
-            "recharted_row_unstated",
             "result_invalid",
             "result_pinched_at_cone_apex",
             "revert",
@@ -5249,7 +5248,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_lineage_cycle",
             "unnamed",
             "unsettled_vertex",
-            "unsupported_turned_cell",
         ],
         delegates: &[
             "band_error_tag",

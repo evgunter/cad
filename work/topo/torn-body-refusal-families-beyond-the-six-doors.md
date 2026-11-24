@@ -225,3 +225,7 @@ now refuses at append (`lineage::Substitutions`, as
 - 2026-11-02 — moved from TOPOTAIL to TOPO by `git mv` when TOPOTAIL merged into TOPO, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and TOPOTAIL had fallen far under it).
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `Unexaminable::Corrupt` family's row is gone with its file.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+`ops.rs` `apply_recuts`, listed above, is deleted with the rotation re-chart. Its carve/graft lookups are gone, and that site needs no row.

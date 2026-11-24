@@ -127,9 +127,6 @@ pub enum OverlapUnread {
     /// Two corner bounds leave along one ray with no bend to part them.
     /// A limit.
     AlongOneRay,
-    /// A region of a face a sphere's re-chart turned, which the
-    /// accumulation lost. A limit.
-    RechartedRegionLost,
     /// A row says the face holds an accumulation face lying elsewhere. A
     /// limit.
     HeldElsewhere,
@@ -157,7 +154,6 @@ impl OverlapUnread {
             | Self::UncertifiedBound
             | Self::UnplacedParameter
             | Self::AlongOneRay
-            | Self::RechartedRegionLost
             | Self::HeldElsewhere
             | Self::HeldCarrierUnread => Ok(Refusal::Limit),
         }
@@ -181,7 +177,6 @@ impl OverlapUnread {
             Self::UnplacedParameter => "a boundary edge whose carrier places no parameter",
             Self::TornBoundary => "a boundary record past a resolved face that does not resolve",
             Self::AlongOneRay => "two corner bounds leave along one ray with no bend to part them",
-            Self::RechartedRegionLost => "a lost region of a face a sphere's re-chart turned",
             Self::HeldElsewhere => "a row says the face holds an accumulation face lying elsewhere",
             Self::HeldCarrierUnread => {
                 "an accumulation face a row says the face holds, on a carrier not read"
