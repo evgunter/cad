@@ -4521,7 +4521,7 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: OwnRecord,
+    T: OwnRecord + 'static,
 {
     let mut ev = evaluate_at_descent(
         doc,
@@ -4536,6 +4536,7 @@ where
     if opts.pin {
         ev.pin = Some(crate::persist::content_pin(doc, tol));
     }
+    crate::build_record::parity_hook(doc, &ev, opts, tol);
     ev
 }
 

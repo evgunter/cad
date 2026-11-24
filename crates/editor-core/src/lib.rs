@@ -19,6 +19,7 @@
 #![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod analysis;
 pub mod appearance;
+pub(crate) mod build_record;
 pub mod checks;
 pub mod clearance;
 pub mod coincide;

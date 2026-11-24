@@ -1354,6 +1354,7 @@ pub fn drive(
     let witness_key = witness_vector.key();
     // What each node reads is the document's, so it is taken once.
     let reads = doc.free_reads();
+    let probe_serial = probe::drive_begin(doc, analyzed, &root, &witness, config, stop, tol);
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
     // turns against it, and the engine takes the two evaluations rather
@@ -1394,6 +1395,7 @@ pub fn drive(
         // priced and reported, never dropped.
         if certified.len() + refused.len() + frontier.len() > config.max_leaves {
             for b in frontier.drain(..) {
+                probe::fate(&witness, &b.box_, "budget leaves, never replayed");
                 // A box the budget refuses before it is replayed decided
                 // nothing, so its receipt is empty rather than absent.
                 refused.push(RefusedLeaf {
@@ -1496,6 +1498,7 @@ pub fn drive(
                             continue;
                         }
                     };
+                    probe::fate(&witness, &b.box_, &render_reason(&reason));
                     refused.push(RefusedLeaf {
                         box_: b.box_,
                         reason,
@@ -1506,6 +1509,7 @@ pub fn drive(
         }
         frontier = next;
     }
+    probe::drive_end(probe_serial, analyzed, &witness, &certified, &refused, splits);
 
     #[cfg(feature = "probe")]
     if config.k_probe == KProbe::CertifiedMidpoints {
@@ -1660,7 +1664,9 @@ pub(crate) fn classify(
             symbolic.retry,
             memo,
             || {
+                let t0 = std::time::Instant::now();
                 let leaf: Evaluation<Sym<Interval>> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                probe::eval_took(t0);
                 leaf
             },
         );
@@ -1680,7 +1686,9 @@ pub(crate) fn classify(
             counts,
         ));
     }
+    let t0 = std::time::Instant::now();
     let leaf: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    probe::eval_took(t0);
     if let Some(stopped) = crate::Stopped::of(leaf.outcome) {
         return Err(stopped);
     }
@@ -1704,6 +1712,28 @@ pub(crate) fn classify(
 /// because the two lanes above differ only in which scalar produced the
 /// evaluation and in nothing this function looks at.
 fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
+    doc: &Doc<ProfileProgram>,
+    box_: &ParamBox,
+    leaf: &Evaluation<T>,
+    witness: &Evaluation<f64>,
+    witness_vector: &VerdictVector,
+    witness_key: VerdictVectorKey,
+    decisions: SymCounts,
+) -> LeafVerdict {
+    let verdict = classify_replay_inner(
+        doc,
+        box_,
+        leaf,
+        witness,
+        witness_vector,
+        witness_key,
+        decisions,
+    );
+    probe::leaf(doc, box_, leaf, witness, &verdict);
+    verdict
+}
+
+fn classify_replay_inner<T: topo::AtRestPolicy + geom_core::Decide>(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     leaf: &Evaluation<T>,
@@ -1865,6 +1895,184 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
             structure: structure_flips,
         }),
     })
+}
+
+/// MEASUREMENT INSTRUMENT (never merged): the drive's lines of the
+/// build-record probe (`crate::build_record`).
+mod probe {
+    use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use serde_json::json;
+
+    use super::{
+        AnalyzedBox, CertifiedLeaf, Doc, DriveConfig, EvalOptions, Evaluation, Interval,
+        LeafVerdict, Node, ParamBox, ProfileProgram, RefusalReason, RefusedLeaf, Sym, Tol,
+        evaluate, lane_opts, render_box, render_reason, sym,
+    };
+    use crate::build_record::{self as br, Record};
+    use crate::node::RecipeNodeId;
+
+    static SERIAL: AtomicU64 = AtomicU64::new(0);
+    /// The witness records, by the witness evaluation's epoch.
+    static WITNESS: Mutex<BTreeMap<u64, Arc<Record>>> = Mutex::new(BTreeMap::new());
+
+    fn witness_record(witness: &Evaluation<f64>) -> Arc<Record> {
+        let mut map = WITNESS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if map.len() > 64 {
+            map.clear();
+        }
+        Arc::clone(
+            map.entry(witness.epoch.0)
+                .or_insert_with(|| Arc::new(Record::of(witness))),
+        )
+    }
+
+    pub(super) fn eval_took(t0: std::time::Instant) {
+        #[allow(clippy::cast_possible_truncation)]
+        br::LEAF_EVAL_US.with(|c| c.set(t0.elapsed().as_micros() as u64));
+    }
+
+    fn certifying(doc: &Doc<ProfileProgram>) -> impl Fn(RecipeNodeId) -> bool + '_ {
+        |id| !matches!(doc.node(id), Some(Node::Assertion(_)))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn drive_begin(
+        doc: &Doc<ProfileProgram>,
+        analyzed: &AnalyzedBox,
+        root: &ParamBox,
+        witness: &Evaluation<f64>,
+        config: &DriveConfig,
+        stop: &crate::Stop,
+        tol: Tol,
+    ) -> u64 {
+        if br::dir().is_none() {
+            return 0;
+        }
+        let serial = SERIAL.fetch_add(1, Ordering::Relaxed) + 1;
+        let ra = witness_record(witness);
+        let all = |_: RecipeNodeId| true;
+        br::emit(json!({
+            "k": "drive", "serial": serial, "w": witness.epoch.0,
+            "doc": format!("{:?}", doc.id()),
+            "root": render_box(root),
+            "symbolic": config.symbolic.enabled,
+            "max_depth": config.max_depth, "max_leaves": config.max_leaves,
+            "nodes": witness.order.len(),
+            "kinds": br::payload_kinds(witness),
+            "w_rec_hash": ra.hash(), "w_extras_hash": ra.extras_hash(),
+            "w_names_hash": ra.names_hash(),
+            "w_hashes": br::log_hashes(witness, &certifying(doc)),
+            "w_unnamed": ra.unnamed(), "w_cells": ra.cells(),
+            "w_measures": ra.measures(),
+        }));
+        // The zero-width replay at the nominal, at each box scalar.
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+            ..lane_opts(stop)
+        };
+        br::quiet(|| {
+            let t0 = std::time::Instant::now();
+            let iv: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
+            #[allow(clippy::cast_possible_truncation)]
+            let t = t0.elapsed().as_micros() as u64;
+            let mut line = json!({"k": "zero", "lane": "Interval", "serial": serial,
+                "w": witness.epoch.0, "doc": format!("{:?}", doc.id()), "t_eval_us": t});
+            br::compare_into(&mut line, witness, &ra, &iv, &all);
+            br::emit(line);
+            let memo = super::drive_memo(config.plain_memo, config.symbolic);
+            let t0 = std::time::Instant::now();
+            let (sv, _) = sym::with_session_memo_retry(
+                config.symbolic.budget(),
+                config.symbolic.rules,
+                config.symbolic.retry,
+                &memo,
+                || {
+                    let leaf: Evaluation<Sym<Interval>> =
+                        evaluate(doc, None, &stop.cancel, &opts, tol);
+                    leaf
+                },
+            );
+            #[allow(clippy::cast_possible_truncation)]
+            let t = t0.elapsed().as_micros() as u64;
+            let mut line = json!({"k": "zero", "lane": "Sym<Interval>", "serial": serial,
+                "w": witness.epoch.0, "doc": format!("{:?}", doc.id()), "t_eval_us": t});
+            br::compare_into(&mut line, witness, &ra, &sv, &all);
+            br::emit(line);
+        });
+        serial
+    }
+
+    pub(super) fn leaf<T: topo::AtRestPolicy + geom_core::Decide>(
+        doc: &Doc<ProfileProgram>,
+        box_: &ParamBox,
+        leaf: &Evaluation<T>,
+        witness: &Evaluation<f64>,
+        verdict: &LeafVerdict,
+    ) {
+        if br::dir().is_none() {
+            return;
+        }
+        let ra = witness_record(witness);
+        let (name, detail, evidence_empty) = match verdict {
+            LeafVerdict::Certified(_) => ("certified", String::new(), false),
+            LeafVerdict::Refused(reason @ RefusalReason::FlipCrossing { flipped }) => {
+                ("flip", render_reason(reason), flipped.is_empty())
+            }
+            LeafVerdict::Refused(reason) => ("refused", render_reason(reason), false),
+            LeafVerdict::Bisect {
+                deciding,
+                unsettled,
+            } => ("bisect", format!("{deciding:?} {unsettled:?}"), false),
+        };
+        let widths: Vec<f64> = box_.varying().map(|(_, lo, hi)| hi - lo).collect();
+        let mut line = json!({
+            "k": "leaf", "w": witness.epoch.0,
+            "doc": format!("{:?}", doc.id()),
+            "box": render_box(box_), "widths": widths,
+            "verdict": name, "detail": detail, "evidence_empty": evidence_empty,
+            "t_eval_us": br::LEAF_EVAL_US.with(std::cell::Cell::get),
+        });
+        br::compare_into(&mut line, witness, &ra, leaf, &certifying(doc));
+        br::emit(line);
+    }
+
+    pub(super) fn fate(witness: &Evaluation<f64>, box_: &ParamBox, reason: &str) {
+        if br::dir().is_none() {
+            return;
+        }
+        br::emit(json!({"k": "fate", "w": witness.epoch.0, "box": render_box(box_),
+            "reason": reason}));
+    }
+
+    pub(super) fn drive_end(
+        serial: u64,
+        analyzed: &AnalyzedBox,
+        witness: &Evaluation<f64>,
+        certified: &[CertifiedLeaf],
+        refused: &[RefusedLeaf],
+        splits: usize,
+    ) {
+        if br::dir().is_none() {
+            return;
+        }
+        let mass = |b: &ParamBox| b.mass(analyzed).ok();
+        for leaf in certified {
+            br::emit(json!({"k": "final", "w": witness.epoch.0, "serial": serial,
+                "box": render_box(&leaf.box_), "class": "certified",
+                "mass": mass(&leaf.box_)}));
+        }
+        for leaf in refused {
+            br::emit(json!({"k": "final", "w": witness.epoch.0, "serial": serial,
+                "box": render_box(&leaf.box_), "class": leaf.reason.class().name(),
+                "reason": render_reason(&leaf.reason),
+                "mass": mass(&leaf.box_)}));
+        }
+        br::emit(json!({"k": "drive_end", "serial": serial, "w": witness.epoch.0,
+            "certified": certified.len(), "refused": refused.len(), "splits": splits}));
+    }
 }
 
 /// What one escalation makes of the node that holds it.
