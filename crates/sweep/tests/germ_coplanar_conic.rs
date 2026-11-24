@@ -11,9 +11,11 @@
 //!   glues undeclared: every op answers its closed form);
 //! - a donut revolved with its seam parallels at the equators, the box
 //!   top in the equator plane holding an arc of the outer equator (the
-//!   neighbours are the two torus faces; today every op refuses at the
-//!   join's germ frame, where the box's face `z = 2.2`, parallel to the
-//!   axis past the inner equator, cuts a general spiric quartic);
+//!   neighbours are the two torus faces; the box's face `z = 2.2`,
+//!   parallel to the axis past the inner equator, cuts a general spiric
+//!   quartic, which the section value marches: every op answers its
+//!   closed form, and `point_in_solid` refuses typed on its result, whose
+//!   torus faces a marched edge bounds);
 //! - a tube authored with a vertex at `ρ = 1`, `y = 0` on its outer
 //!   side, which the revolve does not keep: its outer wall is one face.
 //!   The box top in that plane cuts an arc of the wall (every op
@@ -300,6 +302,7 @@ fn every_op_refuses_or_answers_its_closed_form() {
                     "{what}: volume {got} against the closed form {want}"
                 ));
             }
+            let mut partial = false;
             for &([x, y, z], in_a, in_b) in &fx.witnesses {
                 let expect = if member(in_a, in_b) {
                     SolidContainment::In
@@ -309,8 +312,16 @@ fn every_op_refuses_or_answers_its_closed_form() {
                 let q = Point3::new(x, y, z);
                 match topo::point_in_solid(body, q, band, tol) {
                     Ok(c) if c == expect => {}
+                    // A torus face bounded by a marched (spline) edge is
+                    // not read by the ray lane: refused typed.
+                    Err(topo::PointInSolidError::PartialTorusFace { .. }) => partial = true,
                     got => failures.push(format!("{what}: point_in_solid{q:?} = {got:?}")),
                 }
+            }
+            if partial {
+                outcomes.push(format!(
+                    "{what}: point_in_solid refuses a partial torus face"
+                ));
             }
         }
     }
@@ -325,13 +336,16 @@ fn every_op_refuses_or_answers_its_closed_form() {
 /// builds to its closed form, or refuses at the door named (module
 /// docs). Pinned per op, so a change that moves one is a red row rather
 /// than a refusal the row above would also accept.
-const OUTCOMES: [&str; 15] = [
+const OUTCOMES: [&str; 18] = [
     "cylinder cap in the box top: A ∪ B: builds",
     "cylinder cap in the box top: A ∩ B: builds",
     "cylinder cap in the box top: A ∖ B: builds",
-    "outer equator arc in the box top: A ∪ B: GermSectionSpiric",
-    "outer equator arc in the box top: A ∩ B: GermSectionSpiric",
-    "outer equator arc in the box top: A ∖ B: GermSectionSpiric",
+    "outer equator arc in the box top: A ∪ B: builds",
+    "outer equator arc in the box top: A ∪ B: point_in_solid refuses a partial torus face",
+    "outer equator arc in the box top: A ∩ B: builds",
+    "outer equator arc in the box top: A ∩ B: point_in_solid refuses a partial torus face",
+    "outer equator arc in the box top: A ∖ B: builds",
+    "outer equator arc in the box top: A ∖ B: point_in_solid refuses a partial torus face",
     "tube strut arc in the box top: A ∪ B: builds",
     "tube strut arc in the box top: A ∩ B: builds",
     "tube strut arc in the box top: A ∖ B: builds",
