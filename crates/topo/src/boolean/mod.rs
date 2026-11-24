@@ -4597,15 +4597,18 @@ pub enum BooleanError {
         /// Which construction is missing.
         gap: SlitFaceGap,
     },
-    /// The result keeps a curved face on both sides of an edge with
-    /// both ends free, a ring holding nothing but itself, which the
-    /// output stage deletes from the face (`slit::close_struts`,
-    /// `slit::close_cuts`, `crate::strut`'s `StrutRefusal::Curved`): the
-    /// lone ring's bridge is a line chord, which lies in no curved face.
-    /// A strut with one free end is deleted by `kev`, which mints
-    /// nothing, on any face. A construction gap, with no lever.
+    /// The result keeps a curved face on both sides of an operand's
+    /// slit or zero-area ring, whose two edges the zip glued into one
+    /// edge of that face with a free end, a strut, and deleting a strut
+    /// from a curved face is not built (`slit::close_struts`,
+    /// `crate::strut`'s `StrutRefusal::Curved`), or of a chart cut's
+    /// piece with a free end (`slit::close_cuts`). Of a strut with both
+    /// ends free, the lone ring's bridge is a line chord, which lies in
+    /// no curved face; the strut deleted with one free end by `kev`
+    /// mints nothing and is refused with it. A construction gap, with
+    /// no lever.
     ///
-    /// A limit: a lone ring's deletion from a curved face not built (row 2).
+    /// A limit: a strut's deletion from a curved face not built (row 2).
     CurvedFaceClosesAcrossSlit {
         /// The curved face, in the result's keys.
         face: FaceKey,

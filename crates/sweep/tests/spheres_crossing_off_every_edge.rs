@@ -108,7 +108,7 @@ enum Want {
 /// `scale` (a difference of nearly equal balls is a cancellation).
 fn check(
     label: &str,
-    (operands, parts): ([&AtRestBody<f64>; 2], usize),
+    operands: [&AtRestBody<f64>; 2],
     out: Result<BooleanResult<f64>, BooleanError>,
     (volume, scale): (f64, f64),
     want: Want,
@@ -160,23 +160,13 @@ fn check(
         }
     }
     // The meridian the scan cut each sphere face along is closed again:
-    // no sphere holds more faces in the result than its operands brought,
-    // and one more for each further piece the op leaves of it (`parts`).
-    let (held, brought) = (
-        sphere_faces(&[&bb.body]),
-        sphere_faces(&operands.map(|o| &**o)),
+    // every edge between two pieces of one sphere is one its operands
+    // wrote.
+    crate::common::maximal_spheres::assert_spheres_maximal(
+        label,
+        &bb.body,
+        &operands.map(|o| &**o),
     );
-    for (sphere, n) in &held {
-        let m = brought
-            .iter()
-            .find(|(s, _)| same_sphere(s, sphere))
-            .map_or(0, |&(_, m)| m);
-        assert!(
-            *n < m + parts,
-            "{label}: the sphere {sphere:?} holds {n} faces, its operands brought {m}, in \
-             {parts} pieces"
-        );
-    }
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!(
         (v - volume).abs() <= 1e-9 * volume.abs() + 1e-15 * scale,
@@ -184,33 +174,6 @@ fn check(
     );
     let line = outcome(out, volume, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
-}
-
-/// A sphere's centre and radius.
-type Sphere = ([f64; 3], f64);
-
-/// Each sphere the faces of `bodies` lie on, with how many lie on it.
-fn sphere_faces(bodies: &[&topo::Body<f64>]) -> Vec<(Sphere, usize)> {
-    let mut out: Vec<(Sphere, usize)> = Vec::new();
-    for body in bodies {
-        for (_, face) in body.faces() {
-            let Some(geom::Surface::Sphere { frame, radius, .. }) = body.get_surface(face.surface)
-            else {
-                continue;
-            };
-            let c = frame.origin();
-            let sphere = ([c.x, c.y, c.z], *radius);
-            match out.iter_mut().find(|(s, _)| same_sphere(s, &sphere)) {
-                Some((_, n)) => *n += 1,
-                None => out.push((sphere, 1)),
-            }
-        }
-    }
-    out
-}
-
-fn same_sphere(a: &Sphere, b: &Sphere) -> bool {
-    (0..3).all(|i| (a.0[i] - b.0[i]).abs() < 1e-9) && (a.1 - b.1).abs() < 1e-9
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
@@ -223,17 +186,7 @@ fn assert_six(
     shares: (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    assert_six_in_parts(pose, a, b, shares, wants.map(|w| (w, 1)));
-}
-
-/// [`assert_six`], where op `i` leaves `wants[i].1` pieces of a sphere.
-fn assert_six_in_parts(
-    pose: &str,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    (va, vb, shared): (f64, f64, f64),
-    wants: [(Want, usize); 6],
-) {
+    let (va, vb, shared) = shares;
     let tol = Tol::witness();
     let ops = [
         ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
@@ -243,10 +196,10 @@ fn assert_six_in_parts(
         ("a ∩ b", shared, topo::intersect(a, b, tol)),
         ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
-    for ((op, volume, out), (want, parts)) in ops.into_iter().zip(wants) {
+    for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         check(
             &format!("{pose}, {op}"),
-            ([a, b], parts),
+            [a, b],
             out,
             (volume, va + vb),
             want,
@@ -722,7 +675,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     ] {
         check(
             &format!("r 50, {op}"),
-            ([&a, &b], 1),
+            [&a, &b],
             out,
             (va + vb - shared, va + vb),
             Draws,
@@ -730,14 +683,14 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     check(
         "r 50, a ∖ b",
-        ([&a, &b], 1),
+        [&a, &b],
         topo::subtract(&a, &b, tol),
         (va - shared, va + vb),
         Draws,
     );
     check(
         "r 50, b ∖ a",
-        ([&a, &b], 1),
+        [&a, &b],
         topo::subtract(&b, &a, tol),
         (vb - shared, va + vb),
         Draws,
@@ -801,26 +754,59 @@ fn a_large_ball_near_external_tangency_is_pinned() {
 /// its outline is the tilted circle, whose chart rows the ring reader
 /// cannot clear, so the mesher refuses the ring undecided
 /// ([`Want::RingUnread`]); with the two roles swapped it would refuse
-/// `NoShift` instead, the ring outside its outline. The other ops mesh,
-/// and the union and the ball less the box leave the ball in two pieces.
+/// `NoShift` instead, the ring outside its outline, and the roles are
+/// read off the loops before that. The other ops mesh.
 #[test]
 fn a_band_between_two_circles_builds_under_every_boolean() {
     let (lo, hi) = (0.4f64, 0.7f64);
     let band = |a: f64, b: f64| std::f64::consts::PI * ((b - a) - (b.powi(3) - a.powi(3)) / 3.0);
     let slab = boxed((-2.0, 2.0), (-2.0, 2.0), (lo, hi));
     let slab_volume = 4.0 * 4.0 * (hi - lo);
-    assert_six_in_parts(
+    // The band's roles, read off its loops: its outline is the circle
+    // `z = lo`, which the chart's poles `(0, ±1, 0)` lie beyond, and its
+    // ring the circle `z = hi`. Swapping them leaves the volume, the
+    // tiers and the face count as they are.
+    let tol = Tol::witness();
+    for (op, out) in [
+        ("the ball ∩ the box", topo::intersect(&unit(), &slab, tol)),
+        ("the box ∖ the ball", topo::subtract(&slab, &unit(), tol)),
+    ] {
+        let body = body(out);
+        let heights = |l: topo::LoopKey| -> Vec<f64> {
+            body.half_edges()
+                .filter(|(_, h)| h.parent_loop == l)
+                .map(|(_, h)| {
+                    body.vertex_points()
+                        .find(|&(v, _)| v == h.start)
+                        .map(|(_, p)| p.z)
+                        .unwrap()
+                })
+                .collect()
+        };
+        let on = |zs: &[f64], z: f64| !zs.is_empty() && zs.iter().all(|&h| (h - z).abs() < 1e-9);
+        let bands: Vec<_> = body
+            .faces()
+            .filter(|&(f, _)| matches!(body.face_surface(f), Some(geom::Surface::Sphere { .. })))
+            .collect();
+        let [(_, band)] = bands[..] else {
+            panic!("{op}: the band is one sphere face, got {}", bands.len())
+        };
+        let [ring] = band.rings[..] else {
+            panic!("{op}: the band holds one ring, got {:?}", band.rings)
+        };
+        assert!(
+            on(&heights(band.outer), lo) && on(&heights(ring), hi),
+            "{op}: the band's outline is the circle z = {lo} and its ring z = {hi}, got {:?} \
+             and {:?}",
+            heights(band.outer),
+            heights(ring)
+        );
+    }
+    assert_six(
         "the band",
         &unit(),
         &slab,
         (ball_volume(1.0), slab_volume, band(lo, hi)),
-        [
-            (Draws, 2),
-            (Draws, 2),
-            (Draws, 2),
-            (RingUnread, 1),
-            (RingUnread, 1),
-            (RingUnread, 1),
-        ],
+        [Draws, Draws, Draws, RingUnread, RingUnread, RingUnread],
     );
 }
