@@ -121,3 +121,9 @@ rayon = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# A reviewer's differential probe (boxfinish/review-signed-radius-r2):
+# its own binary so the head and the merge base each build it alone.
+[[test]]
+name = "review_r2_f64_diff"
+path = "review-probes/r2_f64_diff.rs"

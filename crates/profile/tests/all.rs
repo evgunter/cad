@@ -162,6 +162,8 @@ mod recorded_directions;
 mod recourse_roster;
 #[path = "review_fillet_recourse_arm_r2_probes.rs"]
 mod review_fillet_recourse_arm_r2_probes;
+#[path = "review_signed_radius_r2.rs"]
+mod review_signed_radius_r2;
 
 #[path = "review_r2_differential.rs"]
 mod review_r2_differential;
