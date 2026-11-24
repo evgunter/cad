@@ -980,13 +980,12 @@ mod torn_rows {
     /// `edge_clears` reads both faces of an edge the plane crosses, and a
     /// half whose loop was dropped panics naming it, where a read of the
     /// miss as no face would clear the edge on its other face alone.
-    /// The gate's face reach (`census::face_reach_in`) reads the face's surface, and a dropped one
-    /// panics naming it, where a read of the miss as no claim to make
-    /// would answer the census's box.
+    /// The gate's face reach (`census::face_reach_toward`) reads the
+    /// face's surface, and a dropped one panics naming it, where a read
+    /// of the miss as no claim to make would clear the face.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
         use crate::live::OPERATORS_KEEP_LINKS;
-        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -995,8 +994,6 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxAxes::aimed(plane.normal);
-
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {
             let (u, v) = b.edge_vertices(e).unwrap();
@@ -1029,16 +1026,16 @@ mod torn_rows {
         let mut body = fresh();
         let (face, surface) = body.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
         assert!(
-            crate::census::face_reach_in(&body, face, band, &frame).is_some(),
+            crate::census::face_reach_toward(&body, face, band, plane.normal).is_some(),
             "a sound face has a reach"
         );
         body.surfaces.remove(surface);
         let named = format!("{}'s surface names", EntityId::Face(face));
         assert_torn_op_panics(
-            "face_reach_in",
+            "face_reach_toward",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| crate::census::face_reach_in(b, face, band, &frame),
+            |b| crate::census::face_reach_toward(b, face, band, plane.normal),
         );
     }
 }
