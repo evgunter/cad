@@ -52,3 +52,15 @@ What moved:
 Position after round 3: the same lever, rate, promise and form (one kept length per face and shared cell). One clause differs: whether an adjacent edge that turns back counts in the near run (B) or is left to the pair across it (A). Round 4 asks each whether it signs the other's sentence.
 
 Tokens, cumulative: A 174,168; B as the harness reports at its round-3 notification (recorded with round 4).
+
+## Round 4 (2026-11-24, about 02:55Z to 03:05Z)
+
+Dispatched: both designers, same agents. Shown: each the other's round-3 report in full (neutral copy), my reading of what was agreed and of the one clause that differed (an adjacent edge that left the shared edge and has turned back), and three questions: whether it signs the other's sentence; whether the turned-back term is well defined and what it under-reads; its final sentence. Verbatim: `round4/A-r4.md`, `round4/B-r4.md`.
+
+What moved:
+- **B withdrew the turned-back clause** and signs A's round-3 sentence as written. Its reasons: for every body it had named, the far-run cap already gives the same reading; the clause is a third term only for a "pinch" (an adjacent edge that swings away and comes back beside the shared edge), and it cannot show a recipe that reads it from below without under-reading ordinary rounded corners. It records the shallow pinch as the one uncovered shape, for a row.
+- **A adopted B's words for the cap** ("or the face's own end") and argued the turned-back clause out (read one way it refuses every D-shaped face, half-disc and lune; read the other it misses the dip it was added for).
+
+**Agreement: yes**, on the final state: one reading beside a shared cell, the wedge's sine capped at one, levered at the narrower face's near run and never more than its far run, kept by tier 3 as one length per face and shared cell; the promise; the far run left to tier 3; the derivation in the PR body, not in ratified text. The two final reports word the same lever in two ways (each took the other's words); the `[ev]` PR's diff carries the sentence written by A in round 3 and signed by B in round 4 as written.
+
+Tokens, cumulative as the harness reports: A 124,245 first report, 186,460 in total; B 253,477 first report, 327,534 in total.
