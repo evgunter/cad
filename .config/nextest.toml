@@ -210,6 +210,18 @@ failure-output = "immediate-final"
 # PR 6988's branch (medians of six local runs 1.22 s on the merge base
 # `dbb21b4a`, 1.14 s on the branch; 1.036 s on the hosted runner):
 #    1.04 s  sweep::all snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds
+# Reflex-corner struts past a half turn, at the one-second bar on main:
+# 1.104 s on PR 7553's hosted run; medians of eight interleaved local
+# runs, 4 vCPUs, 2.67 s on main and 2.70 s on PR 7553, so about 1.09 s on
+# main there (work/green/the-one-second-bar-reds-prs-off-their-path-several-times-a-day.md):
+#    1.10 s  sweep::all join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound
+# A ring re-homed across a torus face through the ring path's plane
+# readings, which sits at the one-second bar on main: 1.116 s on PR 7553's
+# hosted run before its belly filter, about 0.97 s on main by the local
+# ratio (medians of four interleaved local runs, 4 vCPUs: 2.34 s main,
+# 2.69 s before the filter, 2.30 s after;
+# work/green/the-one-second-bar-reds-prs-off-their-path-several-times-a-day.md):
+#    1.12 s  topo chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path
 # A rest carried onto either piece of a sphere face, or of its rim arc,
 # a slab cuts in, two built operands under two ops each, and the arc
 # also at the point the cut splits it (local runs):
@@ -398,6 +410,12 @@ not (
   (binary_id(sweep::all) & (test(=split_tangent_edge_curved::a_plane_off_a_hole_wall_reads_each_decision_across_the_band) | test(=pis_arc_capped_poses::the_cut_cylinder_reads_its_truth) | test(=pis_arc_capped_poses::the_cut_cylinders_ellipse_face_takes_nothing_away) | test(=parallel_cylinder_join::equal_wider_and_nested_rods_join_along_their_rulings) | test(=corner_patch_chart_poles::every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex) | test(=snowman::a_tilted_slab_against_the_lens_builds_off_the_seam))) |
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
   (binary_id(geom-brep) & test(=pcurve_cache::line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read)) |
+  (binary_id(geom-brep) & test(=curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere)) |
+  (binary_id(topo) & test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path)) |
+  (binary_id(sweep::all) & test(=join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound)) |
+  (binary_id(geom-brep) & test(=curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere_past_the_touchs_placement)) |
+  (binary_id(geom-brep) & (test(=curve_pair::pose::far_rows::the_parallel_screen_clears_a_far_centred_conic_only_where_it_is_clear) | test(=curve_pair::pose::far_rows::the_harmonics_near_extreme_reads_a_far_centred_conics_belly) | test(=curve_pair::pose::far_rows::a_far_conic_grazing_a_circle_through_its_vertex_is_never_apart))) |
+  (binary_id(topo) & test(=splitting::section_loops::far_clear_rows::a_segment_clears_a_far_centred_conic_only_where_it_is_clear)) |
   (binary_id(geom-brep) & test(=pcurve_cache::iso_arc_weight_search::no_arc_rim_certifies_under_its_miss)) |
   (binary_id(geom-brep) & test(=pcurve_cache::analytic_net_rows::a_nets_read_on_an_analytic_chart_ends_by_its_supremum)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::by_turn_rows::check_4_reads_a_625_span_chord_in_one_part_a_span) | test(=pcurve_cache::by_turn_rows::a_dropped_first_reading_leaves_no_decision_at_sym) | test(=pcurve_cache::by_turn_rows::a_passing_first_reading_keeps_its_decisions_at_sym))) |
