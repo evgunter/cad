@@ -247,6 +247,9 @@ pub(crate) struct OpEnv<'a, T: topo::AtRestPolicy + Decide> {
     pub parts: &'a super::parts::Reached<T>,
     /// The environments profile geometry is elaborated over.
     pub lane: LaneEnv<'a, T>,
+    /// The mint scope this evaluation's nodes are named inside
+    /// ([`super::node_mints`]).
+    pub mints: geom_core::sym::MintScope,
 }
 
 /// **A node as its op reads it**: the node, with what
@@ -4779,18 +4782,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?,
         );
         pair_senses
-            .judged(
-                j.a,
-                j.b,
-                &j.body.naming,
-                &j.body.body,
-                [members[j.a].read, members[j.b].read],
-                // The member as held, not as the run read it: the senses
-                // chase the piece's edges through `b`'s topology and keys,
-                // which a move keeps (`topo::transform::map_isometry`),
-                // and compare no geometry with the result.
-                bodies[j.b].body(),
-            )
+            .judged(j.a, j.b, &j.body.naming, &j.body.body)
             .map_err(NodeErrorKind::Naming)?;
     }
     // One row per statement: two pairs that state one thing (a member
@@ -4873,14 +4865,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .collect();
             pair_senses
-                .judged(
-                    0,
-                    1,
-                    naming,
-                    &out.body,
-                    [members[0].read, members[1].read],
-                    member_body,
-                )
+                .judged(0, 1, naming, &out.body)
                 .map_err(NodeErrorKind::Naming)?;
         }
         // The step's records in the node's terms: every row the step

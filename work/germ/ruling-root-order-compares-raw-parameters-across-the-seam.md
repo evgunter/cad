@@ -2,8 +2,9 @@
 id: ruling-root-order-compares-raw-parameters-across-the-seam
 kind: issue
 title: the section ruling's root order compares raw parameters, so two roots ε apart across its ±π seam read a turn apart
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-11-24
 priority: P3
 cost: M
 refs: [periodic-branch-floor-remains-at-the-raw-picks]
@@ -32,3 +33,7 @@ the seam pair separately), with a row that puts two roots ε apart
 across `±π`.
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## Retired (sectcone, PR 7637, 2026-11-24)
+
+`topo::boolean::section_cert::ruling` is deleted: topo's section certificate reads cone × cylinder and cone × cone on the section value (`geom_brep::pair_section`), whose ruling sweep (`pair_section/ruling.rs`) tiles cells over the whole turn and reads no `certified_subdivision` walk. The seam this row names is gone with it: the sweep unwraps a walk's angles in its own order across the seam (`Sweeper::walk`, PR 7357's seam fix, pinned by `a_crossing_reads_the_same_wherever_the_cones_seam_stands`), so no raw-parameter order remains to compare. Closed as moot.

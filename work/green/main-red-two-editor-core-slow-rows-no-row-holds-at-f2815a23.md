@@ -29,6 +29,23 @@ names neither, and no open row does.
 - `trim_3_windows_interval::a_holed_cylinder_wall_drops_the_cells_in_its_hole`:
   panics at `crates/editor-core/tests/fixture/mod.rs:4426:18`,
   `a clearance's verdict over the leaf: None`.
+- `revalue_corpus::revalue_die_chamfer` and
+  `revalue_corpus::revalue_measured_web` (added by the node-key lane,
+  PR 7470; red on main at `f2815a232a` and on that PR's merged heads
+  with the same text): both panic at
+  `crates/editor-core/tests/revalue_corpus.rs:394:5`, ``a decision's
+  DAG re-valued at p0 is not the p0 build's own bits — revalue no
+  longer computes an op as Sym builds it``, `die_chamfer` with
+  `drifted: 322` of 5,432 compared and `measured_web` with
+  `drifted: 39` of 2,014, laundered names `carrier_on_surface_1`,
+  `carrier_on_surface_2`, `witness_on_surface_1` among them: the shape
+  of `main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411`,
+  which does not name these two documents.
+- `demos/tour`'s `eps_regression::tour_runs_green_at_eps_1e_6` (same
+  lane; red on main at `f2815a232a` and on the PR's head merged with
+  it, same text; not re-run on a later main): panics at
+  `tests/eps_regression.rs:84:5`, ``demo-tour <outdir>` failed at eps
+  Some("1e-6") (exit status: 101)``.
 
 Not bisected.
 

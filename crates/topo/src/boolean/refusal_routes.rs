@@ -917,23 +917,11 @@ pub enum SphereQuestion {
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
     /// clearance passes, and so do a negative one and a decided zero
     /// whose two spheres' faces the section certificate certifies apart.
-    /// A crossing whose circle lies inside both faces re-cuts both
-    /// spheres, and a decided zero touching on both faces refuses
+    /// A crossing whose circle lies inside both faces cuts both
+    /// spheres in, and a decided zero touching on both faces refuses
     /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
-    /// Whether the escapes one closed sphere group re-charts for share
-    /// an axis: plane faces' normals, other spheres' centre lines
-    /// (`bool_sphere_escape_parallel`). Only a zero is one re-chart; a
-    /// definite lean cuts sphere escapes in instead, or refuses where a
-    /// plane is among them, so no smaller tolerance decides a margin
-    /// passing.
-    EscapeParallel,
-    /// Whether the sphere's stored polar axis leans away from the escape
-    /// normal it is re-charted onto (`bool_sphere_recut_align`, the
-    /// axes' cross levered at the radius): a definite lean passes, and a
-    /// decided zero refuses with its decided margin.
-    RecutAlign,
-    /// Where the meridian cut through a trimmed sphere face's section
+    /// Where the meridian cut through a sphere face's section
     /// circle meets the face's boundary (`bool_sphere_cut_*`): the
     /// meridian's placement, its roots on each boundary arc, and their
     /// order along it. Its arms pass on different sets (a root at an
@@ -952,10 +940,6 @@ impl SphereQuestion {
             }
             Self::Apart => "whether a sphere of each solid stands clear of the other",
             Self::Nested => "whether the smaller of two spheres lies strictly inside the larger",
-            Self::EscapeParallel => "whether the plane faces a sphere pokes through are parallel",
-            Self::RecutAlign => {
-                "whether a sphere's polar axis leans away from the face it pokes through"
-            }
             Self::CutIn => {
                 "where a cut through the circle a plane cuts on a sphere face meets that face's \
                  boundary"
@@ -968,13 +952,6 @@ impl SphereQuestion {
         match self {
             Self::AgainstPlane => Ending::Sized(SPHERE_AGAINST_PLANE),
             Self::Apart | Self::Nested => Ending::Sized(SPHERES),
-            Self::EscapeParallel => Ending::Lever(EXTENT_LEVER),
-            // The lean is the axes' cross, a norm levered at the radius.
-            Self::RecutAlign => Ending::Sized(SizedDecision {
-                size: "lean of the sphere's polar axis",
-                passes: SizedPass::Positive,
-                ..SPHERE_AGAINST_PLANE
-            }),
             Self::CutIn => Ending::Lever(CUT_LEVER),
         }
     }
@@ -2380,17 +2357,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::Sphere(SphereQuestion::Nested) => (
                 "whether the smaller of two spheres lies strictly inside the larger",
                 Ending::Sized(SPHERES, SizedPass::Positive),
-            ),
-            BooleanDecision::Sphere(SphereQuestion::EscapeParallel) => (
-                "whether the plane faces a sphere pokes through are parallel",
-                Ending::Lever(
-                    "Recourse: move them so their boundaries cross, or so their curved faces \
-                     stand further apart",
-                ),
-            ),
-            BooleanDecision::Sphere(SphereQuestion::RecutAlign) => (
-                "whether a sphere's polar axis leans away from the face it pokes through",
-                Ending::Sized(AGAINST, SizedPass::Positive),
             ),
             BooleanDecision::Sphere(SphereQuestion::CutIn) => (
                 "where a cut through the circle a plane cuts on a sphere face meets that face's \

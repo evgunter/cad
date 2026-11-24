@@ -2,11 +2,14 @@
 id: closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut
 kind: issue
 title: A closed sphere group's escape is re-charted by rotating the group while a trimmed face's is cut along its meridian: two answers to one escape
-status: open
+status: closed
 opened: 2026-10-05
 priority: P0
 cost: H
 refs: [4044]
+closed: 2026-11-24
+pr: 7602
+branch: orbit/one-sphere-escape-cut
 ---
 
 
@@ -89,3 +92,16 @@ and refuses at a turned pole
 ## Re-banded P0 (2026-11-23, HELDRECORDS orchestrator)
 
 HELDRECORDS PR 7516 (`heldrecords/nary-lineage`) fixed an n-ary door panic. The panic was reached by editing one pip-centre variable of the corpus document `die_composed_tour` by 30%, which puts one pip's ball 0.08 from a neighbour's (r = 0.09), so two dimples run together: a valid part a user gets by dragging a pip. The eight edits that panicked now end in one typed refusal, at the `Node::Union`: `Naming(UnsupportedTurnedCell { cell: Edge })`, the turned-seam refusal this row's re-chart owns. The pin is `editor-core::all the_tours_die_with_two_pips_run_together_refuses_their_turned_seam`; its rows flip to building when this row lands. A normal verb refusing on normal geometry is P0 (`work/README.md`, Priority), and this row is what stands in the way, so it takes that band. The trace is on `work/heldrecords/the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage.md` (on `heldrecords/nary-lineage`).
+
+## Closed (2026-11-24, PR 7602)
+
+One answer. Every sphere escape on the no-crossings path is cut along a meridian (`apply_cut_ins`), closed balls included. Retired: the rotation re-chart (`apply_recuts`, `SphereRecut`, `recut_lean`, the `EscapeParallel` and `RecutAlign` questions), the `Recharts` map and its readers, and `NamingError::UnsupportedTurnedCell`.
+
+A ball poked by non-parallel planes builds every op at closed form, where main refused. The die's eight edits pass the turned seam. The die then waits on `a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick` (PR 7664) and `a-conventional-vertex-mints-no-edge-derived-name`.
+
+Costs, each recorded:
+- near-pole circles no longer draw (TESS's row, re-banded P1);
+- the plain witness at 1e-12 stops earlier, at the cut's pcurve envelope (ONEHOME's row);
+- a seam crossing one escape face meets the interior-loop guard, as on main (GERM's `interior-loop-cut-in`, P0).
+
+Review: dual, two reviewers, APPROVE-WITH-FIXES from both; the fix pass merged on my read.

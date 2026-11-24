@@ -470,12 +470,8 @@ fn profile_node_of(doc: &corpus::CorpusDoc) -> editor_core::RecipeNodeId {
 }
 
 /// The plate at `Sym<f64>` under `box_`, in a deferring session at the
-/// door's budget: each node's content key, and the profile node's
-/// verdict log.
-fn at_sym(
-    doc: &corpus::CorpusDoc,
-    box_: Option<editor_core::analysis::ParamBox>,
-) -> (Vec<Option<editor_core::ContentKey>>, Vec<String>) {
+/// door's budget: the profile node's verdict log.
+fn at_sym(doc: &corpus::CorpusDoc, box_: Option<editor_core::analysis::ParamBox>) -> Vec<String> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
         ..EvalOptions::default()
@@ -500,19 +496,12 @@ fn at_sym(
                 &opts,
                 Tol::witness(),
             );
-            let keys = ev
-                .order
-                .iter()
-                .map(|id| ev.value(*id).map(|v| v.content_key))
-                .collect();
-            let log = ev
-                .value(profile_node_of(doc))
+            ev.value(profile_node_of(doc))
                 .expect("the profile evaluates")
                 .verdicts
                 .iter()
                 .map(|v| format!("{v:?}"))
-                .collect();
-            (keys, log)
+                .collect()
         },
     )
     .0
@@ -521,8 +510,10 @@ fn at_sym(
 /// **A box that varies nothing is the build at `Sym` too.** A `Fixed`
 /// axis HOLDS its variable at the nominal, which at `Sym` binds a
 /// constant, not a parameter symbol (`analysis::var_env_over`), so every
-/// node is the unboxed build's: same content key, same profile verdict
-/// log.
+/// node decides as the unboxed build's does: the same profile verdict
+/// log. (Its content keys are not compared: at `Sym` a key hashes the
+/// expression, and a held axis may be written as another expression of
+/// the build's number.)
 #[test]
 fn at_sym_a_fixed_box_is_the_build() {
     use editor_core::analysis::{BoxAxis, ParamBox};
@@ -538,11 +529,11 @@ fn at_sym_a_fixed_box_is_the_build() {
         |axis: BoxAxis| ParamBox::from_axes(continuous.iter().map(|&id| (id, axis)).collect());
     let fixed = over(BoxAxis::Fixed);
 
-    let build = at_sym(&doc, None);
+    let build_log = at_sym(&doc, None);
+    let held_log = at_sym(&doc, Some(fixed.clone()));
     assert_eq!(
-        at_sym(&doc, Some(fixed.clone())),
-        build,
-        "an all-Fixed box at Sym is the build, node for node"
+        held_log, build_log,
+        "an all-Fixed box at Sym decides as the build does"
     );
     // And it binds no symbol: every margin the held run decides re-values
     // to its own value with every parameter symbol moved, which a margin
