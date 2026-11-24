@@ -67,6 +67,8 @@ mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 mod a_check_carries_the_assertion_that_quiets_it;
 #[path = "a_dual_is_bound_to_its_build_of_record.rs"]
 mod a_dual_is_bound_to_its_build_of_record;
+#[path = "a_gather_carries_its_finished_members.rs"]
+mod a_gather_carries_its_finished_members;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "a_pipes_end_loops_revolve_into_an_elbow.rs"]
