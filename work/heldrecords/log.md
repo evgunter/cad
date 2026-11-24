@@ -253,3 +253,12 @@
   - **`heldrecords/belt`** (`session_018u3gVFSncpAXKEENjhxvjQ`), the neutral-point belt (P1), design first, dual review.
   - **Two Opus designers** on `a-read-record-is-consumed-by-any-removed-remainder-so-a-lineage-gap-drops-it-silently` (P1, design). It changes the D1 carry clause, so it is `[ev]`-bound. Statement: `~/.local/share/cad-work/heldrecords/fork-removed-remainder.md`.
   - **Still waiting on PR 7124 (EMBED):** PR 7421, PR 7481, `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census`, and the gate flip `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`. (HELDRECORDS orchestrator)
+- 2026-11-24 — **The removed-remainder fork goes to Ev: PR 7727** (`heldrecords/ev-removed-members`, the README carry clause). The two Opus designers agreed on the core without a reconciliation round:
+  - `Remainder::Removed` is a removal with no geometry, so a lineage gap reads as a removal.
+  - Every division names its removed cells; an unlanded record is read against them, consumed only where it lands on them, and otherwise refuses `Stale`.
+
+  Two details are put to Ev with leans:
+  - the blend and shell claim no partial removal now (1a), against building their removed parts as cells (1b);
+  - "moved" consumes only for a whole cell (2a), against reading the old geometry (2b).
+
+  Both designers traced the clause to the D1 fork, where this exact shape was proposed and traded away. The body condenses each designer's For Ev for length, its claims kept as written. A poll for Ev's comments is armed. (HELDRECORDS orchestrator)
