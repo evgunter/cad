@@ -451,14 +451,43 @@ fn bite() -> AtRestBody<f64> {
     moved(&along_x, &Affine3::translation(Vec3::new(0.0, 0.45, 0.8)))
 }
 
-/// **A cone against an oblique cylinder has no frame.** P1, the bite,
-/// and P2, the bite with P2a's brick beside it as a second lump: every
-/// op refuses `GermFrameUnsupported` on the cone × cylinder pair
-/// (`work/sectcone/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`),
-/// in the operands' order.
+/// **A cone against an oblique cylinder rides its carried section.** The
+/// cone's wall (apex `(0, 1, 0)`, axis `−y`, `α = π/4`) against the
+/// bite's rod (axis `x` through `(y, z) = (0.45, 0.8)`, radius `0.3`) is
+/// classified and carried on the section value, its loop marched. P1, the
+/// bite, and P2, the bite with P2a's brick beside it as a second lump,
+/// then refuse at the bite's cap plane against the cone, a plane × cone
+/// germ on an open conic (`GermSectionOpenConic`), pinned op by op. Red
+/// if the pair's section stops carrying, or any op answers otherwise.
 #[test]
-fn the_bite_refuses_at_the_germ_frame() {
+fn the_bite_rides_the_carried_cone_cylinder_section() {
     let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let wall = geom::Surface::Cone {
+        frame: geom::Frame::new(p(0.0, 1.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
+        half_angle: PI / 4.0,
+    };
+    let rod = geom::Surface::Cylinder {
+        frame: geom::Frame::new(p(0.0, 0.45, 0.8), Vec3::unit_x(), Vec3::unit_y()),
+        radius: 0.3,
+    };
+    let region = geom_brep::ExtentBall::of_box(p(-2.0, 0.0, -1.2), p(2.0, 1.2, 1.2));
+    let carried = match geom_brep::pair_section(
+        &wall,
+        &rod,
+        Some(region),
+        Some(geom_brep::SsiLane::marched()),
+        band,
+    ) {
+        Ok(geom_brep::SectionRead::Built(section)) => section
+            .carry(Some(geom_brep::SsiLane::marched()), band)
+            .unwrap_or_else(|e| panic!("the cone × cylinder section carries: {e:?}")),
+        other => panic!("the cone × cylinder pair is built on the value: {other:?}"),
+    };
+    assert!(
+        !carried.components().is_empty(),
+        "the cone × cylinder section carries its loop"
+    );
     let (c, _) = cone(None);
     let (pin, _) = boxed((-0.7, -0.5), (-0.3, 0.1), (-0.1, 0.1));
     let bite_and_pin = match topo::union(&bite(), &pin, tol) {
@@ -467,16 +496,21 @@ fn the_bite_refuses_at_the_germ_frame() {
     };
     for (what, b) in [("P1", bite()), ("P2", bite_and_pin)] {
         for (op, got) in every_op(&c, &b) {
+            // The operands' order is the op's: `B ∖ A` asks the bite first.
             let kinds = if op == "B ∖ A" {
-                [geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cone]
+                [geom::SurfaceKind::Plane, geom::SurfaceKind::Cone]
             } else {
-                [geom::SurfaceKind::Cone, geom::SurfaceKind::Cylinder]
+                [geom::SurfaceKind::Cone, geom::SurfaceKind::Plane]
             };
             assert!(
                 matches!(
                     &got,
-                    Err(BooleanError::GermFrameUnsupported { a_kind, b_kind, .. })
-                        if [*a_kind, *b_kind] == kinds
+                    Err(BooleanError::GermSectionOpenConic {
+                        a_kind,
+                        b_kind,
+                        conic: geom_brep::OpenConic::Hyperbola,
+                        ..
+                    }) if [*a_kind, *b_kind] == kinds
                 ),
                 "{what}, {op}: {:?}",
                 got.map(|r| r.body().map(|b| b.kind))

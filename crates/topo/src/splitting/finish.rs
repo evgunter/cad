@@ -2059,7 +2059,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     geom_brep::WedgeClass::Crease => {
                         return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
                     }
-                    geom_brep::WedgeClass::End | geom_brep::WedgeClass::Lamina
+                    geom_brep::WedgeClass::End { .. } | geom_brep::WedgeClass::Lamina
                         if !matches!(surf_other, Surface::Plane { .. }) =>
                     {
                         return Err(SplitFinishError::KnifeEdge(KnifeEdge {
@@ -2068,7 +2068,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         }));
                     }
                     geom_brep::WedgeClass::Seam { .. }
-                    | geom_brep::WedgeClass::End
+                    | geom_brep::WedgeClass::End { .. }
                     | geom_brep::WedgeClass::Lamina => {}
                 }
                 // What the join stores is what its wedge demands, and

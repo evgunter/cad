@@ -136,6 +136,7 @@ impl<T: Decide> PlaneTorusPose<T> {
                     | SectionError::RadiusEscalated { .. }
                     | SectionError::NoRegion { .. }
                     | SectionError::DegenerateOperand { .. }
+                    | SectionError::RadiusNotPositive { .. }
                     | SectionError::ConeAtTheBand { .. }
                     | SectionError::BeyondOperandExtent { .. }
                     | SectionError::CoincidentSurfaces
