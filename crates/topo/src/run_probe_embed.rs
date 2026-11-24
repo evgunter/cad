@@ -45,7 +45,26 @@ pub(super) fn build(
     faces: &[(&'static str, &[&'static str])],
 ) -> Built {
     let pos: BTreeMap<&str, P> = corners.iter().copied().collect();
+    let spec = |a: &str, b: &str| line(pt(pos[a]), pt(pos[b]));
+    let (mut built, _) = build_gen(corners, faces, &spec);
+    plane_every_face(&mut built.body, tol());
+    describe_as_intersections(&mut built.body, tol());
+    built
+}
+
+pub(super) type Spec<'a> = dyn Fn(&str, &str) -> geom_brep::EdgeCurveSpec<f64> + 'a;
+
+/// The topology alone, every edge `spec(from, to)`, every face on the
+/// seed's placeholder; returns each edge with its two corner names in
+/// the direction its spec was stated.
+pub(super) fn build_gen(
+    corners: &[(&'static str, P)],
+    faces: &[(&'static str, &[&'static str])],
+    spec: &Spec<'_>,
+) -> (Built, Vec<(EdgeKey, &'static str, &'static str)>) {
+    let pos: BTreeMap<&str, P> = corners.iter().copied().collect();
     let t = tol();
+    let mut made_edges: Vec<(EdgeKey, &'static str, &'static str)> = Vec::new();
     let mut body = Body::<f64>::new();
     let f0 = faces[0].1;
     let seed = body.mvfs(pt(pos[f0[0]]), true).unwrap();
@@ -58,10 +77,11 @@ pub(super) fn build(
                 r#loop: seed.r#loop,
             },
             pt(pos[f0[1]]),
-            line(pt(pos[f0[0]]), pt(pos[f0[1]])),
+            spec(f0[0], f0[1]),
             t,
         )
         .unwrap();
+    made_edges.push((m.edge, f0[0], f0[1]));
     verts.insert(f0[1], m.vertex);
     let mut edges: BTreeSet<(&str, &str)> = BTreeSet::new();
     let ek = |a: &'static str, b: &'static str| if a < b { (a, b) } else { (b, a) };
@@ -107,13 +127,16 @@ pub(super) fn build(
                 continue;
             }
             let made = body
-                .mef(
-                    MefSite::Chords { he1, he2: he },
-                    line(pt(pos[rot[0]]), pt(pos[rot[k - 1]])),
-                    FaceSurface::Inherit,
-                    t,
-                )
+                .lifting_rechart_refusals_for_tests(|body| {
+                    body.mef(
+                        MefSite::Chords { he1, he2: he },
+                        spec(rot[0], rot[k - 1]),
+                        FaceSurface::Inherit,
+                        t,
+                    )
+                })
                 .unwrap();
+            made_edges.push((made.edge, rot[0], rot[k - 1]));
             edges.insert(ek(rot[0], rot[k - 1]));
             closed.insert(name, made.face);
             progressed = true;
@@ -141,10 +164,11 @@ pub(super) fn build(
                     .mev(
                         MevSite::Fan { he1: h, he2: h },
                         pt(pos[c]),
-                        line(pt(pos[b]), pt(pos[c])),
+                        spec(b, c),
                         t,
                     )
                     .unwrap();
+                made_edges.push((s.edge, b, c));
                 verts.insert(c, s.vertex);
                 edges.insert(ek(b, c));
                 progressed = true;
@@ -159,13 +183,15 @@ pub(super) fn build(
         .unwrap()
         .0;
     closed.insert(last, big);
-    plane_every_face(&mut body, t);
-    describe_as_intersections(&mut body, t);
-    Built {
-        body,
-        faces: closed,
-        verts,
-    }
+    let _ = &pos;
+    (
+        Built {
+            body,
+            faces: closed,
+            verts,
+        },
+        made_edges,
+    )
 }
 
 fn shared_edge(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Option<EdgeKey> {
@@ -439,6 +465,175 @@ fn run_probe_b1t() {
             &b,
             &[("S", "P"), ("T", "P"), ("step", "P"), ("S", "T"), ("S", "S")],
             &[("S", "P"), ("S", "T"), ("T", "end0")],
+        );
+    }
+}
+
+// ---------------------------------------------------------------- B3
+
+/// B3: B1n revolved. B1n's `(x, y, z)` maps to the cylindrical
+/// `(θ = −K·x, r = 1 + y, z)`, `K = 0.6`: P a planar annular sector in
+/// z = 0 (r in [1, 2]); S the flat cone z = (r − 1)·tan φ (sine 5e-5)
+/// sharing P's inner arc r = 1; S narrow (r to 1 + a) over the middle
+/// of the sector and wide (to r = 2) at both ends; T the 45° cone from
+/// S's narrow far ARC up to the outer cylinder r = 2; walls in planes
+/// through the z axis. The in-band far boundary is the arc S|T, a
+/// curved edge of two cones, `a·tan φ` above P.
+fn b3(a_width: f64) -> Built {
+    use geom::{Curve3, Surface};
+    use geom_core::Vec3;
+    const K: f64 = 0.6;
+    let t = SINE / (1.0 - SINE * SINE).sqrt();
+    let a = a_width * (1.0 - SINE * SINE).sqrt();
+    let h = a * t + (1.0 - a);
+    let local: Vec<(&'static str, P)> = vec![
+        ("P0", [0.0, 0.0, 0.0]),
+        ("P1", [2.0, 0.0, 0.0]),
+        ("P2", [2.0, 1.0, 0.0]),
+        ("P3", [0.0, 1.0, 0.0]),
+        ("A0", [0.0, 1.0, t]),
+        ("A1", [0.5, 1.0, t]),
+        ("N0", [0.5, a, a * t]),
+        ("N1", [1.5, a, a * t]),
+        ("B1", [1.5, 1.0, t]),
+        ("B2", [2.0, 1.0, t]),
+        ("T0", [0.5, 1.0, h]),
+        ("T1", [1.5, 1.0, h]),
+    ];
+    let to3 = |[x, y, z]: P| {
+        let (r, th) = (1.0 + y, -K * x);
+        [r * th.cos(), r * th.sin(), z]
+    };
+    let corners: Vec<(&'static str, P)> = local.iter().map(|&(n, p)| (n, to3(p))).collect();
+    let loc: BTreeMap<&str, P> = local.iter().copied().collect();
+    let faces: &[(&'static str, &[&'static str])] = &[
+        ("S", &["P0", "P1", "B2", "B1", "N1", "N0", "A1", "A0"]),
+        ("P", &["P0", "P3", "P2", "P1"]),
+        ("T", &["N0", "N1", "T1", "T0"]),
+        ("stepL", &["N0", "T0", "A1"]),
+        ("stepR", &["N1", "B1", "T1"]),
+        ("end0", &["P0", "A0", "P3"]),
+        ("end2", &["P1", "P2", "B2"]),
+        ("back", &["P3", "A0", "A1", "T0", "T1", "B1", "B2", "P2"]),
+    ];
+    let arc_of = |p: P, q: P| -> Option<(f64, f64, f64, f64)> {
+        // (radius, height, θ0, θ1) where p, q share r and z.
+        (p[1] == q[1] && p[2] == q[2] && p[0] != q[0]).then(|| (1.0 + p[1], p[2], -K * p[0], -K * q[0]))
+    };
+    let mid_of = |a_: &str, b_: &str| -> Point3<f64> {
+        let (p, q) = (loc[a_], loc[b_]);
+        if arc_of(p, q).is_some() {
+            pt(to3([(p[0] + q[0]) / 2.0, p[1], p[2]]))
+        } else {
+            let (u, v) = (to3(p), to3(q));
+            pt([(u[0] + v[0]) / 2.0, (u[1] + v[1]) / 2.0, (u[2] + v[2]) / 2.0])
+        }
+    };
+    let spec = |a_: &str, b_: &str| -> geom_brep::EdgeCurveSpec<f64> {
+        let (p, q) = (loc[a_], loc[b_]);
+        match arc_of(p, q) {
+            Some((r, z, th0, th1)) => {
+                let (n, t0, t1) = if th0 < th1 {
+                    (Vec3::unit_z(), th0, th1)
+                } else {
+                    (-Vec3::unit_z(), -th0, -th1)
+                };
+                let c = Curve3::circle(Point3::new(0.0, 0.0, z), n, r, Vec3::unit_x());
+                geom_brep::EdgeCurveSpec::arc_of_circle(c, t0, t1).expect("a circle")
+            }
+            None => line(pt(to3(p)), pt(to3(q))),
+        }
+    };
+    let (mut built, edges) = build_gen(&corners, faces, &spec);
+    let tl = tol();
+    let theta_hat = |th: f64| Vec3::new(-th.sin(), th.cos(), 0.0);
+    let wall = |th: f64, out: f64| Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), theta_hat(th) * out, Vec3::unit_z()),
+    };
+    let surfaces: Vec<(&str, Surface<f64>, bool)> = vec![
+        (
+            "P",
+            Surface::Plane {
+                frame: geom::Frame::new(Point3::origin(), -Vec3::unit_z(), Vec3::unit_x()),
+            },
+            true,
+        ),
+        (
+            "S",
+            Surface::Cone {
+                frame: geom::Frame::new(Point3::new(0.0, 0.0, -t), Vec3::unit_z(), Vec3::unit_x()),
+                half_angle: (1.0 / t).atan(),
+            },
+            false,
+        ),
+        (
+            "T",
+            Surface::Cone {
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, a * t - 1.0 - a),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                ),
+                half_angle: core::f64::consts::FRAC_PI_4,
+            },
+            false,
+        ),
+        (
+            "back",
+            Surface::Cylinder {
+                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 2.0,
+            },
+            true,
+        ),
+        ("end0", wall(0.0, 1.0), true),
+        ("stepL", wall(-0.5 * K, 1.0), true),
+        ("stepR", wall(-1.5 * K, -1.0), true),
+        ("end2", wall(-2.0 * K, -1.0), true),
+    ];
+    for (name, surface, sense) in surfaces {
+        let f = built.faces[name];
+        built
+            .body
+            .lifting_rechart_refusals_for_tests(|body| {
+                body.set_face_surface(f, FaceSurface::New { surface, sense })
+            })
+            .unwrap_or_else(|e| panic!("surface of {name}: {e:?}"));
+    }
+    for (e, a_, b_) in edges {
+        let (s1, s2) = crate::readback::edge_sides(&built.body, e)
+            .unwrap()
+            .surfaces();
+        let mut sp = spec(a_, b_);
+        sp.description = geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            selector: geom_brep::CurveSelector::Witness(mid_of(a_, b_)),
+        };
+        built
+            .body
+            .lifting_rechart_refusals_for_tests(|body| body.set_edge_curve(e, sp, tl))
+            .unwrap_or_else(|err| panic!("edge {a_}-{b_}: {err:?}"));
+    }
+    crate::pcurves::mint_pcurves(&mut built.body, tl).expect("pcurves");
+    built
+}
+
+#[test]
+fn run_probe_b3() {
+    for (what, a) in [("B3c (a=1e-3)", 1e-3), ("B3 (a=1e-7)", 1e-7)] {
+        let b = b3(a);
+        measure(
+            what,
+            &b,
+            &[
+                ("S", "P"),
+                ("T", "P"),
+                ("stepL", "P"),
+                ("stepR", "P"),
+                ("S", "T"),
+                ("S", "S"),
+            ],
+            &[("S", "P"), ("S", "T"), ("stepL", "S"), ("stepR", "S")],
         );
     }
 }
