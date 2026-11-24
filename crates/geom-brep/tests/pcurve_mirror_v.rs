@@ -77,9 +77,9 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
         (
             "IsoLine",
             Pcurve::IsoLine {
-                p0: Point2::new(0.1, 0.2),
-                pl: Vec2::new(0.6, 0.8),
-                ends: None,
+                line: geom_brep::ChartLine::row(0.2),
+                at0: 0.1,
+                rate: 0.6,
             },
             0.0,
             1.0,
@@ -87,8 +87,9 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
         (
             "IsoArc",
             Pcurve::IsoArc {
-                p0: Point2::new(0.2, -0.3),
-                pd: Vec2::new(0.9, 1.7),
+                line: geom_brep::ChartLine::column(0.2),
+                g0: -0.3,
+                gd: 1.7,
                 t0: 0.25,
                 angle: 1.5,
                 breaks: kv(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1),
@@ -477,13 +478,13 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
         (
             "IsoLine",
             Pcurve::IsoLine {
-                p0: Point2::new(0.1, 0.2),
-                pl: Vec2::new(0.6, 0.8),
-                ends: None,
+                line: geom_brep::ChartLine::row(0.2),
+                at0: 0.1,
+                rate: 1.0,
             },
             Curve3::line(
                 Point3::new(0.1, 0.2, 0.0),
-                geom::stated_direction(Vec3::new(0.6, 0.8, 0.0)),
+                geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
             ),
             0.0,
             1.0,

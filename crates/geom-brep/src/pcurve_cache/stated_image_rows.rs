@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Decide, Interval, Point2, Point3, Vec2};
+use geom_core::{Decide, Interval, Point2, Point3};
 
 use super::Pcurve;
 use super::spline_door_rows::{band, in_band, ring};
@@ -199,9 +199,9 @@ impl Stated {
         let c = T::from_f64;
         match self {
             Self::Iso => Pcurve::IsoLine {
-                p0: Point2::new(c(0.5), c(0.0)),
-                pl: Vec2::new(c(0.0), c(1.0)),
-                ends: None,
+                line: crate::ChartLine::column(c(0.5)),
+                at0: c(0.0),
+                rate: c(1.0),
             },
             Self::General => {
                 let image = NurbsCurve2::new(

@@ -6376,9 +6376,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             let reaches = y_rows.iter().any(|y_row| {
                 row.bbox.overlaps(&y_row.bbox)
-                    && !crate::separating::apart(
-                        (x, crate::separating::Item::Face(row.face)),
-                        (y, crate::separating::Item::Face(y_row.face)),
+                    && !crate::separating::faces_apart(
+                        (x, row.face),
+                        (y, y_row.face),
                         axes.of(a, b, band),
                         pad,
                         band,
