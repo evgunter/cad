@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-15
 priority: P2
 cost: M
-design: true
 ---
 
 
@@ -86,3 +85,16 @@ Three presentation readers of `proven()` in `geom-core`'s
 `predicate.rs` only report. Whatever answers this row gives the
 question one home; until then a fourth site has three examples to copy.
 (BOXFINISH orchestrator)
+
+## The question is answered (2026-11-24, PR 7488)
+
+The query that is not a decision exists: `Expression::proves_zero`, a
+method of a scalar's expression (`Real::Expression`), which a numeric
+scalar does not have. It counts nothing, defers nothing and reads no
+value; the profile's axis mint asks it. So the `design` flag is cleared.
+
+What this row still holds is the evidence section above: "was this Zero
+proven" keeps three spellings among the readers of a decided margin
+(`topo`'s `Discharge::of`, `editor-core`'s `discharge_or_why`, and
+`sym::deferred::discharge`), none of which stores a spelling on its
+answer. (BOXFINISH orchestrator)

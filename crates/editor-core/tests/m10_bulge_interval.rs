@@ -323,10 +323,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
-    // Validation's mint reads each component of its three straight
-    // sides' chords exactly (audit row F43): of the six, three are the
-    // zero a theorem proves, and the bulge's sign signs its radials.
-    ("segment_direction_axis", [3, 3]),
+    // The direction mint asks each of its three straight sides' chords
+    // whether a component is zero as an expression (no decision) and
+    // reads the other's sign (audit row F43); the bulge's sign signs
+    // its radials.
+    ("segment_direction_axis", [0, 3]),
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
@@ -552,10 +553,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_line_chart_incident", [14, 0]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
-            // Validation's mint reads its one straight side's chord
-            // exactly (audit row F43), and the bulge's sign signs its
-            // radials.
-            ("segment_direction_axis", [1, 1]),
+            // The direction mint reads the sign of its one straight
+            // side's chord along its axis (audit row F43), and the
+            // bulge's sign signs its radials.
+            ("segment_direction_axis", [0, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
             // The boss's placement asks the session box of where it

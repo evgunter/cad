@@ -523,11 +523,14 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // never proved (the least turn's pole verdicts took it 1801 -> 1803).
     // `symbolic` fell 1390 -> 1381 when validation stopped reading an
     // adjacent line pair's shared vertex (PROFILE, `dbc608ffba`): decisions
-    // no longer asked.
+    // no longer asked. It fell 1381 -> 1369 with the profile's direction
+    // mint asking the chord's expression whether it is zero
+    // (`geom_core::Expression::proves_zero`, no decision): eleven axes'
+    // proved-Zero readings and one door-only radial's leave the count.
     // Once that row closes, this pin narrows to the general form above.
     assert_eq!(
-        d.symbolic, 1381,
-        "the shipped ladder's leaf proves 1381 theorems: {d:?}"
+        d.symbolic, 1369,
+        "the shipped ladder's leaf proves 1369 theorems: {d:?}"
     );
     let retried = d.retried > 0;
     assert_eq!(

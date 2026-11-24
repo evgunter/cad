@@ -517,6 +517,12 @@ impl Real for Interval {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The enclosure itself: it carries no tangent.
     type Value = Self;
 
@@ -611,9 +617,11 @@ impl Real for Interval {
     ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
-    /// this first. The same const is what makes a theorem this channel
-    /// contradicts an ASSERTION rather than a counted dispute
-    /// (`Sym<T>::sign_within`); a row pins the two together.
+    /// this first. The same const makes a zero the tier proves where
+    /// this channel's enclosure excludes zero a failed `debug_assert!`
+    /// (`sym::discharge_checked`), and a theorem the test instrument
+    /// finds under a definite sign its `Enclosure` event rather than a
+    /// `Rounded` one (`sym::contradiction`).
     fn register_equal(self, other: Self, _tol: Tol) -> crate::sym::SymRegistration {
         use crate::real::CertifiedEnclosure as _;
         use crate::sym::SymRegistration;
