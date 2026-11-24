@@ -20,8 +20,11 @@ each arc's end there named (`NodeEnds`). The march has no node exit in
 (`march::SlabExit`, `march::BallExit`), and `pair_section.rs`
 `FittedCarrier::component` refuses a `BranchEnd::Node` from an ℝ³
 march. So `cones::cone_ruled` gives every arc that ends at a node
-`ClassCarrier::Unminted(NoCarrier::ConeNode)`, and the carry refuses the
-pair by that name. The cone × torus sibling refuses its apex contacts at
+refused at the march: `cones::cone_ruled` keeps every arc that ends at a
+node the general rung's (`ClassCarrier::General`, its `NodeEnds` and
+`NodeSet` listed), and `pair_section.rs` `march_over_the_ball` refuses a
+cone pair's section that lists a node, `CarryRefusal::Unminted(NoCarrier::ConeNode)`,
+before any march.
 the value for the same reason (`pair_section/cone_torus.rs`
 `cone_torus`).
 
@@ -36,4 +39,5 @@ The work: an ℝ³ exit into a node's box, the arc's carrier fitted on to
 the node with the named ray as its end tangent, and limb 3's chain
 ending in the node's box, for the apex node and for a crossing
 tangency. Witnesses: `crates/geom-brep/tests/cone_pair_section.rs`
-`a_nodes_arcs_refuse_the_carry_by_name` flips to a carry.
+`a_nodes_arcs_refuse_the_carry_by_name` flips to a carry. The tube's half
+of the same gap is `work/ssiedge/an-r3-tube-chain-has-no-node-end.md`.

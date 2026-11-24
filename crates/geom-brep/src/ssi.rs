@@ -1447,30 +1447,44 @@ impl SsiError {
     #[must_use]
     pub fn of_cone_section(refusal: crate::SectionError) -> Self {
         use crate::SectionError as E;
+        use crate::pair_section::ConeDecision;
+        let tangency = [
+            ConeDecision::SphereTangency.name(),
+            ConeDecision::SphereTangency.floor(),
+            crate::pair_section::ruling::TANGENCY,
+        ];
         match refusal {
-            E::Escalated(diag) | E::RadiusEscalated { diag, .. } => {
-                TraceDecision::ConeRuledPose.escalated(diag)
+            E::Escalated(diag) if diag.predicate.is_some_and(|p| tangency.contains(&p)) => {
+                TraceDecision::ConeRuledTangency.escalated(diag)
             }
-            E::DegenerateOperand { what }
-                if what == crate::pair_section::cones::SPHERE_RADIUS_NOT_POSITIVE =>
-            {
-                Self::RadiusNotPositive {
-                    radius: crate::SectionRadius::Sphere,
-                }
+            E::Escalated(diag) => TraceDecision::ConeRuledPose.escalated(diag),
+            E::RadiusEscalated { radius, diag } => {
+                TraceDecision::PairRadius(radius).escalated(diag)
             }
-            E::DegenerateOperand { what }
-                if what == crate::pair_section::cones::CYLINDER_RADIUS_NOT_POSITIVE =>
-            {
-                Self::RadiusNotPositive {
-                    radius: crate::SectionRadius::Cylinder,
-                }
-            }
+            E::RadiusNotPositive { radius } => Self::RadiusNotPositive { radius },
             E::ConeAtTheBand { what } | E::DegenerateOperand { what } => {
                 Self::DegenerateCone { what }
             }
-            _ => Self::UnsupportedCertificate {
-                what: "the cone pair's pose is pinched at the apex or along a generator, or its \
-                       ruling sweep's readings disagree",
+            E::Pinched { .. } => Self::UnsupportedCertificate {
+                what: "the cone pair's pose is pinched: a generator along the cylinder's axis, \
+                       both apexes on the other cone, a degenerate form at the apex, or a \
+                       sphere's tangency beside a crossing",
+            },
+            E::Unaccounted { .. } => Self::UnsupportedCertificate {
+                what: "the cone pair's ruling sweep reads disagree, so its section is not \
+                       accounted",
+            },
+            E::WrongLane { .. }
+            | E::RoutesToGeneralRung { .. }
+            | E::NoRegion { .. }
+            | E::BeyondOperandExtent { .. }
+            | E::CoincidentSurfaces
+            | E::DegenerateTorus(_)
+            | E::Carrier(_)
+            | E::Spiric(_)
+            | E::Unordered { .. }
+            | E::NoMarch { .. } => Self::WrongLane {
+                expected: "a cone pair's pose and section, which return none of these",
             },
         }
     }
@@ -3708,12 +3722,18 @@ pub fn cone_ruled_ssi(
                    the section, at which the ℝ³ march ends no branch",
         });
     }
-    let section = crate::pair_section::cones::cone_ruled(pose.clone(), band)
-        .map_err(SsiError::of_cone_section)?;
+    // A sphere's tangency is the pose's own, decided before any sweep;
+    // a cylinder's or a cone's is the sweep's.
+    let tangency = match pose.tangency() {
+        Some(zero) => Some(zero),
+        None => crate::pair_section::cones::cone_ruled(pose.clone(), band)
+            .map_err(SsiError::of_cone_section)?
+            .tangency(),
+    };
     past_the_gap(
         TangentPair::ConeRuled,
         pose.operands(),
-        section.tangency(),
+        tangency,
         domain,
         band,
     )

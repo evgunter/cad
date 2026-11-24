@@ -3,30 +3,29 @@
 //! `y = 0` and apex `(0, 2, 0)` (half-angle `atan ½`), its seam
 //! meridians on `±z`, against:
 //!
-//! - the ball of radius `0.4` about `(0.9, 0.6, 0)`, off the cone's
-//!   axis, `0.18` outside its side's meridian line, clear of its base
-//!   plane and of its apex: one null loop on the cone's side, the
-//!   section value's general cone × sphere pose, marched;
+//! - the ball of radius `0.4` about `(0.9, 0.6, 0)`, its poles along
+//!   `z` (at `(0.9, 0.6, ±0.4)`, off `K`, whose radius is `0.7` there),
+//!   off the cone's axis, `0.18` outside its side's meridian line, clear
+//!   of its base plane and of its apex: one null loop on the cone's side,
+//!   the section value's general cone × sphere pose, marched;
 //! - `K` turned a quarter about `z`, its apex moved to `(0.3, 0.8, 0)`
 //!   inside `K` and its axis along `+x`: its side leaves `K`'s side in
 //!   one loop about its own axis, both apexes clear of the other cone,
 //!   the general cone × cone pose, marched.
 //!
-//! Each run builds a body or refuses typed, never by a desync or a
-//! broken invariant; where an order's three runs all build, the volumes
-//! close as the operations must: `|A ∪ B| + |A ∩ B| = |A| + |B|` and
-//! `|A ∖ B| = |A| − |A ∩ B|`, within the measured pads. Today every run
-//! refuses `CurvedBooleanUnsupported` at the cone face, ahead of the
-//! pair's section
-//! (`work/sectcone/a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face.md`);
-//! the row is the witness that flips when it builds.
+//! Each run's outcome is pinned, `built` or the refusal's variant, so the
+//! row goes red the day either changes; where an order's three runs all
+//! build, the volumes close as the operations must:
+//! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
+//! the measured pads. A desync or a broken invariant is red whatever the
+//! pin says.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
-use sweep::test_support::{ball_poled_y, finished};
+use sweep::test_support::{ball_poled_z, finished};
 use sweep::{Revolution, revolve};
 use topo::AtRestBody;
 
@@ -53,7 +52,7 @@ fn cone(pose: Affine3<f64>, tol: Tol) -> AtRestBody<f64> {
 fn ball(tol: Tol) -> AtRestBody<f64> {
     finished(
         "the ball",
-        ball_poled_y(0.4, Vec3::new(0.9, 0.6, 0.0), tol),
+        ball_poled_z(0.4, Vec3::new(0.9, 0.6, 0.0), tol),
         tol,
     )
 }
@@ -73,30 +72,46 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     (m.volume, m.volume_pad)
 }
 
-/// The measured volume of a run's result (zero for an empty one), or
-/// `None` where it refused typed. A desync or a broken invariant is a
-/// defect, and red.
-fn result_volume(
+/// A run's outcome: its measured volume and pad (zero for an empty
+/// result) and `built`, or the refusal's variant. A desync or a broken
+/// invariant is a defect, and red.
+fn outcome(
     label: &str,
     got: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     tol: Tol,
-) -> Option<(f64, f64)> {
+) -> (Option<(f64, f64)>, String) {
     match got {
-        Ok(got) => Some(got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))),
+        Ok(got) => (
+            Some(got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))),
+            "built".to_owned(),
+        ),
         Err(
             e @ (topo::BooleanError::JoinDesync { .. }
             | topo::BooleanError::ClassificationInvariant { .. }),
         ) => panic!("{label}: a defect: {e:?}"),
         Err(e) => {
-            eprintln!("{label}: refused typed: {e:?}");
-            None
+            let shown = format!("{e:?}");
+            let variant = shown
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            println!("{label}: refused: {shown}");
+            (None, variant)
         }
     }
 }
 
-/// Every op in both orders of `k` and `other`, the volumes closed, `∩`
-/// a part of each.
-fn every_order(what: &str, k: &AtRestBody<f64>, other: &AtRestBody<f64>, v_other: f64, tol: Tol) {
+/// Every op in both orders of `k` and `other`, each run's outcome against
+/// `pinned` (∪, ∩, ∖ with the cone first, then with the other first), the
+/// volumes closed where an order builds, `∩` a part of each.
+fn every_order(
+    what: &str,
+    (k, other): (&AtRestBody<f64>, &AtRestBody<f64>),
+    v_other: f64,
+    pinned: [&str; 6],
+    tol: Tol,
+) {
     let v_cone = 2.0 * PI / 3.0;
     let (vk, pk) = volume(k, tol);
     let (vo, po) = volume(other, tol);
@@ -104,21 +119,23 @@ fn every_order(what: &str, k: &AtRestBody<f64>, other: &AtRestBody<f64>, v_other
         (vk - v_cone).abs() <= pk + 1e-9 && (vo - v_other).abs() <= po + 1e-9,
         "{what}: the operands measure as their closed forms: {vk} ± {pk}, {vo} ± {po}"
     );
+    let mut got = Vec::new();
     for (name, a, b, va, pa) in [
         ("the cone first", k, other, vk, pk),
         ("the other first", other, k, vo, po),
     ] {
-        let u = result_volume(&format!("{what}, {name}: ∪"), topo::union(a, b, tol), tol);
-        let i = result_volume(
+        let (u, ou) = outcome(&format!("{what}, {name}: ∪"), topo::union(a, b, tol), tol);
+        let (i, oi) = outcome(
             &format!("{what}, {name}: ∩"),
             topo::intersect(a, b, tol),
             tol,
         );
-        let d = result_volume(
+        let (d, od) = outcome(
             &format!("{what}, {name}: ∖"),
             topo::subtract(a, b, tol),
             tol,
         );
+        got.extend([ou, oi, od]);
         let (Some((vu, pu)), Some((vi, pi)), Some((vd, pd))) = (u, i, d) else {
             continue;
         };
@@ -138,6 +155,7 @@ fn every_order(what: &str, k: &AtRestBody<f64>, other: &AtRestBody<f64>, v_other
             va - vi
         );
     }
+    assert_eq!(got, pinned, "{what}: each run's outcome");
 }
 
 #[test]
@@ -145,9 +163,9 @@ fn a_cone_and_a_ball_off_its_axis_build_in_every_order() {
     let tol = Tol::witness();
     every_order(
         "the ball",
-        &cone(Affine3::identity(), tol),
-        &ball(tol),
+        (&cone(Affine3::identity(), tol), &ball(tol)),
         4.0 * PI * 0.4f64.powi(3) / 3.0,
+        ["built"; 6],
         tol,
     );
 }
@@ -157,9 +175,9 @@ fn two_cones_in_general_pose_build_in_every_order() {
     let tol = Tol::witness();
     every_order(
         "the crossing cone",
-        &cone(Affine3::identity(), tol),
-        &crossing_cone(tol),
+        (&cone(Affine3::identity(), tol), &crossing_cone(tol)),
         2.0 * PI / 3.0,
+        ["CurvedBooleanUnsupported"; 6],
         tol,
     );
 }

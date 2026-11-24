@@ -2922,9 +2922,8 @@ pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 /// is independent of the sweep in its algebra. It is not independent in
 /// its enclosure arithmetic, which it shares with the sweep
 /// ([`Cell::new`], [`Iv`], [`V3`]). Either of two cylinders may be ruled:
-/// every section point lies on exactly one of its rulings. The cone side
-/// has no caller yet: the join's reading of the cone pairs gives it its
-/// first (`work/sectcone/the-join-reads-the-cone-pairs-on-the-value.md`).
+/// every section point lies on exactly one of its rulings. A cone's side
+/// is read by the cone pairs' march (`ssi::march_cone_ruled`).
 ///
 /// # Errors
 ///

@@ -4088,6 +4088,22 @@ fn conic_section_frame_at<T: Decide>(
     {
         return Err(FrameError::NoArm);
     }
+    // Likewise a sphere on a cone's axis (the closed form's circles).
+    if let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+        geom_brep::pair_section::ConeRuledPose::decide_sphere(sa, sb, band)
+    {
+        return Err(FrameError::NoArm);
+    }
+    // Two cones reach a frame ask only where the table holds no section
+    // of theirs: the pairs the value reads elsewhere (two cones of one
+    // aperture on parallel axes; two through one apex take their rulings'
+    // plane before any frame), since a section it builds rides carried.
+    if matches!(
+        (sa, sb),
+        (geom::Surface::Cone { .. }, geom::Surface::Cone { .. })
+    ) {
+        return Err(FrameError::NoArm);
+    }
     if geom_brep::pair_section::serves(sa.kind(), sb.kind()) {
         return Err(FrameError::Desync(
             "a pair the section value builds is read by its section's components, not by a frame",
@@ -6956,6 +6972,52 @@ mod frame_dispatch_tests {
                 "a cylinder × sphere pair has no frame"
             );
         }
+    }
+
+    /// **A served cone pair the value reads elsewhere refuses its frame
+    /// typed**: a sphere on a cone's axis (the coaxial circles) and two
+    /// cones of one aperture on parallel axes (the plane conic) are served
+    /// by kind, and the table holds no section for them, so a germ asks
+    /// their frame; it answers `NoArm`, as a coaxial cone × torus does, and
+    /// never a desync. The same sphere off the axis, which the table holds,
+    /// is a desync, so the guard reads the pose and not the kind. Red if
+    /// either `Elsewhere` pose desyncs, or the guard swallows a served
+    /// pose.
+    #[test]
+    fn a_cone_pair_read_elsewhere_refuses_its_frame_typed() {
+        let cone = |apex: Point3<f64>| geom::Surface::Cone {
+            frame: geom::Frame::new(apex, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            half_angle: core::f64::consts::FRAC_PI_6,
+        };
+        let ball = |centre: Point3<f64>| geom::Surface::Sphere {
+            frame: geom::Frame::new(centre, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            radius: 0.5,
+        };
+        let k = cone(Point3::new(0.0, 0.0, 0.0));
+        for (what, other) in [
+            (
+                "a sphere on the cone's axis",
+                ball(Point3::new(0.0, 0.0, 2.0)),
+            ),
+            (
+                "a cone of one aperture on a parallel axis",
+                cone(Point3::new(1.0, 0.0, 0.0)),
+            ),
+        ] {
+            for (a, b) in [(&k, &other), (&other, &k)] {
+                assert!(
+                    matches!(pair_section_frame(a, b, band()), Err(FrameError::NoArm)),
+                    "{what}: refused typed"
+                );
+            }
+        }
+        assert!(
+            matches!(
+                pair_section_frame(&k, &ball(Point3::new(0.8, 0.0, 2.0)), band()),
+                Err(FrameError::Desync(_))
+            ),
+            "a sphere off the axis is held by the table, so a frame ask is a desync"
+        );
     }
 
     /// **The nodes are a property of the whole intersecting

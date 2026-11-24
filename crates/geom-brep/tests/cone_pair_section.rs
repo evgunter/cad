@@ -1404,6 +1404,129 @@ fn generator_point() -> (Point3<f64>, Vec3<f64>) {
     (p(2.0 * s, 0.0, 2.0 * s), Vec3::new(s, 0.0, -s))
 }
 
+/// **A ball tangent where it also crosses the double cone refuses**, and
+/// each side of the tangency reads as the trace has it. Two poses on the
+/// unit cone, each decided `Zero` on one line of its centre's meridian
+/// plane while the other line is nearer than `R`:
+///
+/// - a touch beside a loop on the other nappe: centre `(2, 0, −1)`,
+///   `R = 3/√2`, touching the upper nappe at `(½, 0, ½)` from outside
+///   while crossing the lower one;
+/// - the far line: centre `(½, 0, 2)`, `R = 2.5/√2`, `Zero` on the line
+///   the centre stands farther from, the near one crossing.
+///
+/// Neither is one isolated point, so the value refuses by the tangency's
+/// own predicate rather than list one, and the door refuses
+/// `PairTangent`. At `R ∓ 0.02` the pose is transverse and its section
+/// agrees with the trace (`checked`): one loop and two for the touch, and
+/// whatever the trace finds for the far line. A pose that lists the touch
+/// alone, or drops a component either side: red.
+#[test]
+fn a_ball_tangent_beside_a_crossing_refuses_by_its_tangency() {
+    let s = FRAC_1_SQRT_2;
+    for (what, centre, r, loops) in [
+        (
+            "the touch beside a loop",
+            p(2.0, 0.0, -1.0),
+            3.0 * s,
+            Some([1, 2]),
+        ),
+        ("the far line", p(0.5, 0.0, 2.0), 2.5 * s, None),
+    ] {
+        let ball = sphere(centre, r);
+        for (a, b) in [(&unit_cone(), &ball), (&ball, &unit_cone())] {
+            assert!(
+                matches!(
+                    read(a, b, region()),
+                    Err(SectionError::Pinched {
+                        predicate: "kc_sphere_tangency"
+                    })
+                ),
+                "{what}: refused by its tangency, got {:?}",
+                read(a, b, region()).map(|_| ())
+            );
+            assert!(
+                matches!(
+                    ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
+                    Err(SsiError::PairTangent {
+                        pair: ssi::TangentPair::ConeRuled,
+                        ..
+                    })
+                ),
+                "{what}: the door refuses the tangency before any rung"
+            );
+        }
+        for (k, dr) in [-0.02, 0.02].into_iter().enumerate() {
+            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.01);
+            assert!(
+                section.tangency().is_none() && shapes.points == 0 && shapes.noded == 0,
+                "{what} at R {dr:+}: transverse, {shapes:?}"
+            );
+            if let Some(want) = loops {
+                assert_eq!(shapes.loops, want[k], "{what} at R {dr:+}: its loops");
+            }
+        }
+    }
+}
+
+/// **A ball touching both nappes lists both touches**: centre `(1, 0, 0)`,
+/// `R = 1/√2`, the distance to both lines of its meridian plane, the
+/// apex `1` off. The sphere stands nearest the double cone at both feet,
+/// `(½, 0, ±½)`, so the section is those two points, each with its
+/// decided tangency; at `R − 0.02` it is clear and at `R + 0.02` two
+/// loops, as the trace has it. A pose keeping only the first `Zero`: red.
+#[test]
+fn a_ball_touching_both_nappes_lists_both_touches() {
+    let r = FRAC_1_SQRT_2;
+    let ball = sphere(p(1.0, 0.0, 0.0), r);
+    for (a, b) in [(&unit_cone(), &ball), (&ball, &unit_cone())] {
+        let section = built(a, b, region());
+        let listed = section.counted().unwrap();
+        assert_eq!(listed.len(), 2, "two touches: {listed:?}");
+        let mut feet: Vec<Point3<f64>> = listed
+            .iter()
+            .map(|c| {
+                assert_eq!(c.shape, ComponentShape::Point);
+                assert!(matches!(
+                    c.carrier,
+                    ClassCarrier::Unminted(NoCarrier::Tangent)
+                ));
+                c.witness.unwrap()
+            })
+            .collect();
+        feet.sort_by(|x, y| x.z.total_cmp(&y.z));
+        for (got, want) in feet.iter().zip([p(0.5, 0.0, -0.5), p(0.5, 0.0, 0.5)]) {
+            assert!((*got - want).norm() < 1e-9, "a foot {got:?}, not {want:?}");
+        }
+        assert_eq!(section.decided().len(), 2, "each touch decided");
+        assert!(matches!(
+            ssi::cone_ruled_ssi(a, b, region(), domain(), band()),
+            Err(SsiError::PairTangent { .. })
+        ));
+    }
+    let (clear, _) = checked(
+        &unit_cone(),
+        &sphere(p(1.0, 0.0, 0.0), r - 0.02),
+        region(),
+        0.01,
+    );
+    assert_eq!(clear, Shapes::default(), "shrunk, the ball is clear");
+    let (two, _) = checked(
+        &unit_cone(),
+        &sphere(p(1.0, 0.0, 0.0), r + 0.02),
+        region(),
+        0.01,
+    );
+    assert_eq!(
+        two,
+        Shapes {
+            loops: 2,
+            ..Shapes::default()
+        },
+        "grown, a loop round each foot"
+    );
+}
+
 /// **A ball touching the generator is decided tangent in closed form**,
 /// from outside and from inside the cone: its centre `0.4` along the
 /// cone's normal from a generator point either way, the oracle's own

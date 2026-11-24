@@ -510,10 +510,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
 /// arms that march (cylinder×sphere and sphere×torus on their decided
 /// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
-/// with every Approx pairing over its fits). Cylinder×torus and
-/// torus×torus read the section value ([`crate::pair_section()`]),
-/// which serves every pose its pose decision classifies, a general one
-/// through its march; plane×torus reads the section value's pose, whose
+/// with every Approx pairing over its fits). Cylinder×torus,
+/// torus×torus, cone×torus, cone×cone and cone×sphere read the section
+/// value ([`crate::pair_section()`]), which serves every pose its pose
+/// decision classifies (a pose it reads elsewhere is a closed form's), a
+/// general one through its march; one the value cannot account for is
+/// not served. Cone×cylinder reads its coaxial closed form
+/// ([`cone_cylinder_section`]), so an oblique pose is not served here
+/// though the section value marches it
+/// (`work/sectcone/route-pose-reads-oblique-cone-cylinder-on-its-closed-form.md`);
+/// plane×torus reads the section value's pose, whose
 /// closed-form question is asked over the torus's ball and not at
 /// `reach`, so the gate and every other reader of the pose read it one
 /// way ([`crate::PlaneTorusPose::closed_form`]). Every unimplemented pair answers
@@ -647,13 +653,19 @@ pub fn route_pose<T: Decide>(
         Err(SectionError::DegenerateOperand { what } | SectionError::ConeAtTheBand { what }) => {
             refused(what)
         }
+        Err(SectionError::RadiusNotPositive { radius }) => refused(radius.not_positive()),
+        // The section value's readings of the pose disagree: the pose is
+        // not classified, and a gate must not admit what it cannot
+        // classify.
+        Err(SectionError::Unaccounted { .. }) => refused(
+            "the section value's readings of this pose disagree, so the pose is not classified",
+        ),
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::NoMarch { .. }
-            | SectionError::Unaccounted { .. }
             | SectionError::NoRegion { .. }),
         ) => Err(e),
     }
@@ -725,6 +737,13 @@ pub enum SectionError {
     DegenerateOperand {
         /// Which clause of the convention failed, and on what.
         what: &'static str,
+    },
+    /// An operand's radius decided not positive by the arm's own guard:
+    /// [`Self::DegenerateOperand`] with the radius named, so a reader
+    /// that answers by the radius reads it typed.
+    RadiusNotPositive {
+        /// Whose radius.
+        radius: SectionRadius,
     },
     /// A cone's aperture or seam guard decided `Zero`: at this band the
     /// cone stands on its convention's edge (a half-angle at zero or a
@@ -858,9 +877,10 @@ impl SectionError {
                 | SpiricInvalid::FrameNotOrthogonal,
             ) => Err(Aborts),
             // Mixed (above).
-            Self::DegenerateOperand { .. } | Self::Pinched { .. } | Self::Unaccounted { .. } => {
-                Err(Aborts)
-            }
+            Self::DegenerateOperand { .. }
+            | Self::RadiusNotPositive { .. }
+            | Self::Pinched { .. }
+            | Self::Unaccounted { .. } => Err(Aborts),
         }
     }
 }
@@ -904,6 +924,13 @@ impl SectionError {
             ),
             Self::DegenerateOperand { what } => {
                 write!(f, "a section operand is degenerate: {what}")
+            }
+            Self::RadiusNotPositive { radius } => {
+                write!(
+                    f,
+                    "a section operand is degenerate: {}",
+                    radius.not_positive()
+                )
             }
             Self::ConeAtTheBand { what } => write!(
                 f,
@@ -985,6 +1012,16 @@ impl SectionRadius {
         match self {
             Self::Cylinder => "whether a cylinder's radius is positive",
             Self::Sphere => "whether a sphere's radius is positive",
+        }
+    }
+
+    /// The guard's refusal where it decides the radius not positive, as
+    /// a clause.
+    #[must_use]
+    pub const fn not_positive(self) -> &'static str {
+        match self {
+            Self::Cylinder => "a cylinder's radius is not definitely positive",
+            Self::Sphere => "a sphere's radius is not definitely positive",
         }
     }
 
@@ -3772,7 +3809,8 @@ pub fn cone_cylinder_section<T: Decide>(
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
-                      circle, which the general rung marches (ssi::cone_ruled_ssi)",
+                      circle: no closed form serves it, and the general rung marches it \
+                      on the section value (geom_brep::pair_section)",
             });
         }
     }
@@ -3844,7 +3882,8 @@ pub fn cone_cylinder_section<T: Decide>(
         Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
-                  not a circle, which the general rung marches (ssi::cone_ruled_ssi)",
+                  not a circle: no closed form serves it, and the general rung marches it \
+                  on the section value (geom_brep::pair_section)",
         }),
     }
 }

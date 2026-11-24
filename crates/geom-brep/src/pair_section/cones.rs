@@ -24,11 +24,17 @@
 //! its feet on the two whole lines of the cone in its meridian plane,
 //! `g± = ρ cos α ∓ h sin α` from it (each line lies on the double cone,
 //! so each foot is on the surface). So `|g±| − R` (`kc_sphere_tangency`)
-//! decides each tangency, and `Zero` is the touch point, the foot. These
-//! with the apex margin are every critical value of the sweep's clearance
-//! `R − δ(φ)` (`δ` the ruling's distance from `c`, critical on the two
-//! meridian rulings and where the foot of `c` is the apex), so the sweep
-//! past them decides no double root of its own.
+//! decides each tangency. These with the apex margin are every critical
+//! value of the sweep's clearance `R − δ(φ)` (`δ` the ruling's distance
+//! from `c`, critical on the two meridian rulings and where the foot of
+//! `c` is the apex), so the sweep past them decides no double root of its
+//! own, and the least of them is the sphere's distance from the double
+//! cone. A `Zero` line is a touch at its foot, the section's whole, only
+//! where every other critical value is decided positive (the other line
+//! farther than `R`, the apex outside): one point, or two where both lines
+//! are `Zero`. A `Zero` line beside a crossing (the other line nearer, or
+//! the apex inside) is a touch beside other components or a node, a shape
+//! the pose does not prove, and refuses ([`SectionError::Pinched`]).
 //!
 //! - Off the partner, the ruling sweep reads both sheets ([`ruling::sweep`]),
 //!   a double root of its discriminant decided a tangency on the rulings'
@@ -132,6 +138,27 @@ impl ConeDecision {
             Self::SphereTangency => "kc_sphere_tangency",
         }
     }
+
+    /// The decision's floor row, where it is read across its rounding
+    /// (`decide_across_reported`): its far row's name, `_floor`.
+    #[must_use]
+    pub const fn floor(self) -> &'static str {
+        match self {
+            Self::ApertureSin => "kc_cone_aperture_sin_floor",
+            Self::ApertureCos => "kc_cone_aperture_cos_floor",
+            Self::Radius => "kc_cylinder_radius_floor",
+            Self::GeneratorAlongAxis => "kc_generator_along_axis_floor",
+            Self::ApexesApart => "kc_apexes_apart_floor",
+            Self::AxesParallel => "kc_axes_parallel_floor",
+            Self::ApertureEquality => "kc_aperture_equality_floor",
+            Self::ApexOnPartner => "kc_apex_on_partner_floor",
+            Self::PartnerApexOnCone => "kc_partner_apex_on_cone_floor",
+            Self::ApexForm => "kc_apex_form_floor",
+            Self::SphereRadius => "kc_sphere_radius_floor",
+            Self::SphereOnAxis => "kc_sphere_on_axis_floor",
+            Self::SphereTangency => "kc_sphere_tangency_floor",
+        }
+    }
 }
 
 /// **How the ruled cone's apex stands to the partner**, decided.
@@ -168,9 +195,8 @@ pub struct ConeRuledPose<T: Real> {
     region: ExtentBall<T>,
     apex: Decided,
     stance: ConeStance<T>,
-    /// A sphere partner's closed-form tangency: its `Zero` margin and the
-    /// touch point.
-    tangent: Option<(MarginDiag, Point3<T>)>,
+    /// A sphere partner's closed-form tangency, where one is decided.
+    tangent: Option<SphereTangency<T>>,
     /// Each whole loop whose winding about the partner did not settle,
     /// by the margin that failed ([`Self::unclaimed_windings`]).
     unclaimed: Vec<&'static str>,
@@ -198,28 +224,20 @@ struct Carrier<T: Real> {
     sc: (T, T),
 }
 
-/// `Ok` where the margin decides, the predicate named.
-/// A cylinder's radius not definitely positive, in words: the door maps
-/// it to its own radius refusal by this text.
-pub(crate) const CYLINDER_RADIUS_NOT_POSITIVE: &str =
-    "a cylinder's radius is not definitely positive";
-/// A sphere's, likewise.
-pub(crate) const SPHERE_RADIUS_NOT_POSITIVE: &str = "a sphere's radius is not definitely positive";
-
-/// [`read`] of a length `datum` across its rounding `swing`, the floor
-/// row `floor` deciding the side where the far row is clear.
-fn read_across_as<T: Decide>(
+/// [`read`] of a length `datum` across its rounding `swing`, the
+/// decision's floor row deciding the side where its far row is clear.
+fn read_across<T: Decide>(
     decision: ConeDecision,
-    floor: &'static str,
     datum: T,
     swing: T,
     band: Band,
 ) -> Result<Decided, SectionError> {
-    decide_across_reported([decision.name(), floor], datum, swing, band)
+    decide_across_reported([decision.name(), decision.floor()], datum, swing, band)
         .map(|(sign, margin)| Decided { sign, margin })
         .map_err(SectionError::Escalated)
 }
 
+/// `Ok` where the margin decides, the predicate named.
 fn read<T: Decide>(
     decision: ConeDecision,
     margin: Margin<T>,
@@ -417,8 +435,8 @@ impl<T: Decide> ConeRuledPose<T> {
                 ..
             }) => {}
             Ok(_) => {
-                return Err(SectionError::DegenerateOperand {
-                    what: SPHERE_RADIUS_NOT_POSITIVE,
+                return Err(SectionError::RadiusNotPositive {
+                    radius: SectionRadius::Sphere,
                 });
             }
             Err(diag) => {
@@ -440,46 +458,46 @@ impl<T: Decide> ConeRuledPose<T> {
         // charge at their sum.
         let at = (c - Point3::origin()).norm() + (cone.apex - Point3::origin()).norm();
         let swing = geom_core::rounding_charge(at.max(radius)) * T::from_f64(2.0);
-        if read_across_as(
-            ConeDecision::SphereOnAxis,
-            "kc_sphere_on_axis_floor",
-            rho,
-            swing,
-            band,
-        )?
-        .sign
-            == Sign::Zero
-        {
+        if read_across(ConeDecision::SphereOnAxis, rho, swing, band)?.sign == Sign::Zero {
             return Ok(None);
         }
         let ruled = ruled(cone, Form::sphere(c, cone.axis, radius), region);
-        let apex = read(
+        let apex = read_across(
             ConeDecision::ApexOnPartner,
-            Margin::of(ruled.partner_residual(ruled.apex)),
+            ruled.partner_residual(ruled.apex),
+            swing,
             band,
         )?;
         if apex.sign == Sign::Zero {
             return Ok(Some((ruled, apex, None)));
         }
         let (s, co) = cone.sc;
-        let mut touch = None;
+        let mut zeros = Vec::new();
+        let mut crossed = apex.sign == Sign::Negative;
         for side in [T::one(), T::zero() - T::one()] {
             // The line `apex + t·v`, `v = cos α·â ± sin α·ê`, at distance
             // `|ρ cos α ∓ h sin α|` from the centre.
             let g = rho * co - side * h * s;
-            let decided = read_across_as(
-                ConeDecision::SphereTangency,
-                "kc_sphere_tangency_floor",
-                g.abs() - radius,
-                swing,
-                band,
-            )?;
-            if decided.sign == Sign::Zero && touch.is_none() {
-                let v = cone.axis * co + out * (side * s);
-                touch = Some((decided.margin, cone.apex + v * w.dot(v)));
+            let decided = read_across(ConeDecision::SphereTangency, g.abs() - radius, swing, band)?;
+            match decided.sign {
+                Sign::Zero => {
+                    let v = cone.axis * co + out * (side * s);
+                    zeros.push((decided.margin, cone.apex + v * w.dot(v)));
+                }
+                Sign::Negative => crossed = true,
+                Sign::Positive => {}
             }
         }
-        Ok(Some((ruled, apex, touch)))
+        let tangent = match zeros.first() {
+            None => None,
+            // Every critical value of the clearance off the band is
+            // positive, so the distance from the centre to the double cone
+            // is least, `R`, at each Zero foot alone: the section is those
+            // points.
+            Some(_) if !crossed => Some(SphereTangency::Touches(zeros)),
+            Some(&(margin, _)) => Some(SphereTangency::Crossing(margin)),
+        };
+        Ok(Some((ruled, apex, tangent)))
     }
 
     /// **The cone's rulings against the cylinder `wall`**, and the apex
@@ -504,8 +522,8 @@ impl<T: Decide> ConeRuledPose<T> {
                 ..
             }) => {}
             Ok(_) => {
-                return Err(SectionError::DegenerateOperand {
-                    what: CYLINDER_RADIUS_NOT_POSITIVE,
+                return Err(SectionError::RadiusNotPositive {
+                    radius: SectionRadius::Cylinder,
                 });
             }
             Err(diag) => {
@@ -711,7 +729,11 @@ impl<T: Decide> ConeRuledPose<T> {
     /// closed-form `kc_sphere_tangency` decided `Zero`. A cylinder or cone
     /// partner's tangency is the sweep's, on the section.
     pub fn tangency(&self) -> Option<ZeroVerdict> {
-        self.tangent.map(|(margin, _)| ZeroVerdict {
+        let margin = match self.tangent.as_ref()? {
+            SphereTangency::Touches(points) => points.first()?.0,
+            SphereTangency::Crossing(margin) => *margin,
+        };
+        Some(ZeroVerdict {
             decision: SectionDecision::Tangency(ConeDecision::SphereTangency.name()),
             margin,
         })
@@ -786,9 +808,25 @@ impl<T: Real> RuledCone<T> {
     }
 }
 
-/// A cone's rulings against a sphere, the apex margin, and the tangency's
-/// `Zero` margin and touch point.
-type SphereRead<T> = (RuledCone<T>, Decided, Option<(MarginDiag, Point3<T>)>);
+/// A cone's rulings against a sphere, the apex margin, and the tangency.
+type SphereRead<T> = (RuledCone<T>, Decided, Option<SphereTangency<T>>);
+
+/// **A sphere partner's tangency, decided in closed form** (module docs):
+/// how the sphere stands where a line of the cone in its centre's
+/// meridian plane is decided `R` from the centre.
+#[derive(Clone, Debug)]
+enum SphereTangency<T: Real> {
+    /// Every other critical value of the clearance is decided positive
+    /// (the other line farther than `R`, the apex outside the sphere): the
+    /// sphere comes nearest the double cone at each `Zero` foot, and the
+    /// section is those isolated points, one or two, each with its margin.
+    Touches(Vec<(MarginDiag, Point3<T>)>),
+    /// A `Zero` line beside a crossing (the other line nearer than `R`,
+    /// or the apex inside the sphere): the section is a touch beside other
+    /// components, or a node, whose shape the pose does not prove. It
+    /// refuses, by its margin.
+    Crossing(MarginDiag),
+}
 
 /// **The section of a cone pair's pose** (module docs).
 ///
@@ -831,8 +869,16 @@ pub(crate) fn cone_ruled<T: Decide>(
     let unclaimed;
     let (arcs, found) = match pose.stance {
         ConeStance::Sheets if pose.tangent.is_some() => {
-            if let (Some(zero), Some((_, at))) = (pose.tangency(), pose.tangent) {
-                decided.push(zero);
+            let Some(SphereTangency::Touches(points)) = &pose.tangent else {
+                return Err(SectionError::Pinched {
+                    predicate: ConeDecision::SphereTangency.name(),
+                });
+            };
+            for &(margin, at) in points {
+                decided.push(ZeroVerdict {
+                    decision: SectionDecision::Tangency(ConeDecision::SphereTangency.name()),
+                    margin,
+                });
                 listed.push(point(at, NoCarrier::Tangent));
             }
             unclaimed = Vec::new();

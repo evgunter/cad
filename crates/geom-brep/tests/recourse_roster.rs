@@ -61,6 +61,7 @@ const CARRIERS: &[NameCarrier] = &[
     // no name table and is not declared.
     NameCarrier::Table("CsDecision"),
     NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("ConeDecision"),
     NameCarrier::Table("Row"),
     NameCarrier::Table("TorusDatum"),
     NameCarrier::Table("Meter"),
@@ -103,9 +104,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders that hand on their callers' names, declared so
     // those names are read.
     NameCarrier::Call("apart_in_order_as"),
-    // The cone pair's lengths read across their rounding
-    // (`pair_section/cones.rs`).
-    NameCarrier::Call("read_across_as"),
     NameCarrier::Call("stops"),
     NameCarrier::Call("probe_pick"),
     NameCarrier::Call("span_incidence_as"),

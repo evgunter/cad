@@ -1236,7 +1236,13 @@ before it, in closed form: the sphere's centre stands `(ρ, h)` from the
 apex across and along the axis, its distance from the double cone is
 critical only at its feet on the cone's two lines in its meridian plane,
 `g± = ρ cos α ∓ h sin α` from it, and `|g±| − R` decides each tangency,
-the sweep reading no ceiling. A sphere on the cone's axis is
+the sweep reading no ceiling. With the apex margin these are every
+critical value of the clearance, so a `Zero` line is a touch at its
+foot, the section's whole, only where every other one is decided
+positive: one point, or two where both lines are `Zero`. A `Zero` line
+beside a crossing (the other line nearer than `R`, or the apex inside)
+is a touch beside other components or a node, which the pose does not
+prove, and refuses by `kc_sphere_tangency`. A sphere on the cone's axis is
 `cone_sphere_section`'s closed form, read elsewhere. A cone pair's
 components are the general rung's, marched in ℝ³ from the count's
 witnesses (`ssi::cone_ruled_ssi`), the branches ending at the region
