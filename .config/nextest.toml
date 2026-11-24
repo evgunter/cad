@@ -197,6 +197,7 @@ failure-output = "immediate-final"
 # every face's own aim over a table of boxes, and two counterexample
 # searches at EFFORT 1 (a local run, 4 vCPUs):
 #    4.48 s  topo side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has
+#    3.71 s  topo side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side (local)
 #    2.97 s  topo side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has
 #    3.54 s  topo side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has
 #    0.46 s  topo side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it
@@ -207,6 +208,8 @@ failure-output = "immediate-final"
 #   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
 #    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
 #    0.57 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side (PR 6958's hosted run)
+#    0.32 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box (local; past the 0.25 s bar for a new row)
+#    0.28 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair (local; past the 0.25 s bar for a new row)
 #    1.04 s  sweep::all volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks
 #    1.82 s  sweep::all volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies
 #    2.77 s  sweep::all volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume (local, four cores)
@@ -689,9 +692,9 @@ not (
   (binary_id(sweep::all) & test(=parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings)) |
   (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
-  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
+  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
   (binary_id(sweep::all) & (test(=volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks) | test(=volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies) | test(=volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume))) |
-  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
+  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |

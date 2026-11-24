@@ -2,12 +2,13 @@
 id: an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice
 kind: issue
 title: A moving edge's line, the aim's step, the aimed face's advance, the loops' turn and a curved carrier's roots still carry a moving face's box twice
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: boxfinish/ray-readings
 pr: 7480
+closed: 2026-11-24
 ---
 
 
@@ -103,3 +104,27 @@ raised by `turned_inside` / `crosses_by_turn`), `side_at_infinity_edge`
 (`{0, 0.177}` to `{0, 1.227}`) and `side_at_infinity_advance`
 (`{-1.199, 0.927}`). `delete-the-box-scalar-sweep-leaf-switch` is
 parked on this row, so it takes that row's band.
+
+## Closed
+
+PR 7480 (2026-11-24). Over a box the side reader's in-plane turn is
+read with no frame chosen (`solid_contain::planar_cross_dot`), the
+aim's step reads the edge clearance in the face's plane
+(`edge_clearance(.., across)`), and an aimed ray whose pair of
+crossings a box cannot hold apart is set aside by the side reader
+(the pairing rule itself, and point containment with it, are as they
+were). The door's axis-aligned slab reads its side by its caps' rays at
+depth 1 ± 0.25, and the bottom cap's ray to its real stop near 1.469.
+
+What it did not reach, each with its own row: the walls still read
+only to about ± 0.05
+(`a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide`);
+the aimed face's own crossing is as wide as the box
+(`the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence`);
+a cap whose normal has no zero component reads only to about ± 0.05,
+the same on the merge base
+(`a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box`);
+the curved and fallback readings; an aimed ray's own selected frame.
+The first three stand before the switch's deletion in this row's place
+(M10, taken without this PR, still saw every ray set aside past
+± 0.215), so the first two are re-banded P1.
