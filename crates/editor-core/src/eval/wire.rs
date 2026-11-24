@@ -4615,9 +4615,9 @@ fn images_apart<T: topo::AtRestPolicy + Decide + geom_core::Bounds>(
                 Ok(computing
                     .relative(members[j].framed.frame())
                     .map_err(NodeErrorKind::Motion)?
-                    .map_or_else(geom_core::Affine3::identity, |map| map.to_affine()))
+                    .unwrap_or_else(geom_core::RigidMotion::identity))
             })
-            .collect::<Result<Vec<geom_core::Affine3<T>>, NodeErrorKind>>()?;
+            .collect::<Result<Vec<geom_core::RigidMotion<T>>, NodeErrorKind>>()?;
         let certificate =
             topo::Separation::of(m.framed.body(), tol).map_err(NodeErrorKind::Boolean)?;
         pairs.extend(
