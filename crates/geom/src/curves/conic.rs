@@ -1025,7 +1025,10 @@ impl<T: Real> Ellipse<T> {
     /// phase components negated. The stored point stays where it is.
     fn half_turned_where(&self, back: T) -> Self {
         Self {
-            at: Frame::select_le_zero(back, self.at, self.at.half_turned()),
+            // The axes alone are selected: the stored point is put back as
+            // stored, its bits and its enclosure untouched by the selection.
+            at: Frame::select_le_zero(back, self.at, self.at.half_turned())
+                .with_origin(self.at.origin()),
             held: self.held.with_phase(|(c0, s0)| {
                 (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
             }),
@@ -1580,7 +1583,7 @@ mod tests {
     fn an_ellipses_restatements_are_the_four_exact_ones_of_its_sign_patterns() {
         use super::Conic;
         let (anchor, n, u) = (
-            Point3::new(0.3, -1.1, 2.9),
+            Point3::new(0.3, -0.0, 2.9),
             Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
             Vec3::new(0.6, -0.8, 0.1),
         );
@@ -1741,6 +1744,136 @@ mod tests {
             }
         }
         assert!(bent, "some frame here is not rigid to the bit");
+    }
+
+    /// **A re-seam and a half-turned restatement store what a half turn
+    /// written out stores, every stored number and its enclosure**
+    /// ([`Ellipse::seamed_toward`], [`Ellipse::restatements`]). The
+    /// reference is test-only and written out apart from the helper the
+    /// two share: the quarter turn, then the centre frame selected against
+    /// its half turn and stood back at the stored point, the phase
+    /// selected against its negation; and for the restatement the stored
+    /// frame half-turned and the phase negated. Over frames rigid to the
+    /// bit and not, anchors that carry `−0.0` in each coordinate, either
+    /// holding at each phase a door states, and seams on the axes, on
+    /// the ties, at signed zeros and between; at `f64`, and at `Interval`
+    /// with the seam a point and a box across zero, where the selection
+    /// hulls. Red if the stored point passes through the selection, which
+    /// rewrites a `−0.0` as `+0.0` and weakens an enclosure hulled with
+    /// itself, or if a turn selects another frame or phase.
+    #[test]
+    fn a_re_seam_stores_what_a_half_turn_written_out_stores() {
+        use super::{Conic, Ellipse, Held};
+        use crate::Frame;
+        use geom_core::interval::Interval;
+        fn seamed<T: Real>(x: &Ellipse<T>, cos: T, sin: T) -> Ellipse<T> {
+            let turn = sin.abs() - cos.abs();
+            let back = T::zero() - turn.select_le_zero(cos, sin);
+            let e = x.quarter_turned_where(turn);
+            let f = Conic::frame(&e);
+            Ellipse {
+                at: e.stood(Frame::select_le_zero(back, f, f.half_turned())),
+                held: e.held.with_phase(|(c0, s0)| {
+                    (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+                }),
+                ..e
+            }
+        }
+        fn half<T: Real>(x: &Ellipse<T>) -> Ellipse<T> {
+            Ellipse {
+                at: x.at.half_turned(),
+                held: x.held.with_phase(|(c0, s0)| (-c0, -s0)),
+                ..*x
+            }
+        }
+        // Every stored number as printed, which tells `−0.0` from `0.0`
+        // and one enclosure from another.
+        fn stored<T: Real>(x: &Ellipse<T>) -> String {
+            format!(
+                "{:?} {:?} {:?} {:?}",
+                x.at.motion(),
+                x.held,
+                x.semi_u,
+                x.semi_v
+            )
+        }
+        let frames = [
+            (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            (Vec3::new(-0.0, 1.0, 0.0), Vec3::new(0.0, -0.0, -1.0)),
+            (
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                Vec3::new(0.6, -0.8, 0.1),
+            ),
+            (Vec3::new(-0.61, 0.13, 0.4), Vec3::new(0.2, 0.9, 0.33)),
+        ];
+        let anchors = [
+            Point3::new(-0.0, 1.25, -2.5),
+            Point3::new(0.3, -0.0, 2.9),
+            Point3::new(1.5, 0.75, -0.0),
+            Point3::new(-0.0, -0.0, -0.0),
+            Point3::new(0.3, -1.1, 2.9),
+        ];
+        let seams = [
+            (1.0, 0.0),
+            (0.0, 1.0),
+            (-1.0, 0.0),
+            (0.0, -1.0),
+            (0.0, 0.0),
+            (-0.0, -0.0),
+            (-1.0, -0.0),
+            (-0.0, 1.0),
+            (0.5, 0.5),
+            (-0.5, 0.5),
+            (-0.5, -0.5),
+            (0.9, -0.3),
+            (-0.2, 0.7),
+            (-0.8, -0.6),
+            (6.123233995736766e-17, 1.0),
+            (-1.0, 1.2246467991473532e-16),
+        ];
+        let lift = Interval::from_f64;
+        let mut asked = 0usize;
+        for (axis, seam) in frames {
+            for anchor in anchors {
+                let frame = Frame::new(anchor, axis, seam);
+                let minted = Ellipse::anchored(anchor, axis, seam, 0.75, 0.4);
+                let mut held = vec![Ellipse::new(frame, 0.75, 0.4), minted];
+                // Each phase a door states, by the reference.
+                held.extend(
+                    [(0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)].map(|(c, s)| seamed(&minted, c, s)),
+                );
+                for x in held {
+                    assert_eq!(
+                        stored(&x.restatements()[1]),
+                        stored(&half(&x)),
+                        "the half-turned restatement of {x:?}"
+                    );
+                    let twin: Ellipse<Interval> = x.map_scalar(|f| f.map_scalar(lift), lift);
+                    assert_eq!(
+                        stored(&twin.restatements()[1]),
+                        stored(&half(&twin)),
+                        "the half-turned restatement of {x:?} at Interval"
+                    );
+                    for (c, s) in seams {
+                        assert_eq!(
+                            stored(&x.seamed_toward(c, s)),
+                            stored(&seamed(&x, c, s)),
+                            "{x:?} toward ({c}, {s})"
+                        );
+                        let wide = |t: f64| Interval::from_bounds(t - 0.3, t + 0.3);
+                        for (ci, si) in [(lift(c), lift(s)), (wide(c), wide(s))] {
+                            assert_eq!(
+                                stored(&twin.seamed_toward(ci, si)),
+                                stored(&seamed(&twin, ci, si)),
+                                "{x:?} at Interval toward ({ci:?}, {si:?})"
+                            );
+                        }
+                        asked += 3;
+                    }
+                }
+            }
+        }
+        assert_eq!(asked, 4 * 5 * 5 * 16 * 3, "every case is asked");
     }
 
     /// **An ellipse held on its arc reads from its anchor.** As minted
