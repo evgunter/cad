@@ -159,7 +159,7 @@ symmetries.
 section arc is not read on main, so every split cone refuses at both
 scalars in every placement with the admission on or off (24 asks: three
 cuts, four placements, two scalars;
-`a_split_cone_refuses_on_a_pair_holding_its_wall`), on the two halves
+`a_cut_cone_is_embedded_in_every_placement_and_its_wall_holds_alone`), on the two halves
 across a ruling or a plane against a half. Six cylinder cuts hold at
 `f64` either way (their arcs are held at the centre, a half turn apart).
 

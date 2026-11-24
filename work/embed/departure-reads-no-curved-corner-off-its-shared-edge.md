@@ -1003,3 +1003,8 @@ are this row's second bullet alone. Cheapest reproducers:
 `sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`
 (0.5 s) for the first, `sweep::all reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`
 (20 s) for the second.
+
+## 2026-11-24 — a pencil's cut cap (`embed/cone-image`)
+
+A cylinder with a coaxial frustum on its top, one revolved profile, split by a tilted plane across the seam circle between the two walls: the cut cap is bounded by an arc of the cylinder's section ellipse and an arc of the cone's, meeting at two vertices on the seam circle. Eight such bodies (four tilts, both sides) are honest and refuse `Uncertified { Departure }` at `f64` on a pair that holds the cap: its corner of two different conics has no reading. Pinned refusing, as the negative of the one-conic reading, by `self_intersection_proves_injectivity::a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner`; the pin moves when this row's corner is read.
+

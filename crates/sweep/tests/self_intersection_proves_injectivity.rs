@@ -6969,11 +6969,31 @@ enum Placed {
     Mirrored,
 }
 
+/// The four placements.
+const PLACEMENTS: [Placed; 4] = [
+    Placed::AsBuilt,
+    Placed::Turned,
+    Placed::Out,
+    Placed::Mirrored,
+];
+
 /// The cut cone placed, as a body.
 fn placed_cut<T: Scalar>(shape: Frustum, cut: Cut, above: bool, placed: Placed) -> Body<T> {
+    try_placed_cut(shape, cut, above, placed)
+        .unwrap_or_else(|e| panic!("the cut cone is placed: {e:?}"))
+}
+
+/// [`placed_cut`], with the mirror door's refusal handed back for a row
+/// that reads a build limit.
+fn try_placed_cut<T: Scalar>(
+    shape: Frustum,
+    cut: Cut,
+    above: bool,
+    placed: Placed,
+) -> Result<Body<T>, topo::TransformError> {
     use geom_core::{Affine3, Vec3};
     let body = cone_cut::<T>(shape, cut, above);
-    match placed {
+    Ok(match placed {
         Placed::AsBuilt => body.into_body(),
         Placed::Turned => moved(
             &body,
@@ -6994,9 +7014,9 @@ fn placed_cut<T: Scalar>(shape: Frustum, cut: Cut, above: bool, placed: Placed) 
                 tol(),
             )
             .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol()).expect("the cut mirrors")
+            topo::mirror_body(&body, &across, tol())?
         }
-    }
+    })
 }
 
 /// The body's cone faces.
@@ -7007,22 +7027,15 @@ fn cone_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
         .collect()
 }
 
-/// **The whole cut cone refuses on a plane cap, and its wall holds.**
-/// The verdict door refuses `Uncertified { Departure }` on a pair that
-/// holds a plane, never on the two halves of the wall, and the halves
-/// asked alone hold with a corner read.
-fn refuses_on_a_cap_and_its_wall_holds(what: &str, body: &Body<f64>) {
+/// **The whole cut cone is embedded, and its wall holds alone.** The
+/// verdict door reads `Embedded` over every face at `f64`, and the two
+/// halves of the wall asked alone hold with a corner read.
+fn is_embedded_and_its_wall_holds(what: &str, body: &Body<f64>) {
     use topo::clearance::Embedding;
     let verdict = door(body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
-    let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
-        panic!("{what}: the cut refuses departure on a cap: {verdict:?}")
-    };
-    assert_eq!(arm, CertificateArm::Departure, "{what}");
     assert!(
-        [a, b]
-            .iter()
-            .any(|&f| matches!(surface(body, f), Surface::Plane { .. })),
-        "{what}: the refused pair holds a plane: {a:?} {b:?}"
+        matches!(verdict, Embedding::Embedded),
+        "{what}: the cut cone is embedded: {verdict:?}"
     );
     let halves = injective(body, Some(cone_faces(body)), BUDGET);
     assert!(
@@ -7032,12 +7045,71 @@ fn refuses_on_a_cap_and_its_wall_holds(what: &str, body: &Body<f64>) {
     );
 }
 
+/// **The verdict is a refusal of departure on a pair that holds a plane
+/// cap**: what a cut cone reads where its cap's two arcs of the section
+/// are not read as one conic.
+fn refuses_departure_on_a_cap<T: Real>(
+    what: &str,
+    body: &Body<T>,
+    verdict: &topo::clearance::Embedding,
+) {
+    use topo::clearance::Embedding;
+    let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
+        panic!("{what}: the cut refuses departure on a cap: {verdict:?}")
+    };
+    assert_eq!(*arm, CertificateArm::Departure, "{what}");
+    assert!(
+        [a, b]
+            .iter()
+            .any(|&&f| matches!(surface(body, f), Surface::Plane { .. })),
+        "{what}: the refused pair holds a plane: {a:?} {b:?}"
+    );
+}
+
+/// **A cut cone's `Interval` twin placed, or `None` at the one build
+/// limit**: below `1e-11` the mirror door refuses a wall cut's twin at
+/// its pcurve envelope, an indeterminate margin at the band
+/// (`work/pcert/the-mirror-of-a-split-cone-escalates-its-pcurve-envelope-at-1e-12.md`).
+/// Any other refusal, or that one anywhere else, fails the row.
+fn placed_twin(
+    what: &str,
+    (shape, cut, above): SplitCone,
+    through_the_wall: bool,
+    placed: Placed,
+) -> Option<Body<Interval>> {
+    use geom_brep::{PcurveCertifyError, PcurveCheck};
+    use topo::{PcurveMintError, TransformError};
+    match try_placed_cut::<Interval>(shape, cut, above, placed) {
+        Ok(body) => Some(body),
+        Err(
+            refusal @ TransformError::Pcurve {
+                source:
+                    PcurveMintError::Certify {
+                        error:
+                            PcurveCertifyError::Escalated {
+                                check: PcurveCheck::Envelope,
+                                ..
+                            },
+                        ..
+                    },
+            },
+        ) if through_the_wall && matches!(placed, Placed::Mirrored) && tol().eps() < 1e-11 => {
+            println!(
+                "SKIPPED (ε = {:e}): {what} is not placed: {refusal:?}",
+                tol().eps()
+            );
+            None
+        }
+        Err(refusal) => panic!("{what} is placed: {refusal:?}"),
+    }
+}
+
 /// The frustum on the dyadic grid and off it.
 const ON_GRID: Frustum = (1.0, 0.5, 1.0);
 const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 
-/// **A cut cone's wall holds in every placement, and its body refuses
-/// on a plane cap.** The cut's section ellipse is two arcs, each a focal
+/// **A cut cone is embedded in every placement, and its wall holds
+/// alone.** The cut's section ellipse is two arcs, each a focal
 /// image on its half of the wall. Three readings sign the cells beside
 /// it: a half-cone at the vertex where the ruling it shares with the
 /// other half meets its own arc, by the ruling; a half-cone against the
@@ -7054,23 +7126,26 @@ const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 /// read. Red, `Uncertified { Departure }` at depth 0 between the two
 /// halves, where a cone's chart reads no focal image.
 ///
-/// **The whole body refuses in each, on a pair that holds a plane cap**
-/// ([`refuses_on_a_cap_and_its_wall_holds`]): a cap's two arcs of the
-/// section are stated a half turn apart (`u_ref` opposed), which
-/// `one_stated_conic` reads as two conics, so the cap's corner of two
-/// arcs has no reading
-/// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
-/// When the cap's corner is read this row's bodies are embedded, and the
-/// pin moves.
+/// **The whole body is `Embedded` in each**
+/// ([`is_embedded_and_its_wall_holds`]). That takes all three readings
+/// on the cone and, on the cut's plane cap, its two arcs of the section
+/// read as one conic through the vertex they meet at: the split states
+/// them a half turn apart, one the other restated, which
+/// `one_stated_conic` reads as one. Red, a refusal of departure on a
+/// pair holding the cap, if that arm reads two; red, a refusal on the
+/// cone/cap pair, if the cone presents its arc on the wrong side or by
+/// no form.
 ///
-/// **What this row pins on this tree**: the first reading (the halves
-/// hold, with a corner read, only by the ruling's corner with the arc),
-/// and that a focal row is read at all (without it a half-cone has no
-/// extent and no sheet, and the halves refuse). It does NOT pin the
-/// second and third readings, the cone's side of the cone/cap pair: that
-/// pair refuses on the cap whichever of its two faces is unread, and the
-/// refusal names the pair and not the face. Those two are pinned at
-/// `injective::focal_rows` until a whole cut cone is embedded.
+/// **At `Interval` the whole body refuses, in every placement.** A wall
+/// cut as built, turned or a hundred out refuses departure on a pair
+/// that holds a plane cap ([`refuses_departure_on_a_cap`]): an
+/// `Interval` body states no carrier, and two lifted arcs are one conic
+/// only where every component is a point. Mirrored it refuses departure
+/// on a pair holding a half of the wall first. The cap cut under a
+/// generic tilt ends before either, out of its budget on a pair holding
+/// a half of the wall. Below `1e-11` the mirror door does not place a
+/// wall cut's `Interval` twin, a build limit read by its variant
+/// ([`placed_twin`]).
 ///
 /// **At `Interval`** the halves hold in one class with `f64` wherever
 /// the cut is as built, turned or a hundred out under a tilt toward a
@@ -7078,7 +7153,7 @@ const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 /// cone cell a rounding past its face's ruling is kept
 /// (`work/embed/an-interval-cone-cut-refuses-at-its-caps-two-arcs-and-beside-its-rulings.md`).
 #[test]
-fn a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap() {
+fn a_cut_cone_is_embedded_in_every_placement_and_its_wall_holds_alone() {
     use Placed::{AsBuilt, Mirrored, Out, Turned};
     use topo::clearance::Embedding;
     let wall = (0.43, 0.3, 0.7);
@@ -7124,7 +7199,7 @@ fn a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap() {
         for placed in placements {
             let body = placed_cut::<f64>(shape, cut, above, placed);
             assert_eq!(cone_faces(&body).len(), 2, "{what}: two halves of the wall");
-            refuses_on_a_cap_and_its_wall_holds(&format!("{what} {placed:?}"), &body);
+            is_embedded_and_its_wall_holds(&format!("{what} {placed:?}"), &body);
         }
     }
     // The two halves alone, at both scalars.
@@ -7154,49 +7229,77 @@ fn a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap() {
             }
         }
     }
-    // The whole body at `Interval`: never embedded while its caps refuse.
-    for (what, shape, cut, above) in [
-        ("the wall cut", OFF_GRID, wall, true),
-        ("the cap cut", OFF_GRID, cap, false),
-    ] {
-        let twin = placed_cut::<Interval>(shape, cut, above, AsBuilt);
-        let verdict = door(&twin, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
-        assert!(
-            matches!(verdict, Embedding::Refused(_)),
-            "{what} at Interval refuses: {verdict:?}"
-        );
+    // The whole body at `Interval`, in every placement, by what it
+    // refuses on.
+    for placed in PLACEMENTS {
+        for (what, cut, through_the_wall) in [
+            ("the wall cut on the grid", WALL_CUT, true),
+            ("the wall cut off the grid", WALL_CUT_OFF_GRID, true),
+            ("the cap cut", CAP_CUT, false),
+        ] {
+            let what = format!("{what} {placed:?} at Interval");
+            let Some(twin) = placed_twin(&what, cut, through_the_wall, placed) else {
+                continue;
+            };
+            let verdict = door(&twin, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+            let holds_a_cone = |a: FaceKey, b: FaceKey| {
+                [a, b]
+                    .iter()
+                    .any(|&f| matches!(surface(&twin, f), Surface::Cone { .. }))
+            };
+            match (through_the_wall, placed, &verdict) {
+                (
+                    true,
+                    Mirrored,
+                    Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }),
+                ) => {
+                    assert!(
+                        *arm == CertificateArm::Departure && holds_a_cone(*a, *b),
+                        "{what}: departure on a pair holding a half of the wall: {verdict:?}"
+                    );
+                }
+                (true, _, _) => refuses_departure_on_a_cap(&what, &twin, &verdict),
+                (false, _, Embedding::Refused(EngineRefusal::Budget { a, b, .. })) => {
+                    assert!(
+                        holds_a_cone(*a, *b),
+                        "{what}: out of its budget on a pair holding a half of the wall: {verdict:?}"
+                    );
+                }
+                (false, _, _) => panic!("{what}: runs out of its budget: {verdict:?}"),
+            }
+        }
     }
 }
 
-/// **A cap cut under a generic tilt refuses on its cut cap, not on its
-/// cone.** Off the dyadic grid and tilted toward no ruling, the two arcs
-/// the split mints on the cut's cap are one ellipse stated with frames a
-/// half turn apart (`u_ref` opposed), as every cut cap's are, which
-/// `one_stated_conic` does not read as one conic: the cap's corner of two
-/// arcs is read by no presentation
-/// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
-/// The pair refused holds the cap; the two halves of the wall alone hold.
+/// **A cap cut under a generic tilt refuses on its cut cap: its two
+/// arcs are stated a rounded quarter turn apart, and read two.** Off the
+/// dyadic grid, tilted toward no ruling and run out through the top cap,
+/// the split mints the cut cap's two arcs of the section with their
+/// seams a quarter turn apart and their semi-axes exchanged. A quarter
+/// turn of a seam is rounded, so neither is the other restated, and
+/// `one_stated_conic` reads two conics: nothing a rounding apart is one.
+/// The cap's corner of two arcs is then read by no presentation, and the
+/// body refuses departure on a pair that holds the cap
+/// ([`refuses_departure_on_a_cap`]), in every placement; the two halves
+/// of the wall alone hold. Geometrically the two arcs are ONE ellipse,
+/// so this row pins the statement rule, not a misreading of two curves:
+/// red, `Embedded`, if the ellipse arm admits a pair of ellipses that
+/// are not one restated. Two different ellipses at one cap corner are
+/// `a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner`'s.
 #[test]
 fn a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone() {
-    use topo::clearance::{Embedding, EngineRefusal};
-    let body = placed_cut::<f64>(OFF_GRID, (0.86, 0.3, 0.7), false, Placed::AsBuilt);
-    let verdict = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
-    let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
-        panic!("the cap cut refuses departure: {verdict:?}")
-    };
-    assert_eq!(arm, CertificateArm::Departure);
-    assert!(
-        [a, b]
-            .iter()
-            .any(|&f| matches!(surface(&body, f), Surface::Plane { .. })),
-        "the refused pair holds a plane: {a:?} {b:?}"
-    );
-    let halves = injective(&body, Some(cone_faces(&body)), BUDGET);
-    assert!(
-        matches!(halves.verdict, BoundVerdict::Holds),
-        "the two halves hold: {:?}",
-        halves.verdict
-    );
+    for placed in PLACEMENTS {
+        let what = format!("the cap cut under a generic tilt, {placed:?}");
+        let body = split_cone::<f64>(CAP_CUT, placed);
+        let verdict = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+        refuses_departure_on_a_cap(&what, &body, &verdict);
+        let halves = injective(&body, Some(cone_faces(&body)), BUDGET);
+        assert!(
+            matches!(halves.verdict, BoundVerdict::Holds),
+            "{what}: the two halves hold: {:?}",
+            halves.verdict
+        );
+    }
 }
 
 /// **A body through a cut cone's wall beside its section crosses**: a
@@ -7487,8 +7590,8 @@ fn apex_cut<T: Scalar>(r: f64, h: f64, cut: Cut) -> Result<Body<T>, String> {
 /// readings' own vertex checks. The halves alone
 /// hold at `f64` with a corner read, tilted toward a ruling and off
 /// them; at `Interval` they hold tilted toward a ruling and are never
-/// read crossing. The whole body refuses on its cap as every cut cone
-/// does ([`refuses_on_a_cap_and_its_wall_holds`]).
+/// read crossing. The whole body is embedded as every cut cone is
+/// ([`is_embedded_and_its_wall_holds`]).
 ///
 /// **What is left**: no body reaches `injective`'s `cone_regular`, which
 /// is stated defence. This row passes with the guard off. A frustum
@@ -7511,7 +7614,7 @@ fn a_cut_cone_that_keeps_its_apex_holds_between_its_halves() {
         let float = apex_cut::<f64>(0.7, 1.0, cut).expect("the cone splits");
         let twin = apex_cut::<Interval>(0.7, 1.0, cut).expect("the cone splits at Interval");
         assert_eq!(cone_faces(&float).len(), 2, "{what}: two halves");
-        refuses_on_a_cap_and_its_wall_holds(what, &float);
+        is_embedded_and_its_wall_holds(what, &float);
         let at_interval = door_over(&twin, cone_faces(&twin));
         assert!(
             at_interval != "Crosses" && (!twin_holds || at_interval == "Embedded"),
@@ -7526,8 +7629,9 @@ fn a_cut_cone_that_keeps_its_apex_holds_between_its_halves() {
 /// through its wall alone. A chart length along `u` is `|v|·sin α`
 /// metres, so the needle's levers are small and the flat cone's section
 /// is nearly a circle. Each one's two halves hold against each other at
-/// both scalars in one class, and its whole body refuses on a plane cap
-/// as every cut cone does ([`refuses_on_a_cap_and_its_wall_holds`]). Red if a lever taken without the half-angle's sine signs
+/// both scalars in one class, and its whole body is embedded as every
+/// cut cone is ([`is_embedded_and_its_wall_holds`]). Red if a lever taken
+/// without the half-angle's sine signs
 /// nothing on the needle, or signs too much.
 #[test]
 fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
@@ -7559,7 +7663,7 @@ fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
                 continue;
             }
         };
-        refuses_on_a_cap_and_its_wall_holds(what, &float);
+        is_embedded_and_its_wall_holds(what, &float);
         let reports = [
             injective(&float, Some(cone_faces(&float)), BUDGET),
             injective(&twin, Some(cone_faces(&twin)), BUDGET),
@@ -7809,11 +7913,9 @@ fn two_thin_slabs_through_each_other_cross() {
 
 // ------------------------------- a cone's section arcs, as its split states them
 
-/// A frustum's base radius, top radius and height, and a cut plane
-/// through `(0, q, 0)` whose normal is `y` tilted by `phi` toward the
-/// horizontal direction at azimuth `psi`, as `(q, phi, psi)`; the side
-/// the normal points to where the flag is set.
-type SplitCone = ((f64, f64, f64), (f64, f64, f64), bool);
+/// A cut cone as its rows name it: the frustum, the cut, and the side
+/// the normal points to where the flag is set ([`placed_cut`]).
+type SplitCone = (Frustum, Cut, bool);
 
 /// Cut through the wall alone, on dyadic sizes: the section's two arcs
 /// meet on the rulings at `±x`.
@@ -7825,86 +7927,9 @@ const WALL_CUT_OFF_GRID: SplitCone = ((0.7, 0.31, 0.9), (0.43, 0.3, 0.7), true);
 /// on the top rim and meet at one vertex on a ruling.
 const CAP_CUT: SplitCone = ((0.7, 0.31, 0.9), (0.86, 0.3, 0.7), false);
 
-/// How a split cone is placed before it is asked.
-#[derive(Clone, Copy, Debug)]
-enum SplitPose {
-    AsBuilt,
-    /// Turned 0.7 about a generic axis off the origin.
-    Turned,
-    /// Moved a hundred units from the origin.
-    Out,
-    /// Mirrored across a generic plane: its rows are minted again.
-    Mirrored,
-}
-
-const SPLIT_POSES: [SplitPose; 4] = [
-    SplitPose::AsBuilt,
-    SplitPose::Turned,
-    SplitPose::Out,
-    SplitPose::Mirrored,
-];
-
-/// **A frustum split by a tilted plane, one side of it, placed**: the
-/// frustum revolved a full turn about `y` (its wall two half-cones
-/// meeting along the rulings at `±x`) and split.
-fn split_cone<T: Scalar>(cut: SplitCone, pose: SplitPose) -> Body<T> {
-    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e:?}"))
-}
-
-/// [`split_cone`], with the mirror door's refusal handed back for a row
-/// that reads a build limit.
-fn try_split_cone<T: Scalar>(
-    ((r0, r1, h), (q, phi, psi), above): SplitCone,
-    pose: SplitPose,
-) -> Result<Body<T>, topo::TransformError> {
-    use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
-    use topo::splitting::{SplitPart, SplitPlane, split};
-    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
-    let frustum = finished(
-        "the frustum",
-        revolved_about_y_at::<T>(
-            vec![p(0.0, 0.0), p(r0, 0.0), p(r1, h), p(0.0, h)],
-            Revolution::Full,
-            tol(),
-        ),
-        tol(),
-    );
-    let normal = Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, q, 0.0).map(T::from_f64),
-        normal: geom_core::UnitVec3::new(normal.map(T::from_f64), topo::POSE_UNIT_NORM, band())
-            .expect("a cut normal has a length"),
-    };
-    let result = split(&frustum, &plane, tol()).expect("the frustum splits");
-    let body = match if above { result.above } else { result.below } {
-        SplitPart::Body(b) => b,
-        SplitPart::Empty => panic!("the side carries material"),
-    };
-    Ok(match pose {
-        SplitPose::AsBuilt => body.into_body(),
-        SplitPose::Turned => moved(
-            &body,
-            &Affine3::rotation_about_axis(
-                Point3::new(0.3, -0.2, 0.1),
-                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
-                0.7,
-            ),
-        )
-        .into_body(),
-        SplitPose::Out => {
-            moved(&body, &Affine3::translation(Vec3::new(60.0, -70.0, 40.0))).into_body()
-        }
-        SplitPose::Mirrored => {
-            let across = topo::Reflection::across(
-                Point3::new(0.2, 0.1, -0.3).map(T::from_f64),
-                Vec3::new(3.0 / 7.0, -6.0 / 7.0, 2.0 / 7.0).map(T::from_f64),
-                tol(),
-            )
-            .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol())?
-        }
-    })
+/// [`placed_cut`] of a [`SplitCone`].
+fn split_cone<T: Scalar>((shape, cut, above): SplitCone, placed: Placed) -> Body<T> {
+    placed_cut(shape, cut, above, placed)
 }
 
 /// The stored ellipses of `body`'s edges.
@@ -7944,7 +7969,7 @@ fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter
         a.restatements()
             .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b)))
     };
-    for pose in SPLIT_POSES {
+    for pose in PLACEMENTS {
         for (what, cut) in [
             ("on the grid", WALL_CUT),
             ("off the grid", WALL_CUT_OFF_GRID),
@@ -7976,91 +8001,6 @@ fn a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter
     }
 }
 
-/// **A split cone refuses on a pair that holds a half of its wall, at
-/// both scalars, in every placement.** A cone's own image of an edge
-/// that is no coordinate line of its chart is not read here (PR 7605,
-/// `embed/cone-image`, reads it), so the two halves refuse across a
-/// ruling, and a plane against a half across a section arc, whatever
-/// the cut cap's corner reads; the verdict door refuses `Departure` on
-/// the first. With that reading in the tree the wall cuts hold at `f64`,
-/// their caps' two arcs one conic, and the cap cut still refuses on its
-/// cut cap, its arcs two
-/// (`a_cones_split_states_its_sections_arcs_a_half_turn_apart_or_a_rounded_quarter`).
-/// At `Interval` every one still refuses there, measured as built with
-/// both in one tree: the cut toward a ruling on its cut cap against a
-/// half-cone (`5v1`, `8v3`, across `Edge(11v1)`), the cut off a ruling
-/// on another pair first (`2v1`, `5v1`, across `Edge(9v1)`), and the cap
-/// cut on a depth `Budget` (`3v1`, `4v1`). The row that lands that
-/// reading re-pins both scalars.
-#[test]
-fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
-    use topo::clearance::Embedding;
-    fn refuses<T: Scalar + geom_core::Certifies>(what: &str, body: &Body<T>) {
-        let verdict = door(body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
-        let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
-            panic!("{what}: refuses uncertified: {verdict:?}")
-        };
-        assert_eq!(arm, CertificateArm::Departure, "{what}");
-        assert!(
-            [a, b]
-                .iter()
-                .any(|&f| matches!(surface(body, f), Surface::Cone { .. })),
-            "{what}: the refused pair holds a cone: {a:?} {b:?}"
-        );
-    }
-    // The split cone placed, or `None` at the one build limit: below
-    // 1e-11 the mirror door refuses a wall cut's `Interval` twin at its
-    // pcurve envelope, an indeterminate margin at the band. Any other
-    // refusal, or that one anywhere else, fails the row.
-    fn placed<T: Scalar>(
-        what: &str,
-        cut: SplitCone,
-        wall: bool,
-        pose: SplitPose,
-        twin: bool,
-    ) -> Option<Body<T>> {
-        use geom_brep::{PcurveCertifyError, PcurveCheck};
-        use topo::{PcurveMintError, TransformError};
-        match try_split_cone::<T>(cut, pose) {
-            Ok(body) => Some(body),
-            Err(
-                refusal @ TransformError::Pcurve {
-                    source:
-                        PcurveMintError::Certify {
-                            error:
-                                PcurveCertifyError::Escalated {
-                                    check: PcurveCheck::Envelope,
-                                    ..
-                                },
-                            ..
-                        },
-                },
-            ) if twin && wall && matches!(pose, SplitPose::Mirrored) && tol().eps() < 1e-11 => {
-                println!(
-                    "SKIPPED (ε = {:e}): {what} {pose:?} at Interval is not placed: {refusal:?}",
-                    tol().eps()
-                );
-                None
-            }
-            Err(refusal) => panic!("{what} {pose:?} is placed: {refusal:?}"),
-        }
-    }
-    for pose in SPLIT_POSES {
-        for (what, cut, wall) in [
-            ("the wall cut on the grid", WALL_CUT, true),
-            ("the wall cut off the grid", WALL_CUT_OFF_GRID, true),
-            ("the cap cut", CAP_CUT, false),
-        ] {
-            if let Some(float) = placed::<f64>(what, cut, wall, pose, false) {
-                refuses(&format!("{what} {pose:?} at f64"), &float);
-            }
-            if let Some(twin) = placed::<Interval>(what, cut, wall, pose, true) {
-                refuses(&format!("{what} {pose:?} at Interval"), &twin);
-            }
-        }
-    }
-}
-
 /// **A ball through a split cylinder's wall and cut cap, where its two
 /// section arcs meet, crosses, at both scalars.** A rod of radius 0.7
 /// split by a tilted plane states its section's two arcs held at the
@@ -8073,13 +8013,17 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
 /// row is green whatever `one_stated_conic` answers, a grafted ball
 /// sharing no cell with the rod, and on main no body's verdict rests on
 /// that reading alone. The body rows that go red when the reading
-/// admits too much are owed where a cut cone holds, with PR 7605.
+/// admits too much are
+/// `a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner` (two
+/// ellipses) and `a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone`
+/// (one ellipse stated a rounded quarter apart); the rows that go red
+/// when it admits too little are the cut cones that read `Embedded`.
 #[test]
 fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
     use topo::clearance::Embedding;
     const ROD: SplitCone = ((0.7, 0.7, 1.9), (0.93, 0.3, 0.7), true);
     fn with_ball<T: Scalar>() -> Body<T> {
-        let mut body = split_cone::<T>(ROD, SplitPose::AsBuilt);
+        let mut body = split_cone::<T>(ROD, Placed::AsBuilt);
         // The section's point on the ruling at `+x`.
         let ((r, _, _), (q, phi, psi), _) = ROD;
         let at = geom_core::Vec3::new(r, q - phi.tan() * psi.cos() * r, 0.0);
@@ -8093,7 +8037,7 @@ fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
         topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
         body
     }
-    let arcs = section_arcs(&split_cone::<f64>(ROD, SplitPose::AsBuilt));
+    let arcs = section_arcs(&split_cone::<f64>(ROD, Placed::AsBuilt));
     let [a, b] = arcs.as_slice() else {
         panic!("two section arcs: {arcs:?}")
     };
@@ -8153,7 +8097,7 @@ fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_e
                         // count of section arcs (a side with none, a cut
                         // through both caps), is not this row's.
                         let arcs = std::panic::catch_unwind(|| {
-                            section_arcs(&split_cone::<f64>(cut, SplitPose::AsBuilt))
+                            section_arcs(&split_cone::<f64>(cut, Placed::AsBuilt))
                         });
                         let Ok([a, b]) = arcs.as_deref() else {
                             rest += 1;
@@ -8193,4 +8137,94 @@ fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_e
         ([864, 0], [40, 26, 0], 222),
         "through the wall alone [half, other]; through a cap [half, quarter, other]; the rest"
     );
+}
+
+/// **A pencil, cut**: a cylinder of radius 0.5 and height 1 with a
+/// coaxial frustum to radius 0.2 over 0.6 on its top, one revolved
+/// profile, split by `cut`, one side of it. A plane that crosses the
+/// seam circle between the two walls cuts the cylinder in an arc of one
+/// ellipse and the cone in an arc of another, and its cap is bounded by
+/// both, meeting at two vertices on the seam circle.
+fn pencil_cut<T: Scalar>(cut: Cut, above: bool) -> Result<Body<T>, String> {
+    use sweep::test_support::finished;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let pencil = finished(
+        "the pencil",
+        revolved_about_y_at::<T>(
+            vec![
+                p(0.0, 0.0),
+                p(0.5, 0.0),
+                p(0.5, 1.0),
+                p(0.2, 1.6),
+                p(0.0, 1.6),
+            ],
+            Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, cut.0, 0.0).map(T::from_f64),
+        normal: geom_core::UnitVec3::new(
+            cut_normal(cut).map(T::from_f64),
+            topo::POSE_UNIT_NORM,
+            band(),
+        )
+        .expect("a cut normal has a length"),
+    };
+    let result = split(&pencil, &plane, tol()).map_err(|e| format!("{e:?}"))?;
+    match if above { result.above } else { result.below } {
+        SplitPart::Body(b) => Ok(b.into_body()),
+        SplitPart::Empty => panic!("the side carries material"),
+    }
+}
+
+/// **A cap whose corner joins arcs of two different ellipses is never
+/// read as one conic.** The pencil cut across its seam circle, under
+/// four tilts, both sides: the cut cap's boundary runs from the
+/// cylinder's section ellipse onto the cone's at a vertex on the seam
+/// circle. The two are stated as two ellipses of different semi-axes
+/// (asserted), so `one_stated_conic` reads two and the corner has no
+/// reading: at `f64` every one refuses departure on a pair that holds a
+/// plane cap ([`refuses_departure_on_a_cap`]). The bodies are honest;
+/// the refusal is the missing reading of a corner of two curves
+/// (`work/embed/departure-reads-no-curved-corner-off-its-shared-edge.md`),
+/// and when that corner is read these bodies are embedded and the pin
+/// moves. At `Interval` none is embedded (one cut does not build there).
+///
+/// This is the admission's negative on two curves: red, `Embedded` in
+/// all eight, if the ellipse arm of `one_stated_conic` admits a pair of
+/// ellipses that are not one restated, since the corner is then read as
+/// one conic run through the vertex.
+#[test]
+fn a_cap_joining_arcs_of_two_ellipses_refuses_at_their_corner() {
+    for cut in [
+        (1.0, 0.4, 0.0),
+        (1.0, 0.4, 0.7),
+        (1.02, 0.5, 0.7),
+        (0.97, 0.3, 1.3),
+    ] {
+        for above in [true, false] {
+            let what = format!("the pencil cut {cut:?}, above {above}");
+            let body = pencil_cut::<f64>(cut, above).unwrap_or_else(|e| panic!("{what}: {e}"));
+            let semis: BTreeSet<(u64, u64)> = section_arcs(&body)
+                .iter()
+                .map(|e| {
+                    let (a, b) = (e.semi_u(), e.semi_v());
+                    (a.max(b).to_bits(), a.min(b).to_bits())
+                })
+                .collect();
+            assert!(
+                semis.len() >= 2,
+                "{what}: its section arcs are of two ellipses: {semis:?}"
+            );
+            let verdict = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+            refuses_departure_on_a_cap(&what, &body, &verdict);
+            if let Ok(twin) = pencil_cut::<Interval>(cut, above) {
+                let class = door_class(&twin);
+                assert_ne!(class, "Embedded", "{what} at Interval");
+            }
+        }
+    }
 }

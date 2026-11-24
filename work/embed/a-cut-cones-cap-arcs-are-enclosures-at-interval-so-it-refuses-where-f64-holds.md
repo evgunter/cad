@@ -56,4 +56,4 @@ there and not taken).
 
 None on main: the cone's section image is PR 7605's. On main every
 split cone refuses at both scalars
-(`self_intersection_proves_injectivity::a_split_cone_refuses_on_a_pair_holding_its_wall`).
+(`self_intersection_proves_injectivity::a_cut_cone_is_embedded_in_every_placement_and_its_wall_holds_alone`).
