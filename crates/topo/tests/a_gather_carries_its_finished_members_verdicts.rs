@@ -1,5 +1,5 @@
 //! **A gather of finished members finishes by carrying their verdicts**
-//! ([`topo::gather`]): each member finished once in its own frame, then
+//! ([`topo::boolean::gather_finished`]): each member finished once in its own frame, then
 //! placed by a rigid motion, the aggregate asking nothing its members'
 //! finishes answered.
 //!
@@ -55,8 +55,9 @@ fn joint() -> Interval {
 fn a_gather_under_a_boxed_turn_finishes_at_interval_where_a_finish_from_values_refuses() {
     let tol = Tol::witness();
     let (rest, turned, turn) = members::<Interval>(joint());
-    let (gathered, keys) = topo::gather(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
-        .expect("a gather of finished members under a rigid motion finishes");
+    let (gathered, keys) =
+        topo::boolean::gather_finished(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
+            .expect("a gather of finished members under a rigid motion finishes");
     assert_eq!(keys.len(), 2, "one key bridge per member");
     assert_eq!(gathered.solids().count(), 2, "one solid per member's solid");
     let derived = topo::finish(gathered.into_body(), tol)
@@ -87,8 +88,9 @@ fn a_gather_under_a_symbolic_turn_finishes_and_measures_its_members_volume() {
         );
         let tol = Tol::witness();
         let (rest, turned, turn) = members::<Sym<Interval>>(angle);
-        let (gathered, _) = topo::gather(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
-            .expect("a gather under a symbolic turn finishes");
+        let (gathered, _) =
+            topo::boolean::gather_finished(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
+                .expect("a gather under a symbolic turn finishes");
         let measured = gathered
             .measure(resolution())
             .expect("the gathered certificate measures");
@@ -117,8 +119,9 @@ fn at_f64_a_carried_gather_is_what_a_finish_derives() {
     ) {
         let tol = Tol::witness();
         let (rest, turned, turn) = members::<T>(angle);
-        let (gathered, _) = topo::gather(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
-            .unwrap_or_else(|e| panic!("{what}: the gather finishes: {e:?}"));
+        let (gathered, _) =
+            topo::boolean::gather_finished(&[Placed::own(&rest), Placed::at(&turned, turn)], tol)
+                .unwrap_or_else(|e| panic!("{what}: the gather finishes: {e:?}"));
         let carried = gathered
             .measure(resolution())
             .unwrap_or_else(|e| panic!("{what}: the carried certificate measures: {e:?}"))
@@ -150,7 +153,7 @@ fn a_gather_logs_the_same_verdicts_at_every_lane() {
     fn logged<T: AtRestPolicy + geom_core::Decide>(angle: T) -> Vec<geom_core::k_stats::Verdict> {
         let (rest, turned, turn) = members::<T>(angle);
         let bracket = geom_core::k_stats::Bracket::open();
-        topo::gather(
+        topo::boolean::gather_finished(
             &[Placed::own(&rest), Placed::at(&turned, turn)],
             Tol::witness(),
         )

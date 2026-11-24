@@ -10736,35 +10736,24 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         })
     }
 
-    /// **`parts` grafted beside each other, finished by carrying**
-    /// ([`crate::gather`], which states why the aggregate asks nothing
-    /// else): each part's data grafted disjointly in order, and check 7's
-    /// kept certificate the parts' own, each run re-keyed to the face its
-    /// graft minted. A held finish record is the part's own node's to
-    /// relog and is not carried.
-    ///
-    /// # Errors
-    ///
-    /// [`crate::GatherError::Graft`]: a part's graft refused, or there is
-    /// no part.
-    pub(crate) fn grafted(
-        parts: &[&Self],
-    ) -> Result<(Self, Vec<crate::GraftKeys>), crate::GatherError> {
-        let (body, keys) = crate::finish::graft_all(parts.iter().map(|part| &part.body))?;
+    /// **`body`, the disjoint graft of `parts` in order, finished by
+    /// carrying** ([`crate::boolean::gather_finished`], which states why the
+    /// aggregate asks nothing else): check 7's kept certificate the parts'
+    /// own, each run re-keyed to the face its graft minted (`keys`, one per
+    /// part). A held finish record is the part's own node's to relog and is
+    /// not carried.
+    pub(crate) fn gathered(body: Body<T>, parts: &[&Self], keys: &[crate::GraftKeys]) -> Self {
         let sign = crate::props::KeptSign::gathered(
             parts
                 .iter()
-                .zip(&keys)
+                .zip(keys)
                 .map(|(part, keys)| (&*part.sign, keys)),
         );
-        Ok((
-            Self {
-                body,
-                sign: std::sync::Arc::new(sign),
-                held: None,
-            },
-            keys,
-        ))
+        Self {
+            body,
+            sign: std::sync::Arc::new(sign),
+            held: None,
+        }
     }
 
     /// **Relogs the held finish record** into this thread's open frame:

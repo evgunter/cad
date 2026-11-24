@@ -34,7 +34,7 @@
 //! so at both lanes this table's bodies have had tier 2, not tier 3.
 //! Where the box scalars' leaf is finished, each member's tier 3 runs in
 //! its own frame and the product's gather carries those verdicts through
-//! the joints (`topo::gather`).
+//! the joints (`topo::boolean::gather_finished`).
 //!
 //! # The drive over the whole study
 //!

@@ -22,7 +22,7 @@ each folded material grafted beside them
 result), so its solids' verdicts are derived a second time; the carved
 part is construction state and has to be derived.
 
-`topo::gather` (the gather-carries PR) carries a disjoint graft of
+`topo::boolean::gather_finished` (the gather-carries PR) carries a disjoint graft of
 finished bodies. Here only some solids are finished, so carrying them
 needs a finish that derives the carved solids and carries the grafted
 ones: tier 3 is local to one solid, so it is the same argument, but no

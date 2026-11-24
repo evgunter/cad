@@ -1,5 +1,5 @@
 //! **A product of finished members carries their verdicts**
-//! (`Framed::gathered`, `topo::gather`): each member finished in its own
+//! (`Framed::gathered`, `topo::boolean::gather_finished`): each member finished in its own
 //! frame and placed by a joint, the aggregate finished by carrying, at
 //! every scalar alike.
 //!
@@ -191,8 +191,13 @@ fn a_gather_of_finished_members_logs_one_vector_at_every_lane() {
     let (doc, gather) = product(true, -0.03);
     macro_rules! logged {
         ($t:ty) => {{
-            let ev: Evaluation<$t> =
-                evaluate(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+            let ev: Evaluation<$t> = evaluate(
+                &doc,
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                tol,
+            );
             let mut log = ev
                 .value(gather)
                 .map(|v| v.verdicts.to_vec())

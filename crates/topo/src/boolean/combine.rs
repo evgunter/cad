@@ -362,7 +362,7 @@ pub enum PlacedGraftError {
 /// places it. The aggregate's own finish decides the rest. A gather of
 /// placed copies into one body in `editor-core` (the `⊔`, a
 /// distribute's assembly, a product) grafts through it where some copy
-/// is not handed over finished, and through [`crate::gather`], which
+/// is not handed over finished, and through [`gather_finished`], which
 /// carries their verdicts, where every copy is; step-import's instance
 /// loop does neither yet
 /// (`work/onehome/step-import-instances-graft-through-the-placed-door.md`).
@@ -389,6 +389,90 @@ pub fn graft_placed<T: geom_core::Decide + crate::AtRestPolicy>(
     )
     .map_err(PlacedGraftError::Move)?;
     crate::graft_disjoint_all_keyed(dst, &image).map_err(PlacedGraftError::Graft)
+}
+
+/// **Why a gather did not finish** ([`gather_finished`]), naming the member by
+/// its position where one is at fault.
+#[derive(Debug)]
+pub enum GatherError {
+    /// The member's image reaches past the session box.
+    Moved {
+        /// Its position among the members.
+        member: usize,
+        /// The session box's finding.
+        findings: crate::NotFinished,
+    },
+    /// The member's graft refused; `member` is `0` for a gather of none.
+    Graft {
+        /// Its position among the members.
+        member: usize,
+        /// The graft's refusal.
+        error: BooleanError,
+    },
+    /// At a dual, tier 2 refused the aggregate.
+    Aggregate(crate::NotFinished),
+}
+
+/// **The gather** (`⊔`, a pattern's assembly, a product's census): each
+/// member in the computing frame ([`crate::Placed::taken`]: moved once,
+/// its verdict carried and the session box asked of its image), the
+/// images grafted beside each other in order
+/// ([`crate::graft_disjoint_all_keyed`]), and the aggregate finished by
+/// carrying their verdicts ([`crate::FinishedBody::gathered`]).
+///
+/// It derives nothing tier 3 asks of each member again, because the
+/// aggregate asks nothing else: the graft is disjoint (one solid per
+/// source solid, no entity shared), every check of tier 3 is local to
+/// one face, edge, vertex, loop or solid, and the session box is one
+/// decision on the largest reach, which no image's reach is definitely
+/// past. A member is handed over as a finished body by type, under a
+/// rigid motion by type, so a body in construction state or a map that
+/// is not an isometry cannot be one. What lies between members is the
+/// tier-3′ census's (`crate::AtRestPolicy::census_at_rest`), which reads
+/// the aggregate this returns. [`graft_placed`] is the gather of copies
+/// not handed over finished.
+///
+/// At each scalar: at `f64` and `Probe`, the members' verdicts at a
+/// point; at `Interval` and `Sym`, their verdicts over the box, which a
+/// rigid motion keeps for every member of the motion's family; at a
+/// dual, the replays grafted and tier 2 run on the aggregate.
+///
+/// # Errors
+///
+/// [`GatherError`]: a member's move, its graft, or no member at all.
+pub fn gather_finished<F: crate::FinishedBody>(
+    members: &[crate::Placed<'_, F>],
+    tol: geom_core::Tol,
+) -> Result<(F, Vec<crate::GraftKeys>), GatherError> {
+    let images = members
+        .iter()
+        .enumerate()
+        .map(|(member, placed)| {
+            placed
+                .taken(tol)
+                .map_err(|findings| GatherError::Moved { member, findings })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if images.is_empty() {
+        return Err(GatherError::Graft {
+            member: 0,
+            error: BooleanError::JoinDesync {
+                what: "a gather of no body",
+            },
+        });
+    }
+    let mut aggregate = crate::Body::new();
+    let keys = images
+        .iter()
+        .enumerate()
+        .map(|(member, image)| {
+            crate::graft_disjoint_all_keyed(&mut aggregate, image)
+                .map_err(|error| GatherError::Graft { member, error })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let parts: Vec<&F> = images.iter().map(|image| &**image).collect();
+    let finished = F::gathered(aggregate, &parts, &keys).map_err(GatherError::Aggregate)?;
+    Ok((finished, keys))
 }
 
 /// [`graft_solids_disjoint`] onto destination solids minted here, one per

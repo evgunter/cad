@@ -552,7 +552,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 /// which the door that gathered it ends as it ends a body it built.
 #[derive(Debug)]
 pub(crate) enum Gathered<T: topo::AtRestPolicy> {
-    /// Every member was a finished body ([`topo::gather`]).
+    /// Every member was a finished body ([`topo::boolean::gather_finished`]).
     Finished(T::Finished),
     /// Some member was a leaf the switch keeps unfinished at the box
     /// scalars: grafted as data ([`Framed::graft_into`]).
@@ -586,7 +586,7 @@ impl<T: topo::AtRestPolicy> Held<T> {
 impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
     /// **`members` gathered into one body computed in `frame`**, in order,
     /// with the keys each member's graft minted: by carrying
-    /// ([`topo::gather`]) where every member is handed over finished
+    /// ([`topo::boolean::gather_finished`]) where every member is handed over finished
     /// ([`Held::gathers_finished`], a leaf through the one taker door), as
     /// data through each member's placement ([`Self::graft_into`])
     /// otherwise, and where there is no member.
@@ -631,10 +631,14 @@ impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
                     .map_err(|e| (at, GraftIn::Motion(e)))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let (body, keys) = topo::gather(&placed, tol).map_err(|e| match e {
-            topo::GatherError::Moved { member, findings } => (member, GraftIn::Moved(findings)),
-            topo::GatherError::Graft { member, error } => (member, GraftIn::Graft(Box::new(error))),
-            topo::GatherError::Aggregate(findings) => (0, GraftIn::Moved(findings)),
+        let (body, keys) = topo::boolean::gather_finished(&placed, tol).map_err(|e| match e {
+            topo::boolean::GatherError::Moved { member, findings } => {
+                (member, GraftIn::Moved(findings))
+            }
+            topo::boolean::GatherError::Graft { member, error } => {
+                (member, GraftIn::Graft(Box::new(error)))
+            }
+            topo::boolean::GatherError::Aggregate(findings) => (0, GraftIn::Moved(findings)),
         })?;
         Ok((Gathered::Finished(body), keys))
     }
