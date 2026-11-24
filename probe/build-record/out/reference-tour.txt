@@ -1,0 +1,27 @@
+witnesses with a same-lane reference: 9 (9 drives, 0 range searches)
+lanes: {'Sym<Interval>': 9}
+
+# 1. the reference against the f64 witness
+reference undecided (holds an escalation): 0
+   first escalated predicate: []
+by the whole log, checks read:
+       8  ('same', '')
+       1  ('parted', 'props_circle_axis_class | positive_volume_exact')
+by choices and standings:
+       9  ('same', '')
+record differs from the witness's: 0
+checks whose sign populations differ, reference against witness: [('props_chart_axis_inside', 1), ('props_chart_junction_closed', 1), ('props_chart_loop_turns', 1), ('props_chart_loop_whole', 1), ('props_circle_axis_class', 1), ('props_cylinder_circle_off_axis', 1), ('props_cylinder_circle_tilt', 1), ('props_face_extent', 1), ('props_meridian_axial', 1), ('props_meridian_on_surface', 1), ('props_rim_axis_parallel', 1), ('props_rim_center_on_axis', 1)]
+
+witnesses that certify a leaf today, by their reference (count, certified mass of drives):
+       8      6.6221  reference decided and equal to the witness
+
+# 2. today's decided leaves, against the same-lane reference
+decided leaves: 274
+     274  today certified a:same           b:same            e.g.  /   record equal to the reference's: True  [certified]
+leaves whose class differs between (a) and (b): 0
+leaves whose class differs from today's verdict:
+
+# 4. decided leaves with equal choices and a check population that differs
+   against the f64 witness: []
+   against the same-lane reference: []
+   checks whose populations differ on today's flip leaves (choices turned or not), against the witness: []

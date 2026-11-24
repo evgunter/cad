@@ -774,7 +774,52 @@ where
             }
         }
     }
+    // Checks by predicate and sign over every kept node, where the two
+    // runs' populations differ: a check of another definite sign shows
+    // here whether or not the choices before it agree.
+    let pops = |ev_logs: Vec<(&'static str, String)>| {
+        let mut m: BTreeMap<&'static str, BTreeMap<String, usize>> = BTreeMap::new();
+        for (p, sg) in ev_logs {
+            *m.entry(p).or_default().entry(sg).or_default() += 1;
+        }
+        m
+    };
+    let checks_of = |nodes: Vec<&[Verdict]>| -> Vec<(&'static str, String)> {
+        nodes
+            .into_iter()
+            .flat_map(|log| log.iter())
+            .filter(|d| d.role == Role::Check)
+            .map(|d| (d.predicate, format!("{:?}", d.sign)))
+            .collect()
+    };
+    let kept = |order: &[RecipeNodeId]| -> Vec<RecipeNodeId> {
+        order.iter().copied().filter(|&id| keep(id)).collect()
+    };
+    let (pa, pb) = (
+        pops(checks_of(
+            kept(&a.order)
+                .iter()
+                .filter_map(|&id| a.value(id).map(|v| &v.verdicts[..]))
+                .collect(),
+        )),
+        pops(checks_of(
+            kept(&b.order)
+                .iter()
+                .filter_map(|&id| b.value(id).map(|v| &v.verdicts[..]))
+                .collect(),
+        )),
+    );
+    let mut check_pop = Vec::new();
+    for p in pa.keys().chain(pb.keys()).collect::<BTreeSet<_>>() {
+        let (x, y) = (pa.get(p), pb.get(p));
+        if x != y && check_pop.len() < 12 {
+            check_pop.push(json!([p, x, y]));
+        }
+    }
+    let esc_all_b: usize = b.order.iter().map(|&id| esc_of(b, id).len()).sum();
     json!({
+        "check_pop": check_pop,
+        "esc_all_b": esc_all_b,
         "strict_equal": strict_equal,
         "choices_equal": choices_equal,
         "marks_equal": marks_equal,
@@ -1026,6 +1071,35 @@ pub(crate) fn parity_hook<T>(
         });
         compare_into(&mut line, ev, &ra, &iv, &all);
         emit(line);
+        // The same build at the drive's default box scalar.
+        if std::env::var_os("BUILD_RECORD_PARITY_SYM").is_some() {
+            let dials = crate::drive::SymbolicDials::default();
+            let memo = crate::drive::drive_memo(true, dials);
+            let (sv, _) = geom_core::sym::with_session_memo_retry(
+                dials.budget(),
+                dials.rules,
+                dials.retry,
+                &memo,
+                || {
+                    let leaf: Evaluation<geom_core::Sym<geom_core::Interval>> = crate::eval::evaluate(
+                        doc,
+                        None,
+                        &crate::eval::CancelToken::new(),
+                        &opts,
+                        tol,
+                    );
+                    leaf
+                },
+            );
+            let mut line = json!({
+                "k": "parity_sym",
+                "doc": format!("{:?}", doc.id()),
+                "a_rec_hash": ra.hash(),
+                "a_strict_hash": log_hashes(ev, &all)[2],
+            });
+            compare_into(&mut line, ev, &ra, &sv, &all);
+            emit(line);
+        }
     });
 }
 

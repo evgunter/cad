@@ -1,0 +1,33 @@
+witnesses with a same-lane reference: 338 (304 drives, 34 range searches)
+lanes: {'Sym<Interval>': 335, 'Interval': 3}
+
+# 1. the reference against the f64 witness
+reference undecided (holds an escalation): 0
+   first escalated predicate: []
+by the whole log, checks read:
+     334  ('same', '')
+       3  ('standing', 'ok -> failed Skin')
+       1  ('parted', 'props_circle_axis_class | positive_volume_exact')
+by choices and standings:
+     335  ('same', '')
+       3  ('standing', 'ok -> failed Skin')
+record differs from the witness's: 3
+checks whose sign populations differ, reference against witness: [('props_chart_axis_inside', 1), ('props_chart_junction_closed', 1), ('props_chart_loop_turns', 1), ('props_chart_loop_whole', 1), ('props_circle_axis_class', 1), ('props_cylinder_circle_off_axis', 1), ('props_cylinder_circle_tilt', 1), ('props_face_extent', 1), ('props_meridian_axial', 1), ('props_meridian_on_surface', 1), ('props_rim_axis_parallel', 1), ('props_rim_center_on_axis', 1)]
+
+witnesses that certify a leaf today, by their reference (count, certified mass of drives):
+     310    246.3921  reference decided and equal to the witness
+
+# 2. today's decided leaves, against the same-lane reference
+decided leaves: 2033
+    1372  today certified a:same           b:same            e.g.  /   record equal to the reference's: True  [a_boxed_rectangle_certifies_over_its_box::a_pen_drawn_and_a_]
+       1  today flip      a:same           b:same            e.g.  /   record equal to the reference's: True  [docm9_range::the_directed_search_proves_ground_on_the_plate_]
+     660  today flip      a:turned choice  b:turned choice   e.g. extrusion_normal_component Positive->Negative / extrusion_normal_component Positive->Negative  record equal to the reference's: True  [contradiction_corpus::the_slabs_drives_contradict_nothing_le]
+leaves whose class differs between (a) and (b): 0
+leaves whose class differs from today's verdict:
+       1  ('whole record', 'flip', 'same', '')
+       1  ('choices and standings', 'flip', 'same', '')
+
+# 4. decided leaves with equal choices and a check population that differs
+   against the f64 witness: [('props_chart_axis_inside', 1), ('props_chart_junction_closed', 1), ('props_chart_loop_turns', 1), ('props_chart_loop_whole', 1), ('props_circle_axis_class', 1), ('props_cylinder_circle_off_axis', 1), ('props_cylinder_circle_tilt', 1), ('props_face_extent', 1), ('props_meridian_axial', 1), ('props_meridian_on_surface', 1), ('props_rim_axis_parallel', 1), ('props_rim_center_on_axis', 1)]
+   against the same-lane reference: []
+   checks whose populations differ on today's flip leaves (choices turned or not), against the witness: [('dihedral_sign', 220), ('props_chart_axis_inside', 1), ('props_chart_junction_closed', 1), ('props_chart_loop_turns', 1), ('props_chart_loop_whole', 1), ('props_circle_axis_class', 1), ('props_cylinder_circle_off_axis', 1), ('props_cylinder_circle_tilt', 1), ('props_face_extent', 1), ('props_meridian_axial', 1), ('props_meridian_on_surface', 1), ('props_rim_axis_parallel', 1), ('props_rim_center_on_axis', 1)]

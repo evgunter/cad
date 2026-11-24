@@ -395,7 +395,7 @@ impl SymbolicDials {
     }
 
     /// The budget as the scalar's own type.
-    fn budget(self) -> geom_core::SymBudget {
+    pub(crate) fn budget(self) -> geom_core::SymBudget {
         geom_core::SymBudget {
             max_terms: self.max_terms,
             max_degree: self.max_degree,
@@ -1657,6 +1657,7 @@ pub(crate) fn classify(
         resolver: resolver.cloned(),
         ..lane_opts(stop)
     };
+    probe::reference(doc, box_, witness, symbolic, resolver, stop, tol);
     if symbolic.enabled {
         let (leaf, counts) = sym::with_session_memo_retry(
             symbolic.budget(),
@@ -1929,6 +1930,81 @@ mod probe {
         )
     }
 
+    /// A witness's SAME-LANE reference: the nominal replayed over a
+    /// zero-width box at the scalar its leaves replay at.
+    pub(super) enum Reference {
+        Iv(Evaluation<Interval>, Record),
+        Sy(Evaluation<Sym<Interval>>, Record),
+    }
+    static REFS: Mutex<BTreeMap<u64, Arc<Reference>>> = Mutex::new(BTreeMap::new());
+
+    fn reference_of(witness: &Evaluation<f64>) -> Option<Arc<Reference>> {
+        REFS.lock().ok()?.get(&witness.epoch.0).cloned()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn reference(
+        doc: &Doc<ProfileProgram>,
+        box_: &ParamBox,
+        witness: &Evaluation<f64>,
+        symbolic: super::SymbolicDials,
+        resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+        stop: &crate::Stop,
+        tol: Tol,
+    ) {
+        if br::dir().is_none() || reference_of(witness).is_some() {
+            return;
+        }
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(box_.at_nominal())),
+            resolver: resolver.cloned(),
+            ..lane_opts(stop)
+        };
+        let made = br::quiet(|| {
+            if symbolic.enabled {
+                let memo = super::drive_memo(true, symbolic);
+                let (ev, _) = sym::with_session_memo_retry(
+                    symbolic.budget(),
+                    symbolic.rules,
+                    symbolic.retry,
+                    &memo,
+                    || {
+                        let leaf: Evaluation<Sym<Interval>> =
+                            evaluate(doc, None, &stop.cancel, &opts, tol);
+                        leaf
+                    },
+                );
+                let rec = Record::of(&ev);
+                Reference::Sy(ev, rec)
+            } else {
+                let ev: Evaluation<Interval> = evaluate(doc, None, &stop.cancel, &opts, tol);
+                let rec = Record::of(&ev);
+                Reference::Iv(ev, rec)
+            }
+        });
+        let ra = witness_record(witness);
+        let keep = certifying(doc);
+        let mut line = json!({"k": "ref", "w": witness.epoch.0,
+            "doc": format!("{:?}", doc.id()),
+            "lane": if symbolic.enabled { "Sym<Interval>" } else { "Interval" }});
+        match &made {
+            Reference::Iv(ev, _) => br::compare_into(&mut line, witness, &ra, ev, &keep),
+            Reference::Sy(ev, _) => br::compare_into(&mut line, witness, &ra, ev, &keep),
+        }
+        let first = REFS
+            .lock()
+            .map(|mut m| {
+                if m.len() > 32 {
+                    m.clear();
+                }
+                m.insert(witness.epoch.0, Arc::new(made)).is_none()
+            })
+            .unwrap_or(false);
+        if first {
+            br::emit(line);
+        }
+    }
+
     pub(super) fn eval_took(t0: std::time::Instant) {
         #[allow(clippy::cast_possible_truncation)]
         br::LEAF_EVAL_US.with(|c| c.set(t0.elapsed().as_micros() as u64));
@@ -2036,6 +2112,21 @@ mod probe {
             "t_eval_us": br::LEAF_EVAL_US.with(std::cell::Cell::get),
         });
         br::compare_into(&mut line, witness, &ra, leaf, &certifying(doc));
+        // The same leaf against its same-lane reference.
+        if let Some(r) = reference_of(witness) {
+            let mut sub = json!({});
+            match &*r {
+                Reference::Iv(ev, rec) => {
+                    br::compare_into(&mut sub, ev, rec, leaf, &certifying(doc));
+                }
+                Reference::Sy(ev, rec) => {
+                    br::compare_into(&mut sub, ev, rec, leaf, &certifying(doc));
+                }
+            }
+            if let Some(o) = line.as_object_mut() {
+                o.insert("ref".into(), sub);
+            }
+        }
         br::emit(line);
         // The two records in full, once per witness, for a reader to
         // hold a flip leaf's against its witness's by eye.
