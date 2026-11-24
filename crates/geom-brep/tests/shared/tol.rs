@@ -12,7 +12,13 @@
 //! `pcurve_p1b_r2_probes.rs` (a fixed 1e-6 zero carrying the run's K),
 //! `coplanar_ellipses_one_locus.rs` (three named ε with the run's K,
 //! through `Band::linear_at`) and `section_bounds.rs` (a fixed 1e-6 ..
-//! 1e-5, so a cone section beside its apex is still minted). Each says at its own site why
+//! 1e-5, so a cone section beside its apex is still minted),
+//! `axis_rows_read_as_one_sum.rs` (`narrow`, `z .. 1.2·z`),
+//! `curved_torus_arc_residual.rs` (twice — `Band::linear_at(Tol::witness(), eps)`
+//! at named ε), `m5_pr7_ssi.rs` (a named ε with the run's
+//! K), `pcurve_conic.rs` (twice — a fixed 1e-9 .. 1e-8) and
+//! `pcurve_spiric.rs` (`wide_band`, `100·ε` through `Band::linear_at`).
+//! Each says at its own site why
 //! it is pinned to the row's scale rather than to ε, and a shared home
 //! must not make them follow ε by accident. `pcurve_p1b_r2_probes.rs`
 //! spells its half through `Band::linear_at`, the door for a named ε

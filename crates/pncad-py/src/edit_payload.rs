@@ -46,11 +46,11 @@ use crate::errors::{dimension_tag, slot_kind_tag, var_kind_tag};
 use crate::tags::{attr_kind_tag, slot_id_tag};
 
 /// The position a slot names inside a list, for a loft's section or a
-/// union's member.
+/// union's member or a subtract's tool.
 fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
     use pncad::document::OperandSlot as S;
     match slot {
-        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => Some(*i),
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i) | S::Cut(i)) => Some(*i),
         _ => None,
     }
 }
@@ -279,7 +279,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
         | EditError::SpaceMismatch { node, a: _, b: _ }
-        | EditError::IndicesUnrelated { node, a: _, b: _ }
+        | EditError::TwoBinders { node, a: _, b: _ }
         | EditError::UpdateOnNonInstance { node }
         | EditError::LabelUnchanged { node } => EditPayload {
             node: Some(node.id()),
@@ -558,8 +558,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             found: match fault {
                 pncad::document::IndexFault::CountNotCount { found } => Some(dim(*found)),
-                pncad::document::IndexFault::WithinNoIndex => None,
+                pncad::document::IndexFault::AfterNoIndex
+                | pncad::document::IndexFault::AfterTaken { .. } => None,
             },
+            ..none
+        },
+        EditError::Yields { binder, .. } => EditPayload {
+            param: binder.name(),
             ..none
         },
         EditError::LoftShape { node, fault } => match fault {

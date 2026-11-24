@@ -495,8 +495,11 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   is the curve its stored numbers state, and no reading replaces it
   with a rounded copy: one held at its centre is read from its centre,
   and so fixes a point of its arc only to the rounding of the centre's
-  distance and directions. Every reading of where a conic is goes
-  through the conic. No
+  distance and directions. A conic's position is the point it stores
+  plus two vectors times two functions of its parameter, and every
+  reading of where the conic is (at a parameter, along it, or of a
+  point against it) is read from that position. Its centre is a datum
+  of the whole conic, stored or derived. No
   `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items, and every call of a

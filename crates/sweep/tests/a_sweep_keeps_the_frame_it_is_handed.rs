@@ -343,7 +343,11 @@ fn a_revolved_circles_latitude_over_a_centre_box_is_exact() {
 fn assert_latitudes_exact(what: &str, body: &Body<S>, rims: &[Vec<Option<topo::EdgeKey>>]) {
     let mut seen = 0;
     for rim in rims.iter().flatten().flatten() {
-        let carrier = topo::readback::edge_carrier_ref(body, *rim).expect("a carried rim");
+        let carrier = body
+            .edge(*rim)
+            .and_then(topo::EdgeView::certified)
+            .expect("a carried rim")
+            .carrier();
         let circle = carrier.as_circle().expect("a latitude is a circle");
         assert_exact_unit(
             &format!("{what} latitude {rim:?} u_ref"),
@@ -663,7 +667,11 @@ where
     let (_, normal, u_ref) = plane(body, end_cap);
     let mut out = vec![normal, u_ref];
     for rim in r.rims.iter().flatten().flatten() {
-        let carrier = topo::readback::edge_carrier_ref(body, *rim).expect("a carried rim");
+        let carrier = body
+            .edge(*rim)
+            .and_then(topo::EdgeView::certified)
+            .expect("a carried rim")
+            .carrier();
         out.push(
             carrier
                 .as_circle()
@@ -981,13 +989,15 @@ fn washer_counts(full: bool) -> (bool, u64, u64) {
 /// nothing the tier does not now reach. Pinned as the session's
 /// counts: a build that decided those endpoints numerically would move
 /// decisions from the first count to the second. The full revolve reads
-/// 501 / 461, as it did with the registration; the partial reads 493 /
-/// 611 where it read 501 / 613, eight fewer decisions symbolic and two
-/// fewer numeric, the planes it no longer fits.
+/// 501 / 462 and the partial 493 / 612, each numeric count holding the
+/// revolve's one reading of the side of its axis the profile lies on.
+/// Validation then stopped reading the four corners' shared vertices
+/// (`profile::seg`'s `line_line`), six decisions a corner, 20 symbolic
+/// and 4 numeric: 481 / 458 and 473 / 608.
 #[test]
 fn a_revolves_latitude_identity_is_symbolic_without_a_registration() {
-    assert_eq!(washer_counts(true), (true, 497, 461), "the full washer");
-    assert_eq!(washer_counts(false), (true, 489, 611), "the partial washer");
+    assert_eq!(washer_counts(true), (true, 481, 458), "the full washer");
+    assert_eq!(washer_counts(false), (true, 473, 608), "the partial washer");
 }
 
 /// A plane turned 0.4 about `x` and lifted 2: no axis of it is a world

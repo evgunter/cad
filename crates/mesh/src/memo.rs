@@ -786,14 +786,7 @@ impl FaceInputs {
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
-                let edge = body
-                    .get_edge(ek)
-                    .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-                    .certified()
-                    .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+                let curve = crate::walk::edge_curve(body, ek)?;
                 let ids = chords
                     .ids
                     .get(&ek)
@@ -1356,7 +1349,10 @@ mod tests {
     fn edge(seed: f64, ids: [u32; 3]) -> EdgeInputs {
         EdgeInputs {
             forward: true,
-            carrier: Curve3::line(p(seed), Vec3::new(1.0, 0.0, seed)),
+            carrier: Curve3::line(
+                p(seed),
+                geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, seed)),
+            ),
             params: (0.0, 1.0),
             ids: ids.to_vec(),
             positions: ids.iter().map(|&i| p(f64::from(i))).collect(),
@@ -1399,7 +1395,10 @@ mod tests {
     fn every_carrier_kind_writes_a_distinct_tag() {
         let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
         let kinds: [(&str, Curve3<f64>); 5] = [
-            ("line", Curve3::line(frame.0, frame.1)),
+            (
+                "line",
+                Curve3::line(frame.0, geom_core::UnitVec3::squared(frame.1)),
+            ),
             ("circle", Curve3::circle(frame.0, frame.1, 1.0, frame.2)),
             (
                 "ellipse",
@@ -1477,7 +1476,12 @@ mod tests {
         ),
         (
             "an edge's carrier",
-            |f| f.loops[0][1].carrier = Curve3::line(p(9.0), Vec3::new(1.0, 0.0, 2.0)),
+            |f| {
+                f.loops[0][1].carrier = Curve3::line(
+                    p(9.0),
+                    geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 2.0)),
+                )
+            },
             [true, true, true],
         ),
         (
@@ -1780,9 +1784,9 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
-            // A frame is squared where it is stated, so its datums read
-            // the squared axes; every other datum reads its scalars as
-            // given.
+            // A frame and a line's direction are squared where they are
+            // stated, so their datums read the squared axes; every other
+            // datum reads its scalars as given.
             assert_eq!(
                 walked.len(),
                 kind.scalars,
@@ -1867,9 +1871,9 @@ mod tests {
                 .into_iter()
                 .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
                 .collect();
-            // A frame is squared where it is stated, so its datums read
-            // the squared axes; every other datum reads its scalars as
-            // given.
+            // A frame and a line's direction are squared where they are
+            // stated, so their datums read the squared axes; every other
+            // datum reads its scalars as given.
             assert_eq!(
                 walked.len(),
                 kind.scalars,
@@ -1877,8 +1881,10 @@ mod tests {
             );
             for (i, &(datum, x)) in walked.iter().enumerate() {
                 assert!(
-                    matches!(datum, geom::CurveDatum::Axis | geom::CurveDatum::URef)
-                        || x == base[i],
+                    matches!(
+                        datum,
+                        geom::CurveDatum::Axis | geom::CurveDatum::URef | geom::CurveDatum::Dir
+                    ) || x == base[i],
                     "{at_rest:?}: the walk yields the builder's scalar {i}, in its order"
                 );
             }

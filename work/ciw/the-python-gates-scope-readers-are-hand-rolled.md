@@ -2,10 +2,11 @@
 id: the-python-gates-scope-readers-are-hand-rolled
 kind: issue
 title: The Python gates' three scope readers are hand-rolled; source-scope cannot reach them yet
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: H
+closed: 2026-11-22
 ---
 
 Three Python gates resolve Rust names with scope readers they each wrote
@@ -44,3 +45,10 @@ job so the toolchain comes before the gates, and cache the tool's build.
 Until then, each gate's blind spots are listed in its header.
 
 Moved from GUARD to CIW on 2026-11-20, by `git mv`, when GUARD merged into CIW: GUARD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Option C puts a `syn`-based tool build, plus a 5-6 s parse per pass at opt 2 (the lexical reader takes about 2 s), into the lint job's gates step.
+It also reorders that job so the toolchain installs before `run-gates.sh` (`ci.yml:293`). That step is the P0 latency target.
+The treadmill it cites (PRs 6603, 6627, 6640) was the Rust flagged-door census, not these three Python gates.
+No recorded blind-spot incident in the Python gates justifies the cost. Each gate's blind spots stay listed in its header.

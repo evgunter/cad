@@ -25,7 +25,7 @@ surface wraps it:
   (`crates/editor-core/tests/refusal_concision_chains.rs`, `OVER_BUDGET`);
 - `ProfileReplay/Path/NoCornerOfPair(swallow and anchor)`: 83 words
   (same file);
-- `Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))`: 84 words
+- `Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))`: 83 words (84 before a labelled node stopped repeating its kind)
   (`crates/viewer/tests/refusal_concision_edits.rs`, `OVER_BUDGET`).
 
 The same unit names the corner a turn refusal is taken at ("its turn

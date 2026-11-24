@@ -2,10 +2,11 @@
 id: geom-brep-tol-census-omits-six-band-minting-suites
 kind: issue
 title: geom-brep's tol.rs census omits six suites that mint their own band
-status: open
+status: closed
 opened: 2026-10-08
 priority: P4
 cost: C
+closed: 2026-11-22
 ---
 
 
@@ -28,3 +29,7 @@ unlisted suite wants its line (and its site's reason for pinning, if
 it lacks one), or, if it follows ε after all, a move to `band()`.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+`shared/tol.rs`'s census names the five suites that still mint (`axis_rows_read_as_one_sum`, `curved_torus_arc_residual`, `m5_pr7_ssi`, `pcurve_conic`, `pcurve_spiric`); `sphere_circle_certificate.rs` no longer exists.

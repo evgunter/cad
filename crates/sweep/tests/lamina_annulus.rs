@@ -183,7 +183,7 @@ fn every_lamina_full_revolve_has_one_unslit_face_per_plane_wall() {
         assert_eq!(validate(&body), Ok(()), "{what}: tier 1");
         assert_eq!(validate_geometric(&body, tol()), Ok(()), "{what}: tier 3");
         let c = euler_counts(&body);
-        let g = c.genus().unwrap();
+        let g = c.h().unwrap();
         assert_eq!(plane_slits(&body), 0, "{what}: no slit on a plane face");
         let annuli = match what {
             "washer" | "trapezoid" | "run on the bottom" => 2,

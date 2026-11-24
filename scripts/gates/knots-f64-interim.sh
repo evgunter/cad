@@ -69,7 +69,10 @@ gate() {
   gate_require_crate_sources
   local report
   if ! report=$(python3 - "$BASELINE" <<'PY'
-import glob, re, sys
+import glob, os, re, sys
+
+sys.path.insert(0, os.environ["GATE_LIB_DIR"])
+import rust_strip  # noqa: E402
 
 baseline_path = sys.argv[1]
 NAMES = r"(?:knots_f64_interim|knots_u_f64_interim|knots_v_f64_interim|structure_f64_interim|weights_f64_interim|point_knots)"
@@ -84,51 +87,7 @@ POINT_F64 = re.compile(r"^(?:Vec<f64>|&'[a-z_]+\[f64\]|Option<Vec<f64>>|Box<\[f6
 
 
 def strip(text):
-    # Comments, string and char literals out (a small Rust lexer), the
-    # code and its newlines kept.
-    out, i, n = [], 0, len(text)
-    while i < n:
-        c = text[i]
-        two = text[i:i + 2]
-        if two == "//":
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-        elif two == "/*":
-            depth, j = 1, i + 2
-            while j < n and depth:
-                if text[j:j + 2] == "/*":
-                    depth, j = depth + 1, j + 2
-                elif text[j:j + 2] == "*/":
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            out.append("\n" * text.count("\n", i, j))
-            i = j
-        elif c == "r" and re.match(r'r#*"', text[i:i + 8]) and not (i and (text[i - 1].isalnum() or text[i - 1] == "_")):
-            hashes = len(re.match(r"r(#*)", text[i:]).group(1))
-            close = '"' + "#" * hashes
-            j = text.find(close, i + 2 + hashes)
-            j = n if j < 0 else j + len(close)
-            out.append('""')
-            i = j
-        elif c == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            out.append('""')
-            i = j + 1
-        elif c == "'":
-            m = re.match(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^'\\\n])'", text[i:])
-            if m:
-                out.append("' '")
-                i += m.end()
-            else:
-                out.append(c)
-                i += 1
-        else:
-            out.append(c)
-            i += 1
-    return "".join(out)
+    return rust_strip.strip(text, literal_newlines=False)
 
 
 def matching(text, at, open_ch, close_ch):

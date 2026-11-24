@@ -150,8 +150,8 @@ fn translated(
         .into_iter()
         .next()
         .expect("the copy is placed by a mate");
-    walk(&mut mate.on, &mut respell);
-    walk(&mut mate.to, &mut respell);
+    walk(&mut mate.on.read, &mut respell);
+    walk(&mut mate.to.read, &mut respell);
     assert_eq!(replaced, 1, "the mate slides the copy once: {mate:?}");
     let values = placed
         .values

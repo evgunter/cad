@@ -55,8 +55,8 @@
 //! instruments are CI's wasm32 row, a non-dev `cargo check` of the
 //! kernel and `editor-core` on every code run, and the E0365 a
 //! re-export of the shut arm's trait now produces. A gate that compiles
-//! a downstream witness is filed, not built
-//! (`work/bool/raw-door-compile-proof-needs-a-gate.md`).
+//! a downstream witness was weighed and declined as not worth its CI
+//! cost (`work/ciw/raw-door-compile-proof-needs-a-gate.md`, closed).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`], [`rectangle`].

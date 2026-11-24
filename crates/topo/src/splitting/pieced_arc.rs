@@ -1,14 +1,14 @@
 //! **A curved edge of a planar loop read piece by piece** — the boundary
-//! reading and the ray crossing count the in-plane walk
-//! ([`super::containment`]) runs on a carrier with no closed-form ray
-//! intersection it could certify cheaply: a spiric oval's arc
-//! ([`super::spiric_arc`]) and a spline's ([`super::spline_arc`]).
+//! reading the in-plane walk ([`super::containment`]) runs on a carrier
+//! with no closed-form foot, a spiric oval's arc ([`super::spiric_arc`])
+//! and a spline's ([`super::spline_arc`]), and the ray crossing count it
+//! runs on a carrier with no closed-form ray intersection, a spline's.
 //!
 //! Both readings subdivide the arc's parameter window and certify each
-//! piece from what its carrier says over the piece's own window
-//! ([`PiecedArc`]): a ball holding the piece, with a point of the arc in
-//! it, for the boundary reading; and whether a ray crosses the piece,
-//! for the count. A piece that settles neither way is halved, until its
+//! piece from what its carrier says over the piece's own window: a ball
+//! holding the piece, with a point of the arc in it, for the boundary
+//! reading ([`PiecedArc`]); and whether a ray crosses the piece, for the
+//! count ([`PiecedCrossing`]). A piece that settles neither way is halved, until its
 //! ball is within the band's coincidence threshold (the boundary
 //! reading), [`MAX_DEPTH`], or [`geom_core::bisect`]'s piece budget.
 //! The boundary reading is its own walk over that ball cover, not
@@ -74,10 +74,6 @@ pub(crate) trait PiecedArc<T: Decide> {
 
     /// A ball holding the piece, and a point of the arc in it.
     fn ball(&self, piece: &Self::Piece) -> PieceBall<T>;
-
-    /// How many times `ray` crosses the piece, where the piece settles
-    /// it: `None` halves it.
-    fn cross(&self, piece: &Self::Piece, ray: Ray<T>, band: Band) -> Option<usize>;
 
     /// **Where `q` sits against the arc.** `End` within the band of an
     /// end; `On` within the band of a point of the arc, both ends decided
@@ -177,6 +173,16 @@ pub(crate) trait PiecedArc<T: Decide> {
         }
         kept.refusal().map_or(Ok(ArcHit::Off), Err)
     }
+}
+
+/// **A pieced arc a ray's crossings are counted on, piece by piece**:
+/// a carrier with no closed-form ray intersection (a spline's).
+pub(in crate::splitting) trait PiecedCrossing<T: Decide>:
+    PiecedArc<T>
+{
+    /// How many times `ray` crosses the piece, where the piece settles
+    /// it: `None` halves it.
+    fn cross(&self, piece: &Self::Piece, ray: Ray<T>, band: Band) -> Option<usize>;
 
     /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
     /// counted in the loop's plane (`side` the in-plane unit normal to
@@ -185,7 +191,7 @@ pub(crate) trait PiecedArc<T: Decide> {
     /// depth or the budget — a graze, or a crossing at a piece's end —
     /// which grazes the ray (why that is sound: the ray loop in
     /// [`super::containment`]'s walk). The walk calls it only for a
-    /// point [`Self::contact`] read `Off`.
+    /// point [`PiecedArc::contact`] read `Off`.
     fn crossings(&self, q: Point3<T>, d: Vec3<T>, side: Vec3<T>, band: Band) -> Option<usize> {
         let ray = Ray { q, d, side };
         let mut count = 0;
@@ -236,7 +242,7 @@ impl From<Indeterminate> for ArcRefusal {
 mod tests {
     use geom_core::{Band, MarginDiag, Point3};
 
-    use super::{ArcHit, ArcRefusal, ArcRows, PieceBall, PiecedArc, Ray};
+    use super::{ArcHit, ArcRefusal, ArcRows, PieceBall, PiecedArc};
 
     const ROWS: ArcRows = crate::rows::ARC_LOOP_WALK.spline();
 
@@ -276,9 +282,6 @@ mod tests {
                 reach: 0.0,
                 on: c,
             }
-        }
-        fn cross(&self, _: &usize, _: Ray<f64>, _: Band) -> Option<usize> {
-            panic!("contact reads no crossing")
         }
     }
 

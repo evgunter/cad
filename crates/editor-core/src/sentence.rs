@@ -26,12 +26,19 @@ pub trait Staged {
     const STAGE: &'static str;
 
     /// Writes the refusal's sentence at `labels`, after the stage word
-    /// when they are kept.
+    /// when they are kept, each node it captured mentioned by `by`: by
+    /// tag where no document is known ([`Labelled`]), in the document a
+    /// carrier knows the nodes are of where it does ([`LabelledBy`]).
     ///
     /// # Errors
     ///
-    /// The formatter's.
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result;
+    /// None from a sentence: the type is the one `write!` returns.
+    fn say_labelled(
+        &self,
+        f: &mut crate::Sentence,
+        labels: Labels,
+        by: crate::Speaker<'_>,
+    ) -> core::fmt::Result;
 
     /// The refusal as a carrier that names the stage renders it.
     fn sentence(&self) -> Labelled<'_, Self> {
@@ -39,13 +46,14 @@ pub trait Staged {
     }
 }
 
-/// A [`Staged`] refusal rendered at a [`Labels`].
+/// A [`Staged`] refusal rendered at a [`Labels`], each node by its tag:
+/// [`LabelledBy`] said by [`crate::Speaker::TAG`].
 pub struct Labelled<'a, E: ?Sized>(pub &'a E, pub Labels);
 
 impl<E: Staged + ?Sized> Labelled<'_, E> {
     /// The stage word and its joint, written when `labels` are kept:
     /// the one spelling of a refusal's opening, whoever says the rest.
-    pub(crate) fn open(f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
+    pub(crate) fn open(f: &mut crate::Sentence, labels: Labels) -> core::fmt::Result {
         if labels == Labels::Kept {
             write!(f, "{}: ", E::STAGE)?;
         }
@@ -53,10 +61,28 @@ impl<E: Staged + ?Sized> Labelled<'_, E> {
     }
 }
 
+/// A [`Staged`] refusal rendered at a [`Labels`], its nodes mentioned
+/// by a speaker ([`Staged::say_labelled`]).
+pub struct LabelledBy<'a, E: ?Sized>(pub &'a E, pub Labels, pub crate::Speaker<'a>);
+
+impl<E: Staged + ?Sized> crate::Put for LabelledBy<'_, E> {
+    fn put(self, out: &mut crate::Sentence) {
+        let _ = Labelled::<E>::open(out, self.1);
+        let _ = self.0.say_labelled(out, self.1, self.2);
+    }
+}
+
+impl<E: Staged + ?Sized> crate::Put for Labelled<'_, E> {
+    fn put(self, out: &mut crate::Sentence) {
+        crate::Put::put(LabelledBy(self.0, self.1, crate::Speaker::TAG), out);
+    }
+}
+
 impl<E: Staged + ?Sized> core::fmt::Display for Labelled<'_, E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        Self::open(f, self.1)?;
-        self.0.fmt_labelled(f, self.1)
+        let mut out = crate::Sentence::new();
+        crate::Put::put(Labelled(self.0, self.1), &mut out);
+        write!(f, "{out}")
     }
 }
 
