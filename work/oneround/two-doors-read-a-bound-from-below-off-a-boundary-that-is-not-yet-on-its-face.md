@@ -20,3 +20,7 @@ A lever's bound from below is read "off points known to lie on the region" (`cra
 Nothing is known wrong: tier 3 re-asks at rest, where the finished bodies pass, and no Zero is served at any of these reads. What is open is that a definite verdict is served mid-construction on a lever read off points that are not the face's. Not established: whether `set_face_surfaces_certifying` re-certifies its edges after the boundary moves or leans on tier 3 alone.
 
 Owed, with the turn-lever unit's first step (the typed missing bound from above, entered from what each door knows): these two doors read their bound from below off the boundary as they leave it, or hold their definite verdicts as provisional by type until the face is its own.
+
+## Added 2026-11-23: `set_face_surfaces_certifying` does not re-certify after the move
+
+Read in `crates/topo/src/attach.rs` by the turn-lever lane (its message of 23:04Z). The door makes its `WedgeReach` on the body BEFORE the move (`WedgeReach::new(self, band)`), certifies each listed edge's new spec against the PLANNED surfaces at that reach's bound from below (`certify_stated`), has every moved face's boundary vouched for on its new chart by residuals (`unvouched`, refusing any not vouched), then mutates, with only `assert_tier1_postcondition` after it. So the lever its certificates read is the pre-move body's, and what stands at rest afterwards rests on the residual vouching and on tier 3, not on a certification of the moved body.

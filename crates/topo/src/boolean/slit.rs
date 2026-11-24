@@ -126,7 +126,7 @@
 //! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
 //! meridian through a section circle no edge reaches, so that the
 //! re-entered op's crossing layer meets the circle, and the re-entered op
-//! is handed each cut (`ops::CutIn::Closing`). The output stage reads
+//! is handed each cut (`ops::Pass::CutIn`). The output stage reads
 //! every edge of the result split off one ([`CutRoots`]) and
 //! [`close_cuts`] deletes each, after the struts and before the
 //! coplanar merge: `kef` where it lies between two faces, `kev` where an

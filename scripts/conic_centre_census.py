@@ -38,6 +38,9 @@ LINT = "clippy::disallowed_methods"
 HEADER = (
     "# Production reads of a conic's centre doors per file, as clippy\n"
     "# reports them (scripts/conic_centre_census.py). A pin only falls.\n"
+    "# A read that lands from another lane is converted to a reading of the\n"
+    "# conic, or pinned here with an `#[expect]` at its function and its site\n"
+    "# on a `work/conic/` row, in the PR that finds it.\n"
 )
 
 

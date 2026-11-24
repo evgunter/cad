@@ -7,7 +7,7 @@
 //! into its material and keeps the ball standing beside them. No edge of
 //! either body crosses the other, so the extent scan cuts the ball's face
 //! along its meridian through the circle
-//! (`topo::BooleanNaming::chart_cuts`), on the material. (A brick that
+//! (`topo::test_support::take_cut_ins`), on the material. (A brick that
 //! crossed the slab would put the op on the crossings path, where the
 //! ball meets the interior-loop guard, `work/germ/interior-loop-cut-in.md`.)
 //! Everything the cut states of its tool is read back to the tool
