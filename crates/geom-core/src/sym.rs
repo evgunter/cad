@@ -4937,6 +4937,17 @@ impl<T> Sym<T> {
             if let Some(sess) = s.borrow_mut().as_mut() {
                 sess.params.insert(indet_param(symbol.0), (lo, hi));
                 if !sess.outer.is_empty() {
+                    // One scope holds at most one environment (a part's
+                    // run builds its own once), and an environment binds
+                    // a variable once: a second bracket for one symbol
+                    // in one scope is a caller binding it twice.
+                    debug_assert!(
+                        sess.node
+                            .brackets
+                            .iter()
+                            .all(|&(id, held)| id != indet_param(symbol.0) || held == (lo, hi)),
+                        "one scope recorded two brackets for one parameter"
+                    );
                     sess.node.brackets.push((indet_param(symbol.0), (lo, hi)));
                 }
             }

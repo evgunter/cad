@@ -211,3 +211,25 @@ fn an_outside_value_resolves_once_a_leaf_has_minted_its_content() {
         "after a leaf minted it"
     );
 }
+
+/// **A leaf that panics leaves no session installed.** The thread's
+/// next session opens as any other and decides.
+///
+/// Mutant: a session taken only after its work returns stays installed
+/// through the unwind, and the next session is refused as nested.
+#[test]
+fn a_leaf_that_panics_leaves_no_session_installed() {
+    let m = folding_table();
+    let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        with_session_memo(budget(), folding(), &m, || {
+            let _ = lit(2.0);
+            panic!("the leaf's own failure");
+        })
+    }));
+    assert!(unwound.is_err(), "the leaf panicked");
+    assert!(
+        !geom_core::sym::session_installed(),
+        "no session is left on the thread"
+    );
+    assert_eq!(decisions(minting(&m)), (1, 0), "and the next leaf decides");
+}

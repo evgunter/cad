@@ -151,7 +151,7 @@ fn assert_one_result_per_key(label: &str, read: &Read) {
 /// retry guard) gives every leaf the same wrong record. That is the
 /// tier's row, `a_nodes_answer_..::the_retry_guard_counts_a_nodes_own_forms`.
 #[test]
-fn one_key_one_result_in_a_drive_that_retries() {
+fn one_key_one_result_across_leaves_in_a_drive_that_retries() {
     let tol = Tol::witness();
     let read = read(&retrying(tol), tol);
     println!(
@@ -172,7 +172,7 @@ fn one_key_one_result_in_a_drive_that_retries() {
 /// nodes of one leaf. That is the tier's row,
 /// `a_nodes_answer_..::a_registration_is_not_read_by_a_node_it_does_not_feed`.
 #[test]
-fn one_key_one_result_in_a_drive_that_registers() {
+fn one_key_one_result_across_leaves_in_a_drive_that_registers() {
     let tol = Tol::witness();
     let read = read(&registering(tol), tol);
     println!(
@@ -193,7 +193,7 @@ fn one_key_one_result_in_a_drive_that_registers() {
 ///
 /// Mutant: a node's record that drops its counts leaves the sum short.
 #[test]
-fn a_leafs_receipt_is_the_sum_of_its_nodes_records() {
+fn a_plain_documents_receipt_is_the_sum_of_its_nodes_records() {
     let tol = Tol::witness();
     for (label, doc) in [
         ("retrying", retrying(tol)),
@@ -231,7 +231,7 @@ fn driven(doc: &ProfileDoc, parallel: bool, plain_memo: bool, tol: Tol) -> Param
 /// forms where the documents' leaves take the same arms. That is the
 /// tier's row, `a_drives_table_..::a_leafs_early_forms_are_its_boxs`.
 #[test]
-fn a_drive_is_the_same_on_one_thread_or_many_and_with_the_table_or_without() {
+fn two_drives_are_the_same_on_one_thread_or_many_and_with_the_table_or_without() {
     let tol = Tol::witness();
     // The bracket past the box it certifies whole, so the drive splits.
     let wide_bracket = crate::m10_7_r2_probes_interval::bracket(1.0e3 * tol.eps(), tol).0;
@@ -535,4 +535,86 @@ fn a_prior_built_under_another_table_is_not_read() {
         second.reused > 0,
         "a prior of the same drive's table is read"
     );
+}
+
+/// A family of three cylinders: a circle extruded `1 + k/2`, under the
+/// index `k`. Each member is an extrude of its own, and registers.
+fn family_of_cylinders(tol: Tol) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    use editor_core::{Formula, LoopProgram, Node, ProfileProgram};
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive("session-state-family"), tol);
+    let (doc, k) = crate::fixture::index(doc, "k", 3);
+    let (doc, profile) = crate::fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [crate::fixture::len(0.0), crate::fixture::len(0.0)],
+                radius: crate::fixture::len(1.0),
+            }],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let grown = Formula::mul(crate::fixture::scalar_of(k), crate::fixture::len(0.5)).expect("a length");
+    let distance = Formula::add(crate::fixture::len(1.0), grown).expect("a length");
+    crate::fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance,
+        },
+    )
+}
+
+/// **A family whose members register carries their identities.** Three
+/// extruded cylinders under one index: each member's extrude registers,
+/// and the family's record holds all of them, in member order.
+///
+/// Mutant: a family value built with an empty record carries none.
+#[test]
+fn a_family_whose_members_register_carries_their_identities() {
+    let tol = Tol::witness();
+    let (doc, family) = family_of_cylinders(tol);
+    let (ev, session) = one_leaf(&doc, None, None, &table(), tol);
+    let Some(NodeResult::Ok(value)) = ev.result(family) else {
+        panic!("the family builds: {:?}", ev.result(family).map(|_| ()));
+    };
+    let members = value.members.as_ref().expect("the extrude is a family");
+    let of_members: usize = members
+        .members
+        .iter()
+        .map(|(_, member)| member.sym.registrations())
+        .sum();
+    assert!(of_members > 0, "the members registered");
+    assert_eq!(value.sym.registrations(), of_members, "the family holds them all");
+    assert_eq!(session, carried(&ev).0, "the receipt is the sum");
+}
+
+/// **Two instances of one part in one document read one run.** The
+/// part is built once in the replay, and both instance nodes carry the
+/// identities of that one run, whatever each is mated to.
+///
+/// Mutant: a part run counted at each instance doubles the part's
+/// decisions in the receipt.
+#[test]
+fn two_instances_of_one_part_read_one_run() {
+    let tol = Tol::witness();
+    let part = cylinder("session-state-part", tol);
+    let pin = editor_core::content_pin(&part, tol).expect("the pin computes");
+    let doc_ref = editor_core::DocRef {
+        id: part.id(),
+        pin,
+    };
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive("session-state-two"), tol);
+    let (doc, first) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
+    let (doc, second) = crate::fixture::insert(doc, crate::fixture::mated_instance(doc_ref));
+    let doc = crate::fixture::assemble_world_copies(doc);
+    let (ev, session) = one_leaf(&doc, Some(Arc::new(OneDoc(part))), None, &table(), tol);
+    assert_eq!(ev.parts_sym.len(), 1, "one part run for two instances");
+    let identities = |id| match ev.result(id) {
+        Some(NodeResult::Ok(v)) => v.sym.registrations(),
+        _ => panic!("the instance builds"),
+    };
+    assert!(identities(first) > 0, "the instance carries the part's identities");
+    assert_eq!(identities(first), identities(second), "both read the one run");
+    assert_eq!(session, carried(&ev).0, "the part is counted once");
 }
