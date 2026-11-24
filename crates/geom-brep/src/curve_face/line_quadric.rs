@@ -1912,16 +1912,23 @@ mod nearest_rows {
                 ));
             }
         }
+        // Each member's crossings in closed form, `q + d·t` on the circle
+        // of radius `r` about the `z` axis: an oracle the door does not
+        // share.
         for i in 0..=16 {
             let u = -0.1 + f64::from(i) / 80.0;
-            let (ray, (wall, radius)) = boxed(u);
-            let Ok(WallRoots::Two(want, _)) =
-                line_wall_roots(ray, wall, radius, 0.1, band, About::Nearest)
-            else {
-                panic!("u = {u}: two crossings at f64");
-            };
+            let (ray, (_, radius)) = boxed(u);
+            let (q, d) = (ray.origin, ray.dir.get());
+            let (a, b, c) = (
+                d.x * d.x + d.y * d.y,
+                q.x * d.x + q.y * d.y,
+                q.x * q.x + q.y * q.y - radius * radius,
+            );
+            let root = (b * b - a * c).sqrt();
+            let want = [(-b - root) / a, (-b + root) / a];
             for (k, (t, w)) in [t0, t1].iter().zip(want).enumerate() {
-                if !(t.lo() <= w && w <= t.hi()) {
+                let near = 1e-12 * w.abs().max(1e-3);
+                if !(t.lo() - near <= w && w <= t.hi() + near) {
                     off.push(format!(
                         "u = {u}: root {k} {w:e} outside [{:e}, {:e}]",
                         t.lo(),
