@@ -3602,8 +3602,10 @@ impl std::error::Error for Indeterminate {}
 /// so `T: Decide` code (the topology layer's bound) can evaluate NURBS
 /// carriers without naming the sealed span seam. Purely additive:
 /// `SpanLocate` grants structure *selection* (span indices), never value
-/// comparison or bound extraction.
-pub trait Decide: SpanLocate {
+/// comparison or bound extraction. [`PointReading`](crate::sym::PointReading)
+/// is a supertrait for the same reason: a decision at `Sym<T>` asks `T`
+/// whether it reads its margin at a point, under `T: Decide` alone.
+pub trait Decide: SpanLocate + crate::sym::PointReading {
     /// Classifies this value's sign against `band`, per the boundary
     /// semantics in the [module docs](self). Every outcome carries the
     /// reporting margin the classifier saw ([`Decided::margin`],

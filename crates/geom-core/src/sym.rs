@@ -1051,6 +1051,10 @@ pub mod memo;
 /// on the minting thread and the value's ordinal there.
 #[path = "sym/mint.rs"]
 pub mod mint;
+/// The point reading: the refuter a decision at `Sym<Interval>` asks
+/// before the tier, and its test-only instrument.
+#[path = "sym/point.rs"]
+pub mod point;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
 /// The structural question: whether an expression is zero as a function
@@ -2581,6 +2585,12 @@ struct Session {
     /// against one the ring's guards refused
     /// ([`form::Refusal::Ring`]).
     budget_frozen: IdSet,
+    /// **The point reading of each node this leaf read** ([`point`]):
+    /// its certified enclosure with every parameter at the leaf's point,
+    /// `None` where it declines. A function of the node and the
+    /// brackets, so a bracket recorded or moved clears it
+    /// ([`Sym::param_over`]).
+    points: IdMap<Option<crate::interval::Interval>>,
     /// Times the retry ladder's growth guard withheld an attempt (read
     /// by the contradiction instrument's report).
     #[cfg(feature = "sym-revalue-testing")]
@@ -2707,6 +2717,7 @@ impl Session {
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
             budget_frozen: IdSet::default(),
+            points: IdMap::default(),
             #[cfg(feature = "sym-revalue-testing")]
             withheld: 0,
             #[cfg(feature = "sym-revalue-testing")]
@@ -4826,8 +4837,10 @@ impl<T> Sym<T> {
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
         SESSION.with(|s| {
-            if let Some(sess) = s.borrow_mut().as_mut() {
-                sess.params.insert(indet_param(symbol.0), (lo, hi));
+            if let Some(sess) = s.borrow_mut().as_mut()
+                && sess.params.insert(indet_param(symbol.0), (lo, hi)) != Some((lo, hi))
+            {
+                sess.points.clear();
             }
         });
         Self::param(symbol, value)
@@ -5467,6 +5480,70 @@ impl<T: Decide> Decide for Sym<T> {
     }
 }
 
+/// **Whether a decision at `Sym<Self>` reads its margin at a point of the
+/// box before it asks the tier** ([`point`]): where the value reads no
+/// definite sign, an enclosure at the point that excludes 0 proves the
+/// margin no identity over the box, and the tier is asked nothing.
+///
+/// Sealed: the scalars are this crate's to name, one sentence each.
+pub trait PointReading: point_seal::Sealed {
+    /// Whether the point reading refutes `node` in the installed session.
+    #[doc(hidden)]
+    fn refutes(node: SymId) -> bool;
+}
+
+mod point_seal {
+    pub trait Sealed {}
+    impl Sealed for f64 {}
+    impl Sealed for crate::Interval {}
+    #[cfg(feature = "probe")]
+    impl Sealed for crate::k_stats::Probe {}
+    impl<T> Sealed for crate::Dual<T> {}
+    impl<T> Sealed for super::Sym<T> {}
+}
+
+/// The exact witness's scalar reads: its decisions are certified over the
+/// whole box, so a point of the box is a point where the build takes them.
+impl PointReading for crate::Interval {
+    fn refutes(node: SymId) -> bool {
+        point::refutes(node)
+    }
+}
+
+/// `f64` reads nothing more: its value already is one rounded reading at a
+/// point, and a rounded reading proves nothing about the real.
+impl PointReading for f64 {
+    fn refutes(_: SymId) -> bool {
+        false
+    }
+}
+
+/// The recording scalar reads nothing more, for `f64`'s reason: it is
+/// `f64` with a funnel beside it.
+#[cfg(feature = "probe")]
+impl PointReading for crate::k_stats::Probe {
+    fn refutes(_: SymId) -> bool {
+        false
+    }
+}
+
+/// A dual reads nothing more: the reading is admitted at `Sym<Interval>`,
+/// the scalar the drives decide at and the one it was measured on, and a
+/// dual's asks climb as they did.
+impl<T> PointReading for crate::Dual<T> {
+    fn refutes(_: SymId) -> bool {
+        false
+    }
+}
+
+/// A `Sym` over a `Sym` is no scalar a session decides at, and reads
+/// nothing.
+impl<T> PointReading for Sym<T> {
+    fn refutes(_: SymId) -> bool {
+        false
+    }
+}
+
 impl<T: Decide> Sym<T> {
     /// [`Decide::sign_within`]'s body, apart so the re-valuation hook
     /// can read the outcome it returns.
@@ -5493,7 +5570,11 @@ impl<T: Decide> Sym<T> {
             return numeric;
         }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
-        let answered = if domain_violation {
+        // A margin the point reading refutes is no identity, and the tier
+        // is asked nothing: the numeric answer below is what a climb that
+        // proved nothing returns.
+        let refuted = !domain_violation && T::refutes(self.node);
+        let answered = if domain_violation || refuted {
             None
         } else {
             discharge_checked(self.node, self.value.enclosure_probe())
@@ -5515,8 +5596,11 @@ impl<T: Decide> Sym<T> {
         }
         // The shape report wants the residual that BLOCKED — rendered
         // only when the instrument is installed, so an ordinary replay
-        // never pays for it.
-        if report::active() {
+        // never pays for it. A refuted margin has none: no form blocked
+        // it, and the report records its numeric outcome alone.
+        if report::active() && refuted {
+            report::record(&numeric, false, None, self.value.enclosure_probe());
+        } else if report::active() {
             #[cfg(feature = "sym-profile-testing")]
             let origin = profile::set_origin(profile::Origin::Report);
             let text = report::render_node(self.node);
