@@ -1,0 +1,31 @@
+## For Ev
+
+**Recommendation (likely): E6 stands as written, compared against the `f64` witness, with one clause added. My second part from round 5 ("certify on form") is withdrawn as a gate.** You read my round-5 position correctly.
+
+**Terms.** *Witness*: the nominal at `f64`. *Leaf*: a sub-box replayed in interval arithmetic. *Record*: per node, every logged definite decision in order. *Turn*: the same question answered with the other definite sign. *Parting*: any other first difference between two records. *Lanes*: the two arithmetics, `f64` and interval.
+
+**1. The comparison: one answer.** The whole record against the `f64` witness, no second run. Two of the three reports hold it; the third's own measured case for a second run is that it equals the witness wherever anything certifies, so once the lanes agree it checks nothing, and a parity test over the driven witnesses does its work without becoming part of the drive. Its argument about which error to risk was against leaving checks out, and nobody now leaves them out.
+
+*What a document outside the corpus whose lanes differ is owed:* a refusal that is true, named and cheap: "not proven: the two arithmetics recorded different work at this node and step". It is not owed a certificate, and it must never be told its part changed. "Bisects to the budget, named" gives it the true sentence at the price of the whole leaf budget (65,536 leaves by default), and no split can help it, because a lane difference is already there at zero width. That is acceptable as honesty and poor as a result, and it is my reason for the next answer.
+
+**2. A parting: refused at once (likely).**
+- *On what is measured:* no decided leaf parts from a same-lane replay, so bisecting has no leaf it would help today. The one measured parting is the plates', a lane difference; refused at once it costs one replay, bisected it costs the budget and ends with the same sentence.
+- *What E6 says:* its letter is that a leaf definite on a different record is refused mass, and only an indeterminate decision bisects. "Refuse outright only what splitting provably cannot help" is a principle the reports (mine first) read into it; E6 does not state it. Refusing at once is therefore E6 unchanged, and it is right for the only kind of parting anyone has seen.
+- *What would reverse it:* one measured parting that a narrower box removes. Bisecting that kind alone is then a single arm. I would not hold the change on this difference.
+
+**3. "Same form": withdrawn as a gate; it becomes rows.** Correction 2 does to cells-plus-creases what the first measurement did to cells: the record certifies 122 leaves whose body sits on the other side of its sketch plane, because the placement lives in a frame no cell and no finished-body check states. Three times now a record of what was built has missed a fact the decision record held (creases, then placement). I take that as the answer: the kernel's only complete statement of a part's form is the decisions that built it, and a second record cannot be shown complete by listing what it holds. So "same decisions" stands, and it is not a question for you now.
+
+What remains of item 6 is smaller and is not about the gate: 318 flips (`segment_gap` 300, `carrier_line_circle` 18) turn a decision and move only coordinates. Each is a question about one predicate at its site: does its other sign build another part? If not, it is a step of the build's route recorded as if it shaped the part, and it is re-posed or re-recorded there, as the side reader's rays were. Until each is ruled, those leaves stay named flips: refusals that are honest about what turned.
+
+**Correction 1 belongs in the same clause.** The 27,667 extrude leaves are a decided `Zero` on the depth, a node that fails definitely where the witness builds, with nothing certifiable below. That is a turn (`extrusion_normal_component`, positive at the witness, zero over the leaf) and a proven change of standing. All three reports already agree such a leaf is a flip "when proven definite"; this is the first instance, and today it is bisected to the budget. It should be refused at once, named, and its mass is a finding about the document: the share of the tolerance over which the extrusion has no depth.
+
+**4. The E6 text.** *E6 stands as written. In the no-flips bullet, "(`FlipCrossing`, flipped predicates named)" becomes: "(`FlipCrossing`: at least one decision answered with the other definite sign is named, including one on which a node then fails where the witness builds). A leaf whose record differs with no decision turned is refused `Parted`, naming the node and step: not proven either way, never a flip, and not bisected." `Parted` joins the refusal reasons in the signature block. Nothing else changes: the comparison, its reference and no-flips are as ratified.*
+
+**Confidence.** The comparison: likely, and all three gates agree on every measured leaf. Refused at once over bisected: likely. Withdrawing the form gate: sure that cells and creases fail (measured); likely that no enumerated record will do better. The extrude leaves as flips: likely; it rests on the measurement lane's reading of `sweep::extrude`.
+
+## For the orchestrator
+
+- **The split that remains is one phrase** in the paragraph above: "and not bisected" against "and bisected, named at the floor". Everything else in the three paragraphs should now agree. If you would rather settle it without Ev: ship "not bisected" (E6 unchanged, nothing measured is helped by bisecting) with a row to revisit on the first width-curable parting.
+- **My round-5 part 2 is withdrawn**, and with it the per-edge convexity measurement I asked for; do not spend the lane on it.
+- **Rows from this round:** one per form-neutral predicate (`segment_gap`, `carrier_line_circle`), asking what its other sign builds; `extrusion_normal_component` is not among them (its negative sign is a different part, its zero is a failure). `classify_replay`'s last arm: a node failure whose log holds a decided turn against the witness is a flip, refused at once (27,667 leaves, 13,759 wasted splits today). A body's frame is in no instrument: worth a line on the probe branch.
+- **I ran nothing**; I rest on M13b section 7 as written and on the two round-5 replies.
