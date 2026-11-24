@@ -4,7 +4,7 @@ kind: issue
 title: An IsoArc rim's chart end is read through its map, which at Interval may not be a point
 status: open
 opened: 2026-11-14
-priority: P1
+priority: P3
 cost: M
 ---
 
@@ -61,3 +61,12 @@ What that unit changed under this row, and what it left:
   the envelope refuses a column arc by size, not by naming it. The line
   image's checks read the axis off the structure since that unit; the
   arc's are left for the unit that owns the arc's map.
+
+## Re-banded P3 (2026-11-24, M10)
+
+With the switch's box arm off on main after PR 7394, no arc rim reaches
+check 7's quadrature: not in the box studies, the tour, or the suites
+of the five crates M10 ran. So this row holds nothing by measurement,
+and leaves the switch row's `blocked_on`. What it says of an arc
+image's end that is no corner is still true by reading; it is a latent
+gap (P3) until a document reaches it. (BOXFINISH orchestrator)
