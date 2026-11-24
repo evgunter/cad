@@ -41,9 +41,7 @@ The designers' reports: `~/.local/share/cad-work/scalar-forks/design-fitted-{A,B
 - **Production does not reach it on that fixture.** `crossings` on the same net returns `Ok([])` (the walk reads the end within the band first), and with the end past the band (`t* = 1 − 2e-5`) returns `t*` to the last bit. By inspection: `bisect_row` (`composite.rs:696-720`) bisects on the certified form's strict sign and asks the residual only where that enclosure straddles zero, so the candidate sits within the enclosure's width of the root, not anywhere in the admissible stretch.
 - So at this site the exposure is the door's contract, not today's output: the check admits more than the search proposes, and nothing states the search's reach. Step 1's constructed case now needs a net on which the certified form's enclosure is wide at the crossing (a high-degree or badly conditioned span). `spline_face::settle`: a second independent reading that its cell is charged; unsure where a narrowing stops early (the at-end reading is taken on the box's middle before the box is compared to the ends).
 - Untouched by this measurement: `reduce.rs`'s containment, `split_edge_minting`, and the other stored solved values.
-<<<<<<< HEAD
 - A second reviewer of PR 7651 (by arithmetic, its probe not run): the same three answers at `composite::settle` on `z = 0.01(t − c)`, `c = 1 − 3e-8`. On `spline_face::settle` it reads the candidates' points as within 2·zero of each other, so no 1/sin θ stretch, but a drop-versus-refuse flip at an end is still possible. So `spline_face` is narrower than `composite`, not clear.
-=======
 
 ## Measured, 2026-11-24 (the measurement lane; rows in `crossing_parameter_rows.rs` beside the two `geom-brep` arms and in `crates/topo/tests/a_crossings_containment_turns_on_its_admitted_parameter.rs`, band `(1e-9, 1e-8)`; DEMONSTRATED unless marked)
 
@@ -67,4 +65,3 @@ The designers' reports: `~/.local/share/cad-work/scalar-forks/design-fitted-{A,B
 **Not reached**: `replace_face::carrier_foot`, `mint::computed_foot`, `tangent_piece`'s child stations, `sector_face.rs`, `tier3.rs`; the containment reading at `Interval`; `drive`'s comparison of a leaf with its witness.
 
 **Found beside it**: `composite::binomial` overflows `usize` on a degree-9 carrier against a torus (`work/splice/the-composite-arms-binomial-overflows-on-a-high-degree-carrier.md`).
->>>>>>> origin/main
