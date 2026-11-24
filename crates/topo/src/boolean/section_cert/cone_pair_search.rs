@@ -1077,11 +1077,13 @@ fn against_the_trace(
 }
 
 /// How far a witness may stand off each carrier, in units of rounding
-/// of its distance from the cone's apex (plus the scale): the section's
-/// premise that a witness is within rounding of the section
-/// (`section_cert.rs`). Measured over `1.7·10⁴` draws across the three
-/// ε: at most `4.1`.
-const WITNESS_ROUNDING: f64 = 64.0;
+/// of its distance from the cone's apex (plus the scale). The section
+/// value's witness is the middle of its sweep's meeting box at one
+/// ruling, which the sweep widens by its rounding charges, so it stands
+/// up to those charges off the section: seen at about `10³` of these
+/// units on the hosted runs, against the retired charts' `4.1`
+/// (`work/sectcone/a-cone-pairs-witness-claims-no-pad-for-its-meeting-box.md`).
+const WITNESS_ROUNDING: f64 = 1.0e4;
 
 /// The mismatches of one pose, as sentences.
 fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
