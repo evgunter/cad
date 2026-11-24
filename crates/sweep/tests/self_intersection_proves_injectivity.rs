@@ -7439,19 +7439,23 @@ fn apex_cut<T: Scalar>(r: f64, h: f64, cut: Cut) -> Result<Body<T>, String> {
 /// side holding the apex: each half of the wall is bounded by its two
 /// rulings, which meet at the apex, and its arc of the section. The
 /// halves' cells run down their shared rulings to the apex, where the
-/// chart collapses (`v = 0`: every azimuth one point) and no rectangle
-/// holding it is a homeomorphic image for the ruling's or the arc's
-/// reading to argue on (`injective`'s `cone_regular`). The halves alone
+/// chart collapses (`v = 0`: every azimuth one point); the apex is a
+/// vertex of both halves, and a rectangle holding it is refused by the
+/// readings' own vertex checks. The halves alone
 /// hold at `f64` with a corner read, tilted toward a ruling and off
 /// them; at `Interval` they hold tilted toward a ruling and are never
 /// read crossing. The whole body refuses on its cap as every cut cone
 /// does ([`refuses_on_a_cap_and_its_wall_holds`]).
 ///
-/// **What is left**: this row does not pin `cone_regular`. With the
-/// guard off it still passes: on a kernel-built body the apex is a
-/// vertex of both halves, and the readings' own vertex checks refuse a
-/// rectangle that holds it before the guard is asked. The guard is
-/// pinned at `injective::focal_rows`'
+/// **What is left**: no body reaches `injective`'s `cone_regular`, which
+/// is stated defence. This row passes with the guard off. A frustum
+/// whose small end is a hair from the apex, with no apex vertex, was
+/// tried for it: the unit funnel (apex at the origin, half-angle 45°)
+/// cut at heights from `1e-1` down to `1e-5` under four tilts, the side
+/// off the apex kept, 18 bodies; the guard refused no rectangle in any
+/// (no rectangle read reached `v = 0`: an arc's slant reach is clamped
+/// at the slant's own least value). The guard's one row is
+/// `injective::focal_rows`'
 /// `a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading`,
 /// whose fixture has no apex vertex.
 #[test]

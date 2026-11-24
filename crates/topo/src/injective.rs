@@ -4722,6 +4722,17 @@ fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
 /// those readings read it: a cylinder's and a ring torus's never
 /// collapse, and each reading refuses a rectangle a turn wide on its own
 /// terms.
+///
+/// **Defence for the readings; not load-bearing on any body built.** A
+/// face whose closure holds the apex has it as a vertex, and a rectangle
+/// holding a vertex that is not the corner's is refused first
+/// ([`only`], [`alone`]). A face off the apex has no cell through
+/// `v = 0`, and a rectangle widened to an arc's reach does not get
+/// there either: a focal image's slant enclosure is clamped at the
+/// slant's own least value (`geom_brep::Pcurve::closed_form_span_box`),
+/// which is off the apex. Its one row is a unit fixture with no apex
+/// vertex (`focal_rows`'
+/// `a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading`).
 fn cone_regular(surface: &Surface<Interval>, x: (f64, f64), y: (f64, f64)) -> bool {
     match surface {
         Surface::Cone { .. } => (y.0 > 0.0 || y.1 < 0.0) && x.1 - x.0 < TURN,
@@ -5619,7 +5630,17 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     let (s, curved) = (piece.surface, |r: &Rim| is_curved(piece.surface, r));
     // A curve no presentation reads is read by no corner: `Structural`,
     // as [`present_curved`] types it unread on the shared cell.
-    if curved(e) && reads_curve(s, e) && continues(e, o, c.vertex) {
+    //
+    // Not on a cone: two arcs of one section meeting inside one cone face
+    // need a third edge ending on the section there, and no body has one
+    // (`work/embed/a-cone-faces-corner-of-two-arcs-of-one-section-is-read-by-none.md`).
+    // A reading no body reaches is argued by no row, so the corner falls
+    // to the arms below, which read none.
+    if curved(e)
+        && reads_curve(s, e)
+        && !matches!(s, Surface::Cone { .. })
+        && continues(e, o, c.vertex)
+    {
         return Some(Reading::Conic);
     }
     if c.alone {
@@ -23046,10 +23067,16 @@ mod focal_rows {
     /// rides `CAD_FUZZ_EFFORT`). `β` (to `1 − 1e-9`, either sign), `u0`,
     /// `t0` and the slant's constant are each bracketed at widths from
     /// none to wide, both senses, over pieces from `1e-12` to several
-    /// turns. Each corner member's own evaluation, at the interval
-    /// scalar, and its own derivative meet the enclosure at seventeen
-    /// parameters of the piece: one that does not is a member whose true
-    /// value the enclosure misses.
+    /// turns. At seventeen parameters of the piece each corner member's
+    /// own chart point, evaluated at the interval scalar, lies WITHIN the
+    /// enclosure, to a slack of `1e-13` of its size for the rounding of
+    /// that evaluation; and its own derivative, whose evaluation near
+    /// `β = ±1` is far wider than that, meets the rate's enclosure.
+    ///
+    /// **What it cannot see**: a hull drawn inside its true ends by less
+    /// than the slack. An ulp at the ends is the deterministic row's,
+    /// `a_focal_images_enclosure_over_an_arc_holds_its_ends_and_its_slants_extreme`,
+    /// which asks each end's own evaluation held whole.
     #[test]
     fn a_focal_images_enclosures_hold_random_members_of_random_brackets() {
         let mut rng = test_utils::fuzz::start("focal_enclosures_members");
@@ -23117,7 +23144,11 @@ mod focal_rows {
                     let b = iv0(m.beta);
                     let d = (iv0(1.0) - b.powi(2)) / (iv0(1.0) + b.powi(2) - b * c * iv0(2.0))
                         * iv0(m.sense);
-                    if apart(e.x, u) || apart(e.y, v) || apart(d, ru) {
+                    let outside = |a: Interval, b: Interval| {
+                        let slack = 1e-13 * (1.0 + a.lo().abs().max(a.hi().abs()));
+                        a.lo() < b.lo() - slack || a.hi() > b.hi() + slack
+                    };
+                    if outside(e.x, u) || outside(e.y, v) || apart(d, ru) {
                         missed.push(format!(
                             "case {case} member {m:?} at {s}: {e:?}, rate {d:?}, \
                              against {u:?} {v:?} {ru:?}"
@@ -23136,7 +23167,8 @@ mod focal_rows {
     }
 
     /// **A random arc's image holds the arc at a fine grid of its
-    /// parameters** (a counterexample search, as the row above): the
+    /// parameters** (a counterexample search, as the row above, with its
+    /// containment and its slack): the
     /// extent a face is given ([`ChartCurve::at`] over a whole span),
     /// over spans from nothing to several turns, both senses.
     #[test]
@@ -23159,8 +23191,11 @@ mod focal_rows {
             for k in 0..=400 {
                 let s = (lo + w * f64::from(k) / 400.0).min(lo + w);
                 let e = Pcurve::FocalSection(point(&image)).eval(iv0(s));
-                if e.x.hi() < u.lo() || e.x.lo() > u.hi() || e.y.hi() < v.lo() || e.y.lo() > v.hi()
-                {
+                let outside = |a: Interval, b: Interval| {
+                    let slack = 1e-13 * (1.0 + a.lo().abs().max(a.hi().abs()));
+                    a.lo() < b.lo() - slack || a.hi() > b.hi() + slack
+                };
+                if outside(e.x, u) || outside(e.y, v) {
                     missed.push(format!(
                         "case {case} {image:?} at {s}: {e:?} against {u:?} {v:?}"
                     ));
@@ -23603,22 +23638,15 @@ mod focal_rows {
     /// vertex in the parameter. Here that is under `1e-15` m: the curve's
     /// speed is no more than `|v|·sin α·(1 + |β|)/(1 − |β|)` along the
     /// azimuth plus `|va|` along the slant, about `1.03` m per unit of
-    /// parameter.
+    /// parameter. That bound is the chart's speed levered by the
+    /// azimuth's greatest rate, and it is loose as `β → 1`: it takes the
+    /// greatest rate, which is at the near vertex, with the greatest
+    /// slant, which is at the far one, so a near-parabolic section's join
+    /// is quoted far wider than it is. Stated, not asserted: no code
+    /// computes it.
     #[test]
     fn a_closed_section_is_read_through_its_join() {
         use core::f64::consts::PI;
-        {
-            let image = section(0.4, true);
-            let b = image.beta.abs();
-            let speed =
-                (image.v0 + image.va.abs()) * ALPHA.sin() * (1.0 + b) / (1.0 - b) + image.va.abs();
-            let short = TURN - f64::from_bits(TURN.to_bits() - 1);
-            let gap = short * speed;
-            assert!(
-                speed < 1.04 && gap < 1e-15,
-                "the join's gap in metres: {gap} at speed {speed}"
-            );
-        }
         for with in [true, false] {
             let image = section(0.4, with);
             let (ju, jv) = stored(&image, PI);
@@ -23830,6 +23858,80 @@ mod focal_rows {
             assert!(
                 !matches!(got, Read::Of(..)),
                 "{what}: the gapped corner is not one point: {got:?}"
+            );
+        }
+    }
+
+    /// **A cone face's corner of two arcs of one section is read by
+    /// none.** Two edges on one ellipse carrier, each a focal image on the
+    /// cone, the one continuing the other through their vertex: the
+    /// premise holds ([`continues`], and each is a curve
+    /// [`present_curved`] reads), which on a plane is [`Reading::Conic`].
+    /// On a cone no body has such a corner, so no row argues the reading
+    /// there and it is shut
+    /// (`work/embed/a-cone-faces-corner-of-two-arcs-of-one-section-is-read-by-none.md`).
+    /// Red if the arm opens on a cone.
+    #[test]
+    fn a_cone_faces_corner_of_two_arcs_of_one_section_is_read_by_none() {
+        let image = section(0.0, true);
+        let carrier = Curve3::ellipse(
+            Point3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            iv0(1.0),
+            iv0(0.5),
+            Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            band(),
+        )
+        .expect("an ellipse");
+        let arc = |n: u64, ends: [u64; 2], t: (f64, f64)| Rim {
+            arc: Some((carrier.clone(), (iv0(t.0), iv0(t.1)))),
+            ..section_rim(n, ends, &image, t)
+        };
+        let (ta, tm, tb) = (0.4, 1.0, 1.7);
+        let (pa, pm, pb) = (stored(&image, ta), stored(&image, tm), stored(&image, tb));
+        let b = Boundary {
+            sense: true,
+            edges: vec![arc(10, [2, 1], (ta, tm)), arc(11, [1, 3], (tm, tb))],
+            vertices: BTreeMap::from([
+                (vertex(1), on_cone(pm.0, pm.1)),
+                (vertex(2), on_cone(pa.0, pa.1)),
+                (vertex(3), on_cone(pb.0, pb.1)),
+            ]),
+            extent: None,
+            outer: None,
+        };
+        let s = cone();
+        assert!(
+            continues(&b.edges[0], &b.edges[1], vertex(1))
+                && reads_curve(&s, &b.edges[0])
+                && reads_curve(&s, &b.edges[1]),
+            "the premise: one conic continued through the vertex, each arc a curve read"
+        );
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (pm.0 - 0.02, pm.0 + 0.02),
+            v: (pm.1 - 0.02, pm.1 + 0.02),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        for (read, other) in [(0, 1), (1, 0)] {
+            let corner = Corner {
+                vertex: vertex(1),
+                read,
+                other,
+                alone: false,
+                run: false,
+            };
+            assert!(
+                reading(&piece, corner).is_none(),
+                "the corner read through edge {read} has no reading"
             );
         }
     }

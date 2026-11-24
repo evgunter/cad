@@ -170,3 +170,5 @@ Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 
 - a kept-apex cut is a body row (`a_cut_cone_that_keeps_its_apex_holds_between_its_halves`); 150 placements of the halves and 18 flaps at the ruling's corner are rows.
 
 Left unpinned at body level on this tree: the cone's side of a cone/cap pair (the pair refuses on the cap), and `Reading::Conic` on a cone, which goes live with `embed/conic-symmetry`.
+
+**The last pass (2026-11-24).** `Reading::Conic` is shut on a cone: no body reaches it, with or without `embed/conic-symmetry` (`a-cone-faces-corner-of-two-arcs-of-one-section-is-read-by-none`). `cone_regular` is stated defence: 18 funnels cut down to `1e-5` from the apex, the side off the apex kept, reach it in no rectangle. The duplicated closed forms left between `geom-brep` and the certificate are on PCERT (`a-chart-images-rate-and-enclosure-are-each-spelled-twice-in-geom-brep-and-in-the-injectivity-certificate`).

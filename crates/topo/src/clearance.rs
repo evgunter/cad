@@ -4291,8 +4291,9 @@ enum Row {
 /// vertex wherever the arc runs through one, which an arc cut under a
 /// generic tilt does. An extent drawn too small is not a refusal that a
 /// smaller cell repairs: a cell that misses it reads the face as absent
-/// ([`injective`]'s `sheets`), so the part of the face it leaves out is
-/// never asked. The enclosure over the whole span holds every point of
+/// ([`injective::Sheets::Missed`], which `sheets` answers and
+/// `present_chart` reads as a vacuous cell), so the part of the face it
+/// leaves out is never asked. The enclosure over the whole span holds every point of
 /// the row, so the hull it enters is a superset.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
