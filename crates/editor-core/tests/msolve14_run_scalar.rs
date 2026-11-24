@@ -2342,7 +2342,7 @@ fn r1_clearance_answers_alike_in_either_order() {
 /// builds through it and so does every replay. Over the bolts' spacing
 /// the search proves ground; without the resolver the witness does not
 /// build, as a drive's does not
-/// (`work/scalar/the-box-driver-carries-no-part-resolver`).
+/// (`work/certread/the-box-driver-carries-no-part-resolver`).
 ///
 /// *Breaks if* the search's witness or its replays lose the resolver.
 #[test]
