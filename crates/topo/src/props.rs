@@ -2352,6 +2352,50 @@ impl<T: AtRestPolicy> KeptSign<T> {
         }
     }
 
+    /// **The certificates of a gather's parts as one**: each part's runs,
+    /// each re-keyed to the face its graft minted, in the parts' order,
+    /// which is the aggregate's face order. Every part was finished at
+    /// the run's one tolerance, so their band and lane are one.
+    pub(crate) fn gathered<'k>(
+        parts: impl IntoIterator<Item = (&'k Self, &'k crate::GraftKeys)>,
+    ) -> Self
+    where
+        T: 'k,
+    {
+        let mut parts = parts.into_iter();
+        let Some((first, keys)) = parts.next() else {
+            unreachable!("a gather grafts at least one part")
+        };
+        let mut gathered = Self {
+            runs: first.rekeyed(keys),
+            ..first.clone()
+        };
+        for (part, keys) in parts {
+            debug_assert!(
+                part.band == gathered.band,
+                "a gather's parts share one band"
+            );
+            gathered.runs.extend(part.rekeyed(keys));
+        }
+        gathered
+    }
+
+    /// Its runs, each face read through `keys`.
+    fn rekeyed(&self, keys: &crate::GraftKeys) -> Vec<FaceRun<T>> {
+        self.runs
+            .iter()
+            .map(|run| FaceRun {
+                face: keys.face(run.face).unwrap_or_else(|| {
+                    unreachable!(
+                        "a graft maps every face of its source, {:?} among them",
+                        run.face
+                    )
+                }),
+                ..run.clone()
+            })
+            .collect()
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {

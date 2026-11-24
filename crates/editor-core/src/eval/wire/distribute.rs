@@ -24,7 +24,6 @@
 use std::sync::Arc;
 
 use geom_core::{Decide, Tol};
-use topo::Body;
 
 use super::{BooleanValue, NodeErrorKind, OpOut, OpResult, ValuePayload};
 use crate::eval::{Piece, Pieces};
@@ -198,15 +197,35 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     outs: Vec<(crate::VarId, OpOut<T>)>,
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
     // Computed in its first result's frame
-    // ([`crate::eval::Framed::computing_among`]), each grafted into it
-    // through its own placement ([`crate::eval::Framed::graft_into`]).
+    // ([`crate::eval::Framed::computing_among`]), and gathered there
+    // ([`crate::eval::Framed::gathered`]).
     let frame = crate::eval::Framed::computing_among(
         outs.iter()
             .filter_map(|(_, out)| out.payload.one_body().flatten()),
     )
     .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
+    let outs: Vec<_> = outs
+        .into_iter()
+        .filter_map(|(read, out)| {
+            let (body, kind) = match &out.payload {
+                ValuePayload::Boolean(BooleanValue::Empty) => return None,
+                ValuePayload::Boolean(BooleanValue::Body { body, kind }) => (body.clone(), *kind),
+                ValuePayload::Body(body) => (body.clone(), topo::BooleanResultKind::OperandA),
+                _ => unreachable!("a boolean of one piece makes a body or nothing"),
+            };
+            Some((read, out, body, kind))
+        })
+        .collect();
+    if outs.is_empty() {
+        return Ok(OpOut::plain(
+            ValuePayload::Boolean(BooleanValue::Empty),
+            names::empty(),
+        ));
+    }
+    let bodies: Vec<&crate::eval::Framed<T>> = outs.iter().map(|(_, _, body, _)| body).collect();
+    let (fused, keys) = crate::eval::Framed::gathered(&frame, &bodies, tol)
+        .map_err(|(_, e)| NodeErrorKind::from(e))?;
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
     let mut contacts = topo::ContactRecords::default();
@@ -214,16 +233,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut kinds = Vec::new();
     let mut parts = 0;
-    for (read, out) in outs {
+    for ((read, out, body, kind), keys) in outs.into_iter().zip(keys) {
         let records = &out.carry.contacts;
-        let (body, kind) = match &out.payload {
-            ValuePayload::Boolean(BooleanValue::Empty) => continue,
-            ValuePayload::Boolean(BooleanValue::Body { body, kind }) => (body.clone(), *kind),
-            ValuePayload::Body(body) => (body.clone(), topo::BooleanResultKind::OperandA),
-            _ => unreachable!("a boolean of one piece makes a body or nothing"),
-        };
-        let keys = crate::eval::Framed::graft_into(&frame, &mut fused, &body, tol)
-            .map_err(NodeErrorKind::from)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry
@@ -282,18 +293,16 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         named.push((read, table, vec![keys]));
     }
     let kind = match kinds.as_slice() {
-        [] => {
-            return Ok(OpOut::plain(
-                ValuePayload::Boolean(BooleanValue::Empty),
-                names::empty(),
-            ));
-        }
         [one] => *one,
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let fused =
-        T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let fused = match fused {
+        crate::eval::Gathered::Finished(body) => Arc::new(body),
+        crate::eval::Gathered::Grafted(fused) => Arc::new(
+            T::finish(*fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
+        ),
+    };
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
     // census of that `⊔` runs at this door, over the pieces made here
@@ -304,7 +313,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     )));
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
-            body: crate::eval::Framed::in_frame(Arc::new(fused), frame),
+            body: crate::eval::Framed::in_frame(fused, frame),
             kind,
         }),
         table,

@@ -452,6 +452,8 @@ mod replace_face_band_probes;
 
 #[path = "a_corner_flat_at_its_short_bounds.rs"]
 mod a_corner_flat_at_its_short_bounds;
+#[path = "a_gather_carries_its_finished_members_verdicts.rs"]
+mod a_gather_carries_its_finished_members_verdicts;
 #[path = "a_leafs_take_relogs_what_its_finish_records.rs"]
 mod a_leafs_take_relogs_what_its_finish_records;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]

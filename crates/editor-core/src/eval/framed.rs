@@ -546,6 +546,102 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     }
 }
 
+/// **What a gather of copies made** ([`Framed::gathered`]): the aggregate
+/// finished by carrying its members' verdicts, or, where some member is
+/// not handed over finished, the aggregate as construction-state data,
+/// which the door that gathered it ends as it ends a body it built.
+#[derive(Debug)]
+pub(crate) enum Gathered<T: topo::AtRestPolicy> {
+    /// Every member was a finished body ([`topo::boolean::gather_finished`]).
+    Finished(T::Finished),
+    /// Some member was a leaf the switch keeps unfinished at the box
+    /// scalars: grafted as data ([`Framed::graft_into`]).
+    Grafted(Box<Body<T>>),
+}
+
+impl<T: topo::AtRestPolicy> core::ops::Deref for Gathered<T> {
+    type Target = Body<T>;
+
+    fn deref(&self) -> &Body<T> {
+        match self {
+            Self::Finished(body) => body,
+            Self::Grafted(body) => body,
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> Held<T> {
+    /// **Whether a gather takes this as a finished body**, the same at
+    /// every lane of one build: a finished body always; a leaf where the
+    /// box scalars' leaf is finished too ([`topo::LEAVES_ARE_FINISHED`]),
+    /// so no lane carries what another derives.
+    fn gathers_finished(&self) -> bool {
+        match self {
+            Self::Finished(_) => true,
+            Self::Leaf(_) => topo::LEAVES_ARE_FINISHED,
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
+    /// **`members` gathered into one body computed in `frame`**, in order,
+    /// with the keys each member's graft minted: by carrying
+    /// ([`topo::boolean::gather_finished`]) where every member is handed over finished
+    /// ([`Held::gathers_finished`], a leaf through the one taker door), as
+    /// data through each member's placement ([`Self::graft_into`])
+    /// otherwise, and where there is no member.
+    ///
+    /// # Errors
+    ///
+    /// The member at fault, by position, and its refusal as
+    /// [`Self::graft_into`] states it; a leaf's take, as
+    /// [`GraftIn::Moved`]; at a dual, the aggregate's tier 2 as
+    /// [`GraftIn::Moved`] of its first member.
+    pub(crate) fn gathered(
+        frame: &Frame<T>,
+        members: &[&Self],
+        tol: Tol,
+    ) -> Result<(Gathered<T>, Vec<topo::GraftKeys>), (usize, GraftIn)> {
+        if members.is_empty() || !members.iter().all(|member| member.body.gathers_finished()) {
+            let mut fused = Body::new();
+            let keys = members
+                .iter()
+                .enumerate()
+                .map(|(at, member)| {
+                    Self::graft_into(frame, &mut fused, member, tol).map_err(|e| (at, e))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok((Gathered::Grafted(Box::new(fused)), keys));
+        }
+        let finished = members
+            .iter()
+            .enumerate()
+            .map(|(at, member)| match &member.body {
+                Held::Finished(body) => Ok(Arc::clone(body)),
+                Held::Leaf(leaf) => topo::take::<T>(leaf, tol).map_err(|e| (at, GraftIn::Moved(e))),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let placed = members
+            .iter()
+            .zip(&finished)
+            .enumerate()
+            .map(|(at, (member, held))| {
+                member
+                    .placed_in(frame, held)
+                    .map_err(|e| (at, GraftIn::Motion(e)))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let (body, keys) = topo::boolean::gather_finished(&placed, tol).map_err(|e| match e {
+            topo::boolean::GatherError::Moved { member, findings } => {
+                (member, GraftIn::Moved(findings))
+            }
+            topo::boolean::GatherError::Graft { member, error } => (member, GraftIn::Graft(error)),
+            topo::boolean::GatherError::Aggregate(findings) => (0, GraftIn::Moved(findings)),
+        })?;
+        Ok((Gathered::Finished(body), keys))
+    }
+}
+
 impl<T: topo::AtRestPolicy + geom_core::Decide> Framed<T> {
     /// **`other` grafted into `dst`, an aggregate computed in `frame`**
     /// ([`Self::computing_among`], [`topo::boolean::graft_placed`]): its

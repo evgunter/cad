@@ -96,7 +96,33 @@ pub trait FinishedBody:
     ) -> Result<Self, MoveError> {
         self.moved_by(&crate::Isometry::Improper(*reflection), tol)
     }
+
+    /// **`aggregate`, the disjoint graft of `parts` in order, finished by
+    /// carrying their verdicts**: each part's, its entities read through
+    /// the keys its graft minted (`keys`, one per part). The door is
+    /// [`crate::boolean::gather_finished`], which states why the aggregate asks
+    /// nothing else.
+    ///
+    /// # Errors
+    ///
+    /// At a dual, tier 2's findings on the aggregate.
+    fn gathered(
+        aggregate: Body<Self::Scalar>,
+        parts: &[&Self],
+        keys: &[crate::GraftKeys],
+    ) -> Result<Self, NotFinished>;
 }
+
+/// **Whether a leaf is a finished body at every certifying scalar**:
+/// read off the switch's own types ([`AtRestPolicy::TAKE_FINISHES`] at
+/// the box scalars), so a door that hands a leaf to a gather
+/// ([`crate::boolean::gather_finished`])
+/// (through [`take`]) does so at every lane of one build or at none,
+/// and every lane logs the same gather. False while the box scalars'
+/// leaf is tier 2 alone; it goes with the switch.
+pub const LEAVES_ARE_FINISHED: bool =
+    !<geom_core::interval::Interval as AtRestPolicy>::TAKE_FINISHES
+        && !<geom_core::Sym<geom_core::interval::Interval> as AtRestPolicy>::TAKE_FINISHES;
 
 /// **Why a move refused**: the data map's own refusal, or the image's
 /// finding where the move asks one ([`FinishedBody::moved_by`]).
@@ -150,6 +176,14 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         AtRestBody::moved_by(self, iso, tol)
+    }
+
+    fn gathered(
+        aggregate: Body<T>,
+        parts: &[&Self],
+        keys: &[crate::GraftKeys],
+    ) -> Result<Self, NotFinished> {
+        Ok(AtRestBody::gathered(aggregate, parts, keys))
     }
 }
 
@@ -386,6 +420,15 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
 
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         Replay::moved_by(self, iso, tol)
+    }
+
+    /// Tier 2 run on the aggregate: a replay carries no other verdict.
+    fn gathered(
+        aggregate: Body<T>,
+        _parts: &[&Self],
+        _keys: &[crate::GraftKeys],
+    ) -> Result<Self, NotFinished> {
+        Self::of(aggregate)
     }
 }
 

@@ -30,7 +30,7 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::{Body, BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
+use topo::{BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -5277,7 +5277,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     members: &[(RecipeNodeId, crate::VarId, &Results<T>, bool)],
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
     // Each operand's bodies, read once: a yield is its family's every
     // body, and an empty one refuses; any other read is one body.
     let operands = members
@@ -5304,6 +5303,13 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let frame =
         super::Framed::computing_among(operands.iter().flat_map(|(_, _, bodies, _)| bodies.iter()))
             .map_or(super::Frame::Own, |first| first.frame().clone());
+    let every: Vec<&super::Framed<T>> = operands
+        .iter()
+        .flat_map(|(_, _, bodies, _)| bodies.iter())
+        .collect();
+    let (fused, keys) =
+        super::Framed::gathered(&frame, &every, tol).map_err(|(_, e)| NodeErrorKind::from(e))?;
+    let mut keys = keys.into_iter();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
@@ -5312,12 +5318,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let mut parts = 0;
     for (read, value, bodies, family) in operands {
         let table = read_table(value);
-        let mut bridges = Vec::with_capacity(bodies.len());
-        for body in &bodies {
-            let keys = super::Framed::graft_into(&frame, &mut fused, body, tol)
-                .map_err(NodeErrorKind::from)?;
-            bridges.push(keys);
-        }
+        let bridges: Vec<topo::GraftKeys> = keys.by_ref().take(bodies.len()).collect();
         // A member's own records ride the piece it is, re-keyed through
         // its graft (each member's of a family), citing the member by its
         // read.
@@ -5344,30 +5345,37 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         named.push((read, table, bridges));
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    // The graft of its members is its scalar's leaf
+    // Finished members carry their verdicts into the aggregate; a graft
+    // of leaves the switch keeps unfinished is its scalar's leaf
     // (`topo::AtRestPolicy::leaf`), as they are: finished at `f64`, tier
     // 2 at the box scalars, where a taker finishes it.
-    let fused = T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let body = match fused {
+        super::Gathered::Finished(body) => super::Framed::in_frame(Arc::new(body), frame),
+        super::Gathered::Grafted(fused) => super::Framed::in_frame_leaf(
+            Arc::new(
+                T::leaf(*fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?,
+            ),
+            frame,
+        ),
+    };
     let pieces = Arc::new(super::Pieces { by: id, pieces });
-    Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(fused), frame)),
-        table,
+    Ok(
+        OpOut::plain(ValuePayload::Body(body), table).carrying(super::Carry {
+            contacts: Arc::new(contacts),
+            cited_inputs: citing.into(),
+            parts,
+            // The census at this door, over its pieces: run where a reader
+            // first asks for its verdict ([`crate::product::Census`]).
+            census: Some(Arc::new(crate::product::Census::new(
+                id,
+                Arc::clone(&pieces),
+            ))),
+            censused: true,
+            pieces: Some(pieces),
+            findings: Arc::default(),
+            members: None,
+        }),
     )
-    .carrying(super::Carry {
-        contacts: Arc::new(contacts),
-        cited_inputs: citing.into(),
-        parts,
-        // The census at this door, over its pieces: run where a reader
-        // first asks for its verdict ([`crate::product::Census`]).
-        census: Some(Arc::new(crate::product::Census::new(
-            id,
-            Arc::clone(&pieces),
-        ))),
-        censused: true,
-        pieces: Some(pieces),
-        findings: Arc::default(),
-        members: None,
-    }))
 }
 
 mod distribute;
