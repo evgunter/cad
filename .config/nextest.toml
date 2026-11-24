@@ -359,6 +359,12 @@ failure-output = "immediate-final"
 # same local run):
 #    1.91 s  mesh::all d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest
 #    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
+# The pair doors read apart: unions of a spline-capped box beside a rod
+# and between a ball's lumps, each read for its volume, and splits of the
+# lumps and of a ball through its held poles (a local run):
+#    2.30 s  sweep::all pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches
+#    1.33 s  sweep::all pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them
+#    0.23 s  sweep::all pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches
 # The arc-held cover's three seeded sweeps (6,000, 3,000 and 4,000
 # ellipses and windows each, against points of the stored curve):
 #    3.2 s  geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
@@ -366,6 +372,7 @@ failure-output = "immediate-final"
 #    1.5 s  geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
 default-filter = """
 not (
+  (binary_id(sweep::all) & (test(=pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches) | test(=pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them) | test(=pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches))) |
   (binary_id(editor-core::all) & (test(=member_read_shapes::keys_are_the_same_on_both_schedules) | test(=member_read_shapes::readers_across_ranks) | test(=member_read_shapes::a_familys_count_moves_under_its_readers) | test(=member_read_shapes::a_mirror_across_another_members_face) | test(=docm4_evaluation_identity::a_prior_under_the_other_symbols_setting_is_refused))) |
   (binary_id(geom) & (test(=cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64) | test(=cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval) | test(=cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends))) |
   (binary_id(geom-core) & (test(=told::tests::one_told_number_is_never_wider_than_the_stated_bound) | test(=told::tests::display_is_the_rendering_in_metres_and_radians) | test(=told::tests::a_quantity_that_names_the_tolerance_is_told_in_metres) | test(=told::tests::a_given_number_types_back_exactly_in_every_notation) | test(=told::tests::an_offered_bound_typed_back_lies_on_its_side_in_every_notation) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_role) | test(=told::tests::the_grid_is_the_same_length_in_every_unit) | test(=told::tests::an_enclosure_typed_back_contains_its_ends_in_every_notation) | test(=told::tests::a_given_number_reads_back_as_itself_at_every_magnitude) | test(=told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal) | test(=told::tests::the_tolerance_caps_a_lengths_grid_and_no_other) | test(=told::tests::a_computed_number_is_on_the_grid_and_never_reads_zero) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_notation))) |
