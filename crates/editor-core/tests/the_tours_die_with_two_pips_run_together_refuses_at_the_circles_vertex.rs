@@ -86,5 +86,83 @@ fn each_pip_moved_into_its_neighbour_refuses_at_the_circles_conventional_vertex(
             "{spoken} = {to}: the union refuses at the circle's conventional vertex \
              ({CONVENTIONAL}), not {kind:?}"
         );
+        die_meshes(spoken, &doc, &ev, node);
     }
+}
+
+/// **The die's kernel bodies under `union`, the node naming refuses,
+/// build and mesh**: the n-ary union of its pips, whose two moved balls
+/// each hold the circle they meet in as a ring once the cut is closed,
+/// and the die's cube less it. The kernel answers the user's drag; only
+/// the circle's names wait ([`CONVENTIONAL`]).
+fn die_meshes(
+    spoken: &str,
+    doc: &editor_core::ProfileDoc,
+    ev: &editor_core::Evaluation<f64>,
+    union: editor_core::RecipeNodeId,
+) {
+    let tol = Tol::witness();
+    let Some(Node::Union { members, .. }) = doc.node(union) else {
+        panic!("{spoken}: the union is a union")
+    };
+    let pips: Vec<topo::AtRestBody<f64>> = members
+        .reads()
+        .map(|m| {
+            topo::test_support::finished(
+                "a pip",
+                crate::corpus::read_body::<f64>(ev, doc, m.read),
+                tol,
+            )
+        })
+        .collect();
+    let inputs = topo::MemberInputs::default();
+    let run = topo::nary_boolean::<f64>(
+        topo::NaryOp::Union,
+        &pips
+            .iter()
+            .map(|body| topo::NaryMember {
+                body,
+                inputs: &inputs,
+            })
+            .collect::<Vec<topo::NaryMember<'_, f64>>>(),
+        topo::SweepStrategy::Realized,
+        tol,
+    );
+    assert!(
+        matches!(run.end, topo::NaryEnd::Built),
+        "{spoken}: the pips' union builds: {:?}",
+        run.end
+    );
+    let fused = &run.steps.last().expect("a step").body.body;
+    let meshes = |what: &str, body: &topo::Body<f64>| {
+        let m = mesh::tessellate(body, 1e-3, tol)
+            .unwrap_or_else(|e| panic!("{spoken}: {what} meshes: {e:?}"));
+        assert_eq!(
+            mesh::validate::check_mesh(&m),
+            Ok(()),
+            "{spoken}: {what} meshes closed and manifold"
+        );
+    };
+    meshes("the pips' union", fused);
+    let cube = doc
+        .ids()
+        .iter()
+        .find_map(|&id| match doc.node(id) {
+            Some(Node::Subtract { from, tool })
+                if tool
+                    .reads()
+                    .any(|t| doc.operation_of(t.read) == Some(union)) =>
+            {
+                Some(crate::corpus::read_body::<f64>(ev, doc, from.read))
+            }
+            _ => None,
+        })
+        .expect("the die cuts its cube by the union");
+    let cube = topo::test_support::finished("the cube", cube, tol);
+    let fused = topo::test_support::finished("the union", fused.clone(), tol);
+    let out = topo::subtract(&cube, &fused, tol);
+    let Ok(topo::BooleanResult::Body(die)) = &out else {
+        panic!("{spoken}: the cube less the union builds: {out:?}")
+    };
+    meshes("the cube less the union", &die.body);
 }
