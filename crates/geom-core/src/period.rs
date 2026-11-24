@@ -2293,18 +2293,18 @@ mod domain_rows {
         let (lo, hi) = (p("moved_lo", 0.4), p("moved_hi", 1.7));
         let period = Period::of_domain(lo, hi);
         assert_eq!(
-            ends!(period.moved(lo, 1).value),
+            ends!(period.moved(lo, 1).value()),
             (1.7, 1.7),
             "lo up one is hi"
         );
         assert_eq!(
-            ends!(period.moved(hi, -1).value),
+            ends!(period.moved(hi, -1).value()),
             (0.4, 0.4),
             "hi down one is lo"
         );
         let near = p("moved_near", up(0.4));
         assert_eq!(
-            ends!(period.moved(near, 1).value),
+            ends!(period.moved(near, 1).value()),
             ends!(c(1.7) + (c(up(0.4)) - c(0.4))),
             "a value an ulp off moves with its offset"
         );

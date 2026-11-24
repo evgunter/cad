@@ -6246,7 +6246,7 @@ mod from_computed_rows {
         let eps = band().zero();
         let found = revalued([0.5 * eps, 0.5 * eps * (1.0 + 1.0e-3)], |p, _| {
             let end = corner(short(p)).unwrap().unwrap();
-            assert_eq!(end.value, 1.0, "a gap within ε takes the end");
+            assert_eq!(end.value(), 1.0, "a gap within ε takes the end");
             Vec::new()
         });
         assert_eq!(

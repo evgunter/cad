@@ -7,12 +7,19 @@
 //!
 //! Evidence-only rows print; the rest assert what they measured.
 
-#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 use geom_core::interval::Interval;
 use geom_core::predicate::{Band, Sign};
 use geom_core::real::Real;
-use geom_core::sym::{SymRegistration, with_session_rules};
+use geom_core::sym::contradiction::{self, Event};
+use geom_core::sym::revalue::record;
+use geom_core::sym::{Rung, SymRegistration, with_session_rules};
 use geom_core::{Decide, ParamSymbol, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
@@ -138,31 +145,26 @@ fn r1_the_registry_stores_a_pair_the_witness_never_compared() {
 }
 
 /// **TWO REGISTRATIONS PUT THE TWO CHANNELS IN CONTRADICTION, AND THE
-/// RUN NOW SAYS SO.** `b = a − 0.2` and `c = a + 0.2` each MEET `a`'s
-/// enclosure at an endpoint, so both registrations are witnessed, and
-/// the registry then makes `b − c` the zero form while its enclosure is
-/// `[-0.6, -0.2]` — definite, and nowhere near zero.
+/// INSTRUMENT SAYS SO.** `b = a − 0.2` and `c = a + 0.2` each MEET
+/// `a`'s enclosure at an endpoint, so both registrations are witnessed,
+/// and the registry then makes `b − c` the zero form while its
+/// enclosure is `[-0.6, -0.2]` — definite, and nowhere near zero.
 ///
-/// R1 found this state SILENT: M10-9's first cut exempted the door's
-/// arm from the `Decide` impl's debug assertion and counted nothing, so
-/// the one state that assertion exists to catch was the one state it no
-/// longer covered. The fix moved the check to decide time and out of
-/// `debug_assert!`: the numeric channel still wins the answer (no false
-/// `Zero` is ever returned), and the contradiction is COUNTED, so the
-/// drive's receipt reports that a stated identity is false over this
-/// box (`SymCounts::registrations_contradicted`, and
-/// `ParamBoxVerdict`'s serialize/render lines).
-///
-/// This row is R1's, re-cut as the positive pin of the fix it forced.
+/// The numeric channel wins the answer (no false `Zero` is ever
+/// returned), and the test instrument reports the registration the
+/// numbers deny (`sym::contradiction`, [`Event::Registration`] at the
+/// door). Red if `contradiction::check` stops asking the door.
 #[test]
-fn r1_two_registrations_make_the_two_channels_contradict_and_it_is_counted() {
+fn r1_two_registrations_make_the_two_channels_contradict_and_the_instrument_sees_it() {
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         let a = pi("a", 0.9, 1.1);
         let lo = a - <Sym<Interval> as Real>::from_f64(0.2);
         let hi = a + <Sym<Interval> as Real>::from_f64(0.2);
         let r1 = lo.register_equal(a, Tol::witness());
         let r2 = hi.register_equal(a, Tol::witness());
-        (r1, r2, sign_of(lo - hi))
+        let (s, decisions) = record(|| sign_of(lo - hi));
+        let report = contradiction::check(&decisions).expect("inside the session");
+        (r1, r2, s, report)
     });
     println!("   {out:?} {counts:?}");
     assert_eq!(
@@ -179,9 +181,17 @@ fn r1_two_registrations_make_the_two_channels_contradict_and_it_is_counted() {
         counts.symbolic, 0,
         "the decision is not a symbolic discharge — the numeric answer stands"
     );
+    let found: Vec<_> = out
+        .3
+        .contradictions
+        .iter()
+        .map(|c| (c.event, c.rung))
+        .collect();
     assert_eq!(
-        counts.registrations_contradicted, 1,
-        "and the contradiction is COUNTED rather than silent: {counts:?}"
+        found,
+        [(Event::Registration, Rung::Door)],
+        "and the instrument reports the contradicted axiom: {:?}",
+        out.3
     );
 }
 
