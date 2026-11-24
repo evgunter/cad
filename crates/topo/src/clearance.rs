@@ -3963,7 +3963,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.params.ends();
+        let (t0, t1) = row.params();
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -4143,7 +4143,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.params.ends();
+                            let (t0, t1) = row.params();
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -4158,7 +4158,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.params.ends();
+                    let (t0, t1) = row.params();
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
@@ -4457,23 +4457,17 @@ fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injec
 
 /// **A chart image that is a coordinate line, by variant**: which
 /// coordinate it holds, the value, and whether its moving coordinate is
-/// an angle. The held coordinate is exact structure — a velocity, or a
-/// harmonic channel's three coefficients, that lift to the point zero —
-/// so no zero is decided here. The value is crossed by `lift`.
+/// an angle. An iso image states its line ([`Pcurve::held_line`]: the
+/// coordinate is its variant's, nothing is read off a number). A
+/// harmonic image holds a coordinate where that channel's coefficients
+/// are the point zero, which is exact structure too, so no zero is
+/// decided here. The value is crossed by `lift`.
 fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<IsoImage> {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
-    let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
-        if zero(d.x) {
-            Some((Axis::U, lift.of(p0.x), false))
-        } else if zero(d.y) {
-            Some((Axis::V, lift.of(p0.y), false))
-        } else {
-            None
-        }
-    };
     match p {
-        Pcurve::IsoLine { p0, pl, .. } => line(*p0, *pl),
-        Pcurve::IsoArc { p0, pd, .. } => line(*p0, *pd),
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => p
+            .held_line()
+            .map(|held| (held.line.axis.into(), lift.of(held.line.value), false)),
         Pcurve::Harmonic { u, v } => {
             let constant = |ch: &Channel<T>| match *ch {
                 Channel::Angle { phase, winding: 0 } => Some(lift.of(phase)),
