@@ -951,11 +951,16 @@ tiers".
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the question reads from the verdict what tier 3 decided
   there (an edge's class and turn, an end, a pole or apex vertex) and
-  decides none of it. Over each cell it reads the rate at which the
-  two faces part, the faces' rates summed, levered at how far the
-  narrower of them runs from what they share, measured across it
+  decides none of it. Over each cell beside what two faces share it
+  reads the sine of the wedge between them, never more than one,
+  levered at how far the narrower of them runs out from what they
+  share before any part of its boundary that does not meet what they
+  share cuts in, and never farther than it stands from that at all
   ([tolerance.epsilon]), never at a cell of the question's own
-  subdivision, and that passes by more than the band. Where tier 3
+  subdivision, and that passes by more than the band. So the two
+  faces are distinct there, and a solid's boundary comes within the
+  band of itself only beside a cell its faces share, between the
+  faces and edges that meet there. Where tier 3
   holds no fact, that reading is the only one. A cell holds none of a
   face only where it lies off the face. A
   reading inside the band refuses as ambiguous, never as Holds or
