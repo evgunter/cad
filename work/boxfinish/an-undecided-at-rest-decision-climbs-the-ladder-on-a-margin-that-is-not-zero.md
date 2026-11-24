@@ -2,11 +2,12 @@
 id: an-undecided-at-rest-decision-climbs-the-ladder-on-a-margin-that-is-not-zero
 kind: issue
 title: An undecided at-rest decision climbs the symbolic ladder on a margin that is not zero: three quarters of the tour's leaf time with the box arm off
-status: open
+status: dispatched
 opened: 2026-11-24
 priority: P1
 cost: H
 design: true
+branch: boxfinish/refute-first
 ---
 
 
