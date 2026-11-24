@@ -2,8 +2,9 @@
 id: section-cert-ruling-walk-folds-every-refusal-into-its-row
 kind: issue
 title: section_cert ruling: the walk's touch, limit and fault all refuse as the certificate's row
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-11-24
 priority: P3
 cost: E
 ---
@@ -20,3 +21,7 @@ fail-safe (the section is not certified), so no body is wrong, but the
 three are three stories: the touch is the geometry's, in band; the
 limit is the frontier; the fault is the kernel's defect. The repair
 types the three apart at that site.
+
+## Retired (sectcone, PR 7637, 2026-11-24)
+
+`topo::boolean::section_cert::ruling` is deleted: topo's section certificate reads cone × cylinder and cone × cone on the section value (`geom_brep::pair_section`), whose ruling sweep (`pair_section/ruling.rs`) tiles cells over the whole turn and reads no `certified_subdivision` walk. The site this row names is gone with it, and the value's sweep refuses by the row that failed (`SweepRefusal`). Closed as moot.

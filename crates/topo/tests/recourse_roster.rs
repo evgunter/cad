@@ -407,7 +407,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
-    NameCarrier::Call("ChartRows"),
     NameCarrier::Call("ParityRows"),
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),
@@ -553,25 +552,6 @@ const INDIRECT: &[(&str, &str)] = &[
         IDENTITY,
     ),
     ("boolean/section_cert.rs: sign_as: name", FORWARDS),
-    ("boolean/section_cert/ruling.rs: assemble: lo", CARRIER_CALL),
-    (
-        "boolean/section_cert/ruling.rs: assemble: theta",
-        CARRIER_CALL,
-    ),
-    ("boolean/section_cert/ruling.rs: before_as: row", FORWARDS),
-    (
-        "boolean/section_cert/ruling.rs: read: rows.precision()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.asymptote()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.fold()",
-        ROW_FIELD,
-    ),
-    ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
     (
         "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
         CARRIER_CALL,

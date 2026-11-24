@@ -39,3 +39,5 @@ grazing/crossing/clear poses, ρ from 1 to 1000 m, ε = 1e-6, 1e-9 and
 doors would take.
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+- 2026-11-24 (sectcone, PR 7637): the table's `topo::boolean::section_cert::ruling` (`roots`) row is retired with that module; the cone pairs read on the section value, whose rounding charges are scheduled by `work/oneround/site-rounding-charges-owed-a-re-posing.md`.
