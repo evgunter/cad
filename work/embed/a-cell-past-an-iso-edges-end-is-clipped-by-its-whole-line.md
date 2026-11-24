@@ -226,3 +226,15 @@ buckets of the census (Departure/Edge plane/cyl, cyl/plane, cyl/cyl:
 - One test past its refusal now reads `Crosses` at a line contact its
   body holds unrecorded
   (`work/contacthold/a-ringed-walls-pocketed-pair-against-the-plate-holds-its-line-contact-unrecorded.md`).
+
+## The zero this row's shapes ask for exists; the clip does not change (EMBED, lane embed/clip-vertex, 2026-11-22)
+
+`zero_of` now reads a shared vertex on one clip's side as that side
+through the vertex (`Zero::Through`), signed under a plane holding the
+side's whole line or circle, and a loose vertex no longer refuses a
+cell. Neither reaches this row's cells: they exit at
+`sides_are_the_faces`, before `zero_of` is asked. The rectangle
+unclipped by a line past its edge's end is still unbuilt. When it is,
+the reflex shape's zero is a vertex on a side that is the CELL's bound,
+not a clip, which `zero_of` does not name: it finds the side through
+the clip holding the vertex.
