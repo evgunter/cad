@@ -2,10 +2,12 @@
 id: main-red-predicate-name-coverage-meets-quantitys-decide-and-geom-cores-test-local-row-names
 kind: issue
 title: Main red: predicate_name_coverage reds on quantity's decide (no roster) and on four row/row_floor literals in geom-core's k_stats_doors.rs
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7676
 ---
 
 
@@ -15,3 +17,10 @@ Found by GREEN's U17 on probe run 45310731023 (branch `green/census-reds-probe`,
 - **Four `row`/`row_floor` literals in `crates/geom-core/tests/k_stats_doors.rs`** (near :604, :625, :632, :649): "a predicate literal no crate decides". The test spells its own names in a local `const NAMES: [&str; 2] = ["row", "row_floor"]` and asserts `predicate == Some("row")`. A crate's `tests/` census runs with no carriers (`predicate_census(&tests, &[])`), so the local const is not read as a decision. It came with ONEROUND's `0bfdd819ba` (PR 7442, `oneround/readings-not-levers`). Owed: mark each one a deliberate negative (`// UNDECIDED-NAME: <why>`, since the names are the test's own fixture), or have the test decide them through a call the census reads.
 
 Not bisected beyond `git log -S` on the two spellings.
+
+## 2026-11-23 — both halves fixed (PR 7676)
+
+- **`quantity`'s `Exact::decide`: the census over-matched its own rule.** `predicate_census`'s doc defines a site as a `decide*` token "followed by an argument list whose first argument is the name". Both `quantity` calls hand `decide` a closure (`self.decide(|n, d| …)`), and a closure is never a name. So they are another type's method, not funnel sites; `fn_parameters`' doc already reads a non-`str` argument that way for forwarders.
+  - `test_utils::source::funnel_sites` now skips a call whose first argument is a closure, plain or `move`, and still reads any funnel inside that closure. The doc sentence says so, and the selftest is `a_decide_handed_a_closure_is_no_site`.
+  - Sweep: a multi-line search over every `crates/*/src` for `decide*(` followed by a closure finds only the two `quantity` calls, so no other crate's census changes. Blind spot: a closure bound to a name first and passed by that name stays an indirect site. That is the census's existing behaviour, and it reds nothing, because a roster reds only consts and unreadable sites.
+- **geom-core's `k_stats_doors.rs`.** The two tests spelled their names in a test-local `const NAMES`. A crate's `tests/` census runs with no carriers, so it read no name there, and the census's rule is "spell it as the door does". Each `decide_across` call now spells `["row", "row_floor"]` at the call, which the census reads as names (`a_funnels_literal_tuple_is_read_as_its_names`). The consts are gone.
