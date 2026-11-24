@@ -1702,6 +1702,51 @@ mod tests {
         Band::linear(Tol::witness()).expect("the witness tolerance has a band")
     }
 
+    /// **An offset radius in band of zero reads the same at either
+    /// sign** ([`Leg::offset_line_circle`]): the enclosing-class gate
+    /// refuses only a definite Negative, so `ρ = ±δ` both reach the
+    /// reading, with the offset line a part of ε from the circle's
+    /// centre. The reading takes `|ρ|`, so the two classify alike.
+    ///
+    /// Red with the margin spelled `ρ − |h|`: at `ρ = −0.4·ε`,
+    /// `h = 0.7·ε` it is `−1.1·ε`, past the band's zero, where
+    /// `ρ = +0.4·ε` reads `−0.3·ε`, inside it.
+    #[test]
+    fn an_offset_radius_in_band_of_zero_reads_alike_at_either_sign() {
+        let band = test_band();
+        let eps = band.zero();
+        let carrier = ArcCarrier {
+            center: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            turn: 1.0,
+            sweep: ArcSweep::Ccw,
+            corner_angle: 0.0,
+        };
+        let leg = Leg {
+            dir: Vec2::new(0.0, 1.0),
+            arc: None,
+            len: 1.0,
+            arm: 1.0,
+            side: FilletLeg::Incoming,
+        };
+        for (part, reach) in [(0.4, 0.7), (0.2, 0.9), (0.45, 0.5)] {
+            let read = |sign: f64| {
+                // ρ = R − r = sign·part·ε; the offset line `x = reach·ε`.
+                let radius = 1.0 - sign * part * eps;
+                let corner = Point2::new(radius + reach * eps, 0.0);
+                let rho = offset_radius(&carrier, 1.0, radius);
+                assert!(rho * sign > 0.0 && rho.abs() < eps, "ρ = {rho:e}");
+                match leg.offset_line_circle(corner, 1.0, radius, carrier, band) {
+                    Ok(found) => format!("{} centres", found.centres.len()),
+                    Err(ArcTrimRefusal::Escalated(_)) => "escalated".to_owned(),
+                    Err(ArcTrimRefusal::NoCorner { reason }) => format!("{reason:?}"),
+                    Err(other) => format!("{other:?}"),
+                }
+            };
+            assert_eq!(read(1.0), read(-1.0), "ρ = ±{part}·ε, h = {reach}·ε");
+        }
+    }
+
     #[test]
     fn bulge_from_via_quarter_circle() {
         // Unit-circle quarter arc (1,0) → (0,1) through the apex.

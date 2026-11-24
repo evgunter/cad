@@ -2774,7 +2774,7 @@ What DOES move with the registrants is the name a drive reports at
 twice the ceiling: `carrier_endpoint_start` → `carrier_endpoint_end` →
 `carrier_matches_mapped_source` on the plate. That is the mechanism
 working, pinned as such
-(`m10_9_pins_interval::m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity`),
+(`m10_9_pins_interval::m10_9_the_plates_registrants_discharge_through_the_door`),
 and it is not a bound. `line_span`, which the first cut named as the
 bracket's and the pad's bound, is itself an identity residual of the
 fillet construction and is recorded as one in the census.
@@ -2821,6 +2821,14 @@ definitely-negative frame the azimuth's `+ π` leaves `cos π = −1`;
 the rim identity closes the rest. Still no new token: a fold that
 reads a syntactic class is a theorem, and what the door closes is
 `registered`.
+
+Those are the counts as measured then. Nothing registers the rim
+identity now: an arc stores its radius as the literal its construction
+decided, a point's gap from its rim is read through
+`geom_core::radius_gap` (a zero form at a point built on the rim), and
+the chart's phase is `atan2(0, r/r)`. The plate's
+`carrier_matches_mapped_source` is a theorem with the door shut
+(`m10_10_pins_interval`).
 
 ### The ceilings
 

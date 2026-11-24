@@ -299,19 +299,19 @@ impl<T: Real> Arc2<T> {
     /// The carrier's point at the end of the sweep, reached from the
     /// start vertex `a`: `centre + radius·R(sweep)·(a − centre)/radius`,
     /// [`Arc2::on_turned_radial`] at the radial a vertex makes with the
-    /// stored radius. It is the point a carrier built from this arc's
-    /// centre, radius and sweep about that radial evaluates to at its
-    /// span; over the reals it is [`Arc2::landing`] from `a`.
+    /// stored radius, which is not zero. Over the reals it is
+    /// [`Arc2::landing`] from `a`; unlike the landing it reads the
+    /// radius, which is why [`Arc2::register_endpoints`] states both.
     pub fn carrier_end(self, a: Point2<T>) -> Point2<T> {
         self.on_turned_radial((a - self.centre) / self.radius)
     }
 
     /// The carrier's point at the end of the sweep, reached from the
-    /// unit `radial`: `centre + radius·R(sweep)·radial`. For the radial
-    /// at a start vertex it is the point a carrier built from this arc's
-    /// centre, radius and sweep about that radial evaluates to at its
-    /// span; [`Arc2::carrier_end`] is it at the radial a start point's
-    /// offset makes.
+    /// unit `radial`: `centre + radius·R(sweep)·radial`, the point a
+    /// carrier built from this arc's centre, radius and sweep about that
+    /// radial evaluates to at its span. The one spelling of an end
+    /// reached through the carrier; [`Arc2::landing`] is the end reached
+    /// from the start point, which reads no radius.
     pub fn on_turned_radial(self, radial: Vec2<T>) -> Point2<T> {
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
         self.centre
@@ -370,8 +370,12 @@ impl<T: Real> Arc2<T> {
     /// Every fact is the start's offset turned by the sweep: `a +
     /// (R − I)·(a − centre)` for a landing, `centre + R·((a −
     /// centre)/radius)·radius` for a carrier end. Neither takes a root,
-    /// so each is one function of the arc's data at every value of it,
-    /// the radius's sign included. That the rim at an end is the radius
+    /// so each is one function of the arc's data at every value of it
+    /// with a radius that is not zero (the carrier end divides by it),
+    /// either sign included. The carrier ends are the facts here that
+    /// read the radius: for an arc that records no radial they are what
+    /// the exact witness refuses a wrong radius on. That the rim at an
+    /// end is the radius
     /// is not among them: it is `√(radius²)` against `radius`, true only
     /// where the radius is positive, and its readers ask
     /// [`Arc2::off_carrier`] instead.

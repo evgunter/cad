@@ -715,17 +715,14 @@ pub(crate) fn sketch_direction<T: Real, S: SweptChord<T>>(seg: &S) -> Unit2<T> {
 }
 
 /// **The sketch vector a line's frame is turned onto**
-/// ([`Placing::frame_toward`], which normalizes it once): a line's chord
-/// `b − a`; for an arc, its start vertex's offset `a − centre`, which
-/// no door reads (an arc's frame is turned onto its recorded radial,
-/// [`Placing::frame_onto`]). Its right normal `(y, 0 − x)` is spelled
-/// as [`Unit2::right`] spells it, so a frame turned onto it holds that
-/// normal placed bit for bit ([`sketch_right_vector`]).
+/// ([`Placing::frame_toward`], which normalizes it once): the chord
+/// `b − a`. Its right normal `(y, 0 − x)` is spelled as
+/// [`Unit2::right`] spells it, so a frame turned onto it holds that
+/// normal placed bit for bit ([`sketch_right_vector`]). An arc's frame
+/// is turned onto its recorded radial ([`Placing::frame_onto`],
+/// [`sketch_direction`]) and reads no chord.
 pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
-    match seg.kind().get() {
-        SegmentKind::Line { .. } => seg.b() - seg.a(),
-        SegmentKind::Arc { arc, .. } => seg.a() - arc.centre,
-    }
+    seg.b() - seg.a()
 }
 
 /// The right normal of [`sketch_vector`], `(y, 0 − x)`: normalized, it is

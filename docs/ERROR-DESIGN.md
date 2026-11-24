@@ -790,10 +790,11 @@ number.
   verb recorded it: the radial offset over the stored radius,
   `atan2(0, r/r)`, which the quotient rule reduces to `atan2(0, 1)` —
   folds as a fact about `atan2` on a syntactic
-  class (positive wherever the arc exists; the degenerate box is
-  clause 1's). A point's distance from the wall is read as the
-  rationalized gap `(‖w‖² − r²)/(‖w‖ + r)`, whose numerator is the zero
-  form at a point built at `c + r·x`, so no rim identity is registered.
+  class (a positive constant, the quotient being the arc's wherever it
+  exists; the degenerate box is clause 1's). A point's distance from
+  the wall is read as the gap `(‖w‖ − r)·(‖w‖ + r)/(‖w‖ + r)`, whose
+  numerator is the difference of squares, the zero form at a point
+  built at `c + r·x`, so no rim identity is registered.
   No sign was read. The plate's whole-certifying box is 0.2368, 0.2631
   and 0.2631 of its REAL study at ε = 1e-6, 1e-9, 1e-12 — the staged
   walk's own end, and the ceiling stopped scaling with ε. What bounds

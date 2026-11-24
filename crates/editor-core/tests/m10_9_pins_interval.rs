@@ -299,7 +299,7 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
 /// Both replays certify whole, so both decide the same population and
 /// the door's whole effect is decisions moved out of `numeric`.
 #[test]
-fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
+fn m10_9_the_plates_registrants_discharge_through_the_door() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;

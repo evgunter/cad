@@ -318,12 +318,66 @@ pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
                 .loop_
                 .into_loop()
         }
+        "arc len" | "arc len cw" => {
+            let side = if verb == "arc len" {
+                crate::ArcSide::Left
+            } else {
+                crate::ArcSide::Right
+            };
+            crate::Open
+                .at(p(0.0, 0.0))
+                .angle(l(0.0), t)
+                .unwrap()
+                .arc_to(
+                    crate::ArcLen {
+                        r: q,
+                        side,
+                        len: l(1.5),
+                    },
+                    t,
+                )
+                .unwrap()
+                .line_to(p(-1.0, if verb == "arc len" { 3.0 } else { -3.0 }), t)
+                .unwrap()
+                .line_to(crate::Start, t)
+                .unwrap()
+                .loop_
+                .into_loop()
+        }
+        // The `Radius` arrival, an arc extension off the tip, with a
+        // fillet between it and a straight arrival: the extension's arc
+        // and a fillet in its carrier form.
+        "radius" => crate::Open
+            .at(p(2.0, -1.0))
+            .toward(l(0.0), l(1.0), t)
+            .unwrap()
+            .line(l(1.0), t)
+            .unwrap()
+            .arc_fillet(
+                crate::Radius {
+                    r: q,
+                    side: crate::ArcSide::Left,
+                },
+                l(0.5),
+                t,
+            )
+            .unwrap()
+            .toward(l(-1.0), l(0.0), t)
+            .unwrap()
+            .at(p(-1.0, 1.0), t)
+            .unwrap()
+            .line(l(1.0), t)
+            .unwrap()
+            .line_to(crate::Start, t)
+            .unwrap()
+            .loop_
+            .into_loop(),
         other => panic!("no such verb: {other}"),
     }
 }
 
 /// Each arc verb with the box its defining quantity ranges over.
-pub const ARC_VERBS: [(&str, f64, f64); 12] = [
+pub const ARC_VERBS: [(&str, f64, f64); 15] = [
     ("circle", 0.05, 0.005),
     ("split circle", 0.4, 0.04),
     ("bulge", 0.4, 0.05),
@@ -336,4 +390,7 @@ pub const ARC_VERBS: [(&str, f64, f64); 12] = [
     ("sweep", 1.0, 0.05),
     ("sweep cw", 1.0, 0.05),
     ("fillet", 0.25, 0.02),
+    ("arc len", 1.0, 0.05),
+    ("arc len cw", 1.0, 0.05),
+    ("radius", 2.0, 1.0e-4),
 ];

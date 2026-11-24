@@ -618,18 +618,30 @@ pub fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
     T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
-/// Validation's checks of a stored arc against its endpoints `a → b`,
-/// decided at the run's band: `arc_radius`, then the two difference
-/// checks `arc_start_on_carrier` and `arc_landing` ([`build_seg`]
-/// states each margin).
-///
-/// **The radius is read first** (`arc_radius`, margin the stored
-/// radius, meters): a table is the one door a radius enters by that no
-/// gate decided, and one that is not definitely positive is no carrier
-/// for the start to lie on, refused as that check's
-/// ([`ArcCheck::OnCarrier`]). Every reader past this line holds
-/// [`Arc2::radius`]'s "positive in value" as a decided fact, so the
-/// gap's `‖w‖ + radius` is not zero at a point of the carrier.
+/// **A table arc's radius is positive, decided** (`arc_radius`, margin
+/// the stored radius, meters), ahead of every reading of a point
+/// against it ([`check_carrier`]): a table is the one door a radius
+/// enters by that no gate decided, and one that is not definitely
+/// positive is no carrier for the start to lie on, refused as that
+/// check's ([`ArcCheck::OnCarrier`]). Every gap past it holds
+/// [`Arc2::radius`]'s "positive in value" as a decided fact, so its
+/// `‖w‖ + radius` is not zero at a point of the carrier. The shape
+/// readings ahead of it (the arc's length and straightness) take the
+/// radius as a factor and no gap.
+fn radius_positive<T: Decide>(arc: Arc2<T>, band: Band) -> Result<(), SegIssue<T>> {
+    let radius = decide_reported(Gate::ArcRadius, Margin::of(arc.radius), band)
+        .map_err(SegIssue::escalated)?;
+    match radius.sign {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(SegIssue::Inconsistent {
+            check: ArcCheck::OnCarrier,
+        }),
+    }
+}
+
+/// Validation's two difference checks of a stored arc against its
+/// endpoints `a → b`, `arc_start_on_carrier` then `arc_landing`,
+/// decided at the run's band ([`build_seg`] states each margin).
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
@@ -640,11 +652,7 @@ fn check_carrier<T: Decide>(
     // A difference check's definite answer is a statement about the
     // input only where the scene's `f64` can read a difference that
     // small at the magnitude it was taken at ([`resolves`]).
-    let radius = decide_reported(Gate::ArcRadius, Margin::of(arc.radius), band)
-        .map_err(SegIssue::escalated)?;
-    if radius.sign != Sign::Positive {
-        return refuse(ArcCheck::OnCarrier);
-    }
+    radius_positive(arc, band)?;
     let scale = arc.radius.max(reach(arc.centre));
     let on_carrier = arc.off_carrier(a);
     let read = decide_reported(Gate::ArcStartOnCarrier, Margin::of(on_carrier), band)
@@ -1705,10 +1713,10 @@ pub(crate) fn joint_tangency<T: Decide>(
 
 /// **`carrier_line_circle`'s margin, in one place**: the clearance
 /// `r − |h|` between a line's carrier and a circle's, where `h` is the
-/// centre's signed offset from the line, [`Line2::side`], spelled
-/// `(r² − h²)/(r + |h|)`: the same real, with a numerator that is the
-/// zero form where the construction made the line tangent, whichever
-/// side the centre lies on. Returned with the SCALE its arithmetic passes through — the
+/// centre's signed offset from the line, [`Line2::side`], read through
+/// [`geom_core::radius_gap`] at the offset's magnitude: the same real,
+/// with a numerator that is the zero form where the construction made
+/// the line tangent, whichever side the centre lies on. Returned with the SCALE its arithmetic passes through — the
 /// radius and the two points' own coordinate magnitudes — because both
 /// the subtraction and the `C − a` inside `h` cancel first-order in
 /// that magnitude, and the clearance therefore resolves only to about
@@ -1723,7 +1731,7 @@ pub(crate) fn joint_tangency<T: Decide>(
 pub(crate) fn carrier_line_circle_margin<T: Real>(line: Line2<T>, g: &ArcGeom<T>) -> (T, T) {
     let h = line.side(g.arc.centre);
     (
-        (g.arc.radius.powi(2) - h.powi(2)) / (g.arc.radius + h.abs()),
+        -geom_core::radius_gap(h.abs(), g.arc.radius),
         g.arc
             .radius
             .max(reach(g.arc.centre))

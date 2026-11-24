@@ -468,25 +468,20 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    let sets: [(&str, SymRules, bool); 4] = [
-        ("shipped", SymRules::shipped(), false),
-        (
-            "without_canonical_root",
-            SymRules::without_canonical_root(),
-            false,
-        ),
-        ("without_the_reads", SymRules::without_the_reads(), false),
+    let sets: [(&str, SymRules); 4] = [
+        ("shipped", SymRules::shipped()),
+        ("without_canonical_root", SymRules::without_canonical_root()),
+        ("without_the_reads", SymRules::without_the_reads()),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            false,
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
-    for (name, rules, blocked) in sets {
+    for (name, rules) in sets {
         start_profile();
         let _ = replay(&doc, &nominal, rules, tol);
         let p = take_profile();
@@ -498,10 +493,9 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             report_calls(&ledger),
             lines.join("\n    ")
         );
-        assert_eq!(
-            report_calls(&ledger).is_some_and(|n| n > 0),
-            blocked,
-            "{name}: the plain walk renders the blocked residuals its set is pinned to: {:?}",
+        assert!(
+            !report_calls(&ledger).is_some_and(|n| n > 0),
+            "{name}: the plain walk renders no blocked residual on the plate: {:?}",
             report_calls(&ledger)
         );
         match &seen {

@@ -551,10 +551,12 @@ fn a_point_built_on_an_exactly_orthonormal_tilt_is_on_it_over_a_box() {
 /// **On a frame made of normalized `f64` directions the point is NOT
 /// proven on the wall: today's truth, pinned**
 /// (`work/boxfinish/a-point-built-on-a-frame-of-normalized-directions-does-not-fold-onto-its-wall`).
-/// Such axes are unit only to rounding, so `w·w − r²` keeps a residue
-/// of the radius's box and the reading is its enclosure. Over a box of
-/// half-width `0.1` it is undecided, `[0, 0.32]` where the direct
-/// spelling's is `[0, 0.21]`; from a half-width of `1e-3` down the two
+/// Such axes are unit only to rounding, so the gap's numerator keeps a
+/// residue of the radius's box and the reading is its enclosure. Over a
+/// box of half-width `0.1` it is undecided, `[0, 0.42]` where the direct
+/// spelling's is `[0, 0.21]` (the gap is wider than the difference by
+/// `(1 + ρ)/(1 − ρ)`, `ρ` the relative half-width of the norm plus the
+/// radius: [`geom_core::radius_gap`]); from a half-width of `1e-3` down the two
 /// spellings' enclosures agree to four digits (`2.06e-6` at `1e-6`),
 /// and at a quarter of the band's zero (`2.5e-10` at the default ε) it
 /// reads Zero, unproven, as the direct spelling does.
@@ -576,8 +578,8 @@ fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
     };
     let (wide, hi) = at(0.1);
     assert!(
-        wide.is_none() && (0.30..0.33).contains(&hi),
-        "a wide box: undecided at [0, 0.32], read {wide:?} at {hi}"
+        wide.is_none() && (0.41..0.43).contains(&hi),
+        "a wide box: undecided at [0, 0.42], read {wide:?} at {hi}"
     );
     let (mid, hi) = at(1.0e-6);
     assert!(

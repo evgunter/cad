@@ -1669,10 +1669,16 @@ fn at_f64_a_minted_direction_is_the_quotient_with_its_zeros_sign() {
 /// - and each member of the box, built at `f64`, stores a centre, a
 ///   radius, a sweep and radials inside the boxed build's enclosures.
 ///
+/// - and a verb whose radius is the authored quantity stores it as
+///   written: the stored radius less the parameter is the zero form.
+///
 /// Red on a verb that stores its radius as a magnitude: with
 /// `radius.abs()` in `circle_loop`, `rho.abs()` in `tangent_arc` or
 /// `.abs()` on `Arc2::from_chord_radials`' radius, that verb's
-/// along-the-radial readings come back undecided.
+/// along-the-radial readings come back undecided; with `r.abs()` in a
+/// verb that records no radial (the swept-angle and arc-length legs,
+/// the `Radius` arrival, the fillet), its stored radius is no longer
+/// the parameter as a form.
 #[test]
 fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
     use geom_core::Sign;
@@ -1685,35 +1691,43 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
     for (verb, c, h) in profile::test_support::ARC_VERBS {
         // The fillet's own door reads its joints through the tangency it
         // registers at its incoming foot, so it runs with the door open.
-        let rules = if verb == "fillet" {
+        let rules = if matches!(verb, "fillet" | "radius") {
             SymRules::shipped()
         } else {
             SymRules::shipped_without_the_door()
         };
         with_session_rules(budget, rules, || {
-            let lp = arc_verb_loop::<Lane>(verb, param("q", c, h), tol());
+            let authored = param("q", c, h);
+            let lp = arc_verb_loop::<Lane>(verb, authored, tol());
             let members: Vec<ProfileLoop<f64>> = [c - h, c, c + h]
                 .into_iter()
                 .map(|q| arc_verb_loop::<f64>(verb, q, tol()))
                 .collect();
             let n = lp.vertices().len();
             let zero = |m: Lane| m.sign_within(band).map(|d| d.sign).ok() == Some(Sign::Zero);
-            let mut arcs = 0;
+            let (mut arcs, mut authored_radii) = (0, 0);
             for k in 0..n {
                 let Segment::Arc(arc) = lp.segments()[k] else {
                     continue;
                 };
                 arcs += 1;
+                authored_radii += usize::from(zero(arc.radius - authored));
                 let ends = [lp.vertices()[k], lp.vertices()[(k + 1) % n]];
                 assert!(
                     arc.radius.lo() > 0.0,
                     "{verb} segment {k}: a positive radius"
                 );
-                for (v, end) in ends.into_iter().zip(["start", "end"]) {
-                    assert!(
-                        zero(arc.off_carrier(v)),
-                        "{verb} segment {k}: the {end} vertex on its carrier"
-                    );
+                // A fillet in its carrier form trims the extended arc at
+                // a tangent point placed along a measured spoke, which is
+                // on the carrier to a decision and not as a form
+                // (`work/boxfinish/the-fillet-reads-two-signs-off-numbers-into-what-it-stores.md`).
+                if verb != "radius" {
+                    for (v, end) in ends.into_iter().zip(["start", "end"]) {
+                        assert!(
+                            zero(arc.off_carrier(v)),
+                            "{verb} segment {k}: the {end} vertex on its carrier"
+                        );
+                    }
                 }
                 let recorded = lp.directions()[k].map(radials);
                 if let Some((start, end)) = recorded {
@@ -1741,7 +1755,10 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
                     }
                 } else {
                     assert!(
-                        matches!(verb, "fillet" | "sweep" | "sweep cw"),
+                        matches!(
+                            verb,
+                            "fillet" | "sweep" | "sweep cw" | "arc len" | "arc len cw" | "radius"
+                        ),
                         "{verb} segment {k} records its radials"
                     );
                 }
@@ -1776,6 +1793,21 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
                 }
             }
             assert!(arcs > 0, "{verb} stores an arc");
+            // A verb whose radius is the authored quantity stores that
+            // quantity: its difference from the parameter is the zero
+            // form. A magnitude of it is not (`|q| − q` over a box).
+            let stores_the_authored = match verb {
+                "circle" | "sweep" | "sweep cw" | "arc len" | "arc len cw" => arcs,
+                "split circle" => 3,
+                "fillet" => 4,
+                "radius" => 1,
+                _ => 0,
+            };
+            assert!(
+                authored_radii >= stores_the_authored,
+                "{verb}: {authored_radii} of {arcs} arcs store the authored radius as written, \
+                 {stores_the_authored} pinned"
+            );
         });
     }
 }

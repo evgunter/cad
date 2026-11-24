@@ -36,6 +36,18 @@ is about what the fillet registers and names neither site; whoever
 takes that row reads the same function and can take the second site
 with it.
 
+**What the first site costs over a box, measured.** The `Radius`
+arrival with a fillet between it and a straight arrival
+(`profile::test_support::arc_verb_loop`'s `"radius"` case, the radius
+boxed `2 ± 1e-4`, at `Sym<Interval>`): the extended arc's end, the
+fillet's tangent point, does not read Zero against its own carrier
+(`Arc2::off_carrier`), where every other verb's vertices do. The point
+is `centre + spoke·(R/‖spoke‖)`, on the carrier only through a root the
+tier holds as an atom. `recorded_directions::each_arc_verbs_stored_arc_is_exact_over_a_box`
+leaves that one reading out for that case and says so. Over `2 ± 0.1`
+the door does not build it at all (`fillet_leg_fit` undecided, its
+enclosure `[−3.1, 1.3]`).
+
 **The tests that say it is closed.**
 - A circular-leg fillet whose offset radius is in band of zero stores
   the same tangent point at either sign of ρ, or refuses typed.

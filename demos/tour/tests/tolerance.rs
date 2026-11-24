@@ -166,9 +166,9 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
     #[test]
     fn the_cut_plate_evaluates_over_its_study_box_with_no_node_refusing() {
         use demo_tour::plate::cut_plate;
-        use pncad::analysis::ParamBox;
+        use pncad::analysis::{DriveConfig, ParamBox};
         use pncad::document::{Evaluation, Node, NodeResult};
-        use pncad::geom_core::{Interval, Sym, SymBudget, SymRules};
+        use pncad::geom_core::{Interval, Sym, SymBudget};
         let tol = Tol::witness();
         let p = cut_plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB_BOUND, tol);
         let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
@@ -176,13 +176,14 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             param_box: Some(std::sync::Arc::new(ParamBox::of(&analyzed))),
             ..EvalOptions::default()
         };
-        // The drive's default budget.
+        // The drive's own default dials.
+        let dials = DriveConfig::default().symbolic;
         let budget = SymBudget {
-            max_terms: 4096,
-            max_degree: 128,
+            max_terms: dials.max_terms,
+            max_degree: dials.max_degree,
         };
         let (refused, subtracts) =
-            pncad::geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+            pncad::geom_core::sym::with_session_rules(budget, dials.rules, || {
                 let ev: Evaluation<Sym<Interval>> =
                     evaluate(&p.doc, None, &CancelToken::new(), &opts, tol);
                 let refused: Vec<String> = ev

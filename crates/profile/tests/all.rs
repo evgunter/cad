@@ -57,6 +57,8 @@ mod common;
 mod a_boxed_rectangle_validates;
 #[path = "a_far_arcs_lens_reads_its_own_width.rs"]
 mod a_far_arcs_lens_reads_its_own_width;
+#[path = "a_radius_is_decided_before_it_is_read.rs"]
+mod a_radius_is_decided_before_it_is_read;
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
 #[path = "arc_leg_full_turn.rs"]
