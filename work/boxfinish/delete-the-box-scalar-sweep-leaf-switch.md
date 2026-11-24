@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice, a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, a-chains-link-refuses-at-an-edges-stored-curve-with-the-box-arm-off]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -153,3 +153,6 @@ PRs 7370, 7480 and 7686 were not on main):
   two frames rows; and new since M9, `the_plates_largest_form_is_under_the_growth_guard`
   and `sym11`'s far placement at `Sym<f64>`. The report has each by
   name.
+
+- 2026-11-24 — the ray-readings unit closed (PR 7480) and leaves `blocked_on`; the radial readers' row left with PR 7370. In the rays' place stand the three rows PR 7480 measured and left: the aimed face's advance, the wall's aim hanging from its moving edge, and a moving face whose normal has no zero component (a tilted or rotated cap reads its side only over a narrow box). (BOXFINISH orchestrator)
+- 2026-11-24 — `blocked_on` gains `a-chains-link-refuses-at-an-edges-stored-curve-with-the-box-arm-off`: M11 attributed the tour command's exit to the box arm (the one-link chain certifies with it on and refuses at an edge's stored curve with it off). (BOXFINISH orchestrator)

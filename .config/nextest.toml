@@ -8,15 +8,18 @@
 # silently nowhere; scripts/check-slow-set-names.py fails the test job on the
 # dead name.
 #
-# Put a test here when it costs >= 0.5 s a run, whatever it has caught: a
-# slow test that catches something still catches it the next night. A
-# cheaper test goes here too when it costs more than a fraction of a second
-# averaged over every PR run and has never gone red on a PR after the one
-# that added it, unless a test the gate kept went red with it
-# (work/ciw/demote-unearned-tests.md). The per-PR default-eps step enforces
-# two bars on the runner's own times (scripts/check-fast-set-times.py): a
-# fast-set test the diff adds fails it at >= 0.5 s, and every other fast-set
-# test at >= 1 s.
+# Put a test here when it costs >= 0.25 s run alone, whatever it has
+# caught: a slow test that catches something still catches it the next
+# night. A cheaper test goes here too when it costs more than a fraction of a
+# second averaged over every PR run and has never gone red on a PR after the
+# one that added it, unless a test the gate kept went red with it
+# (work/ciw/demote-unearned-tests.md). A test's cost is its time run alone on
+# the gate's build: the per-PR default-eps step re-runs alone, three times,
+# each test its parallel pass reads over a bar and takes the fastest
+# (scripts/check-fast-set-times.py). A fast-set test the diff adds or edits
+# fails it at >= 0.25 s, and any fast-set test at >= 1 s. A test that drifts
+# past 0.25 s on main below 1 s is named by the scheduled drift check
+# (.github/workflows/fast-set-drift.yml, scripts/fast-set-drift.py).
 
 [profile.ci]
 fail-fast = false
@@ -194,6 +197,7 @@ failure-output = "immediate-final"
 # every face's own aim over a table of boxes, and two counterexample
 # searches at EFFORT 1 (a local run, 4 vCPUs):
 #    4.48 s  topo side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has
+#    3.71 s  topo side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side (local)
 #    2.97 s  topo side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has
 #    3.54 s  topo side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has
 #    0.46 s  topo side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it
@@ -204,6 +208,8 @@ failure-output = "immediate-final"
 #   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
 #    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
 #    0.57 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side (PR 6958's hosted run)
+#    0.32 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box (local; past the 0.25 s bar for a new row)
+#    0.28 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair (local; past the 0.25 s bar for a new row)
 #    1.04 s  sweep::all volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks
 #    1.82 s  sweep::all volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies
 #    2.77 s  sweep::all volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume (local, four cores)
@@ -392,6 +398,101 @@ failure-output = "immediate-final"
 #    3.2 s  geom cover::tests::held_arc_rows::an_arc_held_cover_holds_its_stored_points_at_f64
 #    2.9 s  geom cover::tests::held_arc_rows::an_arc_held_cover_encloses_its_stored_points_at_interval
 #    1.5 s  geom cover::tests::held_arc_rows::an_arc_held_extent_holds_both_its_ends
+# The fast-set tests both of the drift check's first two runs read at
+# 0.25 s or more alone (fast-set-drift.py, the fastest of three passes;
+# runs 45084526868 and 45093266519, on runners of different speed
+# classes, so each line gives both readings):
+#   0.50 / 0.42 s  editor-core::all parallel_node_map_interval::the_shape_report_is_the_serial_walks_at_one_and_four_threads
+#   0.52 / 0.41 s  editor-core::all msolve2_member_chain::a1c_three_levels_deep_seat
+#   0.40 / 0.51 s  topo::all r1_mate8_decomp_probe::r1_stage2_completeness_randomized
+#   0.38 / 0.49 s  sweep::all join_pierce_runs_sweep::a_pinchs_cones_share_one_point_key
+#   0.38 / 0.49 s  topo::all split_through_an_apex::an_edge_at_the_apex_in_the_plane_splits_sound_exact_and_near
+#   0.36 / 0.45 s  sweep::all split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval
+#   0.36 / 0.47 s  sweep::all band_turn_overrun_oracles::features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say
+#   0.36 / 0.46 s  sweep::all split_cylindrical_feature_box::a_box_with_a_bore_along_y_splits_on_the_cutaway_plane
+#   0.36 / 0.47 s  topo::all m3_pr3_split::a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch
+#   0.35 / 0.46 s  sweep::all join2_r2_probes::a_like_far_ends_tie_is_decided_by_the_partner_faces_trim
+#   0.35 / 0.46 s  sweep::all rest_zip_admission::a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice
+#   0.46 / 0.35 s  editor-core::all resolve_group_membership::tied_groups_that_resize_unequally_decline_in_every_member_order
+#   0.34 / 0.44 s  topo::all a_vertex_read_by_two_sector_passes::standing_pyramids_folded_onto_the_plate_build_in_every_member_order
+#   0.34 / 0.45 s  sweep::all germ_conic_plane_roots::every_op_answers_its_closed_form_when_the_outside_root_comes_first
+#   0.34 / 0.43 s  sweep::all cert_m2r1_passes::m2r1_passes_interval
+#   0.34 / 0.44 s  geom-brep::all periodic_chart_closure::torus_chains_of_arcs_off_centre_measure
+#   0.44 / 0.34 s  editor-core::all emit_union_borders::a_wall_through_a_notch_apex_names_alike_in_every_order
+#   0.33 / 0.44 s  stl::all review_m3_pr55_e2e::die_from_raw_extrudes_watertight_stl
+#   0.33 / 0.41 s  sweep::all cell_region_bodies::a_full_revolve_is_sound
+#   0.33 / 0.42 s  sweep::all shallow_arc_extrude_grid_interval::the_shallow_arc_grid_census_is_mains_at_every_eps_row
+#   0.43 / 0.33 s  editor-core::all union_member_orders_decide_alike::the_corpus_reaches_its_classes
+#   0.33 / 0.44 s  topo::all m3_pr6_tier3prime::interval::tier3prime_interval
+#   0.33 / 0.42 s  sweep::all band_co_requested_boundary::the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance
+#   0.33 / 0.42 s  sweep::all rehome_rings_lune::a_split_carries_a_lune_bore_with_its_half
+#   0.32 / 0.42 s  topo::all union_flush_onto_edge_contact::carried_records_certify_every_order_of_the_fold
+#   0.32 / 0.42 s  sweep::all lamina_annulus::a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form
+#   0.32 / 0.40 s  sweep::all split_through_a_ruling::a_counterbore_split_through_its_seam_ruling_answers
+#   0.31 / 0.41 s  topo::all join_whole_orbit_rows::a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op
+#   0.31 / 0.39 s  sweep::all verbs_tubewall_r2_probes::r2_the_bore_has_a_nonempty_escalating_zone
+#   0.44 / 0.31 s  editor-core::all emit_sphere_cut_in_cap::the_holdings_over_a_cut_in_name_only_their_operands_faces
+#   0.40 / 0.31 s  editor-core::all m10_5_r2_probes_interval::the_combs_internal_gaps_answer_at_three_bounds
+#   0.41 / 0.31 s  editor-core::all m4_pr3_names_interval::f64_and_interval_lanes_emit_identical_name_tables
+#   0.31 / 0.46 s  geom-brep::all cone_incidence_fuzz::an_uncovered_perturbed_section_lies_within_the_sliver
+#   0.31 / 0.41 s  sweep::all band_planar_cut_off_meters::a_far_side_peninsula_on_a_cross_chain_request_builds
+#   0.31 / 0.40 s  sweep::all shell9_r1_probes::r1_rows_corpus
+#   0.30 / 0.41 s  geom-core::all review_m5_pr7b_tensor::the_two_sided_pinch_on_the_adversarial_rational_fixture
+#   0.30 / 0.40 s  topo::all union_flush_onto_edge_contact::joined_folds_certify_and_build_one_body_in_every_order
+#   0.40 / 0.30 s  editor-core::all m10_5_r2_probes_interval::the_leaf_fold_answers_the_same_question_over_a_real_drive
+#   0.30 / 0.39 s  sweep::all join_pierce_runs_sweep::four_germ_vertex_pairs_build_every_op
+#   0.30 / 0.41 s  sweep::all split_section_rings::an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling
+#   0.30 / 0.39 s  sweep::all join_pierce_runs_sweep::a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry
+#   0.30 / 0.39 s  sweep::all blend4_r1_probes::p2_slim_skews_carve_valid_or_refuse_typed_never_worse
+#   0.30 / 0.39 s  sweep::all parallel_cylinder_join::an_island_and_a_turned_pose_join_along_their_rulings
+#   0.29 / 0.39 s  sweep::all blend_dual_tangent::an_upstream_size_tangent_reaches_through_the_blend
+#   0.29 / 0.40 s  sweep::all shell8_dump::shell8_dump_hollow_and_opened_corpus
+#   0.29 / 0.39 s  sweep::all review_closed_chain_junctions_r1_probes::r1_five_and_six_arc_rims_carve_on_both_doors_and_both_sides
+#   0.29 / 0.39 s  sweep::all an_arc_loft_seams_its_rational_wall_at_every_spacing::the_carve_spacings_loft
+#   0.29 / 0.37 s  sweep::all run_walls_built::seam_vertex_fires_only_where_rim_of_lists_the_rim
+#   0.29 / 0.38 s  sweep::all a_plane_across_a_one_face_wall::a_circle_edge_in_the_partners_face_builds
+#   0.29 / 0.37 s  sweep::all band_planar_oblique_fillet::a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall
+#   0.44 / 0.29 s  editor-core::all part_depth_bound::a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep
+#   0.29 / 0.39 s  sweep::all a_vertex_on_a_grazing_plane::the_split_reads_a_grazing_vertex_against_its_section
+#   0.29 / 0.35 s  sweep::all an_aimed_ray_keeps_its_line_over_a_box::a_ray_whose_exit_moves_across_an_edge_over_the_box_is_set_aside
+#   0.36 / 0.29 s  editor-core::all intent_s5_c_at_rest_check::a_contact_is_quiet_under_its_gap_and_nothing_else
+#   0.28 / 0.35 s  sweep::all join_pierce_strut_facing::a_wide_run_builds_in_every_op
+#   0.28 / 0.41 s  sweep::all band_turn_overrun_fillet::a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too
+#   0.28 / 0.36 s  sweep::all reach_wall_chord_rows::a_cube_touching_a_drum_at_a_corner_answers_its_closed_form
+#   0.28 / 0.42 s  sweep::all a_knife_edge_fillet_builds_where_its_ball_is_defined::a_cylinder_plane_cusp_loses_its_horn_in_every_pose
+#   0.28 / 0.35 s  sweep::all band_planar_cut_off_shapes::end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length
+#   0.36 / 0.27 s  editor-core::all emit_union_borders::a_bar_that_divides_no_tied_face_leaves_the_tie
+#   0.36 / 0.27 s  editor-core::all intent_s5_b_interference::a_pin_pressed_into_a_bore_is_quiet_under_its_gap
+#   0.35 / 0.27 s  editor-core::all r2_m10_6_probes_interval::report_key_tells_the_dials_that_move_a_report_apart
+#   0.27 / 0.34 s  sweep::all wedge_end_doors::a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule
+#   0.38 / 0.27 s  editor-core::all emit_sphere_cut_in_cap::a_sphere_cut_in_refuses_only_where_its_rows_are_filed
+#   0.27 / 0.36 s  sweep::all a_rim_in_a_face_beside_a_resting_ridge::a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before
+#   0.27 / 0.33 s  sweep::all torax_interval::interval_the_torus_barrel_hollows_and_encloses_its_corners
+#   0.27 / 0.40 s  geom::all curves_piece_coverage_meter::a_stall_in_any_piece_refuses
+#   0.34 / 0.27 s  editor-core::all emit_union_flush_names::a_member_of_two_touching_shells_names_each_shell_for_itself
+#   0.35 / 0.27 s  editor-core::all emit_union_rim_piece_ranks::a_member_face_another_holds_is_a_constituent_in_every_order
+#   0.35 / 0.27 s  editor-core::all value_chart_sweeps::a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously
+#   0.27 / 0.39 s  sweep::all a_knife_edge_fillet_builds_where_its_ball_is_defined::the_valley_between_two_touching_tubes_fills
+#   0.27 / 0.34 s  sweep::all m6_surgery_interval::certified::interval_one_pip_composed_die_is_bracketed
+#   0.27 / 0.36 s  topo::all review_m3_pr6::interval_r1::r1_interval_lane
+#   0.26 / 0.36 s  topo::all split_through_an_apex::random_bases_with_corners_in_the_band_split_sound
+#   0.26 / 0.34 s  topo::all union_flush_onto_edge_contact::two_dangling_null_edges_with_one_segment_build_in_every_op
+#   0.26 / 0.33 s  sweep::all verbs_tubewall_r2_probes::r2_the_wall_has_a_nonempty_escalating_zone
+#   0.32 / 0.26 s  viewer::all mate_tool_flow::a_pattern_placed_pick_is_a_target_the_shelf_rests_on
+#   0.32 / 0.26 s  editor-core::all fix_pattern_mate_crossing::a_top_seated_on_a_family_member_is_proven_by_its_mate
+#   0.26 / 0.35 s  sweep::all a_vertex_on_a_grazing_plane::the_boolean_reads_a_grazing_vertex_against_its_section
+#   0.26 / 0.35 s  sweep::all n3r1_prune::n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one
+#   0.26 / 0.35 s  topo::all a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_at_f64
+#   0.32 / 0.26 s  editor-core::all p2_split::a_kept_placement_of_a_piece_of_a_cut_copy_splits
+#   0.26 / 0.46 s  sweep::all germ_cone_apex_closure::the_merged_full_cone_agrees_with_the_closed_form
+#   0.26 / 0.32 s  sweep::all split_through_a_ruling::a_tube_split_through_its_seam_ruling_answers
+#   0.33 / 0.25 s  editor-core::all union_member_orders_decide_alike::a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order
+#   0.34 / 0.25 s  editor-core::all emit_union_borders::a_t_junction_divides_in_three
+#   0.33 / 0.25 s  editor-core::all emit_union_flush_names::the_zip_document_publishes_one_table_in_every_order
+#   0.25 / 0.34 s  topo::all split_through_an_apex::a_crown_whose_valleys_lie_in_the_plane_splits_sound
+#   0.25 / 0.42 s  sweep::all a_plane_holding_a_conic_tangent_at_a_vertex::a_tilted_plane_through_a_cap_vertex_cuts_by_the_arcs_bend
+#   0.33 / 0.25 s  editor-core::all emit_union_flush_names::a_cut_a_covered_face_meets_is_one_divider_in_every_order
+#   0.31 / 0.25 s  viewer::all mate_tool_flow::a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once
 default-filter = """
 not (
   (binary_id(sweep::all) & (test(=pair_doors_read_apart::a_spline_cap_beside_a_rods_wall_unions_until_it_touches) | test(=pair_doors_read_apart::the_lumps_of_a_bar_through_a_ball_union_with_a_spline_cap_between_them) | test(=pair_doors_read_apart::a_split_between_the_lumps_clears_their_sphere_patches))) |
@@ -455,6 +556,7 @@ not (
   (binary_id(topo::all) & test(=an_off_iso_straight_edge_takes_its_general_row::an_in_band_seam_takes_the_general_image_at_interval)) |
   (binary_id(geom-brep) & test(=pcurve_cache::line_incidence_rows::no_parameter_of_the_span_is_farther_than_the_read)) |
   (binary_id(geom-brep) & test(=curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere)) |
+  (binary_id(geom-brep) & (test(=curve_face::spline_face::crossing_parameter_rows::at_f64_the_walks_box_is_far_narrower_than_the_band) | test(=curve_face::spline_face::crossing_parameter_rows::at_interval_the_leafs_box_is_bands_wide_and_its_middle_is_its_witnesss))) |
   (binary_id(topo) & test(=chord_join::torus_ring_rows::a_ring_on_a_torus_face_is_re_homed_by_a_path)) |
   (binary_id(sweep::all) & test(=join_rc_probes::reflex_corner_struts_past_a_half_turn_build_sound)) |
   (binary_id(geom-brep) & test(=curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere_past_the_touchs_placement)) |
@@ -665,6 +767,8 @@ not (
   (binary_id(geom-brep) & (test(=pair_section::spline_implicit::node_rows::a_node_lists_its_lines_side_and_four_arcs) | test(=pair_section::spline_implicit::node_rows::an_oblique_nodes_lines_are_its_null_lines) | test(=pair_section::spline_implicit::node_rows::a_loop_through_a_node_names_both_its_ends) | test(=pair_section::spline_implicit::node_rows::a_touch_beside_an_arc_is_listed_with_it) | test(=pair_section::spline_implicit::node_rows::a_node_not_placed_within_the_band_refuses) | test(=pair_section::spline_implicit::node_rows::a_node_whose_rays_are_not_each_claimed_once_refuses) | test(=pair_section::spline_implicit::node_rows::a_touch_beside_reaching_components_crosses_them) | test(=pair_section::spline_implicit::node_rows::a_generic_node_is_listed) | test(=pair_section::spline_implicit::node_rows::a_node_the_reading_cannot_account_for_reads_as_a_tangency) | test(=pair_section::spline_implicit::node_rows::two_decided_boxes_that_meet_decline))) |
   (binary_id(topo) & (test(=boolean::section_cert::section_cert_spline_rows::a_spline_wall_touching_a_sphere_is_read_as_a_touch) | test(=boolean::section_cert::section_cert_spline_rows::a_spline_node_reads_through_its_carried_arcs) | test(=boolean::section_cert::section_cert_spline_pair_rows::r1_a_loop_beside_a_shared_row_is_never_cleared) | test(=boolean::section_cert::section_cert_spline_pair_rows::r1_a_branch_beside_a_shared_row_is_never_cleared) | test(=boolean::section_cert::section_cert_spline_pair_rows::a_loop_through_a_pole_of_a_spline_wall_is_not_cleared_by_reaching_it) | test(=boolean::section_cert::section_cert_spline_pair_rows::a_loop_inside_two_spline_walls_is_never_cleared) | test(=boolean::section_cert::section_cert_spline_pair_rows::an_open_branch_between_two_walls_clears_by_w1_prime) | test(=boolean::section_cert::section_cert_spline_pair_rows::a_shared_rim_handed_in_clears_and_one_not_refuses) | test(=boolean::section_cert::section_cert_spline_pair_rows::a_shared_corner_the_section_leaves_is_a_region_and_one_it_enters_refuses) | test(=boolean::section_cert::section_cert_spline_pair_rows::a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it) | test(=boolean::section_cert::section_cert_spline_rows::a_loop_inside_a_plane_and_a_wall_is_never_cleared) | test(=boolean::section_cert::section_cert_spline_rows::a_spline_witness_stands_within_its_residual_of_the_section) | test(=boolean::section_cert::section_cert_spline_rows::a_loop_hugging_the_walls_sides_is_a_loop) | test(=boolean::section_cert::section_cert_spline_rows::a_loop_beside_an_open_branch_is_not_cleared_by_an_event) | test(=boolean::section_cert::section_cert_spline_rows::a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it) | test(=boolean::section_cert::section_cert_spline_rows::a_plane_stored_far_off_is_charged_its_pivots_shift))) |
   (binary_id(sweep::all) & (test(=cross_solid_apart::a_block_in_a_plates_notch_passes_until_it_touches) | test(=cross_solid_apart::a_block_over_a_plates_top_still_refuses) | test(=cross_solid_apart::a_cap_on_another_plane_across_a_plates_top_refuses) | test(=cross_solid_apart::a_cube_on_its_corner_inside_a_plates_top_refuses))) |
+  (binary_id(topo) & (test(=census::two_carrier_records::line_through_faces::an_edge_offset_from_the_line_reads_in_closed_form) | test(=census::tests::ordinary_rests_stay_rests))) |
+  (binary_id(sweep::all) & (test(=separation_reads_turned_directions::a_rod_in_a_bore_certifies_at_every_turn) | test(=separation_reads_turned_directions::a_solid_inside_anothers_material_is_denied_at_every_turn))) |
   (binary_id(sweep::all) & (test(=pis_arc_capped_poses::a_spiric_bounded_face_answers_off_its_spiric_edge) | test(=near_circular_sections::declared_equal_walls_meeting_at_a_sliver_are_the_bisector_ellipses) | test(=band_turn_overrun_fillet_model::the_concave_skewed_box_fills_the_model))) |
   (binary_id(geom::all) & (test(=n3r1_probes::n3r1_interval_brackets_are_dominated_by_the_box) | test(=curves_piece_coverage_meter::the_join_never_reads_below_the_chord_assemblies))) |
   (binary_id(sweep::all) & (test(=review_5956_r1_probes::r3_seeded_random_apex_poses_never_panic_or_mislead) | test(=a_cone_apex_on_a_plane_through_it::a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name) | test(=split_through_a_ruling::a_frustum_split_through_a_ruling_answers) | test(=band_strip_mouth_cups::a_cups_floor_a_hair_across_the_band_surface_crosses_and_one_inside_goes) | test(=band_turn_overrun_oracles::whole_rims_build_at_the_clip_oracle))) |
@@ -693,9 +797,9 @@ not (
   (binary_id(sweep::all) & test(=parallel_cylinder_join::rods_across_the_wall_join_along_their_rulings)) |
   (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
-  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
+  (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::tilted_cap_rows::a_tilted_boxed_cap_reads_only_its_members_side) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
   (binary_id(sweep::all) & (test(=volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks) | test(=volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies) | test(=volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume))) |
-  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
+  (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
   (binary_id(topo::all) & (test(=boxed_revolved_bodies_read_what_their_members_read::containment_about_a_boxed_rim_answers_as_its_members_do) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_about_a_boxed_frustum_and_sphere_cap_read_no_wrong_side) | test(=boxed_revolved_bodies_read_what_their_members_read::aims_beside_a_boxed_seams_vertices_read_no_wrong_side))) |
@@ -704,7 +808,15 @@ not (
   (binary_id(sweep::all) & test(=split_through_a_ruling::a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly)) |
   (binary_id(step-import::all) & test(=an_edge_is_read_on_its_description_whatever_recognition_says::a_straight_rim_recognition_declines_is_carried_on_its_column)) |
   (binary_id(editor-core::all) & (test(=a_symbolic_nodes_key_is_its_expression_and_its_number::a_nodes_values_with_no_expression_keep_their_names_whatever_was_minted_before) | test(=a_symbolic_nodes_key_is_its_expression_and_its_number::every_replay_of_one_document_has_one_key_per_node))) |
-  (binary_id(viewer::all) & test(=tree_badges::read_by_is_the_inverse_of_reads_over_the_corpus))
+  (binary_id(viewer::all) & test(=tree_badges::read_by_is_the_inverse_of_reads_over_the_corpus)) |
+  (binary_id(editor-core::all) & (test(=emit_sphere_cut_in_cap::a_sphere_cut_in_refuses_only_where_its_rows_are_filed) | test(=emit_sphere_cut_in_cap::the_holdings_over_a_cut_in_name_only_their_operands_faces) | test(=emit_union_borders::a_bar_that_divides_no_tied_face_leaves_the_tie) | test(=emit_union_borders::a_t_junction_divides_in_three) | test(=emit_union_borders::a_wall_through_a_notch_apex_names_alike_in_every_order) | test(=emit_union_flush_names::a_cut_a_covered_face_meets_is_one_divider_in_every_order) | test(=emit_union_flush_names::a_member_of_two_touching_shells_names_each_shell_for_itself) | test(=emit_union_flush_names::the_zip_document_publishes_one_table_in_every_order) | test(=emit_union_rim_piece_ranks::a_member_face_another_holds_is_a_constituent_in_every_order) | test(=fix_pattern_mate_crossing::a_top_seated_on_a_family_member_is_proven_by_its_mate) | test(=intent_s5_b_interference::a_pin_pressed_into_a_bore_is_quiet_under_its_gap) | test(=intent_s5_c_at_rest_check::a_contact_is_quiet_under_its_gap_and_nothing_else) | test(=m10_5_r2_probes_interval::the_combs_internal_gaps_answer_at_three_bounds) | test(=m10_5_r2_probes_interval::the_leaf_fold_answers_the_same_question_over_a_real_drive) | test(=m4_pr3_names_interval::f64_and_interval_lanes_emit_identical_name_tables) | test(=msolve2_member_chain::a1c_three_levels_deep_seat) | test(=p2_split::a_kept_placement_of_a_piece_of_a_cut_copy_splits) | test(=parallel_node_map_interval::the_shape_report_is_the_serial_walks_at_one_and_four_threads) | test(=part_depth_bound::a_loop_closing_at_the_bound_is_named_as_a_loop_and_one_past_it_is_too_deep) | test(=r2_m10_6_probes_interval::report_key_tells_the_dials_that_move_a_report_apart) | test(=resolve_group_membership::tied_groups_that_resize_unequally_decline_in_every_member_order) | test(=union_member_orders_decide_alike::a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order) | test(=union_member_orders_decide_alike::the_corpus_reaches_its_classes) | test(=value_chart_sweeps::a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously))) |
+  (binary_id(geom-brep::all) & (test(=cone_incidence_fuzz::an_uncovered_perturbed_section_lies_within_the_sliver) | test(=periodic_chart_closure::torus_chains_of_arcs_off_centre_measure))) |
+  (binary_id(geom-core::all) & test(=review_m5_pr7b_tensor::the_two_sided_pinch_on_the_adversarial_rational_fixture)) |
+  (binary_id(geom::all) & test(=curves_piece_coverage_meter::a_stall_in_any_piece_refuses)) |
+  (binary_id(stl::all) & test(=review_m3_pr55_e2e::die_from_raw_extrudes_watertight_stl)) |
+  (binary_id(sweep::all) & (test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::a_cylinder_plane_cusp_loses_its_horn_in_every_pose) | test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::the_valley_between_two_touching_tubes_fills) | test(=a_plane_across_a_one_face_wall::a_circle_edge_in_the_partners_face_builds) | test(=a_plane_holding_a_conic_tangent_at_a_vertex::a_tilted_plane_through_a_cap_vertex_cuts_by_the_arcs_bend) | test(=a_rim_in_a_face_beside_a_resting_ridge::a_rim_in_a_face_beside_a_resting_ridge_answers_every_op_as_before) | test(=a_vertex_on_a_grazing_plane::the_boolean_reads_a_grazing_vertex_against_its_section) | test(=a_vertex_on_a_grazing_plane::the_split_reads_a_grazing_vertex_against_its_section) | test(=an_aimed_ray_keeps_its_line_over_a_box::a_ray_whose_exit_moves_across_an_edge_over_the_box_is_set_aside) | test(=an_arc_loft_seams_its_rational_wall_at_every_spacing::the_carve_spacings_loft) | test(=band_co_requested_boundary::the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance) | test(=band_planar_cut_off_meters::a_far_side_peninsula_on_a_cross_chain_request_builds) | test(=band_planar_cut_off_shapes::end_faces_leaning_along_the_support_cut_both_verbs_at_the_centroid_length) | test(=band_planar_oblique_fillet::a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall) | test(=band_turn_overrun_fillet::a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too) | test(=band_turn_overrun_oracles::features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say) | test(=blend4_r1_probes::p2_slim_skews_carve_valid_or_refuse_typed_never_worse) | test(=blend_dual_tangent::an_upstream_size_tangent_reaches_through_the_blend) | test(=cell_region_bodies::a_full_revolve_is_sound) | test(=cert_m2r1_passes::m2r1_passes_interval) | test(=germ_cone_apex_closure::the_merged_full_cone_agrees_with_the_closed_form) | test(=germ_conic_plane_roots::every_op_answers_its_closed_form_when_the_outside_root_comes_first) | test(=join2_r2_probes::a_like_far_ends_tie_is_decided_by_the_partner_faces_trim) | test(=join_pierce_runs_sweep::a_pinchs_cones_share_one_point_key) | test(=join_pierce_runs_sweep::a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry) | test(=join_pierce_runs_sweep::four_germ_vertex_pairs_build_every_op) | test(=join_pierce_strut_facing::a_wide_run_builds_in_every_op) | test(=lamina_annulus::a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form) | test(=m6_surgery_interval::certified::interval_one_pip_composed_die_is_bracketed) | test(=n3r1_prune::n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one) | test(=parallel_cylinder_join::an_island_and_a_turned_pose_join_along_their_rulings) | test(=reach_wall_chord_rows::a_cube_touching_a_drum_at_a_corner_answers_its_closed_form) | test(=rehome_rings_lune::a_split_carries_a_lune_bore_with_its_half) | test(=rest_zip_admission::a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice) | test(=review_closed_chain_junctions_r1_probes::r1_five_and_six_arc_rims_carve_on_both_doors_and_both_sides) | test(=run_walls_built::seam_vertex_fires_only_where_rim_of_lists_the_rim) | test(=shallow_arc_extrude_grid_interval::the_shallow_arc_grid_census_is_mains_at_every_eps_row) | test(=shell8_dump::shell8_dump_hollow_and_opened_corpus) | test(=shell9_r1_probes::r1_rows_corpus) | test(=split_cylindrical_feature_box::a_box_with_a_bore_along_y_splits_on_the_cutaway_plane) | test(=split_section_rings::a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval) | test(=split_section_rings::an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling) | test(=split_through_a_ruling::a_counterbore_split_through_its_seam_ruling_answers) | test(=split_through_a_ruling::a_tube_split_through_its_seam_ruling_answers) | test(=torax_interval::interval_the_torus_barrel_hollows_and_encloses_its_corners) | test(=verbs_tubewall_r2_probes::r2_the_bore_has_a_nonempty_escalating_zone) | test(=verbs_tubewall_r2_probes::r2_the_wall_has_a_nonempty_escalating_zone) | test(=wedge_end_doors::a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule))) |
+  (binary_id(topo::all) & (test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_at_f64) | test(=a_vertex_read_by_two_sector_passes::standing_pyramids_folded_onto_the_plate_build_in_every_member_order) | test(=join_whole_orbit_rows::a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op) | test(=m3_pr3_split::a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch) | test(=m3_pr6_tier3prime::interval::tier3prime_interval) | test(=r1_mate8_decomp_probe::r1_stage2_completeness_randomized) | test(=review_m3_pr6::interval_r1::r1_interval_lane) | test(=split_through_an_apex::a_crown_whose_valleys_lie_in_the_plane_splits_sound) | test(=split_through_an_apex::an_edge_at_the_apex_in_the_plane_splits_sound_exact_and_near) | test(=split_through_an_apex::random_bases_with_corners_in_the_band_split_sound) | test(=union_flush_onto_edge_contact::carried_records_certify_every_order_of_the_fold) | test(=union_flush_onto_edge_contact::joined_folds_certify_and_build_one_body_in_every_order) | test(=union_flush_onto_edge_contact::two_dangling_null_edges_with_one_segment_build_in_every_op))) |
+  (binary_id(viewer::all) & (test(=mate_tool_flow::a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once) | test(=mate_tool_flow::a_pattern_placed_pick_is_a_target_the_shelf_rests_on)))
 )
 """
 

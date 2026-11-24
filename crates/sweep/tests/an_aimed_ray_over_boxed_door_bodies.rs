@@ -323,6 +323,155 @@ fn no_aim_of_a_boxed_door_body_reads_in() {
     }
 }
 
+/// How many of the slab's six aims read `Out` over depth `1 ± half`,
+/// and what the reader's own rays read ([`topo::test_support::aimed_rays`]).
+fn slab_reads(half: f64) -> (usize, Vec<String>) {
+    let slab = &shapes()[0];
+    assert_eq!(slab.name, "slab");
+    over(slab, 1.0 - half, 1.0 + half, |body, band| {
+        let each = topo::test_support::each_aim(body, band);
+        for r in &each {
+            assert!(kind(r) != "IN", "depth 1 ± {half}: a wrong side: {r}");
+        }
+        (
+            each.iter().filter(|r| kind(r) == "out").count(),
+            topo::test_support::aimed_rays(body, band),
+        )
+    })
+    .expect("the door builds a slab")
+}
+
+/// **The door's slab reads its side by its caps' rays over a box half
+/// its depth wide.** The extrude door's leaf at the symbolic box scalar,
+/// its plane normals and edge lines the door's own, depth `1 ± 0.25`
+/// and `1 ± 0.3`: both caps' rays read `Out`, the four walls' are set
+/// aside, and the reader's rays answer `Out` (no volume). Every member
+/// is a solid whose side at infinity is `Out` (three are read at `f64`).
+///
+/// **Red, each under one reading put back as it was** in `topo`:
+/// - the loops' turn read on all three components
+///   (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
+///   no ray reads at either width;
+/// - the aim's step reading `solid_contain::edge_clearance` with no
+///   normal (`None` for `Some(normal)` in `loop_aim`): at `± 0.3`
+///   the top cap's ray is set aside on the turn of its own loop.
+///
+/// The walls' rays are not asked for: a wall's aim hangs a fixed step
+/// under its moving top edge
+/// (`work/boxfinish/a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide.md`).
+#[test]
+fn a_door_slab_reads_its_side_by_its_caps_rays_over_a_wide_box() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    for depth in [0.75, 1.0, 1.25] {
+        let member = prism::<f64>(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .iter()
+                .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                .collect(),
+            depth,
+            tol,
+        );
+        assert_eq!(
+            topo::test_support::aimed_rays(&member, band),
+            ["Ok(Side(Out))"],
+            "the member of depth {depth}"
+        );
+    }
+    for half in [0.25, 0.3] {
+        let (out, rays) = slab_reads(half);
+        assert_eq!(
+            out, 2,
+            "depth 1 ± {half}: both caps' rays read, the walls' do not"
+        );
+        assert_eq!(
+            rays,
+            ["Ok(Side(Out))"],
+            "depth 1 ± {half}: the reader's rays"
+        );
+    }
+}
+
+/// **A ray whose own crossing is as wide as the box reads no pair.** At
+/// depth `1 ± 0.45` the top cap's ray reaches its count with its own
+/// crossing enclosed half a depth either side of its aim, across its
+/// exit through the bottom cap: how far apart the two lie along the ray
+/// is an enclosure from below zero to past the slab, which is no
+/// reading that the caps lie in band of each other. The ray is set
+/// aside; the bottom cap's reads `Out`. At `1 ± 0.5` no ray reads, and
+/// the reader's rays are unread, so the volume is asked: they do not
+/// refuse on a pair.
+///
+/// **Red where `side_reader::aimed_ray` takes a pair on any undecided
+/// gap** (the `in_band` test on the gap `RayHit::pair_as` hands back
+/// removed): the top cap's ray reads `Pair` at `± 0.45`, and at `± 0.5`
+/// the reader refuses `InBand` on caps half a depth apart.
+#[test]
+fn a_ray_whose_own_crossing_is_as_wide_as_the_box_reads_no_pair() {
+    let slab = &shapes()[0];
+    for (half, read) in [(0.45, "Ok(Side(Out))"), (0.5, "Ok(Unread {")] {
+        let (each, rays) = over(slab, 1.0 - half, 1.0 + half, |body, band| {
+            (
+                topo::test_support::each_aim(body, band),
+                topo::test_support::aimed_rays(body, band),
+            )
+        })
+        .expect("the door builds a slab");
+        for r in &each {
+            assert!(
+                kind(r) != "pair" && kind(r) != "IN",
+                "depth 1 ± {half}: a pair, or a wrong side: {r}"
+            );
+        }
+        assert!(
+            rays.len() == 1 && rays[0].starts_with(read),
+            "depth 1 ± {half}: the reader's rays read {rays:?}"
+        );
+    }
+}
+
+/// **A prism whose walls' normals sit on a frame's seam reads its side
+/// by its rays at `Interval`.** The unit square on the sketch plane
+/// spanned by `(2/3, 2/3, 1/3)` and `(1/3, −2/3, 2/3)`, each third an
+/// enclosure a rounding wide, extruded by `1`: two of its walls are
+/// square to `(2/3, 2/3, 1/3)`, where `Vec3::orthonormal_basis` chooses
+/// between its two frames on `|n_z| − max(|n_x|, |n_y|)/2`, which is
+/// zero there. An enclosure of that normal selects both frames, and a
+/// reading taken on that frame is as wide as the two are apart.
+///
+/// **Red where the loops' turn is read on the normal's frame** (the
+/// components of `u` and `w` along `normal.orthonormal_basis()` in
+/// `solid_contain::planar_cross_dot`): every ray is set aside on the turn of a
+/// seam wall, and the reader falls to the volume.
+#[test]
+fn a_prism_with_walls_on_the_frame_seam_reads_by_its_rays_at_interval() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let iv = Interval::from_f64;
+    let (third, two_thirds) = (iv(1.0) / iv(3.0), iv(2.0) / iv(3.0));
+    let u = Vec3::new(two_thirds, two_thirds, third);
+    let v = Vec3::new(third, iv(0.0) - two_thirds, two_thirds);
+    let plane =
+        sweep::test_support::sketch_from_axes(Point3::new(iv(0.25), iv(-0.5), iv(1.0)), u, v, tol);
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .iter()
+        .map(|&(x, y)| (Point2::new(iv(x), iv(y)), iv(0.0)))
+        .collect();
+    let profile = Profile::new(plane, vec![bulge_loop(square)])
+        .validate(tol)
+        .unwrap();
+    let extrusion = Extrusion::Distance {
+        depth: iv(1.0),
+        side: ExtrudeSide::Along,
+    };
+    let body = extrude(&profile, extrusion, tol).unwrap().body.into_body();
+    assert_eq!(
+        topo::test_support::aimed_rays(&body, band),
+        ["Ok(Side(Out))"],
+        "the reader's rays"
+    );
+}
+
 /// **Rays aimed anywhere about a boxed body, from any normal, read no
 /// `In`** (counterexample search, shape 1). Half the aims are drawn in
 /// the body's bounding box grown by a fifth; the other half are points
