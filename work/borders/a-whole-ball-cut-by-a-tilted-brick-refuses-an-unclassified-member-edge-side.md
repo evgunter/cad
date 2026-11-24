@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-13
 priority: P2
 cost: M
-blocked_on: [closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut]
+blocked_on: [a-conventional-vertex-mints-no-edge-derived-name]
 ---
 
 
@@ -149,3 +149,7 @@ PR 5829 builds option 2. A re-charted ball's turned seam edges and poles refuse 
 ## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
 
 That branch takes answer (3): it retires the re-chart and cuts every sphere escape in on the ball's own chart. `NamingError::UnsupportedTurnedCell` goes with it, and the ball's seam and poles stay where the ball has them. The document now meets exactly the cut-in rows this row predicted for (3). Both intersects and brick − ball refuse `ConventionalVertex` (`work/borders/a-conventional-vertex-mints-no-edge-derived-name.md`). Both unions and ball − brick refuse `Emission("a chart cut survives in the result")` (`work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md`). `emit_ball_cut_by_brick.rs` pins those six cases as `a_ball_cut_by_a_brick_refuses_only_where_its_rows_are_filed`, beside `emit_sphere_cut_in_cap.rs`'s lens. When that branch lands, this row's trigger fires. What still refuses then is those two rows' ground, not this one's.
+
+## Re-parked (2026-11-24, ORBIT)
+
+The re-chart is retired by PR 7602. With PR 7664 (the transient chart cut) the ball-and-brick document reaches naming under every op, and refuses at the section circle's conventional vertex. So this row now waits on `a-conventional-vertex-mints-no-edge-derived-name` (ORBIT, P0). Once that lands, read whether UNCLASSIFIED_SIDE still occurs. (ORBIT orchestrator)
