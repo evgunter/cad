@@ -2,11 +2,14 @@
 id: ray-torus-count-certifies-on-an-uncharged-discriminant
 kind: issue
 title: The quartic ladder's rung 1 certifies a root count on f64 discriminant noise far past the band; at R = 1e6 a ray gets a silent wrong Miss
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
+closed: 2026-11-25
 refs: [the-half-angle-ladder-certifies-in-band-configurations, line-torus-roots-may-certify-noise-when-the-line-origin-is-far, classification-invariant-family-types-bug-only-states-against-d9-row-4]
+pr: 7754
+branch: inside/quartic-disc-rounding
 ---
 
 
@@ -101,3 +104,24 @@ for `Δ > 0` four roots iff `p < 0` and `64s − 16p² < 0`.
 `reduce.rs` `line_roots` answers `CountDisagrees` with
 `ClassificationInvariant` and the kernel-defect ending, which is true:
 the cause is this defect.
+
+## Closed by INSIDE (2026-11-25)
+
+On branch `inside/quartic-disc-rounding`, `depressed_quartic_roots`
+reads `Δ` and `D` (and the biquadratic arm's `p² − 4s = −D/16`) exactly on
+the `f64` coefficients: `geom_core::Real::quartic_sign_algebra`, whose
+`f64` value is the exact expansion rounded once (re-posed per
+`[simple.conditioned]` rather than charged). So the count a definite
+sign certifies is the coefficients' own. Rows 1–3 are closed. On a fresh
+near-tangent probe at `(1e6, 1e4)`, main had certified 1173 `Miss`es on
+two-root coefficients out of 200k rays, some of those rays crossing the
+tube by 6.4e-7 m, plus 20 `CountDisagrees`. After the change, 50k-ray
+probes at each of `R = 1, 1e3, 3e4, 1e6` find no certified count the
+coefficients contradict. The pins are
+`torus_predicate_rows::a_crossing_ray_is_no_miss_on_its_quartics_rounding`
+(seven such rays, each with its exact count asserted),
+`a_lanes_coefficients_certify_their_exact_count_or_none` and
+`a_far_rays_in_band_discriminant_escalates`; the exact reading's own row
+is `geom_core::exact` `a_quartics_sign_algebra_keeps_its_digits`.
+Rows 4–5, the coefficients' formation, are
+`line-torus-coefficients-lose-a-shallow-crossing-to-their-formation`.

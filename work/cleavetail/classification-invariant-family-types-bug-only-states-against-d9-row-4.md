@@ -63,12 +63,20 @@ The shared quartic ladder (`solid_contain.rs` `depressed_quartic_roots`)
 reads its count off `Δ`'s sign, and `Δ`'s `f64` rounding (3e-7 to 6e-6 in
 `Δ/L¹¹`, against a 1e-8 band) is charged to no decision. Counted exactly,
 the four quartics the half-angle lane hands it
-(`torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`)
+(`torus_predicate_rows::a_lanes_coefficients_certify_their_exact_count_or_none`)
 have 2, 4, 4 and 4 real roots. The factorization builds those counts; the
 sign ladder certified 4, 2, 2, 2. A ray at `R = 1e6`, `r = 1e4` reaches it
-too (`a_far_ray_reaches_the_count_disagreement`). The same defect also
+too (`a_far_rays_in_band_discriminant_escalates`). Rung 1 now reads
+`Δ` exactly, and each of these certifies its exact count or reads in band. The same defect also
 gives silent wrong `Miss` answers that no rung sees. INSIDE's P1
 `ray-torus-count-certifies-on-an-uncharged-discriminant` owns the fix.
+
+(2026-11-25, INSIDE.) That row is closed (PR 7754): `Δ` and `D` are read
+exactly on the coefficients (`geom_core::Real::quartic_sign_algebra`), so the
+wrong `Miss` past the band no longer occurs on the kernel's coefficients.
+What remains, a shallow in-band crossing lost to the coefficients' own
+formation, is INSIDE's P2
+`line-torus-coefficients-lose-a-shallow-crossing-to-their-formation`.
 
 - **C17** (`point_in_solid`'s torus arm): `PointInSolidError::RootCountDisagrees
   { face, certified, constructed }`. It blocks that ray (`confined`,
