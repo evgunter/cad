@@ -1800,7 +1800,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// below keeps its original minter. Which edge it is decides which of
 /// the input's names come through.
 #[derive(Debug)]
-pub(crate) enum VerbatimEdge<'a> {
+pub enum VerbatimEdge<'a> {
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
     /// is the geometry's answer, not the recipe's: a walk that holds a
@@ -1837,7 +1837,8 @@ impl VerbatimEdge<'_> {
     /// **The read whose names the edge carries**: the split's target,
     /// the mirror's body, the copy's source; `None` for an instance,
     /// whose names are its part's and are read in no body here.
-    pub(crate) fn carried_read(&self) -> Option<crate::VarId> {
+    #[must_use]
+    pub fn carried_read(&self) -> Option<crate::VarId> {
         match *self {
             Self::Intact { target } => Some(target),
             Self::Reflected { body, .. } => Some(body),
@@ -1870,7 +1871,8 @@ impl VerbatimEdge<'_> {
 /// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
-pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+#[must_use]
+pub fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
@@ -2659,6 +2661,17 @@ impl SegRewrite for Locators<'_> {
 }
 
 impl RoleSeg {
+    /// **The profile pieces this segment's own locators rest on**: the
+    /// run a swept wall, rim, meridian or axis edge is built over, the
+    /// piece that starts at a corner it sits at, the pieces a loft
+    /// pairs; none for a segment that carries no locator. The cited
+    /// names a segment carries (a `From`'s, a `Merged` set's) are not
+    /// this segment's locators, and are not walked.
+    #[must_use]
+    pub fn pieces(&self) -> Vec<ProfileEdgeRef> {
+        self.referents().iter().flat_map(Referent::pieces).collect()
+    }
+
     /// **What this segment's own profile locators denote** ([`Referent`]):
     /// a run-carrying segment its run, a vertex an extrude or a revolve
     /// builds only at a corner that corner, a loft's pairings their
