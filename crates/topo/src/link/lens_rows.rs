@@ -1628,7 +1628,7 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>(i
     for (at, p) in apexes::<T>().into_iter().enumerate() {
         // A kilometre off on `Interval` at the finest band, a turned
         // link's own rays read in band of its own planes
-        // (`work/contacthold/a-turned-link-a-kilometre-off-reads-its-own-rays-in-band-on-interval.md`).
+        // (`work/censusread/a-turned-link-a-kilometre-off-reads-its-own-rays-in-band-on-interval.md`).
         // Taken only by the readings that reach that leg: a turned ridge
         // that rests, and the four refusals named below.
         let fine = interval && at == 1 && Tol::witness().eps() <= 1e-12;

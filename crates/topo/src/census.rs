@@ -653,7 +653,7 @@ impl CensusTrace {
 /// plane; pruning drops only such spurious escalations), admitted as
 /// such by the differential suites, never absorbed. No row exhibits a
 /// member of the class
-/// (`work/contacthold/the-census-filters-named-difference-has-no-witness-row.md`).
+/// (`work/censusread/the-census-filters-named-difference-has-no-witness-row.md`).
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is

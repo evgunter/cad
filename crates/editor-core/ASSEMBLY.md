@@ -639,7 +639,7 @@ solids (a census escalation, a pair it had no lane for, a stale record of a
 vertex or an edge) is inside no one arrival, and is kept: one the census
 re-finds inside an instance's copy is reported as the host's beside the
 part's carried row, until the finding names its pair and the discard
-places it (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+places it (`work/censusread/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's spaces other than its
 world, and the rows
 of a part read one member at a time rather than whole
