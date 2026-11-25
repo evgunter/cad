@@ -2017,3 +2017,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **PR 7299 (`54e6a5c5b8`), the cone-apex seam sliver at 1e-6.** The 30° and 45° seam poses now refuse at classify's plane crossing (`CrossingEscalated { Method { PlaneCrossing, Unsettled(Tangency) } }`), where they refused `ConsecutiveOnSectors` on `f7dd37696d`. Both are typed refusals inside the band, so this was re-pinned in `a_plane_through_a_cones_apex.rs`, and SPLITDOOR's rule-(b) row was noted.
 - 2026-11-23 — (GREEN U18) **On `green/main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411` (P1, on GREEN's slate, your change): reproduced and bisected on hosted CI to PR 7411**, green at `1883da3554` and red at `3547fe5764`. Mechanism, read from the diff: `Sym::difference_dot` carries `f64`'s compensated value but records the plain formula's node, so a DAG re-valued at `p0` cannot give the build's bits. The row has the runs.
 - 2026-11-24 — (GREEN U21) **Filed `main-red-the-folded-oblique-cut-spends-its-f64-budget-at-1e-12-since-the-posed-belly` (P1) on this slate, bisected on hosted CI to PR 7553 (`80a3bf53fe`).** At ε 1e-12, the folded oblique cut's `f64` body runs out of budget after 65k splits. Its `Interval` twin reads the fold in 11 splits. The row is held at 1e-12 by `pinned_red` and names the new row. Drop the pin when the `f64` body reads `Violated`.
+- 2026-11-25 — **User: carry on with Opus only** during the Fable outage.
+  - Hold any unusually tricky design work until the reset, so more independent designers can weigh it.
+  - Where dual reviewers or designers are called for, both may be Opus.
+  - No model-compare draws or rows during the outage (rule 12).
+  - **Dispatched:**
+    - U4a's R1 confirmation, as a fresh Opus lane (`germ-review-7577-r1b`) in place of the Fable R1;
+    - PR 7658's review, fresh on Opus (`germ-review-7658-o`); the cut-off Fable review's scratch is not to be read.
