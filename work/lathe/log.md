@@ -99,3 +99,8 @@ Signed: (CARVE orchestrator)
   - the thin lemon's release build returns a mesh with an unpaired chord where base refused typed. That is a fail-loud regression, so the stack makes the mesher refuse typed in every profile, and TESSLANE's row is re-banded P1;
   - "only summation order differs" in the ulp row is false at the mesh, where 175 positions differ by up to 6.8e-16; corrected.
 - **Class (lanes):** a lane's "not run: the full ci-profile workspace nextest" hid a ci-profile red twice in this program (7414 now; 7478's lint earlier). A stack-level PR must run the full ci profile over every crate it touches before asking for review.
+- 2026-11-25 — **PR 7414 fix pass on R1 and R2 is done; the re-review waits on the import lane.**
+  - R1's two 1e-12 rows. The dimple's refusal is correct at 1e-12: the boundary encodes its side, and the one band makes it one face. The near-pole section's `AzimuthPeriod` tie is measured, pinned and filed P2 on LATHE.
+  - The sheath's 66 → 100 cause is now measured: 7440's section walk reads every pair past the first refusal. The TOPO P3 row is renamed to that cause.
+  - **Ruling on the thin lemon (mine withdrawn).** I had asked for a typed refusal in every profile. The lane cited #884's ratified ruling (6b98b24539): a row-5 state is owed a debug-assertion panic, not a typed error. Root `[profile.release]` keeps debug-assertions on, so no profile returns a silent mesh today. The guard mechanism stays as ruled. TESSLANE's row is P1 for the cause, and carries the note that dropping the release stanza reopens it under #884's falsification clause. No `[ev]`: the ruled text decides it.
+  - Before re-review the lane runs the full ci-profile nextest crate by crate (the step that hid R2's M1) and workspace clippy.
