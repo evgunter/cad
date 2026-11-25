@@ -123,7 +123,7 @@ pub(in crate::boolean) fn sweep(
 /// was never recorded and nothing refused.
 ///
 /// Mutant: the arm's in-plane branch back to `continue` leaves
-/// `a_on_b` without `(w, G)`.
+/// `on(A)` without `(w, G)`.
 #[test]
 fn a_rim_arc_in_the_face_plane_records_its_valence_two_vertex() {
     let (a, w) = split_sheet();
