@@ -234,7 +234,7 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// halved — and the module's own row checks that against the fit
 /// rather than assuming it.
 ///
-/// It ends with the closing mint: every cap edge's row derives and
+/// It ends with a whole-body mint: every cap edge's row derives and
 /// certifies on the fit's chart, so the body is valid at rest and weighs.
 pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     let approx = geom_brep::approx_offset_surface_at(

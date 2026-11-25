@@ -807,7 +807,7 @@ impl EdgeTangentUnread {
 /// the refusals into "the geometry cannot be decided" and "the
 /// schedule stopped", because that partition is not clean:
 /// [`MissingCache`](ChartRegionError::MissingCache) is a fact about
-/// the BODY (re-mint its pcurves),
+/// the BODY (complete its rows: finish it),
 /// [`Corrupt`](ChartRegionError::Corrupt) is a kernel-invariant
 /// violation, and [`RayExhausted`](ChartRegionError::RayExhausted) is
 /// named for exhaustion and is not one.
@@ -4059,6 +4059,12 @@ fn incidence_ending(read: geom_brep::IncidenceRead) -> (&'static str, Cow<'stati
     )
 }
 
+/// Whether `at` is the at-rest door, whose ending a pcurve finding takes
+/// from the table ([`classify_pcurve`]).
+fn read_at_rest(at: geom_brep::recourse::ReadAt) -> bool {
+    at == geom_brep::recourse::ReadAt::Run(Reading::AtRest)
+}
+
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
@@ -4070,7 +4076,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         | M::LoopNotClosed { .. }
         | M::MissingCache { .. }
         | M::RowInterval { .. } => (WRONG, DEFECT),
-        // Every row derives and certifies; the producer did not mint.
+        // Every row derives and certifies; the body reached tier 3
+        // without the finish that completes it.
         M::Unminted { .. } => (
             "a curved face stores no certified boundary description",
             DEFECT,
@@ -4985,7 +4992,15 @@ impl ValidationError {
                 )
             }
             Self::Pcurve { finding } => {
-                let (why, recourse) = classify_pcurve(finding);
+                let (why, at_rest) = classify_pcurve(finding);
+                // Read at another door — a build's, or the import door,
+                // where a row derived from the file is the file's (D4 ¶1
+                // (iv)) — the finding ends by its own ending there; a
+                // torn arm, which has none, by the table's.
+                let recourse = match at {
+                    Some(at) if !read_at_rest(at) => finding.ending(at).map_or(at_rest, Cow::Owned),
+                    _ => at_rest,
+                };
                 write!(
                     f,
                     "a face's boundary could not be mapped onto its surface: {why}. {recourse}"
@@ -10698,10 +10713,11 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     ///
     /// # Errors
     ///
-    /// [`crate::MoveError::Map`] where the data map refuses: under a
-    /// reflection a re-minted pcurve row ([`crate::mirror`]).
+    /// [`crate::MoveError::Map`] where the data map refuses.
     /// [`crate::MoveError::NotFinished`] holding the session-box finding,
-    /// or the band's where the tolerance forms none.
+    /// or the band's where the tolerance forms none; under a reflection,
+    /// beside completion's refusal of a row the image derives again
+    /// ([`crate::mirror`] drops the rows).
     pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::MoveError>
     where
         T: crate::props::AtRestPolicy,

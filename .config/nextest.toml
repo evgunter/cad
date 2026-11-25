@@ -498,6 +498,12 @@ failure-output = "immediate-final"
 #   0.25 / 0.42 s  sweep::all a_plane_holding_a_conic_tangent_at_a_vertex::a_tilted_plane_through_a_cap_vertex_cuts_by_the_arcs_bend
 #   0.33 / 0.25 s  editor-core::all emit_union_flush_names::a_cut_a_covered_face_meets_is_one_divider_in_every_order
 #   0.31 / 0.25 s  viewer::all mate_tool_flow::a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once
+# The finish-completes guards, each reading every crate's sources, and
+# the fill row's whole derivation over four fixtures (PR 7497's hosted
+# run, the gate's per-new-test bar):
+#    1.22 s  topo pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass
+#    0.74 s  topo finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf
+#    0.58 s  sweep::all completion_refuses_a_stale_row::a_fill_matches_the_whole_derivation
 # Timed alone by the gate on PR 7750, which edits their file:
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders
@@ -506,6 +512,8 @@ failure-output = "immediate-final"
 default-filter = """
 not (
   (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
+  (binary_id(topo) & (test(=pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass) | test(=finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf))) |
+  (binary_id(sweep::all) & test(=completion_refuses_a_stale_row::a_fill_matches_the_whole_derivation)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_images_exactly_at_f64_and_interval) | test(=pcurve_cache::envelope_lemma_fuzz::projected::a_carrier_on_its_chart_pinned_where_the_frame_cost_refuses))) |
   (binary_id(sweep::all) & (test(=m5_s11_concave_sense::the_level_set_oracle_agrees_with_the_extruded_twin) | test(=one_segment_loop::one_segment_circles_revolve_at_interval) | test(=turning_orientation::an_inflecting_path_sweep_faces_out_through_the_reversal) | test(=vrev_acceptance_set::a_lofted_walls_v_knots_are_symmetric_up_to_six_sections))) |
   (binary_id(sweep::all) & (test(=a_rim_arc_on_a_cylinder_beside_a_spline_wall::the_tube_walls_sub_arc_joints_are_smooth_edges) | test(=degree1_loft_slabs::an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two) | test(=encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row) | test(=one_segment_loop::a_lofted_one_segment_section_is_four_quarter_walls) | test(=one_segment_loop::every_one_segment_circle_stack_builds_at_every_degree) | test(=pinned_corners_at_the_loft_door::a_full_turns_pinned_vertex_builds) | test(=pinned_corners_build::a_pinned_sub_arc_joint_builds_as_a_pinned_corner))) |
