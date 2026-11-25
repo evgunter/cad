@@ -87,6 +87,25 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         }
     }
 
+    /// **The map from `other`'s body coordinates into this one's**:
+    /// `self⁻¹ ∘ other`, composed through the reader's frame the two
+    /// seats share, `None` where both are read in it as they stand.
+    ///
+    /// # Errors
+    ///
+    /// The inverse's or the composition's overflow.
+    pub(crate) fn relative(
+        &self,
+        other: &Seat<'_, T>,
+    ) -> Result<Option<RigidMotion<T>>, RigidMotionError> {
+        Ok(match (self.at, other.at) {
+            (None, None) => None,
+            (None, Some(b)) => Some(b),
+            (Some(a), None) => Some(a.inverse()?),
+            (Some(a), Some(b)) => Some(a.inverse()?.compose(b)?),
+        })
+    }
+
     /// **A point of the reader's frame, in the body's own coordinates**:
     /// where a reading within the body (a vertex's link) is asked about
     /// another operand's point. The inverse is taken here, so a reader

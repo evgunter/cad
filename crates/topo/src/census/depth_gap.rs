@@ -9,7 +9,9 @@
 //! ([`gaps_in_depth`]) at a face pair's root, against the bound it was
 //! asked, and discharges the root on one
 //! (`crate::clearance`'s `parted_in_depth`): the embedding certificate
-//! and every metric clearance bound rest on it. What a face proposes
+//! and every metric clearance bound rest on it. The census reads two
+//! bodies in one frame; the engine reads each face from its side's seat
+//! ([`Seat`]), a side read through a motion among them. What a face proposes
 //! ([`face_read`]) and what is taken off a gap (the pads below) change
 //! both readers' answers.
 //!
@@ -20,6 +22,12 @@
 //! the other's least, no point of one is a point of the other, and the
 //! two are at least that gap apart. A gap is all that is read: no depth
 //! says two faces meet.
+//!
+//! **Each depth is read in its face's own coordinates**
+//! (`[placement.frame]`): where the two faces' bodies stand in two
+//! frames, a site one face proposes is carried into the other's
+//! coordinates through the two seats' relative motion
+//! ([`Around::moved`]), which keeps every distance.
 //!
 //! **Which depths.** Each face of the pair proposes every site its cover
 //! is measured about ([`Cover::about`]: a cylinder wall's or a cone's
@@ -51,13 +59,14 @@
 //! covers are measured about ([`Cover::about`]) aim more ([`across`]). That proposes; it decides nothing.
 
 use geom::cover::{Around, Cover, Site};
-use geom_core::{Band, Decide, Point3, Vec3, is_finite_length};
+use geom_core::{Band, Decide, Point3, RigidMotion, Vec3, is_finite_length};
 
 use crate::body::Body;
 use crate::boxes::sweep_pad;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
+use crate::seat::Seat;
 
 /// K name: the gap between one face's least depth and the other's
 /// greatest, less both faces' pads (metres).
@@ -217,66 +226,83 @@ fn clears<T: Decide>(gap: T, band: Band) -> bool {
     crate::validate::definitely_positive(DEPTH_GAP, gap, band)
 }
 
-/// An upper bound on `proposed`'s depth over the face read as `read`.
-fn greatest_on<T: Decide>(read: &Read<T>, proposed: &Proposed<T>) -> Option<T> {
-    greatest([Some(read.cover.range_about(&proposed.depth).1)].into_iter())
+/// An upper bound on the depth about `around` over the face read as
+/// `read`, `around` in the face's coordinates.
+fn greatest_on<T: Decide>(read: &Read<T>, around: &Around<T>) -> Option<T> {
+    greatest([Some(read.cover.range_about(around).1)].into_iter())
 }
 
-/// A lower bound on `proposed`'s depth over the face `f`, read as
-/// `read`; `None` for a face with no claim.
+/// A lower bound on the depth about `around` over the face `f`, read as
+/// `read`, `around` in the face's coordinates; `None` for a face with
+/// no claim.
 fn least_on<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
     read: &Read<T>,
-    proposed: &Proposed<T>,
+    around: &Around<T>,
     band: Band,
 ) -> Option<T> {
-    let near = match proposed.depth {
+    let near = match *around {
         Around::Line(line) => face_nearest(body, f, &read.cover, &Site::Line(line), band),
         Around::Point(center) => face_nearest(body, f, &read.cover, &Site::Point(center), band),
-        Around::Circle(_) => read.cover.range_about(&proposed.depth).0,
+        Around::Circle(_) => read.cover.range_about(around).0,
     };
     greatest([Some(near)].into_iter())
 }
 
 /// **Each gap in depth between two faces**, read as `ra`, `rb`
-/// ([`face_read`]), each in its own body.
+/// ([`face_read`]) off the bodies of their seats, each in its body's
+/// coordinates.
 ///
-/// **Precondition: the two bodies' coordinates are one frame.** A
-/// read is a face's cover in its body's coordinates and carries no
-/// placement, so two bodies posed apart read as if they were not, and
-/// a gap between them is no bound. A caller that holds either face
-/// through a motion must not ask. Nothing here can check it: neither
-/// a read nor a body says what frame it is in.
-///
-/// For each depth either
-/// proposes and each order of the two, one face's least depth less the
-/// other's greatest, less both faces' pads, where both are read. A gap
-/// that is positive bounds the faces' separation from below; any other
-/// says nothing of the pair.
+/// For each depth either proposes and each order of the two, one face's
+/// least depth less the other's greatest, less both faces' pads, where
+/// both are read; each face's depth about the site is read in its own
+/// coordinates, the site carried into the other's through the seats'
+/// relative motion ([`Seat::relative`]). A gap that is positive bounds
+/// the faces' separation from below; any other says nothing of the
+/// pair, and a relative motion that does not hold finite numbers
+/// yields no gap.
 ///
 /// # Panics
 ///
 /// As [`face_read`].
 pub(crate) fn gaps_in_depth<'r, T: Decide>(
-    (body_a, a, ra): (&'r Body<T>, FaceKey, &'r Read<T>),
-    (body_b, b, rb): (&'r Body<T>, FaceKey, &'r Read<T>),
+    (seat_a, a, ra): (Seat<'r, T>, FaceKey, &'r Read<T>),
+    (seat_b, b, rb): (Seat<'r, T>, FaceKey, &'r Read<T>),
     band: Band,
 ) -> impl Iterator<Item = T> + 'r {
-    ra.depths
-        .iter()
-        .chain(&rb.depths)
-        .flat_map(move |proposed| {
-            // A least bound costs a point placement, so it is read only
-            // against a greatest the other face has.
-            [((body_b, b, rb), ra), ((body_a, a, ra), rb)]
-                .into_iter()
-                .filter_map(move |((body, f, lo), hi)| {
-                    let hi = greatest_on(hi, proposed)?;
-                    let lo = least_on(body, f, lo, proposed, band)?;
-                    Some(gap(hi, lo, band))
-                })
+    let (body_a, body_b) = (seat_a.body(), seat_b.body());
+    let carry =
+        |into: Option<RigidMotion<T>>, site: Around<T>| into.map_or(site, |m| site.moved(&m));
+    // Each site either face proposes, in `a`'s coordinates and in `b`'s.
+    let sites = (seat_a.relative(&seat_b).ok())
+        .zip(seat_b.relative(&seat_a).ok())
+        .into_iter()
+        .flat_map(move |(into_a, into_b)| {
+            let of_a = ra
+                .depths
+                .iter()
+                .map(move |p| (p.depth, carry(into_b, p.depth)));
+            let of_b = rb
+                .depths
+                .iter()
+                .map(move |p| (carry(into_a, p.depth), p.depth));
+            of_a.chain(of_b)
+        });
+    sites.flat_map(move |(in_a, in_b)| {
+        // A least bound costs a point placement, so it is read only
+        // against a greatest the other face has.
+        [
+            ((body_b, b, rb, in_b), (ra, in_a)),
+            ((body_a, a, ra, in_a), (rb, in_b)),
+        ]
+        .into_iter()
+        .filter_map(move |((body, f, lo, lo_at), (hi, hi_at))| {
+            let hi = greatest_on(hi, &hi_at)?;
+            let lo = least_on(body, f, lo, &lo_at, band)?;
+            Some(gap(hi, lo, band))
         })
+    })
 }
 
 /// **Whether the faces `a` of `x` and `b` of `y`, read as `ra`, `rb`
@@ -292,7 +318,7 @@ pub(super) fn apart_in_depth<T: Decide>(
     (y, b, rb): (&Body<T>, FaceKey, &Read<T>),
     band: Band,
 ) -> bool {
-    gaps_in_depth((x, a, ra), (y, b, rb), band).any(|gap| clears(gap, band))
+    gaps_in_depth((Seat::own(x), a, ra), (Seat::own(y), b, rb), band).any(|gap| clears(gap, band))
 }
 
 /// [`toward`], then [`across`].
