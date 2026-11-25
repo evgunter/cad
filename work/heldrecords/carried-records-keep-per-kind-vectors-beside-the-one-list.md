@@ -40,3 +40,16 @@ operand) through the op door and the carry, with the per-kind reads
 derived from it, and give the reduction's A×B face pair its own type.
 
 Moved from `work/contacthold/` to `work/heldrecords/` on 2026-11-25, when CONTACTHOLD closed (`docs/doc-ledger/contacthold-leaves-the-tracker.md`); id unchanged. The cleanup re-read the row against main at `6003877ad` and found it live. Re-banded P3 → P1 and priced H: one list's logic is hand-written beside per-kind vectors in seven places, and grows with every record kind (P1: two implementations of one logic).
+
+## 2026-11-25 — one list through the door and the carry
+
+`OperandRecords` and `ops::Rows` are one list of `Contact` rows
+(`CarriedRecord { contact, record }`, `Cited<Contact>`), filed in the
+carry's kind order (`Contact::carry_order`, `records::file_by_kind`),
+so every list reads in the order the per-kind vectors concatenated to.
+`ReductionContacts` is one list of operand-tagged cell pairs, its kind
+read once (`row_kind`); `vv`, `on`, `ee`, `ff` and `lying_in` are
+derived reads and `rows()` keeps its kind order. The reduction's A×B
+face pair is `TangentFaces`; `VeContact` and the carried `FfContact`
+are gone, a carried pair being a `Contact`. The seven arms, and the
+material's and the n-ary split's, are one each.

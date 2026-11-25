@@ -48,17 +48,18 @@ fn seat(z0: f64, h: f64) -> (AtRestBody<f64>, OperandRecords) {
         .filter(|&f| body.face_surface(f).unwrap().kind() == geom::SurfaceKind::Cylinder)
         .map(|f| (f, body.solid_of_face(f).unwrap()))
         .collect();
-    let mut records = OperandRecords::default();
+    let mut rows = Vec::new();
     for &(x, sx) in &walls {
         for &(y, sy) in &walls {
             if x < y && sx != sy {
-                records.push(topo::CarriedRecord {
+                rows.push(topo::CarriedRecord {
                     contact: topo::Contact::new(&body, Cell::Face(x), Cell::Face(y)).unwrap(),
-                    record: u32::try_from(records.rows().len()).unwrap(),
+                    record: u32::try_from(rows.len()).unwrap(),
                 });
             }
         }
     }
+    let records = OperandRecords::from_iter(rows);
     assert!(!records.is_empty(), "the premise: the walls meet");
     (body, records)
 }

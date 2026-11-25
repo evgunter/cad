@@ -575,9 +575,13 @@ fn review_sixx_counter_reads_the_pr_pose() {
 }
 
 fn rest_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
-    let mut carried = records.carried();
-    carried.retain(|c| matches!(c.contact.kind(), topo::ContactKind::VertexVertex(..)));
-    carried
+    records
+        .carried()
+        .rows()
+        .iter()
+        .filter(|c| matches!(c.contact.kind(), topo::ContactKind::VertexVertex(..)))
+        .copied()
+        .collect()
 }
 
 /// **The nested plan at a shared vertex.** A pinch: a reflex wedge and a

@@ -1021,7 +1021,11 @@ fn an_edge_on_face_bound_at_the_faces_vertex_is_bounded_by_its_record() {
 }
 
 /// `records` with its vertex–face records left out.
-fn without_vertex_face(mut records: topo::OperandRecords) -> topo::OperandRecords {
-    records.retain(|c| !matches!(c.contact.kind(), topo::ContactKind::VertexFace(..)));
+fn without_vertex_face(records: topo::OperandRecords) -> topo::OperandRecords {
     records
+        .rows()
+        .iter()
+        .filter(|c| !matches!(c.contact.kind(), topo::ContactKind::VertexFace(..)))
+        .copied()
+        .collect()
 }

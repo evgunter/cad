@@ -1280,13 +1280,8 @@ impl OperandRecords {
     }
 
     /// Files `row` after the records of its kind.
-    pub fn push(&mut self, row: CarriedRecord) {
+    pub(crate) fn push(&mut self, row: CarriedRecord) {
         records::file_by_kind(&mut self.rows, row, |r| r.contact);
-    }
-
-    /// Keeps only the records `keep` holds to.
-    pub fn retain(&mut self, keep: impl FnMut(&CarriedRecord) -> bool) {
-        self.rows.retain(keep);
     }
 }
 

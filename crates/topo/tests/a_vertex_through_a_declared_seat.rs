@@ -1249,9 +1249,12 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
         contact: topo::Contact::new(tool, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
         record: 9,
     };
+    let with = |r: &mut topo::OperandRecords, row| {
+        *r = r.rows().iter().copied().chain([row]).collect();
+    };
     let dangling = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (x, ..) = faces(tool, r);
-        r.push(forged(tool, x, FaceKey::default()));
+        with(r, forged(tool, x, FaceKey::default()));
     });
     assert!(
         matches!(
@@ -1266,7 +1269,7 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
     );
     let one_solid = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (x, _, x2, _) = faces(tool, r);
-        r.push(forged(tool, x2, x));
+        with(r, forged(tool, x2, x));
     });
     assert!(
         matches!(
@@ -1282,7 +1285,7 @@ fn a_forged_record_of_the_seat_refuses_loudly() {
     );
     let apart = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
         let (_, _, x2, y2) = faces(tool, r);
-        r.push(forged(tool, x2, y2));
+        with(r, forged(tool, x2, y2));
     });
     match apart {
         Err(BooleanError::ToolFuseRefused { why }) => assert!(
