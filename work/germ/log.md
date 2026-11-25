@@ -2062,3 +2062,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Q4: `boolean/face_reading.rs`.
   - Q5: the straddle arm with no window fails loud, as the spec says.
   - Q6: the gate's whole-span-rescue list comes to the orchestrator before the line × torus arm is built; if needed, an `[ev]` question per the spec.
+- 2026-11-25 13:40 — **U4b rulings, two more:**
+  - **A.** The cull is re-posed as a 1-Lipschitz ball cull: one decision `|g(c)| − a` per kind, no charge. It needs an oracle soundness row, a mutant per kind, and the lost culls listed.
+  - **B.** `Through` keeps today's apex placement as a meeting, and `AtApex` is kept for the apex refusals. The spec's `SpanVerdict` line is updated in U4b's PR.
+  - Both are reported deviations.
