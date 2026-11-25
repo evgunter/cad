@@ -40,8 +40,8 @@ either no graph or a graph by a margin of the pose's own size. A halved
 cover stops as soon as every box's enclosure is zero-free
 (`CoverBase::at`), so the widest rung that proves is often one that
 proves by little: its least box is a graph by whatever the last halving
-left. A narrower rung of the same carrier, padded less, reads a larger
-margin and would clear the band.
+left. Whether a narrower rung of this edge's carrier, padded less,
+reads a margin that clears the band was not measured.
 
 The escalation is sound and typed. What it costs is that the answer
 depends on which rung happens to prove first, and here on the member
