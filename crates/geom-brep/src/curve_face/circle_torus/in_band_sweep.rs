@@ -34,8 +34,8 @@ const EPS_ROWS: [f64; 3] = [1e-6, 1e-9, 1e-12];
 /// the tube by a depth drawn inside the zero band, inside its gap, or
 /// zero, at any tilt. The torus door reads its clear margin through the
 /// torus's ceiling on `|F|/|res|`, so no piece reads clear short of the
-/// band; an answer it gives must be true, and none within `Kε` may be
-/// given. Each is read on a drawn arc and judged on that arc alone
+/// band; an answer it gives must be true, and none within `ε` (an
+/// extreme in the zero band on the arc) may be given. Each is read on a drawn arc and judged on that arc alone
 /// (`conic_oracle::arc_truth`): an arc whose own extremes are clear of
 /// the band is answered whatever the rest of the turn holds.
 #[test]

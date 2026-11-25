@@ -697,6 +697,31 @@ mod tests {
         );
     }
 
+    /// **A graze window across the oval's seam is held at both ends of a
+    /// span a period long** (`on_span` reads the carrier's own period, a
+    /// spiric's as a conic's): the plane touching the oval's top, read on
+    /// the period that starts at the touch, refuses with a window at its
+    /// start and one at its end. Red where only a conic's windows are
+    /// copied a period on: the end's piece is lost.
+    #[test]
+    fn a_graze_across_the_ovals_seam_is_held_at_both_ends() {
+        let curve = oval();
+        let top = plane(Point3::new(0.0, 0.0, MINOR), Vec3::unit_z());
+        let Err(on_span) = cross(&Span::new(&curve, SPAN), &top, band()) else {
+            panic!("the graze refuses")
+        };
+        let w = on_span.windows[0].window;
+        let at = geom::mid_param(w.0, w.1);
+        let period = curve.period().expect("a spiric oval repeats").length();
+        let span = (at, at + period);
+        let Err(seam) = cross(&Span::new(&curve, span), &top, band()) else {
+            panic!("the graze at the seam refuses")
+        };
+        let starts = seam.windows.iter().any(|x| x.window.0 == span.0);
+        let ends = seam.windows.iter().any(|x| x.window.1 == span.1);
+        assert!(starts && ends, "a window at each end: {seam:?}");
+    }
+
     /// **The convention**: a spiric spelled past its mint outside the
     /// two-oval regime, or within the band of its edge, refuses typed on
     /// the regime's rung with the regime's margin, never a fault.

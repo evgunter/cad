@@ -418,12 +418,7 @@ pub(super) fn merged<T: Decide>(
     band: Band,
 ) -> Vec<Undecided<T, CrossWhy>> {
     let speed = span.speeds().0.get();
-    let positive = |gap: T| {
-        matches!(
-            decide("curve_face_window", Margin::of(gap * speed), band),
-            Ok(Sign::Positive)
-        )
-    };
+    let positive = |gap: T| matches!(super::window_gap(gap, speed, band), Ok(Sign::Positive));
     let before =
         |a: &Undecided<T, CrossWhy>, b: &Undecided<T, CrossWhy>| positive(b.window.0 - a.window.1);
     let mut out: Vec<Undecided<T, CrossWhy>> = Vec::with_capacity(windows.len());
