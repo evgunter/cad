@@ -6544,6 +6544,7 @@ fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
     let sin_v = geom::sheet_apex(major, minor).height / minor;
     (if up { sin_v } else { -sin_v }, -major / minor)
 }
+
 /// **A loop's passes through a sheet's apexes** ([`ApexJump`]). A
 /// junction between two meridians at a point decided on the axis
 /// (`props_sheet_apex_junction`) is an apex: there the chart image
