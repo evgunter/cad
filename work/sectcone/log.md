@@ -91,3 +91,6 @@ The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (o
   - P1 main red `endpoint-census … ruling.rs` (`sectcone/endpoint-census-ruling`), reviewed by the orchestrator's read.
   The common lane rules are in the private `lane-common.md`.
 - **Held.** `the-cone-stores-its-slope` waits until these land, because it touches every cone site.
+
+## 2026-11-24: 7730 merged (endpoint census note)
+The main red was stale: PR 7452 had already moved the count to (9, 9). 7730 writes the roster note for all nine reads, and explains why the two sign tests stay off the funnel: they are certified exclusions of zero in a debug-only walk. Reviewed by the orchestrator's read. Merged once lint was green; the change touches only a test-note string and the tracker.
