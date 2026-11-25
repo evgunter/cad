@@ -322,3 +322,11 @@
     - Keep (1), with a piece-incidence pin.
   - Fix pass sent. The (C)/(A) fork goes to two Opus designers: A session_018u3gVHEtKTbcP5hj8j7VvE, B session_018u3gVGSw5Y3NcYbqNE1X1B (brief fork-minted-meeting.md), then an `[ev]` PR.
   - I chose this over reverting PR 7745: fixing forward leaves at most one loud slow-set red, against reopening 7745's silent-drop hole.
+
+- 2026-11-25 **The minted-meeting fork (C)/(A), three rounds, two Opus designers.**
+  - Both first proposed a maker/cutter field. I showed them commit `a2090eeb4d5`: Ev's `[ev]` D1 ruling, "no cutter field", with the per-op form and the accepted cost of a redundant decision where one tool face cut both cells.
+  - They then crossed. By the final round both agree:
+    - (B) is rejected, (C) is unsound as a final state, and (C′) is the interim: set aside only where the result already holds the exact pair, placed after `carry_rows`.
+    - The final state is the per-op door decision: vertex-on-edge via the census's interior reading, with rows on the record's input cells (E, F), and the vertex–vertex row moved the same way so section vertices can be named.
+    - Unless one measurable fact holds: a single-maker meeting reads in the sliver band when the record's gap is Zero (a near-tangent X amplifies it). In that case makers kept in the boolean's `Mints` win, and that goes to Ev as a narrower cutter field.
+  - Probe lane dispatched (session_018u3gVJFgDMfc8FxoUJr3H6). If the fact does not hold, the door form is within the ruling and needs no `[ev]`.
