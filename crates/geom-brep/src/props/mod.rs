@@ -165,8 +165,12 @@ pub use loop_area::{
 ///
 /// The tags must **faithfully identify shared vertices** — no residual
 /// can catch a tag lie, because a lie leaves the geometry unchanged.
-/// No props lane reads them: closure is decided on the traversed
-/// endpoints, and a tag lie moves no flux (`torus_flux_reads_no_tags`).
+/// One props lane reads them: a cone loop that passes its apex point
+/// more than once is measured only where every pass is at one vertex
+/// tag (`curved`'s apex lobes, `props_cone_apex_vertices`), so a tag lie
+/// there admits two cones of material meeting at the apex. Elsewhere
+/// closure is decided on the traversed endpoints, and a tag lie moves
+/// no flux (`torus_flux_reads_no_tags`).
 /// `topo`'s flattening satisfies the contract by construction
 /// (first-seen traversal order over the half-edge cycle); callers
 /// constructing `LoopEdge`s by hand own it.
@@ -432,7 +436,8 @@ pub enum PropsError {
     },
     /// A cone face (`curved::cone_face_closed_form`) fails a premise of
     /// its vector-area closed form: a loop that sweeps past a turn
-    /// through the apex, that meets itself at a vertex, or a ring that
+    /// through the apex, that meets itself at a vertex off the apex,
+    /// whose lobes at the apex cover it other than once, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
     ///
