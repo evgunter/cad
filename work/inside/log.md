@@ -28,3 +28,29 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 30 points.
 - 2026-10-31 — (seam, FLUSH) Claimed and closed `aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots` (P1) as a duplicate of FLUSH's `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`, which PR 5781's dual review measured more fully. FLUSH dispatches it next; its witness pose is carried on FLUSH's row. The fix will touch `solid_contain.rs`'s ray × quadric roots and the side reader's reach, which is INSIDE's ground. — (FLUSH orchestrator)
 - 2026-11-04 — (SPIRICARM orchestrator) `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord`, filed by SPIRICARM's PR 6509 on this slate, is re-banded P0 in that PR, on both PR 6509 reviewers' reading of `work/README.md`'s Priority. Every cylinder × sphere boolean now builds at its volume, but its result is a dead end as the next operand, and five differences on normal geometry still refuse at the piece sort. One fix, widening `sphere_region::sphere_face_region`, also serves `splitdoor/a-sphere-cut-in-refuses-…`.
 - 2026-11-15 — (BOXFINISH orchestrator) Filed `a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers` here (P2): PR 6979's review found point containment refusing a whole-turn-circle cap as `CorruptLoop` over a parameter box, on bodies that answer at `f64`. Reported `unsure` whether intended; not re-measured.
+
+## 2026-11-25 — picked up (INSIDE orchestrator)
+
+Status `active`. The sitting's slate is the board's P0 and P1 rows (the
+plan's slate table predates them). Fable is unavailable this sitting (Ev,
+in chat): no experiment rows are drawn or recorded, and where a tier or a
+fork calls for an Opus/Fable pair, two Opus run instead.
+
+Dispatch, with each unit's review tier:
+- `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` (P0, M):
+  implementer `inside/sphere-chord-region`. FULL single review — a region
+  reading off stored pcurves, where believing it takes more than reading.
+- `ray-torus-count-certifies-on-an-uncharged-discriminant` (P1, M): implementer
+  `inside/quartic-disc-rounding`. DUAL review (two Opus): a rounding charge
+  on a certified count, the lever-per-verdict class CONTACT's reviews found.
+- `contain-error-drops-the-loop-its-carrier-named` (P1, E) and
+  `tangent-lever-row-escalates-containment-at-eps-1e-6` (P1, E): one lane,
+  `inside/contain-small-rows` (both `contain.rs`). STYLE review if the
+  tangent row needs a logic change; the From fix alone is the
+  orchestrator's read.
+- `two-copies-of-a-pierce-carry-edges-that-run-within-the-band` (P1, M):
+  re-measure first (CONTACT's triage asked it), lane `inside/pierce-copies-remeasure`;
+  the tier is set once the measurement says whether there is a defect to fix.
+- `a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`
+  (P1, M, design): two Opus designers on the contact-semantics question
+  before any lane.
