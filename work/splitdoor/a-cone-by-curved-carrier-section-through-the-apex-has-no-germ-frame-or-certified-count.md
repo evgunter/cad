@@ -8,7 +8,7 @@ priority: P1
 cost: H
 design: true
 parent: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
-blocked_on: [cone-germ-pairs-against-a-curved-face-have-no-section-frame]
+blocked_on: [the-r3-march-ends-no-branch-at-a-cone-node]
 ---
 
 
@@ -78,3 +78,6 @@ This row narrows to SPLITDOOR's follow-on, owed once those arms list the apex no
 - the apex incidence has one home, the pose's margin.
 
 Retiring `apex_section_ruling` touches both of its callers, the pierce and the split (`splitting/insert.rs`). (SPLITDOOR orchestrator)
+
+## Re-parked (2026-11-25, SECTCONE)
+`cone-germ-pairs-against-a-curved-face-have-no-section-frame` closed with PR 7735: general-pose cone pairs now ride their carried section. A section through the apex is a noded one, though, and the carry still refuses `Unminted(ConeNode)`, so the table holds a refusal and the join never reaches the node. What gates this row now is the march's node exit, `the-r3-march-ends-no-branch-at-a-cone-node` (P1, SECTCONE).

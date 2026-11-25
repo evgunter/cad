@@ -54,3 +54,11 @@ apex is. The last arm now names the plane, the cylinder and the sphere,
 whose poles this reader has never read (unchanged). A collapsed side
 is one stored point (DESIGN `[extensibility]`, ratified on PR 7287),
 so no band decides which sides there are.
+
+- 2026-11-23 — `sweep::LoftError::PinnedCornerUnsupported`, cited above,
+  is deleted (LATHE, `lathe/skin-sub-arc-walls`): the loft cuts a full turn
+  into quarter walls at its sub-arc joints, so the one case it refused, a
+  one-segment loop's pinned vertex, builds as an ordinary pinned corner
+  (`sweep`'s `pinned_corners_at_the_loft_door::a_full_turns_pinned_vertex_builds`,
+  closing `work/lathe/a-full-turns-pinned-vertex-refuses-at-the-loft-door.md`).
+  The citation is left as written, as the record of what the loft did then.

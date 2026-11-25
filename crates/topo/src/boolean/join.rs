@@ -316,7 +316,7 @@ fn keyed_surface<T: geom_core::Real>(
     face: FaceKey,
 ) -> (crate::geometry::SurfaceKey, &geom::Surface<T>) {
     let face = body.proven_face(face);
-    (face.record().surface, face.surface())
+    (face.record().surface, face.expect_described())
 }
 
 /// **A segment's germ face pair, as [`bool_connect`] reads it** before
@@ -458,7 +458,7 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
-    /// A cylinder, sphere, torus or spline face closed by a carried chord,
+    /// A cylinder, sphere, cone, torus or spline face closed by a carried chord,
     /// whose run may hold earlier carried chords: closed by the chord's arc with its
     /// evidence of lying on the face
     /// ([`crate::chord_join::path_island_winding_closed_by`]).
@@ -2988,6 +2988,10 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::cover::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
+    /// The ball of both faces' covers: the region a pose the value reads
+    /// elsewhere is read over (two cones of one aperture on parallel
+    /// axes).
+    Region(geom_brep::ExtentBall<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -3015,7 +3019,23 @@ pub(super) fn frame_extent<T: Decide>(
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             cone_reach((body_a, face_a), (body_b, face_b), at, cone, band)
         }
-        _ => Ok(FrameExtent::Radii),
+        // Two cones: the ball of both faces' covers, where both have one,
+        // the region a pose the value reads elsewhere is read over
+        // ([`conic_section_frame_at`]); every other pair, its radii.
+        _ if sa.kind() != geom::SurfaceKind::Cone || sb.kind() != geom::SurfaceKind::Cone => {
+            Ok(FrameExtent::Radii)
+        }
+        _ => {
+            let ball = |body, face| {
+                crate::cover::face_cover(body, face, band)
+                    .ok()
+                    .map(|cover| geom_brep::ExtentBall::of_cover(&cover))
+            };
+            Ok(ball(body_a, face_a)
+                .zip(ball(body_b, face_b))
+                .and_then(|(x, y)| geom_brep::ExtentBall::enclosing(&[x, y]))
+                .map_or(FrameExtent::Radii, FrameExtent::Region))
+        }
     }
 }
 
@@ -3966,6 +3986,9 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             | P::CylinderTorus(_)
             | P::TorusTorus(_)
             | P::ConeTorus(_)
+            | P::ConeCylinder(_)
+            | P::ConeCone(_)
+            | P::ConeSphere(_)
             | P::PlaneTorus(_)
             | P::SplineImplicit(_)
             | P::SplinePair(_)
@@ -3975,11 +3998,6 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             P::CylinderCylinder(_) => {
                 return Err(BooleanError::JoinDesync {
                     what: "a cylinder pair's pose read past its cylinder reading",
-                });
-            }
-            P::ConeCylinder(_) | P::ConeCone(_) => {
-                return Err(BooleanError::JoinDesync {
-                    what: "the section table holds a cone pair, which its glue door never reads",
                 });
             }
         },
@@ -4087,6 +4105,21 @@ fn conic_section_frame_at<T: Decide>(
     // nothing for it: no frame, and no desync.
     if let Some(Ok(pose)) = geom_brep::ConeTorusPose::decide(sa, sb, band)
         && matches!(pose.stance(), geom_brep::KtStance::Coaxial { .. })
+    {
+        return Err(FrameError::NoArm);
+    }
+    // Likewise a sphere on a cone's axis (the closed form's circles).
+    if let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+        geom_brep::pair_section::ConeRuledPose::decide_sphere(sa, sb, band)
+    {
+        return Err(FrameError::NoArm);
+    }
+    // Likewise two cones of one aperture on parallel axes (the plane
+    // conic), read over the two faces' region; two through one apex take
+    // their rulings' plane before any frame.
+    if let FrameExtent::Region(region) = &extent
+        && let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+            geom_brep::pair_section::ConeRuledPose::decide(sa, sb, *region, band)
     {
         return Err(FrameError::NoArm);
     }
@@ -4743,18 +4776,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             crate::ring_path::Carrier::of(surface()),
         ) {
             (Some(normal), _) => RingFace::Plane(normal.vec()),
-            (
-                None,
-                Some(
-                    crate::ring_path::Carrier::Quadric(
-                        crate::ring_path::Quadric::Cylinder { .. }
-                        | crate::ring_path::Quadric::Sphere { .. }
-                        | crate::ring_path::Quadric::Torus { .. },
-                    )
-                    | crate::ring_path::Carrier::Wall(_),
-                ),
-            ) => RingFace::Carried,
-            _ => {
+            (None, Some(_)) => RingFace::Carried,
+            (None, None) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -4842,8 +4865,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
-    /// A ring of the cylinder, sphere, torus or spline `face` a carried
-    /// chord closes.
+    /// A ring of the cylinder, sphere, cone, torus or spline `face` a
+    /// carried chord closes.
     CarriedRing { face: FaceKey },
 }
 
@@ -4951,7 +4974,7 @@ fn ring_order<T: Decide>(
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve, and
-/// a carried chord's cylinder, sphere, torus or spline face
+/// a carried chord's cylinder, sphere, cone, torus or spline face
 /// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
@@ -6014,7 +6037,17 @@ mod holding_rows {
         );
         let band = Band::new(1e-9, 1e-8).unwrap();
         let half = 0.5 * (band.zero() + band.escalate());
-        let (body, _, _) = half_disc_cap(0.0, tol);
+        // The lamina's back face, left pending by the fixture, described
+        // as a spline patch through the cap's plane: a face whose trim
+        // the door does not read.
+        let (mut body, _, _) = half_disc_cap(0.0, tol);
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ),
+        );
         let held = holding_face_normal((&body, Operand::A), Point3::new(0.0, 0.5, half), band);
         assert!(
             matches!(&held, Ok(Err(why @ HoldingUnread::Trim))
@@ -6764,7 +6797,10 @@ mod self_check_rows {
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, pair_section_frame, section_unbuilt};
+    use super::{
+        FrameError, FrameExtent, one_loop, pair_section_frame, pair_section_frame_at,
+        section_unbuilt,
+    };
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
@@ -6956,6 +6992,73 @@ mod frame_dispatch_tests {
                     Err(FrameError::Desync(_))
                 ),
                 "a cylinder × sphere pair has no frame"
+            );
+        }
+    }
+
+    /// **A served cone pair the value reads elsewhere refuses its frame
+    /// typed**: a sphere on a cone's axis (the coaxial circles) and two
+    /// cones of one aperture on parallel axes (the plane conic, read over
+    /// the two faces' region) are served by kind, and the table holds no
+    /// section for them, so a germ asks their frame; it answers `NoArm`,
+    /// as a coaxial cone × torus does, and never a desync. The same sphere
+    /// off the axis and a tilted cone, which the table holds, desync: the
+    /// guards read the pose, not the kind. Red if either `Elsewhere` pose
+    /// desyncs, or a guard swallows a held pose.
+    #[test]
+    fn a_cone_pair_read_elsewhere_refuses_its_frame_typed() {
+        let cone = |apex: Point3<f64>| geom::Surface::Cone {
+            frame: geom::Frame::new(apex, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            half_angle: core::f64::consts::FRAC_PI_6,
+        };
+        let ball = |centre: Point3<f64>| geom::Surface::Sphere {
+            frame: geom::Frame::new(centre, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            radius: 0.5,
+        };
+        let k = cone(Point3::new(0.0, 0.0, 0.0));
+        let region = FrameExtent::Region(geom_brep::ExtentBall::of_box(
+            Point3::new(-3.0, -3.0, -3.0),
+            Point3::new(3.0, 3.0, 3.0),
+        ));
+        let frame = |a: &geom::Surface<f64>, b: &geom::Surface<f64>, extent: FrameExtent<f64>| {
+            one_loop(pair_section_frame_at(a, b, extent, band()))
+        };
+        let parallel = cone(Point3::new(1.0, 0.0, 0.0));
+        let on_axis = ball(Point3::new(0.0, 0.0, 2.0));
+        for (what, other, extent) in [
+            ("a sphere on the cone's axis", &on_axis, FrameExtent::Radii),
+            (
+                "a cone of one aperture on a parallel axis",
+                &parallel,
+                region.clone(),
+            ),
+        ] {
+            for (a, b) in [(&k, other), (other, &k)] {
+                assert!(
+                    matches!(frame(a, b, extent.clone()), Err(FrameError::NoArm)),
+                    "{what}: refused typed"
+                );
+            }
+        }
+        let tilted = geom::Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(2.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 1.0).normalize(),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            half_angle: 0.3,
+        };
+        for (what, other, extent) in [
+            (
+                "a sphere off the axis",
+                ball(Point3::new(0.8, 0.0, 2.0)),
+                FrameExtent::Radii,
+            ),
+            ("a tilted cone", tilted, region.clone()),
+        ] {
+            assert!(
+                matches!(frame(&k, &other, extent), Err(FrameError::Desync(_))),
+                "{what} is held by the table, so a frame ask is a desync"
             );
         }
     }
@@ -7928,7 +8031,7 @@ mod face_surface_tests {
         let reads: Vec<usize> = [
             "get_surface(",
             ".face_surface(",
-            ".surface()",
+            ".expect_described()",
             "carrier_surface(",
         ]
         .iter()

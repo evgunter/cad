@@ -126,7 +126,7 @@ fn an_undeclared_merge_on_distinct_keys_returns_no_strand() {
     // The absorbed key takes the survivor's description bit for bit —
     // the same plane, so every certificate naming it still holds.
     let plane = body.get_surface(ks).expect("live").clone();
-    *body.surfaces.get_mut(ka).expect("live") = plane;
+    *body.surface_mut(ka).expect("live") = plane;
     assert_eq!(intersections_naming(&body, ka).len(), 3);
 
     let outcome = body
@@ -152,7 +152,7 @@ fn a_same_key_merge_is_not_refused() {
     // named it.
     describe_as_intersections(&mut body, tol);
     assert!(
-        body.get_surface(ka).is_none(),
+        body.get_surface(ka).err() == Some(crate::SurfaceMiss::Stale),
         "nothing holds the old key any more"
     );
 

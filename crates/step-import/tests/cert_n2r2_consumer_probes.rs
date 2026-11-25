@@ -40,7 +40,7 @@ fn loft() -> Body<f64> {
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Nurbs(p)) if !p.is_placeholder()))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Nurbs(_))))
         .map(|(k, _)| k)
         .expect("a loft has described NURBS walls")
 }
@@ -85,13 +85,13 @@ fn masqueraded(
 ) -> (Body<f64>, FaceKey, NurbsSurface<f64>) {
     let mut body = loft();
     let wall = nurbs_wall(&body);
-    let Some(Surface::Nurbs(payload)) = body.face_surface(wall).cloned() else {
+    let Ok(Surface::Nurbs(payload)) = body.face_surface(wall).cloned() else {
         unreachable!()
     };
     let masq = corrupt(&payload, f);
     assert!(
-        !masq.is_placeholder(),
-        "the masquerade reads described since PR 1558"
+        !masq.is_finite(),
+        "the masquerade is a net that is not finite"
     );
     // Lifts RechartStrandsDescriptions: the masquerade wall is the consumer's input, edges as they were.
     body.set_face_surface_unvouched_for_tests(
@@ -144,7 +144,7 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     use geom_core::{Interval, Real};
     let (_, _, masq) = masqueraded(poison_x);
     let mi: NurbsSurface<Interval> = masq.map_scalar(Interval::from_f64);
-    assert!(!mi.is_placeholder());
+    assert!(!mi.is_finite());
     let s = Surface::Nurbs(Arc::new(mi));
     // Spline charts, not cones: the door answers a pair here.
     let sup = geom_brep::chart_stretch_sup(&s).unwrap();
@@ -169,12 +169,6 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
         show(inf.sup_u),
         show(inf.sup_v),
         show(inf.area_inf)
-    );
-    // Placeholder at Interval for comparison: it has no sup pair.
-    let ph = Surface::<Interval>::nurbs_placeholder();
-    eprintln!(
-        "[class 3 Interval placeholder] sup={:?}",
-        geom_brep::chart_stretch_sup(&ph)
     );
 }
 

@@ -920,8 +920,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     let h = angle / m;
     // tan(h/4) through sin/cos — no transcendental beyond the scalar's
     // own `sin_cos` (the same door every harmonic pcurve uses).
-    let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
-    let tan_q = s_q / c_q;
+    let tan_q = crate::edge_nurbs::sub_arc_tan_quarter(h);
     let x = (t - t0) / angle;
     // A poison parameter locates no span; `g` is poison in every
     // channel `x` carries.
@@ -935,8 +934,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
         #[allow(clippy::cast_precision_loss)]
         let kf = T::from_f64(span.saturating_sub(degree) as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
-        let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
-        let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
+        let s = crate::edge_nurbs::sub_arc_fraction_at_angle(phi, tan_q);
         let s = match (ends.get(k), ends.get(k + 1)) {
             (Some(&a), Some(&b)) => {
                 let lambda = iso_arc_skew(a, b);
@@ -2133,7 +2131,8 @@ pub enum EnvelopeTerm {
     Line,
     /// The motion a class admitted by its own decision: a cylinder
     /// meridian's radial pair `σ(a_r, b_r)` (its radial amplitude
-    /// decided Zero), and a still class's whole pair `σ(a, b)`, axial
+    /// decided Zero), a cylinder rim's axial pair (decided Zero and
+    /// written zero), and a still class's whole pair `σ(a, b)`, axial
     /// part included (its winding decided Zero).
     Drift,
     /// The stored image's first channel against the placed one check 4
@@ -2418,7 +2417,7 @@ pub enum PcurveCertifyError {
     },
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
-    /// a chart that is still the mvfs placeholder; a non-boundary ROW
+    /// a non-boundary ROW
     /// under the arc-rim class (the seam class certifies an interior
     /// COLUMN by the de Boor collapse, `crate::nurbs_iso`, the cap class
     /// an interior row the same way on the transposed chart, and both
@@ -2540,10 +2539,6 @@ pub enum PcurveCertifyError {
         /// The derivation's.
         derived: [Option<i32>; 2],
     },
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// it has no locus, so no lane can image a pcurve on it or meter a
-    /// margin through it. Every lane refuses it with this, at check 1.
-    PlaceholderChart,
     /// The pcurve's azimuth extent definitely exceeds one full period —
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
@@ -2754,11 +2749,6 @@ impl PcurveCertifyError {
                 "pcurve certification: the row winds {stored:?} times, and its carrier \
                  winds {derived:?} times on this chart"
             ),
-            Self::PlaceholderChart => write!(
-                f,
-                "pcurve certification: {}, so nothing can be imaged on its chart",
-                geom::PLACEHOLDER_SURFACE
-            ),
             Self::SectorRefused { piece, channel } => write!(
                 f,
                 "pcurve certification: piece {piece} of the projected image is not in one \
@@ -2915,7 +2905,6 @@ impl PcurveCertifyError {
             Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
             Self::FittedLaneUnsupported { .. } => Decision::Lever(Lever::FittedDoor),
             Self::FittedGradeAtClosedFormDoor { .. } => Decision::Lever(Lever::FittedGradeDoor),
-            Self::PlaceholderChart => Decision::Lever(Lever::Placeholder),
             // The run's linear band: K·ε overflowed or rounded back onto
             // ε (`Band::linear`), so a smaller tolerance; a lever arm is
             // no linear band's, so a band its caller built, by its own.
@@ -3538,9 +3527,6 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         // solves.
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The wall this door was handed, as the foot producer refuses it
-        // (`chart_foot_lane`): one lever at both doors.
-        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3578,13 +3564,9 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
-            Err(PcurveCertifyError::PlaceholderChart)
+        Err(other) => {
+            unreachable!("the chart foot producer refuses an unsettled foot alone: {other:?}")
         }
-        Err(other) => unreachable!(
-            "the chart foot producer refuses an unsettled foot or the placeholder wall \
-             alone: {other:?}"
-        ),
     }
 }
 
@@ -4936,6 +4918,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // A spline chart is its own operand; an analytic one enters as the
     // bilinear patch of the class its route decided.
     let (scoords, held);
+    // A spline chart, whose knot rectangle the image is held to below.
+    let mut rectangle = None;
     let schart = match chart {
         FittedChart::Spline(surface) => {
             let chart = match surface {
@@ -4951,6 +4935,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                 ),
             };
             scoords = chart.certified_coords();
+            rectangle = Some(chart);
             (
                 chart.knots_u_f64_interim(),
                 chart.knots_v_f64_interim(),
@@ -5008,7 +4993,22 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         band,
     );
     let stopped = stopped.map_err(ssi_refusal)?;
-    hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
+    // The hull bound holds on the chart's knot rectangle only.
+    let mut at = Refused::default();
+    let reach = match rectangle {
+        Some(chart) => crate::ssi::certify::chart_domain_limb(
+            pimage,
+            (lo, hi),
+            (schart.0, schart.1),
+            chart,
+            &CHART_HULL,
+            band,
+            &mut at,
+        )
+        .map_err(ssi_refusal)?,
+        None => 0.0,
+    };
+    hull_limb(&CHART_HULL, stopped, reach, band, &mut at).map_err(ssi_refusal)
 }
 
 /// The hull limb's refusal, reduced to the parts this module's closed
@@ -6615,6 +6615,10 @@ enum Derivation {
     /// takes the general lane.
     CylinderMoving {
         sense: Turning,
+        /// The axial `cos t` and `sin t` terms were decided a rim's and
+        /// written zero ([`cylinder_rim_axial`]): what they held is the
+        /// envelope's `Drift`.
+        rim: bool,
     },
     CylinderMeridian,
     /// `anchored`: the nappe was read off the anchor's height, not the
@@ -7281,8 +7285,11 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             match derivation {
-                Derivation::CylinderMoving { sense } => {
+                Derivation::CylinderMoving { sense, rim } => {
                     terms.add(Centre, w_r.norm());
+                    if rim {
+                        terms.add(Drift, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
+                    }
                     class_circle(
                         terms,
                         sense.winding(),
@@ -7623,7 +7630,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1));
     // A row read off a pole end is placed against the image derived off
     // that same end, at the parameter the row stores.
     let pole = match stored {
@@ -7747,7 +7754,7 @@ fn fidelity<T: Decide>(
         harmonic_span_box(p0, pa, pb, pl, t0, t1)
             .v_reach()
             .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
-    })?;
+    });
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -8647,12 +8654,6 @@ pub enum NoChartSup {
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// its control net is all-poison, so every evaluation of it is
-    /// poison and there is no locus for either arm to be an arm of.
-    /// Both channels refuse, [`chart_stretch_sup_v`] included — the
-    /// sup-side twin of [`chart_stretch_inf`]'s all-zero answer.
-    Placeholder,
 }
 
 /// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
@@ -8666,9 +8667,7 @@ pub enum NoChartSup {
 /// every `(u, v)` of the chart's domain. That is what a [`SupSpeed`]
 /// asserts, so the kind that cannot honour it **refuses**: a cone has
 /// no surface-level azimuth arm and this door answers
-/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
-/// placeholder has no locus at all and answers
-/// [`NoChartSup::Placeholder`]. A cone
+/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number. A cone
 /// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
@@ -8700,9 +8699,6 @@ pub enum NoChartSup {
 pub fn chart_stretch_sup<T: Real>(
     surface: &Surface<T>,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), NoChartSup> {
-    if surface.is_placeholder_chart() {
-        return Err(NoChartSup::Placeholder);
-    }
     // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
     // torus, the kinds that ask it here.
     let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
@@ -8745,6 +8741,47 @@ pub fn chart_stretch_sup<T: Real>(
     }
 }
 
+/// **Whether a spline net closes in `channel`**: every control point of
+/// its first boundary row (column) is decided at zero distance from the
+/// matching one of its last, at `band` (`pcurve_chart_u_closed`,
+/// `pcurve_chart_v_closed`). One rule for both channels and every
+/// reader, so a chart's periods and the channels its images may leave
+/// the knot rectangle in cannot drift apart.
+///
+/// Any other answer is "open", an in-band one included; that fold, and
+/// a test that compares neither weights nor reads an unclamped knot
+/// vector's boundary, are
+/// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
+/// for both channels.
+pub fn spline_net_closes<T: Decide>(
+    payload: &geom::NurbsSurface<T>,
+    channel: crate::ChartAxis,
+    band: Band,
+) -> bool {
+    let (nu, nv) = payload.control_counts();
+    let control = payload.control();
+    let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
+        crate::ChartAxis::U if nu >= 2 && nv > 0 => (
+            "pcurve_chart_u_closed",
+            (0..nv).map(|iv| (iv, (nu - 1) * nv + iv)).collect(),
+        ),
+        crate::ChartAxis::V if nv >= 2 && nu > 0 => (
+            "pcurve_chart_v_closed",
+            (0..nu).map(|iu| (iu * nv, iu * nv + nv - 1)).collect(),
+        ),
+        crate::ChartAxis::U | crate::ChartAxis::V => return false,
+    };
+    pairs.into_iter().all(|(i, j)| {
+        let (Some(a), Some(b)) = (control.get(i), control.get(j)) else {
+            return false;
+        };
+        matches!(
+            decide(name, Margin::of(a.distance(*b)), band),
+            Ok(Sign::Zero)
+        )
+    })
+}
+
 /// The SECOND component of [`chart_stretch_sup`] alone — `sup |S_v|`,
 /// which every described chart kind has, the cone included.
 ///
@@ -8752,22 +8789,16 @@ pub fn chart_stretch_sup<T: Real>(
 /// cone's `v` is a SLANT LENGTH along the ruling, so `|S_v| = 1`
 /// exactly, everywhere. The tag is minted here because here it is
 /// true. Every other kind answers the pair's second component, which
-/// is where that answer lives — and the placeholder, which has no
-/// second channel either, refuses here exactly as it does there.
+/// is where that answer lives.
 ///
 /// The direction argument is [`chart_stretch_sup`]'s in every
 /// respect: this is the escape side, unsafe for a positive-extent
 /// claim.
 ///
-/// # Errors
-///
-/// [`NoChartSup::Placeholder`] for the placeholder chart, and nothing
-/// else.
-pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>, NoChartSup> {
+pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
     match chart_stretch_sup(surface) {
-        Ok((_, v)) => Ok(v),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok(SupSpeed::new(T::one())),
-        Err(NoChartSup::Placeholder) => Err(NoChartSup::Placeholder),
+        Ok((_, v)) => v,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => SupSpeed::new(T::one()),
     }
 }
 
@@ -8777,15 +8808,10 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
 /// (dominating the local arm everywhere in the window — the safe
 /// direction); every other kind answers as [`chart_stretch_sup`], a
 /// sup over the whole chart and so over any window of it.
-///
-/// # Errors
-///
-/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
-/// which has arms nowhere, and nothing else.
 pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
     window: &ChartWindow<T>,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     chart_sup_arms_over(surface, || window.v_reach())
 }
 
@@ -8794,14 +8820,13 @@ pub fn chart_sup_arms_at<T: Real>(
 fn chart_sup_arms_over<T: Real>(
     surface: &Surface<T>,
     v_sup: impl FnOnce() -> T,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     match chart_stretch_sup(surface) {
-        Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+        Ok(pair) => pair,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
             SupSpeed::new(azimuth_lever(surface, v_sup())),
             SupSpeed::new(T::one()),
-        )),
-        Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
+        ),
     }
 }
 
@@ -8927,10 +8952,6 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
         sup_v: T::zero(),
         area_inf: T::zero(),
     };
-    if surface.is_placeholder_chart() {
-        // No net to bound: the placeholder certifies nothing.
-        return zero;
-    }
     match *surface {
         Surface::Nurbs(ref payload) => nurbs_stretch_inf(payload),
         Surface::Approx(ref a) => nurbs_stretch_inf(a.fit()),
@@ -9136,9 +9157,6 @@ fn fitted_defects<T: Decide>(
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     if crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Fitted,
@@ -9420,9 +9438,6 @@ fn run_iso_arc_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     let Curve3::Circle(circle) = carrier else {
         return Err(PcurveCertifyError::IsoUnsupported {
             what: "an arc-rim iso over a non-Circle carrier — the class IS the circle's \
@@ -9893,9 +9908,6 @@ fn run_iso_checks<T: Decide>(
             chart: surface.kind(),
         });
     };
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
 
     // ---- Check 2: the parameter interval, metered into metres. ----
     let span = t1 - t0;
@@ -11176,8 +11188,7 @@ fn covers<T: Decide>((c0, c1): (T, T), (a0, a1): (T, T)) -> bool {
 /// which is shown off the chart, and read in band
 /// ([`IncidenceRead::Undecided`]) where none is and some sample is
 /// read in band, unsettled at the walk's caps, or unreadable (a net that
-/// does not cut, a weight not shown positive); and
-/// [`PcurveCertifyError::PlaceholderChart`] on the placeholder chart.
+/// does not cut, a weight not shown positive).
 pub fn read_edge_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -11726,7 +11737,7 @@ fn derive_class_zero<T: Decide>(
                         |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
-                    let (a, b) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
+                    let (a, b, rim) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
@@ -11740,7 +11751,7 @@ fn derive_class_zero<T: Decide>(
                                 l: form.l.dot(axis),
                             },
                         },
-                        Derivation::CylinderMoving { sense },
+                        Derivation::CylinderMoving { sense, rim },
                     ))
                 }
             }
@@ -12604,33 +12615,28 @@ impl From<PcurveCertifyError> for Underived {
 }
 
 /// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
-/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where both
-/// are enclosures holding zero and their sup is decided `Zero` at
+/// chart**, `(a, b)`, and whether they were dropped: zero for a rim, its
+/// plane ⊥ the axis, where their sup is decided `Zero` at
 /// `pcurve_cylinder_chart_axial` — the cone arm's
-/// `pcurve_cone_chart_axial` read on the cylinder. Otherwise as given.
+/// `pcurve_cone_chart_axial` read on the cylinder, at every scalar.
+/// Otherwise as given.
 ///
-/// An interval scalar encloses a rim's terms, dot products of its frame
-/// with the axis, as intervals about zero that an exact test does not
-/// read as zero. At `f64` a value holds zero only when it is zero, so
-/// nothing there is decided or moved. The dropped drift is within the
-/// band, and the certificate's envelope bounds what it moves.
-fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
-    let holds_zero = |x: T| {
-        x.structure_bracket()
-            .is_some_and(|(lo, hi)| lo <= 0.0 && 0.0 <= hi)
-    };
-    if (geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b))
-        || !(holds_zero(a) && holds_zero(b))
-    {
-        return (a, b);
+/// The terms are dot products of the carrier's frame with the axis, so
+/// on a frame turned off the axes a rim's are a rounding off zero: a
+/// point at `f64`, an enclosure at `Interval`. The dropped drift is
+/// within the band, and check 4 charges it to the envelope's `Drift`
+/// ([`Derivation::CylinderMoving`]'s `rim`).
+fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T, bool) {
+    if geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b) {
+        return (a, b, false);
     }
     match decide(
         "pcurve_cylinder_chart_axial",
         Margin::of(harmonic_sup_scalar(a, b)),
         band,
     ) {
-        Ok(Sign::Zero) => (T::zero(), T::zero()),
-        _ => (a, b),
+        Ok(Sign::Zero) => (T::zero(), T::zero(), true),
+        _ => (a, b, false),
     }
 }
 
@@ -13696,9 +13702,6 @@ mod incidence {
         band: Band,
     ) -> Result<Incidence, PcurveCertifyError> {
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             #[cfg(test)]
             if super::mutants::spline_shown_unread() {
                 return Ok(Incidence::On(None));
@@ -13744,9 +13747,6 @@ mod incidence {
         // A spline chart is a bounded patch, so the read is the span's
         // whatever the carrier ([`super::spline_incidence`]).
         if let Some(chart) = surface.spline_chart() {
-            if surface.is_placeholder_chart() {
-                return Err(PcurveCertifyError::PlaceholderChart);
-            }
             let name = match surface {
                 Surface::Approx(_) => "pcurve_approx_chart_incident",
                 _ => "pcurve_nurbs_chart_incident",
@@ -15953,7 +15953,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed);
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -16469,7 +16469,7 @@ mod cone_azimuth_sup {
     #[test]
     fn a_cones_second_channel_is_exactly_unit_and_stays_minted() {
         let (cone, _) = cone();
-        let rate = chart_stretch_sup_v(&cone).unwrap();
+        let rate = chart_stretch_sup_v(&cone);
         assert_eq!(rate.get(), 1.0);
         let (v, dv) = (4.0_f64, 0.25_f64);
         let chord = cone.eval(0.0, v).distance(cone.eval(0.0, v + dv));
@@ -16477,50 +16477,6 @@ mod cone_azimuth_sup {
             (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
             "a slant step of {dv} moves {chord} m, metred as {} m",
             rate.to_meters(dv)
-        );
-    }
-}
-
-/// **The placeholder chart has no sup arms, and both doors say so.**
-#[cfg(test)]
-mod placeholder_sup {
-    use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
-        chart_stretch_sup_v, chart_sup_arms_at,
-    };
-    use geom::{NurbsSurface, Surface};
-    use std::sync::Arc;
-
-    /// The placeholder refuses on both sup doors and on the boxed one,
-    /// where it used to answer unit arms; the inf door's all-zero
-    /// answer is the same statement on the other side.
-    #[test]
-    fn the_placeholder_refuses_every_sup_door() {
-        let ph: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
-        assert!(
-            matches!(chart_stretch_sup(&ph), Err(NoChartSup::Placeholder)),
-            "pair"
-        );
-        assert!(
-            matches!(chart_stretch_sup_v(&ph), Err(NoChartSup::Placeholder)),
-            "v only"
-        );
-        let unit = ChartWindow {
-            u_min: 0.0,
-            u_max: 1.0,
-            v_min: 0.0,
-            v_max: 1.0,
-        };
-        assert_eq!(
-            chart_sup_arms_at(&ph, &unit).err(),
-            Some(PcurveCertifyError::PlaceholderChart),
-            "the boxed door, which the azimuth headroom reads"
-        );
-        let inf = chart_stretch_inf(&ph);
-        assert_eq!(
-            (inf.inf_u, inf.inf_v, inf.sup_u, inf.sup_v, inf.area_inf),
-            (0.0, 0.0, 0.0, 0.0, 0.0),
-            "the inf door certifies nothing for it"
         );
     }
 }
@@ -17951,37 +17907,49 @@ mod cylinder_rim_rows {
         (x.lo(), x.hi())
     }
 
-    /// **A rim's axial terms are zero only where both hold zero and their
-    /// sup is decided `Zero`** ([`cylinder_rim_axial`]). Red if the
-    /// decision is lax (an amplitude past the band zeroed), if `b`'s
-    /// holding-zero gate is dropped (an in-band `b` beside an exact
-    /// zero `a` zeroed, which at `f64` moves a pcurve), or if the rim is
-    /// not decided (an enclosure of zero kept).
+    /// **A rim's axial terms are zero exactly where their sup is decided
+    /// `Zero`, at every scalar** ([`cylinder_rim_axial`]). Red if the
+    /// decision is lax (an amplitude past the band zeroed), if the rim
+    /// is not decided at `Interval` (an enclosure of zero kept), or if
+    /// it is not decided at `f64` (a rounding off zero kept: the
+    /// section circle of a fillet strip on an outline turned off the
+    /// axes, `−6.9e−18`).
     #[test]
-    fn a_rims_axial_terms_are_zeroed_only_where_both_hold_zero_within_the_band() {
+    fn a_rims_axial_terms_are_zeroed_where_their_sup_is_decided_zero_at_every_scalar() {
         let rounding = iv(-1e-17, 1e-17);
         let zero = iv(0.0, 0.0);
-        let (a, b) = cylinder_rim_axial(rounding, zero, band());
+        let (a, b, dropped) = cylinder_rim_axial(rounding, zero, band());
+        assert!(dropped, "a rim's rounding at Interval is dropped");
         assert_eq!(
             (bits(a), bits(b)),
             ((0.0, 0.0), (0.0, 0.0)),
-            "a rim's rounding"
+            "a rim's rounding at Interval"
+        );
+        let off = iv(1e-17, 2e-17);
+        let (a, b, _) = cylinder_rim_axial(rounding, off, band());
+        assert_eq!(
+            (bits(a), bits(b)),
+            ((0.0, 0.0), (0.0, 0.0)),
+            "an enclosure off zero, within the band"
         );
         let wide = iv(-1e-3, 1e-3);
-        let (a, _) = cylinder_rim_axial(wide, zero, band());
+        let (a, _, dropped) = cylinder_rim_axial(wide, zero, band());
+        assert!(!dropped, "an amplitude past the band is not dropped");
         assert_eq!(bits(a), bits(wide), "an amplitude past the band is kept");
-        let off = iv(1e-17, 2e-17);
-        let (_, b) = cylinder_rim_axial(rounding, off, band());
-        assert_eq!(bits(b), bits(off), "a term that excludes zero is kept");
         assert_eq!(
-            cylinder_rim_axial(0.0_f64, 1e-17, band()),
-            (0.0, 1e-17),
-            "at f64 a nonzero term is kept, however small"
+            cylinder_rim_axial(-6.938893903907228e-18_f64, 0.0, band()),
+            (0.0, 0.0, true),
+            "a rim's rounding at f64"
         );
         assert_eq!(
-            cylinder_rim_axial(1e-17_f64, 0.0, band()),
-            (1e-17, 0.0),
-            "at f64 a nonzero term is kept, however small"
+            cylinder_rim_axial(0.0_f64, 1e-17, band()),
+            (0.0, 0.0, true),
+            "a rim's rounding at f64, in the sin term"
+        );
+        assert_eq!(
+            cylinder_rim_axial(1e-3_f64, 0.0, band()),
+            (1e-3, 0.0, false),
+            "at f64 an amplitude past the band is kept"
         );
     }
 }

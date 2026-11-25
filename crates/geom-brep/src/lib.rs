@@ -49,8 +49,7 @@
 //! Everything is generic over [`geom_core::Real`] with decisions only
 //! through [`geom_core::Decide`]'s trilean door (named predicates, D4
 //! ¶3 escalation); evaluation is comparison-free and total (poison in,
-//! poison out — including the `Nurbs` representable-unimplemented
-//! placeholders, which certification rejects loudly); sampling is
+//! poison out); sampling is
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
@@ -185,7 +184,8 @@ pub use edge_nurbs::{
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
     analytic_rung3, arc_rim_candidates, arc_rim_measured, curved_nurbs_limbs, first_within,
     is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
-    probe_pick, sub_arc_joint,
+    probe_pick, sub_arc_angle_at_fraction, sub_arc_at, sub_arc_fraction_at_angle, sub_arc_joint,
+    sub_arc_tan_quarter,
 };
 pub use edge_wedge::{
     Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
@@ -217,7 +217,7 @@ pub use implicit::{
     conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
     implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
     implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
+    min_radius_of_curvature, min_radius_of_curvature_toward, one_sheet_radius, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
@@ -230,7 +230,7 @@ pub use intersect::{
     plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
     plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
+pub use keys::{CurveKey, PENDING_SURFACE, PointKey, SurfaceKey, SurfaceMiss, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
@@ -257,9 +257,9 @@ pub use pair_section::{
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
     CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
     KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
-    PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
-    SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    NodeLine, NodeSet, PadBox, PadsStop, PairPose, PairSection, PairSide, PlaneTorusMeridian,
+    PlaneTorusPose, PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement,
+    Ring, SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
     SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
     SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
     TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
@@ -286,7 +286,7 @@ pub use pcurve_cache::{
     chart_pcurve, chart_pcurve_over, chart_pcurve_over_ends, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, harmonic_range,
     incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence,
-    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss,
+    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss, spline_net_closes,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use polygon_orientation::PolygonOrientation;

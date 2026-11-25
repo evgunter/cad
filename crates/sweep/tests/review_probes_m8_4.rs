@@ -45,13 +45,13 @@ fn offset_square_prism() -> Body<f64> {
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -1.0))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -1.0))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -1.0)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -1.0)
             && n.control().iter().any(|p| p.x.abs() == 1.0))
 }
 
@@ -109,7 +109,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         // refusal that would otherwise be silent lands here, payload
         // and all.
         let flipped = match body.get_surface(bowed) {
-            Some(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
+            Ok(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
                 n.reversed_v()
                     .expect("mirror-symmetric v knots: the reversal is the same point set"),
             )),
@@ -228,7 +228,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         return;
     };
     let chart = match body.get_surface(bowed) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described chart: {other:?}"),
     };
     let out = topo::pcurve_of(&body, he, band());

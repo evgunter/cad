@@ -285,17 +285,17 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Cylinder, Cone) | (Cone, Cylinder) => PairRoute {
             rung: Rung::Closed,
             implemented: true,
-            note: "the coaxial configuration only: a cylinder sharing the cone's axis \
-                   cuts each nappe in a closed-form Circle of the CYLINDER's own \
-                   radius, at ±R·cot α from the apex (cone_cylinder_section) — no \
-                   tangency sub-case exists, a coaxial cylinder always cuts \
-                   transversally; a tilted cylinder and a parallel-but-OFFSET one \
-                   both cut a QUARTIC, classified by the section value \
-                   (geom_brep::pair_section) on the sweep along the cone's rulings \
-                   and not marched: the general rung has no march door for the pair, \
-                   and the uniqueness tube has no cone arm, so its certificate, not its \
-                   trace, is what is missing (arms retire one at a time, each with its \
-                   proof)",
+            note: "a cylinder sharing the cone's axis cuts each nappe in a closed-form \
+                   Circle of the CYLINDER's own radius, at ±R·cot α from the apex \
+                   (cone_cylinder_section) — no tangency sub-case exists, a coaxial \
+                   cylinder always cuts transversally; a tilted cylinder and a \
+                   parallel-but-OFFSET one both cut a QUARTIC, classified by the section \
+                   value (geom_brep::pair_section) on the sweep along the cone's rulings \
+                   over the operation's region and marched in ℝ³ on the IMPLICIT PAIR \
+                   from the count's witnesses (geom_brep::ssi::cone_ruled_ssi), the cone \
+                   read as the double cone through its elevation; an arc that ends at a \
+                   node (the apex on the cylinder, or a crossing tangency) is classified \
+                   and not marched",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -319,21 +319,28 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         // refuse typed, naming the routing AND what each one lacks.
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher): classified by the section \
-                   value (geom_brep::pair_section) on the sweep along one cone's \
-                   rulings, and not marched, blocked on the uniqueness tube's cone arm \
-                   and a march door for the pair; the common-apex line-pair special \
-                   case is not classified here",
+            implemented: true,
+            note: "classified by the section value (geom_brep::pair_section) on the \
+                   sweep along one cone's rulings over the operation's region, its \
+                   tangency the sweep's double root decided on the rulings' clearance \
+                   ceiling, and marched in ℝ³ on the IMPLICIT PAIR from the count's \
+                   witnesses (geom_brep::ssi::cone_ruled_ssi), both cones read through \
+                   their elevations; an arc that ends at a node (one apex on the other \
+                   cone, or a crossing tangency) is classified and not marched; two \
+                   cones through one apex, and two of one aperture on parallel axes, \
+                   are not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the coaxial pose has a closed form \
-                   (cone_sphere_section), which this dispatch does not route to",
+            implemented: true,
+            note: "classified by the section value (geom_brep::pair_section) on the \
+                   sweep along the cone's rulings against the sphere's own ball, its \
+                   tangencies decided in closed form first (the centre's distance from \
+                   each of the cone's lines in its meridian plane against the radius), \
+                   and marched in ℝ³ on the IMPLICIT PAIR from the count's witnesses \
+                   (geom_brep::ssi::cone_ruled_ssi); an apex on the sphere is \
+                   classified, a node or a touch, and not marched; the coaxial pose is \
+                   the closed form's (cone_sphere_section)",
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
@@ -503,10 +510,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// plane×cylinder, plane×sphere, sphere×sphere, and the general-rung
 /// arms that march (cylinder×sphere and sphere×torus on their decided
 /// poses, plane×NURBS with plane×Approx over its fit, and NURBS×NURBS
-/// with every Approx pairing over its fits). Cylinder×torus and
-/// torus×torus read the section value ([`crate::pair_section()`]),
-/// which serves every pose its pose decision classifies, a general one
-/// through its march; plane×torus reads the section value's pose, whose
+/// with every Approx pairing over its fits). Cylinder×torus,
+/// torus×torus, cone×torus, cone×cone and cone×sphere read the section
+/// value ([`crate::pair_section()`]), which serves every pose its pose
+/// decision classifies (a pose it reads elsewhere is a closed form's), a
+/// general one through its march; one the value cannot account for is
+/// not served. Cone×cylinder reads its coaxial closed form
+/// ([`cone_cylinder_section`]), so an oblique pose is not served here
+/// though the section value marches it
+/// (`work/sectcone/route-pose-reads-oblique-cone-cylinder-on-its-closed-form.md`);
+/// plane×torus reads the section value's pose, whose
 /// closed-form question is asked over the torus's ball and not at
 /// `reach`, so the gate and every other reader of the pose read it one
 /// way ([`crate::PlaneTorusPose::closed_form`]). Every unimplemented pair answers
@@ -575,11 +588,14 @@ pub fn route_pose<T: Decide>(
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
         (Plane, Torus) | (Torus, Plane) => torus_pose(crate::PlaneTorusPose::decide(a, b, band)),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
+        (Cone, Cone | Sphere) | (Sphere, Cone) => {
+            crate::pair_section(a, b, Some(reach.ball()), None::<geom_core::NoLane>, band).map(drop)
+        }
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) | (Cone, Torus) | (Torus, Cone) => {
             crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
         }
-        (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
                 Some(pose) => pose.map(drop).map_err(SectionError::from),
@@ -603,8 +619,8 @@ pub fn route_pose<T: Decide>(
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Nurbs)
         | (Torus, Nurbs)
-        | (Cone, Cone | Sphere | Nurbs)
-        | (Sphere, Cone | Nurbs)
+        | (Cone, Nurbs)
+        | (Sphere, Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
         | (Cylinder | Cone | Sphere | Torus, Approx)
@@ -637,13 +653,19 @@ pub fn route_pose<T: Decide>(
         Err(SectionError::DegenerateOperand { what } | SectionError::ConeAtTheBand { what }) => {
             refused(what)
         }
+        Err(SectionError::RadiusNotPositive { radius }) => refused(radius.not_positive()),
+        // The section value's readings of the pose disagree: the pose is
+        // not classified, and a gate must not admit what it cannot
+        // classify.
+        Err(SectionError::Unaccounted { .. }) => refused(
+            "the section value's readings of this pose disagree, so the pose is not classified",
+        ),
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::NoMarch { .. }
-            | SectionError::Unaccounted { .. }
             | SectionError::NoRegion { .. }),
         ) => Err(e),
     }
@@ -715,6 +737,13 @@ pub enum SectionError {
     DegenerateOperand {
         /// Which clause of the convention failed, and on what.
         what: &'static str,
+    },
+    /// An operand's radius decided not positive by the arm's own guard:
+    /// [`Self::DegenerateOperand`] with the radius named, so a reader
+    /// that answers by the radius reads it typed.
+    RadiusNotPositive {
+        /// Whose radius.
+        radius: SectionRadius,
     },
     /// A cone's aperture or seam guard decided `Zero`: at this band the
     /// cone stands on its convention's edge (a half-angle at zero or a
@@ -848,9 +877,10 @@ impl SectionError {
                 | SpiricInvalid::FrameNotOrthogonal,
             ) => Err(Aborts),
             // Mixed (above).
-            Self::DegenerateOperand { .. } | Self::Pinched { .. } | Self::Unaccounted { .. } => {
-                Err(Aborts)
-            }
+            Self::DegenerateOperand { .. }
+            | Self::RadiusNotPositive { .. }
+            | Self::Pinched { .. }
+            | Self::Unaccounted { .. } => Err(Aborts),
         }
     }
 }
@@ -894,6 +924,13 @@ impl SectionError {
             ),
             Self::DegenerateOperand { what } => {
                 write!(f, "a section operand is degenerate: {what}")
+            }
+            Self::RadiusNotPositive { radius } => {
+                write!(
+                    f,
+                    "a section operand is degenerate: {}",
+                    radius.not_positive()
+                )
             }
             Self::ConeAtTheBand { what } => write!(
                 f,
@@ -975,6 +1012,16 @@ impl SectionRadius {
         match self {
             Self::Cylinder => "whether a cylinder's radius is positive",
             Self::Sphere => "whether a sphere's radius is positive",
+        }
+    }
+
+    /// The guard's refusal where it decides the radius not positive, as
+    /// a clause.
+    #[must_use]
+    pub const fn not_positive(self) -> &'static str {
+        match self {
+            Self::Cylinder => "a cylinder's radius is not definitely positive",
+            Self::Sphere => "a sphere's radius is not definitely positive",
         }
     }
 
@@ -3300,8 +3347,8 @@ fn coaxial_cone_sphere<T: Decide>(
     })? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(SectionError::DegenerateOperand {
-                what: "the sphere's radius is not definitely positive",
+            return Err(SectionError::RadiusNotPositive {
+                radius: SectionRadius::Sphere,
             });
         }
     }
@@ -3340,9 +3387,8 @@ fn coaxial_cone_sphere<T: Decide>(
         Sign::Positive | Sign::Negative => {
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cone×sphere",
-                why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, and the \
-                      pair's general-rung arm has not retired — the uniqueness tube has no \
-                      cone arm",
+                why: "a sphere whose centre is off the cone's axis cuts a QUARTIC, which \
+                      the general rung marches (ssi::cone_ruled_ssi)",
             });
         }
     }
@@ -3763,9 +3809,8 @@ pub fn cone_cylinder_section<T: Decide>(
             return Err(SectionError::RoutesToGeneralRung {
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
-                      circle, and the pair's general-rung arm has not retired — the \
-                      uniqueness tube has no cone arm (arms retire one at a time, each \
-                      with its proof)",
+                      circle: no closed form serves it, and the general rung marches it \
+                      on the section value (geom_brep::pair_section)",
             });
         }
     }
@@ -3837,9 +3882,8 @@ pub fn cone_cylinder_section<T: Decide>(
         Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
-                  not a circle, and the pair's general-rung arm has not retired — the \
-                  uniqueness tube has no cone arm (arms retire one at a time, each with \
-                  its proof)",
+                  not a circle: no closed form serves it, and the general rung marches it \
+                  on the section value (geom_brep::pair_section)",
         }),
     }
 }

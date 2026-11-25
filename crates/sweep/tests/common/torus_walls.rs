@@ -162,7 +162,8 @@ pub fn vessel_quarter() -> Body<f64> {
 
 /// **The sectioned vessel and its cavity through the axial door** —
 /// `(quarter, cavity)`: the body `shell` builds and stops on at tier 3,
-/// taken BEFORE tier 3 so its carriers can be read.
+/// taken BEFORE tier 3 so its carriers can be read, its rows completed
+/// as the shell completes its cavity.
 pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     let quarter = vessel_quarter();
     let mut cavity = quarter.clone();
@@ -173,7 +174,9 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
         band,
         Tol::witness(),
     )
-    .expect("the vessel's corners solve and its rims mint");
+    .expect("the vessel's corners solve");
+    let cavity =
+        topo::test_support::completed(cavity, Tol::witness()).expect("the cavity's rims mint");
     (quarter, cavity)
 }
 

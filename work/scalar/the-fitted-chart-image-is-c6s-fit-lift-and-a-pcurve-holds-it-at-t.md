@@ -1,12 +1,11 @@
 ---
 id: the-fitted-chart-image-is-c6s-fit-lift-and-a-pcurve-holds-it-at-t
-kind: issue
+kind: unit
 title: "edge_nurbs::on_carrier_domain lifts a fitted chart image into T: C6 says a fit enters once through from_computed, and Pcurve<T> and the certificate's composite hull hold it at T"
 status: open
 opened: 2026-11-21
 priority: P1
 cost: M
-design: true
 refs: [f64-built-data-is-built-at-t, from-computed-claims-a-zero-tangent-at-a-dual]
 ---
 
@@ -34,3 +33,7 @@ Which of these is meant:
 - **B.** The fitted image is `f64` data by type: `Pcurve<T>::Fitted`/`General` hold `NurbsCurve2<f64>`, and the certificate composes an `f64` image with a `T` wall. C6's sentence is re-worded, which waits for Ev.
 
 Nothing in DL5.2's table settles it: the image is not "data built whole at `f64`" that could be built at `T` (the fit is a search over measured feet, structure by C6), and it is not a solved value the door admits by a residual (the certificate's limbs are its check, and they run after it is held).
+
+## Ruled, 2026-11-25 (`[ev]` PR 7641, merged)
+
+A fitted image is a proposal, the same kind of thing as a solved parameter: `f64` by type until the door of the check that admits it. DL5.2, C6 and `[scalars]` say so now. What this row asks is therefore settled and is a unit: the fit stays a `NurbsCurve2<f64>`; `PcurveCache::certify_general` / `certify_fitted` take that `f64` net, lift it inside and run their checks; `edge_nurbs::on_carrier_domain` stops lifting; `geom_core::solved` gains the net entry beside `decide_admit`; the two `on_carrier_domain` rows leave `from-computed-sites.tsv`. The door returns the certificate's envelope as what the check bounded (DL5.2's added paragraph). It follows the crossing-parameter unit (P0), which settles the shape of "the admitted value with its bound", and waits on `[ev]` PR 7719 where it meets the pcurve door's split.

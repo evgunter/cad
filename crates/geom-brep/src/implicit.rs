@@ -41,9 +41,9 @@
 //! The cone's `|h|` makes the residual vanish on **both** nappes (the
 //! complete locus, per `geom`'s surface conventions); its residual is
 //! the exact perpendicular distance to the generator line in the
-//! meridian half-plane through the point. The `Nurbs` placeholder
-//! yields poison throughout (representable ≠ implemented — the poison
-//! fails certification loudly, D4 ¶2).
+//! meridian half-plane through the point. A `Nurbs` surface has no
+//! implicit form and yields poison throughout (the poison fails
+//! certification loudly, D4 ¶2).
 //!
 //! # Curvature lever arms
 //!
@@ -353,6 +353,27 @@ pub fn implicit_outward_normal<T: Real>(
 pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let toward = |side| min_radius_of_curvature_toward(s, p, side);
     toward(SurfaceSide::Inner).min(toward(SurfaceSide::Outer))
+}
+
+/// **The radius within which `surface` is one graph over its tangent
+/// plane at `p`, out to `spread`**: its least radius of curvature
+/// ([`min_radius_of_curvature`], global for a plane, cylinder,
+/// sphere or torus, whose other sheets lie at least twice that away). A
+/// cone's is its parallel's radius at `p` less `spread`, the least within
+/// the reach, and no more than `p`'s distance from its other nappe, at
+/// least `|p − apex|·sin 2α`.
+#[must_use]
+pub fn one_sheet_radius<T: Real>(surface: &Surface<T>, p: Point3<T>, spread: T) -> T {
+    let radius = min_radius_of_curvature(surface, p);
+    match *surface {
+        Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let nappe = (p - frame.origin()).norm() * (T::from_f64(2.0) * half_angle).sin();
+            (radius - spread).min(nappe)
+        }
+        _ => radius,
+    }
 }
 
 /// **A side of a surface, named against its chart normal** (the
@@ -2635,7 +2656,7 @@ mod tests {
             curvature_lever_arm(&plane, Point3::origin()).length(),
             f64::MAX
         );
-        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let n: Surface<f64> = geom::test_support::unit_patch();
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());
         assert!(curvature_lever_arm(&n, Point3::origin()).length().is_nan());

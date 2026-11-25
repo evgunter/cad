@@ -123,7 +123,7 @@ fn deep(body: &Body<f64>) -> Vec<String> {
     for (k, c) in body.curves() {
         out.push(format!("C {k:?} {c:?}"));
     }
-    for (k, u) in body.surfaces() {
+    for (k, u) in body.described_surfaces() {
         out.push(format!("U {k:?} {u:?}"));
     }
     for (k, c) in body.pcurves() {
@@ -236,9 +236,9 @@ fn the_carried_rows_are_the_mint_passs_rows_byte_for_byte() {
 /// **The split mints no row onto a rowless body, and tier 3 names
 /// what is missing.** A body whose rows were dropped stores none, and
 /// the op mints none: it carries what is there (a door may leave rows
-/// absent; the producer's closing mint is what owes them). At rest,
-/// every curved face it leaves rowless reads `Unminted` — its rows
-/// derive and certify — and a closing mint clears every finding.
+/// absent; the finish completes them). At rest, every curved face it
+/// leaves rowless reads `Unminted` — its rows derive and certify — and
+/// a whole-body mint clears every finding.
 #[test]
 fn a_body_with_no_rows_still_has_none_after_a_split() {
     let (body, _) = wall(0.2, 1.4, 0.0, 1.0);
@@ -253,7 +253,7 @@ fn a_body_with_no_rows_still_has_none_after_a_split() {
     assert_eq!(bare.pcurves().count(), 0);
     let curved: Vec<topo::PcurveMintError> = bare
         .faces()
-        .filter(|(fk, _)| !matches!(bare.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(bare.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(face, _)| topo::PcurveMintError::Unminted { face })
         .collect();
     assert!(!curved.is_empty(), "the wall has a curved face");

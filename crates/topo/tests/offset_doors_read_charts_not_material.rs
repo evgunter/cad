@@ -90,7 +90,7 @@ fn top(body: &Body<f64>) -> FaceKey {
     let mut hits = body.faces().filter(|(fk, _)| {
         matches!(
             body.face_surface(*fk),
-            Some(Surface::Plane { frame, .. })
+            Ok(Surface::Plane { frame, .. })
                 if frame.axis().z.abs() == 1.0 && frame.origin().z == 1.0
         )
     });
@@ -102,7 +102,7 @@ fn top(body: &Body<f64>) -> FaceKey {
 /// The top chart's stored normal's z.
 fn top_normal_z(body: &Body<f64>) -> f64 {
     match body.face_surface(top(body)) {
-        Some(Surface::Plane { frame, .. }) => {
+        Ok(Surface::Plane { frame, .. }) => {
             let normal = frame.axis();
             normal.z
         }

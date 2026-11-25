@@ -2,7 +2,9 @@
 id: a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64
 kind: issue
 title: A circle square to a cylinder's axis is stored with a rounding residue in its axial channel where the outline is built off the axes, at f64, so the injectivity check reads a fillet strip's end arc as a curve and its corner by the ruling run on past the vertex (traced on one test)
-status: open
+status: closed
+closed: 2026-11-25
+pr: 7738
 opened: 2026-11-22
 priority: P0
 cost: E
@@ -120,3 +122,21 @@ it reads `Uncertified Departure`, cylinder against plane across an
 edge: the exit of this row's traced test. The mirror re-mints the rows
 on a turned frame, where a rigid move keeps the stored images. Likely
 the same cause; not traced. The row pins it at that exit.
+
+## Closed (PCERT, 2026-11-25)
+
+`cylinder_rim_axial` decides the axial amplitude at
+`pcurve_cylinder_chart_axial` at every scalar, as the cone arm decides
+`pcurve_cone_chart_axial`: a sup decided `Zero` writes both terms zero,
+a point rounding off zero at `f64` included. Only two exact zeros skip
+the decision. What a dropped pair held is now charged to check 4's
+`Drift` term (`Derivation::CylinderMoving`'s `rim`): the re-derivation
+drops the same terms, so no fidelity term saw it, and
+`envelope_lemma_fuzz`'s pinned sweep found the envelope under the
+sampled sup on an in-band tilted rim (1.24e-10 against 3.64e-10) until
+it was charged. The traced plate drawn turned 30° and the uneven plate
+mirrored across a generic plane (the second sighting) both read
+`Embedded` now; their pins in `self_intersection_proves_injectivity`
+are flipped to it, and the unit row
+(`cylinder_rim_rows`) holds the `f64` rounding `−6.9e−18` zeroed.
+The 11 candidate tests on EMBED's gate branch were not run here.
