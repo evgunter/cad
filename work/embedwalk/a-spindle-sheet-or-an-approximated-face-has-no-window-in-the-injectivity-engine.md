@@ -2,10 +2,12 @@
 id: a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a spindle sheet's face or an approximated face, so every finished body holding one refuses Unsupported at the at-rest gate
-status: open
+status: review
 opened: 2026-11-21
 priority: P0
 cost: H
+branch: embedwalk/approx-window
+pr: 7767
 ---
 
 
@@ -57,6 +59,33 @@ Two units, not one:
 - **The approximated face:** a window on its fit's knot domain, the
   NURBS face's iso-bounded window (`iso_bounded_domain`), and a reading
   of the face through its fit and its distance certificate.
+
+## Evidence: the spindle half (lane `embedwalk-spindle`, 2026-11-25)
+
+The 20 spindle tests of the census, each solid asked at the gate's
+budgets (depth 40, 65 536 pairs) after tier 3, on current main and on
+the branch giving the sheet its window and by-kind discharge (the
+gate's ask ported as a logging harness, f64 throughout):
+
+| | sheet asks | `Embedded` | `Budget` | `Uncertified` | `Unsupported` | tests whose every ask holds | gate seconds |
+|---|---|---|---|---|---|---|---|
+| main | 143 | 0 | 0 | 0 | 143 | 0 | 7.4 |
+| branch | 143 | 101 | 28 | 14 | 0 | 7 | 140.3 |
+
+The other asks (non-sheet solids in the same tests: 60 `Embedded`, one
+ring-torus `Budget`) are unchanged. The residue, each filed:
+- `Budget(Pairs)` on two π-bands sharing meridians to rim corners, 26
+  asks, ~3.5 s each, and the ring torus refuses the same:
+  `two-bands-of-a-revolved-arc-sharing-their-meridians-spend-the-pair-budget`.
+- Horn bodies refused departure at a shared edge, 8 asks, and a horn's
+  part-way caps at wedge 0, 4: `a-horns-cusp-is-a-zero-angle-apex-no-certificate-parts` (EMBED).
+- A part-way football's cap against its sheet, 2 departure and 2 depth:
+  `a-part-way-revolved-sheets-cap-refuses-at-the-meridian-through-its-apexes` (EMBED).
+- No station lands inside a sheet face, only on its boundary, so a
+  crossing through one is confirmed only where boundary stations meet it:
+  `the-point-door-places-no-point-on-a-spindle-sheet-face` (INSIDE).
+- A full-revolve football does not finish at `Interval`:
+  `a-full-revolve-football-does-not-finish-at-interval` (SPIRICARM).
 
 ## The approximated half, measured (lane `embedwalk-approx`, 2026-11-25)
 

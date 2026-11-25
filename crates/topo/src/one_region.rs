@@ -209,13 +209,11 @@ pub(crate) fn door_side<T: Decide>(
         ))) => unreachable!("a cut reading reads the region alone, which places no edge"),
         Ok(CurvedPlacement::OffCarrier) => unreachable!("a cut reading reads no carrier"),
         Err(ContainError::Escalated { diag, .. }) => Err(diag),
-        Err(
-            ContainError::RayExhausted
-            | ContainError::Curved(
-                PointInSolidError::EdgeCarrierUnsupported { .. }
-                | PointInSolidError::CorruptFace { .. },
-            ),
-        ) => Ok(None),
+        Err(ContainError::Curved(
+            PointInSolidError::RegionRayExhausted { .. }
+            | PointInSolidError::EdgeCarrierUnsupported { .. }
+            | PointInSolidError::CorruptFace { .. },
+        )) => Ok(None),
         Err(other) => unreachable!("the curved doors answer no {other:?}"),
     }
 }

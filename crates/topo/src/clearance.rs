@@ -3647,6 +3647,19 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
+/// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
+/// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
+/// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
+/// past an apex lands a hair from it, on the torus's other sheet: the
+/// widening can only ADD points to an enclosure.
+fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) {
+    let apex = geom::sheet_apex(major_radius, minor_radius)
+        .v
+        .hi()
+        .next_up();
+    (-apex, apex)
+}
+
 /// **Which carriers are admitted, and the argument for each window.**
 ///
 /// A window must be a SUPERSET of the face's region in carrier
@@ -3677,6 +3690,8 @@ fn full_latitude() -> (f64, f64) {
 ///   take their canonical ranges.
 /// - **Torus**: both coordinates are periodic and no boundary bounds
 ///   either.
+/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
+///   its canonical range between the apexes ([`sheet_latitude`]).
 /// - **NURBS**: a face whose boundary is its chart's own isos, run
 ///   once around the knot domain — every loft and sweep wall — is the
 ///   whole patch, and its window is that domain
@@ -3764,7 +3779,11 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
-        Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
         Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
