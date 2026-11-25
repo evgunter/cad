@@ -4,7 +4,7 @@ kind: issue
 title: A carried site's foot escalates where the polish stalls short of the foot or clamps at an interior run end, though the site is correctly placed
 status: open
 opened: 2026-11-23
-priority: P0
+priority: P3
 ---
 
 
@@ -36,3 +36,11 @@ Re-banded P0 on that evidence: a cut of a cylinder by a box that built yesterday
 `the ring lane refused: Escalated { decision: Coincidence(Section, Moot), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("section_site_foot_bend") } }`
 
 `cargo nextest run -p sweep --test all --profile ci --ignore-default-filter -E 'test(/verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar/)'`. Not checked by EMBED: whether it was green before PR 7408 (it was not among the reds EMBED's lanes listed on the landing branch before today's merges of main).
+
+## 2026-11-24: the built bodies were a straight carrier at `Interval` (FOOTBEND)
+
+Both built bodies refuse for one cause, which is neither of this row's two: a plane × cylinder ruling (`PlaneCylinderSection::ParallelLines`, a `Curve3::Line`) read at `Interval`. `CarriedComponent::foot_along` decided `section_site_foot_bend` on `1/κ − r`, with `κ` from `curvature_hi_over`, which is exactly `[0, 0]` on a line; `1 / [0, 0]` is no enclosure, so the margin read `Invalid` on every site of every ruling. At `f64` the same quotient is `+∞` and decides. The notched rod's slab faces `x = ±0.3` cut the rod's wall in rulings, and the row builds the rod at `f64` and its `Interval` twin (`notched_rod_of::<Interval>`), so the twin is the build that refused. The ring lane's bar faces `y = ±¼` cut the pipe in rulings too, and the lane is `Interval` throughout.
+
+The fix raises the curvature bound to `f64::MIN_POSITIVE` before its reciprocal (still a bound on the curvature, so still sound), so a straight carrier's radius is finite and past any reach, and a curvature enclosure `[0, k]` gives a radius `[1/k, …]` instead of a refusal. A refused bound (`NaN`, `NaI`) stays refused. The fast row is `pair_section::tests::a_site_on_a_ruling_decides_its_foot_at_every_scalar`. The slow rows are `self_intersection_proves_injectivity::a_notched_rod_holds_across_its_reflex_corners_in_every_pose` and `verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`.
+
+The two cases this row was filed for, a polish that stalls short of the foot and a witness clamped at an interior run end on a fitted loop far off its carrier, have a different cause, and they stay open here. No built body is known to meet them, so the P0 band, which was set on the built bodies' evidence, lapses back to this row's filing band, P3.
