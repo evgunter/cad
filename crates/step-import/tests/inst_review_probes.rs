@@ -588,6 +588,7 @@ fn an_instance_moved_out_of_the_box_refuses_typed() {
         Err(StepImportError::TierInvalid {
             solid: Some(37),
             errors,
+            ..
         }) => assert!(
             matches!(
                 &errors[..],

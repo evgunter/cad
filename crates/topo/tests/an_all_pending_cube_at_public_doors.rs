@@ -214,7 +214,6 @@ fn no_public_door_panics_on_an_all_pending_cube() {
                     tol,
                 )
                 .unwrap(),
-                tol,
             )
             .map(|_| ())
         }),

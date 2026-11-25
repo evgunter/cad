@@ -440,47 +440,23 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// faces the rim bounds. The spline's image on the cylinder is its
 /// projected one, whose hull terms read the fitted door, which the
 /// description door's site mint does not hold. So the cylinder face is
-/// left rowless for a closing mint, and the at-rest gate reads it
-/// `Unminted`; the mint stores its projected rows
+/// left rowless, and the finish completes it with the projected rows
 /// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
-/// The body is not a finished body and no split door takes it; the row
-/// reads the carrier gate past the door.
+/// The row reads the carrier gate past the split door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
     for part in [validate(&body), validate_closed(&body)] {
         assert_eq!(part, Ok(()), "the re-described body is well formed");
     }
-    let errors = topo::finish(body.clone(), Tol::witness())
-        .expect_err("the face the spline bounds stores no row");
-    let rim_faces = topo::readback::edge_sides(&body, edge).unwrap().faces();
-    assert!(
-        !errors.is_empty()
-            && errors.iter().all(|e| matches!(
-                e,
-                topo::ValidationError::Pcurve {
-                    finding: topo::pcurves::PcurveMintError::Unminted { face },
-                } if face == &rim_faces.0 || face == &rim_faces.1
-            )),
-        "the at-rest gate reads the face the spline bounds as owed rows it lacks: {errors:?}"
-    );
-    let mut minted = body.clone();
-    topo::mint_pcurves(&mut minted, Tol::witness()).expect("the closing mint");
-    let sides = topo::readback::edge_sides(&minted, edge).unwrap();
+    let finished = topo::finish(body.clone(), Tol::witness())
+        .unwrap_or_else(|e| panic!("the finish completes the face the spline bounds: {e:?}"));
+    let sides = topo::readback::edge_sides(&finished, edge).unwrap();
     let projected = [sides.plus.half_edge, sides.minus.half_edge]
         .into_iter()
-        .filter_map(|h| minted.pcurve(h))
+        .filter_map(|h| finished.pcurve(h))
         .any(|c| matches!(c.pcurve(), geom_brep::Pcurve::Projected(_)));
-    assert!(
-        projected,
-        "the closing mint stores the spline's projected row"
-    );
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let findings = topo::pcurves::validate_pcurves(&minted, band);
-    assert!(
-        findings.is_empty(),
-        "the minted body reads clean: {findings:?}"
-    );
+    assert!(projected, "the finish stores the spline's projected row");
     match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
         Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {
             assert_eq!(e, edge, "the refusal names the spline edge");

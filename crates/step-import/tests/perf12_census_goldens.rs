@@ -64,7 +64,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
             }
         }
         Ok(StepImport::Wireframe { .. }) => out.push_str("import: Ok(Wireframe)\n"),
-        Err(step_import::StepImportError::TierInvalid { solid, errors }) => {
+        Err(step_import::StepImportError::TierInvalid { solid, errors, .. }) => {
             out.push_str(&format!(
                 "import: Err(TierInvalid) solid={solid:?} {} findings\n",
                 errors.len()

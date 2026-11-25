@@ -2685,17 +2685,23 @@ fn turn_readings_of<T: Decide>(
     (reading.gap, reading.chords)
 }
 
-/// **The loft doors before their finish**: [`crate::loft_body`],
+/// **The loft doors before their finish's verdict**: [`crate::loft_body`],
 /// [`crate::loft_profiles`] and [`crate::sweep_body`] with the built
-/// body in construction state, every key kept. For the suites that read
-/// a loft's walls at an enclosure scalar whose finish does not run on
-/// them: at `Interval`, check 7's quadrature refuses a NURBS wall whose
-/// pcurve endpoints are not exact structure, so the door refuses the
-/// body, and the walls those suites measure are read here instead.
+/// body in construction state, every key kept, its rows completed as the
+/// finish completes them ([`topo::test_support::completed`]). For the
+/// suites that read a loft's walls at an enclosure scalar whose finish
+/// does not run on them: at `Interval`, check 7's quadrature refuses a
+/// NURBS wall whose pcurve endpoints are not exact structure, so the door
+/// refuses the body, and the walls those suites measure are read here
+/// instead.
 ///
 /// # Errors
 ///
 /// The door's own, short of its finish.
+///
+/// # Panics
+///
+/// Where the built body's rows do not complete.
 pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     sections: &[crate::skin::Section<impl crate::skin::SectionLoop<T>>],
     places: &[profile::SketchPlane<T>],
@@ -2703,6 +2709,18 @@ pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::loft_body_construction(sections, places, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
+}
+
+/// `lofted` with its body's rows completed.
+#[allow(clippy::panic)]
+fn completed_loft<T: topo::AtRestPolicy>(
+    lofted: crate::Lofted<T, topo::Body<T>>,
+    tol: geom_core::Tol,
+) -> crate::Lofted<T, topo::Body<T>> {
+    let body = topo::test_support::completed(lofted.body, tol)
+        .unwrap_or_else(|e| panic!("the loft's rows complete: {e:?}"));
+    crate::Lofted { body, ..lofted }
 }
 
 /// **A spline-walled body at `T` whose carriers hold `f64` values as
@@ -2733,9 +2751,9 @@ pub fn f64_body_held_as_points<T: geom_core::Decide + topo::AtRestPolicy>(
     crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)?.leaf(tol)
 }
 
-/// [`f64_body_held_as_points`] before its finish: the body in
-/// construction state, for the rows that read its walls at an enclosure
-/// scalar whose finish does not run on them.
+/// [`f64_body_held_as_points`] before its verdict: the body with its
+/// rows completed, as its finish completes them, for the rows that read
+/// its walls at an enclosure scalar whose finish does not run on them.
 ///
 /// # Errors
 ///
@@ -2747,6 +2765,7 @@ pub fn f64_body_held_as_points_construction<T: geom_core::Decide + topo::AtRestP
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].
@@ -2760,6 +2779,7 @@ pub fn loft_profiles_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::loft_profiles_construction(sections, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::sweep_body`].
@@ -2776,6 +2796,7 @@ pub fn sweep_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::sweep_body_construction(profile, plane, path, stations, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// **[`crate::revolve()`] before its finish**: the built body in

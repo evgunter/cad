@@ -442,9 +442,25 @@ impl<T: Decide> Body<T> {
             }
         }
         let recharted = faces.iter().filter(|m| !m.on_parent_chart);
-        let dropped = self
+        let mut dropped = self
             .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
             .concat();
+        // Every row of a listed edge is stated over its carrier and
+        // interval, on a face that keeps its chart too, so a spec that
+        // moves either drops them; one that restates both keeps them.
+        for (edge, _, curve) in &written.rows {
+            let e = proven(&self.edges, *edge, EntityId::Edge);
+            let kept = self.proven_edge(*edge).certified().is_some_and(|old| {
+                let ((a0, a1), (b0, b1)) = (old.params(), curve.params());
+                old.carrier()
+                    .same_content_by(curve.carrier(), T::same_value)
+                    && T::same_value(a0, b0)
+                    && T::same_value(a1, b1)
+            });
+            if !kept {
+                dropped.extend([e.he_plus, e.he_minus]);
+            }
+        }
 
         // ---- Mutation (infallible from here on). ----
         //
