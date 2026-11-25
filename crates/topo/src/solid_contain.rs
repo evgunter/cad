@@ -307,7 +307,7 @@ pub enum PointInSolidError {
     /// count per kind: `Plane` (its in-face walk), `Cylinder` and `Cone`
     /// (a face's region, [`crate::ruled_region`]), `Sphere` (a closed
     /// group, or a trimmed face whose every edge is a certified circle
-    /// arc, [`crate::sphere_region`]) and `Torus` (a closed group, or a
+    /// or spline arc, [`crate::sphere_region`]) and `Torus` (a closed group, or a
     /// face's region, [`crate::torus_region`]) have one; `Nurbs` and
     /// `Approx` do not.
     ///
@@ -348,15 +348,14 @@ pub enum PointInSolidError {
     /// planar face offers no ray to aim.
     VolumeUncertified,
     /// A `Sphere` face that is not closed on its own surface and has a
-    /// boundary edge that is not a circle arc.
+    /// boundary edge that is neither a circle nor a spline arc.
     ///
     /// A trimmed sphere face is read from its boundary arcs
-    /// ([`crate::sphere_region`]): every crossing of a great circle with
-    /// a circle arc is the root of a first harmonic. An edge on any other
-    /// carrier — a spline, or the quartic a torus, a cylinder or a cone
-    /// whose axis misses the sphere's centre leaves on it — has no such
-    /// crossing here, and neither has an edge with no certified carrier
-    /// that is no placeholder ([`crate::null::is_placeholder`]).
+    /// ([`crate::sphere_region`]), a circle's or a spline's, the curves a
+    /// sphere carries. An edge on a line, an ellipse or a spiric lies on
+    /// no sphere, and an edge with no certified carrier that is no
+    /// placeholder ([`crate::null::is_placeholder`]) is a gap in the
+    /// boundary: neither has a crossing to read.
     PartialSphereFace {
         /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
@@ -678,9 +677,8 @@ impl PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its sphere faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
-                 Recourse: cut the sphere face only where its edges are circles — with \
-                 planes, other spheres, or cylinders and cones whose axis passes \
-                 through its centre"
+                 Recourse: bound the sphere face only with edges that lie on the sphere — \
+                 the circles and curves other solids cut it in"
             ),
             Self::PartialConeFace { .. } => write!(
                 f,
@@ -928,7 +926,9 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// {Plane, Cylinder, Cone, Sphere, Torus} refuse as
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
 /// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
-/// boundary edge that is not a circle arc as
+/// boundary edge that is not a circle arc, nor a spline arc read by
+/// `splines` (the scalar's spline reader, where the caller holds one:
+/// [`crate::props::AtRestPolicy::spline_face_crossings`]), as
 /// [`PointInSolidError::PartialSphereFace`]. A face of the selection that
 /// does not resolve panics.
 pub(crate) fn face_geo<T: Decide>(
@@ -936,6 +936,7 @@ pub(crate) fn face_geo<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
     band: Band,
+    splines: Option<crate::region::SplineCrossings<T>>,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
@@ -944,7 +945,7 @@ pub(crate) fn face_geo<T: Decide>(
     if let Some(e) = uncrossable(body, face) {
         return Err(e);
     }
-    face_geo_arms(body, face, charts, band)
+    face_geo_arms(body, face, charts, band, splines)
 }
 
 /// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
@@ -955,6 +956,7 @@ fn face_geo_arms<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
     band: Band,
+    splines: Option<crate::region::SplineCrossings<T>>,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
@@ -1015,7 +1017,7 @@ fn face_geo_arms<T: Decide>(
                     representative,
                     sense: proven(&body.faces, representative, EntityId::Face).sense,
                 }),
-                None => match sphere_face_region(body, face)? {
+                None => match sphere_face_region(body, face, splines)? {
                     Some(region) => Ok(FaceGeo::SpherePatch {
                         center,
                         radius,
@@ -2045,7 +2047,13 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     // face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     let climbed = climb(Answering::Any, faces, |&face| {
-        let geo = match face_geo(body, face, &sel.charts, band) {
+        let geo = match face_geo(
+            body,
+            face,
+            &sel.charts,
+            band,
+            Some(T::spline_face_crossings),
+        ) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
             // where the ray test cannot cross a face of it: definitely
@@ -5052,7 +5060,12 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+                .map(|&face| {
+                    (
+                        face,
+                        face_geo(&body, face, &sel.charts, band, None).unwrap(),
+                    )
+                })
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
@@ -5107,7 +5120,12 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+                    .map(|&face| {
+                        (
+                            face,
+                            face_geo(&body, face, &sel.charts, band, None).unwrap(),
+                        )
+                    })
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
@@ -5141,7 +5159,12 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+            .map(|&face| {
+                (
+                    face,
+                    face_geo(&body, face, &sel.charts, band, None).unwrap(),
+                )
+            })
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q, band).unwrap();
@@ -5608,7 +5631,7 @@ mod kind_arm_tests {
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = surface;
             let sel = SolidFaces::select(&body, faces).unwrap();
-            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap());
+            let read = face_geo_arms(&body, face, &sel.charts, Band::linear(tol).unwrap(), None);
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
             assert_eq!(
                 refused,
@@ -5844,7 +5867,7 @@ mod cone_ray_rows {
         let charts = SolidFaces::of_body(&body).expect("its faces").charts;
         let geos = [(
             face,
-            face_geo(&body, face, &charts, band).expect("the face's geometry"),
+            face_geo(&body, face, &charts, band, None).expect("the face's geometry"),
         )];
         assert!(
             matches!(

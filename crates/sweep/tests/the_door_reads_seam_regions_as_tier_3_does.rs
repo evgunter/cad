@@ -57,11 +57,6 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
 /// the rotational lane.
 const VOLUME_ON: &str = "VolumeUncomputable on a";
 
-/// The result's piece sort, whose point-in-solid walk cannot read a
-/// sphere face bounded by a spline chord
-/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-const PIECES: &str = "the piece sort's walk on a chorded sphere face";
-
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
 fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
@@ -80,8 +75,6 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
             Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
             None => format!("{VOLUME_ON} face of no recorded kind"),
         }
-    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
-        PIECES.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -94,8 +87,7 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
 /// ball's four booleans with the upright rod build since the join's
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
 /// they stopped at the join's lane dispatch before. Every other boolean
-/// builds but one of each rod's `b − a`, whose result's piece sort
-/// refuses ([`PIECES`]).
+/// builds.
 fn pinned(part: Part) -> Stops {
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
@@ -104,7 +96,7 @@ fn pinned(part: Part) -> Stops {
             ("unit u rod", BODY),
             ("unit i rod", BODY),
             ("unit a-b rod", BODY),
-            ("unit b-a rod", PIECES),
+            ("unit b-a rod", BODY),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
@@ -114,13 +106,13 @@ fn pinned(part: Part) -> Stops {
             ("unit u rodx", BODY),
             ("unit i rodx", BODY),
             ("unit a-b rodx", BODY),
-            ("unit b-a rodx", PIECES),
+            ("unit b-a rodx", BODY),
         ],
         Part::TiltTurnedRod => &[
             ("tilt u rodx", BODY),
             ("tilt i rodx", BODY),
             ("tilt a-b rodx", BODY),
-            ("tilt b-a rodx", PIECES),
+            ("tilt b-a rodx", BODY),
         ],
         Part::Stub => &[
             ("unit u stub", BODY),

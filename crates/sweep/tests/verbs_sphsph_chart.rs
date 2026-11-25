@@ -520,8 +520,8 @@ fn the_solid_door_answers_around_a_rimmed_sphere_band() {
     );
 }
 
-/// The refusal that remains says what the reading NEEDS: edges that are
-/// circles. The retired blocker — "`chart_mints` is false for sphere
+/// The refusal that remains says what the reading NEEDS: edges that lie
+/// on the sphere. The retired blocker — "`chart_mints` is false for sphere
 /// charts" — must not come back.
 #[test]
 fn the_refusal_names_the_class_it_needs() {
@@ -531,7 +531,7 @@ fn the_refusal_names_the_class_it_needs() {
     .render(geom_brep::recourse::Reading::Build);
     for want in [
         "sphere face",
-        "Recourse: cut the sphere face only where its edges are circles",
+        "Recourse: bound the sphere face only with edges that lie on the sphere",
     ] {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
     }
@@ -852,7 +852,7 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
     );
     assert!(
         err.render(geom_brep::recourse::Reading::Build)
-            .contains("edges are circles"),
+            .contains("edges that lie on the sphere"),
         "{err_at}",
         err_at = err.render(geom_brep::recourse::Reading::Build)
     );

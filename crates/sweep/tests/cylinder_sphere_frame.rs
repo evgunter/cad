@@ -287,10 +287,6 @@ pub(crate) enum Door {
     /// so no run here stops at it; the rows beside these that pin it
     /// read it here.
     Sphere,
-    /// The result's piece sort, whose point-in-solid walk cannot read a
-    /// sphere face bounded by a spline chord (`PartialSphereFace`,
-    /// `work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-    Pieces,
     /// The edge join on a spline carrier beside another carrier
     /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
     /// which no pose here reaches.
@@ -302,7 +298,7 @@ pub(crate) enum Door {
 pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     let on_sphere = topo::boolean::refused_face_kind(e) == Some(geom::SurfaceKind::Sphere);
     use geom_brep::PropsError;
-    use topo::{MassPropsError, PieceSortError, PointInSolidError, ValidationError};
+    use topo::{MassPropsError, ValidationError};
     match e {
         BooleanError::ResultInvalid { findings: errors } => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
@@ -319,10 +315,6 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
             },
             _ => None,
         },
-        BooleanError::Pieces(PieceSortError::Probe {
-            source: PointInSolidError::PartialSphereFace { .. },
-            ..
-        }) => Some(Door::Pieces),
         BooleanError::JoinCarrierUnsupported {
             carrier: geom::CurveKind::Nurbs,
             closed: false,
@@ -332,34 +324,30 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     }
 }
 
-/// How a run is pinned to end: a body at its volume, or the piece sort's
-/// refusal ([`Door::Pieces`]).
+/// How a run's body is pinned to read at tier 3′.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Ends {
-    /// A body, at its volume.
-    Builds,
-    /// The result's piece sort refuses on a chorded sphere face.
-    Pieces,
+    /// It passes.
+    Sound,
+    /// Its census cannot tell curved faces of two of its parts apart,
+    /// and refuses with that alone (`CensusUndecidable`, `MayOverlap`:
+    /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
+    /// a difference that cuts its first operand in two.
+    PartsUndecided,
 }
 
-/// **Whether run `got` ends as `ends` says**, `None` if so and else what
-/// is off. A body passes tiers 2 and 3′ and the at-rest certificate, and
-/// holds `want` within `VOLUME_CLAIM` of its certified enclosure, no
-/// wider than `ceiling`; its union with a far brick builds (SOUND) or
-/// refuses `Containment(PartialSphereFace)` and nothing else
-/// ([`far_union`]). A refusal is the piece sort's
-/// ([`Door::Pieces`]) where `ends` says so, and nothing else is.
-/// `guards` are regression guards on the enclosure's half-width, not
+/// **Whether run `got` is a body at its volume that ends as `ends`
+/// says**, `None` if so and else what is off. A body passes tier 2 and
+/// the at-rest certificate, reads at tier 3′ as `ends` says, holds `want`
+/// within `VOLUME_CLAIM` of its certified enclosure, no wider than
+/// `ceiling`, and is a legal operand: its union with a far brick builds
+/// ([`far_union`]). A refusal is off, named by its [`door`]. `guards` are regression guards on the enclosure's half-width, not
 /// soundness bounds, each `(ε, width)` read only at that ε: a run at an
 /// ε with no measured width is held to `ceiling` alone. A run that
 /// stopped short of the resolution is held to `ceiling` as well, on
 /// purpose: the ceiling's derivation ([`pad_ceiling`]) covers a met
 /// run, and a stopped-short one under it still pins its volume as
 /// tightly. The run's line, its stop included, is printed.
-///
-/// Not `common::differential::judged_at_resolution`: its verdict reads
-/// a body whose far union refuses at the chorded sphere face as `BAD`,
-/// and every body here does (`Operand::AtTheSphere`).
 pub(crate) fn at_its_volume(
     label: &str,
     got: Result<topo::BooleanResult<f64>, BooleanError>,
@@ -370,29 +358,38 @@ pub(crate) fn at_its_volume(
 ) -> Option<String> {
     use crate::common::differential::VOLUME_CLAIM;
     let tol = Tol::witness();
-    let body = match (&got, ends) {
-        (Err(e), Ends::Pieces) if door(e) == Some(Door::Pieces) => {
-            println!("{label}: refused at the piece sort");
-            return None;
-        }
-        (Err(e), _) => return Some(format!("{label}: refused at {:?}: {e:?}", door(e))),
-        (Ok(_), Ends::Pieces) => {
-            return Some(format!("{label}: built where the piece sort was pinned"));
-        }
-        (Ok(r), Ends::Builds) => match r.body() {
+    let body = match &got {
+        Err(e) => return Some(format!("{label}: refused at {:?}: {e:?}", door(e))),
+        Ok(r) => match r.body() {
             Some(bb) => bb,
             None => return Some(format!("{label}: an empty result")),
         },
     };
     let t2 = topo::validate_closed(&body.body).is_ok();
-    let t3 = topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok();
+    let t3 = match (
+        topo::validate_pseudomanifold(&body.body, &body.contacts, tol),
+        ends,
+    ) {
+        (Ok(()), Ends::Sound) => true,
+        (Err(findings), Ends::PartsUndecided) => findings.iter().all(|f| {
+            matches!(
+                f,
+                topo::ValidationError::CensusUndecidable {
+                    reason: topo::Undecidable::MayOverlap,
+                    ..
+                }
+            )
+        }),
+        _ => false,
+    };
     let cert = topo::validate_geometric_certificate(&body.body, tol).is_ok();
     let operand = far_union(&body.body);
     let measured =
         topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
             .map(|m| (m.enclosure.volume, m.enclosure.volume_pad, m.stop));
     println!(
-        "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} volume={measured:?} want={want}"
+        "{label}: t2={t2} t3p as {ends:?}={t3} cert={cert} operand={operand:?} \
+         volume={measured:?} want={want}"
     );
     let Ok((v, pad, _stop)) = measured else {
         return Some(format!("{label}: unmeasured {measured:?}"));
@@ -403,24 +400,22 @@ pub(crate) fn at_its_volume(
     let held = t2
         && t3
         && cert
-        && matches!(operand, Operand::Legal | Operand::AtTheSphere)
+        && matches!(operand, Operand::Legal)
         && (v - want).abs() <= VOLUME_CLAIM + pad
         && pad <= ceiling
         && guarded;
     (!held).then(|| {
         format!(
-            "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} v={v} pad={pad} \
+            "{label}: t2={t2} t3p as {ends:?}={t3} cert={cert} operand={operand:?} v={v} pad={pad} \
              want={want} ceiling={ceiling} guard={guard:?}"
         )
     })
 }
 
-/// What a body's union with a far brick reads: legal, refused only at
-/// point-in-solid's chorded sphere face, or refused otherwise.
+/// What a body's union with a far brick reads: legal, or refused.
 #[derive(Debug)]
 pub(crate) enum Operand {
     Legal,
-    AtTheSphere,
     /// The refusal, printed with the run's line.
     Refused(#[allow(dead_code)] String),
 }
@@ -436,9 +431,6 @@ pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     );
     match topo::union(body, &far, tol) {
         Ok(_) => Operand::Legal,
-        Err(BooleanError::Containment(topo::PointInSolidError::PartialSphereFace { .. })) => {
-            Operand::AtTheSphere
-        }
         Err(e) => Operand::Refused(format!("{e:?}")),
     }
 }
@@ -476,11 +468,12 @@ const MEASURED_PAD: [f64; 9] = [
     9.1e-11, 1.8e-10, 2.4e-11, 5.3e-10, 7.1e-10, 3.9e-10, 8.0e-10, 7.6e-7, 1.2e-7,
 ];
 
-/// **Every run of pose `index` ends as pinned** ([`at_its_volume`]): the
-/// two-loop poses' `A ∖ B` at the piece sort, every other run a body at
-/// its volume, its enclosure no wider than the pinned resolution admits
-/// on the operands' area and guarded at four times the pose's
-/// [`MEASURED_PAD`].
+/// **Every run of pose `index` is a body at its volume**
+/// ([`at_its_volume`]), a legal operand, its enclosure no wider than the
+/// pinned resolution admits on the operands' area and guarded at four
+/// times the pose's [`MEASURED_PAD`]. Each passes tier 3′ but the
+/// two-loop poses' `A ∖ B`, which cuts the drum in two
+/// ([`Ends::PartsUndecided`]).
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let pose = &poses()[index];
     let (a, b) = pose.operands();
@@ -493,9 +486,9 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
         let ends = if two_loops && op_label == "A ∖ B" {
-            Ends::Pieces
+            Ends::PartsUndecided
         } else {
-            Ends::Builds
+            Ends::Sound
         };
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
         off.extend(at_its_volume(
@@ -520,11 +513,6 @@ macro_rules! pose_rows {
     )*};
 }
 
-// Every run builds at [`oracle`]'s volume, but the two-loop poses' A ∖ B,
-// which refuse at the result's piece sort; no body is a legal operand,
-// since point_in_solid cannot read a chorded sphere face
-// (work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md).
-// When it can, every run that builds is held SOUND.
 pose_rows! {
     a_ball_across_a_cylinder_wall_centre_on_the_wall: 0;
     a_ball_across_a_cylinder_wall_centre_inside: 1;
