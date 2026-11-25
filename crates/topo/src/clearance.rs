@@ -1816,6 +1816,18 @@ impl Sweep {
                     }
                     continue;
                 }
+                let node = crate::split_ground::root(
+                    k,
+                    x.face,
+                    y.face,
+                    if x.face == y.face {
+                        "same-face"
+                    } else if sh.is_empty() {
+                        "shares-nothing"
+                    } else {
+                        "shares-a-cell"
+                    },
+                );
                 frontier.push(Task {
                     k,
                     i,
@@ -1827,6 +1839,7 @@ impl Sweep {
                         fresh: true,
                     },
                     open,
+                    node,
                 });
             }
 
@@ -1927,6 +1940,7 @@ impl Walk {
         // What is already final, what this level has left to fold, and
         // what is queued for the next level.
         let committed = r.discharged + r.violated + r.refused + self.left + self.next.len();
+        crate::split_ground::current(task.node);
         let bound = if task.pair.depth >= self.budgets.max_cell_depth {
             CellBudget::Depth {
                 max_cell_depth: self.budgets.max_cell_depth,
@@ -1936,12 +1950,26 @@ impl Walk {
                 max_cell_pairs: self.budgets.max_cell_pairs,
             }
         } else if let Some(children) = cut() {
-            self.next.extend(children.map(|pair| Task { pair, ..task }));
+            let ids = crate::split_ground::split(task.node, N);
+            self.next.extend(
+                children
+                    .into_iter()
+                    .zip(ids)
+                    .map(|(pair, node)| Task { pair, node, ..task }),
+            );
             self.receipt.splits += N - 1;
             return Ok(());
         } else {
             CellBudget::Resolution
         };
+        crate::split_ground::stopped(
+            task.node,
+            match bound {
+                CellBudget::Depth { .. } => "depth",
+                CellBudget::Pairs { .. } => "pairs",
+                CellBudget::Resolution => "resolution",
+            },
+        );
         self.receipt.refused += 1;
         Err(bound)
     }
@@ -1990,7 +2018,13 @@ fn walk<T: Real, Q: Question<T>>(
                 continue;
             };
             deepest = deepest.max(task.pair.depth);
-            if q.pair(&mut w, task, x, y).is_break() {
+            crate::split_ground::current(task.node);
+            let t0 = crate::split_ground::on().then(std::time::Instant::now);
+            let flow = q.pair(&mut w, task, x, y);
+            if let Some(t0) = t0 {
+                crate::split_ground::time(task.node, t0.elapsed().as_secs_f64());
+            }
+            if flow.is_break() {
                 w.receipt.abandoned += w.left + w.next.len();
                 return (w.receipt, deepest);
             }
@@ -2169,6 +2203,9 @@ impl<W, F> Bound<'_, W, F> {
 
     /// The lower bound's refusal, kept where it is the first.
     fn keep_below(&mut self, refusal: EngineRefusal) {
+        if self.lower_refusal.is_none() {
+            crate::split_ground::refused(format!("{refusal:?}"));
+        }
         self.lower_refusal.get_or_insert(refusal);
     }
 
@@ -2401,6 +2438,7 @@ where
                         }
                     }
                 } else if let Some((near, la, lb)) = &near {
+                    crate::split_ground::clear();
                     let (px, py) = (piece_of(x, pair.a, la), piece_of(y, pair.b, lb));
                     if same {
                         injective::certify_self(&px, &py, near, band, &x.poses)
@@ -2445,6 +2483,16 @@ where
                         unreachable!("read as a split or a refusal above")
                     }
                     Outcome::Split { arm, shared } => {
+                        crate::split_ground::pending(format!(
+                            "touch:{}:{}#{shared:?}",
+                            arm.name(),
+                            match arm {
+                                CertificateArm::Monotone => "monotone".to_owned(),
+                                CertificateArm::SecondOrder => "cusp".to_owned(),
+                                _ => crate::split_ground::take_reason()
+                                    .unwrap_or_else(|| "unstashed".to_owned()),
+                            }
+                        ));
                         // A cell paired with itself splits into its two
                         // halves each against itself and against each
                         // other: three pairs, two splits' worth of
@@ -2642,6 +2690,23 @@ where
             open: split,
             ..task
         };
+        if crate::split_ground::on() {
+            let sep = separation(&pair.a.enc, &pair.b.enc);
+            let esc = band.escalate();
+            let (lo, hi) = (sep.lo(), sep.hi());
+            let class = if hi < esc {
+                "wholly-in-band"
+            } else if lo <= 0.0 {
+                "lo-at-or-below-zero"
+            } else {
+                "lo-in-band"
+            };
+            crate::split_ground::pending(format!(
+                "distance:{class}:{}",
+                if sh.is_empty() { "shares-nothing" } else { "shares-a-cell" }
+            ));
+            crate::split_ground::sep(lo, hi);
+        }
         if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
         {
             let refusal = EngineRefusal::Budget {
@@ -3272,6 +3337,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                     below: true,
                     above: false,
                 },
+                node: 0,
             });
         }
         let receipt = CellReceipt {
@@ -4624,6 +4690,8 @@ struct Task {
     /// Which bounds it is examined for (the bound question's; the
     /// minimum question reads every pair alike).
     open: Open,
+    /// MEASUREMENT ONLY: the split-ground recorder's node.
+    node: u32,
 }
 
 /// One cell's interval enclosure on its carrier.
@@ -5321,6 +5389,25 @@ pub struct EmbeddingReport {
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
 pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
+    side: &Side<'_, T>,
+    band: Band,
+    budgets: Budgets,
+) -> EmbeddingReport {
+    crate::split_ground::start();
+    let report = embedded_ask(side, band, budgets);
+    crate::split_ground::finish(
+        &match &report.verdict {
+            Embedding::Embedded => "Embedded".to_owned(),
+            Embedding::Crosses(_) => "Crosses".to_owned(),
+            Embedding::Refused(r) => format!("Refused:{}", r.name()),
+        },
+        report.receipt.candidates,
+        report.receipt.splits,
+    );
+    report
+}
+
+fn embedded_ask<T: geom_core::Certifies + CertifiedBounds>(
     side: &Side<'_, T>,
     band: Band,
     budgets: Budgets,
@@ -6364,6 +6451,7 @@ mod trv_rows {
 
     fn task(ca: Cell, cb: Cell) -> Task {
         Task {
+            node: 0,
             k: 0,
             i: 0,
             j: 0,
@@ -7885,6 +7973,7 @@ mod first_finding_rows {
             next: Vec::new(),
         };
         let task = Task {
+            node: 0,
             k: 0,
             i,
             j,

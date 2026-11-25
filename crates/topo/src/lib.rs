@@ -159,6 +159,8 @@ pub mod chart_region;
 pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
+#[doc(hidden)]
+pub mod split_ground;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;

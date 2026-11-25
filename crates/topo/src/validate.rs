@@ -10687,6 +10687,11 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
+        if crate::split_ground::gate_enabled()
+            && let Ok(band) = linear_band(tol)
+        {
+            gate_ask(&body, band);
+        }
         Ok(Self {
             body,
             sign,
@@ -10891,6 +10896,28 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
 
 /// `Band::linear(tol)`, its refusal as the verdict vector every door
 /// returns it in.
+/// MEASUREMENT ONLY: the at-rest gate's ask (`embed/gate`'s
+/// `AtRestBody::embedded`), logged and passed: each solid against itself
+/// at the gate's budget, the verdict dropped.
+fn gate_ask<T: geom_core::Certifies + geom_core::CertifiedBounds>(body: &Body<T>, band: Band) {
+    use crate::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Side, embedded};
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 65_536,
+    };
+    for (solid, _) in body.solids() {
+        let faces = body.faces_of_solid(solid).unwrap_or_default();
+        if faces.is_empty() {
+            continue;
+        }
+        crate::split_ground::door("gate");
+        let _ = geom_core::k_stats::unlogged("split-ground", || {
+            embedded(&Side { body, faces }, band, budgets)
+        });
+        crate::split_ground::door("direct");
+    }
+}
+
 fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
     Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
 }

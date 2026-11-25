@@ -694,10 +694,13 @@ pub(crate) fn certify_self(
     }
     match near.edges.as_slice() {
         [_] => departure(x, y, near, band, false, (face, face)),
-        _ => Outcome::Split {
-            arm: CertificateArm::Departure,
-            shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
-        },
+        e => {
+            crate::split_ground::reason(format!("self-near-{}-edges", e.len()));
+            Outcome::Split {
+                arm: CertificateArm::Departure,
+                shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
+            }
+        }
     }
 }
 
@@ -835,7 +838,9 @@ fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> 
 /// A margin's definite sign at `row`, or `None` where it is zero, in
 /// band or does not certify.
 fn definite_as(row: &'static str, margin: Margin<Interval>, band: Band) -> Option<Sign> {
-    match decide(row, margin, band) {
+    let d = decide(row, margin, band);
+    crate::split_ground::margin(&d);
+    match d {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
     }
@@ -1337,6 +1342,14 @@ enum Presentation<'a> {
     Of(Box<Presented<'a>>),
 }
 
+/// MEASUREMENT ONLY: `Unpresented::Local`, its line stashed.
+macro_rules! sgl {
+    () => {{
+        crate::split_ground::local(line!());
+        Unpresented::Local
+    }};
+}
+
 /// Why a face is not presented in a cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Unpresented {
@@ -1596,7 +1609,7 @@ fn present<'a: 'h, 'h>(
             Err(stored @ (Unpresented::Structural | Unpresented::Local)) => {
                 match present_posed(piece, near_edges, near_vertices, band, poses) {
                     Some(Ok(read)) => Ok(read),
-                    Some(Err(Unpresented::Local)) => Err(Unpresented::Local),
+                    Some(Err(Unpresented::Local)) => Err(sgl!()),
                     _ => Err(stored),
                 }
             }
@@ -1636,7 +1649,7 @@ fn unread(edge: usize, near_edges: &[usize]) -> Unpresented {
     if near_edges.contains(&edge) {
         Unpresented::Structural
     } else {
-        Unpresented::Local
+        sgl!()
     }
 }
 
@@ -2029,7 +2042,7 @@ fn sheets(
         match copies.as_slice() {
             [] => return Ok(Sheets::Missed),
             [one] => on[axis.index()] = Sheet::Copy(one.0, one.1),
-            _ => return Err(Unpresented::Local),
+            _ => return Err(sgl!()),
         }
     }
     Ok(Sheets::On(on))
@@ -2552,7 +2565,7 @@ fn present_chart_in<'a>(
     let mut inside = false;
     for &ei in &piece.local.edges {
         let Some(e) = b.edges.get(ei) else {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         };
         if e.arc.is_none() {
             if piece.whole {
@@ -2596,7 +2609,7 @@ fn present_chart_in<'a>(
             // Every read below, and the merge's folds, see only a
             // certified line.
             if !line.is_certified() {
-                return Err(Unpresented::Local);
+                return Err(sgl!());
             }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
@@ -2628,7 +2641,7 @@ fn present_chart_in<'a>(
         return if vacuous(b, piece.surface, cell, &outside, posed) {
             Ok(Presentation::Vacuous)
         } else {
-            Err(Unpresented::Local)
+            Err(sgl!())
         };
     }
     // Lines on one side are one line where they hold one common value,
@@ -2651,7 +2664,7 @@ fn present_chart_in<'a>(
             let joints = joints(b, Lines::of(piece.surface), &edges, side.axis());
             let run = run_through(&joints, first.edges[0]);
             if !edges.iter().all(|e| run.contains(e)) {
-                return Err(Unpresented::Local);
+                return Err(sgl!());
             }
         }
         let hull = Interval::from_bounds(
@@ -2735,7 +2748,7 @@ fn present_chart_in<'a>(
                     m.collapsed = Some(v);
                     m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
                 }
-                Some(_) => return Err(Unpresented::Local),
+                Some(_) => return Err(sgl!()),
                 None => merged.push(Clip {
                     side,
                     at: line,
@@ -2756,7 +2769,7 @@ fn present_chart_in<'a>(
     // `a_filleted_drum_certifies_across_its_fillet` pins.
     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
     if !piece.whole && (no_width(x) || no_width(y)) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
@@ -2786,7 +2799,7 @@ fn present_chart_in<'a>(
     // `work/embed/a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading.md`
     // for a face with no implicit.
     if !piece.whole && !sides_are_the_faces(b, Lines::of(piece.surface), &merged, (x, y)) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let zero = match zero_of(piece.surface, b, &merged, near_edges, near_vertices) {
         Ok(Zero::Side(side, a)) if a.vertex.is_none() => {
@@ -3515,7 +3528,7 @@ fn present_posed<'h>(
             return Some(Ok(read));
         }
     }
-    Some(Err(Unpresented::Local))
+    Some(Err(sgl!()))
 }
 
 /// Whether the face is the quadrant two clips cut at the vertex their
@@ -3619,10 +3632,10 @@ fn zero_of(
             }
             match corners.as_slice() {
                 [one] => Ok(one.clone()),
-                _ => Err(Unpresented::Local),
+                _ => Err(sgl!()),
             }
         }
-        _ => Err(Unpresented::Local),
+        _ => Err(sgl!()),
     }
 }
 
@@ -3715,7 +3728,7 @@ fn present_plane<'a>(
         let zero = if near_vertices.is_empty() {
             Zero::None
         } else {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         };
         return Ok(Presentation::Of(Box::new(Presented {
             surface: piece.surface,
@@ -3741,7 +3754,7 @@ fn present_plane<'a>(
     // An edge's chart points in the loop's order, each with its parameter.
     type End = (Point2<Interval>, Interval);
     let segment = |ei: usize| -> Result<(End, End), Unpresented> {
-        let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
+        let e = b.edges.get(ei).ok_or_else(|| sgl!())?;
         let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
         };
@@ -3812,7 +3825,7 @@ fn present_plane<'a>(
         let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
         let base = lean(nf, [o.x - pf.x, o.y - pf.y]) + x * lean(nf, a);
         if !positive(base, SELF_INTERSECTION_CORNER) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         // A height whose run along `x` is not decided bounds nothing: the
         // far side is then the cell's reach, which holds the face's part
@@ -3827,7 +3840,7 @@ fn present_plane<'a>(
     // One line edge `e` as `y = 0`, the face `y ≥ 0`.
     let along = |e: usize| -> Result<Presentation<'a>, Unpresented> {
         if !piece.local.vertices.is_empty() {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let ((p, ta), (q, tb)) = segment(e)?;
         let a = [q.x - p.x, q.y - p.y];
@@ -3846,7 +3859,7 @@ fn present_plane<'a>(
         let len = len2.sqrt();
         let inside = (x * len).min((at(1.0) - x) * len);
         if !positive(inside, SELF_INTERSECTION_SPAN) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let zero = if near_edges.contains(&e) {
             Zero::Side(
@@ -3888,11 +3901,11 @@ fn present_plane<'a>(
                   cap: Option<(usize, VertexKey)>|
      -> Result<Presentation<'a>, Unpresented> {
         let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         };
         let at_a_corner = |w: VertexKey| w == vtx || cap.is_some_and(|(_, v)| w == v);
         if !piece.local.vertices.iter().all(|&w| at_a_corner(w)) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let ((p1, s1), (q1, f1)) = segment(e1)?;
         let ((p2, s2), (q2, f2)) = segment(e2)?;
@@ -3929,7 +3942,7 @@ fn present_plane<'a>(
         if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
             && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
         {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let det = a[0] * bv[1] - a[1] * bv[0];
         let d = [cell_u - o.x, cell_v - o.y];
@@ -3942,7 +3955,7 @@ fn present_plane<'a>(
             Some((f, end)) => {
                 // A shared vertex at the far corner is on no zero side.
                 if near_vertices.contains(&end) && !z2 {
-                    return Err(Unpresented::Local);
+                    return Err(sgl!());
                 }
                 let reach = iv((0.0, x.hi().max(0.0)));
                 Some(capped(f, (o, a, bv), reach)?)
@@ -3954,12 +3967,12 @@ fn present_plane<'a>(
         let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
         let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
         if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let top = match capped_at {
             None => {
                 if !positive((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN) {
-                    return Err(Unpresented::Local);
+                    return Err(sgl!());
                 }
                 y.hi()
             }
@@ -4008,7 +4021,7 @@ fn present_plane<'a>(
         [e] => along(e),
         [e1, e2] => match meet(e1, e2) {
             Some(vtx) => corner(e1, e2, vtx, None),
-            None => Err(Unpresented::Local),
+            None => Err(sgl!()),
         },
         // An edge `m` with a neighbour at each end, the one of a sliver
         // triangle's three whose ends the cell holds: read at either of
@@ -4023,13 +4036,13 @@ fn present_plane<'a>(
             // Of a sliver triangle whose short side's ends are not both
             // in the cell, only the first such edge is read.
             let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
-                return Err(Unpresented::Local);
+                return Err(sgl!());
             };
             // Each corner decides its own convexity, so where the first
             // refuses locally the other is read. A structural refusal is
             // the edges' (an edge neither corner reads), the same from
             // either corner, and stands.
-            let mut last = Err(Unpresented::Local);
+            let mut last = Err(sgl!());
             for ((n, v), cap) in [((n1, v1), (n2, v2)), ((n2, v2), (n1, v1))] {
                 if near_edges.contains(&cap.0) {
                     continue;
@@ -4041,7 +4054,7 @@ fn present_plane<'a>(
             }
             last
         }
-        _ => Err(Unpresented::Local),
+        _ => Err(sgl!()),
     }
 }
 
@@ -4430,7 +4443,7 @@ fn beside_curve(
     }) {
         Some(&i) => unread(i, near_edges),
         None if curved.is_empty() => unread(first, near_edges),
-        None => Unpresented::Local,
+        None => sgl!(),
     }
 }
 
@@ -4445,7 +4458,7 @@ fn sharing(
 ) -> Result<bool, Unpresented> {
     let shared = near_edges.contains(&ei);
     if !shared && !near_vertices.is_empty() {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     Ok(shared)
 }
@@ -4476,7 +4489,7 @@ fn through_of(
         return Ok(None);
     };
     if e.ends[0] == e.ends[1] {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let start = e.ends[0] == c.vertex;
     let t = if start { t0 } else { t1 };
@@ -4490,7 +4503,7 @@ fn through_of(
     } else {
         let ext = (t1 - t0).min((TURN - (t1 - t0)) * 0.5);
         if ext.is_nan() || ext <= 0.0 {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         if start {
             (t0 - ext, t1)
@@ -4571,7 +4584,7 @@ fn present_curved<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or(Unpresented::Local)?;
+    let e = piece.boundary.edges.get(ei).ok_or_else(|| sgl!())?;
     let [u] = e.uses.as_slice() else {
         return Err(unread(ei, near_edges));
     };
@@ -4582,7 +4595,7 @@ fn present_curved<'a>(
         return Err(unread(ei, near_edges));
     };
     let Some((carrier, span)) = e.arc.as_ref() else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
@@ -4601,7 +4614,7 @@ fn present_curved<'a>(
     let zeroed =
         corner.is_some_and(|c| c.alone || c.run) || sharing(ei, near_edges, near_vertices)?;
     let through = through_of(piece.boundary, e, corner, (t0, t1))?;
-    let mut unread = Unpresented::Local;
+    let mut unread = sgl!();
     for column in [Axis::U, Axis::V] {
         let span = through.as_ref().map_or((t0, t1), |th| th.span);
         let pieces = Pieces::of(&chart, column, span, continued);
@@ -4648,7 +4661,7 @@ fn present_curved<'a>(
             })
         });
         if run.is_some() && running.is_none() {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let (shared, run) = match running {
             Some((along, run)) => (along, Some(run)),
@@ -4906,7 +4919,7 @@ fn present_wall<'a>(
     near_vertices: &[VertexKey],
     band: Band,
 ) -> Result<Presentation<'a>, Unpresented> {
-    let e = piece.boundary.edges.get(ei).ok_or(Unpresented::Local)?;
+    let e = piece.boundary.edges.get(ei).ok_or_else(|| sgl!())?;
     let [u] = e.uses.as_slice() else {
         return Err(unread(ei, near_edges));
     };
@@ -4914,7 +4927,7 @@ fn present_wall<'a>(
         return Err(unread(ei, near_edges));
     };
     let Some((_, span)) = e.arc.as_ref() else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let (t0, t1) = (span.0.lo(), span.1.hi());
     if !(t1 - t0).is_finite() || t1 <= t0 {
@@ -4946,28 +4959,28 @@ fn present_wall<'a>(
         let (s0, s1) = through.as_ref().map_or((t0, t1), |th| th.span);
         let reach = w.on(Axis::V, Interval::from_bounds(s0, s1));
         turn_ladder((reach.lo(), reach.hi()), a)
-            .ok_or(Unpresented::Local)?
+            .ok_or_else(|| sgl!())?
             .into_iter()
             .find(|&k| {
                 let t = held(k);
                 s0 < t.lo() && t.hi() < s1
             })
-            .ok_or(Unpresented::Local)?
+            .ok_or_else(|| sgl!())?
     };
     let t = held(lift);
     if !Real::is_bounded(t) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     // Step 2: `R`, and nothing in it but the curve.
     let g = wrap(w.on(Axis::U, t), geom::mid_param(cu.0, cu.1));
     if !Real::is_bounded(g) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     // `R`'s `u` range holds `g` and is narrower than a turn, so the
     // curve's copies a turn either side miss it.
     let x = (cu.0.min(g.lo()), cu.1.max(g.hi()));
     if whole_turn(x.0, x.1) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let local = if x == piece.u && a == piece.v {
         piece.local.clone()
@@ -4985,7 +4998,7 @@ fn present_wall<'a>(
         through.as_ref().map(|th| th.corner.other),
         &local,
     ) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     // Step 3: the face's side.
     let rising = w.sigma > 0.0;
@@ -4998,7 +5011,7 @@ fn present_wall<'a>(
         // the columns', its point within `R`'s `u` range.
         let held = wrap(w.on(Axis::U, at(th.t)), geom::mid_param(x.0, x.1));
         if !(t.lo() <= th.t && th.t <= t.hi() && within(held, x)) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         let along = w.on(Axis::V, at(th.t)) + turns(lift);
         // The other edge is a parallel ([`reading`]), so its direction
@@ -5019,7 +5032,7 @@ fn present_wall<'a>(
         ) {
             Some(Ok(())) => {}
             Some(Err(e)) => return Err(e),
-            None => return Err(Unpresented::Local),
+            None => return Err(sgl!()),
         }
     }
     let zero = if shared {
@@ -5861,12 +5874,12 @@ fn line_onward(
     let exit = at(if onward { a1 } else { a0 });
     let share = ((exit - column.of((l.near[0], l.near[1]))) / step).hi();
     if !(passes && share.is_finite() && share >= 0.0) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let share = share.min(1.0);
     let reach = other.of((l.near[0], l.near[1])) + other.of((l.d[0], l.d[1])) * iv((0.0, share));
     if !Real::is_bounded(reach) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     Ok(Onward { reach, share })
 }
@@ -5887,22 +5900,22 @@ fn present_line_corner<'a>(
     let b = piece.boundary;
     let surface = piece.surface;
     let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let ([ue], [_]) = (e.uses.as_slice(), o.uses.as_slice()) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let (Some(iso), Some((_, span))) = (ue.iso, o.arc.as_ref()) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     if iso.full {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let cell = (piece.u, piece.v);
     let (held, moving) = (iso.held, iso.held.other());
     let line = placed(surface, iso, sheet, held.of(cell)).ok_or(Unpresented::Structural)?;
-    let sigma = face_side(ue, iso, b.orientation()).ok_or(Unpresented::Local)?;
-    let [i0, i1] = ue.image.ok_or(Unpresented::Local)?;
+    let sigma = face_side(ue, iso, b.orientation()).ok_or_else(|| sgl!())?;
+    let [i0, i1] = ue.image.ok_or_else(|| sgl!())?;
     let (mlo, mhi) = moving.of(cell);
     let vm = iso.moving(if e.ends[0] == c.vertex { i0 } else { i1 });
     let vm = if periodic(surface, moving) {
@@ -5930,7 +5943,7 @@ fn present_line_corner<'a>(
         let (lo, hi) = axis.of((x, y));
         periodic(surface, axis) && whole_turn(lo, hi)
     }) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
     let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
@@ -5938,7 +5951,7 @@ fn present_line_corner<'a>(
     // The line admits only the vertex: its far end in `R` would leave the
     // face free to come round it.
     if !only(piece, &local, &[c.read, c.other], &[c.vertex]) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let from_start = o.ends[0] == c.vertex;
     let speed = speeds(surface, x, y);
@@ -5988,17 +6001,17 @@ fn present_plane_corner<'a>(
     let b = piece.boundary;
     let surface = piece.surface;
     let &Surface::Plane { frame } = surface else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let Some((line, (t0, t1))) = e.arc.as_ref().filter(|(k, _)| !k.is_curved()) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let v_ref = normal.cross(u_ref);
     let chart = |w: Vec3<Interval>| [w.dot(u_ref), w.dot(v_ref)];
@@ -6023,7 +6036,7 @@ fn present_plane_corner<'a>(
     };
     let cell = lin([iv(piece.u) - p[0], iv(piece.v) - p[1]]);
     if !(cell[0].is_certified() && cell[1].is_certified()) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let vx = if vertex_first { 0.0 } else { 1.0 };
     let x = (cell[0].lo().min(vx), cell[0].hi().max(vx));
@@ -6039,7 +6052,7 @@ fn present_plane_corner<'a>(
         cache: Cache::default(),
     };
     if !reach_holds_only(piece, &reach, &[c.read, c.other], &[c.vertex], band) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let zero = at(0.0);
     let curve = in_frame(&h, p, lin);
@@ -6168,13 +6181,13 @@ fn present_vertex_corner<'a>(
     let b = piece.boundary;
     let surface = piece.surface;
     let (Some(e), Some(o)) = (b.edges.get(line), b.edges.get(other)) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     };
     let periodic = periodic_axes(surface);
-    let (a, [near, _]) = straight(surface, e, v).ok_or(Unpresented::Local)?;
+    let (a, [near, _]) = straight(surface, e, v).ok_or_else(|| sgl!())?;
     let raw = [near.x, near.y];
     let cell_mid = [
         at(geom::mid_param(piece.u.0, piece.u.1)),
@@ -6202,12 +6215,12 @@ fn present_vertex_corner<'a>(
         (l.is_finite() && l > 0.0).then(|| [w[0] / l, w[1] / l])
     };
     let a_mid = [mid(a[0]), mid(a[1])];
-    let d1 = unit2(a_mid).ok_or(Unpresented::Local)?;
+    let d1 = unit2(a_mid).ok_or_else(|| sgl!())?;
     let tv = at(t_v);
     let d2 = unit2(core::array::from_fn(|i| {
         away * mid(-h.pa[i] * tv.sin() + h.pb[i] * tv.cos() + h.pl[i])
     }))
-    .ok_or(Unpresented::Local)?;
+    .ok_or_else(|| sgl!())?;
     // `B` leans back off the curve's tangent by a quarter of `A`, so the
     // tangent is `A/4 + B`, strictly inside the quadrant.
     let len = length(a_mid);
@@ -6219,7 +6232,7 @@ fn present_vertex_corner<'a>(
     match interval_sign_as(lean, SELF_INTERSECTION_CORNER, band) {
         Some(Sign::Positive) => {}
         Some(Sign::Negative) => return Err(Unpresented::Structural),
-        _ => return Err(Unpresented::Local),
+        _ => return Err(sgl!()),
     }
     let det = a[0] * bv[1] - a[1] * bv[0];
     let lin = |w: [Interval; 2]| {
@@ -6230,12 +6243,12 @@ fn present_vertex_corner<'a>(
     };
     let cell = lin([iv(piece.u) - vc[0], iv(piece.v) - vc[1]]);
     if !(cell[0].is_certified() && cell[1].is_certified()) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let x = (cell[0].lo().min(0.0), cell[0].hi().max(0.0));
     let y = (cell[1].lo().min(0.0), cell[1].hi().max(0.0));
     if !(x.1 > 0.0 && y.1 > 0.0) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let affine = Map::Affine { o: vc, a, b: bv };
     let reach = Presented {
@@ -6249,7 +6262,7 @@ fn present_vertex_corner<'a>(
     };
     let (fu, fv) = reach.chart(iv(x), iv(y));
     if !(fu.is_certified() && fv.is_certified()) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let footprint = ((fu.lo(), fu.hi()), (fv.lo(), fv.hi()));
     // The premise of the straight edge's copies (the doc above). No row
@@ -6260,18 +6273,18 @@ fn present_vertex_corner<'a>(
         let (lo, hi) = axis.of(footprint);
         periodic[axis.index()] && whole_turn(lo, hi)
     }) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let chart = ChartCurve::Harmonic(h);
     let kc = turns_to(periodic, chart.at(tv), vc);
     let curve_reach = reach_of(pieces_of((t0, t1)).iter().map(|&t| chart.at(t)));
-    for c in copies(periodic, curve_reach, footprint).ok_or(Unpresented::Local)? {
+    for c in copies(periodic, curve_reach, footprint).ok_or_else(|| sgl!())? {
         if c != kc && !copy_misses(&chart, (t0, t1), c, footprint) {
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
     }
     if !reach_holds_only(piece, &reach, &[line, other], &[v], band) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let curve = ChartCurve::Harmonic(in_frame(&h, shifted(vc, kc.map(|k| -k)), lin));
     let (fx, fy, _) = reach.jet();
@@ -6293,7 +6306,7 @@ fn present_vertex_corner<'a>(
     leaves(Axis::V)?;
     // The curve's tangent at `V` is inside `Q` by `B`'s choice, so a
     // decided fall in `x` there is no reflex corner: not read here.
-    leaves(Axis::U).map_err(|_| Unpresented::Local)?;
+    leaves(Axis::U).map_err(|_| sgl!())?;
     Ok(Presentation::Of(Box::new(Presented {
         surface,
         map: affine,
@@ -6397,13 +6410,13 @@ fn leaves_line(
     let start = h.at(at(t_v));
     let k = turns_to(periodic, start, vertex);
     if !on_vertex(shifted(start, k), vertex, speed, band) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let lever = speed[held.index()];
     let away = if from_start { 1.0 } else { -1.0 };
     let width = t1 - t0;
     if !(width.is_finite() && width > 0.0) {
-        return Err(Unpresented::Local);
+        return Err(sgl!());
     }
     let pieces = pieces_of((t0, t1));
     let reach = reach_of(pieces.iter().map(|&t| h.at(t)));
@@ -6411,12 +6424,12 @@ fn leaves_line(
     // vertex on the face's side while it is in `R`; `gone` keeps a piece
     // that comes back into `R` after the run has left — from any side, at
     // any rate — from being read as the run.
-    for c in copies(periodic, reach, r).ok_or(Unpresented::Local)? {
+    for c in copies(periodic, reach, r).ok_or_else(|| sgl!())? {
         if c != k {
             if copy_misses(h, (t0, t1), c, r) {
                 continue;
             }
-            return Err(Unpresented::Local);
+            return Err(sgl!());
         }
         // The pieces in order from the vertex, each with its depth.
         let mut todo: Vec<((f64, f64), u32)> =
@@ -6450,7 +6463,7 @@ fn leaves_line(
                 if split(&mut todo) {
                     continue;
                 }
-                return Err(Unpresented::Local);
+                return Err(sgl!());
             }
             let rise = h.rate(held, t) * at(sigma * away * (z - a) * lever);
             match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rise), band) {
@@ -6464,10 +6477,10 @@ fn leaves_line(
                 // refuses at the [`LEAVES`] cap, and a piece past the run's
                 // exit is refused by `gone` before its rate is read — but
                 // the refusal does not rest on those three.
-                Ok(Sign::Negative) => return Err(Unpresented::Local),
+                Ok(Sign::Negative) => return Err(sgl!()),
                 _ => {
                     if !split(&mut todo) {
-                        return Err(Unpresented::Local);
+                        return Err(sgl!());
                     }
                 }
             }
@@ -6578,7 +6591,7 @@ fn graph(
     through: Option<&Through>,
     band: Band,
 ) -> Result<Graph, Unpresented> {
-    graph_read(piece, ei, plus, p, through, band).ok_or(Unpresented::Local)?
+    graph_read(piece, ei, plus, p, through, band).ok_or_else(|| sgl!())?
 }
 
 /// [`graph`], `None` where the curve is not read as one. Through a
@@ -7800,6 +7813,7 @@ fn departure(
     };
     let plane = |p: &Piece<'_>| matches!(p.surface, Surface::Plane { .. });
     if (walled(x, &ex) || walled(y, &ey)) && !plane(x) && !plane(y) {
+        crate::split_ground::reason("walled".to_owned());
         return Outcome::Refuse(EngineRefusal::Uncertified {
             a: x.face,
             b: y.face,
@@ -7808,8 +7822,44 @@ fn departure(
         });
     }
     let (sx, sy) = (Poses::of(faces.0), Poses::of(faces.1));
+    crate::split_ground::take_local();
     let px = present(x, &ex, &near.vertices, band, &sx);
+    let lx = crate::split_ground::take_local();
     let py = present(y, &ey, &near.vertices, band, &sy);
+    let ly = crate::split_ground::take_local();
+    let state = |p: &Result<Presentation<'_>, Unpresented>, piece: &Piece<'_>, l: u32| -> String {
+        let kind = match piece.surface {
+            Surface::Plane { .. } => "plane",
+            Surface::Cylinder { .. } => "cyl",
+            Surface::Cone { .. } => "cone",
+            Surface::Sphere { .. } => "sphere",
+            Surface::Torus { .. } => "torus",
+            Surface::Spindle { .. } => "spindle",
+            Surface::Nurbs(_) => "nurbs",
+            Surface::Approx(_) => "approx",
+        };
+        let st = match p {
+            Ok(Presentation::Vacuous) => "vacuous".to_owned(),
+            Ok(Presentation::Of(q)) => match &q.zero {
+                Zero::None => "P-none".to_owned(),
+                Zero::Side(..) => "P-side".to_owned(),
+                Zero::Past(..) => "P-past".to_owned(),
+                Zero::Corner(..) => "P-corner".to_owned(),
+                Zero::Point(..) => "P-point".to_owned(),
+                Zero::Curve(..) => "P-curve".to_owned(),
+            },
+            Err(Unpresented::Structural) => "Structural".to_owned(),
+            Err(Unpresented::Collapsed(_)) => "Collapsed".to_owned(),
+            Err(Unpresented::Local) => format!("Local@{l}"),
+        };
+        format!("{kind}:{st}")
+    };
+    let states = if crate::split_ground::on() {
+        format!("{}|{}", state(&px, x, lx), state(&py, y, ly))
+    } else {
+        String::new()
+    };
+    crate::split_ground::reason(format!("states={states}"));
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -7836,6 +7886,7 @@ fn departure(
         }
     }
     if stuck(x, &px) && stuck(y, &py) {
+        crate::split_ground::reason(format!("stuck-both:{states}"));
         return Outcome::Refuse(EngineRefusal::Uncertified {
             a: x.face,
             b: y.face,
@@ -7844,8 +7895,10 @@ fn departure(
         });
     }
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
+        crate::split_ground::reason(format!("unpresented:{states}"));
         return split;
     };
+    crate::split_ground::take_margin();
     let apart = |qx: &Presented<'_>, qy: &Presented<'_>, (psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), arm, band),
         sign_on(&psi, Some(&on), qy, Some(qx), arm, band),
@@ -7935,9 +7988,11 @@ fn departure(
             };
         }
     }
+    let m = crate::split_ground::take_margin();
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
     }
+    crate::split_ground::reason(format!("both-presented:{m}:{states}"));
     split
 }
 
