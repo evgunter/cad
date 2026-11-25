@@ -287,7 +287,10 @@ impl ImplicitForm {
                 // two terms of size `4R⁴`, so over a box of width `w` it
                 // spreads by about `16R³w` where the quartic varies by
                 // `8R²r·w`; the near factor reads its variation at the
-                // tube's own scale.
+                // tube's own scale. Each spelling encloses the quartic, so
+                // their meet does, and the expanded one is the tighter
+                // over a box thin across the meridian. Over a box with an
+                // uncertified component the meet refuses.
                 let rho = radial.sqrt();
                 let cross = q.z.sqr() - minor.sqr();
                 let near = (rho - major).sqr() + cross;
@@ -311,12 +314,10 @@ impl ImplicitForm {
             Form::Torus { major, minor } => {
                 let shifted = q.x.sqr() + q.y.sqr() + q.z.sqr() + major.sqr() - minor.sqr();
                 let four = Interval::point(4.0) * shifted;
-                let eight = Interval::point(8.0) * major.sqr();
-                Vec3::new(
-                    four * q.x - eight * q.x,
-                    four * q.y - eight * q.y,
-                    four * q.z,
-                )
+                // One factor times `x`: `4s·x − 8R²·x` read as two terms
+                // spreads three times as wide, both of size `8R³`.
+                let radial = four - Interval::point(8.0) * major.sqr();
+                Vec3::new(radial * q.x, radial * q.y, four * q.z)
             }
         }
     }

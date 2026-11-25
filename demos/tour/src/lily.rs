@@ -2407,7 +2407,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    within a hundredth of the wall's chart of the root station
     //    along the middle two thirds of the rim. The reading marches it
     //    and accounts the rest of the chart, each cell cleared by the
-    //    torus's quartic over the cell's box in its factored form.
+    //    torus's quartic over the cell's box, read as the meet of its
+    //    expanded and its factored forms.
     //
     //    The pierce pass then asks the faces of the leaf whether they
     //    hold the point where one of its vertices pierces the tube, and
@@ -2415,17 +2416,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    lift of its loop in its chart, so the union refuses
     //    `HeldPierceUnbuilt` with `placed: false`
     //    (`work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`).
-    //    At 1e-6 a second torus × spline pair refuses first, its
-    //    uniqueness tube reading no crossing angle
-    //    (`work/ssiarith/a-thin-torus-tube-reads-no-crossing-angle-on-lily-wall-8-at-1e-6.md`),
-    //    though at 1e-6 wall 2 stops the probes before this one.
+    //    It stops there at 1e-9 and at 1e-6, though at 1e-6 wall 2 stops
+    //    the probes before this one.
     //
-    //    Before the germ mint read the spline pair, the wall stopped at
-    //    the join's frame of the torus wall against the leaf's lower cap,
-    //    the cap the tube crosses in two chords. That plane is tilted
-    //    against the torus's axis, so it cuts a general spiric quartic
-    //    whose loops wind round the tube, and C5 routes that section to
-    //    its unbuilt general rung
+    //    Still ahead, unmeasured from here: the join's frame of the
+    //    torus wall against the leaf's lower cap, the cap the tube
+    //    crosses in two chords. That plane is tilted against the torus's
+    //    axis, so it cuts a general spiric quartic whose loops wind round
+    //    the tube, and C5 routes that section to its unbuilt general rung
     //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
     //    the lower stem's declared frontier stands the lily walls down
     //    before this one.
@@ -2435,9 +2433,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            // The leaf's ridge wall: of its two NURBS walls, the one
-            // whose control points about the root stand on the ridge
-            // side of the root's chord, `+v` of the sheath's frame.
+            // Which of the leaf's two NURBS walls a face is: `Some(true)`
+            // for the ridge wall, whose control points about the root
+            // stand on the ridge side of the root's chord (`+v` of the
+            // sheath's frame), `Some(false)` for the other, `None` off
+            // both.
             let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
             let ridge_side = |f| match leaf_a.face_surface(f) {
                 Some(pncad::topo::Surface::Nurbs(n)) => {

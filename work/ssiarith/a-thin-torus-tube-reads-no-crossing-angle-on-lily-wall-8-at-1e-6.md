@@ -2,7 +2,9 @@
 id: a-thin-torus-tube-reads-no-crossing-angle-on-lily-wall-8-at-1e-6
 kind: issue
 title: At eps 1e-6 lily wall 8's second torus x spline pair refuses at limb 3: over its 106-box chain the uniqueness tube's crossing-angle bound reads 0 m
-status: open
+status: closed
+closed: 2026-11-25
+branch: ssiarith/thin-torus-exclusion
 opened: 2026-11-25
 priority: P2
 cost: M
@@ -34,7 +36,12 @@ the pipe's 0.06 m, and which reading gives the bound exactly zero (a
 clamped lower bound, or a gradient enclosure straddling zero). One
 suspect, unconfirmed: the box chain's metre widths, about 4e-2 by 3e-3
 on the accounting's tubes at 1e-9, approach the pipe radius, where the
-torus's gradient turns by about `w/r` over a box.
+torus's gradient turns by about `w/r` over a box. The review of the
+fix measured `ImplicitForm::frame_gradient`'s x component on lily's
+torus over a 4e-2 box at `[0.024, 24.3]`, nearly reaching zero, where
+the grouped form reads `[8.0, 16.3]`; the fix's branch grouped it. Not
+traced: whether limb 3's tube reads that gradient or enclose's
+`Quartic::gradient`.
 
 ## Why P2
 
@@ -43,3 +50,14 @@ Nothing reaches it: at 1e-6 lily wall 2 stops the wall probes first
 and the tour pins wall 8 only at the stop it reaches. Re-band when wall
 2 clears at 1e-6. — (SSIARITH orchestrator)
 
+## Closed (2026-11-25, `ssiarith/thin-torus-exclusion`)
+
+Fixed on the branch that found it. With `ImplicitForm::frame_gradient`'s
+torus arm grouped (`(4s − 8R²)·x`, one factor times each of `x` and
+`y`), lily wall 8's union at 1e-6 gets past every torus × spline
+section and stops where 1e-9 does, at the pierce pass
+(`HeldPierceUnbuilt { placed: false }`,
+`work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`),
+after about 20 s. Which reading had read the bound as zero was not
+traced: the grouping moved the stop, which says the tube read this
+gradient. — (SSIARITH orchestrator)

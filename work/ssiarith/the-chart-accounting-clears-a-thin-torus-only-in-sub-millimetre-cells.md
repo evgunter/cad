@@ -110,8 +110,11 @@ flattening is on ONECOPY's ground, in
 expanded torus quartic with the same quartic factored as
 `((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`, `ρ = √(x² + y²)`. The near
 factor carries the quartic's variation at the tube's own scale, so a
-box `d` from the tube clears once its width is about `d/1.4`, where the
-expanded form wanted `d/170`. Every reader of `φ` over a box takes it
+box `d` from the tube clears once its width is under about `1.5d`
+(the review's measurement on lily's torus, both equators), where the
+expanded form wanted `d/170`. The gradient's torus arm is grouped as
+one factor times `x` and `y`, three times tighter than the two terms
+it subtracted. Every reader of `φ` over a box takes it
 (`ChartPhi::over`, the node and boundary reads).
 
 - Row: `a_thin_torus_form_clears_a_box_at_its_own_distance` (lily's
@@ -122,8 +125,9 @@ expanded form wanted `d/170`. Every reader of `φ` over a box takes it
   pass, `HeldPierceUnbuilt { placed: false }`, filed as
   `work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`;
   the wall is re-pinned there. Every lily wall probe passes at 1e-9.
-- At 1e-6 a second torus × spline pair refuses at its uniqueness tube,
-  filed as `a-thin-torus-tube-reads-no-crossing-angle-on-lily-wall-8-at-1e-6`
+- At 1e-6 the union first refused at a second pair's uniqueness tube
+  (`a-thin-torus-tube-reads-no-crossing-angle-on-lily-wall-8-at-1e-6`);
+  with the gradient grouped it stops at the same pierce pass as 1e-9
   (wall 2 stops the probes before it there).
 - The expected next stop, the plane × torus frame (`GermSectionSpiric`),
   was not reached.

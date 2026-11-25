@@ -17,8 +17,8 @@ cell budget lily wall 8's torus × spline section stopped at
 
 With that section accounted, lily wall 8 (`demos/tour/src/lily.rs`,
 `wall_probes`: the lower stem's torus tube unioned with the long leaf)
-reaches the pierce pass and refuses there, at ε 1e-9 and the tour's own
-scalar, after about 30 s (`ci-tour` profile):
+reaches the pierce pass and refuses there, at ε 1e-9 and 1e-6 and the
+tour's own scalar, after about 30 s and 20 s (`ci-tour` profile):
 
 > `HeldPierceUnbuilt { operand: B, face: FaceKey(4v1), pierced: FaceKey(3v1), kind: Nurbs, pierced_kind: Torus, placed: false }`
 
