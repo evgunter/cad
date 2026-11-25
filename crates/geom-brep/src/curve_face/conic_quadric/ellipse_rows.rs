@@ -247,19 +247,25 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
 /// on the 50 m and 500 m walls, `Unsettled`: there the `f64`
 /// residual's rounding places the shallow roots up to 3.1e-10 and
 /// 4.5e-9 m from the true ones (the exact oracle), and the root slack,
-/// which must read inside the zero band, refuses them. The half-angle
+/// which must read inside the zero band, refuses them; on the 500 m one
+/// the half-angle ladder, its discriminant read exactly, escalates first. The half-angle
 /// ladder alone certified a `Miss` at −1e-9 m on a 5 m wall and
 /// answered `CountDisagrees` at 1e-8 m on a 50 m wall and at 2e-8 m on
 /// a 500 m one.
 #[test]
 fn a_graze_is_read_by_its_depth() {
     let band = Band::new(1e-9, 1e-8).unwrap();
-    for (r, depth, tilt, placed) in [
-        (5.0, -1e-9, 0.0_f64, false),
-        (50.0, 1e-8, 0.0, false),
-        (500.0, 2e-8, 0.0, false),
-        (50.0, 2e-8, 0.3, false),
-        (5.0, 5e-6, 0.3, true),
+    // `ladder_in_band`: the half-angle ladder's quartic reads its exact
+    // `Δ/L¹¹` (3.89e-9 on the 500 m wall) in the band's gap of its own
+    // root variable `τ`, so the door escalates before the slack refuses.
+    // HONE's `half-angle-ladder-escalates-in-its-own-metric` holds it; the
+    // field goes when that row closes.
+    for (r, depth, tilt, placed, ladder_in_band) in [
+        (5.0, -1e-9, 0.0_f64, false, false),
+        (50.0, 1e-8, 0.0, false, false),
+        (500.0, 2e-8, 0.0, false, true),
+        (50.0, 2e-8, 0.3, false, false),
+        (5.0, 5e-6, 0.3, true, false),
     ] {
         let label = format!("wall r {r}, depth {depth}, tilt {tilt}");
         let e = ellipse(
@@ -279,8 +285,14 @@ fn a_graze_is_read_by_its_depth() {
             continue;
         }
         if !placed {
+            let ladder_escalates = ladder_in_band
+                && matches!(
+                    &got,
+                    Err(ConicQuadricRefusal::Cylinder(diag))
+                        if diag.predicate == Some("conic_quadric_disc")
+                );
             assert!(
-                matches!(got, Ok(Err(_))),
+                matches!(got, Ok(Err(_))) || ladder_escalates,
                 "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
