@@ -6275,6 +6275,16 @@ enum ApexSide {
     Right,
 }
 
+/// **A spindle sheet's apex in its tube angle `v`, its one home**: the
+/// upper apex (`up`) at `sin v = h/r`, the lower at `−h/r`, both at
+/// `cos v = −R/r`, with `h` the apex height ([`geom::sheet_apex`]). The
+/// tip closure ([`sheet_tip_closure`]) and the apex jumps between two
+/// meridians ([`sheet_apex_jumps`]) both land their piece there.
+fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
+    let sin_v = geom::sheet_apex(major, minor).height / minor;
+    (if up { sin_v } else { -sin_v }, -major / minor)
+}
+
 /// **A loop's passes through a sheet's apexes** ([`ApexJump`]). A
 /// junction between two meridians at a point decided on the axis
 /// (`props_sheet_apex_junction`) is an apex: there the chart image
@@ -6288,16 +6298,6 @@ enum ApexSide {
 /// and so in `(0, 2π)`; a turn in the band of zero, two meridians on one
 /// half-plane, refuses (`props_sheet_apex_turn`), the face pinched to
 /// nothing there.
-
-/// **A spindle sheet's apex in its tube angle `v`, its one home**: the
-/// upper apex (`up`) at `sin v = h/r`, the lower at `−h/r`, both at
-/// `cos v = −R/r`, with `h` the apex height ([`geom::sheet_apex`]). The
-/// tip closure ([`sheet_tip_closure`]) and the apex jumps between two
-/// meridians ([`sheet_apex_jumps`]) both land their piece there.
-fn apex_tube_angle<T: Real>(major: T, minor: T, up: bool) -> (T, T) {
-    let sin_v = geom::sheet_apex(major, minor).height / minor;
-    (if up { sin_v } else { -sin_v }, -major / minor)
-}
 fn sheet_apex_jumps<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
