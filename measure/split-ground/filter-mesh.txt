@@ -1,0 +1,1 @@
+test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops)

@@ -1,0 +1,411 @@
+asks 2107: refusing 252, crossing 41, embedded 1814
+refusing verdicts [('Refused:uncertified', 199), ('Refused:budget', 53)]
+refusing doors [('gate', 252)]
+tests with a refusing ask 21
+
+== splits of refusing asks by reason (coarse)
+    61380  57.2%  touch:unpresented:Local+Local
+    37231  34.7%  distance:lo-at-or-below-zero:shares-a-cell
+     4271   4.0%  distance:lo-at-or-below-zero:shares-nothing
+     1600   1.5%  touch:unpresented:Local+P-point
+     1554   1.4%  touch:unpresented:Local+P-side
+      602   0.6%  touch:both-presented:straddles
+      425   0.4%  touch:unpresented:Local+P-corner
+      150   0.1%  distance:lo-in-band:shares-a-cell
+        6   0.0%  touch:unpresented:Local+P-curve
+        2   0.0%  touch:unpresented:Local+Structural
+total 107221
+
+== child vs parent (coarse reason, relation)
+    34391  ('distance:lo-at-or-below-zero:shares-a-cell', 'same-as-parent')
+    30653  ('touch:unpresented:Local+Local', 'same-class')
+    22166  ('touch:unpresented:Local+Local', 'same-as-parent')
+     8481  ('touch:unpresented:Local+Local', 'root')
+     3938  ('distance:lo-at-or-below-zero:shares-nothing', 'same-as-parent')
+     2840  ('distance:lo-at-or-below-zero:shares-a-cell', 'changed')
+     1264  ('touch:unpresented:Local+P-side', 'same-as-parent')
+     1231  ('touch:unpresented:Local+P-point', 'same-as-parent')
+      564  ('touch:both-presented:straddles', 'same-as-parent')
+      388  ('touch:unpresented:Local+P-corner', 'same-as-parent')
+      333  ('distance:lo-at-or-below-zero:shares-nothing', 'root')
+      320  ('touch:unpresented:Local+P-point', 'changed')
+      252  ('touch:unpresented:Local+P-side', 'changed')
+      109  ('distance:lo-in-band:shares-a-cell', 'same-as-parent')
+       80  ('touch:unpresented:Local+Local', 'changed')
+       49  ('touch:unpresented:Local+P-point', 'same-class')
+       41  ('distance:lo-in-band:shares-a-cell', 'changed')
+       38  ('touch:both-presented:straddles', 'changed')
+       38  ('touch:unpresented:Local+P-side', 'same-class')
+       30  ('touch:unpresented:Local+P-corner', 'changed')
+        7  ('touch:unpresented:Local+P-corner', 'same-class')
+        6  ('touch:unpresented:Local+P-curve', 'changed')
+        2  ('touch:unpresented:Local+Structural', 'root')
+
+== straddling distance splits: (faces share, lineage, on the refusing pair) -> splits, secs
+    28192      1.32s  ('shares-a-cell', 'touching-ancestor', True)
+     9189      0.47s  ('shares-a-cell', 'touching-ancestor', False)
+     4271      1.59s  ('shares-nothing', 'no-touching-ancestor', False)
+
+== per refusing ask (dearest first)
+secs	walk	splits	pair_splits	pair_secs	rdepth	t_refusal/secs	d_strict	after_strict	d_rep	after_rep	share	refusal	reason_at_refusal	stop	test
+1.270	1.196	2	0	0.271	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(5v5), b: FaceKey(9v3), shared: Edge	none		germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_
+0.664	0.557	0	0	0.557	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(4v1), b: FaceKey(5v1), shared: Edge	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.607	0.556	0	0	0.556	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(6v5), shared: Edge	none		quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_perio
+0.553	0.472	1	0	0.312	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v9), b: FaceKey(3v1), shared: Edge	none		germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_
+0.516	0.460	3	0	0.162	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(4v1), b: FaceKey(5v3), shared: Edge	none		quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_perio
+0.490	0.414	0	0	0.414	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v7), b: FaceKey(5v3), shared: Edge	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.481	0.407	1	0	0.270	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v9), b: FaceKey(3v1), shared: Edge	none		germ_torus_components::a_ball_round_the_donuts_axis_passes_the_germ_mi
+0.444	0.399	3	0	0.052	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(2v1), b: FaceKey(3v3), shared: Edge	none		germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_
+0.346	0.244	0	0	0.244	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(2v3), b: FaceKey(5v5), shared: Edge	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.345	0.241	0	0	0.241	0	0.999	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v13), b: FaceKey(2v7), shared: Edg	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.337	0.206	0	0	0.206	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge	none		germ_torus_components::a_ball_round_the_donuts_axis_passes_the_germ_mi
+0.337	0.289	1	0	0.282	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v7), b: FaceKey(4v1), shared: Edge	none		quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_perio
+0.326	0.241	0	0	0.241	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v9), b: FaceKey(2v5), shared: Edge	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.314	0.279	3	0	0.042	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(2v1), b: FaceKey(3v3), shared: Edge	none		quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_perio
+0.286	0.232	0	0	0.232	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v5), b: FaceKey(4v3), shared: Edge	none		quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_perio
+0.285	0.283	1114	126	0.064	40	0.999	5	(116, 0.0623833)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+P-side	depth	band_mixed_vertex::the_flush_pair_meets_in_a_mitre_that_removes_the_we
+0.255	0.183	0	0	0.183	0	1.000	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge	none		germ_sphere_torus_placements::a_ball_against_a_donut_carries_onto_the_
+0.232	0.231	1114	126	0.060	40	0.998	5	(116, 0.0586701)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+P-side	depth	band_mixed_vertex::the_flush_pair_meets_in_a_mitre_that_removes_the_we
+0.230	0.135	0	0	0.135	0	0.999	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v13), b: FaceKey(2v3), shared: Edg	none		germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint
+0.106	0.104	804	455	0.054	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.097	0.096	804	455	0.047	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.094	0.092	1103	584	0.047	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(13v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.092	0.090	804	455	0.047	40	0.998	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.091	0.089	994	537	0.045	40	0.997	None	None	38	18:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.083	0.082	993	537	0.038	40	0.996	None	None	38	18:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.083	0.079	1145	1066	0.072	40	0.998	1	(1063, 0.0714122)	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	verbs_f7_r2_probes::r2_attack_midvertex_chord_split
+0.083	0.082	1914	1776	0.075	40	0.997	5	(1739, 0.0725005)	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	verbs_f7_r2_probes::r2_attack_two_midvertex_chain_split
+0.074	0.072	994	537	0.036	40	0.996	None	None	38	18:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.073	0.071	944	488	0.040	40	0.996	None	None	36	40:0.004	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.072	0.070	1103	584	0.035	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(13v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.071	0.070	993	537	0.033	40	0.997	None	None	38	18:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.071	0.069	1050	558	0.041	40	0.993	None	None	38	15:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.068	0.067	1049	584	0.033	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(2v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.068	0.066	1049	584	0.036	40	0.996	None	None	39	0:0.001	shares-a-cell	Uncertified { a: FaceKey(2v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.066	0.064	1050	558	0.034	40	0.994	None	None	38	15:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.065	0.064	840	447	0.031	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.065	0.063	840	447	0.032	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.064	0.063	840	447	0.031	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.064	0.063	804	455	0.025	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.063	0.062	700	52	0.006	40	0.990	4	(40, 0.0055615000000000005)	7	32:0.005	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(5v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.062	0.061	633	336	0.015	40	0.998	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.061	0.060	1050	558	0.030	40	0.994	None	None	38	15:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.058	0.056	840	447	0.028	40	0.994	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.057	0.056	633	336	0.014	40	0.998	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.057	0.055	944	488	0.027	40	0.994	None	None	36	40:0.003	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.056	0.055	944	488	0.028	40	0.997	None	None	36	40:0.003	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.055	0.054	901	518	0.032	40	0.997	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.054	0.053	1050	558	0.027	40	0.997	None	None	38	15:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.054	0.052	969	506	0.027	40	0.997	None	None	38	14:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.053	0.051	944	488	0.026	40	0.995	None	None	36	40:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.052	0.051	969	506	0.027	40	0.997	None	None	38	14:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.051	0.050	1330	1281	0.047	40	0.997	2	(1274, 0.0469459)	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	review_f7_pole_r1_probes::p2_subdivided_chord_pair_still_refuses
+0.050	0.045	441	118	0.011	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(13v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.049	0.048	901	518	0.027	40	0.996	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.048	0.047	441	118	0.015	40	0.997	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(13v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.047	0.047	924	257	0.013	40	0.997	6	(238, 0.0130005)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(16v1), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.047	0.045	426	102	0.006	40	0.998	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(11v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.046	0.045	969	506	0.023	40	0.996	None	None	38	14:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.046	0.045	901	518	0.025	40	0.997	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.045	0.044	969	506	0.022	40	0.997	None	None	38	14:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.045	0.044	901	518	0.025	40	0.997	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.044	0.042	516	115	0.010	40	0.995	None	None	36	7:0.001	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.043	0.042	680	87	0.006	40	0.995	None	None	7	64:0.004	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.042	0.041	813	675	0.033	40	0.997	6	(656, 0.0322905)	27	329:0.017	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.040	0.039	813	675	0.031	40	0.997	6	(656, 0.030762)	27	329:0.016	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.040	0.039	715	52	0.004	40	0.996	4	(40, 0.0029448)	7	32:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.040	0.039	706	87	0.004	40	0.995	None	None	7	64:0.003	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(5v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.039	0.038	924	257	0.011	40	0.997	6	(238, 0.0108594)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(17v3), b: FaceKey(18v3), shared: Ed	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.039	0.038	647	331	0.018	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.039	0.038	703	52	0.003	40	0.997	4	(40, 0.0028119)	7	32:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.038	0.036	647	331	0.017	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.038	0.037	647	331	0.017	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.037	0.036	426	102	0.009	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(11v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.037	0.036	647	331	0.017	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.035	0.035	710	387	0.017	40	0.996	None	None	38	5:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.035	0.034	710	387	0.017	40	0.996	None	None	38	5:0.001	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.035	0.034	476	245	0.015	40	0.996	5	(218, 0.0137058)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(8v7), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.035	0.034	710	387	0.017	40	0.996	None	None	38	5:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(20v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.035	0.034	710	387	0.017	40	0.996	None	None	38	5:0.001	shares-a-cell	Uncertified { a: FaceKey(13v3), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.035	0.034	358	165	0.013	40	0.996	None	None	36	14:0.001	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.034	0.033	386	64	0.006	40	0.995	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.034	0.033	386	64	0.006	40	0.995	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.034	0.033	703	52	0.003	40	0.996	4	(40, 0.0024508)	7	32:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(5v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.034	0.033	480	271	0.016	40	0.997	None	None	37	12:0.001	shares-a-cell	Uncertified { a: FaceKey(8v5), b: FaceKey(10v3), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.034	0.032	470	209	0.011	40	0.996	4	(194, 0.0102733)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(8v7), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.032	0.031	502	78	0.006	40	0.990	5	(68, 0.0055964)	7	64:0.005	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(10v5), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.032	0.031	307	109	0.011	40	0.996	None	None	37	7:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.032	0.031	486	271	0.015	40	0.997	None	None	37	12:0.001	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(19v7), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.032	0.031	633	336	0.014	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.031	0.030	633	336	0.014	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.031	0.030	625	334	0.014	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.030	0.030	417	323	0.022	40	0.995	None	None	38	12:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.030	0.029	625	334	0.014	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.030	0.029	307	109	0.011	40	0.996	None	None	37	7:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.030	0.029	516	115	0.007	40	0.996	None	None	36	7:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.030	0.029	532	179	0.009	40	0.998	7	(156, 0.0078208)	38	8:0.000	shares-a-cell	Uncertified { a: FaceKey(17v5), b: FaceKey(18v3), shared: Ed	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.030	0.029	625	334	0.013	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v3), b: FaceKey(13v3), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.029	0.028	417	323	0.021	40	0.994	None	None	38	12:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.029	0.028	426	102	0.006	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.029	0.028	306	99	0.009	40	0.995	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.029	0.028	625	334	0.013	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(18v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.029	0.027	306	99	0.009	40	0.994	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.028	0.027	293	99	0.009	40	0.996	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.027	0.026	395	164	0.010	40	0.997	7	(139, 0.0091459)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(12v5), b: FaceKey(18v3), shared: Ed	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.027	0.026	293	99	0.009	40	0.996	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.027	0.026	467	183	0.010	40	0.997	8	(141, 0.0083814)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(17v5), b: FaceKey(18v3), shared: Ed	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.027	0.026	315	40	0.003	40	0.996	None	None	11	28:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.027	0.026	426	102	0.006	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.026	0.025	315	40	0.003	40	0.996	None	None	11	28:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.026	0.024	265	41	0.004	40	0.994	None	None	10	30:0.003	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.025	0.025	532	179	0.008	40	0.997	7	(156, 0.0072621)	38	8:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(15v1), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.025	0.024	261	43	0.003	40	0.995	None	None	11	31:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.025	0.024	265	41	0.004	40	0.994	None	None	10	30:0.003	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.025	0.024	407	248	0.013	40	0.990	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.025	0.024	467	183	0.009	40	0.997	8	(141, 0.0081944)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(16v1), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.025	0.023	261	43	0.003	40	0.996	None	None	11	31:0.003	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	260	40	0.003	40	0.996	None	None	11	28:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	260	40	0.003	40	0.995	None	None	11	28:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	358	165	0.012	40	0.995	None	None	36	14:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(8v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	407	110	0.007	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(7v3), b: FaceKey(9v1), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	324	145	0.010	40	0.997	None	None	35	17:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(8v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	407	110	0.006	40	0.995	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(7v3), b: FaceKey(9v1), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	263	56	0.004	40	0.995	None	None	9	46:0.004	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.023	324	145	0.010	40	0.996	None	None	35	17:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(8v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.022	272	56	0.004	40	0.995	None	None	9	46:0.003	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.024	0.022	272	56	0.004	40	0.995	None	None	9	46:0.003	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.023	0.022	263	56	0.004	40	0.995	None	None	9	46:0.003	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.023	0.022	245	40	0.004	40	0.994	None	None	11	28:0.003	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.023	0.022	245	40	0.003	40	0.996	None	None	11	28:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.023	0.022	503	203	0.007	40	0.997	4	(188, 0.00676)	38	5:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(8v5), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.023	0.022	324	145	0.009	40	0.996	None	None	35	17:0.001	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.023	0.022	324	145	0.009	40	0.996	None	None	35	17:0.001	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.022	480	104	0.006	40	0.997	None	None	38	3:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(13v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	390	99	0.005	40	0.996	None	None	37	6:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	407	248	0.013	40	0.996	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(3v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	387	210	0.012	40	0.995	7	(187, 0.0109746)	25	55:0.004	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.022	0.021	358	165	0.010	40	0.995	None	None	36	14:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(8v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	358	261	0.015	40	0.995	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	480	104	0.006	40	0.996	None	None	38	3:0.000	shares-a-cell	Uncertified { a: FaceKey(9v1), b: FaceKey(13v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.022	0.021	250	40	0.003	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	249	40	0.003	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	427	95	0.005	40	0.996	None	None	36	6:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(9v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	412	104	0.005	40	0.996	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(9v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	387	210	0.011	40	0.997	7	(187, 0.0106381)	25	55:0.003	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.021	0.020	137	42	0.007	40	0.995	None	None	23	16:0.001	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	427	95	0.005	40	0.996	None	None	36	6:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(9v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	346	164	0.009	40	0.996	None	None	38	4:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	301	98	0.006	40	0.996	None	None	37	3:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.021	0.020	472	205	0.009	40	0.996	7	(176, 0.0083205)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(16v1), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.020	0.020	358	165	0.009	40	0.995	None	None	36	14:0.001	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.020	346	164	0.009	40	0.996	None	None	38	4:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.020	472	205	0.008	40	0.997	7	(176, 0.0074568)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(16v3), b: FaceKey(18v3), shared: Ed	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.020	0.019	216	40	0.003	40	0.994	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.019	342	164	0.009	40	0.996	None	None	38	4:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.019	216	40	0.003	40	0.995	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.019	399	278	0.014	40	0.997	3	(269, 0.0135731)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+Local	depth	band_mixed_corner_odd_plus_one::a_short_odd_or_pair_edge_refuses_at_it
+0.020	0.019	412	104	0.005	40	0.994	None	None	40	0:0.000	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(9v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.020	0.019	399	278	0.014	40	0.996	3	(269, 0.0133944)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+Local	depth	band_mixed_corner_odd_plus_one::a_short_odd_or_pair_edge_refuses_at_it
+0.019	0.019	358	261	0.013	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.019	0.019	342	164	0.009	40	0.997	None	None	38	4:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.019	0.019	301	98	0.006	40	0.996	None	None	37	3:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.019	0.018	199	40	0.003	40	0.995	None	None	9	30:0.002	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.019	0.018	301	98	0.006	40	0.996	None	None	37	3:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.019	0.018	302	187	0.009	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(7v3), b: FaceKey(9v7), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.018	0.018	212	64	0.006	40	0.996	None	None	34	18:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.018	0.017	376	236	0.010	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.018	0.018	230	146	0.009	40	0.997	None	None	6	132:0.009	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::a_slab_topped_through
+0.018	0.017	376	236	0.010	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.018	0.017	395	164	0.007	40	0.997	7	(139, 0.0062266)	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(16v1), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.018	0.017	212	64	0.006	40	0.995	None	None	34	18:0.002	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(8v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.018	0.017	390	99	0.004	40	0.987	None	None	37	6:0.000	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v7), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.018	0.017	304	182	0.009	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(7v3), b: FaceKey(9v7), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.018	0.017	245	125	0.007	40	0.996	None	None	6	99:0.005	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.017	0.017	222	40	0.003	40	0.995	None	None	6	33:0.003	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.017	387	222	0.009	40	0.995	None	None	38	5:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	249	40	0.003	40	0.994	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	295	40	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	284	75	0.005	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v7), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	222	40	0.003	40	0.995	None	None	9	30:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	284	75	0.005	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v7), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	399	278	0.011	40	0.994	3	(269, 0.0105101)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+Local	depth	band_mixed_corner_odd_plus_one::a_short_odd_or_pair_edge_refuses_at_it
+0.017	0.016	399	278	0.011	40	0.997	3	(269, 0.0104386)	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(14v1), shared: Edg	touch:unpresented:Local+Local	depth	band_mixed_corner_odd_plus_one::a_short_odd_or_pair_edge_refuses_at_it
+0.017	0.016	250	40	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.017	0.016	222	40	0.003	40	0.993	None	None	6	33:0.003	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.016	387	222	0.009	40	0.996	None	None	38	5:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	160	44	0.005	40	0.995	None	None	27	12:0.001	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	230	40	0.002	40	0.994	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	233	40	0.003	40	0.996	None	None	8	31:0.002	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	296	102	0.005	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v7), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	294	41	0.002	40	0.996	None	None	10	30:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	296	102	0.005	40	0.996	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v7), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	199	40	0.003	40	0.996	None	None	9	30:0.002	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	295	40	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	148	40	0.004	40	0.994	None	None	10	29:0.003	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	279	40	0.002	40	0.996	None	None	6	33:0.002	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.016	0.015	233	40	0.006	40	0.996	None	None	8	31:0.002	shares-a-cell	Uncertified { a: FaceKey(10v1), b: FaceKey(14v5), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	249	40	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.015	249	40	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.015	323	151	0.006	40	0.996	None	None	38	3:0.000	shares-a-cell	Uncertified { a: FaceKey(9v5), b: FaceKey(10v5), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.015	0.014	294	41	0.002	40	0.996	None	None	10	30:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	302	187	0.008	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(12v7), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.015	0.014	279	40	0.002	40	0.995	None	None	6	33:0.002	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	301	98	0.005	40	0.995	None	None	37	3:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	258	43	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	160	44	0.003	40	0.997	None	None	27	12:0.001	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	258	43	0.002	40	0.995	None	None	6	35:0.002	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	230	40	0.003	40	0.994	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	323	151	0.006	40	0.997	None	None	38	3:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(10v5), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.015	0.014	148	40	0.003	40	0.994	None	None	10	29:0.003	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.015	0.014	363	141	0.007	40	0.996	None	None	13	104:0.006	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	emit_crossing_sense::a_corner_resting_on_a_face_is_the_corner_in_eithe
+0.014	0.014	207	72	0.005	40	0.995	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.014	0.013	249	40	0.002	40	0.996	None	None	11	28:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.014	0.014	258	43	0.002	40	0.996	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.014	0.014	304	182	0.007	40	0.997	None	None	39	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(12v7), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.014	0.013	230	146	0.007	40	0.995	None	None	6	132:0.007	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::a_box_whose_face_hold
+0.014	0.013	230	146	0.007	40	0.994	None	None	6	132:0.007	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::the_block_carries_the
+0.014	0.013	258	43	0.002	40	0.996	None	None	6	35:0.002	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(12v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.014	0.013	225	138	0.006	40	0.996	None	None	9	120:0.006	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_keel_on_a_bores_ruling::the_slit_form_holds_its_closed_form
+0.013	0.013	230	146	0.007	40	0.995	None	None	6	132:0.007	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::a_box_whose_bottom_ho
+0.013	0.013	249	40	0.002	40	0.996	None	None	11	28:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(17v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.013	137	42	0.007	40	0.994	None	None	23	16:0.001	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(9v5), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.013	302	256	0.010	40	0.995	None	None	38	8:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(16v5), shared: Edg	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.013	0.012	199	40	0.002	40	0.996	None	None	9	30:0.002	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(16v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.012	207	72	0.004	40	0.995	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.012	225	138	0.008	40	0.996	None	None	9	120:0.008	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_keel_on_a_bores_ruling::a_split_through_the_keel_caps_around_the_tre
+0.013	0.012	221	90	0.005	40	0.994	None	None	37	7:0.000	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.012	363	142	0.004	40	0.996	None	None	12	108:0.003	shares-a-cell	Uncertified { a: FaceKey(4v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	emit_crossing_sense::a_corner_resting_on_a_face_is_the_corner_in_eithe
+0.013	0.012	207	72	0.004	40	0.996	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.013	0.012	221	90	0.005	40	0.996	None	None	37	7:0.000	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.012	0.012	160	40	0.003	40	0.995	None	None	10	29:0.003	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.012	0.012	222	40	0.002	40	0.996	None	None	9	30:0.002	shares-a-cell	Uncertified { a: FaceKey(5v1), b: FaceKey(15v1), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.012	0.011	315	238	0.008	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.012	0.011	315	238	0.008	40	0.996	None	None	40	0:0.000	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(16v3), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.011	0.011	207	72	0.004	40	0.996	None	None	38	1:0.000	shares-a-cell	Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vert	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.011	0.011	199	40	0.002	40	0.996	None	None	9	30:0.001	shares-a-cell	Uncertified { a: FaceKey(12v1), b: FaceKey(14v1), shared: Ve	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.011	0.011	231	121	0.005	40	0.996	None	None	6	96:0.003	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(2v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.010	0.010	302	256	0.008	40	0.996	None	None	38	8:0.000	shares-a-cell	Uncertified { a: FaceKey(7v5), b: FaceKey(9v3), shared: Edge	touch:unpresented:Local+Local	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.010	0.010	226	48	0.002	40	0.996	None	None	5	34:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(1v1)	distance:lo-at-or-below-zero:shares-a-cell	depth	a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pie
+0.010	0.009	158	40	0.002	40	0.995	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.009	0.009	158	40	0.002	40	0.995	None	None	10	29:0.002	shares-a-cell	Uncertified { a: FaceKey(8v1), b: FaceKey(12v5), shared: Ver	touch:unpresented:Local+Local	depth	a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it
+0.009	0.009	230	146	0.005	40	0.996	None	None	6	132:0.004	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::the_box_less_the_bloc
+0.009	0.008	230	146	0.005	40	0.996	None	None	6	132:0.004	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(9v3), shared: Vert	touch:unpresented:Local+P-point	depth	a_slit_tip_on_a_curved_face_reads_its_full_turn::the_box_less_the_bloc
+0.008	0.008	159	40	0.002	40	0.989	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(4v1), shared: Vert	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.008	205	40	0.002	40	0.996	None	None	6	33:0.001	shares-a-cell	Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(23v3	distance:lo-at-or-below-zero:shares-a-cell	depth	split_pinch_keeps::a_notched_blocks_three_sections_keep_their_names_un
+0.008	0.008	160	40	0.002	40	0.994	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.008	159	40	0.002	40	0.995	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(4v1), shared: Vert	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.008	160	40	0.002	40	0.994	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.008	159	40	0.002	40	0.995	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(4v1), shared: Vert	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.008	160	40	0.002	40	0.995	None	None	7	32:0.001	shares-a-cell	Uncertified { a: FaceKey(3v1), b: FaceKey(13v1), shared: Ver	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.008	0.007	160	40	0.002	40	0.995	None	None	10	29:0.001	shares-a-cell	Uncertified { a: FaceKey(6v1), b: FaceKey(10v1), shared: Ver	touch:unpresented:Local+Local	depth	union_flush_fuses::a_contact_against_a_merged_cap_glues_in_every_order
+0.002	0.001	25	0	0.000	0	0.991	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(17v9), b: FaceKey(18v5), shared: Ed	none		a_slit_tip_on_a_curved_face_reads_its_full_turn::a_slab_topped_through
+0.001	0.001	5	0	0.000	0	0.988	None	None	1	0:0.000	shares-a-cell	Uncertified { a: FaceKey(1v3), b: FaceKey(7v5), shared: Edge	none		a_slit_tip_on_a_curved_face_reads_its_full_turn::a_slab_topped_through
+
+== straddling distance splits on refusing asks: generations since the nearest touching split, and hi by depth
+   28557  generations-since-touching ('shares-a-cell', '>3')
+    4271  generations-since-touching ('shares-nothing', None)
+    3043  generations-since-touching ('shares-a-cell', 2)
+    2922  generations-since-touching ('shares-a-cell', 3)
+    2859  generations-since-touching ('shares-a-cell', 1)
+   35368  ('shares-a-cell', 'no sibling splits touching')
+    3943  ('shares-nothing', 'no sibling splits touching')
+    2013  ('shares-a-cell', 'a sibling splits touching')
+     328  ('shares-nothing', 'a sibling splits touching')
+shares-a-cell   depth  0- 4: n=  1412 median hi 2.08e+00 max hi 5.22e+00
+shares-a-cell   depth  5- 9: n=  4524 median hi 1.22e+00 max hi 3.67e+00
+shares-a-cell   depth 10-14: n=  5624 median hi 5.15e-01 max hi 1.35e+00
+shares-a-cell   depth 15-19: n=  5419 median hi 2.44e-01 max hi 6.73e-01
+shares-a-cell   depth 20-24: n=  5215 median hi 1.03e-01 max hi 2.95e-01
+shares-a-cell   depth 25-29: n=  5230 median hi 4.31e-02 max hi 8.91e-02
+shares-a-cell   depth 30-34: n=  5072 median hi 1.75e-02 max hi 3.99e-02
+shares-a-cell   depth 35-39: n=  4885 median hi 7.89e-03 max hi 1.66e-02
+shares-nothing  depth  0- 4: n=  1819 median hi 2.63e+00 max hi 6.18e+00
+shares-nothing  depth  5- 9: n=  1400 median hi 1.46e+00 max hi 3.39e+00
+shares-nothing  depth 10-14: n=   724 median hi 5.47e-01 max hi 1.34e+00
+shares-nothing  depth 15-19: n=   314 median hi 2.08e-01 max hi 5.02e-01
+shares-nothing  depth 20-24: n=    14 median hi 8.07e-02 max hi 1.85e-01
+
+== touching splits by site pair (Local lines), refusing asks
+    9409  unpresented:plane:Local@23945|plane:Local@23945
+    2159  unpresented:plane:Local@13945|plane:Local@3828
+    1803  unpresented:plane:Local@4042|plane:Local@4042
+    1721  unpresented:plane:Local@50504|plane:Local@50404
+    1467  unpresented:plane:Local@50403|plane:Local@50404
+    1456  unpresented:plane:Local@13945|plane:Local@50403
+    1340  unpresented:plane:Local@50404|plane:Local@50404
+    1225  unpresented:plane:Local@4042|plane:Local@50403
+    1076  unpresented:plane:Local@23945|plane:P-point
+    1036  unpresented:plane:Local@50402|plane:Local@50404
+     975  unpresented:plane:Local@50606|plane:Local@50404
+     899  unpresented:plane:Local@50403|plane:Local@50403
+     865  unpresented:plane:Local@13945|plane:Local@50404
+     853  unpresented:plane:Local@50404|plane:Local@50504
+     771  unpresented:plane:Local@50503|plane:Local@50404
+     717  unpresented:plane:Local@50402|plane:Local@50403
+     679  unpresented:plane:Local@50404|plane:Local@50402
+     674  unpresented:plane:Local@50505|plane:Local@50404
+     614  unpresented:plane:Local@3961|plane:Local@23945
+     602  both-presented:straddles:plane:P-side|cyl:P-side
+     593  unpresented:plane:Local@3828|plane:Local@13945
+     591  unpresented:plane:Local@50404|plane:Local@50606
+     560  unpresented:plane:Local@3973|plane:Local@50404
+     552  unpresented:plane:Local@50504|plane:Local@50505
+     537  unpresented:plane:Local@50404|plane:Local@50403
+
+== the refusing node at the floor: its reason with sites
+   142  touch:departure:unpresented:plane:Local@23945|plane:Local@23945
+    53  distance:lo-at-or-below-zero:shares-a-cell
+    11  touch:departure:unpresented:plane:Local@4042|plane:Local@4042
+    10  touch:departure:unpresented:plane:Local@13945|plane:Local@3828
+     8  touch:departure:unpresented:plane:Local@23945|plane:P-point
+     2  touch:departure:unpresented:plane:Local@13945|cyl:P-side
+     2  touch:departure:unpresented:plane:Local@13945|plane:Local@3973
+     1  touch:departure:unpresented:plane:Local@13945|plane:Local@3908
+     1  touch:departure:unpresented:plane:Local@13945|plane:Local@3978
+     1  touch:departure:unpresented:plane:Local@3973|plane:Local@13945
+     1  touch:departure:unpresented:plane:Local@4027|plane:Local@4042
+     1  touch:departure:unpresented:plane:Local@4042|plane:Local@4027
+
+== touching splits on refusing pairs at depth >= 30, by site of either side
+  6404  23945
+  1188  4042
+   889  13945
+   344  3828
+   320  P-point
+   320  4027
+   236  P-side
+   232  50403
+   127  P-corner
+    56  50402
+    42  3973
+    36  3978
+    34  3862
+    20  3908
+
+== a reason no smaller cell changes (Structural part, margin wholly in band or decided zero, a plane corner lean decided reflex or undecided): first depth, and what follows it
+  asks with none: 19
+  splits in asks with none: 321
+  asks with one: 233
+  splits: 106900
+  secs: 7.004
+  splits after: 77034
+  secs after: 5.219
+  on the refusing pair: 217
+  first depth (ask), first depth (refusing pair), refusal depth: [((3, 4, 40), 44), ((2, 2, 40), 39), ((2, 4, 40), 32), ((3, 5, 40), 25), ((2, 5, 40), 21), ((2, 6, 40), 17), ((3, 7, 40), 8), ((4, 4, 40), 6), ((3, 3, 40), 6), ((3, None, 40), 6), ((2, 3, 40), 5), ((5, None, 40), 5)]
+
+== the refusing floor node: does its own lineage carry a fixed reason, and from what depth?
+   74  fixed in lineage from depth 4
+   49  fixed in lineage from depth 5
+   37  fixed in lineage from depth 2
+   28  fixed in lineage from depth 6
+   23  no fixed reason in lineage
+    4  fixed in lineage from depth 7
+    4  fixed in lineage from depth 35
+    2  fixed in lineage from depth 9
+    2  fixed in lineage from depth 15
+    2  fixed in lineage from depth 34
+    2  fixed in lineage from depth 21
+    2  fixed in lineage from depth 8
+    2  fixed in lineage from depth 10
+    1  fixed in lineage from depth 1
+    1  fixed in lineage from depth 3

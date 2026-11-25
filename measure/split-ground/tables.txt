@@ -1,0 +1,14 @@
+group	refusal	asks	secs	walk secs	splits	median refusal depth	min share of time before refusal
+dear	Uncertified/stuck-both (Structural+Structural)	17	7.80	6.51	14	0	0.999
+floor	Uncertified at the depth floor (touch:unpresented:Local+Local)	170	4.37	4.21	66224	40.0	0.987
+floor	Budget(Depth) at the depth floor (distance:lo-at-or-below-zero:shares-a-cell)	53	2.25	2.19	36895	40	0.990
+floor	Uncertified at the depth floor (touch:unpresented:Local+P-side)	2	0.52	0.51	2228	40.0	0.998
+floor	Uncertified at the depth floor (touch:unpresented:Local+P-point)	8	0.10	0.10	1830	40.0	0.994
+floor	Uncertified/stuck-both (Structural+Structural)	2	0.00	0.00	30	0.0	0.988
+
+group	asks	splits	secs	pair splits after d_rep	secs after d_rep	median d_rep
+dear	17	14	7.80	0	0.000	1
+floor	235	107207	7.24	5176	0.311	37
+
+tests per group Counter({'floor': 235, 'dear': 17}) distinct tests 21
+all gate asks secs by group {'dear': 16.535593999999996, 'floor': 17.234918}
