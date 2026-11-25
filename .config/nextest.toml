@@ -512,6 +512,7 @@ failure-output = "immediate-final"
 # run):
 #    4.5 s   topo::all clearance_windows_on_a_spline_chart::the_separation_of_two_trimmed_spline_faces_reads_their_faces_alone
 #    0.47 s  topo::all clearance_windows_on_a_spline_chart::a_lamina_through_the_unused_half_of_a_trimmed_spline_chart_is_embedded
+#    1.25 s  topo::all clearance_windows_on_a_spline_chart::no_cell_of_a_trimmed_spline_face_is_dropped_holding_a_face_point
 # An approximated cap read three ways through a skew motion, each swept
 # against a moved brick under two clearance bounds (a local run, alone):
 #    2.35 s  sweep::all review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap
@@ -858,7 +859,7 @@ not (
   (binary_id(topo::all) & (test(=a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_at_f64) | test(=a_vertex_read_by_two_sector_passes::standing_pyramids_folded_onto_the_plate_build_in_every_member_order) | test(=join_whole_orbit_rows::a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op) | test(=m3_pr3_split::a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch) | test(=m3_pr6_tier3prime::interval::tier3prime_interval) | test(=r1_mate8_decomp_probe::r1_stage2_completeness_randomized) | test(=review_m3_pr6::interval_r1::r1_interval_lane) | test(=split_through_an_apex::a_crown_whose_valleys_lie_in_the_plane_splits_sound) | test(=split_through_an_apex::an_edge_at_the_apex_in_the_plane_splits_sound_exact_and_near) | test(=split_through_an_apex::random_bases_with_corners_in_the_band_split_sound) | test(=union_flush_onto_edge_contact::carried_records_certify_every_order_of_the_fold) | test(=union_flush_onto_edge_contact::joined_folds_certify_and_build_one_body_in_every_order) | test(=union_flush_onto_edge_contact::two_dangling_null_edges_with_one_segment_build_in_every_op))) |
   (binary_id(viewer::all) & (test(=mate_tool_flow::a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once) | test(=mate_tool_flow::a_pattern_placed_pick_is_a_target_the_shelf_rests_on))) |
   (binary_id(sweep::all) & (test(=join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds) | test(=join_pierce_runs_sweep::a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders))) |
-  (binary_id(topo::all) & (test(=clearance_windows_on_a_spline_chart::the_separation_of_two_trimmed_spline_faces_reads_their_faces_alone) | test(=clearance_windows_on_a_spline_chart::a_lamina_through_the_unused_half_of_a_trimmed_spline_chart_is_embedded)))
+  (binary_id(topo::all) & (test(=clearance_windows_on_a_spline_chart::the_separation_of_two_trimmed_spline_faces_reads_their_faces_alone) | test(=clearance_windows_on_a_spline_chart::a_lamina_through_the_unused_half_of_a_trimmed_spline_chart_is_embedded) | test(=clearance_windows_on_a_spline_chart::no_cell_of_a_trimmed_spline_face_is_dropped_holding_a_face_point)))
 )
 """
 

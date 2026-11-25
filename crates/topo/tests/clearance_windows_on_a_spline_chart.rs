@@ -7,8 +7,12 @@
 //!   on a chart twice as wide (its isos run round half the domain), and
 //!   the bored block's top cap re-charted onto a patch (its holes inner
 //!   loops) are admitted on the knot domain, a superset;
-//! - on that superset the walk reads the face alone: a separation and
-//!   an embedding verdict that the chart's unused half would change.
+//! - each trimmed window holds its face's chart images on every side of
+//!   the domain;
+//! - on that superset the cells' regions read the face: no cell dropped
+//!   holds a face point, and an interior cell reads inside;
+//! - so the walk reads the face alone: a separation and an embedding
+//!   verdict that the chart's unused half would change.
 //!
 //! Every coordinate is dyadic, so each scalar lifts the fixture exactly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -340,4 +344,119 @@ fn a_lamina_through_a_trimmed_spline_face_crosses_it() {
 fn a_lamina_through_the_unused_half_of_a_trimmed_spline_chart_is_embedded() {
     let (verdict, _) = standing_through(1.5);
     assert_eq!(verdict, Embedding::Embedded);
+}
+
+/// **Every trimmed spline face's window holds its chart images**: each
+/// face's stored images, sampled at 65 parameters over each half-edge's
+/// span, lie in its window to `1e-12`. The faces trim the chart at
+/// every side of its knot domain: the half-square (`u` from the domain's
+/// low end, all of `v`), its mirror on the domain's high half, a strip
+/// over all of `u` and half of `v`, and the triangle, whose two isos lie
+/// on the domain's edges `v = 0` and `u = 1`. Red where a window is
+/// narrower than its face on any side, which leaves part of the face
+/// outside the cells the walk reads.
+#[test]
+fn every_trimmed_spline_window_holds_its_chart_images() {
+    let square = |a: f64, b: f64| vec![(a, 0.0), (b, 0.0), (b, 1.0), (a, 1.0)];
+    type Fixture = (&'static str, f64, Vec<(f64, f64)>);
+    let fixtures: [Fixture; 4] = [
+        ("the low half-square", 2.0, square(0.0, 1.0)),
+        ("the high half-square", 2.0, square(1.0, 2.0)),
+        (
+            "the strip",
+            1.0,
+            vec![(0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (0.0, 0.5)],
+        ),
+        (
+            "the triangle",
+            1.0,
+            vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+        ),
+    ];
+    let mut read = 0;
+    for (what, width, corners) in fixtures {
+        let (body, faces) = lamina::<f64>(width, &corners);
+        let rects = Side {
+            body: &body,
+            faces: faces.clone(),
+        }
+        .windows(Which::First)
+        .unwrap_or_else(|e| panic!("{what}: every face has a window: {e:?}"))
+        .rects();
+        for (face, u, v) in rects {
+            for (he, row) in body.pcurves() {
+                if body.face_of_half_edge(he) != Some(face) {
+                    continue;
+                }
+                let (t0, t1) = row.params();
+                for i in 0..=64 {
+                    let p = row.pcurve().eval(t0 + (t1 - t0) * f64::from(i) / 64.0);
+                    read += 1;
+                    assert!(
+                        u.0 <= p.x + 1e-12
+                            && p.x <= u.1 + 1e-12
+                            && v.0 <= p.y + 1e-12
+                            && p.y <= v.1 + 1e-12,
+                        "{what}, face {face:?}: the window {u:?} × {v:?} holds the image point \
+                         ({}, {})",
+                        p.x,
+                        p.y
+                    );
+                }
+            }
+        }
+    }
+    assert!(read > 1000, "the image points read: {read}");
+}
+
+/// **No cell of a trimmed spline face is dropped holding a face
+/// point**: every dyadic cell of the triangle lamina's chart to depth 4
+/// that `cell_region` reads `Outside` misses the closed triangle
+/// `v ≤ u`, at `f64` and `Interval`, and some are dropped at `f64`.
+fn no_outside_cell_holds_the_triangle<T: AtRestPolicy + geom_core::CertifiedBounds>() -> usize {
+    use topo::cell_region::{CellRegion, cell_region};
+    let (body, faces) = lamina::<T>(1.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]);
+    let mut dropped = 0;
+    for depth in 1..=4u32 {
+        let n = 1u32 << depth;
+        let side = |i: u32| (f64::from(i) / f64::from(n), f64::from(i + 1) / f64::from(n));
+        for (i, j) in (0..n).flat_map(|i| (0..n).map(move |j| (i, j))) {
+            let (u, v) = (side(i), side(j));
+            if cell_region(&body, faces[0], u, v, band()) == CellRegion::Outside {
+                dropped += 1;
+                // The cell meets `v ≤ u` iff its low v is at most its high u.
+                assert!(
+                    v.0 > u.1,
+                    "{}: {u:?} × {v:?} dropped, holds the face",
+                    T::NAME
+                );
+            }
+        }
+    }
+    dropped
+}
+
+#[test]
+fn no_cell_of_a_trimmed_spline_face_is_dropped_holding_a_face_point() {
+    assert!(
+        no_outside_cell_holds_the_triangle::<f64>() > 0,
+        "the door drops cells"
+    );
+    no_outside_cell_holds_the_triangle::<Interval>();
+}
+
+/// **An interior cell of a trimmed spline face reads `Inside`**: on the
+/// half-square lamina, the cell `[0.25, 0.5]²` lies a quarter clear of
+/// the face's boundary, and `cell_region` reads it inside at `f64` and
+/// `Interval`. Red where the cell's ball does not narrow with the cell
+/// on a spline chart, which keeps every cell undecided.
+#[test]
+fn an_interior_cell_of_a_trimmed_spline_face_reads_inside() {
+    use topo::cell_region::{CellRegion, cell_region};
+    fn inside<T: AtRestPolicy + geom_core::CertifiedBounds>() -> CellRegion {
+        let (body, faces) = lamina::<T>(2.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
+        cell_region(&body, faces[0], (0.25, 0.5), (0.25, 0.5), band())
+    }
+    assert_eq!(inside::<f64>(), CellRegion::Inside, "at f64");
+    assert_eq!(inside::<Interval>(), CellRegion::Inside, "at Interval");
 }

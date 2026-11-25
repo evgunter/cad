@@ -136,13 +136,8 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 ) -> CellRegion {
     let (mu, mv) = centre(u, v);
     let station = surface.eval_at(mu, mv);
-    let reach = (surface.rect_enclosure(u, v) - station).norm();
-    let clear_as = |row: &'static str, distance: Interval| {
-        matches!(
-            decide(row, Margin::of(distance - reach), band),
-            Ok(Sign::Positive)
-        )
-    };
+    let ball = Ball::holding(station, surface.rect_enclosure(u, v));
+    let clear_as = |row: &'static str, distance: Interval| ball.clear_as(row, distance, band);
     if !(clear_of_singular(surface, station, &clear_as)
         && clear_of_boundary_as(boundary, station, &clear_as))
     {

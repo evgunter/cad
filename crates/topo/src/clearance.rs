@@ -3827,10 +3827,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
         Surface::Nurbs(net) => match knot_domain(net) {
             Err(carrier) => return unsupported(carrier),
-            Ok(domain) => match iso_bounded_domain(body, f.record(), domain) {
-                Some(()) => (domain.0, domain.1, Region::Whole),
-                None => superset(domain.0, domain.1),
-            },
+            Ok(domain) if iso_bounded_domain(body, f.record(), domain) => {
+                (domain.0, domain.1, Region::Whole)
+            }
+            Ok(domain) => superset(domain.0, domain.1),
         },
         Surface::Approx(_) => unreachable!("an approximated face is read as its fit"),
     };
@@ -3962,10 +3962,9 @@ mod lift {
 /// bounds the fit from the surface it stands in for, a claim tier 3
 /// re-derives, and says nothing about where the boundary is. That the
 /// boundary lies on the fit is the face's own: tier 3 certifies each
-/// edge against its chart image on the fit, and the window admits a
-/// free-form face only where [`iso_bounded_domain`] finds those images
-/// run once around the fit's knot domain. `None` where a crossing does
-/// not certify ([`certified_lift`]).
+/// edge against its chart image on the fit, and the window is the fit's
+/// knot domain ([`knot_domain`]), which holds every point of a face on
+/// it. `None` where a crossing does not certify ([`certified_lift`]).
 fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Interval>> {
     certified_lift(|lift| match stored.spline_chart() {
         Some(net) => Surface::Nurbs(std::sync::Arc::new(net.map_scalar(|x| lift.of(x)))),
@@ -3976,15 +3975,18 @@ fn carrier_lifted<T: CertifiedBounds>(stored: &Surface<T>) -> Option<Surface<Int
 /// A rectangle of carrier parameters, `(u, v)` ranges.
 type ParamRect = ((f64, f64), (f64, f64));
 
+/// The value of an enclosure that is one finite point, certified:
+/// exact structure, such as a knot or a held iso coordinate.
+fn exact(x: Interval) -> Option<f64> {
+    (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
+}
+
 /// **A NURBS chart's knot domain** `[u0, u1] × [v0, v1]`: every point
 /// of a face on the chart is the image of a point of it, so it is a
 /// superset of the face's region whatever the face's boundary. Its
 /// bounds must be exact structure, as the window's rectangle is read in
 /// `f64`.
 fn knot_domain(net: &NurbsSurface<Interval>) -> Result<ParamRect, &'static str> {
-    let exact = |x: Interval| {
-        (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
-    };
     let domain = |(lo, hi): (Interval, Interval)| Some((exact(lo)?, exact(hi)?));
     match (
         domain(net.knot_values_u().domain()),
@@ -4029,14 +4031,13 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     f: &Face,
     (u, v): ParamRect,
-) -> Option<()> {
+) -> bool {
     if !f.rings.is_empty() {
-        return None;
+        return false;
     }
-    let exact = |x: Interval| {
-        (x.is_certified() && x.lo() == x.hi() && x.lo().is_finite()).then_some(x.lo())
+    let Ok(rows) = crate::pcurves::Lift::read(body, f.outer) else {
+        return false;
     };
-    let rows = crate::pcurves::Lift::read(body, f.outer).ok()?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
         [
@@ -4049,7 +4050,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
         if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
-            return None;
+            return false;
         }
         let (t0, t1) = row.params();
         let point = |t: T| {
@@ -4059,7 +4060,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         let (a, b) = (point(t0), point(t1));
         let (sa, sb) = (on_side(a), on_side(b));
         if !(0..4).any(|side| sa[side] && sb[side]) {
-            return None;
+            return false;
         }
         let forward = crate::pcurves::is_plus(body, row.half_edge);
         path.push(if forward { [a, b] } else { [b, a] });
@@ -4079,7 +4080,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
         .zip(path.iter().cycle().skip(1))
         .all(|(this, next)| meet(this[1].0, next[0].0) && meet(this[1].1, next[0].1));
     if path.is_empty() || !closes {
-        return None;
+        return false;
     }
     let at = |x: f64| Interval::from_bounds(x, x);
     let shoelace = path
@@ -4090,7 +4091,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     let winding = shoelace * at(0.5) / area;
     let isolates =
         |k: f64| winding.is_certified() && winding.lo() > k - 0.5 && winding.hi() < k + 0.5;
-    (isolates(1.0) || isolates(-1.0)).then_some(())
+    isolates(1.0) || isolates(-1.0)
 }
 
 /// Whether halving the window on either axis actually narrows the
