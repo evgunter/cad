@@ -569,6 +569,23 @@ pub struct PickTarget<'a> {
 }
 
 impl<'a> PickTarget<'a> {
+    /// **`ray` read into the coordinates this target's mesh is in**: the
+    /// frame's rotation transposed about its origin, or `ray` itself for
+    /// a body in its space's coordinates. The one spelling [`pick_face`]
+    /// reads every target's ray by, so a caller that certifies a
+    /// crossing of this mesh itself reads it on the very ray the door
+    /// does.
+    #[must_use]
+    pub fn ray_in_frame(&self, ray: &Ray) -> Ray {
+        self.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        })
+    }
+
     /// A target assembled BY HAND from a mesh index the caller built —
     /// **test support**: it exists only in a build that asks for this
     /// crate's `test-support` feature, which is what makes the rest of
@@ -1932,13 +1949,7 @@ pub fn pick_face<T: topo::AtRestPolicy + Decide>(
         // rigid map keeps the ray's parameter, so every target's `t` is
         // one parameter along the one ray, and a hit's point is read off
         // the ray as handed.
-        let local = target.map.map_or(*ray, |map| {
-            let back = map.linear().transpose();
-            Ray {
-                origin: Point3::origin() + back * (ray.origin - map.origin()),
-                dir: back * ray.dir,
-            }
-        });
+        let local = target.ray_in_frame(ray);
         let ray = &local;
         for cand in target.pick.candidates(ray) {
             let Some((tri, face)) = target.pick.triangle(&cand) else {
