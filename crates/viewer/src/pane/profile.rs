@@ -110,9 +110,9 @@ impl ViewerBehavior<'_> {
             step,
         });
         *self.step_edited = edited;
-        // The note the last focus built found for the step held then,
-        // said while that step is still the one held.
-        if let (Some(_), Some(note)) = (edited, self.step_note) {
+        // The note the last focus built found, said only while the step
+        // it was found for is the one held now.
+        if let Some(note) = self.step_note.and_then(|note| note.for_held(edited)) {
             crate::widgets::message_toned(ui, note.to_string(), &theme, frame::Tone::Advisory);
         }
         match news.standing {

@@ -483,8 +483,9 @@ pub struct ViewerApp {
     /// ([`ViewerBehavior::step_edited`]).
     step_edited: Option<marks::EditedStep>,
     /// What the profile editor says under the step it holds, as the
-    /// last focus built found it ([`marks::PanelFocus::note`]).
-    step_note: Option<marks::StepNote>,
+    /// last focus built found it ([`marks::PanelFocus::note`]); nothing
+    /// while no focus is built over a current index.
+    step_note: Option<marks::HeldNote>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -1125,6 +1126,9 @@ impl ViewerApp {
     /// generation so a frame that changed nothing re-tessellates
     /// nothing.
     fn sync_scene(&mut self) {
+        // Found again below wherever a focus is built: a frame that
+        // builds none over a current index has nothing to say about it.
+        self.step_note = None;
         self.session.pump();
         // What the landings' prunes withdrew (DI5: a placement that pins
         // a free-moved space takes effect when its solve lands), said as
@@ -2846,8 +2850,8 @@ pub(crate) struct ViewerBehavior<'a> {
     /// draws; the focus reads it next frame ([`marks::panel_focus`]).
     pub(crate) step_edited: &'a mut Option<marks::EditedStep>,
     /// What the editor says under the step it held on the last frame
-    /// ([`marks::PanelFocus::note`]).
-    pub(crate) step_note: Option<marks::StepNote>,
+    /// ([`marks::PanelFocus::note`]), with the step it is about.
+    pub(crate) step_note: Option<marks::HeldNote>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -11948,17 +11952,10 @@ mod properties_pane_tests {
             );
         }
 
-        /// **A field held in the editor lights the wall its step swept,
-        /// and letting go lights the profile's whole body again.** A
-        /// click into the outline's step 2 field holds it; the scene the
-        /// app builds next is focused on that step's one wall
-        /// (`marks::step_focus`), never the plate.
-        #[test]
-        fn a_held_step_field_lights_its_wall() {
-            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+        /// A click into the outline's step 2 field, held: answers that
+        /// step, as the editor names it.
+        fn hold_step_two(driven: &mut Driven) -> crate::marks::EditedStep {
             let painted = driven.quiet();
-            let whole = driven.app.scene_focus.clone();
-            assert!(whole.len() > 1, "the profile lights the plate: {whole:?}");
             // Row 2's first field: the run after the first `x ` label
             // that follows the row number `2`.
             let row = painted
@@ -11991,10 +11988,24 @@ mod properties_pane_tests {
             else {
                 panic!("the plate's profile")
             };
-            let edited = crate::marks::EditedStep {
+            crate::marks::EditedStep {
                 profile: profile(),
                 step: program.ids[0][2],
-            };
+            }
+        }
+
+        /// **A field held in the editor lights the wall its step swept,
+        /// and letting go lights the profile's whole body again.** A
+        /// click into the outline's step 2 field holds it; the scene the
+        /// app builds next is focused on that step's one wall
+        /// (`marks::step_focus`), never the plate.
+        #[test]
+        fn a_held_step_field_lights_its_wall() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            driven.quiet();
+            let whole = driven.app.scene_focus.clone();
+            assert!(whole.len() > 1, "the profile lights the plate: {whole:?}");
+            let edited = hold_step_two(&mut driven);
             assert_eq!(
                 driven.app.step_edited,
                 Some(edited),
@@ -12021,6 +12032,43 @@ mod properties_pane_tests {
             assert_eq!(
                 driven.app.scene_focus, whole,
                 "and the whole plate is lit again"
+            );
+        }
+
+        /// **A note is said only over the focus it was found with.** A
+        /// note planted for the held step, then a frame whose index is
+        /// refused, so no focus is built: the editor says nothing about
+        /// walls the picture no longer shows.
+        #[test]
+        fn a_held_steps_note_is_not_said_while_no_focus_is_built() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            let edited = hold_step_two(&mut driven);
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the field holds step 2"
+            );
+            let note = crate::marks::StepNote::Merged(1);
+            let said = note.to_string();
+            let (refusing, _) =
+                crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+            driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
+            driven.frame(Vec::new());
+            driven.frame(Vec::new());
+            assert!(
+                driven.app.picks.error().is_some(),
+                "the premise: the index is refused"
+            );
+            driven.app.step_note = Some(crate::marks::HeldNote { step: edited, note });
+            let painted = driven.frame(Vec::new());
+            assert_eq!(
+                driven.app.step_edited,
+                Some(edited),
+                "the step is still held"
+            );
+            assert!(
+                !painted.iter().any(|(run, _)| run.contains(&said)),
+                "no note is said over a focus nobody built"
             );
         }
 

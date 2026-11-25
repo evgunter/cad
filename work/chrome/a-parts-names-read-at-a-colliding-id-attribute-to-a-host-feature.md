@@ -41,3 +41,12 @@ the viewer's pick surface, which is why it is filed rather than made
 there. The editor-core doors' side of the same fact (`Doc::part_spelled`
 and `resolve::part_name` ask the mint log, which a colliding id passes) is
 `work/refs/a-part-name-in-the-host-is-spelled-in-the-parts-ids.md`.
+
+**The everyday case is a copied document.** Duplicating a document into
+a variant part (Save As, then edit) keeps every id minted before the
+fork, so a host that instances the variant collides on every one of its
+own early nodes. The worst symptom is the property header's Delete: a
+click on the part copy's wall offers to delete the host's extrude
+(`feature_of` is the node that Delete deletes, `tree.rs`'s doc on it). Read
+from the code; not driven through the chrome. This row is P2 as filed; it is P1 if that workflow is
+common.

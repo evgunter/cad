@@ -60,6 +60,7 @@
 
 use std::collections::BTreeSet;
 
+use editor_core::names::{CarriedAs, SegOrigin, VerbatimEdge, origin, verbatim_edge};
 use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, StepId, VarId};
 use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, ProfileEdgeRef, RoleSeg, StableName, attribute};
@@ -1108,7 +1109,8 @@ enum Swept {
 /// merged face retiring such a face.
 ///
 /// The name is walked down its carried levels, each read at its own
-/// site: a `From`'s at the body its read names, any other carry's at
+/// site: a `From`'s at the operation its read depends on
+/// (`Doc::read_operation`, which takes a selection to its body's), any other carry's at
 /// the node that spelled the level carrying it. A level whose site
 /// reaches an instance before the node that spelled it is the part's,
 /// spelled in the part's ids ([`spelled_at`]), and is no wall of this
@@ -1126,18 +1128,17 @@ fn swept_by(
         if spelled_at(doc, site, level.node)? == Spelled::Part {
             return Some(Swept::No);
         }
-        let (next, inner) = match level.path.first() {
-            Some(RoleSeg::From { read, of }) => (doc.operation_of(*read)?, of),
-            Some(
-                RoleSeg::SplitFragment { parent: inner }
-                | RoleSeg::OnToolVertex { of: inner }
-                | RoleSeg::Member { of: inner, .. }
-                | RoleSeg::BandCut(inner),
-            ) => (level.node, inner),
-            _ => break,
+        // The carry classification is `names::origin`'s, the one the
+        // attribution walk reads.
+        let (next, inner) = match level.path.first().map(origin) {
+            Some(SegOrigin::Carried(inner, CarriedAs::From(read))) => {
+                (doc.read_operation(read)?, inner)
+            }
+            Some(SegOrigin::Carried(inner, _)) => (level.node, inner),
+            Some(SegOrigin::Minted | SegOrigin::Unclassified) | None => break,
         };
         site = next;
-        level = inner.name();
+        level = inner;
     }
     match level.path.first()? {
         RoleSeg::Merged(retired) => {
@@ -1179,15 +1180,16 @@ fn spelled_at(
     let mut at = site;
     let mut seen = BTreeSet::new();
     while seen.insert(at) {
-        let input = match doc.node(at)? {
-            Node::InstantiatePart { .. } => return Some(Spelled::Part),
-            _ if at == minter => return Some(Spelled::Here),
-            Node::Place { source, .. } => source.read,
-            Node::Split { target, .. } => target.read,
-            Node::Mirror { body, .. } => body.read,
-            _ => return None,
-        };
-        at = doc.operation_of(input)?;
+        // The pass-through classification is `names::verbatim_edge`'s,
+        // the one every walk of that list reads.
+        let edge = verbatim_edge(doc.node(at)?);
+        if matches!(edge, Some(VerbatimEdge::Copied { source: None })) {
+            return Some(Spelled::Part);
+        }
+        if at == minter {
+            return Some(Spelled::Here);
+        }
+        at = doc.read_operation(edge?.carried_read()?)?;
     }
     None
 }
@@ -1200,8 +1202,27 @@ pub struct PanelFocus {
     /// The lit patches.
     pub lit: BTreeSet<u32>,
     /// What the profile editor says under the step it holds, if
-    /// anything.
-    pub note: Option<StepNote>,
+    /// anything, with the step it was found for.
+    pub note: Option<HeldNote>,
+}
+
+/// **A [`StepNote`] and the step it was found for**: said only while
+/// that step is still the one held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeldNote {
+    /// The step the note is about.
+    pub step: EditedStep,
+    /// The note.
+    pub note: StepNote,
+}
+
+impl HeldNote {
+    /// The note, where `held` is the step it was found for; nothing for
+    /// any other step, or none.
+    #[must_use]
+    pub fn for_held(self, held: Option<EditedStep>) -> Option<StepNote> {
+        (held == Some(self.step)).then_some(self.note)
+    }
 }
 
 /// **What the profile editor says about the walls a held step lights.**
@@ -1244,11 +1265,17 @@ pub fn panel_focus(
         Some(edited) => match step_focus(index, doc, edited) {
             Ok(StepWalls { lit, merged }) => PanelFocus {
                 lit,
-                note: (merged > 0).then_some(StepNote::Merged(merged)),
+                note: (merged > 0).then_some(HeldNote {
+                    step: edited,
+                    note: StepNote::Merged(merged),
+                }),
             },
             Err(unread) => PanelFocus {
                 lit: BTreeSet::new(),
-                note: Some(StepNote::Unread(unread)),
+                note: Some(HeldNote {
+                    step: edited,
+                    note: StepNote::Unread(unread),
+                }),
             },
         },
         None => PanelFocus {
@@ -1565,12 +1592,34 @@ mod tests {
             super::panel_focus(&index, &doc, &Selection::Node(profile), Some(edited)),
             super::PanelFocus {
                 lit: BTreeSet::new(),
-                note: Some(super::StepNote::Unread(super::StepFocusUnread {
-                    unread: 1,
-                    drawn: body.len(),
-                })),
+                note: Some(super::HeldNote {
+                    step: edited,
+                    note: super::StepNote::Unread(super::StepFocusUnread {
+                        unread: 1,
+                        drawn: body.len(),
+                    }),
+                }),
             },
             "a refused step lights nothing, and the editor is told why"
         );
+    }
+
+    /// **A note is said only under the step it was found for**: a note
+    /// found for one step and read while another is held, or none,
+    /// says nothing.
+    #[test]
+    fn a_note_is_said_only_under_its_own_step() {
+        let profile = RecipeNodeId(pncad::document::MintId::new(1, 1));
+        let at = |ordinal| super::EditedStep {
+            profile,
+            step: pncad::document::StepId(pncad::document::MintId::new(ordinal, 1)),
+        };
+        let note = super::HeldNote {
+            step: at(2),
+            note: super::StepNote::Merged(1),
+        };
+        assert_eq!(note.for_held(Some(at(2))), Some(super::StepNote::Merged(1)));
+        assert_eq!(note.for_held(Some(at(3))), None, "another step held");
+        assert_eq!(note.for_held(None), None, "no step held");
     }
 }
