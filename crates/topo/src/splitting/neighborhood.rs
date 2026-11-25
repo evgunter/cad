@@ -48,6 +48,7 @@ impl SectorFaceError {
     /// "not built" (`[failure.taxonomy]`).
     pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
         match self {
+            Self::Pending { face } => SplitReduceError::PendingFace { face },
             Self::Unsupported { face, kind }
             | Self::Crease { face, kind, .. }
             | Self::Unplaced { face, kind } => {

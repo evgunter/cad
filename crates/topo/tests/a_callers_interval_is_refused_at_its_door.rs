@@ -157,7 +157,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         EdgeCurveSpec::line_between(a, a),
         a,
         a,
-        |_| None,
+        |_| Err(topo::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),

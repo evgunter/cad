@@ -22,7 +22,7 @@ fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().z.abs() == 1.0 && frame.origin().z == z
             )
         })

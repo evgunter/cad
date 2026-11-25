@@ -104,7 +104,7 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
     for (what, body) in [("solid", &solid.body), ("hollow", &hollow.body)] {
         let mut tori = 0;
         for (fk, _) in body.faces() {
-            if let Some(Surface::Torus {
+            if let Ok(Surface::Torus {
                 frame: carrier_frame,
                 ..
             }) = body.face_surface(fk)

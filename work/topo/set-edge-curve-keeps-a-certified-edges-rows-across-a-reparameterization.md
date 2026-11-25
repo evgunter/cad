@@ -104,3 +104,12 @@ which is this row's recipe, and
 `reach_split_gate_per_face::a_spline_rim_moved_between_its_quarters_keeps_no_row`.
 The sibling door `set_face_surfaces_describing` is filed as
 `set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`.
+
+## Note (2026-11-23, PR 7497)
+
+The producer's closing mint this row reasons from is retired: no producer
+mints to close, and the finish completes a body's rows, keeping every
+stored row and deriving each missing one
+(`crates/topo/src/pcurves/complete.rs`), so a stale row is refused
+there rather than replaced. The reasoning above is the record of its
+time.

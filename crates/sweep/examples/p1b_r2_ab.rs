@@ -85,7 +85,7 @@ fn main() {
     // MAJOR-1's premise, measured on the blank the die is filleted from.
     let faces: Vec<bool> = blank
         .faces()
-        .map(|(fk, _)| matches!(blank.face_surface(fk), Some(Surface::Plane { .. })))
+        .map(|(fk, _)| matches!(blank.face_surface(fk), Ok(Surface::Plane { .. })))
         .collect();
     println!(
         "[AB] die blank: {} faces, {} planes, {} edges",

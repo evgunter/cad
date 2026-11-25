@@ -277,6 +277,11 @@ impl<T: Decide> ConeApex<T> {
 /// `Operand`, which is why the adaptation stays with the callers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SectorFaceError {
+    /// The face has no surface yet.
+    Pending {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The face's surface has no wired sector arm.
     Unsupported {
         /// The face whose carrier has no arm.
@@ -389,7 +394,9 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    let surface = view.surface();
+    let surface = view
+        .surface()
+        .map_err(|_| SectorFaceError::Pending { face })?;
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
         let normal = spline_normal(body, point(), into, (face, sense), (chart, kind), band)?;
@@ -495,9 +502,6 @@ fn spline_normal<T: Decide>(
     (chart, kind): (&geom::NurbsSurface<T>, SurfaceKind),
     band: Band,
 ) -> Result<OutwardNormal<T>, SectorFaceError> {
-    if chart.is_placeholder() {
-        return Err(SectorFaceError::Unsupported { face, kind });
-    }
     let unplaced = SectorFaceError::Unplaced { face, kind };
     // The sector's two bounding edges in this face's loop: `into`,
     // ending at the vertex, and the half-edge after it, leaving it. Each

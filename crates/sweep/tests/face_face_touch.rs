@@ -1280,7 +1280,7 @@ fn rod_along_x(x0: f64, len: f64, z: f64) -> AtRestBody<f64> {
 }
 
 /// **CONTACTHOLD's open m2, pinned as it stands**
-/// (`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
+/// (`work/heldrecords/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
 /// two plates overlapping in z whose y = 2 faces are coplanar (the
 /// second raised ε/100 off it, inside the band) and merge, and a rod
 /// along x tangent to the merged face along z = 0.75, through both

@@ -40,7 +40,7 @@ fn band() -> Band {
 fn z_face(body: &Body<f64>, sign: f64) -> FaceKey {
     let mut found = None;
     for (k, f) in body.faces() {
-        if let Some(Surface::Plane { frame, .. }) = body.face_surface(k) {
+        if let Ok(Surface::Plane { frame, .. }) = body.face_surface(k) {
             let normal = frame.axis();
             let out = geom_brep::OutwardNormal::from_chart(normal, f.sense).vec();
             if out.z * sign > 0.5 {
@@ -458,6 +458,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::WitnessCellCapExceeded { .. } => "WitnessCellCapExceeded",
                 ChartRegionError::EdgeScale => "EdgeScale",
                 ChartRegionError::FaceUncovered(_) => "FaceUncovered",
+                ChartRegionError::PendingFace { .. } => "PendingFace",
                 ChartRegionError::Corrupt => "Corrupt",
                 ChartRegionError::Escalated(_) => unreachable!("handled above"),
             }

@@ -335,7 +335,7 @@ fn every_face_of_an_arc_railed_loft_has_a_window() {
     let rational = prism.faces().any(|(fk, _)| {
         matches!(
             prism.face_surface(fk),
-            Some(Surface::Nurbs(net)) if net.weights().iter().any(|&w| w != 1.0)
+            Ok(Surface::Nurbs(net)) if net.weights().iter().any(|&w| w != 1.0)
         )
     });
     assert!(rational, "the arc's wall is rational");

@@ -139,7 +139,7 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
     let v = vase();
     assert!(
         v.faces()
-            .any(|(fk, _)| matches!(v.face_surface(fk), Some(geom::Surface::Torus { .. }))),
+            .any(|(fk, _)| matches!(v.face_surface(fk), Ok(geom::Surface::Torus { .. }))),
         "the fixture must carry a real torus band"
     );
 }
@@ -332,7 +332,7 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
     let face = b
         .faces()
         .find(|(fk, _)| match b.face_surface(*fk) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 (origin.x - 3.0).abs() < 1e-9 && normal.x.abs() > 0.5
             }
