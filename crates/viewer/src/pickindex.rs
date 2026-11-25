@@ -1795,14 +1795,14 @@ impl PickIndex {
         // frame is the kernel's door's to read ([`pick_face`] reads the
         // ray into each target's frame), so copies in one space are one
         // batch the kernel orders.
-        let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
+        let mut mapped: Vec<&NodePick> = Vec::new();
         for part in self.parts.iter().filter(visible) {
             match display_mapped(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
                 }
-                Some(map) => mapped.push((map, part)),
+                Some(_) => mapped.push(part),
             }
         }
         // Every group's whole answer, in group order: the unmoved
@@ -1813,13 +1813,9 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (map, part) in mapped {
+        for part in mapped {
             let targets = [part.target()];
-            let inverse = map.inverse();
-            let local = Ray {
-                origin: inverse.transform_point(ray.origin),
-                dir: inverse.transform_vec(ray.dir),
-            };
+            let local = drawn_ray(display, part, ray);
             for hit in group_answer(pick_face(eval, &targets, &local))? {
                 candidates.push(PickHit {
                     point: ray.origin + ray.dir * hit.t,
@@ -2913,8 +2909,17 @@ fn group_answer(
 /// the span of the chord point `a + (b − a)·s`
 /// ([`ray_segment_point`]) and the certified spans of every crossing
 /// `ray` makes with the triangles that point may lie on
-/// ([`ray_triangle`]), placed through the same [`placement`] the
-/// chord's points were.
+/// ([`ray_triangle`]).
+///
+/// **Read in the part's own frame** (`[placement.frame]`): on the ray
+/// the part's faces in front were certified on ([`faces_ray`]), against
+/// the mesh's own corners. A face in
+/// front that IS one of the chord's triangles is then the same
+/// crossing, bit for bit, so an edge is never hidden by its own face;
+/// read in the world instead, a crossing placed through the maps and
+/// one carried back through them differ by the carry's rounding, which
+/// a posed or moved copy's certificate does not hold. The parameter is
+/// the caller's: an affine map carries it.
 ///
 /// **Which triangles.** A point inside the chord lies on the chord's
 /// own triangles
@@ -2941,9 +2946,8 @@ fn own_crossing(
     s: f64,
     display: &DisplayView,
 ) -> Option<TSpan> {
-    let own = ray_segment_point(ray, candidate.ends, s)?;
     let mesh = part.mesh();
-    let Some(&[from, to]) = mesh
+    let ends = mesh
         .boundaries
         .get(candidate.boundary)
         .and_then(|boundary| {
@@ -2951,9 +2955,19 @@ fn own_crossing(
                 .points
                 .get(candidate.segment..candidate.segment + 2)
         })
-    else {
-        return Some(own);
+        .and_then(|pair| {
+            let at = |index: u32| mesh.positions.get(index as usize).copied();
+            Some((pair[0], pair[1], [at(pair[0])?, at(pair[1])?]))
+        });
+    let Some((from, to, ends)) = ends else {
+        // [`best_segment`] offers only a segment whose two chord points
+        // both projected, and the walk projects a point only off its
+        // own boundary's index into the mesh's positions.
+        unreachable!("a candidate's chord is two points of its own boundary");
     };
+    let ray = &faces_ray(display, part, ray);
+    let own = ray_segment_point(ray, ends, s)?;
+    let corner = |index: u32| mesh.positions.get(index as usize).copied();
     let at_start = candidate.along == 0.0 || s == 0.0;
     let at_end = candidate.along == 1.0 || s == 1.0;
     let chords = part.chords();
@@ -2966,8 +2980,6 @@ fn own_crossing(
     } else {
         vec![chords.on_chord([from, to])]
     };
-    let place = placement(display, part);
-    let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
     Some(
         triangles
             .into_iter()
@@ -3102,6 +3114,29 @@ pub(crate) fn witness_leg(
             .display_map(node)
             .map_or(in_space, |map| map.transform_point(in_space))
     })
+}
+
+/// **The ray `part` is picked by**: `ray` carried back through the
+/// display map its node is drawn under ([`display_mapped`]), or `ray`
+/// itself. An affine map carries a ray's parameter with it, so a
+/// crossing at `t` on this ray is at `t` on `ray`.
+fn drawn_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    display_mapped(display, part).map_or(*ray, |map| {
+        let inverse = map.inverse();
+        Ray {
+            origin: inverse.transform_point(ray.origin),
+            dir: inverse.transform_vec(ray.dir),
+        }
+    })
+}
+
+/// **The ray `part`'s faces are certified on**: the ray it is picked by
+/// ([`drawn_ray`], what [`PickIndex::pick_for`] hands the kernel) read
+/// into its body's frame as the kernel reads it
+/// ([`PickTarget::ray_in_frame`]) — so a crossing of its mesh read here
+/// is the kernel's own, bit for bit.
+fn faces_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    part.target().ray_in_frame(&drawn_ray(display, part, ray))
 }
 
 /// **The display map a part's node is drawn under**, if the display

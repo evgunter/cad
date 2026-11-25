@@ -2,7 +2,8 @@
 //! reading both point doors take of a torus face outside a closed group:
 //! the ray lane's hit test and boundary pre-pass
 //! ([`crate::solid_contain`]) and the pierce arm's landing test
-//! ([`crate::contain::curved_face_containment`]). It is
+//! ([`crate::contain::curved_face_containment`]), which reads a spindle
+//! sheet's face by it too (# A spindle sheet). It is
 //! [`crate::sphere_region`]'s method on the torus.
 //!
 //! # Method: the closest crossing along a path of circles
@@ -49,6 +50,26 @@
 //! torus. Nothing is read in the chart: the torus's two periods never
 //! enter a reading.
 //!
+//! # A spindle sheet
+//!
+//! A sheet ([`geom::Surface::Spindle`]) is the torus's chart with `R`
+//! signed, cut to `ρ = R + r·cos v ≥ 0`: every parallel of it is a whole
+//! circle on it, and a meridian's tube circle is on it from apex to apex
+//! (`|v| ≤ v*`) and past the apexes on the spindle's other sheet. So a
+//! meridian leg ends at the apex it runs into, an open end
+//! ([`region::End::open`]): a closest crossing short of it is one along
+//! the sheet, and a leg that reaches it uncrossed reads nothing. An
+//! aimed path whose first meridian reaches its apex before its corner
+//! leaves the sheet, and one whose corner is on the axis has no parallel
+//! there; each is set aside. The rest is the torus's reading: a plane's
+//! curves on a sheet are a subset of the torus formula's, a meridian
+//! plane's one arc in each half-plane and a parallel plane's circles one
+//! on each tube side, and the sheet's normal is the formula's. A sheet
+//! decides no ring convention: no leg leaves `ρ ≥ 0`. A point on or near
+//! its axis (an apex, or within the band's zero of the axis: some 5e-5 of
+//! a horn's cusp, where the sheet meets the axis tangentially) has no
+//! foot, and is left unread.
+//!
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
@@ -68,11 +89,12 @@
 //! # Predicates (meters)
 //!
 //! - `bool_torus_frame_radius`: `p`'s distance from the axis, on which
-//!   every azimuth names a foot.
+//!   every azimuth names a foot, and on a sheet an aimed path's corner's.
 //! - `bool_torus_region_at`: a crossing's place along its leg, from the
 //!   leg's start, at the leg's radius.
 //! - `bool_torus_region_corner`: a first leg's crossing, or an end of an
-//!   edge on its circle, against its corner.
+//!   edge on its circle, against its corner; on a sheet, a meridian's
+//!   crossing or corner against its apex.
 //! - `bool_torus_region_order`: two crossings' places along the path.
 //! - `bool_torus_region_cross`: the sine between the leg and the edge's
 //!   face side at the closest crossing, at the tube's radius.
@@ -100,6 +122,14 @@
 //!   leg's radius — arc length, the metre a root's slack is bounded in.
 //! - **cross**: a sine times the tube's radius, the displacement the
 //!   crossing angle buys within one tube radius of the crossing.
+//! - **a sheet's apex**: a meridian's crossing in the band of its apex is
+//!   off the leg, not a graze, and is dropped before its plane section is
+//!   asked, which cannot tell the meridian plane's two arcs apart on the
+//!   axis ([`region::landings`]). It is sound as the cone's apex end is: a
+//!   crossing kept is decided short of the apex past the band, so closer
+//!   than any crossing set aside there, and a leg left with none reads
+//!   nothing. A root the section cannot tell short of the apex grazes. A
+//!   corner or a corner's radius decided zero sets the path aside.
 
 use geom_core::{Band, Decide, Margin, Point3, Vec3};
 
@@ -116,6 +146,9 @@ use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::ArcRows;
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
+
+/// The row a point's distance from the axis is read on.
+const FRAME_RADIUS: &str = "bool_torus_frame_radius";
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -141,6 +174,9 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     frame: geom::Frame<T>,
     major: T,
     minor: T,
+    /// A spindle sheet's apex height ([`geom::sheet_apex`]), where its
+    /// meridians leave it; `None` on a ring torus, which has no apex.
+    apex: Option<T>,
     /// The face's sense bit: `false` points its outward normal into the
     /// tube.
     sense: bool,
@@ -193,7 +229,7 @@ pub(crate) fn torus_face_region<T: Decide>(
     let surface = f
         .surface()
         .map_err(|_| PointInSolidError::PendingFace { face })?;
-    let geom::Surface::Torus { .. } = surface else {
+    let (geom::Surface::Torus { .. } | geom::Surface::Spindle { .. }) = surface else {
         return Err(corrupt());
     };
     let admits: &[geom::CurveKind] = match splines {
@@ -220,26 +256,38 @@ impl<T: Decide> TorusFaceRegion<T> {
     ///
     /// # Panics
     ///
-    /// Where `charted` is not a torus: the caller reads the record first.
+    /// Where `charted` is not a torus or a spindle sheet: the caller reads
+    /// the record first.
     fn on(
         charted: Charted<T>,
         sense: bool,
         edges: Vec<Edge<T>>,
         splines: Option<SplineCrossings<T>>,
     ) -> Self {
-        let &geom::Surface::Torus {
-            frame: carrier_frame,
-            major_radius,
-            minor_radius,
-        } = charted.surface()
-        else {
-            unreachable!("a torus region is built on a torus record")
+        let (frame, major, minor, apex) = match *charted.surface() {
+            geom::Surface::Torus {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (frame, major_radius, minor_radius, None),
+            geom::Surface::Spindle {
+                frame,
+                major_radius,
+                minor_radius,
+            } => (
+                frame,
+                major_radius,
+                minor_radius,
+                Some(geom::sheet_apex(major_radius, minor_radius).height),
+            ),
+            _ => unreachable!("a torus region is built on a torus or a sheet record"),
         };
         Self {
             charted,
-            frame: carrier_frame,
-            major: major_radius,
-            minor: minor_radius,
+            frame,
+            major,
+            minor,
+            apex,
             sense,
             edges,
             splines,
@@ -247,24 +295,39 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     /// Is `p`, a point on the torus, in the face: `Some(true)` inside,
-    /// `Some(false)` outside, `None` on its boundary (module docs).
+    /// `Some(false)` outside, `None` on its boundary or, on a sheet, on or
+    /// near its axis, where no foot reads it (module docs).
     ///
     /// # Errors
     ///
-    /// [`RegionRefusal`]: `p` in the band of an edge, a torus off the
-    /// ring convention or a point on its axis, no path decided
+    /// [`RegionRefusal`]: `p` in the band of an edge, a ring torus off
+    /// its convention or a point on its axis, a sheet's point in the band
+    /// of its axis, no path decided
     /// ([`crate::ray_walk::walk`]), or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
         if self.edges.is_empty() {
             return Ok(Some(true));
         }
         // A point on the axis has no foot of its own: every azimuth names
-        // one.
-        geom::require_ring_torus(self.major, self.minor, band).map_err(RegionRefusal::Escalated)?;
+        // one. A ring torus's point there refuses. A sheet's point on or
+        // near it (an apex, or within the band's zero of the axis) is left
+        // unread, `None`: that is this door's contract with tier 3, whose
+        // chart-singularity arm reads an apex's side by its own walk of the
+        // face's cycles through the sheet's chart wherever the door does
+        // not place it.
         let (x, y, _) = self.frame().local(p);
         let rho = (x.powi(2) + y.powi(2)).sqrt();
-        crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
-            .map_err(RegionRefusal::Escalated)?;
+        if self.apex.is_none() {
+            geom::require_ring_torus(self.major, self.minor, band)
+                .map_err(RegionRefusal::Escalated)?;
+            crate::validate::decide_positive(FRAME_RADIUS, Margin::of(rho), band)
+                .map_err(RegionRefusal::Escalated)?;
+        } else if crate::validate::decide(FRAME_RADIUS, Margin::of(rho), band)
+            .map_err(RegionRefusal::Escalated)?
+            == geom_core::Sign::Zero
+        {
+            return Ok(None);
+        }
         let foot = QueryFoot::read(self.charted.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
@@ -287,24 +350,37 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
-    /// increasing) or back: the tube's circle at `p`'s azimuth.
+    /// increasing) or back: the tube's circle at `p`'s azimuth, whole on a
+    /// ring torus and up to the apex it runs into on a sheet, an open end
+    /// ([`End::open`]): past it the circle is on the spindle's other sheet.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
         let curve =
             SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
-        Leg::whole(Round::on(region::built(curve)))
+        let course = Round::on(region::built(curve));
+        Leg {
+            course,
+            // The corner's row: a crossing's arc length against where the
+            // leg stops, as at a corner, the lever and the metre the same.
+            end: self.apex_ahead(forward).map(|apex| End {
+                place: course.arc(apex),
+                row: TORUS_REGION_CORNER,
+                open: true,
+            }),
+        }
+    }
+
+    /// The apex a meridian run `forward` or back reaches, on a sheet:
+    /// the minor angle increasing climbs the axis.
+    fn apex_ahead(&self, forward: bool) -> Option<Point3<T>> {
+        self.apex.map(|height| {
+            let rise = if forward { height } else { -height };
+            self.frame.origin() + self.frame.axis() * rise
+        })
     }
 
     /// The unit chart normal at `y`.
     fn chart_normal(&self, y: Point3<T>) -> Vec3<T> {
-        let n = geom_brep::implicit_gradient(
-            &geom::Surface::Torus {
-                frame: self.frame,
-                major_radius: self.major,
-                minor_radius: self.minor,
-            },
-            y,
-        );
-        n.normalize()
+        geom_brep::implicit_gradient(self.charted.surface(), y).normalize()
     }
 }
 
@@ -368,7 +444,9 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
 
     /// A first leg from `p` to the corner at `target`'s major angle
     /// (`parallel_first`) or minor angle, then the other family's leg
-    /// through the corner.
+    /// through the corner. On a sheet a first meridian that reaches its
+    /// apex before the corner leaves the sheet, and a corner on the axis
+    /// has no parallel: either sets the path aside.
     fn aimed(
         &self,
         p: QueryFoot<T>,
@@ -397,6 +475,13 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
             row: TORUS_REGION_CORNER,
             open: false,
         };
+        if let Some(apex) = first.end {
+            on_the_sheet(apex.place - end.place, apex.row, band)?;
+        }
+        if self.apex.is_some() && !parallel_first {
+            let (x, y, _) = self.frame().local(corner.at());
+            on_the_sheet((x.powi(2) + y.powi(2)).sqrt(), FRAME_RADIUS, band)?;
+        }
         let then = move || {
             if parallel_first {
                 self.meridian(corner, then_forward)
@@ -405,6 +490,15 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
             }
         };
         Ok((first.course, end, then))
+    }
+}
+
+/// A sheet's aimed path kept where `margin`, a length, is decided
+/// positive on `row`: set aside as a graze at zero.
+fn on_the_sheet<T: Decide>(margin: T, row: &'static str, band: Band) -> Result<(), Fault> {
+    match crate::validate::decide(row, Margin::of(margin), band).map_err(region::in_band)? {
+        geom_core::Sign::Positive => Ok(()),
+        geom_core::Sign::Zero | geom_core::Sign::Negative => Err(crate::ray_walk::RayFault::Graze),
     }
 }
 
@@ -495,6 +589,250 @@ mod tests {
             MINOR,
             vec![parallel(v0, true, 1), parallel(v1, false, 2)],
         )
+    }
+
+    /// A spindle sheet `(big, 1)` on `frame`, its parallel at minor angle
+    /// `v` over the major angles `us`, and its meridian at major angle `u`
+    /// over the minor angles `vs`, each run `forward` along its parameter.
+    struct Sheet {
+        frame: geom::Frame<f64>,
+        big: f64,
+    }
+
+    impl Sheet {
+        fn plain(big: f64) -> Self {
+            Self::on(
+                big,
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            )
+        }
+
+        /// A frame no axis or seam of the world's holds.
+        fn tilted(big: f64) -> Self {
+            let axis = Vec3::new(0.3, -0.5, 0.81).normalize();
+            let w = Vec3::new(1.0, 0.2, -0.1);
+            let u_ref = (w - axis * w.dot(axis)).normalize();
+            Self::on(big, Point3::new(1.7, -2.3, 0.45), axis, u_ref)
+        }
+
+        fn on(big: f64, origin: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Self {
+            Self {
+                frame: geom::Frame::new(origin, axis, u_ref),
+                big,
+            }
+        }
+
+        fn apex(&self) -> geom::SheetApex<f64> {
+            geom::sheet_apex(self.big, 1.0)
+        }
+
+        fn at(&self, u: f64, v: f64) -> Point3<f64> {
+            let rho = self.big + v.cos();
+            self.frame.at_local((rho * u.cos(), rho * u.sin(), v.sin()))
+        }
+
+        fn edge(
+            &self,
+            carrier: geom::Curve3<f64>,
+            (t0, t1): (f64, f64),
+            forward: bool,
+            key: u64,
+        ) -> Edge<f64> {
+            RegionEdge {
+                edge: EdgeKey::from(KeyData::from_ffi(key)),
+                r#loop: LoopKey::default(),
+                cycle: 0,
+                carrier,
+                t0,
+                t1,
+                turn: crate::region::fixture_turn(t0, t1),
+                forward,
+            }
+        }
+
+        fn parallel(&self, v: f64, us: (f64, f64), forward: bool, key: u64) -> Edge<f64> {
+            let f = self.frame;
+            let carrier = geom::Curve3::circle(
+                f.at_local((0.0, 0.0, v.sin())),
+                f.axis(),
+                self.big + v.cos(),
+                f.u_ref(),
+            );
+            self.edge(carrier, us, forward, key)
+        }
+
+        fn meridian(&self, u: f64, vs: (f64, f64), forward: bool, key: u64) -> Edge<f64> {
+            let (f, radial) = (self.frame, self.frame.radial(u));
+            let carrier = geom::Curve3::circle(
+                f.origin() + radial * self.big,
+                radial.cross(f.axis()),
+                1.0,
+                radial,
+            );
+            self.edge(carrier, vs, forward, key)
+        }
+
+        fn region(&self, edges: Vec<Edge<f64>>) -> TorusFaceRegion<f64> {
+            let sheet = geom::Surface::Spindle {
+                frame: self.frame,
+                major_radius: self.big,
+                minor_radius: 1.0,
+            };
+            TorusFaceRegion::on(
+                Charted::record(Default::default(), &sheet),
+                true,
+                edges,
+                None,
+            )
+        }
+    }
+
+    /// **A lemon's cap reads its side along the sheet, not past its
+    /// apex** (`R = −1/2`, the cap above the parallel at `v = 1/5`, its
+    /// top apex inside it). `p`'s meridian run up meets no edge before the
+    /// apex, and reads nothing there; run on round the whole tube circle
+    /// it would come back up through the other sheet and meet the rim from
+    /// below, entering the cap, and read a point of it outside. Every point
+    /// above the rim is in, every point below out, and the apex itself is
+    /// left unread. Red if a sheet's meridian runs past its apex, or the
+    /// sheet's reading answers at its axis.
+    #[test]
+    fn a_lemons_cap_reads_its_side_along_the_sheet() {
+        let lemon = Sheet::plain(-0.5);
+        let cap = lemon.region(vec![lemon.parallel(0.2, (0.0, TAU), true, 1)]);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let apex = lemon.apex();
+        for u in [0.3, 2.0, 4.5] {
+            let leg = cap
+                .single(foot(&cap, lemon.at(u, 0.6)), false, true, band)
+                .unwrap();
+            assert!(
+                region::read_leg(&cap, &leg, band).is_err(),
+                "the meridian run up from ({u}, 0.6) reads nothing at the apex"
+            );
+            for v in [0.4, 0.6, 0.95 * apex.v] {
+                assert_eq!(
+                    cap.contains(lemon.at(u, v), band),
+                    Ok(Some(true)),
+                    "({u}, {v}) is in the cap"
+                );
+            }
+            for v in [0.0, -0.6, -0.95 * apex.v] {
+                assert_eq!(
+                    cap.contains(lemon.at(u, v), band),
+                    Ok(Some(false)),
+                    "({u}, {v}) is below it"
+                );
+            }
+        }
+        assert_eq!(
+            cap.contains(Point3::new(0.0, 0.0, apex.height), band),
+            Ok(None),
+            "the apex has no foot"
+        );
+    }
+
+    /// **A meridian that meets an edge at its apex drops the meeting
+    /// there and reads on**: a lemon wedge over the major angles
+    /// `[0, 0.6]`, above a rim arc at `v₀ = −0.3·v*`, its two meridians
+    /// running from the rim to the top apex, where they meet. A point
+    /// below the rim reads out. Each leg up from it ends at the apex,
+    /// where both meridians' roots lie and the section cannot tell the
+    /// meridian plane's two arcs apart, so the roots are dropped before
+    /// it is asked. Red if the section is asked first: every path grazes
+    /// at the apex and the point refuses.
+    #[test]
+    fn a_meridian_drops_a_meeting_at_its_apex() {
+        let lemon = Sheet::plain(-0.5);
+        let (v0, top, a) = (-0.3 * lemon.apex().v, lemon.apex().v, 0.6);
+        let wedge = lemon.region(vec![
+            lemon.parallel(v0, (0.0, a), true, 1),
+            lemon.meridian(a, (v0, top), true, 2),
+            lemon.meridian(0.0, (v0, top), false, 3),
+        ]);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        assert_eq!(
+            wedge.contains(lemon.at(0.3, -0.6 * top), band),
+            Ok(Some(false)),
+            "below the rim"
+        );
+        assert_eq!(
+            wedge.contains(lemon.at(0.3, 0.5 * top), band),
+            Ok(Some(true)),
+            "in the wedge"
+        );
+    }
+
+    /// **A sheet face reads the side its chart says**, on a lemon and an
+    /// apple on a tilted frame: a cap above a parallel, a band between two,
+    /// a chart rectangle of two parallels and two meridians, and a wedge
+    /// whose meridians end at the apex. Every point decided is decided
+    /// right, and every point a hundredth of a radian clear of every edge
+    /// and of the apexes is decided. Red on a wrong side anywhere, or a
+    /// refusal or an unread point in the open.
+    #[test]
+    fn a_sheet_face_reads_the_side_its_chart_says() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
+            let sheet = Sheet::tilted(big);
+            let top = sheet.apex().v;
+            let (v0, v1, a, b) = (-0.3 * top, 0.45 * top, 0.6, 2.4);
+            type Truth = fn(f64, f64, [f64; 4]) -> bool;
+            let faces: [(&str, Vec<Edge<f64>>, Truth); 4] = [
+                (
+                    "cap",
+                    vec![sheet.parallel(v0, (0.0, TAU), true, 1)],
+                    |_, v, [v0, ..]| v > v0,
+                ),
+                (
+                    "band",
+                    vec![
+                        sheet.parallel(v0, (0.0, TAU), true, 1),
+                        sheet.parallel(v1, (0.0, TAU), false, 2),
+                    ],
+                    |_, v, [v0, v1, ..]| v0 < v && v < v1,
+                ),
+                (
+                    "rectangle",
+                    vec![
+                        sheet.parallel(v0, (a, b), true, 1),
+                        sheet.meridian(b, (v0, v1), true, 2),
+                        sheet.parallel(v1, (a, b), false, 3),
+                        sheet.meridian(a, (v0, v1), false, 4),
+                    ],
+                    |u, v, [v0, v1, a, b]| a < u && u < b && v0 < v && v < v1,
+                ),
+                (
+                    "wedge",
+                    vec![
+                        sheet.parallel(v0, (0.0, a), true, 1),
+                        sheet.meridian(a, (v0, top), true, 2),
+                        sheet.meridian(0.0, (v0, top), false, 3),
+                    ],
+                    |u, v, [v0, _, a, _]| 0.0 < u && u < a && v > v0,
+                ),
+            ];
+            for (face, edges, truth) in faces {
+                let region = sheet.region(edges);
+                for i in 0..8 {
+                    let u = f64::from(i) * TAU / 8.0 + 0.071;
+                    for j in 0..9 {
+                        let v = (-0.95 + f64::from(j) * 0.2375) * top;
+                        let clear = [v0, v1, top, -top].iter().all(|&e| (v - e).abs() > 1e-2)
+                            && [0.0, a, b].iter().all(|&e| (u - e).abs() > 1e-2);
+                        let want = truth(u, v, [v0, v1, a, b]);
+                        match region.contains(sheet.at(u, v), band) {
+                            Ok(Some(got)) => assert_eq!(got, want, "{what} {face}: ({u}, {v})"),
+                            other => {
+                                assert!(!clear, "{what} {face}: ({u}, {v}) in the open: {other:?}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// `p`'s foot on the region's torus, as the door reads it.

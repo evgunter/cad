@@ -103,3 +103,8 @@ Dispatch, with each unit's review tier:
   - MINOR-2: tier 3 now reads sheet faces' cycles, a change the PR body did not name.
   - Class recorded: **a reader that asks a chart question at a point where the chart is singular (an apex, a pole) before applying the end that excludes that point turns an exclusion into a refusal.** The sphere poles and cone apex are swept for it in the fix pass.
   - The row closes on the arm. Its pinned symptom belongs to EMBEDWALK's verdict-door row, which the lane filed with its measurement. Fix pass sent to the lane's session, with the reviewer's probe module inline. (INSIDE orchestrator)
+- 2026-11-25 — PR 7790 (`inside/spindle-sheet-placement`) merges; `the-point-door-places-no-point-on-a-spindle-sheet-face` (P1) CLOSED.
+  - The curved point door reads a spindle sheet's face through the torus region with R signed. A meridian leg ends at the apex it runs into and drops an unsided root there. Ring tori are byte-identical by differential.
+  - The row's pinned symptom (the football verifier refusing) is EMBEDWALK's verdict door probing only candidate roots. The lane filed that on EMBEDWALK, with its measurement.
+  - Reviews: FULL (one Opus), a fix pass, then the same reviewer as verifier. The verifier found `OnSurface::meet` has one production consumer, so the unsided-root change is silent nowhere.
+  - Residue filed: P2 `a-horn-sheets-meridian-touches-its-cusp-and-grazes-before-its-end-is-read`. The lane also filed P2 `the-ray-lane-reads-no-spindle-sheet-face` and P3 `the-outward-normal-at-a-point-has-no-spindle-sheet-arm`. (INSIDE orchestrator)

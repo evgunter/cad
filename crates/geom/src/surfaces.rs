@@ -911,6 +911,26 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
     }
 }
 
+/// **A point's distance from a spindle sheet, its one home**: the point
+/// at height `h` along the axis and distance `rho ≥ 0` from it, the sheet
+/// `(R, r)` the arc of its meridian circle on `ρ ≥ 0`. Where the circle's
+/// point nearest the point lies on that arc, the distance is the circle's,
+/// `|√((ρ − R)² + h²) − r|`; where it lies across the axis (its `ρ`,
+/// `R + r·(ρ − R)/d`, not positive), on the spindle's other sheet, the
+/// sheet's nearest point is the apex ([`sheet_apex`]) on the point's side,
+/// and the distance is to it. The two agree where they meet, at the apex,
+/// so the distance is unsigned: a signed one would change sign there.
+///
+/// It is a point's distance, not a bound over a box; zero exactly on the
+/// sheet.
+pub fn sheet_distance<T: Real>(major_radius: T, minor_radius: T, rho: T, h: T) -> T {
+    let d = ((rho - major_radius).powi(2) + h.powi(2)).sqrt();
+    let across = major_radius * d + minor_radius * (rho - major_radius);
+    let apex = sheet_apex(major_radius, minor_radius).height;
+    let to_apex = (rho.powi(2) + (h.abs() - apex).powi(2)).sqrt();
+    across.select_le_zero(to_apex, (d - minor_radius).abs())
+}
+
 /// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
 /// `Some` on a channel that is an angle, `None` on one that is a length.
 pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
