@@ -26,7 +26,10 @@ fn arc(t: f64) -> Point3<f64> {
 }
 
 /// The scalars the rows run at: the witness's and a leaf's.
-trait Scalar: geom_core::Certifies + crate::props::AtRestPolicy {}
+trait Scalar:
+    geom_core::Certifies + geom_core::CertifiedEnclosure + crate::props::AtRestPolicy
+{
+}
 impl Scalar for f64 {}
 impl Scalar for geom_core::Interval {}
 
