@@ -1240,7 +1240,11 @@ fn every_unread_stretch_is_in_a_window(
                 super::OnSpan::End(crate::curve_pair::SpanEnd::Start) => span.0,
                 super::OnSpan::End(crate::curve_pair::SpanEnd::Stop) => span.1,
             };
-            let turns: &[f64] = if periodic { &[-2.0, -1.0, 0.0, 1.0, 2.0] } else { &[0.0] };
+            let turns: &[f64] = if periodic {
+                &[-2.0, -1.0, 0.0, 1.0, 2.0]
+            } else {
+                &[0.0]
+            };
             turns.iter().any(|&k| (lo..=hi).contains(&(t + TAU * k)))
         })
     };
@@ -1381,7 +1385,10 @@ fn each_window_source_holds_what_the_band_cannot_read() {
         (p.x.powi(2) + p.y.powi(2)).sqrt() * cos - p.z.abs() * sin
     };
     let roots = super::conic_oracle::crossings(form, 0.0, 6.0);
-    assert!(!roots.is_empty(), "apex: the line crosses the cone beside its apex");
+    assert!(
+        !roots.is_empty(),
+        "apex: the line crosses the cone beside its apex"
+    );
     let Err(r) = cross(&Span::new(&steep, (0.0, 6.0)), &cone, b) else {
         panic!("apex: the apex refuses")
     };
@@ -1493,8 +1500,22 @@ fn a_walks_refused_piece_holds_what_the_band_cannot_read() {
         radius: 1.0,
     };
     let cases = [
-        ("torus walk", &t, Point3::new(1.25, 0.0, 0.0), 0.7_f64, 0.3, super::Door::ConicTorus),
-        ("wall ladder", &wall, Point3::new(1.0, 0.0, 0.0), 0.3, 0.5, super::Door::ConicQuadric),
+        (
+            "torus walk",
+            &t,
+            Point3::new(1.25, 0.0, 0.0),
+            0.7_f64,
+            0.3,
+            super::Door::ConicTorus,
+        ),
+        (
+            "wall ladder",
+            &wall,
+            Point3::new(1.0, 0.0, 0.0),
+            0.3,
+            0.5,
+            super::Door::ConicQuadric,
+        ),
     ];
     for (name, s, on, g, rho, door) in cases {
         for lift in [-3.0 * eps, 0.0, 3.0 * eps] {
@@ -1506,8 +1527,10 @@ fn a_walks_refused_piece_holds_what_the_band_cannot_read() {
                 panic!("{label}: the touch refuses")
             };
             assert!(
-                r.windows.iter().all(|w| matches!(w.why, CrossWhy::Method { door: d, .. } if d == door)
-                    && w.window.1 - w.window.0 < 0.1),
+                r.windows.iter().all(
+                    |w| matches!(w.why, CrossWhy::Method { door: d, .. } if d == door)
+                        && w.window.1 - w.window.0 < 0.1
+                ),
                 "{label}: the method's local windows, {:?}",
                 r.windows
             );
@@ -1526,8 +1549,9 @@ fn a_walks_refused_piece_holds_what_the_band_cannot_read() {
 /// window the method's, holds what the band cannot read at every turn of
 /// spans a radian short of two and three turns. (A graze in band on a
 /// span past a turn is refused whole by the pose, whose window is one
-/// piece or the span.) Red where a window is copied only a turn either
-/// way: the copies at `4π` and beyond are lost.
+/// piece or the span.) The walk's windows are local, one a turn. Red
+/// where a window is copied only a turn either way, whether the copies at
+/// `4π` and beyond are lost or the span is refused whole for want of them.
 #[test]
 fn a_span_of_several_turns_holds_every_turns_crossings() {
     for eps in [1e-6, 1e-9, 1e-12] {
@@ -1542,9 +1566,27 @@ fn a_span_of_several_turns_holds_every_turns_crossings() {
                 // at every turn of a span started a radian before it.
                 if dip < 10.0 * eps {
                     let t = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
-                    let tangent = (Vec3::unit_y() * 0.7_f64.cos() + Vec3::unit_z() * 0.7_f64.sin()).normalize();
-                    let touch = graze(Point3::new(1.25, 0.0, 0.0), Vec3::unit_x(), tangent, (0.3, 0.0, 0.4));
+                    let tangent = (Vec3::unit_y() * 0.7_f64.cos() + Vec3::unit_z() * 0.7_f64.sin())
+                        .normalize();
+                    let touch = graze(
+                        Point3::new(1.25, 0.0, 0.0),
+                        Vec3::unit_x(),
+                        tangent,
+                        (0.3, 0.0, 0.4),
+                    );
                     let long = (-1.0, TAU * f64::from(turns) - 1.0);
+                    let Err(r) = cross(&Span::new(&touch, long), &t, b) else {
+                        panic!("the walk's touch refuses over {turns} turns")
+                    };
+                    // At `ε = 1e-9` the walk answers the touch locally (at
+                    // `1e-12` it escalates the turn whole).
+                    assert!(
+                        eps != 1e-9
+                            || r.windows.len() == turns as usize
+                                && r.windows.iter().all(|w| w.window.1 - w.window.0 < 0.1),
+                        "a local window at each of {turns} turns: {:?}",
+                        r.windows
+                    );
                     every_unread_point_is_in_a_window(
                         &format!("torus walk over {turns} turns, ε {eps:e}"),
                         &touch,
@@ -1575,9 +1617,9 @@ fn a_span_of_several_turns_holds_every_turns_crossings() {
                         // A found crossing is reported once, within
                         // half a turn of the span's middle; a window is
                         // held at every turn it reaches.
-                        let met = found
-                            .iter()
-                            .any(|m| ((at(m) - root + PI).rem_euclid(TAU) - PI).abs() <= 10.0 * eps);
+                        let met = found.iter().any(|m| {
+                            ((at(m) - root + PI).rem_euclid(TAU) - PI).abs() <= 10.0 * eps
+                        });
                         assert!(
                             held || met,
                             "{label}: the crossing at {root} is neither found nor in a window \

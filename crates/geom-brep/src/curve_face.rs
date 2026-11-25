@@ -403,7 +403,11 @@ pub(crate) fn window_gap<T: Decide>(
     speed: T,
     band: Band,
 ) -> Result<geom_core::Sign, Indeterminate> {
-    geom_core::k_stats::decide("curve_face_window", geom_core::Margin::of(gap * speed), band)
+    geom_core::k_stats::decide(
+        "curve_face_window",
+        geom_core::Margin::of(gap * speed),
+        band,
+    )
 }
 
 /// A gap of zero or more, decided: what stands past it misses what it
@@ -462,7 +466,11 @@ pub(crate) fn on_span<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Ban
         undecided_over(&at, (t0, t1), speed, band).is_some()
     };
     let Some(period) = span.carrier().period() else {
-        return [(lo, hi)].into_iter().filter(|&w| meets(w)).map(held).collect();
+        return [(lo, hi)]
+            .into_iter()
+            .filter(|&w| meets(w))
+            .map(held)
+            .collect();
     };
     let turn = period.length();
     if window_gap_past(hi - lo - turn, speed, band) {
