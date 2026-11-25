@@ -3337,6 +3337,205 @@ pub(super) mod tests {
         );
     }
 
+    /// The wall of radius `1/2` about `z` and the ball of radius `0.699`
+    /// centred `0.2` from the axis, whose loop turns back a millimetre
+    /// short of the far ruling; and the loop's point at height `z` on
+    /// the side `y > 0`.
+    fn sliver_pair() -> (Surface<f64>, Surface<f64>) {
+        let at = |x: f64| geom::Frame::new(Point3::new(x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
+        (
+            Surface::Cylinder {
+                frame: at(0.0),
+                radius: 0.5,
+            },
+            Surface::Sphere {
+                frame: at(0.2),
+                radius: 0.699,
+            },
+        )
+    }
+
+    fn on_sliver(z: f64) -> Point3<f64> {
+        let cos = (z * z + 0.29 - 0.699 * 0.699) / 0.2;
+        Point3::new(0.5 * cos, 0.5 * (1.0 - cos * cos).sqrt(), z)
+    }
+
+    /// **One point proves a quadric box that two points leave no graph**
+    /// (C2): a box hulling 35 mm of the sliver loop beside its tip, where
+    /// the surfaces cross at about 0.1 rad. The two-point enclosure
+    /// straddles zero, the one-point quantity is zero-free at every
+    /// sampled point of the box, and limb 3's reading, which a quadric
+    /// pair takes at one point, is zero-free and holds every sample.
+    #[test]
+    fn one_point_proves_a_quadric_box_two_points_leave_no_graph() {
+        let (wall, ball) = sliver_pair();
+        let (p, q) = (on_sliver(0.012), on_sliver(0.047));
+        let b = Box3::between(p, q);
+        let e = (q - p).normalize();
+        let two = graph_margin(&wall, &ball, b, e);
+        assert_eq!(tube_margin(two), Some(0.0), "two points straddle: {two:?}");
+        let one = graph_quantity(&wall, &ball, b, e);
+        let margin = tube_margin(one).expect("certified");
+        assert!(margin > 0.0, "one point is zero-free: {one:?}");
+        let mut least = f64::INFINITY;
+        for i in 0..=6 {
+            for j in 0..=6 {
+                for k in 0..=6 {
+                    let at = |s: Interval, n: i32| s.lo() + (s.hi() - s.lo()) * f64::from(n) / 6.0;
+                    let x = Point3::new(at(b.x, i), at(b.y, j), at(b.z, k));
+                    let value = implicit_gradient(&wall, x)
+                        .cross(implicit_gradient(&ball, x))
+                        .dot(e);
+                    assert!(
+                        one.lo() <= value && value <= one.hi(),
+                        "{value:e} at {x:?} outside {one:?}"
+                    );
+                    least = least.min(value.abs());
+                }
+            }
+        }
+        // Tight as well as sound: within a quarter of the least sample.
+        assert!(margin > 0.75 * least, "margin {margin:e}, least sample {least:e}");
+        // The other order reads the same margin: a reader of a
+        // certificate's cover need not know the pair's order.
+        assert_eq!(tube_margin(graph_quantity(&ball, &wall, b, e)), Some(margin));
+    }
+
+    /// **The one-point enclosure holds the quantity on every quadratic
+    /// pairing**: plane, sphere and cylinder, each against each, over a
+    /// box wide against their radii, at a grid of its points.
+    #[test]
+    fn the_one_point_reading_encloses_the_quantity_on_every_quadratic_pairing() {
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(0.1, 0.2, -0.1),
+                Vec3::new(0.3, -0.5, 0.8).normalize(),
+                Vec3::new(0.8, 0.0, -0.3).normalize(),
+            ),
+        };
+        let tilted = Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(-0.2, 0.1, 0.3),
+                Vec3::new(0.4, 0.1, 0.9).normalize(),
+                Vec3::new(0.9, 0.0, -0.4).normalize(),
+            ),
+            radius: 0.7,
+        };
+        let kinds = [plane, sphere(), cylinder(), tilted];
+        let b = Box3::between(Point3::new(0.9, -0.3, 0.2), Point3::new(1.3, 0.1, 0.5));
+        let e = Vec3::new(0.2, 0.9, -0.4).normalize();
+        for s1 in &kinds {
+            for s2 in &kinds {
+                let one = graph_quantity(s1, s2, b, e);
+                assert!(one.is_certified(), "{:?} × {:?}", s1.kind(), s2.kind());
+                for n in 0..125 {
+                    let at = |s: Interval, n: i32| s.lo() + (s.hi() - s.lo()) * f64::from(n) / 4.0;
+                    let x = Point3::new(at(b.x, n % 5), at(b.y, n / 5 % 5), at(b.z, n / 25));
+                    let value = implicit_gradient(s1, x).cross(implicit_gradient(s2, x)).dot(e);
+                    assert!(
+                        one.lo() <= value && value <= one.hi(),
+                        "{:?} × {:?}: {value:e} at {x:?} outside {one:?}",
+                        s1.kind(),
+                        s2.kind()
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A torus pair reads two points, and one would be wrong** (C2):
+    /// the torus `R = 1`, `r = 0.4` and a sphere through two of its
+    /// points `x`, `y`, with `e` square to their chord, so both lie on
+    /// one slice of the box that hulls them: no graph. The one-point
+    /// quantity `(∇g(p) × ∇f(p))·e` is zero-free over that whole box all
+    /// the same, shown by reading it over the box's parts, so a
+    /// one-point reading would call the box a graph. Limb 3's reading
+    /// of a torus pair is the two-point one, bound for bound, and
+    /// straddles. A cone pair's is the two-point one too.
+    #[test]
+    fn a_torus_pair_reads_two_points_where_one_would_call_two_solutions_a_graph() {
+        let donut = Surface::Torus {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            major_radius: 1.0,
+            minor_radius: 0.4,
+        };
+        let on = |u: f64, v: f64| {
+            let rho = 1.0 + 0.4 * v.cos();
+            Point3::new(rho * u.cos(), rho * u.sin(), 0.4 * v.sin())
+        };
+        let (x, y) = (on(0.6, 1.63), on(-0.06, 2.05));
+        let chord = (x - y).normalize();
+        let mid = x + (y - x) * 0.5;
+        // The centre, moved onto the chord's bisecting plane.
+        let near = Point3::new(0.3445, 0.2619, 0.1320);
+        let centre = near - chord * (near - mid).dot(chord);
+        let radius = (x - centre).norm();
+        let ball = Surface::Sphere {
+            frame: geom::Frame::new(centre, Vec3::unit_z(), Vec3::unit_x()),
+            radius,
+        };
+        let across = Vec3::new(-0.211, -0.0744, 0.9747);
+        let e = (across - chord * across.dot(chord)).normalize();
+        for (what, p) in [("x", x), ("y", y)] {
+            assert!(
+                torus_g(&donut, p).abs() < 1e-14
+                    && ((p - centre).norm() - radius).abs() < 1e-14
+                    && (p - mid).dot(e).abs() < 1e-14,
+                "{what} is a solution on the slice through the chord's midpoint"
+            );
+        }
+        let b = Box3::between(x, y).pad(1e-9);
+        // The one-point quantity over the box, as the hull of the
+        // two-point enclosure over parts small against the crossing.
+        let cuts = [4, 192, 12];
+        let part = |s: Interval, n: usize, of: usize| {
+            let at = |k: usize| s.lo() + (s.hi() - s.lo()) * (k as f64) / (of as f64);
+            Interval::from_bounds(at(n), at(n + 1))
+        };
+        let mut one_point: Option<Interval> = None;
+        for i in 0..cuts[0] {
+            for j in 0..cuts[1] {
+                for k in 0..cuts[2] {
+                    let sub = Box3 {
+                        x: part(b.x, i, cuts[0]),
+                        y: part(b.y, j, cuts[1]),
+                        z: part(b.z, k, cuts[2]),
+                    };
+                    let m = graph_margin(&donut, &ball, sub, e);
+                    one_point = Some(one_point.map_or(m, |acc| Interval::hull(acc, m)));
+                }
+            }
+        }
+        let one_point = one_point.expect("parts");
+        assert!(
+            tube_margin(one_point).is_some_and(|m| m > 0.0),
+            "the one-point quantity is zero-free over the box: {one_point:?}"
+        );
+        let read = graph_quantity(&donut, &ball, b, e);
+        let two = graph_margin(&donut, &ball, b, e);
+        assert_eq!(
+            (read.lo(), read.hi()),
+            (two.lo(), two.hi()),
+            "a torus pair reads two points"
+        );
+        assert_eq!(tube_margin(read), Some(0.0), "and is no graph: {read:?}");
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: 0.6,
+        };
+        let beside = Box3::around(Point3::new(0.6, 0.1, 0.9), 0.02);
+        let (read, two) = (
+            graph_quantity(&cone, &sphere(), beside, e),
+            graph_margin(&cone, &sphere(), beside, e),
+        );
+        assert!(two.is_certified(), "the cone box reads");
+        assert_eq!(
+            (read.lo(), read.hi()),
+            (two.lo(), two.hi()),
+            "a cone pair reads two points"
+        );
+    }
+
     /// A spindle sheet has no arm: off the roster, every box refuses,
     /// even one clear of its tips.
     #[test]

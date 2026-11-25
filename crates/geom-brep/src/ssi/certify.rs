@@ -72,18 +72,19 @@
 //! because a slightly-too-strong claim here is the one that would
 //! matter:
 //!
-//! > On each box `B`, enclose `(∇f₁ × ∇f₂)·e` (analytic pair) or the
-//! > chart form `∇φ·e⊥ / ‖chart stretch‖` (plane×NURBS). Suppose the
-//! > enclosure excludes zero. The enclosure is valid at **every** point
-//! > of `B`, so on any slice `{e·x = c} ∩ B` the two constraint
-//! > gradients restricted to that slice stay linearly independent
-//! > throughout. Take two solutions in one slice: the mean value
-//! > theorem applied along the segment joining them (which lies in `B`,
-//! > a convex box) forces `f₁` and `f₂` to have a common critical
-//! > direction somewhere on it — which the enclosure has just excluded.
-//! > So each slice holds **at most one** solution, and the solution set
-//! > in `B` is a graph over the `e` axis: no branch point, no loop, no
-//! > second sheet **at the same `e`-level**.
+//! > On each box `B`, enclose limb 3's graph quantity (analytic pair,
+//! > [`super::enclose::graph_quantity`]) or the chart form
+//! > `∇φ·e⊥ / ‖chart stretch‖` (plane×NURBS). Suppose the enclosure
+//! > excludes zero. Take two solutions `x`, `y` in one slice
+//! > `{e·x = c} ∩ B`: the mean value theorem along the segment joining
+//! > them (which lies in `B`, a convex box) gives `∇f₁(ξ₁)·(x − y) = 0`
+//! > and `∇f₂(ξ₂)·(x − y) = 0` at two points of it, so
+//! > `(∇f₁(ξ₁) × ∇f₂(ξ₂))·e = 0`. The quantity enclosed is that one,
+//! > its two gradients read at independent points of `B`; where both
+//! > forms are quadratic the two points are the segment's midpoint and
+//! > it is read at one. So each slice holds **at most one** solution,
+//! > and the solution set in `B` is a graph over the `e` axis: no
+//! > branch point, no loop, no second sheet **at the same `e`-level**.
 //!
 //! It is a convexity/mean-value argument over the enclosure, not a bare
 //! appeal to the implicit function theorem (which is local and would
@@ -96,6 +97,14 @@
 //! every cell of a tube as accounted ([`super::exhaust`]); what lies
 //! outside every tube is that pass's to exclude or refuse.
 //!
+//! On the ℝ³ arm the chain is limb 3's own cover of the carrier
+//! ([`CoverBase`]): at a rung, a box wider than the rung that is no
+//! graph padded by it is halved, under the crate's stop rule. The
+//! carrier is read and never refitted. The certificate records two
+//! rungs, each proved over its own cover: the tube, the widest that
+//! proves, and the narrowest that proves, which a pad is read off
+//! ([`SsiTube::Spatial`]).
+//!
 //! Which rung speaks when none certifies is [`limb_three`]'s: the
 //! narrowest probed, as the most specific reading of the carrier.
 //!
@@ -103,8 +112,9 @@
 //! never retried: `ssi_tube_transversality` lands in `Sign::Zero` and
 //! refuses toward C7. Two branches passing within the band of each
 //! other is a genuine sliver of the operand pair, where F6's ladder says
-//! escalate; the enclosure's remaining slack can also straddle, and
-//! escalates the same way.
+//! escalate; a two-point range wider than the crossing's own can also
+//! straddle where the cover's halving stops first, and escalates the
+//! same way.
 //!
 //! # The witness is unchanged
 //!
@@ -199,8 +209,9 @@ pub const SSI_CERT_SPANS: usize = 32;
 /// region is accounted, so the region recorded must be the one proved.
 #[derive(Clone, Copy, Debug)]
 pub enum SsiTube<T> {
-    /// The ℝ³ arm: a box chain around the carrier padded by `radius`
-    /// metres, which is the proved region.
+    /// The ℝ³ arm: limb 3's cover of the carrier at a rung
+    /// ([`tube_chain`]), each box padded by the rung, is the proved
+    /// region. Two rungs are recorded, each proved over its own cover.
     Spatial {
         /// The tube's rung, in metres: the widest of the ladder whose
         /// cover of the carrier, each box padded by it, is proved one
@@ -209,7 +220,8 @@ pub enum SsiTube<T> {
         /// The narrowest rung of the ladder whose own cover, each box
         /// padded by it, is proved one arc: a second claim about the
         /// same carrier, which a pad is read off. It is `radius` where
-        /// no narrower rung proves.
+        /// no narrower rung proves, and on an edge certified at rest,
+        /// where no pad is read and none is asked.
         narrow: T,
     },
     /// The chart arm (plane × NURBS): a per-span window chain around
@@ -1301,12 +1313,13 @@ const COVER_FLOOR: usize = 1 << 11;
 /// which is one ([`SsiError::TubeStraddles`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoverStop {
-    /// Every box that is no graph is no wider than the rung: its padding
-    /// holds it, which halving its span does not narrow, so nothing is
-    /// left to halve.
-    Narrow,
-    /// The widest box that is no graph and can be halved stopped
-    /// narrowing over two rounds running.
+    /// Every box that is no graph is held by its padding, which
+    /// halving its span does not narrow: the box is no wider than the
+    /// rung, or the rung's box about one point of the carrier in it is
+    /// itself no graph. Nothing is left to halve.
+    Padding,
+    /// The widest box still to halve stopped narrowing over two rounds
+    /// running.
     Stall,
     /// The next round would pass the work bound: sixteen halvings a box
     /// of the carrier's first cover, 2048 at least.
@@ -1316,8 +1329,8 @@ pub enum CoverStop {
 impl core::fmt::Display for CoverStop {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
-            Self::Narrow => "every box that is no graph is no wider than the rung",
-            Self::Stall => "the widest box that is no graph stopped narrowing",
+            Self::Padding => "every box that is no graph was held by the rung's padding",
+            Self::Stall => "the widest box still to halve stopped narrowing",
             Self::Work => "the cover's work bound was reached",
         })
     }
@@ -1438,11 +1451,12 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
     /// padded by it, no graph ([`box_graph_margin`]) halved, until every
     /// link is a graph or the loop stops through `crate::descent`:
     ///
-    /// - **nothing to halve** ([`CoverStop::Narrow`]): every link that
-    ///   is no graph is no wider than the rung, or has no halves;
-    /// - **the stall** ([`CoverStop::Stall`]): the widest link that is
-    ///   no graph and can be halved, which every halving narrows, did
-    ///   not narrow over two rounds running;
+    /// - **nothing to halve** ([`CoverStop::Padding`]): every link that
+    ///   is no graph is held by its padding ([`Self::open`]), or has no
+    ///   halves;
+    /// - **the stall** ([`CoverStop::Stall`]): the widest link still to
+    ///   halve, which every halving narrows, did not narrow over two
+    ///   rounds running;
     /// - **the work bound** ([`CoverStop::Work`]): the next round would
     ///   pass [`COVER_PER_BOX`] halvings a link of the first cover
     ///   ([`COVER_FLOOR`] at least).
@@ -1453,11 +1467,14 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
     /// It is a function of the carrier, the pair and the rung alone, so
     /// a reader of a certificate's tube re-derives the cover limb 3
     /// proved over ([`tube_chain`]).
-    fn at(&self, (s1, s2): (&Surface<T>, &Surface<T>), radius: f64) -> Cover<T> {
-        let read = |l: &Link<T>| box_graph_margin(s1, s2, l.raw.pad(radius), l.e);
-        // Each link with its margin and whether it has halves.
+    fn at(&self, pair: (&Surface<T>, &Surface<T>), radius: f64) -> Cover<T> {
+        // Each link with its margin and whether it is still to halve.
+        let read = |l: Link<T>| {
+            let margin = box_graph_margin(pair.0, pair.1, l.raw.pad(radius), l.e);
+            (l, margin, self.open(&l, margin, pair, radius))
+        };
         let mut links: Vec<(Link<T>, Option<f64>, bool)> =
-            self.links.iter().map(|l| (*l, read(l), true)).collect();
+            self.links.iter().map(|l| read(*l)).collect();
         let mut work = Work::new(COVER_FLOOR.max(COVER_PER_BOX.saturating_mul(links.len())));
         let mut descent: Option<Descent<()>> = None;
         let stop = loop {
@@ -1472,19 +1489,16 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
                     stop: None,
                 };
             }
-            let halves = |(l, m, whole): &(Link<T>, Option<f64>, bool)| {
-                *whole && !m.is_some_and(|m| m > 0.0) && l.raw.width() > radius
-            };
-            let cost = links.iter().filter(|l| halves(l)).count();
+            let cost = links.iter().filter(|(_, _, open)| *open).count();
             let widest = links
                 .iter()
-                .filter(|l| halves(l))
+                .filter(|(_, _, open)| *open)
                 .map(|(l, _, _)| l.raw.width())
                 .fold(0.0, f64::max);
             let rounds = Descent::after(descent.take(), widest, ());
             let wall = (!work.admits(cost)).then_some(CoverStop::Work);
             match rounds.stop(cost == 0, wall) {
-                Some(Stop::Stall) if cost == 0 => break CoverStop::Narrow,
+                Some(Stop::Stall) if cost == 0 => break CoverStop::Padding,
                 Some(Stop::Stall) => break CoverStop::Stall,
                 Some(Stop::Wall(wall)) => break wall,
                 None => {}
@@ -1493,14 +1507,9 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
             work.spend(cost);
             links = links
                 .into_iter()
-                .flat_map(|link| {
-                    if !halves(&link) {
-                        return vec![link];
-                    }
-                    match self.halves(&link.0) {
-                        Some(parts) => parts.into_iter().map(|l| (l, read(&l), true)).collect(),
-                        None => vec![(link.0, link.1, false)],
-                    }
+                .flat_map(|link| match (link.2, self.halves(&link.0)) {
+                    (true, Some(parts)) => parts.map(read).to_vec(),
+                    _ => vec![(link.0, link.1, false)],
                 })
                 .collect();
         };
@@ -1509,6 +1518,30 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
             margin: Some(0.0),
             stop: Some(stop),
         }
+    }
+
+    /// **Whether a link is still to halve at the rung `radius`**: it is
+    /// no graph (`margin`), it is wider than the rung, and its padding
+    /// alone does not hold it: the rung's box about the carrier's point
+    /// at the middle of its span is a graph across the link's axis. That
+    /// box lies in every part of the link that holds the point, however
+    /// often the link is halved, so where it is no graph halving the
+    /// link is not what the rung lacks.
+    fn open(
+        &self,
+        link: &Link<T>,
+        margin: Option<f64>,
+        (s1, s2): (&Surface<T>, &Surface<T>),
+        radius: f64,
+    ) -> bool {
+        if margin.is_some_and(|m| m > 0.0) || !(link.raw.width() > radius) {
+            return false;
+        }
+        let at = self
+            .carrier
+            .eval(T::from_f64(geom::mid_param(link.span.0, link.span.1)));
+        let about = Box3::between(at, at).pad(radius);
+        box_graph_margin(s1, s2, about, link.e).is_some_and(|m| m > 0.0)
     }
 }
 
@@ -2838,7 +2871,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 probe_tube_analytic(&base, (s1, s2), radius, (slab, ends, band.zero()))
             };
             let (mut rung, t) = limb_three((widest, extent), band, |radius| Ok(probe(radius)))?;
-            if let SsiTube::Spatial { radius, .. } = rung.tube {
+            // The pad's rung is asked of a search's branch, whose carry
+            // reads a pad off it; an edge at rest is read by its tube
+            // alone, and its narrow rung is its tube's.
+            if let (SsiTube::Spatial { radius, .. }, Some(_)) = (rung.tube, slab) {
                 rung.tube = SsiTube::Spatial {
                     radius,
                     narrow: narrowest_proving((widest, band), radius, probe),
@@ -4540,6 +4576,134 @@ mod tests {
                 Err(SsiError::TubeProbeSilent { rungs: r, refused }) if r == rungs && refused == rungs
             ),
             "{got:?}"
+        );
+    }
+
+    /// **A pair that never becomes a graph refuses naming where its
+    /// cover stopped** (C2), on a ladder of rungs far narrower than the
+    /// first cover's boxes.
+    ///
+    /// - **Held by its padding.** The plane `x = 1/2` touches the wall of
+    ///   radius `1/2` along a ruling, and the carrier is a metre of that
+    ///   ruling: the graph quantity straddles zero over every box,
+    ///   whatever its size, the rung's box about a point of the carrier
+    ///   among them. Nothing is halved, and the refusal says so over the
+    ///   first cover's 32 boxes.
+    /// - **The work bound.** The plane a hair under the crest of the
+    ///   torus `(2, 1/2)` crosses it at `2e-4` rad, and the carrier is a
+    ///   polygon along the outer circle, running diagonally through its
+    ///   boxes. About a point of the carrier the rung's box is a graph,
+    ///   but a box is one only once it is some hundredth as wide, so
+    ///   every box is halved round after round until the next round
+    ///   would pass 2048 halvings, and the refusal names the bound and
+    ///   the 2048 boxes reached. A reader's chain at that rung is the
+    ///   cover it stopped on.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_pair_that_never_becomes_a_graph_refuses_naming_the_covers_stop() {
+        use super::{CoverStop, Lane, Limbs, Refused, certify_branch, tube_chain, tube_ladder};
+        use crate::ssi::{SsiError, SsiOperand};
+        use geom::{NurbsCurve3, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point3, Vec3};
+        let upright = |at: Point3<f64>| geom::Frame::new(at, Vec3::unit_z(), Vec3::unit_x());
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let extent = 1e-6;
+        let rungs: Vec<f64> = tube_ladder(extent, band).collect();
+        assert!(
+            rungs.len() >= 2 && rungs.iter().all(|r| *r < 1e-6),
+            "{rungs:?}"
+        );
+        let narrowest = rungs.last().copied().unwrap();
+        let refused = |carrier: &NurbsCurve3<f64>, a: &Surface<f64>, b: &Surface<f64>| {
+            certify_branch(
+                &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+                carrier.domain(),
+                Lane::AtRest {
+                    a: &SsiOperand::Analytic(a),
+                    b: &SsiOperand::Analytic(b),
+                    pcurve_a: None,
+                    pcurve_b: None,
+                },
+                extent,
+                band,
+                Limbs::Tube,
+                &mut Refused::default(),
+            )
+            .map(|_| ())
+        };
+        let first = super::SSI_CERT_SPANS;
+
+        let wall = Surface::Cylinder {
+            frame: upright(Point3::origin()),
+            radius: 0.5,
+        };
+        let touching = Surface::Plane {
+            frame: geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
+        };
+        let ruling = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::new(0.5, 0.0, 0.0), Point3::new(0.5, 0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let got = refused(&ruling, &wall, &touching);
+        assert!(
+            matches!(
+                got,
+                Err(SsiError::TubeStraddles {
+                    boxes,
+                    stop: Some(CoverStop::Padding),
+                    ..
+                }) if boxes as usize == first
+            ),
+            "held by its padding, nothing halved: {got:?}"
+        );
+
+        let (big, small, slope) = (2.0, 0.5, 2e-4_f64);
+        let donut = Surface::Torus {
+            frame: upright(Point3::origin()),
+            major_radius: big,
+            minor_radius: small,
+        };
+        let height = small * slope.cos();
+        let under_the_crest = Surface::Plane {
+            frame: upright(Point3::new(0.0, 0.0, height)),
+        };
+        let rho = big + small * slope.sin();
+        let quarter = core::f64::consts::FRAC_PI_4;
+        let polygon: Vec<Point3<f64>> = (0..=first)
+            .map(|k| {
+                let u = quarter + 0.4 * (k as f64 / first as f64 - 0.5);
+                Point3::new(rho * u.cos(), rho * u.sin(), height)
+            })
+            .collect();
+        let knots: Vec<f64> = core::iter::once(0.0)
+            .chain((0..=first).map(|k| k as f64 / first as f64))
+            .chain(core::iter::once(1.0))
+            .collect();
+        let outer = NurbsCurve3::new(
+            KnotVector::clamped(knots, 1).unwrap(),
+            polygon,
+            vec![1.0; first + 1],
+        )
+        .unwrap();
+        let got = refused(&outer, &donut, &under_the_crest);
+        assert!(
+            matches!(
+                got,
+                Err(SsiError::TubeStraddles {
+                    boxes: 2048,
+                    stop: Some(CoverStop::Work),
+                    ..
+                })
+            ),
+            "halved to the work bound: {got:?}"
+        );
+        assert_eq!(
+            tube_chain(&outer, (&donut, &under_the_crest), narrowest).len(),
+            2048,
+            "a reader's chain is the cover the rung stopped on"
         );
     }
 

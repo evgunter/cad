@@ -448,22 +448,9 @@ fn a_seated_loop_has_no_start() {
     ] {
         let (cyl, sph) = (cylinder(0.5), sphere(d, big));
         let section = built(&cyl, &sph);
-        // The sliver pose, a millimetre short of the far wall, carries
-        // at a band of 1e-9 and finer and refuses its tube at 1e-6,
-        // where the clamped fit of the same points certified at a tube
-        // 60 times narrower than a normal pose's. The cause is not found
-        // (`work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md`).
-        let coarse_sliver = (d, big) == (0.2, 0.699) && band().zero() > 1e-7;
-        let carried = match section.carry(Some(SsiLane::marched()), band()) {
-            Ok(carried) => {
-                assert!(!coarse_sliver, "d {d}, R {big}: the coarse sliver carries");
-                carried
-            }
-            Err(CarryError::Refused(CarryRefusal::March(
-                geom_brep::ssi::SsiError::TubeStraddles { .. },
-            ))) if coarse_sliver => continue,
-            Err(e) => panic!("d {d}, R {big}: the section carries, got {e:?}"),
-        };
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("d {d}, R {big}: the section carries, got {e:?}"));
         for c in carried.components() {
             let (lo, hi) = c.span;
             let period = hi - lo;

@@ -566,8 +566,9 @@ pub enum SsiError {
     /// zero band over the tube chain at any rung (its enclosure straddles
     /// zero, or the bound lies inside the band). Either two branches pass
     /// within the band of each other, a genuine sliver (F6), or the
-    /// enclosure's remaining slack does not resolve the pair; both
-    /// escalate, typed, never retried.
+    /// enclosure over some box is wider than the crossing there and the
+    /// chain's halving stopped first; both escalate, typed, never
+    /// retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
         /// dimensionless sine-like lower bound levered by the feature
