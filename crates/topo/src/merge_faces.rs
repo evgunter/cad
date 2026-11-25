@@ -2961,23 +2961,26 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// ([`Self::merge_group`]'s role pass on a sphere or a spindle
     /// sheet), each loop asked in the outline slot in turn as the
     /// face's lift reads it ([`Body::face_lift`], the reading the mesh
-    /// places rings by): the one slot whose lift places every ring, or
-    /// failing one, the one slot left once every slot whose lift places
-    /// a ring decidedly nowhere or decidedly twice is struck out. A
-    /// face has one outline, so a slot struck out is not it, and the
-    /// last one standing is, whether or not its own reading settles (a
-    /// row whose boxes do not tighten reads a ring undecided). Where
-    /// two slots stand undecided, the run refuses, and which runs meet
-    /// that depends on the arena order the pieces arrive in, so on the
-    /// operand order
-    /// (`work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`).
-    /// `Some(i)` is ring `i`; `None` the loop already there.
+    /// places rings by): the one slot whose lift places every ring. A
+    /// face has one outline, so the answer is decided or the run is
+    /// refused; no slot is chosen because the others were ruled out,
+    /// since a slot whose own reading does not settle is one the mesh
+    /// cannot read either, and which slots settle can turn on the arena
+    /// order the pieces arrive in. Each loop is asked through
+    /// [`crate::pcurves::face_lift_as`], the record untouched until one
+    /// is chosen. `Some(i)` is ring `i`; `None` the loop already there.
     ///
     /// # Errors
     ///
     /// [`MergeCoplanarError::PeriodClosure`], naming the last edge the
-    /// run killed, where no slot or more than one is left: the run is
-    /// left unmerged.
+    /// run killed, where no slot or more than one places every ring: the
+    /// run is left unmerged. A sphere zone whose last meridian the
+    /// absorption killed is one: neither rim closes in the chart
+    /// ([`crate::pcurves::RingPlacementError::OuterOpen`]), so no slot
+    /// places the other, and the meridian stays.
+    /// [`MergeCoplanarError::Pcurve`] where the face's rows, dropped by a
+    /// join that re-cut its loops, do not mint again, its escalation
+    /// carried as it is.
     fn curved_outline_ring(
         &self,
         face: FaceKey,
@@ -2986,13 +2989,26 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         let record = self.proven_face(face).record();
-        // A face has one outline. The slot whose lift places every ring
-        // is it; failing one, the slot left standing once every slot
-        // whose lift places a ring decidedly nowhere, or decidedly in
-        // two places, is struck out, whether its own reading settles or
-        // not. Each loop is asked in the outline's role as the lift
-        // reads roles given it, the record untouched until one is chosen.
-        let (mut placed, mut standing) = (Vec::new(), Vec::new());
+        // The lift reads stored rows. A join that re-cut the face's loops
+        // drops theirs until the result is minted whole, after the merge:
+        // such a face is read off a copy with its own rows minted, which
+        // read its loops in whichever roles they stand.
+        let unminted = self
+            .proven_face(face)
+            .loops()
+            .flat_map(|(l, _, _)| crate::pcurves::loop_rows(self, l))
+            .any(|h| self.pcurve(h).is_none() || self.joint(h).is_none());
+        let minted;
+        let read = if unminted {
+            let mut copy = self.clone();
+            crate::pcurves::mint_pcurves_of(&mut copy, &[face], tol)
+                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
+            minted = copy;
+            &minted
+        } else {
+            self
+        };
+        let mut placed = Vec::new();
         for slot in core::iter::once(None).chain((0..record.rings.len()).map(Some)) {
             // Ring `i` asked as the outline trades places with the outer
             // loop, the rest in their order: the record as it would read
@@ -3002,20 +3018,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 Some(i) => core::mem::replace(&mut rings[i], record.outer),
                 None => record.outer,
             };
-            match crate::pcurves::face_lift_as(self, face, outer, rings, band) {
-                Ok(_) => placed.push(slot),
-                Err(
-                    crate::pcurves::RingPlacementError::NoShift { .. }
-                    | crate::pcurves::RingPlacementError::Shifts { .. },
-                ) => {}
-                Err(_) => standing.push(slot),
+            if crate::pcurves::face_lift_as(read, face, outer, rings, band).is_ok() {
+                placed.push(slot);
             }
         }
-        if let [slot] = placed[..] {
-            return Ok(slot);
-        }
-        standing.extend(placed);
-        match standing[..] {
+        match placed[..] {
             [slot] => Ok(slot),
             _ => Err(MergeCoplanarError::PeriodClosure {
                 edge: *group

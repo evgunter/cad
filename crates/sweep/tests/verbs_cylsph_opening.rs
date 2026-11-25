@@ -398,9 +398,13 @@ fn a_contained_ball_builds_through_the_section_pass() {
 /// (`1.8 + 0.5 > 2`) without any edge of either body crossing a face:
 /// the seam stays inside the cylinder, the cylinder's seam line and
 /// rims stay clear of the ball. The section is one oval inside both
-/// faces, which the section pass certifies and refuses (R-loop), typed
-/// as the fallback's extent refusal. Were the pass not to take the pair
-/// up, the vertex probe would answer for it and count the lens wrong.
+/// faces, which the section pass certifies (R-loop). The cut-in that
+/// builds such a loop through a meridian of the ball's chart cannot place
+/// that meridian off the march's tube here
+/// (`work/lathe/a-loop-cut-in-refuses-where-the-marchs-tube-is-too-coarse-to-place-the-cut.md`),
+/// so the op answers the R-loop refusal, typed as the fallback's extent
+/// refusal. Were the pass not to take the pair up, the vertex probe would
+/// answer for it and count the lens wrong.
 #[test]
 fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     let c = cyl(2.0, -2.0, 2.0);

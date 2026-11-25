@@ -185,7 +185,7 @@
 
 use std::sync::Arc;
 
-use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve3, Quarter, Surface};
+use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve2, NurbsCurve3, Quarter, Surface};
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
 use geom_core::predicate::Band;
@@ -729,7 +729,12 @@ pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<P
 /// chose (a partition or halving break, or the `f64` end of an edge's
 /// certified parameter enclosure), entered as the constant it is.
 fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
-    match net.knot_values().value_at(v) {
+    held_param(net.knot_values(), v)
+}
+
+/// [`net_param`] over a net's held knots, whichever its dimension.
+fn held_param<T: SpanLocate>(knots: &geom_core::spline::Knots<T>, v: f64) -> T {
+    match knots.value_at(v) {
         Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
         Err(e) => {
             unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
@@ -753,33 +758,65 @@ fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
 /// with `a < b` that is the span holding the piece; at `a == b` on a
 /// knot it is the span starting there, whose closure holds the point.
 pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) -> Vec<(Vec3<T>, T)> {
-    let ends = (piece.start(), piece.end());
-    let (span, _) = net.knots_f64_interim().span_range(piece);
-    let held = net.knot_values().values();
-    let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
-    let homogeneous: Vec<(Vec3<T>, T)> = span
-        .window()
-        .map(|i| {
-            let w = net.weights()[i];
-            ((net.control()[i] - Point3::origin()) * w, w)
-        })
-        .collect();
-    let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
-        let line: Vec<T> = homogeneous.iter().map(c).collect();
-        T::restrict_window(&line, span, held, ends, held_ends)
+    let homogeneous = |i: usize| {
+        let (c, w) = (net.control()[i], net.weights()[i]);
+        [c.x * w, c.y * w, c.z * w, w]
     };
-    let (x, y, z, w) = (
-        channel(|q| q.0.x),
-        channel(|q| q.0.y),
-        channel(|q| q.0.z),
-        channel(|q| q.1),
-    );
-    x.into_iter()
-        .zip(y)
-        .zip(z)
-        .zip(w)
-        .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
+    net_controls_over(net.knot_values(), piece, homogeneous)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|[x, y, z, w]| (Vec3::new(x, y, z) / w, w))
         .collect()
+}
+
+/// A chart image's restriction to `range`: the control points of each
+/// Bézier stretch of `image` over the knot spans `range` crosses, in
+/// order, by the same restriction as [`piece_controls`]. `None` where
+/// the range has no stretches ([`span_stretches`]).
+pub(crate) fn image_controls_over<T: SpanLocate>(
+    image: &NurbsCurve2<T>,
+    range: ParamRange,
+) -> Option<Vec<Point2<T>>> {
+    let homogeneous = |i: usize| {
+        let (c, w) = (image.control()[i], image.weights()[i]);
+        [c.x * w, c.y * w, w]
+    };
+    Some(
+        net_controls_over(image.knot_values(), range, homogeneous)?
+            .into_iter()
+            .map(|[x, y, w]| Point2::new(x / w, y / w))
+            .collect(),
+    )
+}
+
+/// The one body of [`piece_controls`] and [`image_controls_over`]: a
+/// net's `N` homogeneous channels (`homogeneous(i)` at control `i`)
+/// restricted to each stretch of `range` over one knot span
+/// ([`span_stretches`]), by the scalar's own restriction over the net's
+/// held knots ([`SpanLocate::restrict_window`]), the restrictions'
+/// controls in order. A stretch end that is one of the net's breakpoints
+/// is that breakpoint's held value, any other end the caller's `f64`
+/// parameter. The net's `f64` knots are read here once, for the spans.
+fn net_controls_over<T: SpanLocate, const N: usize>(
+    knots: &geom_core::spline::Knots<T>,
+    range: ParamRange,
+    homogeneous: impl Fn(usize) -> [T; N],
+) -> Option<Vec<[T; N]>> {
+    let kv = knots.structure_f64_interim();
+    let held = knots.values();
+    let mut out = Vec::new();
+    for stretch in span_stretches(kv, range)? {
+        let ends = (stretch.start(), stretch.end());
+        let (span, _) = kv.span_range(stretch);
+        let held_ends = (held_param(knots, ends.0), held_param(knots, ends.1));
+        let window: Vec<[T; N]> = span.window().map(&homogeneous).collect();
+        let channels: [Vec<T>; N] = core::array::from_fn(|k| {
+            let line: Vec<T> = window.iter().map(|c| c[k]).collect();
+            T::restrict_window(&line, span, held, ends, held_ends)
+        });
+        out.extend((0..channels[0].len()).map(|j| core::array::from_fn(|k| channels[k][j])));
+    }
+    Some(out)
 }
 
 impl<T: SpanLocate> ProjectedImage<T> {
@@ -867,6 +904,11 @@ impl<T: SpanLocate> ProjectedImage<T> {
                         rho: None,
                     };
                 };
+                // The hull here is of the frame's three coordinates,
+                // before the chart's rotation and its window
+                // ([`Self::window`]): not the chart box's point fold
+                // (`pcurve_cache`'s `point_hull`), which boxes a chart
+                // image's controls already in chart coordinates.
                 let controls: Vec<(Vec3<T>, T)> = stretches
                     .into_iter()
                     .flat_map(|stretch| piece_controls(net, stretch))
@@ -913,58 +955,77 @@ impl<T: SpanLocate> ProjectedImage<T> {
                 if s1 >= knots[knots.len() - 1] {
                     tb = tb.max(t1);
                 }
-                let rot2 = |v: Vec2<T>| {
-                    let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
-                    Vec2::new(x, y)
-                };
-                let rot = |v: Vec3<T>| rot2(radial_of(v));
-                let radial = harmonic_span_box(
-                    Point2::origin() + rot(*centre),
-                    rot(*a),
-                    rot(*b),
-                    rot(*l),
-                    ta,
-                    tb,
+                self.conic_box(k, centre, a, b, l, ta, tb)
+            }
+        }
+    }
+
+    /// The chart-frame box of a conic's or a line's carrier over
+    /// `[ta, tb]` on piece `k`'s branch, `centre + a·cos t + b·sin t +
+    /// l·t` in the frame ([`Self::frame_box_on`]'s arm).
+    #[allow(clippy::too_many_arguments)]
+    fn conic_box(
+        &self,
+        k: usize,
+        centre: &Vec3<T>,
+        a: &Vec3<T>,
+        b: &Vec3<T>,
+        l: &Vec3<T>,
+        ta: T,
+        tb: T,
+    ) -> FrameBox<T> {
+        let theta = self.theta(k);
+        let sigma = self.chart.sigma();
+        let rot2 = |v: Vec2<T>| {
+            let (x, y) = theta.rotate(v.x * sigma, v.y * sigma);
+            Vec2::new(x, y)
+        };
+        let rot = |v: Vec3<T>| rot2(radial_of(v));
+        let radial = harmonic_span_box(
+            Point2::origin() + rot(*centre),
+            rot(*a),
+            rot(*b),
+            rot(*l),
+            ta,
+            tb,
+        );
+        let axial = harmonic_span_box(
+            Point2::new(centre.z, T::zero()),
+            Vec2::new(a.z, T::zero()),
+            Vec2::new(b.z, T::zero()),
+            Vec2::new(l.z, T::zero()),
+            ta,
+            tb,
+        );
+        let radial_box = FrameBox {
+            x: (radial.u_min, radial.u_max),
+            y: (radial.v_min, radial.v_max),
+            z: (axial.u_min, axial.u_max),
+            rho: None,
+        };
+        match (&self.pole, &self.carrier) {
+            // The azimuth reads the reduced radial, a harmonic in
+            // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
+            // the carrier's.
+            (Some(pole), FramedCarrier::Conic { .. }) => {
+                let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
+                let half = T::from_f64(0.5);
+                let reduced = harmonic_span_box(
+                    Point2::origin(),
+                    rot2(big_a),
+                    rot2(big_b),
+                    Vec2::zero(),
+                    ta * half,
+                    tb * half,
                 );
-                let axial = harmonic_span_box(
-                    Point2::new(centre.z, T::zero()),
-                    Vec2::new(a.z, T::zero()),
-                    Vec2::new(b.z, T::zero()),
-                    Vec2::new(l.z, T::zero()),
-                    ta,
-                    tb,
-                );
-                let radial_box = FrameBox {
-                    x: (radial.u_min, radial.u_max),
-                    y: (radial.v_min, radial.v_max),
-                    z: (axial.u_min, axial.u_max),
-                    rho: None,
-                };
-                match (&self.pole, &self.carrier) {
-                    // The azimuth reads the reduced radial, a harmonic in
-                    // `t/2` with no constant ([`PoleEnd`]); `ρ` and `z` stay
-                    // the carrier's.
-                    (Some(pole), FramedCarrier::Conic { .. }) => {
-                        let (big_a, big_b) = pole.half_angle_pair(radial_of(*a), radial_of(*b));
-                        let half = T::from_f64(0.5);
-                        let reduced = harmonic_span_box(
-                            Point2::origin(),
-                            rot2(big_a),
-                            rot2(big_b),
-                            Vec2::zero(),
-                            ta * half,
-                            tb * half,
-                        );
-                        FrameBox {
-                            x: (reduced.u_min, reduced.u_max),
-                            y: (reduced.v_min, reduced.v_max),
-                            z: radial_box.z,
-                            rho: Some(Self::rho_range(&radial_box)),
-                        }
-                    }
-                    _ => radial_box,
+                FrameBox {
+                    x: (reduced.u_min, reduced.u_max),
+                    y: (reduced.v_min, reduced.v_max),
+                    z: radial_box.z,
+                    rho: Some(Self::rho_range(&radial_box)),
                 }
             }
+            _ => radial_box,
         }
     }
 
@@ -1060,16 +1121,92 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// [`Pcurve::chart_box`]'s arm: per overlapped piece, the channel
-    /// ranges over that piece's box, hulled. Restriction-monotone: a
-    /// sub-span overlaps a subset of the pieces, and an end piece is
-    /// stretched only to an end it does not already contain. A poison
-    /// end locates no piece, and the box is poison.
+    /// ranges over that piece clipped to `[t0, t1]`
+    /// ([`Self::frame_box_clipped`]), hulled. Restriction-monotone and
+    /// restriction-tight: a sub-span overlaps a subset of the pieces, and
+    /// each is boxed over only what the sub-span reads of it, so the box
+    /// shrinks with the span (the ring reader halves a span to clear a
+    /// point, `topo`'s `pcurves_rings`). A poison end locates no piece,
+    /// and the box is poison.
     pub(super) fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         let Some((lo, hi)) = self.overlapped(t0, t1) else {
             return Self::poison_window(t0 + t1);
         };
-        let piece = |k| self.window(k, &self.frame_box(k, t0, t1));
+        let piece = |k| self.window(k, &self.frame_box_clipped(k, t0, t1));
         self.placed_hull(piece(lo), (lo + 1..=hi).map(piece))
+    }
+
+    /// Piece `k`'s chart-frame box over what `[t0, t1]` reads of it: the
+    /// piece clipped to the span, so a sub-span inside one piece is
+    /// boxed over itself and the box shrinks with it (a reader halving
+    /// a span to clear a point needs that). An end piece is stretched
+    /// to `t0` or `t1` past the partition's end, as [`Self::frame_box`]
+    /// stretches it. A conic's or a line's piece is clipped in the
+    /// carrier's own parameter; a net's in its knots' numbers, at `t0`'s
+    /// lower and `t1`'s upper bracket, so the part holds every parameter
+    /// either end may be.
+    pub(crate) fn frame_box_clipped(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
+        let knots = self.breaks.knots();
+        let (k_lo, k_hi) = (knots[k + 1], knots[k + 2]);
+        let first = k_lo <= knots[0];
+        let last = k_hi >= knots[knots.len() - 1];
+        match &self.carrier {
+            FramedCarrier::Net(_) => {
+                let (Some((a, _)), Some((_, b))) = (t0.structure_bracket(), t1.structure_bracket())
+                else {
+                    return self.frame_box(k, t0, t1);
+                };
+                match ParamRange::new(k_lo.max(a), k_hi.min(b)) {
+                    Some(part) => self.frame_box_on(k, part, t0, t1),
+                    None => self.frame_box(k, t0, t1),
+                }
+            }
+            FramedCarrier::Conic {
+                centre,
+                a,
+                b,
+                origin,
+                span,
+            } => {
+                let (ta, tb) = self.clip(*origin, *span, (k_lo, k_hi), (first, last), (t0, t1));
+                self.conic_box(k, centre, a, b, &Vec3::zero(), ta, tb)
+            }
+            FramedCarrier::Line {
+                point,
+                dir,
+                origin,
+                span,
+            } => {
+                let (ta, tb) = self.clip(*origin, *span, (k_lo, k_hi), (first, last), (t0, t1));
+                let zero = Vec3::zero();
+                self.conic_box(k, point, &zero, &zero, dir, ta, tb)
+            }
+        }
+    }
+
+    /// The carrier parameters `[ta, tb]` of piece `[k_lo, k_hi]` (piece
+    /// parameters) that `[t0, t1]` reads: each end the later (earlier)
+    /// of the piece's and the span's, and the span's own past the
+    /// partition's first (last) break.
+    fn clip(
+        &self,
+        origin: T,
+        span: T,
+        (k_lo, k_hi): (f64, f64),
+        (first, last): (bool, bool),
+        (t0, t1): (T, T),
+    ) -> (T, T) {
+        let ta = if first {
+            t0
+        } else {
+            (origin + span * T::from_f64(k_lo)).max(t0)
+        };
+        let tb = if last {
+            t1
+        } else {
+            (origin + span * T::from_f64(k_hi)).min(t1)
+        };
+        (ta, tb)
     }
 
     /// The channel ranges over `[t0, t1]` read on a cover finer than the

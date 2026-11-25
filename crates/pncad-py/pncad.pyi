@@ -4968,7 +4968,7 @@ class StructureNormalization:
     `curve_promoted`'s (whose `face` is the curve's entity id), `kept`
     and `joined` are `one_record`'s (the surface record kept and the one
     its faces left), `singularity` is `chart_singularity_vertex`'s
-    (`interior`, `inside_edge` or `valence_one_vertex`), and `transform`
+    (`interior` or `inside_edge`), and `transform`
     and `moved_by` are `placement_re_minted`'s (the placement whose
     frames the import built by their axes, and the farthest a point of
     the session box moved, in metres; `moved_by` also `one_record`'s,

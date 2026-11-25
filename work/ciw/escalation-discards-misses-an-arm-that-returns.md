@@ -22,3 +22,29 @@ It does not name an arm whose body RETURNS: `Err(_) => return Ok(false)` or `=> 
 - Then sweep for it, and record each hit's disposition in `escalation-discards.counts`.
 
 Moved from GUARD to CIW on 2026-11-20, by `git mv`, when GUARD merged into CIW: GUARD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+**Three more shapes the gate does not see** (LATHE, 2026-11-25, PR 7575's
+review). Each passes over a refusal unread, and none matches a one-line
+`Err(_) => continue | break | {} | ()` arm:
+- **a closure that discards its argument**, `.map_err(|_| …)`:
+  `crates/topo/src/merge_faces.rs`, `curved_outline_ring`, read a
+  pcurve mint refusal, escalations included, as `PeriodClosure`. PR 7575
+  now carries the refusal as `MergeCoplanarError::Pcurve { source }`.
+- **`.ok()?`**: `crates/topo/src/boolean/ops/interior_cuts.rs`,
+  `loop_cut_in`, read the section's and the march's escalations as "no
+  cut". PR 7575 now escalates them, and reads only a structural refusal
+  as no cut.
+- **a tuple or or-pattern arm**, where `Err(_)` is not first in the
+  pattern or is beside an `Ok` arm. Two sites stand, each with its reason:
+  - `interior_cuts.rs`, `cut_in`'s plane arm, `Ok((NonzeroSign::Negative, _)) | Err(_) => None`:
+    a ball against a plane read in band takes no cut, and the guard's
+    refusal stands. It is a value discard of the onecopy row's kind.
+  - `crates/topo/src/boolean/ops.rs`, `boolean_op_recut`'s
+    `(Err(_), Some(refusal)) => return Err(refusal)`: escalations take
+    the arm ahead of it, so it maps only a structural cut-in refusal to
+    the section pass's.
+
+  Neither is counted in `escalation-discards.counts`.
+
+Owed beside the above: widen the pattern to these shapes, or name them
+under "WHAT IT CANNOT SEE", then re-sweep.

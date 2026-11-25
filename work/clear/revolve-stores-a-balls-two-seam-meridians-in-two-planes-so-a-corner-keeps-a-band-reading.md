@@ -57,10 +57,10 @@ Banded P0: it completes lane B's part of the at-rest gate (P0).
   meridian's `(0, 0, −1)`; the centre and reference were the same
   bits. It is the one door that does this. A Boolean carries both
   carriers verbatim (the snowman's union, spans trimmed).
-  `EdgeFreeSphere` import is already one plane (`pole_form::azimuths`).
-  Import's strut twin (`half_turn_curve`) may be a rounding off on a
-  tilted axis; that is recorded on
-  `importgate/import-mints-the-wrap-tip-at-a-chart-singularity`.
+  Import mints no second meridian any more: its pole form is the wrap
+  tip, one meridian per pole (`work/lathe/import-mints-the-wrap-tip-at-a-chart-singularity.md`),
+  so neither the edge-free sphere nor a strut twin has a pair to keep in
+  one plane.
 - **Fixed.** The angle-π normal is `−n3`, which has nothing to round,
   and a sphere wall's angle-π arc takes the angle-0 arc's centre
   (`placed_segment_spec_about`). A conic's plane lists every near conic

@@ -22,7 +22,10 @@ crates/profile/src/seg.rs 1
 # boolean ops: the interior-loop recut, where `apply_cut_ins` refuses a
 # cut it cannot make (an escalation returns as itself): the pipeline goes
 # on and the guard's refusal is raised on the built body, the op's one
-# reading of the loop; no candidate is passed over for another.
+# reading of the loop; no candidate is passed over for another. The
+# no-crossings path's tuple arm `(Err(_), Some(refusal)) => return
+# Err(refusal)` is the same reading and is not counted: the gate does not
+# see a tuple arm (work/ciw/escalation-discards-misses-an-arm-that-returns.md).
 crates/topo/src/boolean/ops.rs 1
 # census: the detector's posture: a pair whose interiors do not decide is
 # neither overlap nor apart, and the census reports what decided.

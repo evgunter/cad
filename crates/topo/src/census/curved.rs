@@ -37,7 +37,7 @@ struct Read<T: Real> {
     curve: Curve3<T>,
     span: (T, T),
     /// Its two ends as the body stores them ([`stored_ends`]); `None`
-    /// only for a fixture's span no body holds ([`Read::unheld`]).
+    /// only for a fixture's span no body holds (`Read::unheld`, a test fixture).
     ends: Option<[StoredEnd<T>; 2]>,
 }
 

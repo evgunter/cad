@@ -15,12 +15,11 @@
 //! do not:
 //!
 //! - **A chart singularity that is not a vertex.** A sphere's pole or a
-//!   cone's apex inside a face, inside one of its edges, or at the end
-//!   of a seam that is its only edge (Open CASCADE's full cone and its
-//!   sphere cap). A chart singularity inside a face is a vertex of it,
-//!   in the pole form ([`geom::pole_form`]); the valence-1 tip is
-//!   also what `topo`'s tier 2 calls construction scaffolding
-//!   (`ScaffoldingStrutVertex`). The [`singularity`] pass mints it.
+//!   cone's apex inside a face or inside one of its edges. A chart
+//!   singularity inside a face is a vertex of it, the tip of one wrap
+//!   edge ([`geom::pole_form`]); the [`singularity`] pass mints it. A
+//!   wrap tip the file states (Open CASCADE's full cone and its sphere
+//!   cap, a seam ending at the point) already is that form.
 //! - **The seamless band** (M7-5). A cylinder or torus lateral face
 //!   stated as its two full-period rim bounds with NO seam generator
 //!   at all. The kernel's face model is one outer loop plus rings,
@@ -36,21 +35,21 @@
 //! The same D7 stage-3 repair the edge-free sphere takes: the LOCUS is
 //! fully explained by the file's own surfaces and carriers and is
 //! adopted unchanged — only the boundary-graph tessellation is
-//! re-minted, into the splitting a natively built body carries (the
-//! kernel's own cone is two lateral half-faces meeting at the apex on
-//! two half-turn generators; its own revolved wall is ONE face whose
-//! loop uses its wrap edge twice). The census mapping
+//! re-minted, into the splitting a natively built body carries (its own
+//! revolved wall is ONE face whose loop uses its wrap edge twice, and
+//! reaches a pole or an apex by one wrap edge walked out and back). The
+//! census mapping
 //! is carried out as [`crate::StructureNormalization`] data.
 //!
 //! What a mint may state that the file did not is bounded and named:
 //! a singularity's minted curves are each a sub-arc of a carrier the
-//! file states, that carrier's half-turn rotation about the face's own
-//! axis, or the surface's own meridian at its `u_ref` azimuth or its
-//! half turn; the band's seam generator is a
+//! file states, or of the surface's own meridian at the azimuth of the
+//! face's boundary point nearest the singularity;
+//! the band's seam generator is a
 //! NEW carrier — the surface's own `u_ref` ruling (cylinder) or
 //! `u_ref` meridian arc (torus), the same license under which the
-//! edge-free sphere's re-mint ([`crate::entities`]) states its two
-//! meridian circles from nothing but the surface's own fields. In
+//! edge-free sphere's re-mint ([`crate::entities`]) states its one
+//! meridian from nothing but the surface's own fields. In
 //! every case the minted curve lies ON the file's stated surface by
 //! construction and is certified there by the same adoption gates as
 //! any file-stated edge; no minted curve is a new shape.
@@ -66,7 +65,7 @@
 //! right-side-out. So a re-mint reads the file's winding — against `u`
 //! and `v` directions sampled through the kernel's own chart inverse —
 //! and cross-checks it against the face's `same_sense` before it mints
-//! anything: the valence-1 tip inside [`singularity`], and —
+//! anything: a wrap tip the file states, inside [`singularity`], and —
 //! read-only — two-rim cylinder/cone walls ([`wall_inversion`]). The
 //! kernel's tier-3 curved sense gate (check 6, `CurvedSenseInverted`)
 //! refuses the inside-out body such a file would build, and import
