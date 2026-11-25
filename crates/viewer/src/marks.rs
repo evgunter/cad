@@ -579,8 +579,11 @@ impl EdgeOverlay {
 /// outline ([`PickIndex::drawn_outline`]), its edit preview's while one
 /// draws it in place: hovered where the cursor
 /// is over it, selected where its node is the selection, from the tree
-/// or the viewport alike. A profile is never free-moved, so its marks
-/// are never probed.
+/// or the viewport alike. Its marks are
+/// never probed: the probe flag says the mark composites over a
+/// probe-tinted body base, and an outline has no body base — the
+/// outline lane draws a moved outline untinted too (filed as
+/// `a-free-moved-outline-is-drawn-untinted-and-marked-at-its-first-drawing`).
 pub fn edge_overlay(
     index: &PickIndex,
     display: &DisplayView,

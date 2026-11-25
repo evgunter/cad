@@ -843,7 +843,7 @@ impl Refusal {
                     | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::InNoSpace { .. }
-                    | AdmissionFault::DrawnInSpaces { .. }
+                    | AdmissionFault::DrawnInSpaces(_)
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
                     | AdmissionFault::NoSuchSpace { .. }

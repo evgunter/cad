@@ -254,12 +254,7 @@ pub enum AdmissionFault {
     /// ([`crate::world::drawn_spaces`]), so no one space is the one its
     /// drawing stands in. A free-move opened on one of the copies moves
     /// that copy's space.
-    DrawnInSpaces {
-        /// The node, as the document held it.
-        node: SpokenNode,
-        /// How many spaces it is drawn in.
-        spaces: usize,
-    },
+    DrawnInSpaces(crate::world::InSpaces),
     /// The node's body has no picture: its value did not evaluate (it
     /// refused, or an input it reads failed), so there is nothing of it
     /// to move.
@@ -350,12 +345,7 @@ impl core::fmt::Display for AdmissionFault {
                 "{node} is in no space, so the free-move probe has no space to move",
                 node = crate::tree::spelled(node)
             ),
-            Self::DrawnInSpaces { node, spaces } => write!(
-                f,
-                "{node} is drawn through copies in {spaces} spaces, so the free-move probe \
-                 has no one space to move: free-move one of the copies",
-                node = crate::tree::spelled(node)
-            ),
+            Self::DrawnInSpaces(in_spaces) => in_spaces.fmt(f),
             Self::NoSpace { node } => write!(
                 f,
                 "{node} has no picture: it did not evaluate, so there is nothing of it to \
@@ -406,10 +396,7 @@ impl AdmissionFault {
             Self::InTheWorld { node } => Self::InTheWorld { node: again(node) },
             Self::NotEvaluated { node } => Self::NotEvaluated { node: again(node) },
             Self::InNoSpace { node } => Self::InNoSpace { node: again(node) },
-            Self::DrawnInSpaces { node, spaces } => Self::DrawnInSpaces {
-                node: again(node),
-                spaces,
-            },
+            Self::DrawnInSpaces(in_spaces) => Self::DrawnInSpaces(in_spaces.respoken(doc)),
             Self::NoSpace { node } => Self::NoSpace { node: again(node) },
             Self::MovedSpace { node, into } => Self::MovedSpace {
                 node: again(node),
@@ -697,10 +684,7 @@ pub fn free_move_check(
         Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
             node: doc.spoken(node),
         }),
-        Err(Unplaced::Copies(spaces)) => Err(AdmissionFault::DrawnInSpaces {
-            node: doc.spoken(node),
-            spaces,
-        }),
+        Err(Unplaced::Copies(in_spaces)) => Err(AdmissionFault::DrawnInSpaces(in_spaces)),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
         }),
@@ -864,10 +848,7 @@ fn gesture_check(
         Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
             node: doc.spoken(node),
         }),
-        Err(Unplaced::Copies(spaces)) => Err(AdmissionFault::DrawnInSpaces {
-            node: doc.spoken(node),
-            spaces,
-        }),
+        Err(Unplaced::Copies(in_spaces)) => Err(AdmissionFault::DrawnInSpaces(in_spaces)),
         Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
@@ -898,8 +879,8 @@ enum Unplaced {
     World,
     /// It is in no space ([`Doc::node_space`]).
     Nowhere,
-    /// It is an outline drawn through copies in this many spaces.
-    Copies(usize),
+    /// It is an outline drawn through copies in two spaces or more.
+    Copies(crate::world::InSpaces),
     /// `eval` gave it no value, so it has no picture.
     Refused,
 }
@@ -914,12 +895,12 @@ fn handle_space(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<VarId, 
     if !doc.node(node).is_some_and(crate::world::draws_an_outline) {
         return doc.node_space(node).ok_or(Unplaced::Nowhere);
     }
-    let spaces = crate::world::drawn_spaces(doc, &crate::world::shown_spaces(doc), node);
-    match spaces.iter().collect::<Vec<_>>()[..] {
-        [Some(space)] => Ok(*space),
-        [None] | [] => Err(Unplaced::Nowhere),
-        _ => Err(Unplaced::Copies(spaces.len())),
-    }
+    crate::world::drawn_space(doc, &crate::world::shown_spaces(doc), node).map_err(|fault| {
+        match fault {
+            crate::world::DrawnSpaceFault::NoSpace => Unplaced::Nowhere,
+            crate::world::DrawnSpaceFault::InSpaces(in_spaces) => Unplaced::Copies(in_spaces),
+        }
+    })
 }
 
 /// **The space a free-move opened on `node` moves**
@@ -1808,10 +1789,11 @@ impl DisplayState {
     /// rigid-motion check.
     ///
     /// **It names a node, and the probe is its space's**: the name is
-    /// checked before the frame is, as the space `node`'s body is in in
-    /// `doc`, so a drag on any body drawn in the probed space drives the
-    /// one probe, and a drag on a body of another space cannot compose
-    /// its frame onto it. [`DisplayFault::WrongFreeMove`] carries the
+    /// checked before the frame is, as the space what `node` draws is
+    /// in in `doc` ([`handle_space`]: a body's own, an outline's the one
+    /// it is drawn in), so a drag on any body or outline drawn in the
+    /// probed space drives the one probe, and a drag on one of another
+    /// space cannot compose its frame onto it. [`DisplayFault::WrongFreeMove`] carries the
     /// argument.
     ///
     /// # Errors

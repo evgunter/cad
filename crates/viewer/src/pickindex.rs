@@ -2681,10 +2681,26 @@ impl PickIndex {
         node: RecipeNodeId,
         display: &'a DisplayView,
     ) -> Cow<'a, [Vec<Point3<f64>>]> {
+        self.drawings_of(node, display)
+            .into_iter()
+            .next()
+            .unwrap_or(Cow::Borrowed(&[][..]))
+    }
+
+    /// **Every drawing of `node`'s outline the pick measures**, one per
+    /// place the picture draws it (a profile shown through two copies is
+    /// drawn at both), as `display` shows each; [`PickIndex::drawn_outline`]
+    /// is the first.
+    pub fn drawings_of<'a>(
+        &'a self,
+        node: RecipeNodeId,
+        display: &'a DisplayView,
+    ) -> Vec<Cow<'a, [Vec<Point3<f64>>]>> {
         self.drawn_outlines(display)
             .into_iter()
-            .find(|(drawn, _, _)| *drawn == node)
-            .map_or(Cow::Borrowed(&[][..]), |(_, _, loops)| loops)
+            .filter(|(drawn, _, _)| *drawn == node)
+            .map(|(_, _, loops)| loops)
+            .collect()
     }
 
     /// **Every profile outline the picture draws**, by node

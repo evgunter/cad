@@ -1221,12 +1221,7 @@ pub enum DatumSpaceFault {
     },
     /// The selected body's space is shown only through copies standing
     /// in more than one space, so no one place it is drawn names a space.
-    ShownTwice {
-        /// The node, as said.
-        node: String,
-        /// How many spaces its copies stand in.
-        spaces: usize,
-    },
+    InSpaces(InSpaces),
 }
 
 impl core::fmt::Display for DatumSpaceFault {
@@ -1236,10 +1231,7 @@ impl core::fmt::Display for DatumSpaceFault {
                 f,
                 "{node} stands in no space to put a datum in: select a body, or nothing for the world"
             ),
-            Self::ShownTwice { node, spaces } => write!(
-                f,
-                "{node} is drawn through copies in {spaces} spaces: pick a face on the copy the datum goes with"
-            ),
+            Self::InSpaces(in_spaces) => in_spaces.fmt(f),
         }
     }
 }
@@ -1254,11 +1246,29 @@ impl core::fmt::Display for DatumSpaceFault {
 ///
 /// [`crate::sketch::committed`] composes each showing's copies' motions
 /// to place an outline, [`drawn_spaces`] reads where they end, and
-/// [`datum_space`] reads that too.
+/// [`drawn_space`] and [`datum_space`] read that too.
+///
+/// **A copy chain can cycle through unshown spaces** — a box in S, a
+/// copy of it in T, a copy of that copy back in S, each copy read by a
+/// further placement so neither space holds a drawn body: the recipe
+/// is acyclic as nodes, and nothing about spaces forbids it. A walk
+/// that comes back to a space already on its path is dropped: every
+/// space on it is unshown, so the picture draws nothing along it, and
+/// following it would never end.
 pub fn showings(
     doc: &Doc<ProfileProgram>,
     shown: &BTreeSet<VarId>,
     space: Option<VarId>,
+) -> Vec<Showing> {
+    showings_from(doc, shown, space, &mut Vec::new())
+}
+
+/// [`showings`], with the unshown spaces the walk has come through.
+fn showings_from(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: Option<VarId>,
+    path: &mut Vec<VarId>,
 ) -> Vec<Showing> {
     let Some(unshown) = space.filter(|space| !shown.contains(space)) else {
         return vec![Showing {
@@ -1266,19 +1276,26 @@ pub fn showings(
             through: Vec::new(),
         }];
     };
-    let through: Vec<Showing> = doc
-        .copies()
-        .into_iter()
-        .filter(|&copy| doc.copied_read(copy).and_then(|read| doc.space_of(read)) == Some(unshown))
-        .flat_map(|copy| {
-            showings(doc, shown, doc.node_space(copy))
+    path.push(unshown);
+    let mut through: Vec<Showing> = Vec::new();
+    for copy in doc.copies() {
+        if doc.copied_read(copy).and_then(|read| doc.space_of(read)) != Some(unshown) {
+            continue;
+        }
+        let into = doc.node_space(copy);
+        if into.is_some_and(|into| path.contains(&into)) {
+            continue;
+        }
+        through.extend(
+            showings_from(doc, shown, into, path)
                 .into_iter()
-                .map(move |mut outer| {
+                .map(|mut outer| {
                     outer.through.insert(0, copy);
                     outer
-                })
-        })
-        .collect();
+                }),
+        );
+    }
+    path.pop();
     if through.is_empty() {
         vec![Showing {
             space: Some(unshown),
@@ -1317,11 +1334,108 @@ pub fn drawn_spaces(
         .collect()
 }
 
+/// **The one space `node` is drawn in** ([`drawn_spaces`]): its own
+/// where the picture shows that space, or else the space of the one
+/// copy that shows it — the space a face picked on that copy reads, a
+/// new datum for `node` goes in ([`datum_space`]) and a free-move opened
+/// on an outline moves ([`crate::display::free_move_check`]).
+///
+/// **Two spaces or more is no one space**, the world among them
+/// included: the world's drawing never moves, but it is still a drawing
+/// of `node`, so a free-move opened on `node` would move one of its
+/// drawings and leave the other, and a datum would go with one of two
+/// copies. The copy itself is the handle that names one
+/// ([`InSpaces`]).
+///
+/// # Errors
+///
+/// [`DrawnSpaceFault::NoSpace`] for a node in no space,
+/// [`DrawnSpaceFault::InSpaces`] for one drawn in two spaces or more.
+pub fn drawn_space(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    node: RecipeNodeId,
+) -> Result<VarId, DrawnSpaceFault> {
+    let spaces = drawn_spaces(doc, shown, node);
+    match spaces.iter().collect::<Vec<_>>()[..] {
+        [Some(space)] => Ok(*space),
+        [None] | [] => Err(DrawnSpaceFault::NoSpace),
+        _ => Err(DrawnSpaceFault::InSpaces(InSpaces {
+            node: doc.spoken(node),
+            spaces: spaces
+                .iter()
+                .flatten()
+                .map(|&space| doc.spoken_space(space))
+                .collect(),
+        })),
+    }
+}
+
+/// **Why no one space is the one a node is drawn in** ([`drawn_space`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DrawnSpaceFault {
+    /// It is in no space ([`Doc::node_space`]).
+    NoSpace,
+    /// It is drawn in two spaces or more.
+    InSpaces(InSpaces),
+}
+
+/// **A node drawn through copies in two spaces or more** — the one
+/// refusal a door asking for the space it is drawn in says
+/// ([`drawn_space`]; [`DatumSpaceFault::InSpaces`],
+/// [`crate::display::AdmissionFault::DrawnInSpaces`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct InSpaces {
+    /// The node, as the document held it.
+    pub node: pncad::document::SpokenNode,
+    /// The spaces it is drawn in, in id order, as the document held
+    /// them.
+    pub spaces: Vec<pncad::document::SpokenSpace>,
+}
+
+impl InSpaces {
+    /// This refusal with its node and spaces spoken from `doc`, a later
+    /// version of the document it was raised in.
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            node: self.node.respoken(doc),
+            spaces: self
+                .spaces
+                .iter()
+                .map(|space| doc.spoken_space(space.id()))
+                .collect(),
+        }
+    }
+}
+
+impl core::fmt::Display for InSpaces {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let said: Vec<String> = self
+            .spaces
+            .iter()
+            .map(|space| {
+                pncad::document::Said(space, pncad::document::Speaker::TAG)
+                    .sentence()
+                    .to_string()
+            })
+            .collect();
+        let spaces = match said.split_last() {
+            Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+            _ => said.join(""),
+        };
+        write!(
+            f,
+            "{node} is drawn through copies in {spaces}, so it stands in no one space: pick \
+             the copy you mean",
+            node = crate::tree::spelled(&self.node)
+        )
+    }
+}
+
 /// **The space a new datum goes in for the selected `node`**: the space
-/// `node` is drawn in ([`drawn_spaces`]) — its own where the picture
-/// shows that space, or else the space of the one copy that shows it,
-/// as a face picked in the viewport on that copy reads — so the tree's
-/// path and the viewport's agree. Its own where nothing shows it.
+/// it is drawn in ([`drawn_space`]), so the tree's path and the
+/// viewport's agree.
 ///
 /// # Errors
 ///
@@ -1331,14 +1445,10 @@ pub fn datum_space(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> Result<VarId, DatumSpaceFault> {
-    let said = || crate::tree::spelled(&doc.spoken(node));
-    let spaces = drawn_spaces(doc, &shown_spaces(doc), node);
-    match spaces.iter().collect::<Vec<_>>()[..] {
-        [Some(space)] => Ok(*space),
-        [None] | [] => Err(DatumSpaceFault::NoSpace { node: said() }),
-        _ => Err(DatumSpaceFault::ShownTwice {
-            node: said(),
-            spaces: spaces.len(),
-        }),
-    }
+    drawn_space(doc, &shown_spaces(doc), node).map_err(|fault| match fault {
+        DrawnSpaceFault::NoSpace => DatumSpaceFault::NoSpace {
+            node: crate::tree::spelled(&doc.spoken(node)),
+        },
+        DrawnSpaceFault::InSpaces(in_spaces) => DatumSpaceFault::InSpaces(in_spaces),
+    })
 }

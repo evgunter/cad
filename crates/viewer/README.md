@@ -2397,7 +2397,11 @@ admitted, whatever kind of node drew it, an outline in it included: a
 free-move opened on an outline moves the space it is drawn in. A free
 profile is in no space and refuses (`AdmissionFault::InNoSpace`), and
 an outline shown through copies into two spaces or more is in no one
-of them (`AdmissionFault::DrawnInSpaces`).
+of them, the world among them included: a free-move would move one of
+its drawings and leave the other, so it refuses naming the spaces
+(`AdmissionFault::DrawnInSpaces`, the same refusal a new datum's space
+gives, `world::drawn_space`), and the copy is the handle that names
+one.
 
 ### The placement editor commits a placement's whole bundle
 
