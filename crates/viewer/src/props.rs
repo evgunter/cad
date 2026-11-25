@@ -523,6 +523,33 @@ pub fn shown_value(unit: Option<UnitDef>, canonical: f64) -> Result<FieldNumber,
     })
 }
 
+/// **The number a slot's value field holds** ([`shown_value`]), in the
+/// unit the slot is written in ([`rendering_unit`]); a slot with no one
+/// value (it did not evaluate, or it has one per member) holds a zero.
+///
+/// **A driven slot keeps its field whatever its value reads as.** It
+/// shows its reading as text ([`field_text`], which says `no … reading`
+/// where the working notation cannot name the value), and the field
+/// under that text is its door to the expression. The number the field
+/// holds is never written: a drag over a driven slot is refused by the
+/// session's driven-slot guard, and a typed number writes what was
+/// typed, so a zero held there lands nowhere. The zero is in the
+/// field's own unit, which every notation names, so a typed number is
+/// read in the unit the field is written in.
+pub fn slot_number(row: &SlotRow, notation: Notation) -> Result<FieldNumber, UnitDef> {
+    let unit = rendering_unit(row.dimension, row.unit, notation);
+    let value = row
+        .value
+        .as_ref()
+        .ok()
+        .and_then(Reading::one)
+        .map_or(0.0, SlotValue::as_f64);
+    match shown_value(unit, value) {
+        Err(_) if row.driver.is_driven() => shown_value(unit, 0.0),
+        number => number,
+    }
+}
+
 /// **A field's number: the value it is over, and the float an
 /// `egui::DragValue` holds for it** in the unit the field is written
 /// in ([`shown_value`]).

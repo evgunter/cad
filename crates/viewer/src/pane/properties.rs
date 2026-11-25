@@ -1566,29 +1566,7 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Di
 /// evaluated shows its number ([`props::field_text`]).
 pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
-    let number = match props::shown_value(
-        writing.unit,
-        row.value
-            .as_ref()
-            .ok()
-            .and_then(props::Reading::one)
-            .map_or(0.0, SlotValue::as_f64),
-    ) {
-        // **A driven slot keeps its field whatever its value reads
-        // as.** It shows its reading as text ([`props::field_text`],
-        // which says `no … reading` where the working notation cannot
-        // name the value), and the field under that text is its door
-        // to the expression. The number the field holds is never
-        // written: a drag over a driven slot is refused by the
-        // session's driven-slot guard, and a typed number writes what
-        // was typed, so a zero held there lands nowhere — the same zero
-        // held under the text of a slot with no one value: one that did
-        // not evaluate, or one with a value per member. The zero is in
-        // the field's own unit, which every notation names, so a typed
-        // number is read in the unit the field is written in.
-        Err(_) if row.driver.is_driven() => props::shown_value(writing.unit, 0.0),
-        number => number,
-    };
+    let number = props::slot_number(row, notation);
     let (text, source) = match draft {
         Some(draft) => (Some(draft.to_owned()), None),
         None => (props::field_text(row, notation), props::field_source(row)),
