@@ -25,3 +25,12 @@ ladder's `conic_quadric::ladder_lane_fuzz`) do not cover three of
   reads a circle on a plane and a line on a sphere and on a wall. The
   first-harmonic lane's graze (a circle on a wall or a sphere) and the
   cone's line graze have no oracle row of their arc.
+
+## Progress (U4a, `germ/u4a-local-windows`)
+
+The window-placement item is closed:
+`curve_face::window_rows::graze_windows_hold_every_crossing_the_answer_does_not_find`
+reads `cross`'s windows across the gap on walls and tori against the exact
+oracle (every crossing outside every window found, none found inside
+one), and `a_meeting_inside_a_window_is_taken_into_it` pins W1's merge.
+The census row and the conic touch-arc rows remain.

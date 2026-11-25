@@ -2119,9 +2119,28 @@ fn quarter_turns(q: i32) -> Option<Result<Formula, pncad::document::DimensionErr
 /// by its name, a typed number as the number and unit it was typed in,
 /// an expression as written ([`Doc::unparse`]) — never a variable's raw
 /// id. What the panel's field shows and a typed edit starts from.
+///
+/// A typed number is the field's own number, so it is spelled as every
+/// editable field spells its value ([`crate::props::FieldNumber::text`]):
+/// exactly, positionally at every magnitude, so `0.00004 mm` re-opens as
+/// `0.00004 mm` and not `4e-5 mm`. A number with a distribution written
+/// on it, and every other formula, is its source as written.
 #[must_use]
 pub fn value_text(doc: &Doc<ProfileProgram>, by: &Formula) -> String {
-    doc.unparse(by)
+    let field = by
+        .as_quantity()
+        .filter(|quantity| quantity.distribution().is_none())
+        .filter(|quantity| {
+            let unit = quantity.unit();
+            unit.as_length().is_some() || unit.as_angle().is_some()
+        })
+        .and_then(|quantity| {
+            let unit = quantity.unit();
+            crate::props::shown_value(Some(unit), quantity.value())
+                .ok()
+                .map(|number| format!("{} {}", number.seed(), unit.symbol()))
+        });
+    field.unwrap_or_else(|| doc.unparse(by))
 }
 
 /// **What a person typed in `coord`'s field, as its value**: the text
@@ -3830,6 +3849,32 @@ mod toggled_read_tests {
     }
 
     use crate::test_support::len;
+
+    /// **A mate field's typed number re-opens positionally**: an offset
+    /// typed `0.00004 mm` shows `0.00004 mm`, not the source's
+    /// `4e-5 mm`, and types back through the field's own door
+    /// ([`typed_offset`]) to the value; a value far past 1e16 of its unit
+    /// is its digits too.
+    #[test]
+    fn a_mate_fields_number_reopens_positionally_and_types_back() {
+        let doc = Doc::<ProfileProgram>::empty_derived(
+            "mate-value-text",
+            pncad::geom_core::Tol::witness(),
+        );
+        for (metres, text) in [
+            (4.0e-8, "0.00004 mm"),
+            (0.025, "25 mm"),
+            (1.0e17, "100000000000000000000 mm"),
+        ] {
+            let by = crate::test_support::len_mm(metres);
+            let shown = value_text(&doc, &by);
+            assert_eq!(shown, text, "{metres} m");
+            let back = typed_offset(&doc, &shown)
+                .expect("the field's text types back")
+                .expect("a nonempty offset");
+            assert_eq!(back.literal_value(), Some(metres), "{shown}");
+        }
+    }
 
     /// A body's frame row, flipped, offset, re-read and offset again: the
     /// second offset replaces the first, never stacks, and the slide runs

@@ -185,7 +185,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 };
                 let roots = lane.surface_crossings(net, curve.params(), plane, band);
                 assert!(
-                    matches!(roots.as_ref().map(Vec::len), Ok(0)),
+                    matches!(roots.as_ref().map(|found| found.roots.len()), Ok(0)),
                     "{what}: a seam of A crosses a cap of B: {roots:?}"
                 );
                 read += 1;

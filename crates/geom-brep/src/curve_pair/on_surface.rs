@@ -796,6 +796,20 @@ impl<T: Decide> SurfaceCurve<T> {
         self.plane
     }
 
+    /// **The curve's plane as a surface**, charted along the curve: a
+    /// circle's reference, or a line's direction, each in its plane. The
+    /// plane an edge is read across ([`OnSurface::across`]).
+    pub fn plane_surface(&self) -> geom::Surface<T> {
+        let (origin, normal) = self.plane;
+        let u_ref = match self.shape {
+            Shape::Circle(c) => c.u_ref(),
+            Shape::Line(l) => l.dir.get(),
+        };
+        geom::Surface::Plane {
+            frame: geom::Frame::new(origin, normal, u_ref),
+        }
+    }
+
     /// Which curve of its plane's section of the surface it is.
     pub fn section(&self) -> Section<T> {
         self.section
@@ -1016,17 +1030,11 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         if direction(curve.family(), self.carrier.kind()) != Read::EdgeOverLeg {
             return Err(AcrossRefusal::AgainstTheTable);
         }
-        let (origin, normal) = curve.plane();
-        // The plane is charted along the curve: a circle's reference, or a
-        // line's direction, each in its plane.
-        let u_ref = match curve.shape {
-            Shape::Circle(c) => c.u_ref(),
-            Shape::Line(l) => l.dir.get(),
-        };
-        let plane = geom::Surface::Plane {
-            frame: geom::Frame::new(origin, normal, u_ref),
-        };
-        co_surface(&super::Span::new(self.carrier, self.span), &plane, band)
+        co_surface(
+            &super::Span::new(self.carrier, self.span),
+            &curve.plane_surface(),
+            band,
+        )
     }
 
     /// **The plane the edge's carrier lies in**, as a frame whose axis is
