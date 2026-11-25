@@ -2646,17 +2646,23 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             .volume;
     let potted_want = cup_volume + v_handle - shared;
     let potted_miss = (potted_props.enclosure.volume - potted_want) / potted_want;
+    // The kernel's reading of the joined body's curved faces is a
+    // quadrature chased to a target that scales with ε, so the reading is
+    // held to its own pad, and to rounding past it.
+    let potted_slack = potted_props.enclosure.volume_pad + 1e-12 * potted_want;
     assert!(
-        potted_miss.abs() < 1e-12,
+        (potted_props.enclosure.volume - potted_want).abs() <= potted_slack,
         "joined V = {} vs the cup's and the handle's less their overlap {potted_want} \
-         (overlap {shared}): off by {potted_miss:e} of it",
-        potted_props.enclosure.volume
+         (overlap {shared}): off by {potted_miss:e} of it, past the reading's pad {}",
+        potted_props.enclosure.volume,
+        potted_props.enclosure.volume_pad
     );
     println!(
         "   the handle joins the pot: V = {:.12} m³ against the operands' less their \
          {shared:.6e} m³ overlap, off by {potted_miss:.1e} of it; each root {root_depth:.6} m \
-         inside the outer sphere and {root_clearance:.6} m clear of the cavity",
-        potted_props.enclosure.volume
+         inside the outer sphere and {root_clearance:.6} m clear of the cavity \
+         (the reading's pad {:.1e} m³)",
+        potted_props.enclosure.volume, potted_props.enclosure.volume_pad
     );
 
     // ---- the walls ----

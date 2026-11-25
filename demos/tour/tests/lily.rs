@@ -712,9 +712,11 @@ mod review_probes {
             // (71 snapped bands -> 0: their aspects are malign in raw
             // UV and benign over the face's metric), so each band keeps
             // its own columns and the grid drops 1_152 -> 1_081 cells —
-            // 5_374 -> 5_254. Leaf c measures unchanged.
+            // 5_374 -> 5_254. Leaf c measured unchanged then; it is now
+            // leaf b's mirror image across the stem, and meshes as leaf b
+            // does — 4_962 -> 5_254.
             ("lily_leaf_b", 2e-3, 5_254),
-            ("lily_leaf_c", 2e-3, 4_962),
+            ("lily_leaf_c", 2e-3, 5_254),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
