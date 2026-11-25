@@ -7576,6 +7576,9 @@ impl<T> CertifiedPolicy for T where
 }
 
 impl AtRestPolicy for f64 {
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish(body, tol)
+    }
     type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
 
     /// The fit IS written here: `geom_brep::offset_fit` is an `f64`
