@@ -1,13 +1,13 @@
 ---
 id: a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan
 kind: issue
-title: A tube inside a ball whose rim lies on the sphere crosses nothing, and the extent scan refuses it
-status: open
+title: A tube inside a ball whose rim lies on the sphere: ball minus tube refuses at the parting (EdgeInFace Curved, then CurvedFace), where it is two or three solids touching along the rims
+status: parked
 priority: P1
 cost: M
-design: true
 opened: 2026-10-09
-refs: [4399]
+refs: [4399, 7602, 7481]
+blocked_on: [the-partings-curved-face-gate-refuses-a-division-its-reason-does-not-cover, a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs]
 ---
 
 Found by JOIN's tube-on-a-ball lane (branch `join/tube-ending-on-a-ball`),
@@ -59,3 +59,35 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 design question (what the boolean does with a touch whose difference
 pinches along a curve), weighed by a designer pair before a lane
 builds it.
+
+## 2026-11-25 — weighed: not a design fork (INSIDE orchestrator)
+
+Two designers weighed the row independently and agreed after one round.
+The semantics are ratified, so nothing goes to Ev:
+`[topology.conventions]` ("pieces that only touch … are distinct
+solids", PR 3901) and Ev's PR 5967 ruling (two coincident arcs are two
+cells with an edge–edge record). So `tube ∪ ball` is the ball,
+`tube ∩ ball` the tube, `tube ∖ ball` empty, and `ball ∖ tube` is three
+solids (both rims) or two (one rim) with one edge–edge record per rim,
+at the ball's volume less the tube's. The planar twin already builds
+(`a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring`).
+
+**The premise moved.** Measured on main `133ca95e02` (a designer's
+probe, not committed): since PR 7602 the extent scan no longer refuses.
+Its plane arm asks the section certificate first, and W4 clears the rim
+off its recorded vertex touch. ∪ and ∩ build in both orders,
+`tube ∖ ball` is Empty, and only `ball ∖ tube` refuses, with
+`EdgeInFace { gap: Curved }` in the output stage's parting.
+
+**What it waits on.** The parting (`boolean/slit.rs`), HELDRECORDS's
+ground: PR 7481 (`heldrecords/split-on`) lifts `Curved`; then the
+`CurvedFace` gate must narrow to the arms that leave a zero-area ring or
+a slit, and gain a division arm for a closed edge inside one face
+(`work/heldrecords/the-partings-curved-face-gate-refuses-a-division-its-reason-does-not-cover.md`,
+filed today). This row is then a witness: re-pin the six inside poses
+SOUND with their solid counts and records. The probe family pins
+nothing beyond "sound or typed" today.
+
+Filed off-question on HELDRECORDS's slate:
+`a-fallback-subtract-labels-its-result-voided-before-the-parting-opens-the-cavity`,
+`the-fallback-hands-insert-hollow-voids-strict-containment-evidence-for-a-touching-shell`.
