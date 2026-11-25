@@ -50,6 +50,7 @@ use crate::Body;
 use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement_reading};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
+use crate::region::SplineCrossings;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
 use crate::validate::decide;
 
@@ -152,7 +153,10 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         return CellRegion::Undecided;
     }
     let at = stored.eval_at(mu, mv);
-    match place(body, face, stored, at, band) {
+    let splines: SplineCrossings<T> = |net, params, surface, band| {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    };
+    match place(body, face, stored, at, band, splines) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
         Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) | None => {
@@ -164,8 +168,10 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
 /// [`crate::contain::curved_face_placement_reading`] on a curved carrier,
-/// with the spline reader of the certifying scalar `T`
-/// ([`crate::region::certified_crossings`]). `None`
+/// with the certifying scalar's spline reader: the ring
+/// composite (`geom_brep::NurbsLane::surface_crossings`), what
+/// [`crate::props::AtRestPolicy::spline_face_crossings`] answers at every
+/// certifying scalar. `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
@@ -186,15 +192,19 @@ pub fn station_region<T: Decide + CertifiedBounds>(
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface().ok()?;
     let station = surface.eval_at(u, v);
-    place(body, face, surface, station, band)
+    let splines: SplineCrossings<T> = |net, params, surface, band| {
+        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    };
+    place(body, face, surface, station, band, splines)
 }
 
-fn place<T: Decide + CertifiedBounds>(
+fn place<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     surface: &Surface<T>,
     station: Point3<T>,
     band: Band,
+    splines: SplineCrossings<T>,
 ) -> Option<FaceContainment> {
     crate::held::Held::constructed(station, "a station of the face's own stored chart")
         .check(surface, band);
@@ -203,15 +213,7 @@ fn place<T: Decide + CertifiedBounds>(
             let normal = frame.axis();
             contfp(body, face, normal, station, band).ok()
         }
-        _ => match curved_face_placement_reading(
-            body,
-            face,
-            station,
-            band,
-            Some(crate::region::certified_crossings::<T>),
-        )
-        .ok()?
-        {
+        _ => match curved_face_placement_reading(body, face, station, band, Some(splines)).ok()? {
             CurvedPlacement::Trim(at) => at,
             // A spline chart's station is read by the spline region's own
             // search (hull cells and feet), and `Held::check` does not

@@ -150,13 +150,11 @@ use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit, targets,
+    SplineCrossings, Splines, circle_edge_hit, spline_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
-use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::splitting::pieced_arc::ArcRows;
-use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
 
 /// A circle arc's boundary reading's rows (module docs).
@@ -550,18 +548,7 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
                 self.outer,
                 band,
             ),
-            // A span with no piece cut (an end no single point at an
-            // enclosure scalar) is a span the reading cannot cross.
-            geom::Curve3::Nurbs(ref spline) => match SplineArc::new(spline, (arc.t0, arc.t1)) {
-                Some(pieces) => {
-                    pieced_edge_hit(&pieces, arc, (SPLINE, UncrossableCarrier::Spline), p, band)
-                }
-                None => Err(RegionRefusal::Unreadable(crate::splitting::Uncrossable {
-                    r#loop: arc.r#loop,
-                    edge: arc.edge,
-                    carrier: UncrossableCarrier::Spline,
-                })),
-            },
+            geom::Curve3::Nurbs(ref spline) => spline_edge_hit(spline, arc, SPLINE, p, band),
             _ => unreachable!("sphere_face_region admits circles and splines only"),
         }
     }

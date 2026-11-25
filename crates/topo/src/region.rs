@@ -36,6 +36,7 @@ use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spline_arc::SplineArc;
 use crate::splitting::{PointInLoopError, Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 
@@ -162,6 +163,33 @@ pub(crate) fn pieced_edge_hit<T: Decide>(
             r#loop: edge.r#loop,
             edge: edge.edge,
             carrier,
+        })),
+    }
+}
+
+/// **Whether `p` is on `edge`, a spline arc on `spline`**, read piece by
+/// piece on `rows` ([`pieced_edge_hit`]). A span with no piece cut (an
+/// end no single point at an enclosure scalar) is a span the reading
+/// cannot cross.
+///
+/// # Errors
+///
+/// As [`pieced_edge_hit`]; [`RegionRefusal::Unreadable`] for a span with
+/// no piece cut.
+pub(crate) fn spline_edge_hit<T: Decide>(
+    spline: &std::sync::Arc<geom::NurbsCurve3<T>>,
+    edge: &RegionEdge<T>,
+    rows: ArcRows,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    let spline_arc = UncrossableCarrier::Spline;
+    match SplineArc::new(spline, (edge.t0, edge.t1)) {
+        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, spline_arc), p, band),
+        None => Err(RegionRefusal::Unreadable(Uncrossable {
+            r#loop: edge.r#loop,
+            edge: edge.edge,
+            carrier: spline_arc,
         })),
     }
 }
@@ -485,20 +513,6 @@ pub(crate) type SplineCrossings<T> =
         &geom::Surface<T>,
         Band,
     ) -> Option<Result<Vec<T>, geom_brep::curve_face::composite::CompositeRefusal>>;
-
-/// **The spline reader at a scalar that certifies**: the ring composite
-/// ([`geom_brep::NurbsLane::surface_crossings`]), which is what
-/// [`crate::props::AtRestPolicy::spline_face_crossings`] answers at every
-/// such scalar, for a door whose bound is certification rights rather
-/// than the policy.
-pub(crate) fn certified_crossings<T: geom_core::Certifies + geom_core::CertifiedBounds>(
-    net: &geom::NurbsCurve3<T>,
-    params: (T, T),
-    surface: &geom::Surface<T>,
-    band: Band,
-) -> Option<Result<Vec<T>, geom_brep::curve_face::composite::CompositeRefusal>> {
-    Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-}
 
 /// **A door's reading of a spline edge against a leg** ([`spline_landings`]).
 #[derive(Clone, Copy, Debug)]

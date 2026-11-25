@@ -110,14 +110,13 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit,
+    SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit, spline_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::ArcRows;
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
-use crate::splitting::spline_arc::SplineArc;
 
 /// The row a place is read against a first leg's corner on.
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
@@ -168,8 +167,8 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// [`crate::Replay`]'s "A tier-3 premise at a dual")). A spline is read on
 /// its certified carrier, and only through `splines`, the scalar's spline
 /// reader, where the caller holds one
-/// ([`crate::region::certified_crossings`]): without it a face with a
-/// spline edge answers `None`.
+/// ([`crate::props::AtRestPolicy::spline_face_crossings`]): without it a
+/// face with a spline edge answers `None`.
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -360,17 +359,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                     band,
                 )
             }
-            // A span with no piece cut is a span the reading cannot cross.
-            geom::Curve3::Nurbs(ref spline) => match SplineArc::new(spline, (edge.t0, edge.t1)) {
-                Some(pieces) => {
-                    pieced_edge_hit(&pieces, edge, (SPLINE, UncrossableCarrier::Spline), p, band)
-                }
-                None => Err(RegionRefusal::Unreadable(crate::splitting::Uncrossable {
-                    r#loop: edge.r#loop,
-                    edge: edge.edge,
-                    carrier: UncrossableCarrier::Spline,
-                })),
-            },
+            geom::Curve3::Nurbs(ref spline) => spline_edge_hit(spline, edge, SPLINE, p, band),
             _ => unreachable!("torus_face_region admits circles, spirics and splines only"),
         }
     }
@@ -1352,7 +1341,7 @@ mod tests {
             true,
             LoopKey::default(),
             edges,
-            Some(crate::region::certified_crossings::<f64>),
+            Some(<f64 as crate::props::AtRestPolicy>::spline_face_crossings),
         );
         let clear = |x: f64, ends: (f64, f64)| {
             let gap = |e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
