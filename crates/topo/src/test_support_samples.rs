@@ -281,6 +281,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
     vec![
         S::Escalated { face, diag: diag() },
         S::RayExhausted,
+        S::RegionRayExhausted { face },
         S::ZeroVolumeBody,
         S::Loop(L::Escalated {
             r#loop,
@@ -349,7 +350,11 @@ pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     } else {
         [[zero, off], [off, zero]]
     };
-    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps { gaps, band: band() }))
+    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps {
+        edge: crate::entity::EdgeKey::default(),
+        gaps,
+        band: band(),
+    }))
 }
 
 fn contain_errors() -> Vec<ContainError> {

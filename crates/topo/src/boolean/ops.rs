@@ -7038,7 +7038,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     // nothing — each a piece not read against the circle.
                     let read_region = |e: crate::region::RegionRefusal| match e {
                         crate::region::RegionRefusal::Escalated(diag) => esc(diag),
-                        crate::region::RegionRefusal::RayExhausted { .. }
+                        crate::region::RegionRefusal::RayExhausted
                         | crate::region::RegionRefusal::WoundPastPeriod
                         | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };

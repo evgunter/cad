@@ -4277,7 +4277,7 @@ pub(crate) fn classify_point_in_solid(
             )
             .into(),
         ),
-        S::RayExhausted | S::Loop(L::RayExhausted { .. }) => {
+        S::RayExhausted | S::RegionRayExhausted { .. } | S::Loop(L::RayExhausted { .. }) => {
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),

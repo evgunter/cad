@@ -35,3 +35,18 @@ site's subject); the conversions themselves are as stated.
 Where the census's unread causes are meant to be subjectless (the touch
 site is the subject), say so on `TouchUnread`/`Unread` and close this;
 otherwise carry the loop or face and render it.
+
+## More sites (2026-11-25, PR 7748 review)
+
+The same `unchecked_face_boundary` read, its torn `LoopKey` mapped to a
+keyless `TouchUnread::Corrupt`:
+
+- `census.rs`, `snapshot`: `Err(_) => { walked = Err(TouchUnread::Corrupt); … }`.
+- `census.rs`, `chord_on_edge` (the review cited `half_edge_tangent`;
+  the read is in `chord_on_edge` beside it):
+  `read.map_err(|_| TouchUnread::Corrupt)`.
+- `census.rs`, `round_face`: `read.map_err(|_| TouchUnread::Corrupt)`.
+- `link.rs`, `of_body_face` and `cleared`: `read.map_err(|_| TouchUnread::Corrupt)`.
+  `link.rs` is INSIDE's ground by `work.py territory`, not shared. It is
+  listed here so the census's one cause type is decided in one place;
+  move it if the owner would rather.

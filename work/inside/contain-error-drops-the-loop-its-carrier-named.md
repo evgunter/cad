@@ -63,17 +63,30 @@ Moved from `work/issues/` to `work/inside/` on 2026-11-03, when the `work/issues
 
 ## Fixed (2026-11-25, lane `inside-contain-small`)
 
-The premise had half rotted: the conversion now lives in
+The premise had half rotted. The conversion now lives in
 `crates/topo/src/contain_loop.rs` (`From<PointInLoopError> for
 ContainError`), and `CorruptLoop { r#loop }` already reached the door as
 `ContainError::LoopUnreadable(r#loop)`, rendered with its key.
-`RayExhausted { .. }` still dropped its loop, there and in `contain.rs`'s
-`region_placement` (`RegionRefusal::RayExhausted { outer }`).
-`ContainError::RayExhausted` now carries the loop (`RayExhausted(LoopKey)`)
-and `ContainError::write` names it; `Uncrossable`, which carried its loop
-but did not render it — the arm whose repair is "re-model the loop" — names
-it too. The sweep's hit list is in the PR body; its out-of-unit hits are
-filed as `arc-end-clear-of-corners-names-no-edge`,
-`solid-door-reach-drops-the-faces-uncovered-edges` (INSIDE),
-`chart-region-face-area-drops-the-torn-loop` (CHARTTAIL) and
-`census-face-boundary-reads-drop-the-torn-loop` (ATREST).
+`RayExhausted { .. }` still dropped its loop, both there and in
+`contain.rs`'s `region_placement`.
+
+- **`RayExhausted`** now carries its loop (`RayExhausted(LoopKey)`) and
+  `ContainError::write` names it. It is the planar loop walk's alone. A
+  curved face's region walk reads the face's whole boundary, so naming
+  its outer loop named a loop the walk did not read alone. Its
+  exhaustion is now the solid door's
+  `PointInSolidError::RegionRayExhausted { face }`, carried as
+  `ContainError::Curved`, and `RegionRefusal::RayExhausted` carries
+  nothing.
+- **`Uncrossable`** names its loop and edge.
+- **`ArcEndClearOfCorners`** carries and names its arc's `EdgeKey`.
+- **`PointInLoopError::write`** names the loop for `RayExhausted` and
+  the loop and edge for `Uncrossable`, as it already did for
+  `CorruptLoop` and `LoneLoop`.
+
+The sweep's hit list is in the PR body (PR 7748). Hits outside this unit:
+
+- `solid-door-reach-drops-the-faces-uncovered-edges` and
+  `contain-escalated-names-no-loop-or-face` (INSIDE)
+- `chart-region-face-area-drops-the-torn-loop` (CHARTTAIL)
+- `census-face-boundary-reads-drop-the-torn-loop` (ATREST)

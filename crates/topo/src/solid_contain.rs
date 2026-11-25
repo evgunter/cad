@@ -286,6 +286,13 @@ pub enum PointInSolidError {
     /// kernel builds for itself is not read as given, and answers `In`
     /// there.
     InsideOut,
+    /// No path of a curved face's region walk settled ([`crate::region`];
+    /// [`crate::ray_walk::NoRaySettled`]): each grazed or gave nothing to
+    /// read, against the face's whole boundary.
+    RegionRayExhausted {
+        /// The face whose region was walked.
+        face: FaceKey,
+    },
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
     /// A face is not walkable, or an entity it names is lost — an
@@ -517,13 +524,14 @@ impl PointInSolidError {
     }
 
     /// An in-band reading (`Escalated`, `Loop(Escalated)`), or a
-    /// schedule no ray of which settled (`RayExhausted`,
-    /// `Loop(RayExhausted)`).
+    /// schedule no ray or path of which settled (`RayExhausted`,
+    /// `RegionRayExhausted`, `Loop(RayExhausted)`).
     pub(crate) fn in_band(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
                 | Self::RayExhausted
+                | Self::RegionRayExhausted { .. }
                 | Self::Loop(
                     PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
                 )
@@ -564,6 +572,10 @@ impl PointInSolidError {
             }
             Self::InsideOut => {
                 "the instance is inside-out: its material holds the side at infinity"
+            }
+            Self::RegionRayExhausted { .. } => {
+                "no path of a curved face's region walk at the instance's boundary \
+                 settled: each grazed it or could not be read — undecided"
             }
             Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
             Self::CorruptFace { .. } => {
@@ -636,6 +648,51 @@ impl PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
+            ),
+            Self::RegionRayExhausted { .. } => write!(
+                f,
+                concat!(
+                    "cannot tell what is inside the solid: ",
+                    geom_core::undecided!(
+                        "whether the point lies in one of its curved faces",
+                        payload
+                    )
+                ),
+                ray_walk::NoRaySettled
+            ),
+            // The loop walk's own text names its loop by arena key; this
+            // sentence reaches a user verbatim (`BooleanError::Containment`),
+            // so the arms that name one are said in words here.
+            Self::Loop(PointInLoopError::RayExhausted { .. }) => write!(
+                f,
+                concat!(
+                    "cannot tell what is inside the solid: ",
+                    geom_core::undecided!(
+                        "whether the point lies in a loop of one of its faces",
+                        payload
+                    )
+                ),
+                ray_walk::NoRaySettled
+            ),
+            Self::Loop(PointInLoopError::Uncrossable(u)) => write!(
+                f,
+                concat!(
+                    "cannot tell what is inside the solid: ",
+                    geom_core::undecided!(
+                        "whether the point lies in a loop of one of its faces",
+                        payload
+                    )
+                ),
+                u
+            ),
+            Self::Loop(PointInLoopError::CorruptLoop { .. }) => write!(
+                f,
+                "cannot tell what is inside the solid: a loop of one of its faces is not walkable"
+            ),
+            Self::Loop(PointInLoopError::LoneLoop { .. }) => write!(
+                f,
+                "cannot tell what is inside the solid: a loop of one of its faces is a lone \
+                 vertex, which bounds no region"
             ),
             Self::Loop(e) => write!(
                 f,
@@ -2341,7 +2398,7 @@ fn region_hit(
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
@@ -3802,7 +3859,7 @@ fn root_held<T: Decide>(
     };
     match reading {
         Ok(side) => Ok(side),
-        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(RegionRefusal::RayExhausted) => Ok(None),
         Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
         // An edge whose reading ran out at this hit: a limit of the
