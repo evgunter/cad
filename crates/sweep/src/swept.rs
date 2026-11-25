@@ -1177,12 +1177,6 @@ where
 /// A one-segment loop's strut — extrude's and a revolve's — and a full
 /// revolve's periodic meridian all go through here.
 ///
-/// The stored certificate is the run over the description as stored:
-/// the wrap restatement derives the edge's chart image, and a run over a
-/// derived image can differ in the last bits from a run over the same
-/// image stated, so the edge is restated once more from what it stores,
-/// which is the run a fresh re-certification of it mints.
-///
 /// # Panics
 ///
 /// As [`Body::restate_stored_edge`], on a kernel bug.
@@ -1193,6 +1187,29 @@ pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), EulerOpError> {
     body.restate_stored_edge(edge, EdgeDescriptionSpec::wrap(wall), tol)?;
+    Ok(())
+}
+
+/// [`describe_wrap_edge`], and then the edge restated once more from
+/// what it stores, so its stored certificate is the run a fresh
+/// re-certification mints: the wrap restatement derives the edge's
+/// chart image, and a run over a derived image can differ in the last
+/// bits from a run over the same image stated
+/// (`work/select/a-run-over-a-derived-chart-image-certifies-apart-from-the-same-image-stated.md`).
+/// A revolve's wrap edges take it (the full revolve's meridian, the
+/// full-turn torus's latitude); extrude's strut is one of that row's
+/// sites.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
+pub(crate) fn describe_wrap_edge_fresh<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    wall: SurfaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    describe_wrap_edge(body, edge, wall, tol)?;
     let stored = body
         .get_edge(edge)
         .and_then(|e| body.get_curve_geom(e.curve))

@@ -549,6 +549,15 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// last commits of the carrier-frames row (PR 7131) after its own
 /// regeneration. The sign of a zero component is one real number either
 /// way, and nothing reads it: the importer folds it at translation.
+///
+/// **Regenerated when a full revolve's curved wall became one band**
+/// (LATHE, `lathe/full-revolve-one-band`): five fixtures, `ball`,
+/// `cone`, `die_pips`, `composed_die` and `lily_lantern`, each curved
+/// revolve wall one `ADVANCED_FACE` closing on its one seam meridian
+/// where it was two half-bands meeting at a meridian and its π copy.
+/// Faces `ball` 2 → 1, `cone` 3 → 2, `die_pips` 48 → 27,
+/// `composed_die` 89 → 68, `lily_lantern` 6 → 4; every other fixture is
+/// byte for byte what it was.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {

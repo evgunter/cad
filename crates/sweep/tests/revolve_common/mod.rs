@@ -405,7 +405,7 @@ pub fn measured_volume(body: &Body<f64>) -> f64 {
         tol,
         topo::test_support::pinned_resolution(tol),
     )
-    .expect("the body measures")
+    .unwrap_or_else(|e| panic!("the body measures: {e:?}"))
     .enclosure
     .volume
 }

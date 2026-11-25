@@ -354,14 +354,13 @@ fn die(tol: Tol) -> Die {
 ///   each of the cube's twelve edges, a sphere octant at each of its
 ///   eight corners;
 /// - the master ball's revolve makes the pip cavities. Each cavity is
-///   TWO half-cap faces meeting at the two meridians the tour's
-///   `(Sphere, Sphere)` note names, which is why the rim fillet's
-///   stored selection is forty-two arcs for twenty-one pips;
+///   ONE face, the revolve's one band, whose wrap edge is the
+///   meridian, so the rim fillet's stored selection is one arc per pip;
 /// - the rim fillet makes ONE torus band per pip rim — a rim is a
 ///   closed chain, and a closed chain is one band.
 const DIE_FLATS: usize = 6;
 const DIE_BLENDS: usize = 12 + 8;
-const DIE_CAVITIES: usize = 21 * 2;
+const DIE_CAVITIES: usize = 21;
 const DIE_BANDS: usize = 21;
 const DIE_FACES: usize = DIE_FLATS + DIE_BLENDS + DIE_CAVITIES + DIE_BANDS;
 
@@ -419,7 +418,7 @@ fn each_die_face_is_marked_by_the_feature_that_made_it() {
 ///
 /// The cut mints no face of its own — a subtract carries A's faces and
 /// B's — so it marks exactly those: the cube's six and the cavities'
-/// forty-two. The blends are NOT among them: they were made above the
+/// twenty-one. The blends are NOT among them: they were made above the
 /// cut, out of it, and a name records what an op carried, not what was
 /// later built on top.
 ///

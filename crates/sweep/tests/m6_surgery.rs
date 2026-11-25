@@ -290,11 +290,12 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     assert_eq!(out.corner_faces.len(), 8);
     assert_eq!(out.band_faces.len(), 0);
     // Counts: the blank's 24/48/26 plus 21 untouched pips — each a
-    // 2-arc rim, 2 meridian seam edges, a pole vertex and 2 half-cap
-    // faces (the revolve seam), so per pip V 3 / E 4 / F 2.
-    assert_eq!(body.vertices().count(), 24 + 21 * 3);
-    assert_eq!(body.edges().count(), 48 + 21 * 4);
-    assert_eq!(body.faces().count(), 26 + 21 * 2);
+    // closed rim, its cap's one seam meridian (a wrap edge from the rim
+    // to its tip), the rim vertex and the pole, and one cap face, so per
+    // pip V 2 / E 2 / F 1.
+    assert_eq!(body.vertices().count(), 24 + 21 * 2);
+    assert_eq!(body.edges().count(), 48 + 21 * 2);
+    assert_eq!(body.faces().count(), 26 + 21);
     let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
     let props = topo::mass_properties(
         &body,
@@ -344,17 +345,12 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
         Ok(()),
         "tier 3"
     );
-    // Counts: blank 24/48/26 + per pip: the pole and the two lower
-    // meridian pieces survive in the shrunk half-caps; 2 plane-trim
-    // feet + 2 meridian split vertices; 2 ta + 2 tb arcs + 1 slit
-    // meridian (the band is ring-free, donut-style); 2 shrunk
-    // half-caps + 1 band; 1 ring (the widened plane hole) —
-    // 5 − 7 + 3 − 1 = 0 keeps χ. Then the blend's closing join
-    // (`docs/DESIGN.md`, maximal edges) takes the plane-trim foot the
-    // slit does not reach, the two plane trims one: 4 − 6 + 3 − 1 = 0.
-    assert_eq!(die.vertices().count(), 24 + 21 * 4);
-    assert_eq!(die.edges().count(), 48 + 21 * 6);
-    assert_eq!(die.faces().count(), 26 + 21 * 3);
+    // Counts: blank 24/48/26 + per pip, the cap one band and its rim one
+    // closed edge: V 3 / E 4 / F 2 (the shrunk cap and the band) and one
+    // ring (the widened plane hole), so 3 − 4 + 2 − 1 = 0 keeps χ.
+    assert_eq!(die.vertices().count(), 24 + 21 * 3);
+    assert_eq!(die.edges().count(), 48 + 21 * 4);
+    assert_eq!(die.faces().count(), 26 + 21 * 2);
     let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
     let props = topo::mass_properties(
         &die,
@@ -391,7 +387,7 @@ fn composed_die() -> Body<f64> {
     .expect("the box edges fillet in place")
     .body;
     let rims = rim_edges(&blanked);
-    assert_eq!(rims.len(), 42, "21 rims of two arcs each");
+    assert_eq!(rims.len(), 21, "21 rims of one closed edge each");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&blanked, Tol::witness()),
         &rims,
@@ -479,12 +475,11 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     );
 }
 
-/// **The surgery front door refuses typed** at its named gaps: an end
-/// the cut-off does not build (a curved end face, a run-out), and an
-/// open plane–sphere chain (a rim arc alone is not a closed rim, and
-/// the seam vertex it stops at says to request the rim whole). One box
+/// **The surgery front door refuses typed** at its named gap: an end
+/// the cut-off does not build (a curved end face, a run-out). One box
 /// edge of the pipped die, which used to be the run-out witness, is cut
-/// off at its end faces and carves.
+/// off at its end faces and carves, and so does one pip's rim alone, a
+/// closed edge.
 #[test]
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
@@ -509,26 +504,19 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect("one box edge of the pipped die is cut off at its end faces");
-    // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
-    // vertices whose third edge is the cap's seam MERIDIAN — the
-    // sphere's own chart cut, the plane carrying both arcs — so the
-    // BATTERY's corner classifier refuses first: a chart-seam vertex,
-    // not a corner, whose recourse is the whole rim. The refusal is one
-    // door earlier than the surgery's own front door, and that is the
-    // honest order: verdict before assembly.
+    // (b) One rim: a pip's rim is one closed edge (its cap one band), so
+    // asking for it alone asks for the rim whole, and it carves. The
+    // seam-split arm (an open plane–sphere chain stopping at a chart-seam
+    // vertex) has no native fixture here
+    // (`work/band/the-seam-split-rim-arms-have-no-native-fixture-once-a-full-revolve-is-one-band.md`).
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(
+    fillet_edges(
         &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &rims[..1],
         RIM_R,
         Tol::witness(),
     )
-    .expect_err("an open rim arc stops at a seam vertex");
-    let text = err.render(geom_brep::recourse::Reading::Build);
-    assert!(
-        text.contains("chart-seam vertex") && text.contains("request the rim whole"),
-        "the refusal names the seam vertex and the whole rim: {text}"
-    );
+    .expect("one pip's whole rim carves alone");
 }
 
 /// **Ring carry-through, positively**: the shrunk top face of the

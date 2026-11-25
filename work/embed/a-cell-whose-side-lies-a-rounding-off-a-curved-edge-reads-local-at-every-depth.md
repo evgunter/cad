@@ -135,3 +135,11 @@ alone, and this row's cell is reached by every drum of the family now.
 | 1.1, 2.3 | 210 | 440 |
 | 0.9, 1.7 | 140 | 294 |
 | 1.3, 2 | 146 | 288 |
+
+- 2026-11-25 (LATHE one-band lane, PR 7414): the collinear-cap drum
+  (`self_intersection_proves_injectivity::the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle`)
+  now holds: a full revolve's wall is one band and its caps whole discs,
+  so the drum has no half-annulus cell beside a half-circle. That row
+  pins `Holds` (its name kept, as the slow set lists it). The radius-0.7
+  drum, whose half-circles are drawn by hand, is still this row's
+  witness.

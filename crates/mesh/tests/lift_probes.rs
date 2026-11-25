@@ -1207,13 +1207,14 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 175 loops
-/// of the 151 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 155 loops
+/// of the 131 curved faces, the 24 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
-/// apex row where it passes one (22 loops), and its sampled polygon is
-/// simple and wound with the face ([`not_closing`]). The 10 faces a
-/// seam closes (the washer's and the donut's walls) close the same way:
-/// the seam is walked twice, a period apart.
+/// apex row where it passes one (12 loops), and its sampled polygon is
+/// simple and wound with the face ([`not_closing`]). The 30 faces a
+/// seam closes (the washer's and the donut's walls, and the one face of
+/// each full revolve's cone or sphere wall) close the same way: the seam
+/// is walked twice, a period apart.
 #[test]
 fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
     let facts = census(&door_built(), SAMPLES);
@@ -1222,10 +1223,10 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
     assert_eq!(
         tally(&facts),
         rows(&[
-            ("Cone", 34, 0, 3, 11),
+            ("Cone", 19, 15, 3, 6),
             ("Cylinder", 68, 2, 12, 0),
             ("Nurbs", 12, 0, 0, 0),
-            ("Sphere", 14, 0, 3, 11),
+            ("Sphere", 9, 5, 3, 6),
             ("Torus", 23, 8, 6, 0),
         ]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
@@ -1235,7 +1236,8 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
 
 /// **The spline section's bodies read the same.** The reach probes'
 /// ball across a cylinder's wall, ∩ and ∪: the section's `Projected`
-/// images chain with the rims' and meridians' harmonic ones, every loop
+/// images chain with the rims' and meridians' harmonic ones (the
+/// union's one ball face holds the section as a ring), every loop
 /// closes, and `Lift::window` answers on none of the loops the section
 /// bounds.
 #[test]
@@ -1245,7 +1247,7 @@ fn the_spline_section_bodies_read_lifts_that_close() {
     assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
     assert_eq!(
         tally(&facts),
-        rows(&[("Cylinder", 3, 0, 0, 0), ("Sphere", 3, 0, 0, 2)]),
+        rows(&[("Cylinder", 3, 0, 0, 0), ("Sphere", 2, 1, 1, 1)]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
         table(&facts)
     );
@@ -1599,16 +1601,19 @@ fn hull_within(inner: ((f64, f64), (f64, f64)), outer: ((f64, f64), (f64, f64)))
 /// **Where a ring's lift sits against its outer loop's.** The 24 rings
 /// of the reach probes' ringed faces: a spiric oval on each half of the
 /// donut's tube, ruling-and-arc and ellipse-arc rings on the pipe's
-/// half walls, an ellipse ring on the cone's half, and a tilted circle
-/// on the ball's half band.
+/// half walls, an ellipse ring on T1's one cone face, and a tilted
+/// circle on the ball's one face.
 ///
-/// 23 sit inside the polygon their outer loop's lift draws as stored,
-/// and no other whole-period move puts them there. One does not: on
-/// ball ∖ tube the ring is one whole `Projected` circle, its lift is on
-/// the image's own branch (`u ∈ (−2.44, −0.70)`), and the outer loop's
-/// is on `u ∈ [π, 2π]`: the ring is one `u` period below, and `(1, 0)`
-/// is the one move that places it. On ball ∪ tube the same circle is
-/// two arcs and sits inside as stored.
+/// 20 sit inside the polygon their outer loop's lift draws as stored,
+/// and no other whole-period move puts them there. Four do not, each
+/// one `u` period below its outer loop, and `(1, 0)` is the one move
+/// that places each: on ball ∖ tube the ring is one whole `Projected`
+/// circle, its lift on the image's own branch (`u ∈ (−2.44, −0.70)`),
+/// and the outer loop's on `u ∈ [0, 2π]`; on T1's cone face, in each of
+/// its three ops, the ring's `FocalSection` arcs lift on
+/// `u ∈ (0.62, 2.53)` and the outer loop, which starts at its seam, on
+/// `u ∈ [π, 3π]`. On ball ∪ tube the ball's circle is two arcs and sits
+/// inside as stored.
 ///
 /// `Body::face_lift` answers the same move for every ring, and every
 /// sample of the ring it moves lies inside the outer loop's polygon.
@@ -1638,7 +1643,7 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         ring_table(&rings)
     );
     for r in &rings {
-        let displaced = r.body == "the tube on the ball, B ∖ A";
+        let displaced = r.body == "the tube on the ball, B ∖ A" || r.body.starts_with("T1, ");
         let want = if displaced { (1, 0) } else { (0, 0) };
         assert_eq!(
             (
@@ -1679,11 +1684,30 @@ fn a_ring_sits_in_its_outer_loops_polygon_but_on_the_ball_less_the_tube() {
         displaced.forms == ["Projected"]
             && u.0 < -2.4
             && u.1 < -0.7
-            && (o.0 - PI).abs() < MEET
+            && o.0.abs() < MEET
             && (o.1 - TAU).abs() < MEET,
         "the displaced ring is one whole projected circle, a period below its outer loop\n{}",
         ring_table(&rings)
     );
+    let cone: Vec<_> = rings
+        .iter()
+        .filter(|r| r.body.starts_with("T1, "))
+        .collect();
+    assert_eq!(cone.len(), 3, "T1's three ops each hold one cone ring");
+    for r in cone {
+        let (u, o) = (r.ring_hull.0, r.outer_hull.0);
+        assert!(
+            r.forms == ["FocalSection", "FocalSection"]
+                && u.0 > 0.6
+                && u.1 < 2.6
+                && (o.0 - PI).abs() < MEET
+                && (o.1 - 3.0 * PI).abs() < MEET,
+            "{}: the cone ring's two arcs on u ∈ (0.6, 2.6), its outer loop from the seam on \
+             [π, 3π]\n{}",
+            r.body,
+            ring_table(&rings)
+        );
+    }
 }
 
 /// **The spiric-bounded torus wall's outer loop is a simple polygon.**

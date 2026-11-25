@@ -67,7 +67,13 @@ use topo::BooleanOp;
 /// reference to a version of the part that names it" says thirteen,
 /// and the clause it replaced ("so the crossing does not re-verify")
 /// said six.
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 87)];
+///
+/// 91, where it was 87, with no name grown: a full revolve's walls are
+/// one band each (PR 7414), so the die documents' pip rims each say one
+/// name where two seam-split arcs said two, the corpus says some 23,000
+/// fewer words of them (`NAME_WORDS`' totals), and its 90th percentile
+/// lands on a longer name (36 words in full).
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 91)];
 
 /// **The names' own lengths in words, p50, p99, max and the total**: a
 /// face said within its table, then every name a node holds said in
@@ -88,8 +94,8 @@ const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 87
 /// regression: a change that lengthens them says in its PR which names
 /// grew and why, and lowers the pin with any that shrank.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 48_003]),
-    ("full", [19, 121, 196, 341_097]),
+    ("scoped faces", [16, 40, 57, 45_466]),
+    ("full", [19, 110, 196, 317_927]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -100,7 +106,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// a node stores, an id minted earlier, or a document the corpus gains
 /// re-pins it; the PR that moves it says which words moved, and that
 /// with each tag masked no other did where that is so.
-const SAID_DIGEST: u64 = 0x4fa2_f3d3_3000_d430;
+const SAID_DIGEST: u64 = 0x554c_acef_2889_e45e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

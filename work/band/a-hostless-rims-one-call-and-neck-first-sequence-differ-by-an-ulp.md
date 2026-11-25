@@ -20,15 +20,21 @@ branch `lathe/full-revolve-one-band`.
 `sweep` `fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`
 pins that the repaired lantern's neck `(1, 0)` and shoulder `(0.8, 0.6)`
 carved in ONE call is the sequential composition bit for bit, in both
-orders. With a full revolve's curved walls one band each, the census,
-face order and surface kinds of the one-call body and the neck-first
-sequential body agree (6 faces, 9 edges, 5 vertices), but their volumes
-differ by one ulp: `4612097951860993249` against `4612097951860993250`
-(`f64::to_bits`). Before, the shoulder's plan re-read seam meridians the
-neck's carve had split (`refresh_annulus_seams`); now the rims cross the
-sphere wall's one seam, and the second carve reads a wall the first
-already cut at that crossing, so some stored datum differs at rounding
-between the two orders.
+orders. With a full revolve's curved walls one band each, the census
+of the one-call body and the neck-first sequential body agree (6 faces,
+9 edges, 5 vertices), but their volumes differ by one ulp:
+`4612097951860993249` against `4612097951860993250` (`f64::to_bits`).
+
+Measured (2026-11-25, both bodies dumped with `{:#?}` and compared):
+**no stored number differs.** The 346 floats of the two bodies are the
+same multiset bit for bit; what differs is which arena slot holds
+which record. The two torus bands occupy swapped face slots (face slots
+1–4 read the same plane, cone, sphere and plane surfaces in both, and
+slots 5 and 6 hold the neck's band and the shoulder's in opposite
+orders), so the `TangentIntersection` records of their trimlines and
+their surface keys sit at different keys too, which is the difference
+the PR 7414 review read. The volume sums the faces' flux terms in face
+slot order, so it sums the same terms in a different order.
 
 The row stays red on PR 7414 rather than being loosened: either the
 one-call plan and the sequence are made one computation again, or the
@@ -48,7 +54,8 @@ not", and the sibling row
 (`review_fillet_h5_r1_probes`, the boss's hostless rim beside the ladder)
 already pins cells equal and volume to the summation order. The two
 compositions are one construction; the order the faces' flux terms are
-summed in is incidental (`memories/output-stability-as-justification.md`).
+summed in is incidental (`memories/output-stability-as-justification.md`),
+and the measurement above shows the order is the only difference.
 On PR 7414 the three pins (`fillet_h5_hostless_rim::a_hostless_rim_composes_with_a_shared_wall_neighbour`,
 `blend_tworims::a_lantern_rim_pair_on_a_shared_wall_composes_in_one_call`,
 `blend_tworims::three_chained_shared_wall_rims_carve_in_one_call`) are
@@ -56,3 +63,4 @@ re-pinned to cells equal (where the row read cells) and volume within
 `4·ε` relative, with the reason in-file.
 
 - 2026-11-23 — closed by the LATHE one-band lane on PR 7414: re-pinned to what is promised.
+- 2026-11-25 — the differing datum measured: none; the two bands' face slots are swapped, so only the summation order differs.

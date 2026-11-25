@@ -505,7 +505,11 @@ fn the_teapot_lids_three_rims_roll_from_one_click_each() {
         assert!(click(&mut tools, &doc, Ok(&index), &arcs[at]).is_empty());
     }
     assert_eq!(blend(&tools).count(), 3, "three clicks, three rims");
-    assert_eq!(blend(&tools).selection().len(), 6, "six arcs held");
+    assert_eq!(
+        blend(&tools).selection().len(),
+        3,
+        "three arcs held: a full turn's rim is one closed arc"
+    );
     let op = blend(&tools).fillet_op(len(ROLL)).expect("commits");
     let fillet = session_insert(&mut session, op);
     tools.close();

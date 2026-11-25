@@ -719,13 +719,17 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
     let eps = tol.get().eps;
     let unit = split_unit(eps);
     let exhausted = try_arc_prism_at(EXHAUSTING * unit, 0.0);
-    // Half of the ball inverted: the two bands then meet material-side
-    // to material-side at their shared edges, which check 4's material
-    // arm refuses as a lamina — a STRUCTURAL refusal, raised before
-    // check 7 is consulted at all.
+    // Half of the ball inverted: the ball cut into its two lunes (a full
+    // revolve's ball is one face), one lune flipped. The lunes then meet
+    // material-side to material-side at their shared edges, which check
+    // 4's material arm refuses as a lamina — a STRUCTURAL refusal, raised
+    // before check 7 is consulted at all.
     let half_flipped = {
-        let band = ball.faces().next().expect("the ball has faces").0;
-        ball.flipped_face_sense_for_tests(band, geom_core::Tol::witness())
+        let mut lunes = topo::Body::clone(&ball);
+        sweep::test_support::two_lunes(&mut lunes, tol);
+        let lune = lunes.faces().next().expect("the lunes are faces").0;
+        lunes
+            .flipped_face_sense_for_tests(lune, geom_core::Tol::witness())
             .expect("live face key")
     };
 
