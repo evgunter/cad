@@ -24,6 +24,9 @@
 //!
 //! - a zero-area ring, where neither end lies on the face's boundary,
 //!   the face a plane;
+//! - two faces, where the edge is a closed conic inside a face with no
+//!   rings: its vertex parts into one per edge, and the circle that
+//!   bounds the disc bounds a piece of its own;
 //! - a slit of the loop an end lies on, that end parted into one vertex
 //!   per wedge;
 //! - a slit of the loop a vertex on an end's point lies on, the two
@@ -50,9 +53,13 @@
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
-//! built, and a curved face would carry a slit or a ring, and a
-//! zero-area ring there is not measured
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::CurvedFace`]). An arc's
+//! built ([`EdgeInFaceGap::Tangent`]). On a curved face the partings
+//! build where, all made, they divide it, each edge's two copies
+//! bounding two of its faces; one that leaves a slit or a zero-area ring
+//! there, which is not measured, refuses ([`EdgeInFaceGap::CurvedFace`]),
+//! as does a division into two pieces of the result that touch only
+//! along it, whose curved faces the census does not read
+//! ([`EdgeInFaceGap::PartsTouch`]). An arc's
 //! two coincident edges are recorded, an edge–edge record citing the
 //! parting's own row of the arc lying in the face ([`arc_on_face`]). The
 //! reading
@@ -81,8 +88,10 @@
 //! pinch (`zip::split_cones`). At a joined end a zero-length joint fuses
 //! the end into the vertex of the floor's loop (`zip::fuse_by_joint`):
 //! `mekr` where the two lie on two loops, `mef` where on one, which
-//! divides the floor. The two edges are then described on the faces they
-//! bound.
+//! divides the floor. A closed edge's ring of the floor parts at its one
+//! vertex ([`divide_closed`]: `mev_null` across the fan, `kemr`), and
+//! `mfkrh` makes the disc's circle a face. The two edges are then
+//! described on the faces they bound.
 //!
 //! # Merging
 //!
@@ -179,13 +188,19 @@ pub enum EdgeInFaceGap {
     /// (D1's doubled cusp), whose reading on a line of coincident edges
     /// is not built.
     Tangent,
-    /// The face is no plane: the parting would leave a slit or a
-    /// zero-area ring in a curved face. A slit meshes (the trimmed lane
-    /// takes a face that passes one point at two vertices); a zero-area
-    /// ring is not measured by the curved mass-properties lane
+    /// The face is no plane, and the partings in it, all made, leave a
+    /// slit or a zero-area ring there rather than divide it: the edge's
+    /// two copies bound one face. A slit meshes (the trimmed lane takes a
+    /// face that passes one point at two vertices); a zero-area ring is
+    /// not measured by the curved mass-properties lane
     /// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
     /// It retires when that row closes: the parting itself builds there.
     CurvedFace,
+    /// The parting divides a curved face between two pieces of the
+    /// result that touch only along its two edges, and the census does
+    /// not read whether curved faces of two pieces touch
+    /// (`work/atrest/the-census-cannot-record-a-curved-seat-between-two-solids.md`).
+    PartsTouch,
     /// The face is a spline, which holds the edge where both its ends lie
     /// on the face and its midpoint reads inside it, as far as this
     /// reading goes: whether the chart holds the edge's carrier is not
@@ -297,8 +312,13 @@ impl EdgeInFaceGap {
                  not cover"
             }
             Self::CurvedFace => {
-                "the face is curved, and a zero-area ring in a curved face is not measured \
+                "the parting would leave a slit or a zero-area ring in the curved face rather than \
+                 divide it, and a zero-area ring in a curved face is not measured \
                  (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`)"
+            }
+            Self::PartsTouch => {
+                "the parting divides the curved face between two pieces of the result that touch \
+                 only along it, and whether curved faces of two pieces touch is not read"
             }
             Self::SplineFace => {
                 "the face is a spline, which holds the edge's ends and its midpoint, and whether \
@@ -420,6 +440,8 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     let mut fused = Fusions::new(LineageRows::Fusions);
     // Each arc's two coincident edges a parting made, and what backs them.
     let mut coincident: Vec<(EdgeKey, EdgeKey, Cites)> = Vec::new();
+    // Each parting in a curved face: its two edges and the face's surface.
+    let mut curved: Vec<(EdgeKey, EdgeKey, crate::geometry::SurfaceKey)> = Vec::new();
     // Read again after each parting: a parting that divides a face
     // gives one of its pieces a new key, which a later edge lying in
     // that piece is read against. A record naming a divided face refuses
@@ -453,17 +475,6 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
         if flat {
             return Err(refused(EdgeInFaceGap::Tangent));
-        }
-        // A zero-area ring in a curved face is not measured, so the
-        // parting refuses on any face it would part that is no plane.
-        let plane =
-            |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
-        if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
-            return Err(BooleanError::EdgeInFace {
-                edge,
-                face: curved,
-                gap: EdgeInFaceGap::CurvedFace,
-            });
         }
         if divides {
             if pieces.contains(&(edge, face)) {
@@ -510,19 +521,16 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // An arc's two coincident edges are recorded, citing the decision
         // that put the arc on the face: the parting's own row of it
         // ([`arc_on_face`]), with an edge-on-face record of the arc where
-        // one names it. Two lines between shared point keys are one
-        // segment by structure.
-        // An arc's two coincident edges are read before the parting divides
-        // the face: the reading that put the arc in the face's plane, and an
-        // edge-on-face record of it where one names it.
+        // one names it, both read before the parting divides the face.
+        // Two lines between shared point keys are one segment by
+        // structure.
         let arc = (!crate::census::edge_is_line(body, edge)).then(|| {
-            // A curve the parting reaches lies in a plane face, which
-            // [`holding`] read as a conic's or a spiric's own plane, so the
-            // reading carries its margin.
+            // Every reading [`holding`] puts a curve in a face by carries
+            // its margin ([`Placed::On`]).
             let lies = lies.unwrap_or_else(|| {
                 unreachable!(
-                    "edge {edge:?}, a curve lying in plane face {face:?}, was placed there by no \
-                     reading of its plane"
+                    "edge {edge:?}, a curve lying in face {face:?}, was placed there by no \
+                     reading with a margin"
                 )
             });
             let recorded: Vec<Cites> = records
@@ -537,20 +545,29 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 proven(&body.faces, face, EntityId::Face).surface,
             )
         });
-        let p = part(body, edge, face, &joined, tol)?;
-        if let Some((lies, recorded, plane)) = arc {
+        let p = part(body, edge, face, &joined, band, tol)?;
+        // Read once every parting is made: a slit one makes in a curved
+        // face, a later one ending on it may close into a division.
+        if !matches!(
+            body.proven_face(face).surface(),
+            geom::Surface::Plane { .. }
+        ) {
+            let surface = proven(&body.faces, face, EntityId::Face).surface;
+            curved.push((p.parted.kept, p.parted.minted, surface));
+        }
+        if let Some((lies, recorded, surface)) = arc {
             // The row is of the arc as the parting leaves it: the kept edge
-            // and the face of its plane it bounds, `face` or the piece of it
-            // a division left holding the arc.
+            // and the face of its surface it bounds, `face` or the piece of
+            // it a division left holding the arc.
             let kept = p.parted.kept;
             let edge = proven(&body.edges, kept, EntityId::Edge);
             let on = [edge.he_plus, edge.he_minus]
                 .into_iter()
                 .filter_map(|he| body.face_of_half_edge(he))
-                .find(|&f| body.get_face(f).is_some_and(|d| d.surface == plane))
+                .find(|&f| body.get_face(f).is_some_and(|d| d.surface == surface))
                 .unwrap_or_else(|| {
                     unreachable!(
-                        "the kept edge {kept:?} of a parting bounds no face of the plane it \
+                        "the kept edge {kept:?} of a parting bounds no face of the surface it \
                          was parted in"
                     )
                 });
@@ -582,6 +599,20 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         parted.push(p.parted);
     }
+    // A slit or a zero-area ring in a curved face is not measured
+    // (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`):
+    // the partings there build only where, all made, the two edges of
+    // each bound two faces of its surface, which the face is divided into.
+    for &(kept, minted, surface) in &curved {
+        let [a, b] = floors(body, [kept, minted], surface);
+        if a == b {
+            return Err(BooleanError::EdgeInFace {
+                edge: kept,
+                face: a,
+                gap: EdgeInFaceGap::CurvedFace,
+            });
+        }
+    }
     // A crossing no parting joined leaves its two vertices on one point
     // apart.
     if let Some(&(_, edge, face)) = crossings.iter().find(|&&(v, ..)| fused.get(v).is_none()) {
@@ -602,6 +633,20 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     for shell in shells {
         body.movefac(shell)?;
+    }
+    // A curved face divided between two pieces of the result that touch
+    // only along the parting: the census does not read whether curved
+    // faces of two pieces touch.
+    for &(kept, minted, surface) in &curved {
+        let pieces = floors(body, [kept, minted], surface);
+        let [a, b] = pieces.map(|f| proven(&body.faces, f, EntityId::Face).shell);
+        if a != b {
+            return Err(BooleanError::EdgeInFace {
+                edge: kept,
+                face: pieces[0],
+                gap: EdgeInFaceGap::PartsTouch,
+            });
+        }
     }
     let mut kept = ContactRecords::default();
     for row in records.rows() {
@@ -671,6 +716,23 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         kept.push(Cited::new(contact, cites));
     }
     Ok((parted, kept))
+}
+
+/// The faces of `surface` the two edges of a parting each bound beside
+/// their wall: the floor's pieces, one where the parting divided it.
+fn floors<T: Decide>(
+    body: &Body<T>,
+    edges: [EdgeKey; 2],
+    surface: crate::geometry::SurfaceKey,
+) -> [FaceKey; 2] {
+    edges.map(|e| {
+        let d = proven(&body.edges, e, EntityId::Edge);
+        [d.he_plus, d.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .find(|&f| body.get_face(f).is_some_and(|d| d.surface == surface))
+            .unwrap_or_else(|| unreachable!("edge {e:?} of a parting bounds no face of its floor"))
+    })
 }
 
 /// One sliver the output stage merged away ([`merge_slivers`]).
@@ -1351,10 +1413,12 @@ const LEBESGUE_NINE: f64 = 2.37;
 /// ([`carrier_on_surface`]).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Placed {
-    /// On the surface over the whole span; where a curve was read in a
-    /// plane face's plane (a conic's pose `Lies`, a spiric's own plane),
-    /// the margin of that reading, which a parting of it cites
-    /// ([`arc_on_face`]).
+    /// On the surface over the whole span, with the margin of the
+    /// reading that put it there, which a parting of a curve cites
+    /// ([`arc_on_face`]): a conic's pose `Lies` or a spiric's own plane
+    /// on a plane, a conic's samples (and a torus's bound between them)
+    /// on a curved surface. `None` for a line on a cylinder or a cone,
+    /// whose reading keeps no margin, and which no row cites.
     On(Option<geom_core::MarginDiag>),
     /// Off it along every piece of the span.
     Off,
@@ -1575,9 +1639,12 @@ fn conic_or_line_on<T: Decide>(
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
         Samples::Even(n) => even_points(carrier, t0, n),
     };
-    if variety.read_piece(&points, site, band).map_err(refused)? == Piece::Off {
+    let Some(sampled) = variety
+        .read_piece_on(&points, site, band)
+        .map_err(refused)?
+    else {
         return Ok(Placed::Off);
-    }
+    };
     match *surface {
         geom::Surface::Torus {
             frame,
@@ -1593,11 +1660,12 @@ fn conic_or_line_on<T: Decide>(
                     dir: axis,
                 },
                 (major_radius, minor_radius),
+                sampled,
                 band,
             )
             .map_err(refused)
         }
-        _ => Ok(Placed::On(None)),
+        _ => Ok(Placed::On(Some(sampled))),
     }
 }
 
@@ -1744,11 +1812,13 @@ fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point
 
 /// [`carrier_on_surface`]'s bound between a conic's nine samples on the
 /// torus about the unit `axis` line, radii `(R, r)`, decided
-/// where every sample read on it.
+/// where every sample read on it, at margin `sampled`: on the torus at
+/// the worse of the two.
 fn torus_between<T: Decide>(
     points: &[Point3<T>],
     axis: geom::Line<T>,
     (big, small): (T, T),
+    sampled: geom_core::MarginDiag,
     band: Band,
 ) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
@@ -1760,12 +1830,11 @@ fn torus_between<T: Decide>(
         worst = worst.max(product.abs() / (small + small));
     }
     let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
-    Ok(
-        match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
-            Sign::Zero => Placed::On(None),
-            Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
-        },
-    )
+    let between = geom_core::k_stats::decide_reported(RIDER_ON_CURVED, Margin::of(bound), band)?;
+    Ok(match between.sign {
+        Sign::Zero => Placed::On(Some(sampled.worst(between.margin))),
+        Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
+    })
 }
 
 /// **A conic of a torus's own reads on the torus face through
@@ -1874,12 +1943,13 @@ mod torus_rows {
         for (what, carrier, on) in rows {
             let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), face, band)
                 .unwrap_or_else(|e| panic!("{what}: {e:?}"));
-            let want = if on {
-                super::Placed::On(None)
-            } else {
-                super::Placed::Off
+            // A conic read on the torus carries the reading's margin.
+            let got = match &read {
+                super::Placed::On(lies) => lies.map(|_| true),
+                super::Placed::Off => Some(false),
+                super::Placed::Unread(_) => None,
             };
-            assert_eq!(read, want, "{what}");
+            assert_eq!(got, Some(on), "{what}: {read:?}");
         }
     }
 
@@ -1942,7 +2012,7 @@ mod torus_rows {
         );
         assert!(matches!(
             super::conic_or_line_on(&villarceau, (0.0, TAU), &fat_torus(), band()),
-            Ok(super::Placed::On(None))
+            Ok(super::Placed::On(Some(_)))
         ));
     }
 
@@ -2008,10 +2078,9 @@ mod torus_rows {
 /// [`BooleanError::EdgeInFace`] ([`EdgeInFaceGap::Crossed`]) where they
 /// go to opposite sides, ([`EdgeInFaceGap::NoNormal`]) where `f` or a
 /// face of the edge has no normal there, or ([`EdgeInFaceGap::Tangent`]) where a face is
-/// tangent along the line to `f` and goes into its material, or
-/// ([`EdgeInFaceGap::CurvedFace`]) where `f` is curved and a face is
-/// tangent to it along the line and does not bend away from its
-/// material ([`bend_across`]); [`BooleanError::Escalated`] where a side,
+/// tangent along the line to `f` and goes into its material or, `f`
+/// curved, does not bend away from it ([`bend_across`]);
+/// [`BooleanError::Escalated`] where a side,
 /// a bend, or a normal, is in band.
 fn walls_inside<T: Decide>(
     body: &Body<T>,
@@ -2124,22 +2193,17 @@ fn walls_inside<T: Decide>(
             // length `s` off the line, read at the wall's reach, in
             // metres. Bent alike, the two sheets are one to that order
             // ([`coplanar_wall_inside`]). On a curved face a wall going
-            // in, or bent as the face is, would part the edge there,
-            // which may leave a zero-area ring there, not measured: it refuses
-            // `CurvedFace`. A wall bending away leaves the face's material
-            // alone.
+            // in, or bent as the face is, would bound a cusp there, as on
+            // a plane, and two sheets bent alike are not read further: it
+            // refuses `Tangent`. A wall bending away leaves the face's
+            // material alone.
             Sign::Zero => {
-                let unread = if floor_flat {
-                    EdgeInFaceGap::Tangent
-                } else {
-                    EdgeInFaceGap::CurvedFace
-                };
                 let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line(_)) = (
                     bend_across(surface(wall), mid, tangent),
                     bend_across(surface(f), mid, tangent),
                     curve.carrier(),
                 ) else {
-                    return Err(refused(unread));
+                    return Err(refused(EdgeInFaceGap::Tangent));
                 };
                 let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
@@ -2147,7 +2211,7 @@ fn walls_inside<T: Decide>(
                 match side {
                     Sign::Negative => false,
                     Sign::Positive | Sign::Zero if !floor_flat => {
-                        return Err(refused(EdgeInFaceGap::CurvedFace));
+                        return Err(refused(EdgeInFaceGap::Tangent));
                     }
                     Sign::Positive => {
                         flat[k] = true;
@@ -2338,6 +2402,7 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     edge: EdgeKey,
     face: FaceKey,
     joined: &[(VertexKey, VertexKey)],
+    band: Band,
     tol: Tol,
 ) -> Result<Parting, BooleanError> {
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
@@ -2394,6 +2459,21 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let mut copies = Vec::new();
     let mut divided = None;
     match boundary.as_slice() {
+        // A closed edge inside a face with no rings separates it: the
+        // two circles bound its two pieces.
+        [] if start == end
+            && joined.is_empty()
+            && matches!(
+                curve.as_ref().map(|c| c.carrier()),
+                Some(geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))
+            )
+            && body.get_face(face).ok_or_else(desync)?.rings.is_empty() =>
+        {
+            body.kfmrh_minting(face, gusset, tol)?;
+            let (piece, copy) = divide_closed(body, face, (edge, made.edge), start, band, tol)?;
+            copies.push((copy, start));
+            divided = Some(piece);
+        }
         [] => {
             body.kfmrh_minting(face, gusset, tol)?;
         }
@@ -2488,6 +2568,171 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
             fused,
         },
     })
+}
+
+/// **Divides face `face` along two coincident closed edges `(kept,
+/// minted)`**, both at vertex `v` on the ring of `face` a parting's
+/// gusset left, a loop through `v` twice: `v` parts into one vertex per
+/// edge (`mev_null` across the fan, the minted edge's halves and the
+/// walls between them taking the copy), the ring into the two circles
+/// (`kemr`), and the circle bounding the disc they part off `face`
+/// becomes the piece's outline (`mfkrh`). The piece and the copy.
+///
+/// # Errors
+///
+/// [`disc_loop`]'s; the Euler operators'; [`BooleanError::JoinDesync`]
+/// where the fan or the ring is not as the parting left it.
+fn divide_closed<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    (kept, minted): (EdgeKey, EdgeKey),
+    v: VertexKey,
+    band: Band,
+    tol: Tol,
+) -> Result<(FaceKey, VertexKey), BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let halves = |e: EdgeKey| {
+        let d = proven(&body.edges, e, EntityId::Edge);
+        [d.he_plus, d.he_minus]
+    };
+    let (k, m) = (halves(kept), halves(minted));
+    let orbit = body.vertex_orbit_linked(v);
+    let n = orbit.len();
+    let at = |he: HalfEdgeKey| orbit.iter().position(|&x| x == he);
+    let (Some(m0), Some(m1)) = (at(m[0]), at(m[1])) else {
+        return Err(desync("a closed edge's halves do not leave its vertex"));
+    };
+    // The orbit from `from` round to `to`, both in.
+    let run = |from: usize, to: usize| {
+        let mut out = vec![orbit[from]];
+        let mut i = from;
+        while i != to {
+            i = (i + 1) % n;
+            out.push(orbit[i]);
+        }
+        out
+    };
+    let clear = |r: &[HalfEdgeKey]| !r.contains(&k[0]) && !r.contains(&k[1]);
+    // The minted edge's halves and what lies between them on the side
+    // the kept edge's are not: the run the copy of `v` takes.
+    let (first, last) = [(m0, m1), (m1, m0)]
+        .into_iter()
+        .find(|&(a, b)| clear(&run(a, b)))
+        .ok_or_else(|| desync("a closed edge and its twin interleave about their vertex"))?;
+    let (he1, he2) = (orbit[first], orbit[(last + 1) % n]);
+    let made = body.mev_null(MevSite::Fan { he1, he2 }, crate::null::NewVertexSide::Above)?;
+    let loop_of = |body: &Body<T>, he| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
+    if loop_of(body, made.he_plus) != loop_of(body, made.he_minus) {
+        return Err(desync("a closed edge's fan parts across two loops"));
+    }
+    let ring = body.kemr_minting(made.he_plus, made.he_minus, tol)?.ring;
+    let other = body
+        .get_face(face)
+        .and_then(|f| f.rings.iter().copied().find(|&r| r != ring))
+        .ok_or_else(|| desync("a closed edge's ring parts into one loop"))?;
+    let disc = if disc_loop(body, face, ring, band)? {
+        ring
+    } else {
+        other
+    };
+    let piece = body.mfkrh_piece_minting(disc, tol)?.face;
+    Ok((piece, made.vertex))
+}
+
+/// The decision site of [`disc_loop`]'s sides.
+pub(super) const RIDER_CLOSED_DISC: &str = "bool_rider_closed_disc";
+
+/// **Whether ring `ring` of face `face`, one closed conic, bounds the
+/// disc it parts off `face`**: `face`'s region lies on the ring's left,
+/// the outward normal crossed with the ring's heading, at the conic's
+/// midpoint. On a plane the disc is the conic's inside, the side toward
+/// its centre; on a curved surface, which crosses the conic's plane
+/// there, the side of that plane `face`'s outline does not lie on,
+/// read at the first vertex of the outline off the plane.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where a side, or the normal, is in band;
+/// [`BooleanError::EdgeInFace`] ([`EdgeInFaceGap::NoNormal`]) where
+/// `face` has no normal at the midpoint, or where every vertex of the
+/// outline lies on the conic's plane (a curved face tangent to it);
+/// [`BooleanError::JoinDesync`] where the ring is no closed conic.
+fn disc_loop<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    ring: crate::entity::LoopKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let he = match body.loop_halves(ring).as_deref() {
+        Some(&[he]) => he,
+        _ => return Err(desync("a closed edge's ring is no one half-edge")),
+    };
+    let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+    let edge = proven(&body.edges, half.edge, EntityId::Edge);
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .and_then(|c| c.certified())
+        .ok_or_else(|| desync("a closed edge's ring has no carrier"))?;
+    let frame = match curve.carrier() {
+        c @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => c.frame(),
+        _ => None,
+    }
+    .ok_or_else(|| desync("a closed edge's ring is no conic"))?;
+    let (t0, t1) = curve.params();
+    let mid = geom::mid_param(t0, t1);
+    let p = curve.carrier().eval(mid);
+    let heading = if he == edge.he_plus {
+        curve.carrier().deriv(mid)
+    } else {
+        -curve.carrier().deriv(mid)
+    };
+    let refused = |gap| BooleanError::EdgeInFace {
+        edge: half.edge,
+        face,
+        gap,
+    };
+    let normal = match crate::face_normal::face_outward_normal_at(body, face, p, band) {
+        Ok(Some(n)) => n.vec(),
+        Ok(None) => return Err(refused(EdgeInFaceGap::NoNormal)),
+        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_normal(decision),
+                diag,
+            });
+        }
+        Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
+    };
+    let left = normal.cross(heading);
+    let side = |x: T| {
+        crate::validate::decide(RIDER_CLOSED_DISC, Margin::of(x), band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+        })
+    };
+    let (centre, axis) = (frame.origin(), frame.axis().normalize());
+    if matches!(
+        body.proven_face(face).surface(),
+        geom::Surface::Plane { .. }
+    ) {
+        return Ok(side(left.dot(centre - p))? == Sign::Positive);
+    }
+    let outer = body
+        .get_face(face)
+        .ok_or_else(|| desync("a divided face is lost"))?
+        .outer;
+    let outline = body
+        .loop_halves(outer)
+        .ok_or_else(|| desync("a divided face's outline does not walk"))?;
+    for he in outline {
+        let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+        let q = crate::readback::vertex_point(body, start)
+            .map_err(|_| desync("a vertex of a divided face's outline has no point"))?;
+        match side((q - centre).dot(axis))? {
+            Sign::Zero => continue,
+            outline_side => return Ok(side(left.dot(axis))? != outline_side),
+        }
+    }
+    Err(refused(EdgeInFaceGap::NoNormal))
 }
 
 /// What [`divide`] left: the edge's pieces, the edge's key holding the

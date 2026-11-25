@@ -41,7 +41,7 @@
 use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3};
 
-use crate::ladder::read_identity;
+use crate::ladder::{IdentityLadder, read_identity};
 
 /// What a piece's points read against a carrier ([`Variety::read_piece`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -146,6 +146,41 @@ impl<'s, T: Decide> Variety<'s, T> {
         site: &'static str,
         band: Band,
     ) -> Result<Piece, Indeterminate> {
+        self.ladder(points, site, band)
+            .holds()
+            .map(|on| if on { Piece::Sampled } else { Piece::Off })
+    }
+
+    /// **[`Self::read_piece`] with the margin its samples read on at**:
+    /// `None` where it reads [`Piece::Off`], and otherwise the joint
+    /// margin of the points' residuals ([`geom_core::MarginDiag::jointly`]),
+    /// the reading a row of the piece on the carrier cites.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::read_piece`].
+    ///
+    /// # Panics
+    ///
+    /// Where `points` is empty, which reads no piece.
+    pub fn read_piece_on(
+        &self,
+        points: &[Point3<T>],
+        site: &'static str,
+        band: Band,
+    ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
+        match self.ladder(points, site, band) {
+            IdentityLadder::Apart { .. } => Ok(None),
+            IdentityLadder::Zero(joint) => Ok(Some(joint.unwrap_or_else(|| {
+                unreachable!("a piece of no points is read on a carrier under {site}")
+            }))),
+            IdentityLadder::Undecided(cause) => Err(cause),
+        }
+    }
+
+    /// The identity of `points` on the variety, each residual read under
+    /// `site`.
+    fn ladder(&self, points: &[Point3<T>], site: &'static str, band: Band) -> IdentityLadder {
         let residuals = points.iter().map(|&q| {
             (
                 site,
@@ -153,8 +188,6 @@ impl<'s, T: Decide> Variety<'s, T> {
             )
         });
         read_identity(residuals, band)
-            .holds()
-            .map(|on| if on { Piece::Sampled } else { Piece::Off })
     }
 }
 
