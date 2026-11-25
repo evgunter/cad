@@ -105,11 +105,31 @@ introduce a fake cache like (2) has".
 - **The same rule everywhere.** It holds for every partner kind, for
   node ends and for both charts of a spline × spline pair. The trace and
   rest mint the wall's chart the same way.
-- **Projection is made well-posed.** It follows the carrier
-  continuously from its start vertex's stored chart point, not point by
-  point to the closest point, so it recovers the march's branch on
-  folded walls and across closed-wall seams. Imports need this under any
-  answer.
+- **Projection is made well-posed.** Nothing is stored to pick the
+  branch and no caller passes a start: the image is the chart path,
+  continuous in the chart's cover and placed in its principal window
+  (C4), whose every wall point lies within the band of the carrier.
+  - A `geom` door inverts a point onto a spline wall soundly: every
+    chart point within a radius of it, by subdividing the wall and
+    discarding cells whose control hull is farther. It replaces the
+    seed grid.
+  - The path is entered at a fixed interior point of the carrier's span
+    (a function of the span, never of an edge's interval) and followed
+    both ways; every foot stays within the band of the carrier, decided
+    at the band door, or the step halves.
+  - The miss is read against the path's own foot, continued from its
+    neighbours, never against a foot searched for from the image.
+  - A seam is crossed in the cover: the image breaks where the path
+    crosses it, with its foot on the seam line, and the certificate
+    charges the seam's closure gap. An edge along a seam keeps C4's one
+    image and two joint elements.
+  - No path refuses typed, "carrier off the wall at t"; several paths
+    farther apart than the band refuse typed, "ambiguous branch".
+  - `edge_nurbs::chart_foot` reads the same door. The image's standoff
+    share goes.
+
+  This recovers the march's branch on folded walls and across
+  closed-wall seams, and treats imports as traced edges.
 - **No stored-fit fallback.** Keeping the trace's own fit is not taken,
   even as a temporary measure. If the function refuses where the march
   did not, that is a defect of the projection: stop and report it.
