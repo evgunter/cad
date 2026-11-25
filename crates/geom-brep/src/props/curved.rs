@@ -2641,17 +2641,11 @@ fn cone_nappe<T: Decide>(ends: &[T], band: Band) -> Result<T, PropsError> {
 /// (`topo`'s curved-rim lane, for a cone face a spiric or a spline
 /// bounds), the closed form's (`cone_loops`) where they apply to the
 /// carrier:
-///
-/// - a line, a circle or an ellipse lies on the cone
-///   (`require_on_cone`) with its conic span decided
-///   (`require_cone_conic_spans`), and is bounded in slant by its ends;
-/// - a spline is bounded in slant by its control points, whose hull
-///   holds it (its weights are positive);
-/// - a spiric or a periodic cubic by its start's slant widened by its
-///   extent ([`crate::edge_extent_sup`]) over `cos α`, the slant's
-///   Lipschitz constant;
-///
-/// and those bounds lie on one nappe (`cone_nappe`). A spline's or a
+/// a line, a circle or an ellipse lies on the cone (`require_on_cone`)
+/// with its conic span decided (`require_cone_conic_spans`), and every
+/// edge's slant range, read off its cover over its span along the axis
+/// (`Curve3::cover_over`, a spline's its control hull's), lies on one
+/// nappe (`cone_nappe`). A spline's or a
 /// spiric's distance off the cone is not decided here, nor charged
 /// (`work/sectcone/the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone.md`).
 ///
@@ -2675,22 +2669,21 @@ pub fn require_cone_cap<T: Decide>(
     };
     let (apex, axis) = (frame.origin(), frame.axis_unit());
     let (sin_a, cos_a) = half_angle.sin_cos();
-    let slant = |p: Point3<T>| (p - apex).dot(axis.get()) / cos_a;
+    let at_apex = (apex - Point3::origin()).dot(axis.get());
     let mut ends = Vec::new();
     for &edges in loops {
         for e in edges {
-            match &e.carrier {
-                Curve3::Nurbs(c) => ends.extend(c.control().iter().map(|&p| slant(p))),
-                Curve3::Spiric { .. } | Curve3::Periodic(_) => {
-                    let reach = crate::edge_extent_sup(&e.carrier, e.t0, e.t1).length() / cos_a;
-                    let at = slant(e.p0());
-                    ends.extend([at - reach, at + reach]);
-                }
-                Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
-                    require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
-                    ends.extend([slant(e.p0()), slant(e.p1())]);
-                }
+            if !e.carrier.is_curved() || e.carrier.conic().is_some() {
+                require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
             }
+            let (lo, hi) = e
+                .carrier
+                .cover_over(geom::cover::ParamWindow::new(e.t0, e.t1))
+                .map_err(|_| PropsError::QuadratureUnsupported {
+                    what: "a cone cap edge with no cover over its span",
+                })?
+                .range_along(axis.get());
+            ends.extend([(lo - at_apex) / cos_a, (hi - at_apex) / cos_a]);
         }
         require_cone_conic_spans(edges, band)?;
     }
