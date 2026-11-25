@@ -2006,6 +2006,23 @@ impl PickIndex {
         error
     }
 
+    /// **A naming-emission bug, planted**: the drawn patch `id` refuses
+    /// its name with the naming layer's own refusal, as
+    /// [`PickIndex::unname_edge`] plants one on an edge.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)] // A fixture's failure mechanism (workspace lint note).
+    pub(crate) fn unname_patch(&mut self, id: u32) {
+        let PatchId { node, body, patch } = self.ids.key_of(id).expect("a drawn patch");
+        let error = UnnamedEntity {
+            node,
+            entity: editor_core::EntityRef {
+                body,
+                key: editor_core::EntityKey::Face(pncad::topo::FaceKey::default()),
+            },
+        };
+        self.patches.unname(node, body, patch, error);
+    }
+
     /// The drawn edges an edge selection denotes: the edges of its own
     /// (node, body) whose name is its name.
     ///

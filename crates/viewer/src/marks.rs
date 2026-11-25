@@ -24,7 +24,9 @@
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a variable means walking `doc.ids()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
-//!   because it is about a pick.
+//!   because it is about a pick. [`step_focus`] narrows it to the walls
+//!   ONE profile step swept, while the panel edits that step
+//!   ([`panel_focus`]).
 //!
 //! **They read the index through its public doors only** —
 //! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`,
@@ -58,9 +60,10 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
+use editor_core::names::{CarriedAs, SegOrigin, VerbatimEdge, origin, verbatim_edge};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, StepId, VarId};
 use pncad::geom_core::Point3;
-use pncad::prelude::{NameOrigin, StableName, attribute};
+use pncad::prelude::{NameOrigin, ProfileEdgeRef, RoleSeg, StableName, attribute};
 
 use crate::display::DisplayView;
 use crate::narrowing::Narrow;
@@ -875,17 +878,8 @@ impl LegLane {
 /// is the feature the tree and the property header name, a name the
 /// attribution walk cannot classify included.
 ///
-/// **What it does NOT do yet (issue 1182)**, stated so the gap is not
-/// mistaken for a decision: the marking is per NODE, so selecting a
-/// profile lights the whole body built from it rather than the walls of
-/// the one segment being edited. Per-segment marking is expressible in
-/// this type — the answer is a set of patch ids and nothing about the
-/// shape assumes a whole node's worth — and wants the profile-step ↔
-/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established rather
-/// than guessed: a slot's `step` is an index in the AUTHORING chain and
-/// the name's `segment` an index in the LOWERED one, and one authored
-/// step can lower to several segments. A wrong guess there lights a
-/// confidently wrong face, silently.
+/// The marking is per NODE. While the panel edits one step of a
+/// profile, [`panel_focus`] answers [`step_focus`] in its place.
 ///
 /// A selection whose referent is not drawn — vanished, unevaluated,
 /// hidden, or a feature that produces no body at all — answers the
@@ -977,6 +971,322 @@ fn marked_for(
         .into_iter()
         .flat_map(|drawn| index.ids_of_node(drawn))
         .collect()
+}
+
+/// **The profile step the side panel is editing**: the profile node,
+/// and the minted id of the step whose field holds the keyboard or the
+/// drag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EditedStep {
+    /// The profile node.
+    pub profile: RecipeNodeId,
+    /// The step's minted id.
+    pub step: StepId,
+}
+
+/// **The walls [`step_focus`] lights**, and how many of them are merged
+/// faces: a face a boolean fused from this step's wall and coplanar
+/// faces beside it, drawn whole, so it is wider than the wall.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StepWalls {
+    /// The lit patches.
+    pub lit: BTreeSet<u32>,
+    /// How many of them are merged faces.
+    pub merged: usize,
+}
+
+/// **Why [`step_focus`] lights nothing**: drawn faces built from the
+/// profile carry names the walk cannot read — the naming layer named
+/// no entity there, the role path is one the attribution walk cannot
+/// classify, or a carried level's site does not reach the node that
+/// spelled it — so whether any of them is the step's wall is not known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepFocusUnread {
+    /// How many faces built from the profile have such a name.
+    pub unread: usize,
+    /// How many faces built from the profile are drawn.
+    pub drawn: usize,
+}
+
+impl core::fmt::Display for StepFocusUnread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { unread, drawn } = *self;
+        let has = if unread == 1 {
+            "has a name"
+        } else {
+            "have names"
+        };
+        write!(
+            f,
+            "{unread} of the {drawn} faces built from this profile {has} the viewer \
+             cannot read, so the walls this step swept are not lit"
+        )
+    }
+}
+
+impl core::error::Error for StepFocusUnread {}
+
+/// **The walls one profile step swept**: the drawn faces built from
+/// `edited.profile` whose name, read down its carried levels to the
+/// level that made the face, is a wall over a piece of `edited.step` —
+/// an extrude's side wall, a revolve's band, a loft's wall — or a
+/// merged face one of whose retired faces is.
+///
+/// A name spells a profile piece by the minted id of the step that drew
+/// it, so the step's pieces are read off the names themselves and no
+/// step-to-segment correspondence is consulted. What a step lights is
+/// the walls over the pieces the profile attributes to it, which is not
+/// every wall its numbers move: a fillet's arc is its own, and of the
+/// runs either side of it only those no earlier step's piece already
+/// draws (`profile::Piece`), so a fillet lights one of the two tangent
+/// walls it trims where the other is an earlier fillet's run. A wall
+/// built over a run of several steps' pieces is lit for each of them.
+/// Only faces are drawn, so a step's rim edges are shown by the walls
+/// beside them.
+///
+/// A step that draws no wall — an entry verb, a direction-binding verb,
+/// or a step a pending edit re-verbed or added, which the picture does
+/// not draw — lights nothing. So does a step whose walls a later
+/// feature consumed or hid: what is lit is what is drawn. A blend or a
+/// corner face cut against the wall is not the wall, and is not lit;
+/// nor is a wall of a part an instance carries in, whatever its ids
+/// ([`swept_by`]).
+///
+/// # Errors
+///
+/// [`StepFocusUnread`] when any face built from the profile has a name
+/// the walk cannot read: whether it is this step's wall is unknown, so
+/// lighting the readable walls alone would present a partial set as the
+/// whole one.
+pub fn step_focus(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    edited: EditedStep,
+) -> Result<StepWalls, StepFocusUnread> {
+    let built: BTreeSet<u32> = crate::display::drawn_deriving_from(doc, edited.profile)
+        .into_iter()
+        .flat_map(|drawn| index.ids_of_node(drawn))
+        .collect();
+    let mut walls = StepWalls::default();
+    let mut unread = 0;
+    for &id in &built {
+        let read = index.name_of(id).ok().zip(index.ids().key_of(id));
+        match read.and_then(|(name, patch)| {
+            attribute(name).minted_by()?;
+            swept_by(doc, patch.node, name, edited.step)
+        }) {
+            Some(Swept::Wall) => {
+                walls.lit.insert(id);
+            }
+            Some(Swept::Merged) => {
+                walls.lit.insert(id);
+                walls.merged += 1;
+            }
+            Some(Swept::No) => {}
+            None => unread += 1,
+        }
+    }
+    if unread == 0 {
+        Ok(walls)
+    } else {
+        Err(StepFocusUnread {
+            unread,
+            drawn: built.len(),
+        })
+    }
+}
+
+/// **What a drawn face is to one step** ([`swept_by`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Swept {
+    /// No wall of the step's.
+    No,
+    /// A wall over a piece of the step.
+    Wall,
+    /// A merged face that retired such a wall.
+    Merged,
+}
+
+/// **What the face `name`, read at the node `site`, is to `step`** (see
+/// [`step_focus`]), or `None` where that cannot be read: a carried
+/// level whose site does not reach the node that spelled it, or a
+/// merged face retiring such a face.
+///
+/// The name is walked down its carried levels, each read at its own
+/// site: a `From`'s at the operation its read depends on
+/// (`Doc::read_operation`, which takes a selection to its body's), any other carry's at
+/// the node that spelled the level carrying it. A level whose site
+/// reaches an instance before the node that spelled it is the part's,
+/// spelled in the part's ids ([`spelled_at`]), and is no wall of this
+/// document's step whatever its ids say: a mint chain starts empty in
+/// every document, so a part and a host whose first edits are alike
+/// mint the same ids, and the ids alone cannot tell a part's wall from
+/// the host's.
+fn swept_by(
+    doc: &Doc<ProfileProgram>,
+    mut site: RecipeNodeId,
+    mut level: &StableName,
+    step: StepId,
+) -> Option<Swept> {
+    loop {
+        if spelled_at(doc, site, level.node)? == Spelled::Part {
+            return Some(Swept::No);
+        }
+        // The carry classification is `names::origin`'s, the one the
+        // attribution walk reads.
+        let (next, inner) = match level.path.first().map(origin) {
+            Some(SegOrigin::Carried(inner, CarriedAs::From(read))) => {
+                (doc.read_operation(read)?, inner)
+            }
+            Some(SegOrigin::Carried(inner, _)) => (level.node, inner),
+            Some(SegOrigin::Minted | SegOrigin::Unclassified) | None => break,
+        };
+        site = next;
+        level = inner;
+    }
+    match level.path.first()? {
+        RoleSeg::Merged(retired) => {
+            let mut any = false;
+            for face in retired {
+                any |= swept_by(doc, level.node, face, step)? != Swept::No;
+            }
+            Some(if any { Swept::Merged } else { Swept::No })
+        }
+        own => {
+            let wall = own.pieces().iter().any(
+                |piece| matches!(piece, ProfileEdgeRef::Piece { step: of, .. } if *of == step),
+            );
+            Some(if wall { Swept::Wall } else { Swept::No })
+        }
+    }
+}
+
+/// Whose ids a name level read at a site is spelled in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Spelled {
+    /// This document's.
+    Here,
+    /// A part's: the site's copy carries the part's names verbatim.
+    Part,
+}
+
+/// **Whose ids the level spelled at `minter` is in, read at `site`**:
+/// `site` followed through the nodes that pass their input's names on
+/// unchanged (a placement's copy, a split's intact entities, a mirror's
+/// image) reaches `minter`, and the level is this document's, or
+/// reaches an instance first, and the level is the part's. `None` where
+/// it reaches neither — a node that spells nothing it carries.
+fn spelled_at(
+    doc: &Doc<ProfileProgram>,
+    site: RecipeNodeId,
+    minter: RecipeNodeId,
+) -> Option<Spelled> {
+    let mut at = site;
+    let mut seen = BTreeSet::new();
+    while seen.insert(at) {
+        // The pass-through classification is `names::verbatim_edge`'s,
+        // the one every walk of that list reads.
+        let edge = verbatim_edge(doc.node(at)?);
+        if matches!(edge, Some(VerbatimEdge::Copied { source: None })) {
+            return Some(Spelled::Part);
+        }
+        if at == minter {
+            return Some(Spelled::Here);
+        }
+        at = doc.read_operation(edge?.carried_read()?)?;
+    }
+    None
+}
+
+/// **What the picture marks for the side panel**: [`focus`], narrowed
+/// to [`step_focus`] while the panel edits a step of the selected
+/// profile, with what the editor owes the person about that step.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PanelFocus {
+    /// The lit patches.
+    pub lit: BTreeSet<u32>,
+    /// What the profile editor says under the step it holds, if
+    /// anything, with the step it was found for.
+    pub note: Option<HeldNote>,
+}
+
+/// **A [`StepNote`] and the step it was found for**: said only while
+/// that step is still the one held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HeldNote {
+    /// The step the note is about.
+    pub step: EditedStep,
+    /// The note.
+    pub note: StepNote,
+}
+
+impl HeldNote {
+    /// The note, where `held` is the step it was found for; nothing for
+    /// any other step, or none.
+    #[must_use]
+    pub fn for_held(self, held: Option<EditedStep>) -> Option<StepNote> {
+        (held == Some(self.step)).then_some(self.note)
+    }
+}
+
+/// **What the profile editor says about the walls a held step lights.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepNote {
+    /// They are not lit ([`StepFocusUnread`]).
+    Unread(StepFocusUnread),
+    /// This many of the lit faces are merged, wider than the step's
+    /// walls ([`StepWalls::merged`]).
+    Merged(usize),
+}
+
+impl core::fmt::Display for StepNote {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::Unread(unread) => unread.fmt(f),
+            Self::Merged(1) => f.write_str(
+                "a lit face is merged with faces beside this step's wall, so it is drawn \
+                 wider than the wall",
+            ),
+            Self::Merged(n) => write!(
+                f,
+                "{n} lit faces are merged with faces beside this step's walls, so they are \
+                 drawn wider than the walls"
+            ),
+        }
+    }
+}
+
+/// [`PanelFocus`] for `selection`, with `edited` the step the panel
+/// held on the last frame. A step whose walls cannot be read lights
+/// nothing, never the whole profile's body, and the note says why.
+pub fn panel_focus(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    selection: &Selection,
+    edited: Option<EditedStep>,
+) -> PanelFocus {
+    match edited.filter(|edited| selection.node() == Some(edited.profile)) {
+        Some(edited) => match step_focus(index, doc, edited) {
+            Ok(StepWalls { lit, merged }) => PanelFocus {
+                lit,
+                note: (merged > 0).then_some(HeldNote {
+                    step: edited,
+                    note: StepNote::Merged(merged),
+                }),
+            },
+            Err(unread) => PanelFocus {
+                lit: BTreeSet::new(),
+                note: Some(HeldNote {
+                    step: edited,
+                    note: StepNote::Unread(unread),
+                }),
+            },
+        },
+        None => PanelFocus {
+            lit: focus(index, doc, selection),
+            note: None,
+        },
+    }
 }
 
 /// Whether any of `node`'s slot expressions reads the variable `var`
@@ -1239,5 +1549,81 @@ mod tests {
             marked, want,
             "the preview's outline is marked as the selection"
         );
+    }
+
+    /// **A face whose name cannot be read refuses the step's walls**
+    /// rather than lighting the readable ones as if they were all of
+    /// them, and the panel's focus is then nothing, never the whole
+    /// body the profile built.
+    #[test]
+    fn an_unread_face_refuses_the_step_and_lights_nothing() {
+        let tol = Tol::witness();
+        let (_, mut index, _) = plate_indexed(tol);
+        let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+        let Some((profile, program)) = doc.ids().iter().find_map(|&id| match doc.node(id) {
+            Some(pncad::document::Node::Profile(program)) => Some((id, program.clone())),
+            _ => None,
+        }) else {
+            panic!("the plate has a profile")
+        };
+        // The outline's first leg, past its entry.
+        let edited = super::EditedStep {
+            profile,
+            step: program.ids[0][1],
+        };
+        let walls = super::step_focus(&index, &doc, edited)
+            .expect("every plate face is named")
+            .lit;
+        assert_eq!(walls.len(), 1, "the leg sweeps one wall: {walls:?}");
+        let body = super::focus(&index, &doc, &Selection::Node(profile));
+        let other = *body
+            .iter()
+            .find(|id| !walls.contains(id))
+            .expect("the plate draws more than one face");
+        index.unname_patch(other);
+        assert!(
+            index.name_of(other).is_err(),
+            "the planted refusal reads back"
+        );
+        assert_eq!(
+            super::step_focus(&index, &doc, edited),
+            Err(super::StepFocusUnread {
+                unread: 1,
+                drawn: body.len(),
+            }),
+        );
+        assert_eq!(
+            super::panel_focus(&index, &doc, &Selection::Node(profile), Some(edited)),
+            super::PanelFocus {
+                lit: BTreeSet::new(),
+                note: Some(super::HeldNote {
+                    step: edited,
+                    note: super::StepNote::Unread(super::StepFocusUnread {
+                        unread: 1,
+                        drawn: body.len(),
+                    }),
+                }),
+            },
+            "a refused step lights nothing, and the editor is told why"
+        );
+    }
+
+    /// **A note is said only under the step it was found for**: a note
+    /// found for one step and read while another is held, or none,
+    /// says nothing.
+    #[test]
+    fn a_note_is_said_only_under_its_own_step() {
+        let profile = RecipeNodeId(pncad::document::MintId::new(1, 1));
+        let at = |ordinal| super::EditedStep {
+            profile,
+            step: pncad::document::StepId(pncad::document::MintId::new(ordinal, 1)),
+        };
+        let note = super::HeldNote {
+            step: at(2),
+            note: super::StepNote::Merged(1),
+        };
+        assert_eq!(note.for_held(Some(at(2))), Some(super::StepNote::Merged(1)));
+        assert_eq!(note.for_held(Some(at(3))), None, "another step held");
+        assert_eq!(note.for_held(None), None, "no step held");
     }
 }
