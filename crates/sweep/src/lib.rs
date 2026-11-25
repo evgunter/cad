@@ -236,7 +236,7 @@ mod restatement_census {
     /// on the carrier its surgery builds (`blend/surgery.rs`).
     const COMPUTED: [(&str, &str, usize); 2] = [
         ("blend/surgery.rs", "set_edge_curve", 1),
-        ("loft.rs", "set_edge_curve", 2),
+        ("loft.rs", "set_edge_curve", 1),
     ];
 
     #[test]

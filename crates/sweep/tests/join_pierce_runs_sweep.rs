@@ -1165,33 +1165,27 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
     dot(gap, gap).sqrt()
 }
 
-/// **A near-tangent two-run pierce builds right where the census reads
-/// an overlap that is not there.** The shallow prism's reflex corner on
+/// **A near-tangent two-run pierce builds, and its copies' edges pass
+/// tier 3′ by their far-end gap.** The shallow prism's reflex corner on
 /// a cube whose face plane lies ten bands off the corner's edge toward
 /// `(4, 1)` (1e-7 rad at the default ε: review r1's
 /// `shallow200 nt e0 a3 d1e-7`; scaled with the band so that the pose
 /// is the same at every ε). Prism ∪ cube and prism ∖ cube build at the
-/// clipping oracle's volume, with tier 2 and the certificate. Read by
-/// segment distance, not by the census, the body's edge pairs come
-/// within the band only at the pierce's copies:
+/// clipping oracle's volume, with tier 2, the certificate and tier 3′.
+/// Read by segment distance, not by the census, the body's edge pairs
+/// come within the band only at the pierce's copies:
 /// - edges that share no end point lie farther apart than the band;
 /// - edges that share an end vertex part by more than it at the
 ///   shorter one's far end;
-/// - edges that meet at `v`, where the pierce's copies stay apart (no
-///   face meets both, PR 3813): edges that end there at two vertices,
-///   or an edge ending there on the interior of a seam edge the output
-///   stage joined through the other copy's point. Those
-///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
-///   within the band for a
-///   stretch, which the census passes: that class is filed
-///   (`work/inside/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
-///   and this row does not claim them apart.
-///
-/// Tier 3′ is not asserted: its edge-edge lane reads the section edge
-/// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
-/// because it reads their line offset at the long edge's start, which
-/// lies on the short edge's line
-/// (`work/inside/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+/// - edges that meet at `v`, where the pierce's copies stay apart in ∪:
+///   edges that end there at two vertices on one point key, or an edge
+///   ending there on the interior of a seam edge the output stage
+///   joined through the other copy's point. Those edges leave `v`
+///   3.7e-7 rad apart (at the default ε) and run within the band for a
+///   stretch near `v`. The census reads cells sharing a point key by
+///   their largest distance beyond it, here the shorter edge's far end,
+///   about 70 bands, and passes them (`[topology.census]`); the stretch
+///   is the shared point's neighbourhood, which it does not read.
 #[test]
 fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];
@@ -1239,6 +1233,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
             topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
             "{op}: the certificate"
         );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+            Ok(()),
+            "{op}: tier 3′"
+        );
         let got = vol(&bb.body);
         assert!((got - want).abs() < 1e-9, "{op}: volume {got}, want {want}");
         let end = |he| {
@@ -1277,6 +1276,12 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
                             len((p, v)) <= band,
                             "{op}: edges {g1:?} and {g2:?} end on one point at two \
                              vertices away from the pierce"
+                        );
+                        let key = |k| bb.body.get_vertex(k).unwrap().point;
+                        let (ka, kb) = ([a0.0, a1.0], [b0.0, b1.0]);
+                        assert!(
+                            ka.iter().any(|&x| kb.iter().any(|&y| key(x) == key(y))),
+                            "{op}: edges {g1:?} and {g2:?} end on one point on two point keys"
                         );
                         at_copies += 1;
                         continue;
