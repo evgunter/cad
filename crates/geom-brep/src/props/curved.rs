@@ -3264,84 +3264,107 @@ fn require_apex_lobes<T: Decide>(
             PropsCheck::Inventory,
         )
     };
-    // A ruling's azimuth from the first lobe's leaving ruling, in
-    // `[0, τ)`: the side of that ruling's line it lies on picks the
-    // branch, a quarter turn or three, so no reading meets its cut, and
-    // one on the line is at `0` or half a turn.
-    let origin = lobes[0].2;
-    let azimuth = |u: Vec3<T>| -> Result<T, PropsError> {
+    // Every wedge side's ruling. Sides `2k` and `2k + 1` are lobe `k`'s
+    // leaving and returning rulings.
+    let sides: Vec<Vec3<T>> = lobes
+        .iter()
+        .flat_map(|&(_, _, leave, back)| [leave, back])
+        .collect();
+    let n_sides = sides.len();
+    // Whether two rulings are one, decided between the two alone: the
+    // sine of the turn between them within the band at the pair's reach,
+    // on the same side of the apex.
+    let mut one = vec![vec![true; n_sides]; n_sides];
+    for i in 0..n_sides {
+        for j in i + 1..n_sides {
+            let (u, v) = (sides[i], sides[j]);
+            let (dot, cross) = turn_arms(axis, u, v);
+            let lengths = u.norm() * v.norm();
+            let same = apart(cross / lengths, (u, v))? == Sign::Zero
+                && apart(dot / lengths, (u, v))? == Sign::Positive;
+            one[i][j] = same;
+            one[j][i] = same;
+        }
+    }
+    // The rulings are the connected components of that relation, each
+    // of which must be one where every pair is one ruling. Three sides
+    // chained within the band, the ends decided apart, have no grouping
+    // that does not hang on the order read, and refuse.
+    let mut ruling = vec![usize::MAX; n_sides];
+    let mut reps = Vec::new();
+    for seed in 0..n_sides {
+        if ruling[seed] != usize::MAX {
+            continue;
+        }
+        let m = reps.len();
+        let mut component = vec![seed];
+        ruling[seed] = m;
+        let mut next = 0;
+        while next < component.len() {
+            let i = component[next];
+            next += 1;
+            for j in 0..n_sides {
+                if ruling[j] == usize::MAX && one[i][j] {
+                    ruling[j] = m;
+                    component.push(j);
+                }
+            }
+        }
+        if component
+            .iter()
+            .any(|&i| component.iter().any(|&j| !one[i][j]))
+        {
+            return Err(refuse(SIDE));
+        }
+        reps.push(seed);
+    }
+    let m = reps.len();
+    // Each ruling's azimuth from the first side's, in `[0, τ)`, to rank
+    // them: the side of that ruling's line it lies on picks the branch,
+    // a quarter turn or three, so no reading meets its cut; one on the
+    // line is the first side's own ruling at `0`, or half a turn off.
+    let origin = sides[0];
+    let mut azimuths = Vec::with_capacity(m);
+    for (r, &i) in reps.iter().enumerate() {
+        let u = sides[i];
         let (dot, cross) = turn_arms(axis, origin, u);
         let read = geom::Azimuth::of(cross, dot);
         let lengths = origin.norm() * u.norm();
-        Ok(match apart(cross / lengths, (origin, u))? {
-            Sign::Positive => read.about(geom::Quarter(1)),
-            Sign::Negative => read.about(geom::Quarter(3)),
-            Sign::Zero => match apart(dot / lengths, (origin, u))? {
-                Sign::Positive => T::zero(),
-                _ => T::pi(),
-            },
-        })
-    };
-    // Every wedge side: its ruling and azimuth. Sides `2k` and `2k + 1`
-    // are lobe `k`'s leaving and returning rulings.
-    let mut sides = Vec::with_capacity(2 * lobes.len());
-    for &(_, _, leave, back) in &lobes {
-        sides.push((leave, azimuth(leave)?));
-        sides.push((back, azimuth(back)?));
-    }
-    // Every pair's order, decided at the pair's own reach.
-    let n_sides = sides.len();
-    let mut order = vec![vec![Sign::Zero; n_sides]; n_sides];
-    for i in 0..n_sides {
-        for j in 0..n_sides {
-            if i != j {
-                let ((u, a), (v, b)) = (sides[i], sides[j]);
-                order[i][j] = apart(a - b, (u, v))?;
+        azimuths.push(if r == 0 {
+            T::zero()
+        } else {
+            match apart(cross / lengths, (origin, u))? {
+                Sign::Positive => read.about(geom::Quarter(1)),
+                Sign::Negative => read.about(geom::Quarter(3)),
+                Sign::Zero => read.about(geom::Quarter(2)),
             }
-        }
-    }
-    // Sides decided one ruling are grouped only where that relation is
-    // an equivalence: three sides chained within the band, the ends
-    // decided apart, have no grouping that does not depend on the order
-    // read, and refuse.
-    let mut ruling = vec![usize::MAX; n_sides];
-    let mut m = 0;
-    for i in 0..n_sides {
-        if ruling[i] != usize::MAX {
-            continue;
-        }
-        let class: Vec<usize> = (0..n_sides)
-            .filter(|&j| j == i || order[i][j] == Sign::Zero)
-            .collect();
-        for &j in &class {
-            for &k in &class {
-                if j != k && order[j][k] != Sign::Zero {
-                    return Err(refuse(SIDE));
-                }
-            }
-            ruling[j] = m;
-        }
-        m += 1;
+        });
     }
     // Each ruling's rank in ascending azimuth: the count of rulings
-    // decided below it, read off one side of each.
-    let mut first_side = vec![0; m];
-    for i in (0..n_sides).rev() {
-        first_side[ruling[i]] = i;
+    // decided below it. Two rulings decided apart whose azimuths are not
+    // refuse.
+    let mut rank = vec![0; m];
+    for r in 0..m {
+        for q in 0..m {
+            if r == q {
+                continue;
+            }
+            match apart(azimuths[r] - azimuths[q], (sides[reps[r]], sides[reps[q]]))? {
+                Sign::Positive => rank[r] += 1,
+                Sign::Negative => {}
+                Sign::Zero => return Err(refuse(SIDE)),
+            }
+        }
     }
-    let rank: Vec<usize> = (0..m)
-        .map(|r| {
-            (0..m)
-                .filter(|&q| order[first_side[r]][first_side[q]] == Sign::Positive)
-                .count()
-        })
-        .collect();
     // Arc `j` runs from the ruling of rank `j` to the next. A wedge runs
     // with its sense from the ruling it leaves along to the one it
     // returns on. Where those are one ruling at the lobe's own reach, its
     // sweep must be past half a turn, decided at the lobe's own arm: it
     // is then the whole turn (definite, at most a turn, and congruent to
-    // the turn between its sides). A sweep not so decided refuses.
+    // the turn between its sides). A sweep not so decided refuses: a
+    // lobe whose two sides are within the band of each other at its
+    // shorter side's reach is a whole turn or a typed refusal, never a
+    // sliver, by design.
     let mut count = vec![0i32; m];
     for (k, &((sense, total, lobe_arm), ..)) in lobes.iter().enumerate() {
         let (leave, back) = (rank[ruling[2 * k]], rank[ruling[2 * k + 1]]);

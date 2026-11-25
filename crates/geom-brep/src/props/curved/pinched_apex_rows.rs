@@ -371,3 +371,36 @@ fn lobes_of_scales_a_thousand_apart_measure() {
         }
     }
 }
+
+/// **Rulings chained within the band refuse whatever the loop's start**
+/// (`props_cone_apex_lobe_side`): a thin sector `[0.3, 0.3 + δ]` at depth
+/// `1`, its two sides decided apart there, and a sector reaching only
+/// depth `d` that leaves from between them, within the band of both at
+/// its short reach. Three sides chained, the ends apart, group no way
+/// that does not hang on the order read: either loop order, from every
+/// start, refuses alike.
+#[test]
+fn rulings_chained_within_the_band_refuse_from_every_start() {
+    let k = band().zero() / 1e-9;
+    let floor = 100.0 * band().zero();
+    for (delta, d) in [(1e-6, 1e-4), (1e-6, 1e-5), (1e-5, 1e-5), (1e-7, 1e-3)]
+        .into_iter()
+        .map(|(delta, d)| (delta * k, d))
+        .filter(|&(_, d)| d >= floor)
+    {
+        let thin = || sector(1.0, 0.3, 0.3 + delta, (1, 2));
+        let short = || sector(d, 0.3 + delta / 2.0, 2.0, (3, 4));
+        for (order, edges) in [
+            ("A, B", chain(thin(), short())),
+            ("B, A", chain(short(), thin())),
+        ] {
+            for (start, turned) in every_start(&edges) {
+                assert_eq!(
+                    measured(&turned),
+                    refused("props_cone_apex_lobe_side"),
+                    "δ {delta}, d {d}, {order}, start {start}"
+                );
+            }
+        }
+    }
+}
