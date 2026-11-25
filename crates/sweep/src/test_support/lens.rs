@@ -23,12 +23,12 @@ pub fn disc_overlap(a: f64, b: f64, d: f64) -> f64 {
     }
     if d <= (a - b).abs() {
         let m = a.min(b);
-        return PI * m * m;
+        return PI * m.powi(2);
     }
-    let ca = ((d * d + a * a - b * b) / (2.0 * d * a)).clamp(-1.0, 1.0);
-    let cb = ((d * d + b * b - a * a) / (2.0 * d * b)).clamp(-1.0, 1.0);
+    let ca = ((d.powi(2) + a.powi(2) - b.powi(2)) / (2.0 * d * a)).clamp(-1.0, 1.0);
+    let cb = ((d.powi(2) + b.powi(2) - a.powi(2)) / (2.0 * d * b)).clamp(-1.0, 1.0);
     let k = (-d + a + b) * (d + a - b) * (d - a + b) * (d + a + b);
-    a * a * ca.acos() + b * b * cb.acos() - 0.5 * k.max(0.0).sqrt()
+    a.powi(2) * ca.acos() + b.powi(2) * cb.acos() - 0.5 * k.max(0.0).sqrt()
 }
 
 /// **The volume of the ball of radius `r` inside a solid of revolution**:
@@ -67,7 +67,7 @@ pub fn ball_in_revolved(
 pub fn torus_slice(big: f64, small: f64) -> impl Fn(f64) -> Option<(f64, f64)> {
     move |z: f64| {
         (z.abs() < small).then(|| {
-            let s = (small * small - z * z).sqrt();
+            let s = (small.powi(2) - z.powi(2)).sqrt();
             (big - s, big + s)
         })
     }

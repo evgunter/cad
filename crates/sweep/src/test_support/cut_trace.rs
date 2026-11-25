@@ -39,7 +39,7 @@ fn dividing_edges(body: &Body<f64>) -> Vec<(geom::Curve3<f64>, f64)> {
             }
             let curve = body.get_curve_geom(d.curve)?.certified()?;
             let (t0, t1) = curve.params();
-            Some((curve.carrier().clone(), 0.5 * (t0 + t1)))
+            Some((curve.carrier().clone(), geom::mid_param(t0, t1)))
         })
         .collect()
 }
