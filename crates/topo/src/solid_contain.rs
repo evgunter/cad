@@ -1047,7 +1047,7 @@ fn face_geo_arms<T: Decide>(
                     sense: proven(&body.faces, representative, EntityId::Face).sense,
                 });
             }
-            match torus_face_region(body, face)? {
+            match torus_face_region(body, face, None)? {
                 Some(region) => Ok(FaceGeo::TorusPatch {
                     axis: geom::Line {
                         origin: center,
@@ -5352,7 +5352,7 @@ mod torn_hop_rows {
             (-0.7, 0.8),
         );
         assert!(
-            torus_face_region(&body, face).unwrap().is_some(),
+            torus_face_region(&body, face, None).unwrap().is_some(),
             "the sound wall's region"
         );
         let named = drop_first_curve(&mut body, face);
@@ -5360,7 +5360,7 @@ mod torn_hop_rows {
             "torus_face_region",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| torus_face_region(b, face).map(|r| r.is_some()),
+            |b| torus_face_region(b, face, None).map(|r| r.is_some()),
         );
     }
 
@@ -5480,7 +5480,7 @@ mod stated_periods_rows {
                 us,
                 vs,
             );
-            let region = torus_face_region(&body, face).unwrap().unwrap();
+            let region = torus_face_region(&body, face, None).unwrap().unwrap();
             for i in 0..9 {
                 for j in 0..9 {
                     let (u, v) = (-0.4 + 0.33 * f64::from(i), -1.3 + 0.31 * f64::from(j));
@@ -5502,7 +5502,7 @@ mod stated_periods_rows {
             us,
             vs,
         );
-        let region = torus_face_region(&body, face).unwrap().unwrap();
+        let region = torus_face_region(&body, face, None).unwrap().unwrap();
         for (u, v) in [(1.1, 0.05), (-0.2, 0.05), (1.1, 1.5), (2.5, -1.0)] {
             let inside = us.0 < u && u < us.1 && vs.0 < v && v < vs.1;
             assert_eq!(
@@ -5530,8 +5530,8 @@ mod stated_periods_rows {
             frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
         );
         let (wall, twin) = (
-            torus_face_region(&wall, wf).unwrap().unwrap(),
-            torus_face_region(&twin, tf).unwrap().unwrap(),
+            torus_face_region(&wall, wf, None).unwrap().unwrap(),
+            torus_face_region(&twin, tf, None).unwrap().unwrap(),
         );
         let mut rng = test_utils::fuzz::start("torus_wall_clockwise_twin");
         let tau = core::f64::consts::TAU;

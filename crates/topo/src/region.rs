@@ -486,6 +486,20 @@ pub(crate) type SplineCrossings<T> =
         Band,
     ) -> Option<Result<Vec<T>, geom_brep::curve_face::composite::CompositeRefusal>>;
 
+/// **The spline reader at a scalar that certifies**: the ring composite
+/// ([`geom_brep::NurbsLane::surface_crossings`]), which is what
+/// [`crate::props::AtRestPolicy::spline_face_crossings`] answers at every
+/// such scalar, for a door whose bound is certification rights rather
+/// than the policy.
+pub(crate) fn certified_crossings<T: geom_core::Certifies + geom_core::CertifiedBounds>(
+    net: &geom::NurbsCurve3<T>,
+    params: (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Option<Result<Vec<T>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+}
+
 /// **A door's reading of a spline edge against a leg** ([`spline_landings`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Splines<T: geom_core::Real> {

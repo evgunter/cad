@@ -21,7 +21,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, V
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::live::{AreaLoops, CycleLoop, proven};
-use crate::region::RegionRefusal;
+use crate::region::{RegionRefusal, SplineCrossings};
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
     BoundaryRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
@@ -944,7 +944,7 @@ pub(crate) fn placement_unheld<T: Decide>(
             contfp_decided(body, face, normal, q, band)
                 .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None))
         }
-        _ => curved_face_placement_decided(body, face, q, band),
+        _ => curved_face_placement_decided(body, face, q, band, None),
     }
 }
 
@@ -969,7 +969,27 @@ pub(crate) fn curved_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    curved_face_placement_decided(body, face, q, band).map(|(at, _, _)| at)
+    curved_face_placement_decided(body, face, q, band, None).map(|(at, _, _)| at)
+}
+
+/// [`curved_face_placement`] with `splines`, the scalar's spline reader
+/// ([`crate::region::SplineCrossings`]), handed to a sphere's or a
+/// torus's region, which then reads a face whose boundary holds a spline
+/// arc ([`crate::sphere_region::sphere_face_region`],
+/// [`crate::torus_region::torus_face_region`]). With `None` it is
+/// [`curved_face_placement`].
+///
+/// # Errors
+///
+/// As [`curved_face_containment`].
+pub(crate) fn curved_face_placement_reading<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    splines: Option<SplineCrossings<T>>,
+) -> Result<CurvedPlacement, ContainError> {
+    curved_face_placement_decided(body, face, q, band, splines).map(|(at, _, _)| at)
 }
 
 /// A placement, the margin that decided a boundary verdict, and a
@@ -981,7 +1001,8 @@ pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<
 /// the chart point a spline face's `In` placement was decided at: the
 /// in-trim foot of `q` on the face's own sheet
 /// ([`crate::spline_region::spline_face_placement`]), `None` for every
-/// other placement and every other kind.
+/// other placement and every other kind. `splines` as
+/// [`curved_face_placement_reading`].
 ///
 /// # Errors
 ///
@@ -991,11 +1012,12 @@ fn curved_face_placement_decided<T: Decide>(
     face: FaceKey,
     q: Point3<T>,
     band: Band,
+    splines: Option<SplineCrossings<T>>,
 ) -> Result<ChartedPlacement, ContainError> {
     if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
         return Ok((CurvedPlacement::Trim(Some(v)), Some(margin), None));
     }
-    curved_interior_placement(body, face, q, band, None).map(|(at, uv)| (at, None, uv))
+    curved_interior_placement(body, face, q, band, None, splines).map(|(at, uv)| (at, None, uv))
 }
 
 /// [`curved_face_placement`] past the boundary pre-pass, with a spline
@@ -1003,13 +1025,15 @@ fn curved_face_placement_decided<T: Decide>(
 /// the face's region is the one its surface cycles `cut` bound alone
 /// ([`crate::region::Region::keep_cycles`]), read with no carrier
 /// decision ([`cycle_side`]); a spline face has no such region and
-/// answers `Trim(None)`.
+/// answers `Trim(None)`. `splines` is handed to a sphere's or a torus's
+/// region ([`curved_face_placement_reading`]).
 fn curved_interior_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
     cut: Option<&[usize]>,
+    splines: Option<SplineCrossings<T>>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let view = body.proven_face(face);
     let analytic = match *view.surface() {
@@ -1039,7 +1063,7 @@ fn curved_interior_placement<T: Decide>(
         }
         geom::Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
-            sphere_face_containment(body, face, center, radius, q, band, cut)
+            sphere_face_containment(body, face, (center, radius), q, band, (cut, splines))
         }
         geom::Surface::Torus {
             frame,
@@ -1061,7 +1085,7 @@ fn curved_interior_placement<T: Decide>(
                 },
                 q,
                 band,
-                cut,
+                (cut, splines),
             )
         }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
@@ -1089,16 +1113,16 @@ fn curved_interior_placement<T: Decide>(
 /// whole sphere.
 ///
 /// `None` is the honest remainder: a boundary edge that is not a circle
-/// arc, or a point on the region's boundary that the walk above did not
-/// place. A region no ray settles refuses as a planar face's does.
+/// arc and is no spline arc `splines` reads, or a point on the region's
+/// boundary that the walk above did not place. A region no ray
+/// settles refuses as a planar face's does.
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    center: Point3<T>,
-    radius: T,
+    (center, radius): (Point3<T>, T),
     q: Point3<T>,
     band: Band,
-    cut: Option<&[usize]>,
+    (cut, splines): (Option<&[usize]>, Option<SplineCrossings<T>>),
 ) -> Result<CurvedPlacement, ContainError> {
     if cut.is_none() {
         match decide(
@@ -1111,7 +1135,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match crate::sphere_region::sphere_face_region(body, face, None) {
+    let region = match crate::sphere_region::sphere_face_region(body, face, splines) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1162,16 +1186,17 @@ struct TorusCarrier<T: geom_core::Real> {
 /// and a face closed on its own surface has only seams, so its region is
 /// the whole torus.
 ///
-/// `None` is the honest remainder: a boundary edge that lies in no plane,
-/// or a point on the region's boundary that the walk above did not place.
-/// A region no path settles refuses as a planar face's does.
+/// `None` is the honest remainder: a boundary edge that lies in no plane
+/// and is no spline arc `splines` reads, or a point on the region's
+/// boundary that the walk above did not place. A region no path
+/// settles refuses as a planar face's does.
 fn torus_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
-    cut: Option<&[usize]>,
+    (cut, splines): (Option<&[usize]>, Option<SplineCrossings<T>>),
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
         axis,
@@ -1186,7 +1211,7 @@ fn torus_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match crate::torus_region::torus_face_region(body, face) {
+    let region = match crate::torus_region::torus_face_region(body, face, splines) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1255,7 +1280,7 @@ pub(crate) fn cycle_side<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    curved_interior_placement(body, face, q, band, Some(keep)).map(|(at, _)| at)
+    curved_interior_placement(body, face, q, band, Some(keep), None).map(|(at, _)| at)
 }
 
 /// `region` cut to the surface cycles `cut`, or whole.
