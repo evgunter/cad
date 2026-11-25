@@ -143,10 +143,11 @@ fn face_carrier_kind_copies_the_tag_out_for_every_kind() {
     }
 }
 
-/// **The only refusal is a dangling key**, in the same vocabulary
-/// `face_pose` uses, so a caller maps the two doors' refusals alike.
+/// **The refusals are a dangling key and a pending face**, in the same
+/// vocabulary `face_pose` uses, so a caller maps the two doors'
+/// refusals alike.
 #[test]
-fn face_carrier_kind_refuses_dangling_and_nothing_else() {
+fn face_carrier_kind_refuses_dangling_and_pending_and_nothing_else() {
     let (body, face) = seed_face(plane());
     let empty = Body::<f64>::new();
     assert_eq!(
@@ -156,18 +157,20 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
         })
     );
     assert_eq!(face_carrier_kind(&body, face), Ok(SurfaceKind::Plane));
-    // The placeholder a seed face is minted with is a kind too (rule
-    // 1: the tag is stored data), where `face_pose` has no frame to
-    // report.
+    // A seed face is minted pending: it has no carrier, so no kind,
+    // and both doors refuse it alike.
     let mut bare = Body::<f64>::new();
     let seed = bare
         .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
-    assert!(matches!(
-        face_pose(&bare, seed.face),
-        Err(ReadbackError::NoCanonicalFrame { .. })
-    ));
-    assert!(face_carrier_kind(&bare, seed.face).is_ok());
+    assert_eq!(
+        face_pose(&bare, seed.face).err(),
+        Some(ReadbackError::PendingSurface { face: seed.face })
+    );
+    assert_eq!(
+        face_carrier_kind(&bare, seed.face),
+        Err(ReadbackError::PendingSurface { face: seed.face })
+    );
 }
 
 // ---------------------------------------------------------------------

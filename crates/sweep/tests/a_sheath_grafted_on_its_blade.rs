@@ -180,7 +180,7 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
                 continue;
             };
             for (fk, _) in b.faces() {
-                let Some(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
+                let Ok(plane @ geom::Surface::Plane { .. }) = b.face_surface(fk) else {
                     continue;
                 };
                 let roots = lane.surface_crossings(net, curve.params(), plane, band);
@@ -240,7 +240,7 @@ fn the_guard_reads_the_walls_with_their_shared_rims_handed_in() {
     );
     let spline = |b: &topo::AtRestBody<f64>, f| {
         b.face_surface(f)
-            .is_some_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
+            .is_ok_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
     };
     let walls = report
         .iter()

@@ -1003,19 +1003,17 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Opti
         let (c0, ca, cb, cl) = super::harmonic_form_of(u, v);
         super::harmonic_span_box(c0, ca, cb, cl, t0, t1).v_reach()
     };
-    let turn_in_band = super::chart_sup_arms_over(&super::orthonormal_chart(&surface), || {
+    let (arm_u, _) = super::chart_sup_arms_over(&super::orthonormal_chart(&surface), || {
         reach_of(&stored).min(reach_of(&derived))
-    })
-    .is_ok_and(|(arm_u, _)| {
-        matches!(
-            decide(
-                "pcurve_envelope_term",
-                Margin::of(arm_u.to_meters(PI)),
-                band()
-            ),
-            Ok(Sign::Zero)
-        )
     });
+    let turn_in_band = matches!(
+        decide(
+            "pcurve_envelope_term",
+            Margin::of(arm_u.to_meters(PI)),
+            band()
+        ),
+        Ok(Sign::Zero)
+    );
     if k != 0 && turn_in_band {
         tally.vacuous += 1;
     } else if k != 0 {

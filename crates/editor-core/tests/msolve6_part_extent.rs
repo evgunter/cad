@@ -18,7 +18,6 @@ use topo::construction::Construct;
 
 use std::sync::Arc;
 
-use editor_core::mate::SurfaceKind;
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault, MateRef,
     Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
@@ -290,27 +289,19 @@ fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
     );
 }
 
-/// **A body with a face whose reach cannot be bounded refuses typed,
-/// naming the face and its kind.** No document door builds such a
-/// face — every face a validated body can hold has a cover — so the
-/// arm is pinned at the unit level on a hand-built body: the Euler
-/// `mvfs` seed, whose one face stands on the all-poison NURBS
-/// placeholder, which has no cover.
+/// **A body with a face that has no surface yet refuses typed, naming
+/// the face.** No document door builds such a face — tier 3 refuses a
+/// pending face at rest — so the arm is pinned at the unit level on a
+/// hand-built body: the Euler `mvfs` seed, whose one face is pending.
 #[test]
-fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
+fn a4_a_pending_face_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
         .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
     let refusal =
-        editor_core::mate::body_reach(&body, band()).expect_err("the placeholder has no bound");
-    assert_eq!(
-        refusal,
-        ReachRefusal::FaceUnbounded {
-            face: made.face,
-            kind: SurfaceKind::Nurbs,
-        }
-    );
+        editor_core::mate::body_reach(&body, band()).expect_err("a pending face has no bound");
+    assert_eq!(refusal, ReachRefusal::FacePending { face: made.face });
     // The same answer through the door the solve reads.
     assert_eq!(
         editor_core::mate::part_reach(&body, band()).err(),

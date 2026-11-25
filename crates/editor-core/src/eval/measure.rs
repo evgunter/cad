@@ -362,7 +362,7 @@ fn plane_of<T: Decide>(
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, OutwardNormal<T>)> {
     let face = seat.body().get_face(k)?;
-    match seat.surface(seat.body().face_surface(k)?)? {
+    match seat.surface(seat.body().face_surface(k).ok()?)? {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some((
@@ -408,7 +408,13 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             let Some(face) = body.get_face(k) else {
                 return Carrier::Other("an unreadable face");
             };
-            let own = body.face_surface(k);
+            let own = match body.face_surface(k) {
+                Ok(surface) => Some(surface),
+                Err(topo::SurfaceMiss::Pending) => {
+                    return Carrier::Other("a face with no surface yet");
+                }
+                Err(topo::SurfaceMiss::Stale) => None,
+            };
             // The reach is a distance, read about the datum's own point.
             let reach = |about: fn(&Surface<T>) -> Option<Point3<T>>| {
                 own.and_then(about)
@@ -1310,6 +1316,9 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
             LinkRefusal::Unread(TouchUnread::LoneLoop) => {
                 "a cell on a face with a loop that is a lone vertex"
+            }
+            LinkRefusal::Unread(TouchUnread::PendingFace) => {
+                "a cell on a face that has no surface yet"
             }
         };
         unsupported_as("gap", class, read.class())

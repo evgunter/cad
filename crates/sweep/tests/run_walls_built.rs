@@ -101,7 +101,7 @@ fn same_key_adjacency(b: &Body<f64>, planar: bool) -> usize {
             );
             fa != fb
                 && ka == kb
-                && matches!(b.get_surface(ka), Some(geom::Surface::Plane { .. })) == planar
+                && matches!(b.get_surface(ka), Ok(geom::Surface::Plane { .. })) == planar
         })
         .count()
 }

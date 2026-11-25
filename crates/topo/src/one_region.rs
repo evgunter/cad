@@ -69,8 +69,9 @@ pub(crate) fn region_errors<T: Decide>(
         if inverted.contains(&face) {
             continue;
         }
-        let Some(surface) = body.surfaces.get(f.surface) else {
-            continue; // unreachable on tier-1 input
+        // A dangling key is tier 1's; a pending face is check 1's.
+        let Some(surface) = body.get_surface(f.surface).ok() else {
+            continue;
         };
         let torus = match surface {
             geom::Surface::Sphere { .. }
@@ -309,7 +310,7 @@ mod tests {
                 geom_brep::EdgeCurveSpec::line_between(s, t),
                 s,
                 t,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 geom_core::Band::linear(tol).expect("the witness band"),
                 geom_brep::NurbsLane::certified(),

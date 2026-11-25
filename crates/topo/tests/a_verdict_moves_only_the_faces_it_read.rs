@@ -76,7 +76,7 @@ fn face_points(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Point3<f64>> 
 /// normal, coordinate by coordinate.
 fn plane_beyond(body: &topo::Body<f64>, up: bool, x0: f64) -> [f64; 6] {
     for (f, face) in body.faces() {
-        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(f) else {
+        let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(f) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -302,7 +302,7 @@ fn a_chain_of_glued_pairs_moves_no_undecided_pair() {
         let at_two = |up: bool, x0: f64, x1: f64| {
             u.faces()
                 .find(|&(f, face)| {
-                    let Some(geom::Surface::Plane { frame, .. }) = u.face_surface(f) else {
+                    let Ok(geom::Surface::Plane { frame, .. }) = u.face_surface(f) else {
                         return false;
                     };
                     let normal = frame.axis();

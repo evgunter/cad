@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
-use geom::{NurbsSurface, Surface};
+use geom::NurbsSurface;
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
 
@@ -100,21 +100,4 @@ fn f1_surface_kink_line_boxes_contain_f64() {
             }
         }
     }
-}
-
-/// F6 at Interval: the placeholder payload evaluates to poison through
-/// the enum arm (NaI / NaN brackets), matching the old unit-variant
-/// totality behavior.
-#[test]
-fn f6_placeholder_poison_at_interval() {
-    let s: Surface<Interval> = Surface::nurbs_placeholder();
-    let p = s.eval(Interval::from_f64(0.5), Interval::from_f64(0.5));
-    // ALL-poison, which is what the placeholder promises: a
-    // first-channel read passes on a net poisoned only in x.
-    assert!(
-        p.x.is_poison() && p.y.is_poison() && p.z.is_poison(),
-        "placeholder not all-poison at Interval: {p:?}"
-    );
-    let n = s.deriv_u(Interval::from_f64(0.5), Interval::from_f64(0.5));
-    assert!(n.x.is_poison() && n.y.is_poison() && n.z.is_poison());
 }

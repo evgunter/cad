@@ -2339,7 +2339,7 @@ mod tests {
             spec,
             p0,
             p1,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(lift(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),

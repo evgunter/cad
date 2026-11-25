@@ -155,7 +155,7 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 fn hole_circle(body: &Body<f64>) -> (f64, f64, f64) {
     let mut found = None;
     for (fk, _) in body.faces() {
-        if let Some(Surface::Cylinder { frame, radius, .. }) = body.face_surface(fk) {
+        if let Ok(Surface::Cylinder { frame, radius, .. }) = body.face_surface(fk) {
             let origin = frame.origin();
             let seen = (origin.x, origin.y, *radius);
             if let Some(prev) = found {

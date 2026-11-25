@@ -765,7 +765,7 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
 fn base_placement_cone_apex_matches_the_closed_form() {
     let (body, eps_in, _) = freecad_body("cone_apex");
     let apexes: Vec<_> = body
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(_, s)| match *s {
             geom::Surface::Cone { frame, .. } => {
                 let apex = frame.origin();

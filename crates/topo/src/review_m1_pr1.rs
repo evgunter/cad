@@ -165,7 +165,7 @@ fn build_cube(tol: Tol) -> Cube {
     let loop_side: Vec<_> = (0..n).map(|i| mk_loop(&mut body, s_b[i])).collect();
 
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+        let surface = body.add_pending_surface();
         body.add_face(
             Face {
                 sense: true,
@@ -402,7 +402,7 @@ fn ring_face_body_validates() {
     let loop_a_ring = mk_loop(&mut body, c2);
 
     let mk_face = |body: &mut Body<f64>, outer: LoopKey, rings: Vec<LoopKey>| {
-        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+        let surface = body.add_pending_surface();
         body.add_face(
             Face {
                 sense: true,
@@ -529,7 +529,7 @@ fn add_strut_solid(body: &mut Body<f64>, offset: f64, tol: Tol) -> SolidKey {
         },
         prov(),
     );
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = body.add_pending_surface();
     let f = body.add_face(
         Face {
             sense: true,
@@ -573,7 +573,7 @@ fn mvfs_skeletal_state_validates_externally() {
         prov(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = body.add_pending_surface();
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: v },
@@ -697,7 +697,7 @@ fn antiparallelism_preserving_mate_swap_is_caught_by_orbits() {
     let loop_a = mk_loop(&mut body, a0);
     let loop_b = mk_loop(&mut body, b0);
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+        let surface = body.add_pending_surface();
         body.add_face(
             Face {
                 sense: true,
@@ -765,9 +765,7 @@ fn parent_loop_chain_confusion_is_caught() {
 fn empty_loop_vertex_with_incidence_is_caught() {
     let tol = Tol::witness();
     let mut c = build_cube(tol);
-    let surface = c
-        .body
-        .add_surface(crate::fixtures::test_surface(Point3::origin()));
+    let surface = c.body.add_pending_surface();
     let lp = c.body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: c.t[0] },
@@ -930,7 +928,7 @@ fn long_corrupted_chain_terminates() {
         prov(),
     );
     let mk_face = |body: &mut Body<f64>, outer: LoopKey| {
-        let surface = body.add_surface(crate::fixtures::test_surface(Point3::origin()));
+        let surface = body.add_pending_surface();
         body.add_face(
             Face {
                 sense: true,
@@ -1000,7 +998,7 @@ fn null_keys_are_none_everywhere_no_panics() {
     assert!(b.get_vertex(VertexKey::default()).is_none());
     assert!(b.get_point(crate::PointKey::default()).is_none());
     assert!(b.get_curve_geom(crate::CurveKey::default()).is_none());
-    assert!(b.get_surface(crate::SurfaceKey::default()).is_none());
+    assert!(b.get_surface(crate::SurfaceKey::default()).is_err());
     assert!(b.mate(HalfEdgeKey::default()).is_none());
     assert!(b.half_edge_end(HalfEdgeKey::default()).is_none());
     assert!(b.loop_cycle(HalfEdgeKey::default()).is_none());
