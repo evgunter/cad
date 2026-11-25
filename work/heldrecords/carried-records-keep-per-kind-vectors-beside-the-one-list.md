@@ -2,7 +2,7 @@
 id: carried-records-keep-per-kind-vectors-beside-the-one-list
 kind: issue
 title: OperandRecords, ops::Rows and ReductionContacts keep per-kind vectors beside ContactRecords' one list, with seven hand-written per-kind translations
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P1
 cost: H

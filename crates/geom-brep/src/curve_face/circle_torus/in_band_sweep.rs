@@ -34,8 +34,10 @@ const EPS_ROWS: [f64; 3] = [1e-6, 1e-9, 1e-12];
 /// the tube by a depth drawn inside the zero band, inside its gap, or
 /// zero, at any tilt. The torus door reads its clear margin through the
 /// torus's ceiling on `|F|/|res|`, so no piece reads clear short of the
-/// band; an answer it gives must be true, and none within `ε` may be
-/// given.
+/// band; an answer it gives must be true, and none within `ε` (an
+/// extreme in the zero band on the arc) may be given. Each is read on a drawn arc and judged on that arc alone
+/// (`conic_oracle::arc_truth`): an arc whose own extremes are clear of
+/// the band is answered whatever the rest of the turn holds.
 #[test]
 fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
     let mut rng = fuzz::start("conic_quadric_in_band_torus_sweep");
@@ -79,17 +81,29 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
-            let true_answer = match &got {
+            let arc = (m - h, m + h);
+            let on_arc = crate::curve_face::conic_oracle::arc_truth(
+                |t| crate::implicit_residual(&torus, c.eval(t)),
+                arc,
+                &truth.roots,
+                10.0 * eps,
+            );
+            let got = circle_torus_roots(&c, arc.0, arc.1, &torus, band);
+            let found = match &got {
                 Ok(Err(_)) | Err(_) => continue,
-                Ok(Ok(CircleRoots::Miss)) => truth.roots.is_empty(),
-                Ok(Ok(CircleRoots::Certified(found))) => found.count() == truth.roots.len(),
-                Ok(Ok(CircleRoots::On(_))) => false,
+                Ok(Ok(CircleRoots::Miss | CircleRoots::On(_))) => &[][..],
+                Ok(Ok(CircleRoots::Certified(found))) => found.roots(),
             };
-            if truth.residual_depth < eps || !true_answer {
+            let lies = matches!(got, Ok(Ok(CircleRoots::On(_))));
+            let Some(holds) =
+                crate::curve_face::conic_oracle::holds_on_arc(found, &on_arc, arc, eps)
+            else {
+                continue;
+            };
+            if lies || !holds {
                 wrong.push(format!(
-                    "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots): {got:?}\n  \
-                     {c:?} torus R 1 r {small}",
+                    "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots, on the arc \
+                     {arc:?} {on_arc:?}): {got:?}\n  {c:?} torus R 1 r {small}",
                     truth.depth,
                     truth.roots.len()
                 ));

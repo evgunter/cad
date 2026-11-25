@@ -198,6 +198,95 @@ pub fn extremes(f: impl Fn(f64) -> f64, t0: f64, t1: f64) -> (f64, f64) {
     (lo, hi)
 }
 
+/// **The truth on a partial arc** ([`arc_truth`]).
+#[derive(Debug)]
+pub struct ArcTruth {
+    /// The residual is within `2Kε` at an end: a meeting or a graze in
+    /// band of an end is the end's to read, and a row sets the arc aside.
+    pub at_an_end: bool,
+    /// The least `|residual|` at an extreme of it inside the arc or at
+    /// an end: what a band classifies the arc's grazes by (a constant
+    /// residual's own).
+    pub least: f64,
+    /// The true crossings on the arc, at any turn of it.
+    pub roots: Vec<f64>,
+}
+
+/// **The truth on the arc `[t0, t1]` alone**: `residual` the surface's
+/// implicit residual along the carrier (what the band classifies), `roots`
+/// the true crossings round the turn (`exact::truth`), `k_eps` the band's
+/// escalation. A door reading local windows answers an arc whose own
+/// extremes are clear of the band, whatever the rest of the turn holds.
+pub fn arc_truth(
+    residual: impl Fn(f64) -> f64,
+    (t0, t1): (f64, f64),
+    roots: &[f64],
+    k_eps: f64,
+) -> ArcTruth {
+    // A conic's residual is a trigonometric polynomial of degree at most
+    // four: its extremes' basins are far wider than these cells.
+    const CELLS: usize = 4096;
+    let at = |k: usize| t0 + (t1 - t0) * k as f64 / CELLS as f64;
+    let v: Vec<f64> = (0..=CELLS).map(|k| residual(at(k))).collect();
+    // Each sampled extreme of the residual itself (strict on the left, so
+    // a flat stretch is none). One whose cell could swing it near the
+    // band is refined: a pair of crossings inside one cell is a trough
+    // near zero, which no sample reads. One past it is past it. A residual
+    // flat within the band has a near extreme in every cell; the nearest
+    // sixty-four are read, the stretch one-signed between them.
+    let mut near: Vec<(f64, usize, bool)> = Vec::new();
+    let mut least = residual(t0).abs().min(residual(t1).abs());
+    for k in 1..CELLS {
+        let swing = (v[k - 1] - v[k]).abs() + (v[k + 1] - v[k]).abs();
+        let low = v[k] < v[k - 1] && v[k] <= v[k + 1];
+        let high = v[k] > v[k - 1] && v[k] >= v[k + 1];
+        if !(low || high) {
+            continue;
+        }
+        if v[k].abs() < 4.0 * k_eps + 2.0 * swing {
+            near.push((v[k].abs(), k, low));
+        } else {
+            least = least.min(v[k].abs());
+        }
+    }
+    near.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for &(_, k, low) in near.iter().take(64) {
+        let x = golden(&residual, (at(k - 1), at(k + 1)), low);
+        least = least.min(residual(x).abs());
+    }
+    ArcTruth {
+        at_an_end: residual(t0).abs() < 2.0 * k_eps || residual(t1).abs() < 2.0 * k_eps,
+        least,
+        roots: roots
+            .iter()
+            .copied()
+            .filter(|&u| on_arc((t0, t1), u))
+            .collect(),
+    }
+}
+
+/// Whether `t` lies on the arc `[t0, t1]`, at any turn of it.
+pub fn on_arc((t0, t1): (f64, f64), t: f64) -> bool {
+    let mid = geom::mid_param(t0, t1);
+    (geom_core::period::Period::angle().near(t, mid) - mid).abs() <= (t1 - t0) / 2.0
+}
+
+/// **Whether a door's roots hold the arc's truth** ([`arc_truth`]):
+/// `None` where the row sets the arc aside, `Some(false)` where an arc
+/// with an extreme inside `band` (its in-band reach) is answered or the
+/// roots the door places on the arc are not the truth's in number.
+/// `found` is the door's roots, none for a `Miss`; roots it reads off the
+/// arc, outside every window it dropped there, are not judged here.
+pub fn holds_on_arc(found: &[f64], truth: &ArcTruth, arc: (f64, f64), band: f64) -> Option<bool> {
+    if truth.at_an_end {
+        return None;
+    }
+    Some(
+        truth.least >= band
+            && found.iter().filter(|&&t| on_arc(arc, t)).count() == truth.roots.len(),
+    )
+}
+
 /// The crossings of the true distance from `s` along `e` on `[t0, t1]`.
 pub fn oracle(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> Vec<f64> {
     crossings(|t| distance(s, e.eval(t)), t0, t1)
