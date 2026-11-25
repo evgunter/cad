@@ -1,0 +1,15 @@
+# Review: PR 7731 (`heldrecords/belt`), frozen head `780eac8900`, base main — DUAL review, you are one of two
+
+Independent: do NOT read the other reviewer's branch, the PR's comments, or anything under `~/.local/share/cad-work/` but your own scratch, until your report is in. Probes only to `heldrecords/review-belt-<6 hex>`. Read first: `CLAUDE.md`; `docs/prompts/reviewer-style-lane.md` IN FULL; the row `work/heldrecords/the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md` on the head (its `Design` section); D10; `crates/topo/README.md`'s end-root and junction-side paragraphs. Review `git diff origin/main...780eac8900`.
+
+**What it builds** (design approved by the orchestrator): near a junction edge's neutral point the edge truly meets the other carrier again at s = √(12δ), so no root-free window exists at the band below √(2Kε). `end_root::end_window` now tries the window at pivot p = m, m+1, …, deg, taking the first that holds; terms below the pivot are charged at |c_j| + ε·g/L^j (no sign verdict). The spread then holds the near root, and the junction's side reading puts it off the face. Two premises of that side reading are now decided over the spread: reach (σ ≤ ½·r, `one_sheet_radius`, incl. a cone's other nappe) and chord (κ_rim·σ ≤ ½); the rim term carries the chord factor (1 + κ²σ²/3)².
+
+**Claims to falsify:**
+1. **No false "no crossing".** A root of the residual inside the pivoted window is either the end's own (band-coincident) or the near root, and the side reading places it off `face` soundly. Attack: a pose where the near root lies ON `face` (the edge truly crosses Q's face within the spread), a pose where a SECOND real root sits inside the spread, a far-end clearance that a larger pivot window makes vacuous.
+2. **The charge bounds the pivoted-past terms**: |c_j| plus the zero band's width at its power, over the whole window, for every j < p; the tail bound still holds at pivot p; monotonicity of the excess with pivoted terms.
+3. **The two premises are right and sufficient**: σ ≤ ½·r makes Q's carrier one graph over the tangent plane on the spread (for each kind, incl. the cone's other nappe and a torus's inner equator); κ_rim·σ ≤ ½ makes the chord factor a bound. Find a case each one is needed and the pins that show it.
+4. **Main's windows are unchanged** at pivot m (diff verdicts on head vs main: geom-brep, topo, editor-core `ci`, the slow elbow rows, at three ε).
+5. **The union builds are right**: re-derive the closed form for the belt poses; t3, t3′ on the result; the δ/ε ∈ [0.3, 10] refusal is genuinely in band.
+6. **Pins and mutants**: re-run the nine listed mutants; add one that loosens the charge's band term or the chord factor by 2× and see whether anything catches it.
+
+Own `CARGO_TARGET_DIR` outside the checkout; per crate. Foreground rule (never end a turn with background work). Report ≤150 lines (verdict; claims held/broken; MAJOR/MINOR/NOTE; `## Style` sure/likely/unsure; probe rows) by `mcp__claude-code-remote__send_message` to `session_018u3gVKp4QiofNJ9Z1mzgD8`, then stop. No email or personal identifier anywhere; no model names in commits.
