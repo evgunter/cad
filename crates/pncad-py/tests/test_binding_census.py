@@ -4072,7 +4072,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
-    "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Join": "StepImportError.variant",
     "StepImportError::Interpretation": "StepImportError.variant",
     "StepImportError::SingularityUndecided": "StepImportError.variant",

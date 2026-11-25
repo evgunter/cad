@@ -603,7 +603,7 @@ class StepImportError(PncadError):
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
-    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `wall_column_structure`, `recognition_ambiguous`,
     `join`, `singularity_undecided`, `singularity_side_undecided`,
     `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
@@ -5809,8 +5809,11 @@ class PickHit:
         of the closed triangle. The interval is always centred on the
         point the kernel answers, which is always on the triangle.
 
-        The parameter is the parameter of the ray you passed. A hit
-        carried across a transform converts all three or none."""
+        The parameter is the parameter of the ray you passed. An
+        affine map carries a ray's parameter with it: a ray mapped
+        into another frame is at `t` where the ray it came from is at
+        `t`, mapped, so a hit found on the mapped ray is at the same
+        `t`, `t_lo` and `t_hi` on the original."""
 
     @property
     def t_hi(self) -> float:

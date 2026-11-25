@@ -294,40 +294,47 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
         Ok(_) => {}
-        // The closing mint certifies the lens face's general-circle
-        // rims too, and at a tight band a fitted rim row's own map
-        // residual escalates the same way — an enclosure as wide as the
-        // offset's widened data, straddling the band
-        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
-        Err(
-            source @ topo::ReplaceFaceError::Pcurve {
-                source:
-                    topo::pcurves::PcurveMintError::Certify {
-                        error:
-                            geom_brep::PcurveCertifyError::Escalated {
-                                cause:
-                                    geom_core::Indeterminate {
-                                        predicate: Some("pcurve_map_residual"),
-                                        ..
-                                    },
-                                ..
-                            },
+        Err(e) => panic!("the lune's rim solves at the certified scalar: {e:?}"),
+    }
+    // The cavity's rows completed, as its finish completes them: that
+    // certifies the lens face's general-circle rims too, and at a tight
+    // band a fitted rim row's own map residual escalates — an enclosure
+    // as wide as the offset's widened data, straddling the band
+    // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
+    let escalated = |finding: &topo::ValidationError| {
+        matches!(
+            finding,
+            topo::ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::Escalated {
+                        cause: geom_core::Indeterminate {
+                            predicate: Some("pcurve_map_residual"),
+                            ..
+                        },
                         ..
                     },
-            },
-        ) if tol.eps() < DEFAULT_EPS => {
+                    ..
+                },
+            }
+        )
+    };
+    let cavity = match topo::test_support::completed(cavity, tol) {
+        Ok(cavity) => cavity,
+        Err(refused) if tol.eps() < DEFAULT_EPS && refused.iter().all(escalated) => {
             stood_down(
                 &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
                 &format!(
-                    "the certified scalar escalated ({source:?}) before the corners were \
-                     reachable, so THIS RUN ASSERTS NO corner enclosure — only that the \
-                     escalation is the door's own typed one"
+                    "the certified scalar escalated ({refused:?}) completing the rows, so \
+                     THIS RUN ASSERTS NO corner enclosure — only that the escalation is the \
+                     completion's own typed one"
                 ),
             );
             return;
         }
-        Err(e) => panic!("the lune's rim solves at the certified scalar: {e:?}"),
-    }
+        Err(refused) => {
+            panic!("the lune cavity's rows complete at the certified scalar: {refused:?}")
+        }
+    };
     let rho = 0.05 * 2.0f64.sqrt();
     let h = (0.25f64.powi(2) - 2.0 * 0.05 * 0.05).sqrt();
     encloses_corner(&cavity, rho, h, "the lune's upper rim corner");
@@ -406,13 +413,24 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
         }
         // At a strict band the certified scalar may escalate first: at
         // the door's own decides, or (measured at ε = 1e-12) at the
-        // pcurve envelope of a spiric RIM, whose enclosure is wider than
-        // the band. Only a rim's: a re-authored seam's escalation is not
-        // absorbed here.
+        // pcurve envelope of a spiric rim, whose enclosure is wider than
+        // the band, where the finish completes the rows. The finding
+        // names a half-edge of a body the refusal does not carry, so
+        // which edge escalated is not read here: a loosened pin, any
+        // `pcurve_envelope` escalation stands down, not a derived rim's
+        // alone (`work/walks/not-valids-pcurve-finding-names-no-edge-so-the-klein-elbow-stand-down-reads-any-rim.md`).
         Err(ShellError::Face { ref error, .. })
             if tol.eps() < DEFAULT_EPS
-                && (matches!(**error, topo::ReplaceFaceError::Escalated { .. })
-                    || rim_envelope_escalation(&body, error)) =>
+                && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>
+        {
+            stood_down(
+                &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
+                "the certified scalar escalated before the hollow assembled, so THIS RUN \
+                 ASSERTS ONLY a typed escalation",
+            );
+        }
+        Err(ShellError::NotValid { ref findings })
+            if tol.eps() < DEFAULT_EPS && findings.as_slice().iter().all(envelope_escalation) =>
         {
             stood_down(
                 &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
@@ -424,34 +442,19 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
     }
 }
 
-/// Whether `error` is the pcurve mint's envelope escalating on a
-/// half-edge of a DERIVED edge of `body` — a spiric rim, not a
-/// re-authored (declared) seam.
-fn rim_envelope_escalation(
-    body: &Body<Interval>,
-    error: &topo::ReplaceFaceError<Interval>,
-) -> bool {
-    let topo::ReplaceFaceError::Pcurve {
-        source:
-            topo::PcurveMintError::Certify {
-                half_edge,
-                error:
-                    geom_brep::PcurveCertifyError::Escalated {
-                        check: geom_brep::PcurveCheck::Envelope,
-                        cause,
-                        ..
-                    },
+/// Whether `finding` is a pcurve row's envelope escalating.
+fn envelope_escalation(finding: &topo::ValidationError) -> bool {
+    matches!(
+        finding,
+        topo::ValidationError::Pcurve {
+            finding: topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::Envelope,
+                    cause,
+                    ..
+                },
                 ..
             },
-    } = error
-    else {
-        return false;
-    };
-    cause.predicate == Some("pcurve_envelope")
-        && body
-            .get_half_edge(*half_edge)
-            .and_then(|h| body.get_edge(h.edge))
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|c| c.certified())
-            .is_some_and(|c| matches!(c.authority(), geom_brep::EdgeAuthority::Derived))
+        } if cause.predicate == Some("pcurve_envelope")
+    )
 }

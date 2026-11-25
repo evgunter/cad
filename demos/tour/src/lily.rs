@@ -2310,8 +2310,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    scene's own change to make.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
-    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
-        .expect("a leaf mirrors across the plant's plane");
+    let mirrored =
+        pncad::topo::mirror_body(leaf_a, &across).expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 

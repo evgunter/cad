@@ -4,6 +4,8 @@ kind: issue
 title: Three face-door refusal routes (slit's EdgeInFaceGap::Unread(Some), rim_wedge's Unplaced::Door, the carry's Unread by its door) were witnessed only by a lone-vertex ring, which the face door now reads
 status: open
 opened: 2026-11-22
+priority: P3
+cost: M
 ---
 
 Found by the face-region unit (branch `walks/face-region`, PR 7474).

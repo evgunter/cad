@@ -794,10 +794,6 @@ pub enum RevolveError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
-    /// The final whole-body pcurve mint pass refused (M6-3, walk row
-    /// 4: revolve outputs carry stored certified pcurves at rest,
-    /// exactly as boolean/split/loft outputs do).
-    Pcurve(topo::PcurveMintError),
 }
 
 /// The classifications that place a profile segment against the revolve
@@ -1090,7 +1086,6 @@ impl RevolveError {
                     geom_brep::recourse::read_at(source, at)
                 )
             }
-            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
@@ -1228,17 +1223,11 @@ pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-    let mut out = if full {
+    if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
         partial::build_partial(&frame, &loops, &classes, theta, reverse, band, tol)
-    }?;
-    // Final pass (M6-3, walk row 4): every revolve face's chart now
-    // mints — cone/sphere/torus walls exactly as cylinder ones — so a
-    // revolve output carries its stored certified pcurves at rest,
-    // the same posture as boolean/split/loft outputs.
-    topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
-    Ok(out)
+    }
 }
 
 #[cfg(test)]
