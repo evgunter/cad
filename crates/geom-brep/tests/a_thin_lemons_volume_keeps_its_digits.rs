@@ -10,6 +10,9 @@
 //! `2·asin(√((1 + R)/2))` and every printed digit kept.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The truths are written with every digit the 60-digit sum printed, past
+// what an `f64` holds; the literal rounds to the nearest `f64` as read.
+#![allow(clippy::excessive_precision)]
 
 use geom::Surface;
 use geom_core::{Point3, Vec3};

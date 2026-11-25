@@ -577,12 +577,16 @@ fn a_loop_through_the_apex_sweeping_past_a_turn_refuses_by_name() {
 /// `props_cone_loop_vertex`: the pinched figure-eight — lobes
 /// `[0, 1] × [1, 2]` and `[1, 2] × [2, 3]` meeting at `(1, 2)`, the
 /// second wound against the first — measures the difference of its
-/// lobes, and a loop stated twice measures double, off the apex and
-/// through it.
+/// lobes, and a loop stated twice measures double. Stated twice through
+/// the apex, it passes the apex twice at its one vertex, and its two
+/// lobes meet off the apex (`props_cone_apex_lobe_vertex`).
 #[test]
 fn a_loop_meeting_itself_at_a_vertex_refuses_by_name() {
     let want = PropsError::ConeLoop {
         what: "props_cone_loop_vertex",
+    };
+    let lobes_meet = PropsError::ConeLoop {
+        what: "props_cone_apex_lobe_vertex",
     };
     let eight = [
         (0.0, 1.0),
@@ -595,16 +599,21 @@ fn a_loop_meeting_itself_at_a_vertex_refuses_by_name() {
         (0.0, 2.0),
     ];
     refuses("the figure-eight", &[chart_loop(&eight)], &want);
-    for (name, verts) in [
+    for (name, verts, want) in [
         (
             "a wall stated twice",
             vec![(0.0, 1.0), (2.0, 1.0), (2.0, 2.0), (0.0, 2.0)],
+            &want,
         ),
-        ("a sector stated twice", sector(1.2).loops[0].clone()),
+        (
+            "a sector stated twice",
+            sector(1.2).loops[0].clone(),
+            &lobes_meet,
+        ),
     ] {
         let mut twice = chart_loop(&verts);
         twice.extend(chart_loop(&verts));
-        refuses(name, &[twice], &want);
+        refuses(name, &[twice], want);
     }
 }
 

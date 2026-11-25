@@ -6114,7 +6114,6 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     held.apart(&body)?;
-    pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     #[cfg(any(test, feature = "test-support"))]
@@ -6207,53 +6206,6 @@ pub fn refused_face_kind(e: &BooleanError) -> Option<geom::SurfaceKind> {
         return None;
     };
     refused_faces::of(error).and_then(refused_faces::kind_of)
-}
-
-/// **No cone face of the result pinches at its apex**: a loop that
-/// starts two of its half-edges at one vertex, decided the cone's apex
-/// ([`crate::face_normal::cone_point`]), is two lobes meeting only
-/// there. The body is well formed, but the mass-properties closed form
-/// refuses a cone loop that meets itself at a vertex, so the at-rest
-/// gate would refuse it as the kernel's own finding; read first, it
-/// refuses by name. An apex reading in band reads as not the apex, and
-/// leaves the loop to the gate.
-///
-/// # Errors
-///
-/// [`BooleanError::ResultPinchedAtConeApex`].
-fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
-    for view in body.face_views() {
-        let face = view.key();
-        let geom::Surface::Cone { frame, .. } = *view.surface() else {
-            continue;
-        };
-        let (apex, axis) = (frame.origin(), frame.axis());
-        for (_, members, _) in view.boundary_by_loop() {
-            let mut starts = BTreeSet::new();
-            for member in members {
-                let BoundaryMember::Edge { half, .. } = member else {
-                    continue;
-                };
-                if starts.insert(half.start) {
-                    continue;
-                }
-                let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
-                if let Ok(crate::face_normal::ConePoint::Apex) = crate::face_normal::cone_point(
-                    geom::Line {
-                        origin: apex,
-                        dir: axis,
-                    },
-                    p,
-                    band,
-                ) {
-                    return Err(BooleanError::ResultPinchedAtConeApex {
-                        apex: crate::census::witness(p),
-                    });
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 /// What the extent scan asks of the operands before the pipeline
