@@ -2,12 +2,13 @@
 id: a-read-record-is-consumed-by-any-removed-remainder-so-a-lineage-gap-drops-it-silently
 kind: issue
 title: The carry consumes a read, unlanded record wherever any remainder was removed, so a lineage gap drops the record silently instead of refusing it stale
-status: dispatched
+status: review
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-sphere-cut-in-divides-a-face-the-carry-reads-by-its-pre-cut-key, 7593]
 branch: heldrecords/removed-members
+pr: 7745
 ---
 
 Found by the review of ORBIT's PR 7593 (`orbit/cut-in-carry`), which

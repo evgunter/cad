@@ -2,11 +2,13 @@
 id: cone-germ-pairs-against-a-curved-face-have-no-section-frame
 kind: issue
 title: A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame names its section
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: H
 refs: [torus-germ-pairs-have-no-section-frame, cone-pairs-in-general-pose-have-no-section-arm]
+closed: 2026-11-25
+pr: 7735
 ---
 
 Found by GERM's general-pose cone lane (`cone-pairs-in-general-pose-have-no-section-arm`,
@@ -86,3 +88,6 @@ Two notes from the designers:
 - The touch case is classification only, so it can build before the metres enclosure.
 
 Witnesses are on SPLITDOOR's B3 row (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`). That row waits on this one for its follow-on: the pierce germ and the gate. (SPLITDOOR orchestrator)
+
+## Closed (2026-11-25)
+Its units have all landed: U1 (PR 7357), the partner-winding unit (7455), U2 (7637) and U3 (7735), plus the cone × sphere and cone × cone doors (7457). A cone wall crossing an oblique cylinder or another cone in general pose now rides its carried section in the join and no longer refuses `GermFrameUnsupported`. 7735's tilted-rod row builds all four ops to their closed-form volumes. The three poses the value reads elsewhere and that still have no germ frame (a sphere on the cone's axis, a coaxial torus, two cones of one aperture on parallel axes) are `the-cone-poses-read-elsewhere-have-no-germ-frame` (P2). The apex node's join half is in `the-r3-march-ends-no-branch-at-a-cone-node`.

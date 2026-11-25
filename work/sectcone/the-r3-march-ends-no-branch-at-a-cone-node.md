@@ -41,3 +41,16 @@ ending in the node's box, for the apex node and for a crossing
 tangency. Witnesses: `crates/geom-brep/tests/cone_pair_section.rs`
 `a_nodes_arcs_refuse_the_carry_by_name` flips to a carry. The tube's half
 of the same gap is `work/ssiedge/an-r3-tube-chain-has-no-node-end.md`.
+
+## The join's half (moved from `the-join-reads-the-cone-pairs-on-the-value`, 2026-11-24)
+
+Once the carry marches a node's arcs, the join's node pass reads the cone
+pair's nodes as it reads the equal cylinder pair's: `topo` `boolean/node.rs`
+`mint_nodes` reads cylinder walls only (`is_wall`) and places a node in
+each face by `contain::placement_on_carrier`. The pass has to read cone
+faces too, and decide how an apex node is placed where the cone face
+reaches its own apex, which is no point inside the face. Today a noded section's carry refuses `ConeNode` and the table
+holds that refusal, so the join refuses it before the node pass
+(`join.rs` `faces_section_unbuilt`), and this half has nothing to read
+until the march's half lands.
+

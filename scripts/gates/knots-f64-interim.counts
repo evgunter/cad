@@ -32,7 +32,9 @@ crates/geom 212
 # geom-brep 224 -> 223: the search's analytic limb 2 reads through the
 # edge certificate's reader, and its own ring composite's grid reader
 # (`analytic_limbs`' `cert_grid` arm) goes with it (SECTCONE).
-crates/geom-brep 223
+# geom-brep 223 -> 222: nurbs_limbs reads its pcurve's knots once for
+# the grid, the composite and limb 2's knot-rectangle hold (PCERT).
+crates/geom-brep 222
 crates/geom-core 18
 crates/mesh 29
 crates/step-export 9
