@@ -71,3 +71,18 @@ nets and carries no floor or charge. `topo/src/spline_trim.rs`'s
 `bezier_cells` / `Patch` are still the second copy: the trim's placement
 meters by them on the chart's value view. The one home this row asks for
 is still owed; the arm is one more reader of geom-brep's copy.
+
+**The Bernstein algebra on a cell is written three times as well**
+(2026-11-25, `inside/ray-spline-face-arm`'s review). Beside the cut,
+the arm carries its own tensor-product product and partial derivative
+at the scalar `T` (`geom-brep/src/curve_face/line_patch.rs`:
+`Form::times`, `Form::derivative`, for its cone test's quotient-rule
+numerators). The same algebra is
+`geom_core::spline::compose::PatchSpans::mul` (`compose/patch.rs:458`,
+cellwise, `Interval` only) and the row forms of
+`geom-brep/src/curve_face/composite.rs:607-640` (`binomial`,
+`derivative`, `product`, `Interval` only, with its own exact integer
+`binomial` beside `geom_core::spline::pieces::binomial`, which the arm
+reads). None is generic over the scalar but the arm's, which is why it
+did not reuse one. One home is a generic tensor form in `geom-core`'s
+`spline` read by all three.
