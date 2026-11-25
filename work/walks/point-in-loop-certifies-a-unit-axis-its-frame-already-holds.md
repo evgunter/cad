@@ -4,6 +4,8 @@ kind: issue
 title: point_in_loop certifies a unit normal its Frame parameter already holds unit, so OffPlaneCause::NormalNotUnit has no producer
 status: open
 opened: 2026-11-22
+priority: P4
+cost: E
 ---
 
 
