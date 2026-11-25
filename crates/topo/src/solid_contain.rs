@@ -719,8 +719,8 @@ impl PointInSolidError {
                 "cannot tell what is inside the solid: one of its sphere faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
                  Recourse: bound the sphere face only with edges that lie on the sphere — \
-                 the circles and curves other solids cut it in — and read it at a scalar \
-                 that certifies: a dual reads no curve but a circle"
+                 the circles and curves other solids cut it in; a derivative (sensitivity) \
+                 read takes its circle edges alone"
             ),
             Self::PartialConeFace { .. } => write!(
                 f,
