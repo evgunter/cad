@@ -119,8 +119,8 @@ fn an_in_band_pose_refuses_with_its_diagnostics() {
 
 /// **A meter's refusal keeps the frontier**: a circle of radius 2·10⁵ m
 /// passing 2 m outside a unit sphere (the conic × quadric noise meter's
-/// pose, past the cull). Mutant: a meter read as the coincidence's
-/// in-band refusal, red.
+/// pose, past the cull). Mutant: a meter read as the zero posture,
+/// red.
 #[test]
 fn a_meter_refusal_is_the_frontier() {
     let far = 2e5;
