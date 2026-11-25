@@ -109,3 +109,7 @@ The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-ta
 - Filed `parting/a-straight-carrier-over-a-plane-reads-its-parting-radius-as-one-over-zero` (P3).
 
 7733, the P0 cone-face refusal, is open with CI green and all 12 witness runs built. The site was `join.rs` `choose_roles`, whose ring-lane chord arm had no cone. It also needed the spline-run read in `chord_join` and cone-face quadrature in `props`. A single FULL review is dispatched.
+
+## 2026-11-24: winding down (Ev: finish what's started, start nothing new, hand the track back)
+- **Split.** `the-cone-stores-its-slope` and `the-cone-convention-ladder-is-spelled-five-times` moved by `git mv` into the new program `coneslope` (`ready`). The seam is the cone's representation versus the cone pairs' section and join. Ev agreed to the slope on PR 7326.
+- **Still running.** 7733 (the P0 cone face, in its fix pass) and 7735 (U3) are to land. After that the track hands back `ready`.
