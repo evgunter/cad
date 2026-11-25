@@ -1042,3 +1042,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - Rim pad (PR 7499): finish the fix-pass body and the CI report, merging main if it has moved.
 - Image function (PR 7537): head `68e8d3c249` is red on lint and `test (kernel)` (run 45132499832), and the lane never sent its hand-back. It is fixing the reds that are its own, then hands back. The dual review starts on the green head that follows.
 - Deleted the image lane's idle 11 GB target dir; disk is at 58%.
+
+## 2026-11-25 — PR 7499 merged; the cover-halving build: letter H, tier dual (logged before the draw)
+
+- PR 7499 merged at `6617da35a4`. The fix pass took every adjudicated item, CI was green at `83438bdb9a`, and the row and the item's close are its last two commits. A PR comment explains why the C2/C5 rewrite did not wait for Ev: it is the text the PR 7045 decision directed.
+- Next unit: the PR 7056 decision on `a-sliver-loop-that-carried-as-a-clamped-fit-…`. It covers the one-point graph reading on quadric pairs, limb 3 halving its own cover, `refine_for_tube` retiring, and a pad read as the narrowest proving rung's reach box by box. It is **letter H, tier dual**: it changes limb 3's certificate on every ℝ³ pair and rewrites C2's limb-3, pad and node-end text and C3's tube-rounds paragraph.
