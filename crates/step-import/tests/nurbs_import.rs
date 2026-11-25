@@ -640,7 +640,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         .filter_map(|(_, geom)| match geom {
             topo::CurveGeom::Certified(c) => match c.description() {
                 geom_brep::EdgeDescription::Chart(cc) if cc.surface == wall => match cc.pcurve {
-                    geom_brep::Pcurve::IsoLine { p0, .. } => Some(p0.x),
+                    geom_brep::Pcurve::IsoLine { line, at0, .. } => Some(line.point(at0).x),
                     _ => None,
                 },
                 _ => None,

@@ -71,8 +71,15 @@ re-posing that empties a file lowers or drops its row in the same change.
   `conic_torus_harmonics`, `CEILING_PAD`), which the arc enclosure's
   Bernstein bound reads; the residual is the squared form, so a distance
   form changes the enclosure's function.
-- `topo::boolean::section_cert::ruling` (`Rounded` throughout, its own
-  `CEILING_PAD`), `geom_brep::curve_pair::pose` and `pose::window`
+- `geom_brep::pair_section::ruling`'s cone side (`RuledCone`: the
+  coefficients' `charges`, `axis_distance`'s quotient, the clearance
+  ceiling's, `Form::slack`) and `pair_section::cones`' one site: the
+  same debt `topo::boolean::section_cert::ruling` carried, which
+  retired when topo's section certificate moved its cone pairs onto the
+  section value (`sectcone`, the section certificate's cone-pair unit).
+  The re-posing is the cone sweep's: a distance form for the cone's
+  clearance, the ruling's quadratic read in a frame at its foot.
+- `geom_brep::curve_pair::pose` and `pose::window`
   (`pose`'s sites are the gate's row for it; its line router's two
   world-origin mints are scheduled by
   `work/onecopy/the-line-router-charges-its-margins-with-world-origin-noise.md`,
@@ -123,7 +130,8 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `profile::sugar::offset_circles`: the least lever, at `LEVER_ULPS`.
 - `topo::boolean::boxes::sphere_reach`, `topo::boolean::circle_roots`
   (`conic_off_plane`, `harmonic_crossing`),
-  `topo::splitting::section_loops::conics_clear`.
+  `topo::splitting::section_loops::conics_clear` (deleted by PR 7436;
+  the nesting reads `curve_pair::meet`).
 - `topo::injective::few_ulps`, `topo::separation::image`'s slop,
   `topo::props::rounding_bound`, `topo::props::quad_lane::end_slack`.
 
@@ -194,3 +202,44 @@ re-posing that empties a file lowers or drops its row in the same change.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## The apex start's `gap_err` (2026-11-23, `oneround/readings-not-levers`)
+
+`geom_brep::intersect`'s `apex_start` reads the plane's stand-off from
+the cone's apex as `|δ̂| + e_δ` (the rounded gap's magnitude) over a
+sine. Dropping `e_δ` passed every geom-brep test of the `ci` profile
+when the unit first measured it. Two rows hold it now:
+`pn_apex_tangent_generator::a_far_stated_grazing_plane_is_read_to_its_gaps_rounding`
+(a needle cone, `α = 1e-4`, and its grazing plane stated 900 m from the
+apex: the gap reads exactly zero and its rounding over `sin 2α` is
+`3.5e-9 m`, in a band of `1e-9`) and
+`pn_apex_pair_over_a_span::a_plane_through_the_apex_reads_its_reach_on_its_gaps_rounding`.
+The term itself still goes with this row's re-posing of
+`plane_cone_section`'s gap charge.
+
+## A sweep for a tolerance inside the reading (2026-11-22, `oneround/readings-not-levers`)
+
+Swept: every production `from_f64` of `band.zero()`, `band.escalate()`,
+their ratio or `tol.eps()` (`scripts/gates/from-f64-sites.tsv`, 37
+occurrences in 21 files), each followed to its use, for a band threshold
+multiplied into (or used as the arm of) a reading decided in that same
+band. Three have the shape, all precision-headroom gates this row
+already holds: `profile::seg::resolution_headroom`,
+`profile::sugar::offset_circles`' least lever, and
+`topo::census::span_charge` (`pm_census_span_precision`, of the span
+family above, not named there before). Four are near it and are
+scheduled: `census::span_reach` and `pcurve_cache::incidence_at`'s
+charge fraction (here), `pair_section::torus_arms::parallel_torus_arm`'s
+neck (here, with `torus_arms`), and `curve_pair::pose::route`'s arm
+`length + 2Kε`, a pinned `Lever::unsourced` of the sibling units. One
+more has the shape and is this unit's own:
+`topo::boolean::join::off_conic_slack`, `2ε·cot ψ`, the band's zero
+scaled by a pure number and summed into the far row `travel` decides in
+that band. It is no rounding charge but a stand-off of the sites, kept
+as `decide_across`'s swing by the design (`docs/DESIGN-FORK-LOG.md` row
+303) and removed by
+`work/oneround/the-joins-sites-are-read-on-the-conic-so-the-travel-carries-no-swing.md`.
+The rest are windows, brackets, pads and additive stand-offs. Not seen by
+this pattern: a threshold that reaches a reading through a record field
+or a helper's return (`ruling`'s `before`), and `f64`-typed arithmetic
+that never passes `from_f64`.

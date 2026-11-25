@@ -1354,27 +1354,16 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
         }
         Some(_) => {}
     }
-    let runs = lift.runs().map_err(|missed| {
-        refuse(match missed.why {
-            geom_brep::NoHeldLine::NotIso => {
-                "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
-                 quadrature is the cut-loft unit's"
-            }
-            geom_brep::NoHeldLine::Diagonal => {
-                "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
-                 outside the rectangle lane (the cut-loft unit's)"
-            }
-            geom_brep::NoHeldLine::Point => {
-                "a NURBS-face pcurve is one chart point — an image that moves along \
-                 no channel holds no line of the chart, and the rectangle lane reads \
-                 lines"
-            }
-        })
+    let runs = lift.runs().map_err(|_| {
+        refuse(
+            "a NURBS-face pcurve is not an iso image — a trimmed NURBS region's \
+             quadrature is the cut-loft unit's",
+        )
     })?;
     // Each piece's held value and rate, crossed into certification
     // arithmetic, and whether the lift moved it by a period.
     let piece = |i: usize, line: &geom_brep::HeldLine<T>| Piece {
-        value: Interval::from_certified(line.value),
+        value: Interval::from_certified(line.line.value),
         rate: Interval::from_certified(line.rate),
         moved: lift.rows()[i].lift != crate::joint::Deck::IDENTITY,
     };
@@ -1500,9 +1489,9 @@ fn exact_value(x: Interval, moved: bool) -> Result<f64, PropsError> {
         Ok(x.lo())
     } else if moved {
         Err(PropsError::QuadratureUnsupported {
-            what: "a NURBS-face line the lift moved one period of a closed chart is \
-                   held at a computed `lo + (hi − lo)`, which is no single number — the \
-                   period is stated by a length, not by the domain's two ends",
+            what: "a NURBS-face line the lift moved by periods of a closed chart is held \
+                   at a computed value, which is no single number — only a line at an end \
+                   of the chart's domain, moved one period, is the other end exactly",
         })
     } else {
         Err(PropsError::QuadratureUnsupported {
@@ -1661,25 +1650,25 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<LaneRun, PropsError> {
     let ring = |x: T| Interval::from_certified(x);
     let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
-    let lifted = crate::pcurves::lifted_images(body, hes);
-    for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
-        let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "NURBS face half-edge carries no stored pcurve cache — the \
-                       loft assembly mints them; a body that lost its caches must \
-                       re-mint before mass properties",
-            });
-        };
+    let unminted = || PropsError::QuadratureUnsupported {
+        what: "NURBS face half-edge carries no stored pcurve cache — the \
+               loft assembly mints them; a body that lost its caches must \
+               re-mint before mass properties",
+    };
+    let (lift, rows) = crate::pcurves::lift_of_halves(body, hes).ok_or_else(unminted)?;
+    for ((le, he), &row) in outer.iter().zip(hes).zip(&rows) {
+        let row = row.ok_or_else(unminted)?;
+        let cache = body.pcurve(*he).ok_or_else(unminted)?;
+        let image = &lift.rows()[row].pcurve;
         let (t0, t1) = cache.params();
-        let [pa, pb] = image.span_ends(cache.edge_span());
-        let (a, b) = if le.forward {
-            ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
-        } else {
-            ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
-        };
+        // The chord runs between the row's two joints in the lift: a
+        // corner's meet where an iso row meets an iso column, the
+        // image's own value everywhere else.
+        let (pa, pb) = (lift.joint_point(row), lift.exit_point(row));
+        let (a, b) = ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)));
         let piece = match image {
-            // An iso image is one exact chord: its endpoints are
-            // structure, so there is no arc to bound.
+            // An iso image is its chord: a straight segment of the
+            // chart, so there is no arc to bound.
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
             Pcurve::General(image) => {
                 // The engine subdivides the WHOLE stored image, so
@@ -2566,15 +2555,30 @@ mod tests {
         use crate::joint::{Deck, Winding};
         use crate::pcurves::{Lift, LiftedRow};
         use geom_brep::props::PropsError;
-        use geom_brep::{Pcurve, StoredSpan};
+        use geom_brep::{ChartLine, Pcurve};
         use geom_core::{Bounds as _, Interval, Point2, Real, Vec2};
 
-        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward.
+        /// One side piece `p0 + pl·t` over `t ∈ [0, 1]`, traversed forward:
+        /// the row through `p0` where the fixture's `pl` has no `v` part,
+        /// the column through it otherwise (so `pl = (0, 0)` is a column
+        /// that does not move).
         fn piece<T: Real>(p0: (T, T), pl: (f64, f64)) -> LiftedRow<T> {
-            let pcurve = Pcurve::IsoLine {
-                p0: Point2::new(p0.0, p0.1),
-                pl: Vec2::new(T::from_f64(pl.0), T::from_f64(pl.1)),
-                ends: None,
+            assert!(
+                pl.0 == 0.0 || pl.1 == 0.0,
+                "a side piece is a row or a column"
+            );
+            let pcurve = if pl.1 == 0.0 && pl.0 != 0.0 {
+                Pcurve::IsoLine {
+                    line: ChartLine::row(p0.1),
+                    at0: p0.0,
+                    rate: T::from_f64(pl.0),
+                }
+            } else {
+                Pcurve::IsoLine {
+                    line: ChartLine::column(p0.0),
+                    at0: p0.1,
+                    rate: T::from_f64(pl.1),
+                }
             };
             LiftedRow::stated_for_tests(pcurve, (T::zero(), T::one()), true)
         }
@@ -2703,10 +2707,8 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let (zero, one) = (Interval::zero(), Interval::one());
             let first = piece((zero, zero), (1.0, 0.0));
-            let mut first_short = first.clone();
-            first_short.params = StoredSpan::for_tests(zero, cut);
-            let mut second = first;
-            second.params = StoredSpan::for_tests(cut, one);
+            let first_short = first.clone().piece_for_tests((zero, cut));
+            let second = first.piece_for_tests((cut, one));
             rows.splice(0..1, [first_short, second]);
             let lift = Lift::stated_for_tests(rows, closed());
             assert_eq!(
@@ -2902,17 +2904,26 @@ mod tests {
             each::<Interval>();
         }
 
-        /// A side carrying an image on no held line refuses, naming why: a
-        /// diagonal iso map, a harmonic image (no iso image at all), and a
-        /// point image, both of whose slopes are an exact zero.
+        /// A side that is no line the certificate reads refuses, naming
+        /// why: a slanted line (a curve in UV: no iso image holds one), a
+        /// harmonic image (no iso image at all), and an iso image that
+        /// does not move, whose way along its line is undecided.
         #[test]
         fn a_side_on_no_held_line_refuses_and_says_why() {
             fn each<T: Reads>() {
-                let mut diagonal = polygon::<T>(&SQUARE);
-                diagonal[1] = piece((T::one(), T::zero()), (1e-3, 1.0));
-                refused::<T>(diagonal, "not axis-aligned");
-                let mut harmonic = polygon::<T>(&SQUARE);
+                // A slanted line is no iso image: it is stated as a curve
+                // in UV, which holds no line however straight its net.
                 let f = T::from_f64;
+                let mut diagonal = polygon::<T>(&SQUARE);
+                let slanted = geom::NurbsCurve2::new(
+                    geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                    vec![Point2::new(1.0, 0.0), Point2::new(1.0 + 1e-3, 1.0)],
+                    vec![1.0, 1.0],
+                )
+                .unwrap();
+                diagonal[1].pcurve = Pcurve::General(std::sync::Arc::new(slanted.map_scalar(f)));
+                refused::<T>(diagonal, "not an iso image");
+                let mut harmonic = polygon::<T>(&SQUARE);
                 harmonic[1].pcurve = Pcurve::free_harmonic(
                     Point2::new(f(1.0), f(0.0)),
                     Vec2::new(f(0.0), f(0.0)),
@@ -2922,7 +2933,7 @@ mod tests {
                 refused::<T>(harmonic, "not an iso image");
                 let mut point = polygon::<T>(&SQUARE);
                 point.insert(1, piece((T::one(), T::zero()), (0.0, 0.0)));
-                refused::<T>(point, "one chart point");
+                refused::<T>(point, "not decided");
             }
             each::<f64>();
             each::<Interval>();
@@ -2949,9 +2960,9 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let LiftedRow { pcurve, .. } = &mut rows[0];
             *pcurve = Pcurve::IsoLine {
-                p0: Point2::new(Interval::zero(), Interval::zero()),
-                pl: Vec2::new(Interval::from_bounds(-1e-300, 1.0), Interval::zero()),
-                ends: None,
+                line: geom_brep::ChartLine::row(Interval::zero()),
+                at0: Interval::zero(),
+                rate: Interval::from_bounds(-1e-300, 1.0),
             };
             refused::<Interval>(rows, "not decided");
         }
@@ -3050,46 +3061,77 @@ mod tests {
             }
         }
 
-        /// **A seam column moved one period of a closed chart** whose
-        /// domain is `[lo, hi]`: the lift states it at `lo + (hi − lo)`,
-        /// computed. At `Interval` that sum has width, so the column's
-        /// value is no point and the certificate refuses it, naming the
-        /// period. At `f64` it is a point, and the certificate reads the
-        /// sum's rounding as the column: on `[0.3, 1.7]` that lands on
-        /// `1.7`, and on `[0.4, 1.7]`, `[0.6, 1.7]` and `[0.7, 3.1]` it
-        /// misses `hi` by an ulp, below, above (outside the domain) and
-        /// above. (The period's statement is
-        /// `work/boxfinish/a-seam-column-moved-a-period-reads-lo-plus-the-period.md`'s.)
+        /// **A seam column moved one period of a closed chart is its
+        /// domain's other end**, on domains that do not start at 0, end
+        /// to end: the column stored at `lo` is moved by the lift's own
+        /// door ([`crate::joint::Deck::apply`] on a chart whose `u`
+        /// domain is `[lo, hi]`, which moves an iso image's held value
+        /// through [`geom_brep::Period::moved`]), and the moved image is
+        /// held at `hi` itself, so the certificate reads the rectangle
+        /// `[lo, hi]` at `f64` and at `Interval` alike. The sum
+        /// `lo + (hi − lo)` it replaces has width at `Interval` on every
+        /// one of these domains and at `f64` misses `hi` by an ulp on
+        /// three of them. A column that is NOT at an end lands its offset
+        /// off the other end, a computed value that at `Interval` is no
+        /// point here, and the certificate refuses it, naming the move.
+        ///
+        /// Red under `Period::moved` adding `k·(hi − lo)` to every value:
+        /// the `Interval` rectangles refuse and three `f64` ones miss `hi`.
         #[test]
-        fn a_seam_column_moved_one_period_is_its_computed_sum() {
-            fn moved<T: Reads>((lo, hi): (f64, f64)) -> (T, Result<TrimRectangle, PropsError>) {
+        fn a_seam_column_moved_one_period_is_the_domains_other_end() {
+            const ONCE: Deck = Deck {
+                u: 1,
+                v: 0,
+                twin: false,
+            };
+            /// The bilinear chart over `[lo, hi] × [0, 1]`.
+            fn chart<T: geom_core::Decide>(lo: f64, hi: f64) -> geom::Surface<T> {
+                use geom_core::spline::KnotVector;
+                let ku = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+                let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+                let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+                    .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+                    .to_vec();
+                let net = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap();
+                geom::Surface::Nurbs(std::sync::Arc::new(net.map_scalar(T::from_f64)))
+            }
+            /// The square on `[lo, hi] × [0, 1]` whose far column is the
+            /// column stored at `at`, as the lift moves it one period of
+            /// the chart's `u` channel.
+            fn moved<T: Reads + geom_core::Decide>(
+                (lo, hi): (f64, f64),
+                at: f64,
+            ) -> Result<TrimRectangle, PropsError> {
                 let f = T::from_f64;
-                let column = f(lo) + (f(hi) - f(lo));
                 let mut rows = polygon::<T>(&[(lo, 0.0), (hi, 0.0), (hi, 1.0), (lo, 1.0)]);
-                rows[1] = piece((column, T::zero()), (0.0, 1.0)).moved_for_tests(Deck {
-                    u: 1,
-                    v: 0,
-                    twin: false,
-                });
-                (column, read(rows))
+                let surface = chart::<T>(lo, hi);
+                let periods = crate::pcurves::ChartPeriods::stated(&surface);
+                let stored = piece((f(at), T::zero()), (0.0, 1.0));
+                // The chart states a `u` period, so the move is made.
+                let image = ONCE.apply(&stored.pcurve, &surface, periods).unwrap();
+                let mut lifted = stored.moved_for_tests(ONCE);
+                lifted.pcurve = image;
+                rows[1] = lifted;
+                read(rows)
             }
-            match moved::<Interval>((0.3, 1.7)).1 {
-                Err(PropsError::QuadratureUnsupported { what }) if what.contains("one period") => {}
-                other => panic!("Interval: the moved column is no point: {other:?}"),
+            fn each<T: Reads + geom_core::Decide>() {
+                for (lo, hi) in [(0.3, 1.7), (0.4, 1.7), (0.6, 1.7), (0.7, 3.1)] {
+                    assert_eq!(
+                        moved::<T>((lo, hi), lo).unwrap().rect,
+                        rect(lo, hi, 0.0, 1.0),
+                        "the seam at {lo} lifted one period of [{lo}, {hi}] is the column {hi}"
+                    );
+                }
             }
-            for ((lo, hi), lands) in [
-                ((0.3, 1.7), 1.7),
-                ((0.4, 1.7), 1.699_999_999_999_999_7),
-                ((0.6, 1.7), 1.700_000_000_000_000_2),
-                ((0.7, 3.1), 3.100_000_000_000_000_5),
-            ] {
-                let (column, r) = moved::<f64>((lo, hi));
-                assert_eq!(column, lands, "f64: the sum on [{lo}, {hi}]");
-                assert_eq!(
-                    r.unwrap().rect,
-                    rect(lo, lands, 0.0, 1.0),
-                    "f64: the column read on [{lo}, {hi}] is the sum, not `hi`"
-                );
+            each::<f64>();
+            each::<Interval>();
+            // A column an ulp inside the domain is no end: it lands that
+            // ulp past the other end, which at `Interval` is no point.
+            let (lo, hi) = (0.4_f64, 1.7_f64);
+            match moved::<Interval>((lo, hi), f64::from_bits(lo.to_bits() + 1)) {
+                Err(PropsError::QuadratureUnsupported { what })
+                    if what.contains("computed value") => {}
+                other => panic!("Interval: a moved interior column is no point: {other:?}"),
             }
         }
 

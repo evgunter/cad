@@ -53,8 +53,8 @@ use crate::validate::decide_reported;
 /// dihedral between the plane and such a face (metres).
 pub(crate) const VERTEX_SECTION_SIDE: &str = "vertex_section_side";
 
-/// K name: that reading's own rounding, `K` times over, against the
-/// zero band (metres): Zero admits the reading as the input's.
+/// K name: that reading's own rounding against the `ε/K` share of the
+/// band (metres): Zero admits the reading as the input's.
 pub(crate) const VERTEX_SECTION_RESOLUTION: &str = "vertex_section_resolution";
 
 /// K name: that reading moved toward zero by its own rounding, where the

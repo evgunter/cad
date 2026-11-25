@@ -528,14 +528,14 @@ fn a_line_row_is_shared_only_on_both_walls_sides() {
         ));
         let images = [
             Pcurve::IsoLine {
-                p0: geom_core::Point2::new(c, 0.0),
-                pl: geom_core::Vec2::new(0.0, 1.0),
-                ends: None,
+                line: geom_brep::ChartLine::column(c),
+                at0: 0.0,
+                rate: 1.0,
             },
             Pcurve::IsoLine {
-                p0: geom_core::Point2::new(0.0, 0.0),
-                pl: geom_core::Vec2::new(1.0, 0.0),
-                ends: None,
+                line: geom_brep::ChartLine::row(0.0),
+                at0: 0.0,
+                rate: 1.0,
             },
         ];
         for (i, image) in images.iter().enumerate() {
@@ -605,15 +605,17 @@ fn a_rim_across_a_closed_charts_closure_is_no_shared_row() {
         .expect("inside one arc, the shared row certifies");
     let shifted = images.map(|image| match image {
         Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks,
             ends,
         } => Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0: t0 + tau,
             angle,
             breaks,
@@ -700,14 +702,14 @@ fn tangent_at(ys: f64, lean: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
     ));
     let images = [
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(1.0, 0.0),
-            pl: geom_core::Vec2::new(0.0, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(1.0),
+            at0: 0.0,
+            rate: 1.0,
         },
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -829,9 +831,9 @@ fn a_sign_change_across_a_crease_is_no_tangency() {
         NurbsCurve3::new(k(), row.to_vec(), vec![1.0; 3]).unwrap(),
     ));
     let image = || Pcurve::IsoLine {
-        p0: geom_core::Point2::new(0.0, 0.0),
-        pl: geom_core::Vec2::new(1.0, 0.0),
-        ends: None,
+        line: geom_brep::ChartLine::row(0.0),
+        at0: 0.0,
+        rate: 1.0,
     };
     let pair = Pair::of(
         wall(Vec3::new(0.0, -1.0, 0.0)),
@@ -893,14 +895,14 @@ fn swapping_at(ys: f64, s: f64) -> (Pair, Curve3<f64>, [Pcurve<f64>; 2]) {
     ));
     let images = [
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(1.0, 0.0),
-            pl: geom_core::Vec2::new(0.0, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(1.0),
+            at0: 0.0,
+            rate: 1.0,
         },
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         },
     ];
     (Pair::of(floor, upright), line, images)
@@ -992,14 +994,14 @@ fn an_interior_row_refuses_whichever_way_its_crease_folds() {
     ));
     let images = [
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.5, 0.0),
-            pl: geom_core::Vec2::new(0.0, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(0.5),
+            at0: 0.0,
+            rate: 1.0,
         },
         Pcurve::IsoLine {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
-            ends: None,
+            line: geom_brep::ChartLine::row(0.0),
+            at0: 0.0,
+            rate: 1.0,
         },
     ];
     let s = 0.1 * eps();
@@ -1196,8 +1198,9 @@ fn a_shared_row_admits_only_row_images() {
         "two arc rims along u are a shared row"
     );
     let Pcurve::IsoArc {
-        p0,
-        pd,
+        line,
+        g0,
+        gd,
         t0,
         angle,
         breaks,
@@ -1206,28 +1209,27 @@ fn a_shared_row_admits_only_row_images() {
     else {
         panic!("an arc rim");
     };
-    for (what, pd) in [
-        ("along v", geom_core::Vec2::new(0.0, pd.x)),
-        ("along neither", geom_core::Vec2::new(pd.x, pd.x)),
-    ] {
-        let moved = Pcurve::IsoArc {
-            p0,
-            pd,
-            t0,
-            angle,
-            breaks: breaks.clone(),
-            ends: Box::default(),
-        };
-        assert!(
-            SharedRow::new(
-                pair.pair(),
-                (pair.keys[0], ia.clone()),
-                (pair.keys[1], moved)
-            )
-            .is_none(),
-            "an arc image {what} is no row"
-        );
-    }
+    // The same arc held as a column: an arc image along `v` is no row.
+    // (An arc image along neither axis is unwritable: an iso image holds
+    // a line of its chart.)
+    let moved = Pcurve::IsoArc {
+        line: geom_brep::ChartLine::column(line.value),
+        g0,
+        gd,
+        t0,
+        angle,
+        breaks: breaks.clone(),
+        ends: Box::default(),
+    };
+    assert!(
+        SharedRow::new(
+            pair.pair(),
+            (pair.keys[0], ia.clone()),
+            (pair.keys[1], moved)
+        )
+        .is_none(),
+        "an arc image along v is no row"
+    );
 }
 
 // ---- the PR 5959 re-review 2 rows, ported ----

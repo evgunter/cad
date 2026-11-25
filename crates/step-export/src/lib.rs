@@ -220,6 +220,7 @@
 //! headless FreeCAD/OCC import over the committed fixtures in
 //! `tests/fixtures/` and asserts validity, entity counts, and volume.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 use std::collections::HashMap;
 
 use geom_core::Tol;

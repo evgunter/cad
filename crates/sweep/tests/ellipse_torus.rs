@@ -9,10 +9,10 @@
 //!
 //! The rows read the reduction sweep (`sweep_traces`): whether it
 //! refuses, and which (rim, torus face) pairs the exact predicates
-//! accepted, then the door each boolean op stops at next: a torus just
-//! clear of the rim builds every op, and one that reaches it meets the
-//! cut plane obliquely, a pair with no section arm (the filed door
-//! below).
+//! accepted, then every boolean op: a torus just clear of the rim builds
+//! the two solids apart, and one that crosses it meets the cut plane
+//! obliquely, a plane × torus pair the section value marches, and builds
+//! the crossing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -141,31 +141,6 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
     (count(ab.examined()), count(ab.accepted()))
 }
 
-/// Every op's refusal, `A ∖ B` and `B ∖ A` both; a body fails with the op
-/// named.
-fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
-    let tol = Tol::witness();
-    let (a, b) = (
-        &sweep::test_support::finished("operand A", a.clone(), tol),
-        &sweep::test_support::finished("operand B", b.clone(), tol),
-    );
-    [
-        ("A ∪ B", topo::boolean::union(a, b, tol)),
-        ("A ∩ B", topo::boolean::intersect(a, b, tol)),
-        ("A ∖ B", topo::boolean::subtract(a, b, tol)),
-        ("B ∖ A", topo::boolean::subtract(b, a, tol)),
-    ]
-    .into_iter()
-    .map(|(op, r)| {
-        (
-            op,
-            r.err()
-                .unwrap_or_else(|| panic!("{op} built a body where a frontier was pinned")),
-        )
-    })
-    .collect()
-}
-
 /// **A torus just clear of the rim, from outside the corner.** The tube
 /// passes 1e-4 m down to 100 zero bands from the rim, nowhere nearer: the rim's arc
 /// enclosure cannot clear it, its certified roots answer `Miss`, the
@@ -250,44 +225,118 @@ fn ops(
 /// **A torus crossing the rim.** A tube through the corner by a
 /// millimetre, and a ring of radius 0.45 about the drum's axis at the
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
-/// accepted at its certified roots, the crossing layer passes, and every
-/// op stops at the join: an oblique plane × torus germ pair cuts a
-/// general spiric quartic, refused by name. At ε 1e-6 a germ on the wall
-/// × torus pair may be minted first, and its march's tube straddles
+/// accepted at their certified roots, the oblique plane × torus pair is
+/// marched (one null loop through the corner, two loops round the
+/// ring's tube), and every op builds, held to tier 3. The four volumes
+/// close on the operands' closed forms (`π/8`, `2π²Rr²`): `∪ + ∩` is
+/// their sum, each difference its operand less `∩`, which is positive;
+/// the ring's `∩` is also held to a quadrature of the tube below the
+/// plane and inside the wall. At ε 1e-6 a march's tube straddles
 /// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 #[test]
-fn a_torus_crossing_the_rim_reaches_the_join() {
+fn a_torus_crossing_the_rim_builds_every_op() {
     let a = drum_lower();
-    for (label, b) in [
-        ("corner, 1 mm deep", corner_torus(0.3, 0.05, 1.05, -1e-3)),
+    let coarse = Tol::witness().eps() == 1e-6;
+    let (ring_r, ring_small) = (0.45, 0.1);
+    for (label, b, (big, small)) in [
+        (
+            "corner, 1 mm deep",
+            corner_torus(0.3, 0.05, 1.05, -1e-3),
+            (0.3, 0.05),
+        ),
         (
             "ring about the axis",
             donut(
-                0.45,
-                0.1,
+                ring_r,
+                ring_small,
                 Vec3::new(0.0, 0.0, 0.5),
                 Vec3::new(0.0, 0.0, 1.0),
             ),
+            (ring_r, ring_small),
         ),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        let coarse = Tol::witness().eps() == 1e-6;
-        for (op, e) in refusals(&a, &b) {
+        let mut volumes = Vec::new();
+        for (op, r) in ops(&a, &b) {
+            let r = match r {
+                Err(BooleanError::GermSectionUnbuilt {
+                    why:
+                        topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
+                            geom_brep::SsiError::TubeStraddles { .. },
+                        )),
+                    ..
+                }) if coarse => break,
+                r => r.unwrap_or_else(|e| panic!("{label}, {op}: {e:?}")),
+            };
+            let b = r
+                .body()
+                .unwrap_or_else(|| panic!("{label}, {op}: the operands cross, so a body"));
+            assert_eq!(
+                topo::validate_geometric(&b.body, Tol::witness()),
+                Ok(()),
+                "{label}, {op}: tier 3"
+            );
+            volumes.push(topo::test_support::pinned_volume(op, &b.body, Tol::witness()).volume);
+        }
+        let [union, inter, a_less, b_less] = volumes[..] else {
             assert!(
-                match &e {
-                    BooleanError::GermSectionSpiric { .. } => true,
-                    BooleanError::GermSectionUnbuilt {
-                        why:
-                            topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
-                                geom_brep::SsiError::TubeStraddles { .. },
-                            )),
-                        ..
-                    } => coarse,
-                    _ => false,
-                },
-                "{label}, {op}: got {e:?}"
+                coarse,
+                "{label}: every op builds at {}",
+                Tol::witness().eps()
+            );
+            test_utils::vacuity::stood_down(label, "every op's body and the volumes, at ε 1e-6");
+            continue;
+        };
+        let pi = core::f64::consts::PI;
+        let (drum, torus) = (pi / 8.0, 2.0 * pi * pi * big * small * small);
+        // A marched edge stands within the band of the section, so each
+        // volume moves by at most the cut's area (under 1 m² here) times
+        // that: 10 ε holds it.
+        let close = |got: f64, want: f64, what: &str| {
+            assert!(
+                (got - want).abs() < 10.0 * Tol::witness().eps(),
+                "{label}: {what} {got} against {want}"
+            );
+        };
+        assert!(inter > 0.0, "{label}: ∩ holds the crossing, {inter}");
+        close(union + inter, drum + torus, "∪ + ∩");
+        close(a_less, drum - inter, "A ∖ B");
+        close(b_less, torus - inter, "B ∖ A");
+        if label == "ring about the axis" {
+            let want = ring_below_the_cut(ring_r, ring_small);
+            assert!(
+                (inter - want).abs() < 2e-5 * want,
+                "{label}: ∩ {inter} against the quadrature's {want}"
             );
         }
     }
+}
+
+/// **The ring's tube below the cut and inside the wall**, by the
+/// midpoint rule in the azimuth `φ` and the distance `ρ` from the axis:
+/// at `(ρ, φ)` the tube spans `z = 0.5 ± w`, `w = √(r² − (ρ − R)²)`,
+/// and the cut keeps `z < 0.5 − ρ·cos φ·tan 0.3`; the wall keeps
+/// `ρ < 0.5`. The integrand is a square root at the tube's inner rim, so
+/// the rule converges as `h^1.5`: at 720 × 600 cells it is within `1e-5`
+/// of the limit.
+fn ring_below_the_cut(big: f64, small: f64) -> f64 {
+    let (n_phi, n_rho) = (720_u32, 600_u32);
+    let (lo, hi) = (big - small, DRUM_RADIUS);
+    let (d_phi, d_rho) = (
+        core::f64::consts::TAU / f64::from(n_phi),
+        (hi - lo) / f64::from(n_rho),
+    );
+    let lean = TILT.tan();
+    let mut sum = 0.0;
+    for i in 0..n_phi {
+        let c = ((f64::from(i) + 0.5) * d_phi).cos();
+        for j in 0..n_rho {
+            let rho = lo + (f64::from(j) + 0.5) * d_rho;
+            let w = (small * small - (rho - big).powi(2)).max(0.0).sqrt();
+            let top = (0.5 + w).min(0.5 - rho * c * lean);
+            sum += rho * (top - (0.5 - w)).max(0.0);
+        }
+    }
+    sum * d_phi * d_rho
 }

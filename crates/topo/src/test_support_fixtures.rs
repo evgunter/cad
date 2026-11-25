@@ -2236,6 +2236,10 @@ pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestP
 /// start corner at the carrier's start, its end corner at the carrier's
 /// end plus `off` (certified, so `off` lies within the run's zero band).
 /// Returns the body and the cap face.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     carrier: Curve3<T>,
     span: (T, T),

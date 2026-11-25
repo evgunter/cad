@@ -228,6 +228,41 @@ true at every type it can produce
 (`crates/geom-core/README.md`, DL5.2 and DL5.3, is this clause at the
 scalars).
 
+### A size is a type `[sizes]`
+
+A length the kernel stores as a size is a `Size` (not the user-facing
+`quantity::Length`). A `Size` is
+finite and strictly positive: it is bounded and not definitely at or
+below zero, so at an `Interval` an enclosure that straddles zero is
+still one. It has one mint, and that mint is fallible: a zero, a
+negative, a NaN or an unbounded value refuses with a typed error and
+never panics. Finiteness is decided at the mint and nowhere else.
+`decide` stays a sign verdict, so `decide(+∞)` is `Positive`.
+
+- **A conic's sizes** (a circle's radius, an ellipse's semi-axes) are
+  exact `Size`s, with no band. Whether a computed conic exists is
+  its producer's pose decision, or is implied by the surface it lies
+  on. A second band decision at the mint would be a second place for
+  that fact ([one-way.places]). The readers that meter through a
+  conic decide span questions, and keep them.
+- **A surface kind's convention** is a witness decided on the run's
+  band, minted where the surface comes to exist, on the run's
+  tolerance and never on a caller's band. A cylinder's or a sphere's
+  radius is decided positive, a torus holds a `RingTorus`, and a
+  spindle holds its sheet verdict. A witness hands out `Size`s.
+  The at-rest check's radius half and the section arms' radius guards
+  re-decide this fact, and retire.
+- **A cone's half-angle** is an exact type, strictly inside
+  `(0, π/2)`. Where its band fact lives, and at which lever, is a
+  question of its own.
+- **A builder that computes a size returns `Result`.** Evaluators
+  stay total, and poison flows through numbers, never into a stored
+  size. A builder below a predicate battery hands back numbers, and
+  the entity is minted after the battery passes, from that battery's
+  decision. A blend torus's ring witness is minted from the spine
+  regularity predicate's passed decision, through a token only that
+  decision mints.
+
 ### Failure is loud, and its kind is plain `[loud-failure]`
 
 Nothing absorbs a failure: no silent discard, no hidden healing, no
@@ -445,10 +480,11 @@ curve pairs.
   scalar, no longer carry it. A continuous
   value that varies over the box is no choice: chosen at the nominal
   values, it is wrong everywhere else, so the lane builds it. The one
-  such value a lane takes from `f64` is a solved parameter with no
-  closed form, admitted by a check at the lane scalar that leaves
-  every member of the box within the band, and refused where no one
-  number does (`crates/geom-core/README.md`, DL5.2).
+  such value a lane takes from `f64` is a proposal: a solved parameter
+  with no closed form, or a fitted image, admitted by a check at the
+  lane scalar that leaves every member of the box within the band, and
+  refused where no one value does (`crates/geom-core/README.md`,
+  DL5.2).
 - **The editor-core evaluation service is generic over `Real`.** M10's
   error-propagation UI rides the same memoization / cancelation /
   per-node-result machinery as f64 rebuilds; no parallel path.
@@ -930,8 +966,12 @@ tiers".
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
-  body's verdict: every finding but the session box is a fact of the
-  shape up to isometry. The embedding certificate is one fact per pair
+  body's verdict: whether it passes, and every finding but the session
+  box and the embedding question's, is a fact of the shape up to
+  isometry. A body that does not pass the embedding question is told
+  the first finding the question meets; which one that is, among
+  several, is a fact of the walk and not of the shape. The embedding
+  certificate is one fact per pair
   of faces, of the two faces and the cells they share: a finish
   carries the fact of a pair it finds unchanged in a finished operand,
   by comparing the faces itself, and asks the rest. The gate's fixed

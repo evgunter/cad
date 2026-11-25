@@ -12,3 +12,26 @@
 # not. Nothing else in the value is reachable for mutation — the name
 # itself is behind a shared `Arc` with no mutable door.
 ignore-interior-mutability = ["editor_core::names::role::NameRef"]
+
+# Where a conic is is read from its stored position
+# (`crates/geom-core/README.md`, "Float rounding": "every reading of
+# where the conic is (at a parameter, along it, or of a point against
+# it) is read from that position"). These doors hand out the frame at
+# the centre, which an ellipse held on its arc derives on each read at
+# its semi-axes' rounding, or read a point about that centre, or take a
+# conic restated on a caller's frame. The lint job's clippy reports
+# every use of one (`--force-warn clippy::disallowed_methods`) and
+# `scripts/conic_centre_census.py` holds the production reads per file
+# at their pins; a production site that reads one says why
+# (`#[expect(clippy::disallowed_methods, reason = "...")]`).
+# `scripts/gates/conic-centre-reads.sh` holds the wiring.
+disallowed-methods = [
+    { path = "geom::Conic::frame", reason = "a conic's centre frame: read where the conic is through its readings (point_at, extent_along, cover_over, azimuth, axis, u_ref, v_ref)" },
+    { path = "geom::Conic::center", reason = "a conic's centre: read where the conic is through its readings" },
+    { path = "geom::Circle::frame", reason = "a circle's centre frame: read where the circle is through its readings" },
+    { path = "geom::Ellipse::frame", reason = "an ellipse's centre frame, derived where it is held on its arc: read where it is through its readings" },
+    { path = "geom::Curve3::frame", reason = "a carrier's centre frame: read where a conic is through its readings" },
+    { path = "geom::Conic::unit_in_plane", reason = "a point's unit coordinates about the conic's centre, derived where an ellipse is held on its arc" },
+    { path = "geom::Curve3::circle_at", reason = "a circle rebuilt on a frame the caller restates: map the conic's own placement instead" },
+    { path = "geom::cover::Cover::arc", reason = "an arc's cover on a frame the caller restates: a carrier's is Curve3::cover_over" },
+]

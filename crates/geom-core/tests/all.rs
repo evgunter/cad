@@ -55,6 +55,8 @@ mod exact_q;
 mod refusal;
 mod span_fixtures;
 
+#[path = "a_value_with_no_expression_is_named_where_it_was_minted.rs"]
+mod a_value_with_no_expression_is_named_where_it_was_minted;
 #[path = "ambiguity_k_env.rs"]
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
@@ -165,6 +167,8 @@ mod sym11_witness_kind_interval_rows;
 mod sym11_witness_kind_rows;
 #[path = "sym_9_retry_rows.rs"]
 mod sym_9_retry_rows;
+#[path = "sym_contradiction_instrument_rows.rs"]
+mod sym_contradiction_instrument_rows;
 #[path = "sym_deferred_rows.rs"]
 mod sym_deferred_rows;
 #[path = "sym_drive_memo.rs"]
@@ -233,3 +237,5 @@ mod m10_10_r1_sym_probes;
 mod m10_10_r2_probes;
 #[path = "polar_enclosure_contains_the_polar_factor.rs"]
 mod polar_enclosure_contains_the_polar_factor;
+#[path = "shape_report_render_budget.rs"]
+mod shape_report_render_budget;

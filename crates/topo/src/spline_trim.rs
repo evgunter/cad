@@ -874,15 +874,24 @@ impl TrimChart {
             return Err(SplineTrimGap::NoClosedLift);
         }
         let mut chain: Vec<Piece> = Vec::new();
-        for row in lift {
+        for (i, row) in lift.iter().enumerate() {
             if (row.lift.u != 0 && self.periods[0].is_none())
                 || (row.lift.v != 0 && self.periods[1].is_none())
                 || row.lift.twin
             {
                 return Err(SplineTrimGap::Moved);
             }
-            let mut run =
-                image_pieces(&row.pcurve, row.params, self.scale).ok_or(SplineTrimGap::NoPieces)?;
+            // An iso image's two ends, in its edge's forward order, as
+            // the lift reads its joints: a corner's meet where a row
+            // meets a column.
+            let (entry, exit) = (lift.joint_point(i), lift.exit_point(i));
+            let ends = if row.plus {
+                [entry, exit]
+            } else {
+                [exit, entry]
+            };
+            let mut run = image_pieces(&row.pcurve, row.params(), ends, self.scale)
+                .ok_or(SplineTrimGap::NoPieces)?;
             if !walks_forward(body, row.half_edge) {
                 run = run.into_iter().rev().map(Piece::reversed).collect();
             }
@@ -1279,19 +1288,20 @@ fn walks_forward<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> bool {
 }
 
 /// **An image's pieces over its edge's span `[t0, t1]`**, forward: an
-/// iso line or an iso arc is the segment between its two ends (its image
-/// is that segment, whatever its parameterization; its ends as
-/// [`Pcurve::span_ends`] reads them), a fitted or general
+/// iso line or an iso arc is the segment between its two `ends` (its
+/// image is that segment, whatever its parameterization; `ends` are the
+/// joints the loop's lift reads at its edge's start and end,
+/// [`crate::pcurves::Lift::joint_point`]), a fitted or general
 /// image its Bézier pieces over the span. `None` for any other kind, or
 /// where the decomposition does not run. An end is held at its
 /// bracket's middle, off by the bracket's half-width and, at `f64`, by a
 /// short chain's rounding at `scale` past it (`p0 + d·g`).
 pub(crate) fn image_pieces<T: Decide>(
     pcurve: &Pcurve<T>,
-    span: geom_brep::StoredSpan<T>,
+    (t0, t1): (T, T),
+    [a, b]: [geom_core::Point2<T>; 2],
     scale: f64,
 ) -> Option<Vec<Piece>> {
-    let (t0, t1) = span.ends();
     let end = |p: geom_core::Point2<T>| {
         let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
             let m = middle(c);
@@ -1305,7 +1315,6 @@ pub(crate) fn image_pieces<T: Decide>(
     };
     match pcurve {
         Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
-            let [a, b] = pcurve.span_ends(span);
             Some(vec![Piece::segment(end(a), end(b))])
         }
         Pcurve::Fitted(image) | Pcurve::General(image) => {

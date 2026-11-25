@@ -1173,7 +1173,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         // (`arms::Branch`). The link records the end's reading as its
         // convexity margin: that is the decision its convexity came
         // from.
-        geom_brep::WedgeVerdict::End { end, margin } => {
+        geom_brep::WedgeVerdict::End { end, margin, .. } => {
             let convexity = match end {
                 geom_brep::WedgeEnd::Cusp => Convexity::Convex,
                 geom_brep::WedgeEnd::Slit => Convexity::Concave,
@@ -1516,6 +1516,10 @@ fn classify_arm<T: Decide + Bounds>(
 /// consumed to a point and negative one consumed past the axis, and
 /// both refuse typed.
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
@@ -1635,6 +1639,10 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// refuse at the curved-pierce door; a block ∪ cylinder at the join
 /// lane), which is the boolean's ground, not this fold's.
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
     sb: &Surface<T>,

@@ -834,17 +834,6 @@ fn served_pair(
     extent: geom_brep::LeverBounds<f64>,
     (file, eps_band): (FileBand, geom_core::Band),
 ) -> Result<Chosen, StepImportError> {
-    // A pair the value classifies but carries no component of refuses by
-    // that cause before any classification: neither the file nor the
-    // tolerance is what stops it.
-    if let Some(why) = geom_brep::pair_section::uncarried(sa.kind(), sb.kind()) {
-        return Err(unbuilt(
-            file,
-            id,
-            format!("the section of {}: {why}", pair_names(sa, sb)),
-            SECTION_LANE,
-        ));
-    }
     let ball = Some(region.ball());
     let classified =
         |band, at_file: bool| -> Result<Option<geom_brep::PairSection<f64>>, StepImportError> {
@@ -1931,6 +1920,10 @@ fn line_on_column(
 /// a printed spline read here within the sum above. The edge's
 /// `CarrierBuilt` reports the move measured at five samples
 /// ([`held_gap`]), not either bound.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn circle_column_match(
     iso: &geom::NurbsCurve3<f64>,
     circle: &geom::Circle<f64>,
@@ -1951,8 +1944,8 @@ fn circle_column_match(
     // A closed column's ends read both ways round: it runs with the edge
     // about the circle's axis or against it about the reversed one.
     [
-        (order.forward, circle.frame().axis()),
-        (order.reversed, -circle.frame().axis()),
+        (order.forward, circle.axis()),
+        (order.reversed, -circle.axis()),
     ]
     .into_iter()
     .filter(|&(holds, _)| holds)
@@ -1963,7 +1956,7 @@ fn circle_column_match(
                 (
                     circle.frame().origin(),
                     axis,
-                    circle.frame().u_ref(),
+                    circle.u_ref(),
                     circle.radius(),
                 ),
                 closed,
@@ -1980,7 +1973,7 @@ fn circle_column_match(
             let (lo, hi) = spline.domain();
             spec.t0 <= lo
                 && spec.t1 >= hi
-                && arc(spline, circle.frame().axis()).is_some_and(|own| {
+                && arc(spline, circle.axis()).is_some_and(|own| {
                     let gap = geom_core::interval::add_up(own, column);
                     file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero
                 })
@@ -1995,6 +1988,10 @@ fn circle_column_match(
 /// edge's end). Both the column and the printed spline are then certified
 /// against it ([`circle_column_match`]). `None` where the column reads as
 /// no circle at the band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn column_circle(
     iso: &geom::NurbsCurve3<f64>,
     ends: (Point3<f64>, Point3<f64>),
@@ -2011,9 +2008,9 @@ fn column_circle(
     }
     match Curve3::circle(
         circle.frame().origin(),
-        -circle.frame().axis(),
+        -circle.axis(),
         circle.radius(),
-        circle.frame().u_ref(),
+        circle.u_ref(),
     ) {
         Curve3::Circle(reversed) => Some(reversed),
         _ => None,

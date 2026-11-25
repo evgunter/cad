@@ -399,8 +399,7 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     }
 }
 
-/// **A torus operand passes the pair gate and refuses typed at the
-/// crossing layer.** The torus is on the union's KIND roster, so the
+/// **A torus operand passes the pair gate and builds.** The torus is on the union's KIND roster, so the
 /// cylinder×torus union is no longer the gate's to refuse. The
 /// cylinder's rim circles genuinely cross the tube (the ring passes
 /// through the cylinder's end caps at `(0, 0, ±2)`), and that
@@ -408,19 +407,21 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
 /// as the OTHER direction's does — a circle of the torus against the
 /// cylinder's wall, the conic × quadric root door
 /// (`geom_brep::curve_face::conic_quadric`). Their pierces' sector sides
-/// certify, and what refuses is a germ pair's section — never a body.
-/// A germ's branch is read where it is minted: the wall × torus pair
-/// stands square to the torus's axis, a section the value counts and
-/// carries, each germ its site's foot; the end cap's against the torus,
-/// the cap plane parallel to the torus's axis at its inner equator, is a
-/// general-rung spiric (`GermSectionSpiric`), which refuses.
+/// certify. A germ's branch is read where it is minted: the wall ×
+/// torus pair stands square to the torus's axis, a section the value
+/// counts and carries, each germ its site's foot; the end cap's against
+/// the torus, the cap plane parallel to the torus's axis past its inner
+/// equator, is a general spiric quartic the value marches. The union is
+/// valid to tier 3 and holds the operands' closed forms less their
+/// overlap, which [`cylinder_torus_overlap`] integrates apart from the
+/// kernel.
 ///
 /// The pair gate's own sentence is pinned on a cone, the kind it still
 /// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
 /// join dispatch's text by
 /// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below.
 #[test]
-fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
+fn a_torus_operand_passes_the_pair_gate_and_builds() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
@@ -463,23 +464,51 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         torus_circle_on_wall,
         "a torus circle meets the cylinder's wall"
     );
-    let err = topo::union(
+    let union = topo::union(
         &finished("the cylinder", a, Tol::witness()),
         &finished("the torus", torus, Tol::witness()),
         Tol::witness(),
     )
-    .expect_err("a germ pair's section refuses");
-    assert!(
-        matches!(
-            err,
-            BooleanError::GermSectionSpiric {
-                a_kind: geom::SurfaceKind::Plane,
-                b_kind: geom::SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "expected a germ pair's section door, got {err:?}"
+    .unwrap_or_else(|e| panic!("the union builds, got {e:?}"));
+    let body = union.body().expect("the operands cross, so a body");
+    assert_eq!(
+        topo::validate_geometric(&body.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
     );
+    let got = topo::test_support::pinned_volume("the union", &body.body, Tol::witness()).volume;
+    let pi = core::f64::consts::PI;
+    let want = 4.0 * pi + 2.0 * pi * pi * 2.0 * 0.09 - cylinder_torus_overlap();
+    assert!(
+        (got - want).abs() < 1e-6,
+        "the union's volume {got} against {want}"
+    );
+}
+
+/// **The overlap of the cylinder `x² + y² ≤ 1`, `|z| ≤ 2` with the torus
+/// `R = 2`, `r = 0.3` about `y`**: at height `y = r·sin t` the tube spans
+/// `ρ = √(x² + z²)` within `R ± r·cos t`, so each `x` holds the run of
+/// `|z| ≤ 2` between those radii, in closed form, summed by the midpoint
+/// rule over `t` (which smooths the tube's edge) and `x` across the
+/// cylinder's chord. At 800 × 800 cells it is within `5e-7` of the limit.
+fn cylinder_torus_overlap() -> f64 {
+    let (big, small, n) = (2.0_f64, 0.3_f64, 800_u32);
+    let dt = core::f64::consts::PI / f64::from(n);
+    let mut sum = 0.0;
+    for j in 0..n {
+        let t = -core::f64::consts::FRAC_PI_2 + (f64::from(j) + 0.5) * dt;
+        let (y, w) = (small * t.sin(), small * t.cos());
+        let (lo, hi) = (big - w, big + w);
+        let half = (1.0 - y * y).sqrt();
+        let dx = 2.0 * half / f64::from(n);
+        for i in 0..n {
+            let x = -half + (f64::from(i) + 0.5) * dx;
+            let from = (lo * lo - x * x).max(0.0).sqrt();
+            let to = (hi * hi - x * x).sqrt().min(2.0);
+            sum += 2.0 * (to - from).max(0.0) * dx * w;
+        }
+    }
+    sum * dt
 }
 
 /// **The germ-pair JOIN dispatch's refusal says what that dispatch

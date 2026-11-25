@@ -178,28 +178,54 @@ back is sorted by what the `f64` is:
 |---|---|
 | a bound to decide against: a floor, a rounding pad, a lever arm, a hull bound | decides at `f64`, or carries it as an `f64` allowance term of the margin. It never becomes a `T` |
 | a place the code chose to evaluate at: a sample, a station, a cell corner, the point a cell is subdivided at | hands it to the evaluator as an `f64` argument, and gets the point back on the value channel (`T::Value`: the scalar with its tangent removed, `f64` at `Dual<f64>`, `Interval` at `Dual<Interval>`, the scalar itself elsewhere). A place is never a `T`, so it has no tangent; what is evaluated there can be decided on, and is not a `T` a body can hold |
-| data built whole at `f64` | builds it at `T` |
+| data the model determines, built whole at `f64`: a wall skinned through its sections, a profile's arcs | builds it at `T`. The construction is the data's definition, so there is nothing to check a lifted copy against |
 | a constant of the model | enters by where it comes from: a literal through a door that accepts only a compile-time constant, a count as an integer, a band as the tolerance type, an authored value through the document's parameter door |
 
-A solved value the result is built on (a root, a foot, a crossing) is
-not converted to `f64` and back. Where the solve has a closed form,
-the value stays in `T`. Where it does not, an `f64` search proposes a
-candidate and one door admits it: the candidate and the residual at
-`T` go in, the door runs the check that the candidate's point reads
-on within the band, and the admitted `T` or the refusal comes out. A
-caller cannot have the `T` without the residual, so what the value
-claims is what was checked: this number reads on, never that it is
-the true root. At `Sym` it is an opaque unknown and claims nothing.
-The door is bounded `Certifies` (DL5.3), so a dual cannot reach it,
-and it is the one caller of `Real::from_computed`.
+A proposed value the result is built on is admitted by its check. A
+value is proposed when the model does not determine it: an `f64`
+routine picks one of many that would serve, and there is a description
+to check it against other than itself. A root, a foot or a crossing
+with no closed form is one number proposed; a curve fitted through
+measured feet (an edge's image in a spline wall's chart) is a net of
+them. A proposal is `f64` by type until one door admits it: the
+candidate and its check go in, the door enters the candidate in `T` and
+runs the check there (for a number, that its point reads on within the
+band; for a fitted image, the certificate that the wall composed with
+it stays within the band of the carrier), and the admitted `T` with
+what the check produced, or the refusal, comes out. A caller cannot
+have the `T` without its check, so what the value claims is what was
+checked: this number reads on, this curve serves, never that it is the
+true root or the true image. Where the value has a closed form it is
+not proposed: it stays in `T`. At `Sym` an admitted value is an opaque
+unknown and claims nothing. The admitting doors are bounded `Certifies`
+(DL5.3), so a dual cannot reach them, and with the evaluators' private
+step for a place they are the only callers of `Real::from_computed`.
+
+Nothing is decided from an admitted proposal beyond what its check
+bounded. Another candidate the same check would admit could have been
+drawn, so a reader that reaches a decision (a point at an end or clear
+of it, inside a trim or on its edge, two roots apart or one) gives the
+answer every admissible candidate gives: it asks its question of the
+model's own description, the proposal only saying where to look, or it
+carries the check's bound as an allowance, and where it can do neither
+it refuses as unresolved at the band. The door therefore returns the
+admitted value with that bound: how far another admissible candidate
+could lie from it, in each direction a reader decides on (for a fitted
+image, the certificate's envelope; for a crossing parameter, the reach
+along the edge as well as the distance across the face). A check that
+bounds less than its readers decide on is widened, or the reader
+re-posed. The check is the one decision a proposal may change, and its
+refusal says which it is: no candidate passes, which a person can act
+on, or the one drawn did not, which is the kernel's own frontier.
 
 The door is for a value the body stores: a parameter an edge is split
 at, an end an edge is re-anchored to. A solved value that is only
 evaluated at, to decide (a normal read at a foot, an iterate of a
 search), is a place, and takes the table's row. At an enclosure scalar
-the admitted value is one number for the whole family: a parameter the
-construction states, the same for every member, with every member's
-point there checked within the band. It is not an enclosure of each
+the admitted value is one number, or one net, for the whole family: a
+parameter or an image the construction states, the same for every
+member, with every member's point there, or every member's wall
+composed with it, checked within the band. It is not an enclosure of each
 member's own root, which lies elsewhere by up to the band over the
 sine of the crossing angle; and where the root moves farther than that
 across the box, no one number passes and the site refuses. A parameter
@@ -225,6 +251,25 @@ interior as well as at its doors:
 - A bound says which scalars the code has a meaning for. It is not
   widened to every scalar the body happens to compile at, and no work
   is done to support a scalar the code has no meaning for.
+
+## Asking a scalar's expression (ERROR-DESIGN E12)
+
+**EX1 — the expression is a type, and the question is its method.**
+`Real::Expression` is what a scalar carries beside its value: at
+`Sym<T>` the node its value was computed as, and at `f64`, `Interval`,
+`Dual<T>` and `Probe` a type with no values (`NoExpression`), as a
+dual's lanes are (DL5.3). E12's structural question, whether a value
+is zero as a function of the document's variables, is
+`Expression::proves_zero`: a method of the expression, so it cannot be
+written against a number or against a generic `T`. Generic code
+reaches it through `Real::expression`, and at a numeric scalar the arm
+that asks is unreachable by type; no impl answers "no". Code whose
+whole meaning is symbolic takes the expression, or a bound only the
+symbolic scalar meets. `Real::register_equal` and
+`Decide::free_identity` are methods every scalar answers: a numeric
+scalar's `register_equal` checks the claim at its value and records
+nothing, and its `free_identity` drops the identity
+(`work/decide/register-equal-and-free-identity-are-answered-by-every-scalar.md`).
 
 ## Choosing among spellings of one quantity (W1)
 

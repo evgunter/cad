@@ -299,7 +299,10 @@ fn main() {
         let d = topo::pcurve_of(&cleared, he, band);
         let kind = match &d {
             Ok(Pcurve::General(_)) => "General".to_string(),
-            Ok(Pcurve::IsoLine { p0, pl, .. }) => format!("IsoLine p0={p0:?} pl={pl:?}"),
+            Ok(p @ Pcurve::IsoLine { .. }) => {
+                let (p0, pl) = p.iso_line_form().expect("an IsoLine has a line form");
+                format!("IsoLine p0={p0:?} pl={pl:?}")
+            }
             Ok(p) => format!("{p:?}"),
             Err(e) => format!("REFUSED {e:?}"),
         };

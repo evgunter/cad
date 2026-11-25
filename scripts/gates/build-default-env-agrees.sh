@@ -3,8 +3,10 @@
 # rust-cache key (`build-default`, `lint`) declares the same CARGO_* /
 # RUST* job env as the job that primes it, as do nightly-attribution.yml's
 # `build-default` jobs, and so does every set of nightly.yml jobs that
-# names one `shared-key`. ONE home; ci.yml's `lint` job runs every gate
-# in this directory.
+# names one `shared-key`. fast-set-drift.yml's build-default job is held
+# to the same block, and sets the test job's opt-level-0 wrapper and runs
+# its check, since it times the binaries the gate runs. ONE home; ci.yml's
+# `lint` job runs every gate in this directory.
 #
 # rust-cache hashes the CARGO_* and RUST* variables into its key, and
 # one job on a push to main writes each primed key: cache-prime writes
@@ -31,6 +33,9 @@ set -euo pipefail
 WORKFLOW=.github/workflows/ci.yml
 NIGHTLY=.github/workflows/nightly.yml
 ATTRIBUTION=.github/workflows/nightly-attribution.yml
+DRIFT=.github/workflows/fast-set-drift.yml
+WRAPPER='RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh'
+WRAPPER_CHECK='name: every integration binary built went through the opt-level-0 wrapper'
 GATE_SCAN_NOUN=workflow
 
 # One line per job naming a shared-key: `<key>\t<job>\t<its sorted
@@ -74,7 +79,8 @@ gate() {
   gate_require_file "$WORKFLOW"
   gate_require_file "$NIGHTLY"
   gate_require_file "$ATTRIBUTION"
-  local rows count distinct primed total=0
+  gate_require_file "$DRIFT"
+  local rows count distinct primed total=0 f
   for primed in build-default lint; do
     rows=$({
       shared_key_envs "$WORKFLOW"
@@ -93,6 +99,25 @@ gate() {
     fi
     total=$((total + count))
   done
+  rows=$(shared_key_envs "$DRIFT" | awk -F '\t' '$1 == "build-default"')
+  if ! printf '%s\n' "$rows" | grep -q .; then
+    gate_error "$(gate_name): $DRIFT names no shared-key build-default job, so the drift check does not time the gate's build or the gate's reading of the file is wrong; update the gate with it"
+    exit 1
+  fi
+  rows=$( { shared_key_envs "$WORKFLOW"; printf '%s\n' "$rows"; } | awk -F '\t' '$1 == "build-default"')
+  distinct=$(printf '%s\n' "$rows" | cut -f3 | sort -u | wc -l)
+  if [ "$distinct" -ne 1 ]; then
+    printf '%s\n' "$rows" | cut -f2- | sed 's/\t/: /'
+    gate_error "the $DRIFT job disagrees with the jobs restoring build-default on its CARGO_*/RUST* job env, so it misses the cache and times other binaries than the gate's"
+    exit 1
+  fi
+  for f in "$WORKFLOW" "$DRIFT"; do
+    if ! grep -qF "$WRAPPER" "$f" || ! grep -qF "$WRAPPER_CHECK" "$f"; then
+      gate_error "$f does not set the opt-level-0 wrapper ($WRAPPER) and run its check, so its build-default binaries are not the ones the test job builds and nothing would say so"
+      exit 1
+    fi
+  done
+  total=$((total + 1))
   local nrows key shared=0 bad=""
   nrows=$(shared_key_envs "$NIGHTLY")
   for key in $(printf '%s\n' "$nrows" | cut -f1 | sort | uniq -d); do
@@ -125,6 +150,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build-default
+      - run: echo "$WRAPPER" >> "\$GITHUB_ENV"
+      - $WRAPPER_CHECK
   reader:
     runs-on: ubuntu-latest
     env:
@@ -196,7 +223,21 @@ jobs:
 EOF
 }
 
-gate_plant_clean() { plant_workflow "$1" 1 '      UNRELATED: "x"'; plant_nightly "$1" 2; plant_attribution "$1" 1; }
+plant_drift() {
+  # $1 root, $2 the drift job's opt-level value, $3 1 to leave out the wrapper check
+  mkdir -p "$1/.github/workflows"
+  {
+    printf 'jobs:\n  drift:\n    env:\n      CARGO_PROFILE_DEV_LTO: "off"\n'
+    printf '      CARGO_PROFILE_DEV_OPT_LEVEL: "%s"\n    steps:\n' "$2"
+    printf '      - uses: Swatinem/rust-cache@v2\n        with:\n          shared-key: build-default\n'
+    printf '      - run: echo "%s" >> "$GITHUB_ENV"\n' "$WRAPPER"
+    [ "$3" = 1 ] || printf '      - %s\n' "$WRAPPER_CHECK"
+  } > "$1/$DRIFT"
+}
+
+gate_plant_clean() { plant_workflow "$1" 1 '      UNRELATED: "x"'; plant_nightly "$1" 2; plant_attribution "$1" 1; plant_drift "$1" 1 0; }
+plant_drift_env() { plant_drift "$1" 0 0; }
+plant_drift_no_wrapper_check() { plant_drift "$1" 1 1; }
 plant_value_drift() { plant_workflow "$1" 2 '      UNRELATED: "x"'; plant_nightly "$1" 2; plant_attribution "$1" 1; }
 plant_added_variable() { plant_workflow "$1" 1 '      RUSTFLAGS: "-Cdebug-assertions=off"'; plant_nightly "$1" 2; plant_attribution "$1" 1; }
 plant_lint_drift() { plant_workflow "$1" 1 '      UNRELATED: "x"' 1; plant_nightly "$1" 2; plant_attribution "$1" 1; }
@@ -220,7 +261,9 @@ gate_selftest() {
   gate_selftest_case "job(s) naming shared-key lint" plant_one_lint_job
   gate_selftest_case "restoring build-default disagree" plant_attribution_drift
   gate_selftest_case "job(s) naming shared-key build-default" plant_one_reader
-  printf '%s selftest OK: passes two build-default jobs whose blocks agree in another order and around a comment, plus an attribution job that agrees with them, beside two lint jobs that agree with each other and differ from them, and two nightly jobs on one key that agree beside a nightly job alone on its key; fires on a changed value, on an added RUST* variable, on a nightly job whose block drifts from its key-mate, on a lint job whose block drifts from its primer'"'"'s, on an attribution job whose block drifts from the build-default writer, and on a file where it finds fewer than two build-default or two lint jobs\n' "$(gate_name)"
+  gate_selftest_case "job disagrees with the jobs restoring build-default" plant_drift_env
+  gate_selftest_case "does not set the opt-level-0 wrapper" plant_drift_no_wrapper_check
+  printf '%s selftest OK: passes two build-default jobs whose blocks agree in another order and around a comment, plus an attribution job that agrees with them, beside two lint jobs that agree with each other and differ from them, and two nightly jobs on one key that agree beside a nightly job alone on its key; fires on a changed value, on an added RUST* variable, on a nightly job whose block drifts from its key-mate, on a lint job whose block drifts from its primer'"'"'s, on an attribution job whose block drifts from the build-default writer, on a file where it finds fewer than two build-default or two lint jobs, on a fast-set-drift.yml job whose block drifts from the build-default jobs, and on a drift workflow that leaves out the opt-level-0 wrapper check\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

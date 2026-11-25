@@ -556,8 +556,8 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
 /// pin flipped to** (the pin's own doc comment promised exactly this):
 /// the fallback's vertex probe is now backed by the curved-EXTENT scan
 /// — the sphere group's true extent (center ± r) is consulted against
-/// every face of the other operand — which detects the escape, re-cuts
-/// the operand (rigid re-chart about the escape normal), and re-enters
+/// every face of the other operand — which detects the escape, cuts the
+/// ball's face in along its meridian through each circle, and re-enters
 /// the pipeline, where the crossing layer finds the two section
 /// circles and the `(Plane, Sphere)` germ arm joins them exactly.
 ///

@@ -2,10 +2,13 @@
 id: separation-grants-disjointness-only-along-world-axes
 kind: issue
 title: topo::separation grants two placements or solids disjoint only by world-axis box non-overlap, so whether it certifies depends on how they are turned
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-11-24
+pr: 7589
+branch: orbit/separation-turned
 ---
 
 
@@ -55,3 +58,13 @@ the world axes and `boolean::separating::apart`'s turned directions.
 That reading takes two faces of one body; a door that reads face pairs
 behind its box overlap can call it for its pairs too. Read off the
 code; no `separation` fixture was built for it.
+
+## Closed (2026-11-24, PR 7589)
+
+Both `topo::separation` doors now certify only on two facts:
+1. **The boundaries are apart.** One reader, `census::faces_apart` (`census/face_pair.rs`), reads in order: `apart` along planar normals, the caller's axes and the anchor axis; then `apart_by` along the depth gap's directions with the held-pole covers; then the depth gap; then, for two planar faces, an in-plane reading.
+2. **A point of each connected shell is decided `Out` of the other side's material.** The placement door reads containment in both directions through the relative motion. A disconnected shell, an undecided placement or a refusal denies.
+
+A pair that clears only at some relative turn now clears at every turn. A solid in another's wall or inside a cube's material is denied, where main certified the ball-in-cube. The census, the operand gate and the NURBS re-gate read the same `faces_apart`.
+
+Review: one full review, NOT-MERGEABLE on two demonstrated MAJORs (containment). A re-review found APPROVE-WITH-FIXES, and a last pass merged on my read.

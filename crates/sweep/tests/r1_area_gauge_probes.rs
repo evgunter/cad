@@ -108,13 +108,15 @@ fn debug_assertions_are_on() -> bool {
 fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     use geom_core::Interval;
     let (sections, places) = r1_sections();
-    let lofted = sweep::test_support::loft_body_construction::<Interval>(
-        &sweep::test_support::lift_sections::<Interval>(&sections),
-        &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
+    // The gauge's subject is a spline-walled body at `Interval`, not the
+    // loft: the `f64` body's carriers held as points.
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<Interval>(
+        &sections,
+        &places,
         2,
         Tol::witness(),
     )
-    .expect("r1 loft builds");
+    .expect("the r1 body builds");
     // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
     match topo::test_support::measure_unvalidated(
         &lofted.body,

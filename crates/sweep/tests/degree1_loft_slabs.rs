@@ -1,7 +1,9 @@
 //! **A degree-1 loft is one wall per segment per slab**
 //! (`work/tesslane/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`):
 //! through `k ≥ 3` sections at v-degree 1, `sweep::loft_body` builds
-//! `k − 1` two-section lofts glued at the shared sections, so every wall
+//! `k − 1` two-section lofts glued at the shared sections (each slab's
+//! wall is its two sections' rows, `sweep::skin`'s `body_walls`; no wall
+//! through every section is skinned and cut), so every wall
 //! is a single-span ruled patch, each interior section is a ring of
 //! edges on the placed sketch segments and each strut a straight edge
 //! per slab. Red on `main` before the split: the creased wall refused at

@@ -570,6 +570,10 @@ pub fn edge_carrier_kind<T: Real>(
 /// # Panics
 ///
 /// Where the live edge's curve key does not resolve (D2 row 4).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
     match carrier_curve(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {

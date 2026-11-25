@@ -1010,6 +1010,7 @@ test_utils::f6_variants! {
         OutputSignature,
         VarNotMinted,
         NameOnMissingVar,
+        IndexSeat,
         VarNameTwice,
         ReaderOfUnmintedVar,
         SlotVarKind,
@@ -1365,6 +1366,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "the name width is attached to variable #0:0000000000070000",
                 "not live",
             ],
+        ),
+        (
+            SnapshotError::IndexSeat {
+                var: editor_core::VarId::new(0, tagged(7)),
+                other: editor_core::VarId::new(0, tagged(8)),
+                fault: editor_core::persist::IndexSeatFault::YieldIndex,
+            },
+            vec!["yields #0:0000000000080000, which is an index"],
         ),
         (
             SnapshotError::VarNameTwice {
@@ -2346,7 +2355,6 @@ test_utils::f6_variants! {
         SharedRim,
         ChordOffRim,
         MemberEdgeTied,
-        ConventionalVertex,
         ClosedCarrierUnread,
         CarrierUnplaced,
         PartnerUnread,
@@ -2355,7 +2363,6 @@ test_utils::f6_variants! {
         UnsupportedJoin,
         UnsupportedUnionName,
         HoldingsUnread,
-        UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
         BandVerdictsDisagree,
@@ -2525,9 +2532,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Emission {
-                what: "a chart cut survives in the result",
+                what: "a carried edge's group names no operand",
             },
-            vec!["a chart cut survives in the result"],
+            vec!["a carried edge's group names no operand"],
         ),
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
@@ -2593,17 +2600,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 shape: editor_core::DisagreeShape::PiecesAtOneVertex,
             },
             vec!["two pieces of one member line", "longer than the band"],
-        ),
-        (
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Edge(topo::EdgeKey::default()),
-            },
-            vec![
-                "turned a sphere",
-                "a piece of its seam",
-                "descends from no cell",
-            ],
         ),
         (
             NamingError::SharedRim {
@@ -2689,17 +2685,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["a vertex of a Boolean's result settles on a cell the result does not hold"],
         ),
         (
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 3,
-            },
-            vec![
-                "conventional vertex",
-                "output body 3",
-                "a-conventional-vertex",
-            ],
-        ),
-        (
             NamingError::MemberEdgeTied {
                 member: editor_core::VarId::new(0, tagged(37)),
                 edge: Box::new(StableName {
@@ -2721,14 +2706,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::HoldingsUnread {
                 face: None,
-                refusal: topo::HeldRefusal::Recharted {
-                    face: (1, topo::FaceKey::default()),
+                refusal: topo::HeldRefusal::UncutRemainder {
+                    face: topo::FaceKey::default(),
                 },
             },
             vec![
                 "which member faces a region the boolean discarded holds area of",
                 "could not be read",
-                "turned before the boolean",
+                "a region no step cut",
             ],
         ),
         (
@@ -2888,6 +2873,7 @@ test_utils::f6_variants! {
         ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
+        YieldRemoved,
     ];
 }
 
@@ -3032,6 +3018,13 @@ fn maintenance_display_says_what_the_edit_did() {
                 "nothing reading #0:0000000000070000",
                 "the tolerance it carried went with it",
             ],
+        ),
+        (
+            Maintenance::YieldRemoved {
+                binder: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(3)), None),
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec!["yields #0:0000000000070000 no more", "the edit removed it"],
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);

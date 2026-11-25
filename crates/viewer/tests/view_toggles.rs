@@ -348,7 +348,7 @@ fn a_drawn_bodys_toggle_hides_it() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: b.into(),
-                tool: a.into(),
+                tool: vec![a.into()],
             },
         },
     );
@@ -464,7 +464,7 @@ fn a_piece_of_a_shown_union_is_hidden_by_its_toggle() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(Operand::Node(a)),
                 BodyRead::plain(Operand::Node(b_beside)),
             ]),
@@ -559,7 +559,7 @@ fn a_body_hidden_then_taken_over_is_shown_by_its_toggle() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: b.into(),
-                tool: a.into(),
+                tool: vec![a.into()],
             },
         },
     );

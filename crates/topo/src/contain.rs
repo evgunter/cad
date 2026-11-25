@@ -580,6 +580,10 @@ pub(crate) fn contfp_decided<T: Decide>(
 /// # Errors
 ///
 /// [`ContainError`] — a carrier-agreement escalation.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn loop_circle<T: Decide>(
     r#loop: CycleLoop<'_, T>,
     band: Band,
@@ -605,7 +609,7 @@ pub(crate) fn loop_circle<T: Decide>(
     let Some(geom::Curve3::Circle(c)) = carriers[at] else {
         unreachable!("loop_circle: the reference is a circle")
     };
-    let (c0, a0, r0) = (c.frame().origin(), c.frame().axis(), c.radius());
+    let (c0, a0, r0) = (c.frame().origin(), c.axis(), c.radius());
     // Any edge decided off the reference circle answers "not one circle",
     // whatever another edge read ([`climb`], [`Answering::Any`]: an
     // identity). An edge read in band is kept, and refuses only where
@@ -617,7 +621,7 @@ pub(crate) fn loop_circle<T: Decide>(
             Some(geom::Curve3::Circle(arc)) => {
                 let d = (arc.frame().origin() - c0).norm()
                     + (arc.radius() - r0).abs()
-                    + arc.frame().axis().cross(a0).norm() * r0;
+                    + arc.axis().cross(a0).norm() * r0;
                 match decide("bool_face_disc_carrier", Margin::of(d), band) {
                     Ok(Sign::Zero) => Rung::Passes,
                     Ok(Sign::Positive | Sign::Negative) => Rung::Answers(()),

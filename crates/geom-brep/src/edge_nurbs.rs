@@ -1272,6 +1272,10 @@ pub fn arc_rim_candidates<T: SpanLocate>(
 /// and decides that the edge's span lies in the arc. Empty for a carrier
 /// that is not a circle.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_rim_measured<T: Decide>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
@@ -1338,8 +1342,9 @@ fn arc_rim_images<T: SpanLocate>(
             let ends = row_end_weights(chart, end);
             [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
                 arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
-                    p0: Point2::new(p0x, v),
-                    pd: geom_core::Vec2::new(sign, T::zero()),
+                    line: crate::ChartLine::row(v),
+                    g0: p0x,
+                    gd: sign,
                     t0,
                     angle,
                     breaks: breaks.clone(),
@@ -3756,6 +3761,37 @@ mod tests {
             matches!(refused, Err(AnalyticRung3Refusal::Stalled { .. })),
             "a refused zero stalls: {refused:?}"
         );
+    }
+
+    /// **A measured floor clear of zero, under an identity that
+    /// discharges, passes limb 2** at `Sym<Interval>`: the margin's
+    /// number is the bound `[floor, upper]`, not its expression's value,
+    /// so the tier's zero is returned beside an enclosure that excludes
+    /// 0 and the check on a proven zero (`sym::discharge_checked`) leaves it out
+    /// (`Decide::free_identity`). Red if that check stops reading the
+    /// margin's DAG for its free parameter (it panics here).
+    #[test]
+    fn a_floor_clear_of_zero_under_a_discharging_identity_passes_limb_two() {
+        use geom_core::{Interval, Sym, SymBudget, SymRules};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let (out, counts) = geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+            limb2_enclosure_as::<Sym<Interval>>(
+                geom::SurfaceKind::Plane,
+                1.0e-12,
+                3.0e-12,
+                band,
+                |free| {
+                    let t = free(Sym::from_f64(0.5));
+                    t - t
+                },
+            )
+        });
+        assert!(out.is_ok(), "the identity passes limb 2: {out:?}");
+        assert_eq!(counts.symbolic, 1, "the tier proved it: {counts:?}");
     }
 
     /// **A silent tube is carried whole and ends as the SSI door ends

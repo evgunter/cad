@@ -2618,7 +2618,7 @@ impl<T: Decide> Link<T> {
         let tied = horns
             .iter()
             .map(|h| h.apex)
-            .chain(lobes.iter().flat_map(|a| [a.vertex, a.cone.apex]))
+            .chain(lobes.iter().flat_map(|a| [a.vertex, a.cone.apex()]))
             .map(|q| (q - p).norm())
             .fold(T::zero(), |r, l| r.max(l));
         if sectors.is_empty() && !(horns.is_empty() && lobes.is_empty()) {

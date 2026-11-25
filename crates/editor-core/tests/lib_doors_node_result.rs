@@ -89,7 +89,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let downstream = insert(
         &mut doc,
         Box::new(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
+            members: editor_core::Bodies::spelled(vec![cut.into(), outer.into()]),
         }),
     );
     (doc, cut, downstream)

@@ -38,12 +38,11 @@
 
 use std::sync::Arc;
 
-use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
 use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::fate::{Holds, Leaving, corner_holds, departure};
@@ -128,9 +127,6 @@ pub enum OverlapUnread {
     /// Two corner bounds leave along one ray with no bend to part them.
     /// A limit.
     AlongOneRay,
-    /// A region of a face a sphere's re-chart turned, which the
-    /// accumulation lost. A limit.
-    RechartedRegionLost,
     /// A row says the face holds an accumulation face lying elsewhere. A
     /// limit.
     HeldElsewhere,
@@ -158,7 +154,6 @@ impl OverlapUnread {
             | Self::UncertifiedBound
             | Self::UnplacedParameter
             | Self::AlongOneRay
-            | Self::RechartedRegionLost
             | Self::HeldElsewhere
             | Self::HeldCarrierUnread => Ok(Refusal::Limit),
         }
@@ -182,7 +177,6 @@ impl OverlapUnread {
             Self::UnplacedParameter => "a boundary edge whose carrier places no parameter",
             Self::TornBoundary => "a boundary record past a resolved face that does not resolve",
             Self::AlongOneRay => "two corner bounds leave along one ray with no bend to part them",
-            Self::RechartedRegionLost => "a lost region of a face a sphere's re-chart turned",
             Self::HeldElsewhere => "a row says the face holds an accumulation face lying elsewhere",
             Self::HeldCarrierUnread => {
                 "an accumulation face a row says the face holds, on a carrier not read"
@@ -335,24 +329,34 @@ pub(crate) fn overlap_as<T: Decide>(
 }
 
 /// The middle of `a`'s first boundary edge, and a's and b's outward
-/// normals there, which must face one way.
+/// normals there, which must face one way: their cosine levered at how
+/// far `a`'s boundary reaches from that point, read from below, since a
+/// definite sign is what is acted on.
 fn one_sense<T: Decide>(
     a: (&Body<T>, FaceKey),
     (b, reversed): ((&Body<T>, FaceKey), bool),
     band: Band,
 ) -> Result<(), OverlapRefusal> {
-    let Some(&he) = loops(a)?.iter().flatten().next() else {
+    let boundary = loops(a)?;
+    let Some(&he) = boundary.iter().flatten().next() else {
         return Err(OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge));
     };
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
+    let arm = crate::cover::boundary_reach_below(a.0, a.1, p).map_err(|why| {
+        use crate::cover::BoundaryReachUnread as W;
+        match why {
+            W::StaleFace => OverlapRefusal::StaleFace { face: a.1 },
+            W::LoneVertex => OverlapRefusal::Unread(OverlapUnread::LoneVertex),
+            W::Uncertified => OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge),
+            W::NoEdge => OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge),
+        }
+    })?;
     let na = normal_at(a, p, band)?;
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        // Unsourced lever: the unit normals' cosine is read at a unit arm,
-        // not over the faces' extent; the holdings row owns its source.
-        Margin::levered(na.dot(nb), Lever::unsourced(T::one())),
+        Margin::levered(na.dot(nb), arm),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
@@ -554,11 +558,8 @@ fn half_plane<T: Decide>(
             .ok_or_else(torn)
     };
     let (at_t0, at_t1) = (vertex(v0)?, vertex(v1)?);
-    let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
-        }
-        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+    let reach = |ta: T, (tb, end): (T, Point3<T>)| {
+        crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p)
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))

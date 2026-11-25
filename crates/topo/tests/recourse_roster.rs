@@ -65,6 +65,7 @@ const BOOLEAN: Door = Door {
         "bool_",
         "carrier_",
         "contact_",
+        "junction_",
         "rim_",
         "seam_",
         "section_",
@@ -237,8 +238,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
-    NameCarrier::Const("REACH"),
-    NameCarrier::Const("NEST"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).
@@ -264,6 +263,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTION_PIN_RESOLUTION"),
     NameCarrier::Const("CROSS_TURN"),
     NameCarrier::Const("ARM_INF"),
+    // `offset_axial::classify`'s two `(name, straddle)` pairs, handed to
+    // its sine closure and on to `validate::decide_levered`.
+    NameCarrier::Const("ALIGNMENT"),
+    NameCarrier::Const("AXIS_PARALLEL"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("advance_as"),
@@ -314,10 +317,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SIDE_ROWS"),
     NameCarrier::Const("APERTURE"),
     NameCarrier::Const("APEX"),
-    NameCarrier::Const("SELF_INTERSECTION_APEX"),
     NameCarrier::Const("TORUS_REGION_CORNER"),
     NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),
+    NameCarrier::Const("CLEARANCE_DEPTH_GAP"),
     NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
@@ -375,7 +378,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("CELL_REGION_SINGULAR"),
-    NameCarrier::Const("SELF_INTERSECTION_SLIVER"),
     NameCarrier::Const("SELF_INTERSECTION_SPAN"),
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
@@ -405,7 +407,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
-    NameCarrier::Call("ChartRows"),
     NameCarrier::Call("ParityRows"),
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),
@@ -423,6 +424,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("clear_as"),
     NameCarrier::Call("contains_step"),
     NameCarrier::Call("decided_as"),
+    NameCarrier::Call("definite_as"),
     NameCarrier::Call("definitely_positive"),
     NameCarrier::Call("enclosure_reading"),
     NameCarrier::Call("face_placement"),
@@ -476,10 +478,12 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
-const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its chord and direction of \
-                                 travel, which shares the declared `travel` carrier's token and \
-                                 takes no name";
+const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its extent from below and \
+                                 direction of travel, which shares the declared `travel` carrier's \
+                                 token and takes no name";
 
+const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
+                      forwards its caller's name";
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
                                 keyed by its `fn` until the census keys a closure by its binding \
@@ -515,7 +519,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
-    ("boolean/join.rs: travel: name", FORWARDS),
+    (
+        "boolean/join.rs: travel: [name, \"bool_join_arc_clear\"]",
+        PAIRED,
+    ),
     (
         "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
         NOT_A_NAME,
@@ -536,8 +543,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("region.rs: place: at", CARRIER_CALL),
     ("region.rs: short_of_end: end.row", ROW_FIELD),
     ("region.rs: side_at_closest_as: cross", FORWARDS),
-    ("rim_wedge.rs: departures: a", CARRIER_CALL),
-    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: touch: a", CARRIER_CALL),
+    ("rim_wedge.rs: touch: b", CARRIER_CALL),
     ("rim_wedge.rs: reach_as: name", FORWARDS),
     ("rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
@@ -545,25 +552,6 @@ const INDIRECT: &[(&str, &str)] = &[
         IDENTITY,
     ),
     ("boolean/section_cert.rs: sign_as: name", FORWARDS),
-    ("boolean/section_cert/ruling.rs: assemble: lo", CARRIER_CALL),
-    (
-        "boolean/section_cert/ruling.rs: assemble: theta",
-        CARRIER_CALL,
-    ),
-    ("boolean/section_cert/ruling.rs: before_as: row", FORWARDS),
-    (
-        "boolean/section_cert/ruling.rs: read: rows.precision()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.asymptote()",
-        ROW_FIELD,
-    ),
-    (
-        "boolean/section_cert/ruling.rs: reading: rows.fold()",
-        ROW_FIELD,
-    ),
-    ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
     (
         "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
         CARRIER_CALL,
@@ -714,8 +702,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "clearance.rs: reading: self.as_bound().predicate()",
         CLOSED_TYPE,
     ),
+    ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
+    ("injective.rs: present_plane: x", CLOSURE_FORWARDS),
     (
         "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
         CARRIER_CALL,
@@ -746,7 +736,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("link.rs: winds: p", CARRIER_CALL),
     ("link.rs: zero_refused: name", FORWARDS),
     ("offset_axial.rs: azimuth_turn_as: name", FORWARDS),
-    ("offset_axial.rs: classify: what", CLOSURE_FORWARDS),
+    ("offset_axial.rs: classify: names", CLOSURE_FORWARDS),
     ("offset_axial.rs: reauthor: name", CLOSURE_FORWARDS),
     ("offset_derive.rs: held_zero_as: name", FORWARDS),
     ("offset_derive.rs: holds_the_move: name", CLOSURE_FORWARDS),
@@ -798,11 +788,44 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
     ("chain_parity.rs: ray_parity_as: name", FORWARDS),
+    // `Gap::decide`: one channel's gap from the query to a piece's box,
+    // metered by that channel's arm, decided under the name
+    // `ray_parity_as` hands it (`g.decide(name, ..)`, the line above), so
+    // its names are that funnel's callers'. A refusal leaves the piece
+    // not clear; it is halved, and where it cannot be the query reads
+    // `Side::Near` with this diagnostic.
+    ("chain_parity.rs: decide: name", FORWARDS),
+    // `Floor::decide`: a spline cell's floor, the box gap less the read's
+    // and the cut's rounding, decided under the name its caller hands it;
+    // its one caller is the spline region's carrier walk
+    // (`cell.floor(q).decide(SPLINE_REGION_CARRIER, ..)`, a declared
+    // const). A refusal there leaves the cell walked rather than
+    // skipped and is kept as the walk's pending diagnostic: a walk that
+    // ends unsettled on it escalates the face placement as
+    // `ContainError::Escalated` on `ContainDecision::Carrier`.
+    ("spline_trim.rs: decide: name", FORWARDS),
     (
         "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s)",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
+    // PR 7325 (`charttail/collapsed-column`): `decide_joint` now makes
+    // the element and hands its chart to `decide_joint_by`, which decides
+    // the deck; that call's first argument is the joint's chart, not a
+    // name, like `decide_plain_joint`'s above.
+    ("pcurves/decision.rs: decide_joint: chart", NOT_A_NAME),
+    // PR 7325's collapsed-side rows build their joints through
+    // `decide_plain_joint`, whose first argument is the face's chart
+    // (`DescribedChart::of(surface)`), not a name: the test fixtures
+    // `joint` and `joint_at`.
+    (
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
     ("pcurves/tier3.rs: pcurve_pass: chart", NOT_A_NAME),
     // The pass's closure over one joint of a cycle, by its index.
     ("pcurves/tier3.rs: pcurve_pass: i", NOT_A_NAME),
@@ -868,6 +891,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ring_path.rs: spline_crossings: ", SAME_NAMED_TRAVEL),
     ("ring_path/spline_wall.rs: paths: ", SAME_NAMED_TRAVEL),
     ("ring_path/spline_wall.rs: reach: ", SAME_NAMED_TRAVEL),
+    (
+        "ring_path/spline_wall_rows.rs: an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not: ",
+        SAME_NAMED_TRAVEL,
+    ),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),

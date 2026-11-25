@@ -95,3 +95,7 @@ off the chart's pole) is pinned against `π h²(3R − h)/3`, at every ε
 row.
 
 Unblocks CLEAVE's `a-built-sliver-is-not-a-legal-operand`.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The boolean no longer re-charts: a closed ball's escape is cut in on the ball's own chart, so nothing puts the pole on the centre line by design any more. A thin cap now lands near a chart pole only where the operand's own chart puts it there. That is the user's chart, so the pose is still reachable but is no longer systematic. The area cancellation itself is unchanged.

@@ -142,8 +142,10 @@ impl Deck {
     /// periods, each in the period the chart owns for that channel
     /// (`periods`: `crate::pcurves`' `ChartPeriods`, decided at a band
     /// where the caller has one). A spline chart's periods are its knot
-    /// domains' lengths (an element with `u ≠ 0` or `v ≠ 0` is decided
-    /// only on a net closed in that channel); an analytic chart's first
+    /// domains, each stated by its two ends, so an iso image held at one
+    /// end and moved one period is held at the other end itself (an
+    /// element with `u ≠ 0` or `v ≠ 0` is decided only on a net closed
+    /// in that channel); an analytic chart's first
     /// is `τ`, and its second `τ` where `v` is an angle (sphere, torus).
     ///
     /// `None` where the element does not apply to the image: a twin off
@@ -407,7 +409,7 @@ mod tests {
         use crate::pcurves::ChartPeriods;
         use geom::Surface;
         use geom_brep::Pcurve;
-        use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+        use geom_core::{Band, Point3, Tol, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
         // `u` the height; `v` across three rows, the last the first's
         // points where `closed`.
@@ -431,9 +433,9 @@ mod tests {
             ))
         };
         let image = Pcurve::IsoLine {
-            p0: Point2::new(0.25, 0.5),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: geom_brep::ChartLine::column(0.25),
+            at0: 0.5,
+            rate: 1.0,
         };
         let moved_in = |deck: Deck, s: &Surface<f64>, periods: ChartPeriods<f64>| {
             deck.apply(&image, s, periods).map(|p| {

@@ -573,7 +573,7 @@ impl<'a, T: Decide> Outer<'a, T> {
         for (i, row) in lift.rows().iter().enumerate() {
             pieces.push(Piece::Image {
                 pcurve: &row.pcurve,
-                span: row.params.ends(),
+                span: row.params(),
             });
             let next = ends[(i + 1) % ends.len()].0;
             pieces.push(Piece::Segment(ends[i].1, next));

@@ -176,6 +176,8 @@ mod review_m2_pr6_walk_shapes;
 mod review_m3_pr1_mesh;
 #[path = "revolves.rs"]
 mod revolves;
+#[path = "rowless_cylinders.rs"]
+mod rowless_cylinders;
 #[path = "sizing_theorem_rows.rs"]
 mod sizing_theorem_rows;
 #[path = "split_rulings.rs"]

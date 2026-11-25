@@ -73,6 +73,7 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
+        | RoleSeg::ConventionalVertex(_)
         | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_))
         | name_free_seg!() => Head::Stop,
     }

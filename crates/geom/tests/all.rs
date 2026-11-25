@@ -164,6 +164,8 @@ mod curves_speed_upper_bound;
 mod curves_split_at;
 #[path = "curves/swaying_corner_meter.rs"]
 mod curves_swaying_corner_meter;
+#[path = "depth_gap_rounding.rs"]
+mod depth_gap_rounding;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
 #[path = "net_finiteness.rs"]

@@ -97,6 +97,7 @@ fn holds_by(
         sheets.len() == faces && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
         "{what}: the sheet faces' major radii {sheets:?}, not {faces} of {sheet}"
     );
+    lifts_close(what, &built.body);
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
@@ -121,6 +122,26 @@ fn holds_by(
         got.surface_area,
         got.area_pad
     );
+}
+
+/// Every curved face's outer loop's stored lift closes in its chart
+/// (`topo::Lift::closes_in_chart`): a sheet face whose loop reaches an
+/// apex takes the turn there on its own side, so the chain winds no
+/// period. A plane stores no rows.
+fn lifts_close(what: &str, body: &topo::Body<f64>) {
+    for (fk, face) in body.faces() {
+        if matches!(body.face_surface(fk), Ok(geom::Surface::Plane { .. })) {
+            continue;
+        }
+        let lift = body
+            .loop_lift(face.outer)
+            .unwrap_or_else(|e| panic!("{what}: face {fk:?}'s lift: {e:?}"));
+        assert!(
+            lift.closes_in_chart(),
+            "{what}: face {fk:?}'s lift winds {:?}",
+            lift.winding()
+        );
+    }
 }
 
 /// **The football and the apple build through the revolve door** with
@@ -401,6 +422,7 @@ fn meshes_and_measures(
     let tol = Tol::witness();
     let built = revolve(&validated(vec![lp.clone()]), ax, Revolution::Full, tol)
         .unwrap_or_else(|e| panic!("{what}: {e}"));
+    lifts_close(what, &built.body);
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
@@ -790,4 +812,176 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
             (share * volume, share * (sheet + disc) + 2.0 * profile),
         );
     }
+}
+
+/// **A horn's cusp turns on the face's side, from above and from
+/// below**: the needle's lune reaches the cusp at `v = π`, the lower
+/// needle's at `v = −π`, both revolved through `θ = 2`. The joint at the
+/// cusp turns the face's own sector, so it stores no period, and the
+/// stored lift's azimuth window is the lune's `θ`, not the complement
+/// `τ − θ` on the far side of the cusp.
+#[test]
+fn a_horns_cusp_turns_on_the_faces_side_from_above_and_below() {
+    let quarter = -(PI / 8.0).tan();
+    let theta = 2.0_f64;
+    for (what, lp) in [
+        (
+            "from above",
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ]),
+        ),
+        (
+            "from below",
+            bulge_loop(vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), quarter),
+                (Point2::new(0.0, 0.0), 0.0),
+            ]),
+        ),
+    ] {
+        let body = revolve(
+            &validated(vec![lp]),
+            y_axis(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"))
+        .body;
+        let (_, face) = body
+            .faces()
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Ok(geom::Surface::Spindle { .. })))
+            .unwrap_or_else(|| panic!("{what}: a sheet face"));
+        let lift = body.loop_lift(face.outer).unwrap();
+        let cusp = lift
+            .rows()
+            .iter()
+            .map(|row| row.half_edge)
+            .find(|&he| {
+                let start = body.get_half_edge(he).unwrap().start;
+                body.vertex_points()
+                    .any(|(v, p)| v == start && p.x.hypot(p.y).hypot(p.z) < 1e-12)
+            })
+            .unwrap_or_else(|| panic!("{what}: the loop leaves the cusp"));
+        assert_eq!(
+            body.joint(cusp).map(topo::JointElement::deck),
+            Some(topo::Deck::IDENTITY),
+            "{what}: the cusp's joint"
+        );
+        let (lo, hi) = lift.azimuth_window().unwrap();
+        assert!(
+            ((hi - lo) - theta).abs() < 1e-12,
+            "{what}: the lift's azimuth window ({lo}, {hi})"
+        );
+    }
+}
+
+/// **A kill across a closed meridian through a horn's cusp has no turn.**
+/// The horn's circle in quarters revolved part way, its four sheet faces
+/// merged across their rims into one, which reaches the cusp from above
+/// and from below; its stored lift winds no period. A strut at the cusp,
+/// in the corner where the face leaves it downward, is described as the
+/// whole meridian at `u = 1`, cusp to cusp; a second strut at its far
+/// vertex as the meridian at `u = 1.5`. Killing the first strut crosses
+/// it whole, and its image runs from one copy of the cusp (`v = −π`) to
+/// the other (`v = π`): the face it leaves runs through the cusp from one
+/// side to the other, where no turn is the face's, so the kill refuses
+/// typed (`KillTurnUndecided`, no escalation) rather than writing a body
+/// whose loop does not close.
+#[test]
+fn a_kill_across_a_closed_meridian_through_a_horns_cusp_has_no_turn() {
+    use geom_core::Vec3;
+    use topo::construction::{Construct, MevSite, NewVertexSide};
+    let quarter = -(PI / 8.0).tan();
+    let tol = Tol::witness();
+    let mut body = revolve(
+        &validated(vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), quarter),
+            (Point2::new(1.0, 1.0), quarter),
+            (Point2::new(2.0, 0.0), quarter),
+            (Point2::new(1.0, -1.0), quarter),
+        ])]),
+        y_axis(),
+        Revolution::Partial(2.0),
+        tol,
+    )
+    .unwrap()
+    .body
+    .into_body();
+    let sheet =
+        |b: &topo::Body<f64>, f| matches!(b.face_surface(f), Ok(geom::Surface::Spindle { .. }));
+    let face_of = |b: &topo::Body<f64>, he| {
+        b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    loop {
+        let rim = body.half_edges().find_map(|(he, h)| {
+            let e = body.get_edge(h.edge).unwrap();
+            let mate = if e.he_plus == he {
+                e.he_minus
+            } else {
+                e.he_plus
+            };
+            let (a, b) = (face_of(&body, he), face_of(&body, mate));
+            (a != b && sheet(&body, a) && sheet(&body, b)).then_some(he)
+        });
+        let Some(rim) = rim else { break };
+        body.kef(rim).unwrap();
+    }
+    let (face, _) = body.faces().find(|&(f, _)| sheet(&body, f)).unwrap();
+    let lift = body.loop_lift(body.get_face(face).unwrap().outer).unwrap();
+    assert!(
+        lift.closes_in_chart(),
+        "the merged sheet face's lift winds {:?}",
+        lift.winding()
+    );
+    // The corner where the loop leaves the cusp downward, at `v = −π`.
+    let leaves_down = lift
+        .rows()
+        .iter()
+        .find(|row| {
+            let (entry, _) = row.entry_exit_points();
+            (entry.y + PI).abs() < 1e-9
+        })
+        .unwrap()
+        .half_edge;
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let meridian = |phi: f64| {
+        let d = Vec3::new(phi.cos(), 0.0, -phi.sin());
+        let circle =
+            geom::Curve3::circle(geom_core::Point3::origin() + d, d.cross(y), 1.0, d * -1.0);
+        geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU).unwrap()
+    };
+    let strut = body
+        .mev_null(
+            MevSite::Fan {
+                he1: leaves_down,
+                he2: leaves_down,
+            },
+            NewVertexSide::Above,
+        )
+        .unwrap();
+    body.set_edge_curve(strut.edge, meridian(1.0), tol).unwrap();
+    let back = body.get_edge(strut.edge).unwrap().he_minus;
+    let second = body
+        .mev_null(
+            MevSite::Fan {
+                he1: back,
+                he2: back,
+            },
+            NewVertexSide::Above,
+        )
+        .unwrap();
+    let got = body.kev_describing(strut.he_plus, &[(second.edge, meridian(1.5))], tol);
+    assert!(
+        matches!(
+            got,
+            Err(topo::EulerOpError::KillTurnUndecided { diag: None, .. })
+        ),
+        "{:?}",
+        got.map(|_| ())
+    );
 }

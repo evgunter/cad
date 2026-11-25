@@ -2444,8 +2444,8 @@ mod tests {
         let rational = c.rational_speed_lower_bound();
         let integral = c.speed_lower_bound().get();
         let (mc, ml) = (
-            computed.speed_lower_bound().get().value,
-            literal.speed_lower_bound().get().value,
+            computed.speed_lower_bound().get().value(),
+            literal.speed_lower_bound().get().value(),
         );
         assert!(
             mc.to_bits() == rational.to_bits() && ml.to_bits() == integral.to_bits(),
