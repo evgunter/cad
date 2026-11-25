@@ -3311,6 +3311,65 @@ mod tests {
         }
     }
 
+    /// **The coverage reads a cone's rulings**: a cone ruled about `z`
+    /// from the origin at `α = π/6`, against a coaxial wall of radius
+    /// `ρ = 1/2` (rings at `z = ±ρ/tan α`, one on each nappe) and against
+    /// a coaxial cone from `(0, 0, 1)` at `β = π/4` (rings where
+    /// `tan α·|z| = tan β·|z − 1|`, at `z = tan β/(tan β ± tan α)`), each
+    /// ring enclosed by boxes about points of its closed form, is covered,
+    /// and with either ring's boxes dropped a cell is not. Red if the
+    /// cone's rulings miss a nappe, or the cone partner's quadratic is not
+    /// its form.
+    #[test]
+    fn the_coverage_reads_a_cones_rulings() {
+        use crate::ssi::enclose::Box3;
+        let cone = |apex: f64, half_angle: f64| Surface::Cone {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, apex), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle,
+        };
+        let alpha = core::f64::consts::FRAC_PI_6;
+        let ruled = cone(0.0, alpha);
+        let ring = |z: f64| -> Vec<Box3> {
+            let r = z.abs() * alpha.tan();
+            (0..2048)
+                .map(|k| {
+                    let theta = core::f64::consts::TAU * f64::from(k) / 2048.0;
+                    let (sn, cs) = theta.sin_cos();
+                    Box3::around(Point3::new(r * cs, r * sn, z), 0.01)
+                })
+                .collect()
+        };
+        let rho = 0.5;
+        let (tb, ta) = (core::f64::consts::FRAC_PI_4.tan(), alpha.tan());
+        for (what, partner, heights, ball) in [
+            (
+                "a coaxial wall",
+                wall((0.0, 0.0, 0.0), Vec3::unit_z(), rho),
+                [rho / ta, -rho / ta],
+                ExtentBall::fixture(Point3::origin(), 2.0),
+            ),
+            (
+                "a coaxial cone",
+                cone(1.0, core::f64::consts::FRAC_PI_4),
+                [tb / (tb + ta), tb / (tb - ta)],
+                ExtentBall::fixture(Point3::new(0.0, 0.0, 1.4), 2.0),
+            ),
+        ] {
+            let (one, two) = (ring(heights[0]), ring(heights[1]));
+            let both: Vec<Box3> = one.iter().chain(&two).copied().collect();
+            assert!(
+                super::coverage(&ruled, &partner, ball, &both).is_ok(),
+                "{what}: both rings' boxes cover every cell"
+            );
+            for (which, kept) in [("first", &two), ("second", &one)] {
+                assert!(
+                    super::coverage(&ruled, &partner, ball, kept).is_err(),
+                    "{what}: the {which} ring's boxes dropped, a cell uncovered"
+                );
+            }
+        }
+    }
+
     /// **A sphere's `Δ` reaches the pose's margins at its extremes**: the
     /// margin read over a fine turn reaches the near reach `R − |d − r|`
     /// at its most and the far reach `R − (d + r)` at its least, the two

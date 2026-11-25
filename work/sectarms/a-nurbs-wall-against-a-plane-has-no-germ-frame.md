@@ -74,9 +74,9 @@ tripwire above went red and is re-pinned to its next stop:
   (`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`),
   or at `ε = 1e-6` at the wall's ring lane;
 - editor-core's
-  `wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`
-  stops at the carry, whose two arcs on the wall stand closer than their
-  pads (`a-rim-arcs-pad-is-its-widest-certifying-rung`);
+  `wavy_loft::a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest`
+  stops at rest too, at the same image of the chord the join mints on
+  the wall's two carried arcs;
 - `a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op`
   stops at the carry, which lists the arcs to the saddle's node and
   carries none (`a-spline-implicit-arc-is-carried-to-its-node`).
