@@ -5514,10 +5514,10 @@ impl BooleanError {
             } => write!(
                 f,
                 "an edge of the {} operand ends on a rim where its face and a face of the other \
-                 join smoothly, and another edge of the other face lies too near that end for \
-                 the Boolean to read which face the edge meets there. Moving that edge farther \
-                 from the end, or turning the parts so the edge ends farther from where the \
-                 faces curve alike, may let it through",
+                 join smoothly, and another edge or a lone vertex of the other face lies too \
+                 near that end for the Boolean to read that the edge leaves that face there. \
+                 Making the other face longer past the rim, or moving the edge's end away from \
+                 that edge or vertex, may let it through",
                 operand_word(*operand),
             ),
             Self::JunctionEndUnread {

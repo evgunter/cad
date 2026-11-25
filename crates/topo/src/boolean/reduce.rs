@@ -2330,7 +2330,7 @@ const NEAR_PIECE: f64 = 1.25;
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for an edge with no
-/// certified carrier.
+/// certified carrier, or a ride along no direction.
 fn junction_end_boundary_clear<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
@@ -2339,9 +2339,10 @@ fn junction_end_boundary_clear<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     use geom_core::ladder::{Answering, Climb, Rung, climb};
-    let Some(conormal) = junction_conormal(q) else {
-        return Ok(false);
-    };
+    // `junction_end_window` read a window only under a ride with a side.
+    let conormal = junction_conormal(q).ok_or(BooleanError::ClassificationInvariant {
+        what: "a junction end's window was read under a ride along no direction",
+    })?;
     let (rim, p) = (q.rim, q.p);
     let past = |gap: T| {
         geom_core::k_stats::decide(

@@ -2,10 +2,11 @@
 id: the-junction-side-reading-assumes-no-other-target-boundary-within-its-reach
 kind: issue
 title: The junction's side reading assumes the target face has no boundary but the rim within the spread's reach of the end, and never checks it
-status: open
+status: closed
 opened: 2026-11-24
 priority: P1
 cost: M
+closed: 2026-11-25
 ---
 
 
@@ -76,7 +77,8 @@ boundary are excepted:
 
 Pinned by `a_short_elbow_near_a_neutral_point_refuses_near_its_far_rim`.
 
-**Still open, at the order's own term**: the neutral point's order-4
+**Still open, at the order's own term** (superseded by "Guarded at
+every pivot" below): the neutral point's order-4
 spread (0.111 m at `ε = 1e-6`, 0.0195 m at `1e-9`) and every order-2
 window past it, as on main. The row stays P1 for that.
 
@@ -91,7 +93,9 @@ pivot-m read logged, over topo, sweep and editor-core (`ci` profile plus
 every `elbow`/`junction` test in the slow set) at `ε = 1e-9`, `1e-6` and
 `1e-12`. There were 1226 pivot-m reads, 1155 at order 2 and 71 at order 4.
 Every one was decided clear, so no verdict moved. geom-brep doesn't
-depend on topo, so the guard can't move its verdicts.
+depend on topo, so the guard can't move its verdicts. The 1226-read
+count is a one-off measurement taken for this change; no test or gate
+re-takes it.
 
 Pinned by `a_short_elbow_off_its_neutral_point_refuses_near_its_far_rim`:
 `0.2` round the rim from the neutral point, the window is order 2 at
