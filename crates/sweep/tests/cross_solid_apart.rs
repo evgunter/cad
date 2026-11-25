@@ -130,8 +130,8 @@ fn a_rod_crossing_its_bore_refuses_its_caps() {
         Vec3::new(0.0, 0.5, 0.0),
     );
     let errs = census(&pair).expect_err("the rod crosses the bore");
-    let plane = |f| matches!(pair.face_surface(f), Some(geom::Surface::Plane { .. }));
-    let cylinder = |f| matches!(pair.face_surface(f), Some(geom::Surface::Cylinder { .. }));
+    let plane = |f| matches!(pair.face_surface(f), Ok(geom::Surface::Plane { .. }));
+    let cylinder = |f| matches!(pair.face_surface(f), Ok(geom::Surface::Cylinder { .. }));
     let cap_on_wall = errs.iter().any(|e| match e {
         ValidationError::CensusUndecidable {
             a: EntityId::Face(a),
@@ -342,7 +342,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     let top = |f| {
         matches!(
             pair.face_surface(f),
-            Some(geom::Surface::Plane { frame, .. })
+            Ok(geom::Surface::Plane { frame, .. })
                 if (frame.origin().z - 1.0).abs() < 1e-9 && frame.axis().x == 0.0 && frame.axis().y == 0.0
         )
     };
@@ -836,7 +836,7 @@ fn refusals_on(
     on_block: fn(Vec3<f64>) -> bool,
 ) -> usize {
     let normal = |f| match body.face_surface(f) {
-        Some(geom::Surface::Plane { frame, .. }) => {
+        Ok(geom::Surface::Plane { frame, .. }) => {
             let normal = frame.axis();
             Some(normal)
         }
@@ -844,7 +844,7 @@ fn refusals_on(
     };
     let plate = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .and_then(|(f, _)| body.solid_of_face(f))
         .expect("the plate has a rounded wall");
     errs.iter()

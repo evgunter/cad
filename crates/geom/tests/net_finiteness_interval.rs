@@ -1,12 +1,11 @@
-//! The placeholder discriminator's width at the interval scalar, where
-//! poison is NaI or the empty interval rather than NaN.
+//! The finiteness question at the interval scalar, where poison is NaI
+//! or the empty interval rather than NaN.
 //!
-//! The default lane's twin (`net_placeholder_width.rs`) carries the
-//! argument; this lane exists because the widening has to SEE the
-//! interval scalar's poison through the same `Real::is_poison` door,
-//! and because every consumer of the discriminator compiles in both
-//! lanes. A poisoned channel here is `Interval::from_f64(f64::NAN)`,
-//! whose enclosure stands for no real number at all.
+//! The default lane's twin (`net_finiteness.rs`) carries the
+//! argument; this lane exists because `NurbsSurface::is_finite` has to
+//! see the interval scalar's poison and its unbounded enclosures. A
+//! poisoned channel here is `Interval::from_f64(f64::NAN)`, whose
+//! enclosure stands for no real number at all.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,7 +14,7 @@ use std::sync::Arc;
 
 use bvh::{Aabb, Axis};
 use geom::surfaces::boxes::nurbs_surface_aabb;
-use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom::{Curve3, NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Real};
 
@@ -35,7 +34,7 @@ fn poison() -> Interval {
 /// The masquerade at the interval scalar: every control point's `x`
 /// enclosure is poison, `y`/`z` are point brackets of finite values.
 #[test]
-fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
+fn a_net_poisoned_in_one_channel_is_not_finite_at_the_interval_scalar() {
     assert!(poison().is_poison(), "the interval lane's poison, named");
     let s_control: Vec<Point3<Interval>> = (0..4)
         .map(|i| {
@@ -54,20 +53,10 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
     )
     .unwrap();
     assert!(
-        !s.is_placeholder(),
-        "a described net corrupt in one channel must not read as the benign placeholder \
-         at the scalar every certified consumer runs at"
+        !s.is_finite(),
+        "a net corrupt in one channel is not finite at the scalar every certified \
+         consumer runs at"
     );
-    assert!(matches!(Surface::Nurbs(Arc::new(s)), Surface::Nurbs(ref n) if !n.is_placeholder()));
-}
-
-/// The state the predicate names still answers it at this scalar, and
-/// the f64 placeholder still lifts to it.
-#[test]
-fn the_minted_placeholder_still_reads_as_the_placeholder_at_interval() {
-    assert!(NurbsSurface::<Interval>::placeholder().is_placeholder());
-    let lifted_s = Surface::<f64>::nurbs_placeholder().map_scalar(Interval::from_f64);
-    assert!(matches!(&lifted_s, Surface::Nurbs(n) if n.is_placeholder()));
 }
 
 /// A carrier poisoned in `x` lifts from `f64` to the interval scalar
@@ -128,11 +117,10 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
     assert!(b.overlaps(&elsewhere), "the poison box never prunes");
 }
 
-/// The interval scalar's poison is NaI **or** the empty interval, so a
-/// net of empties reads as the placeholder here and its `f64` shadow
-/// would not — the extension difference the crate doc names, executed.
+/// The interval scalar's poison is NaI **or** the empty interval, and a
+/// net carrying an empty enclosure in any one channel is not finite.
 #[test]
-fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
+fn a_net_with_an_empty_enclosure_is_not_finite_at_interval() {
     // `sqrt` of a wholly negative enclosure is empty (its own doc).
     let empty = Interval::from_f64(-4.0).sqrt();
     assert!(
@@ -148,9 +136,8 @@ fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
         )
         .unwrap()
     };
-    assert!(bilinear(vec![Point3::new(empty, empty, empty); 4]).is_placeholder());
-    // And one empty channel over finite ones is a described net, the
-    // same masquerade the row above pins with NaI.
+    assert!(!bilinear(vec![Point3::new(empty, empty, empty); 4]).is_finite());
+    // And one empty channel over finite ones is not finite either.
     let mixed = bilinear(vec![
         Point3::new(
             empty,
@@ -159,5 +146,5 @@ fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
         );
         4
     ]);
-    assert!(!mixed.is_placeholder());
+    assert!(!mixed.is_finite());
 }

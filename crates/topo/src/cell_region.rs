@@ -96,7 +96,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body.face(face).map(|f| f.surface()) else {
+    let Some(Ok(stored)) = body.face(face).map(|f| f.surface()) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -184,7 +184,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body.face(face)?.surface();
+    let surface = body.face(face)?.surface().ok()?;
     let station = surface.eval_at(u, v);
     place(body, face, surface, station, band)
 }

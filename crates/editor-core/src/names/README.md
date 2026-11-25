@@ -320,6 +320,20 @@ walls"):
   the new pairing.
   Setting the degree slot to 1 or from 1 changes the walls the body has,
   so the names of the other degree's walls vanish.
+  A segment the loft cuts at its sub-arc joints (`crates/sweep/README.md`,
+  "Walls") names each piece after the name of the whole: its wall
+  `[LoftWall(..), SubArc(q)]`, its rims `[RimEdge(end, ..), SubArc(q)]`
+  and its interior sections' edges `[LoftSectionEdge(..), SubArc(q)]`,
+  piece `q` counting from zero along the segment. The joint between
+  pieces `q − 1` and `q` is `SubArcJoint(q)` after the same heads: after
+  `LoftWall` the seam edge between the two walls, after `RimEdge` its
+  cap vertex, after `LoftSectionEdge` its interior section's vertex. A
+  segment of one piece carries neither, so a polygon's names are
+  unchanged. The pieces follow the sub-arc ceiling, so an edit that
+  changes any section's sub-arc count renumbers them. A selector's path is
+  matched at its exact length, so a one-segment pattern on `LoftWall` or
+  `RimEdge` does not match a piece of a cut segment
+  (`work/refs/an-exact-length-selector-misses-a-loft-walls-sub-arc-pieces.md`).
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
   profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds

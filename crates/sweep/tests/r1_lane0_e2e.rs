@@ -58,7 +58,7 @@ fn the_f64_seam_answers_every_public_door() {
 fn the_f64_seam_answers_every_public_door_row() {
     let d = 0.05;
     let (body, face) = box_with_approx_cap(d, 1e-9);
-    let Some(Surface::Approx(_)) = body.face_surface(face) else {
+    let Ok(Surface::Approx(_)) = body.face_surface(face) else {
         panic!("the cap wears the approximating surface");
     };
 
@@ -101,10 +101,10 @@ fn the_f64_seam_answers_every_public_door_row() {
         &geom_core::test_support::rigid(&rigid_f64(), Tol::witness()),
     )
     .expect("a rigid map of a certified fit moves it");
-    let Some(Surface::Approx(m)) = moved.face_surface(face) else {
+    let Ok(Surface::Approx(m)) = moved.face_surface(face) else {
         panic!("the mapped cap is still approximating");
     };
-    let Some(Surface::Approx(source)) = body.face_surface(face) else {
+    let Ok(Surface::Approx(source)) = body.face_surface(face) else {
         unreachable!("the cap wore the approximating surface above")
     };
     let spec = m.spec();
@@ -220,7 +220,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })
@@ -302,7 +302,7 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })

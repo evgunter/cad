@@ -87,9 +87,7 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
         }
     }
 
-    // Non-square nets, both degree orders, polynomial and rational —
-    // and the placeholder, which the rungs skip but which is still a
-    // surface the body can hold.
+    // Non-square nets, both degree orders, polynomial and rational.
     check("bilinear", &wall(2, 2, 1, 1, &[1.0]));
     check("2x5 linear-by-cubic", &wall(2, 5, 1, 3, &[1.0]));
     check("5x2 cubic-by-linear", &wall(5, 2, 3, 1, &[1.0]));
@@ -97,14 +95,13 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
         "rational 3x4",
         &wall(3, 4, 2, 3, &[1.0, 0.5, 2.0, 0.25, 7.0]),
     );
-    check("placeholder", &NurbsSurface::<f64>::placeholder());
 
     // The real reader's own output, over both committed corpora. A
     // FreeCAD file this reader declines is skipped rather than
     // asserted on: what is being walked is the walls that DO land.
     let mut walls = 0usize;
     let mut walk = |name: &str, body: &topo::Body<f64>| {
-        for (key, surface) in body.surfaces() {
+        for (key, surface) in body.described_surfaces() {
             if let Surface::Nurbs(p) = surface {
                 check(&format!("{name} surface {key:?}"), p.as_ref());
                 walls += 1;

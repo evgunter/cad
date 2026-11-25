@@ -1,8 +1,7 @@
 //! CERT-N2 R1 reviewer probes, adopted as rows.
 //!
-//! What check 1 answers on the masquerading net — poison in one
-//! channel of every point — that the placeholder's widening newly
-//! routes into each consumer's described arm.
+//! What check 1 answers on a net poisoned in one channel of every
+//! point, beside a face whose surface slot is pending.
 //!
 //! Adopted by the CERT-N2 fix pass. The header below is the adoption's
 //! only addition — the sibling in-src probe module
@@ -15,13 +14,11 @@ use crate::euler::FaceSurface;
 use crate::fixtures::mvfs_state;
 use geom::Surface;
 
-/// **`UncertifiableSurface` is the placeholder state's verdict and no
-/// other state's.** Check 1 reads a `Nurbs` payload's `NetState` and
-/// answers each state on its own: the placeholder reports
-/// `UncertifiableSurface`, and the masquerading net — poison in one
-/// channel of every point, so described rather than the placeholder —
-/// reports `PoisonedSurfaceDescription`. What this row pins is the
-/// negative half: the masquerade never draws the PLACEHOLDER's verdict,
+/// **`UncertifiableSurface` is the pending slot's verdict and no net's.**
+/// Check 1 reports a pending slot as `UncertifiableSurface`, and a net
+/// that is not finite — poison in one channel of every point — as
+/// `PoisonedSurfaceDescription`. What this row pins is the negative
+/// half: the corrupt net never draws the pending slot's verdict,
 /// whatever else it draws.
 #[test]
 fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
@@ -52,19 +49,33 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             tol,
             crate::validate::PlusVCheck::NotMade,
             // This probe is concrete at `f64`, so it names the offset
-            // fit door by hand; the surfaces it runs are a placeholder
-            // and a masquerading net, neither of which reaches it.
+            // fit door by hand; the face it runs is on a net that is not
+            // finite, which does not reach it.
             Some(geom_brep::OffsetFitLane::fit()),
         )
         .0
     };
-    let with_placeholder = run(Surface::nurbs_placeholder());
+    let with_pending = {
+        let mut st = crate::fixtures::mvfs_state();
+        st.body
+            .set_face_surface(st.face, FaceSurface::Pending { sense: true })
+            .unwrap();
+        let mut marks = slotmap::SecondaryMap::new();
+        crate::validate::tier3_local_checks_marked::<f64>(
+            &st.body,
+            &mut marks,
+            tol,
+            crate::validate::PlusVCheck::NotMade,
+            Some(geom_brep::OffsetFitLane::fit()),
+        )
+        .0
+    };
     let with_masquerade = run(crate::fixtures::poisoned_net(|_| true));
-    println!("PROBE class9 placeholder: {with_placeholder:?}");
+    println!("PROBE class9 pending:    {with_pending:?}");
     println!("PROBE class9 masquerade:  {with_masquerade:?}");
     assert!(
-        !with_placeholder.is_empty(),
-        "the placeholder is refused at rest"
+        !with_pending.is_empty(),
+        "the pending face is refused at rest"
     );
     let named = |v: &[crate::validate::ValidationError]| {
         v.iter().any(|e| {
@@ -74,13 +85,10 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             )
         })
     };
-    assert!(
-        named(&with_placeholder),
-        "the placeholder is refused at rest"
-    );
+    assert!(named(&with_pending), "the pending face is refused at rest");
     assert!(
         !named(&with_masquerade),
-        "the masquerading net is DESCRIBED, so the placeholder's verdict is \
-         not its answer — check 1 names it as the poisoned state instead"
+        "the poisoned net is a description, so the pending slot's verdict is \
+         not its answer — check 1 names it as poisoned instead"
     );
 }

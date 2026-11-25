@@ -50,7 +50,7 @@ pub fn assert_spheres_maximal(label: &str, result: &Body<f64>, operands: &[&Body
         let h = result.get_half_edge(if plus { d.he_plus } else { d.he_minus })?;
         let f = result.get_loop(h.parent_loop)?.face;
         match result.face_surface(f) {
-            Some(Surface::Sphere { frame, radius, .. }) => {
+            Ok(Surface::Sphere { frame, radius, .. }) => {
                 let c = frame.origin();
                 Some(([c.x, c.y, c.z], *radius))
             }

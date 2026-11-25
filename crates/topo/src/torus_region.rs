@@ -194,7 +194,10 @@ pub(crate) fn torus_face_region<T: Decide>(
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let geom::Surface::Torus { .. } = f.surface() else {
+    let surface = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
+    let geom::Surface::Torus { .. } = surface else {
         return Err(corrupt());
     };
     let admits: &[geom::CurveKind] = match splines {
@@ -209,7 +212,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion::on(
-        Charted::record(f.record().surface, f.surface()),
+        Charted::record(f.record().surface, surface),
         f.sense(),
         f.record().outer,
         edges,

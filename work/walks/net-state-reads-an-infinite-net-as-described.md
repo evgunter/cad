@@ -2,12 +2,13 @@
 id: net-state-reads-an-infinite-net-as-described
 kind: issue
 title: NetState answers Described for a net of infinities, so only tier-3 check 1 refuses it and every other three-state consumer takes it as geometry
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
-design: true
 refs: [described-net-two-state-reads-hand-a-poisoned-net-the-described-arm]
+closed: 2026-11-23
+parent: placeholder-question-has-two-spellings-across-topo
 ---
 
 
@@ -74,3 +75,7 @@ folded here as one item on one decision.
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. KNOT collects the spline, net and fit doors in `geom-core` and `geom`: refinement inside an enclosure, the net-state reads, the NURBS derivative and projection doors, and the fit's refusals and solves. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed
+
+2026-11-23 (WALKS, `walks/surface-slot`): answered by Ev's ruling on PR 7423 — option 3 at option 1's width. `NetState` and `net_state` are retired with the placeholder (the slot in `topo` carries "no surface yet"), and the one question asked of a net is `NurbsSurface::is_finite` / `NurbsCurve3::is_finite` (`geom/src/net.rs` `is_finite`: every channel `Real::is_bounded`, so NaN and `±∞` at `f64`). Validate check 1 reads it, its local `net_is_finite` is gone, `merge_faces`' `MergeKind::of` refuses a non-finite net as `PoisonedNet`, and the box screens (`surfaces/boxes`, `curves/boxes`, `cover/readings`) take it in place of the NaN-only `net::any_poison`. The census reach arm no longer reads a net state.
