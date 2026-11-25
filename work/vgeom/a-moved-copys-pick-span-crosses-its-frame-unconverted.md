@@ -1,69 +1,108 @@
 ---
 id: a-moved-copys-pick-span-crosses-its-frame-unconverted
 kind: issue
-title: A moved copy's pick span is certified on the ray carried into its frame, which is the caller's only to within the carry's rounding
+title: Two copies' crossings are ordered by spans each certified on the ray carried into its own frame, which is the caller's only to within that carry's rounding
 status: open
 opened: 2026-10-22
 priority: P1
-cost: E
+cost: M
+design: true
 ---
 
 
 First written (2026-10-22, split out of
 `pickindex-merges-parts-on-a-rounded-t-it-never-converts`) as "the
 span crosses the frame unconverted"; `vgeom/project-refuses` found
-that premise false and narrowed the row to what is left (2026-11-25).
+that premise false and narrowed the row (2026-11-25);
+`vgeom/moved-copy-witness` (PR 7792) built the witness, which
+flipped, fixed the self-occlusion half and narrowed the row to the
+cross-copy ordering left.
 
 ## Finding
 
-`crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`: a part drawn
-under a display map (`display_mapped`, which is
-`DisplayView::display_map`: the space's free-move frame composed with
-the placement editor's carry, `PreviewedCopy::carry`) is picked by the
-caller's ray carried through `map.inverse()`.
+A part drawn under a display map (`DisplayView::display_map`: a
+space's free-move frame composed with the placement editor's carry)
+or a body frame (`[placement.frame]`) is picked on the caller's ray
+carried back through those maps: `PickIndex::pick_for` carries it
+through the display map's inverse, then `pick_face` reads it into each
+target's frame (`PickTarget::ray_in_frame`). The parameter carries
+exactly (an affine map keeps it); the CERTIFICATE is the carried
+ray's as rounded, which is the caller's only to the carry's rounding.
+Spans of different copies are then ordered against each other as if
+certified on one ray:
 
-**The parameter needs no conversion.** An affine map carries a ray's
-parameter with it, `map(o′ + t·d′) = o + t·d`, so the `t`, `t_lo` and
-`t_hi` the kernel answers on the carried ray are parameters of the
-caller's ray under any affine map, rigid or not. The hit's point is
-read off the caller's ray at `t`, as `pick_face` reads every hit's;
-`review_gui4_r1::r1_a_rotated_probe_is_drawn_picked_and_reported_in_world`
-asserts `point == origin + t·dir` bit for bit.
+- `crates/viewer/src/pickindex.rs`, `PickIndex::pick_for`: the
+  cross-group merge (`TSpan::survivors`, `answer_of`) over the unmoved
+  batches (one per space) and each moved body's group.
+- `crates/editor-core/src/resolve/pick.rs`, `pick_face`: the
+  survivors taken over every target of one call, each target's spans
+  certified on the ray read into its own frame.
+- The viewer's merge of unmoved batches of different spaces, which
+  carry body frames only;
+  `pick3_acceptance::the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex`
+  pins those spans bit for bit against `FlatReference`, which carries
+  the same frames.
+- `PickIndex::near`'s outline arm: a profile outline's span is read on
+  the caller's ray against its world-drawn points
+  (`ray_segment_point(&ray, candidate.ends, s)`), while the face it
+  lies on is certified on the ray carried through that face's display
+  map and body frame, so under a large free move an outline can read
+  as behind its own face. It is not repaired alongside the edge's
+  reading because an outline holds no part frame: it knows its space
+  and the copy that carries it (`DisplayView::outline`), not the body
+  whose face it lies on, and that body's frame is a second carry the
+  outline's space coordinates do not share — so "the face it lies on"
+  is a second drawing, ordered across frames like any two copies.
 
-**What does not carry is the certificate.** The span is certified on
-the carried ray AS ROUNDED, which is the caller's only to within the
-inverse's rounding — even a translation rounds the carried origin, at
-the order of a certificate's own width. That span is then ordered
-against spans certified on the caller's ray itself:
+Two P3 rows filed on PR 7792's branch covered the kernel's merge and
+the cross-space merge above; they never reached main, and are folded
+in here as one class.
 
-- the cross-group merge in `pick_for` (`TSpan::survivors`,
-  `answer_of`), where a moved copy's face coincident with an unmoved
-  body's can be ordered or tied where the certificate says nothing;
-- the edge lane's occlusion probe (`PickIndex::near`): every edge
-  hover on a moved copy runs `own_crossing` on the caller's ray, with
-  the copy's triangles placed in world, against the face spans
-  `front_of` certifies on the carried ray. The two coincide by
-  construction (the `gpu.rs` edge-lift doc says so), so a rounding
-  either way can read the edge as **occluded by its own face**, and
-  the edge does not pick, silently.
+**The witness.** A copy posed by an exact frame (a dyadic translation
+up to the session box, a half turn or not) and free-moved back onto
+its twin by the exact inverse is drawn on the twin's own points; a
+ray onto that face should refuse with both. On main 11–39 of 180 such
+rays per seed answered one copy alone: the move's translation cancels
+the pose's, and the carried ray keeps none of its origin's bits below
+that coordinate's rounding, some two hundred times the width a
+crossing near the origin certifies. The fuzzer and a pinned ray
+(pose half turn + `[-423.0, 395.375, 177.0]`) are on branch
+`vgeom/moved-copy-twin-witness` (`crates/viewer/tests/moved_copy_pick.rs`:
+`a_moved_copy_drawn_on_its_twin_ties_with_it`,
+`a_copy_moved_back_far_onto_its_twin_ties_with_it`), to land with the
+fix. **Take only those two rows** (and the helpers they call) from
+that branch: at b94591be3b it also carries the margined repair PR 7792
+took out — in `pickindex.rs`, editor-core's `pick.rs`, `gpu.rs` and
+pncad-py's `pick.rs` — and the two issue files folded in here.
+
+**Not here any more.** The edge lane's own-face reading: an edge of a
+moved or posed copy read as hidden by its own face (130 of 554 hovers
+on the pinned row before the fix, and one silhouette edge of a copy
+merely posed). `own_crossing` now reads the chord on the ray the
+part's faces were certified on, against the mesh's own corners, so a
+face that is one of the chord's triangles is the same crossing bit for
+bit (PR 7792; guarded by `moved_copy_pick.rs`).
+
+**What a margined repair cannot be.** Growing a carried span by a
+bound on the carry's rounding (the row's first repair shape) is a
+rounding charge, which `[simple.conditioned]` forbids
+(`scripts/gates/bare-rounding-allowlist.sh` reds it); PR 7792 tried it
+and took it out.
 
 ## Next step
 
-A witness first: a fuzz hovering moved-copy edge midpoints (and a
-coincident moved/unmoved face pair) under rotated and translated
-frames, counting picks the unmoved twin answers and the moved copy
-does not. If one flips, repair by either shape below; if none can
-flip after a fair search, the row drops to P3.
-
-Repair shapes: widen the carried span by a bound on the carry's
-rounding, in parameter units; or pick a moved copy against its
-triangles placed in world (as `own_crossing` already does), so every
-span is certified on the caller's ray.
+The band verdict, `[ev]` pending on PR 7793: two designers agree the pick should
+order crossings by a margined band verdict at ε (no certificate
+widths), with editor-core owning the one merge and each target handed
+in under its drawn map. Land the twin witness with that fix.
 
 ## History
 
 Parked 2026-10-22 on the stage-3 placement pivot (D′,
 `work/intent/a-placement-pins-by-written-values-without-a-mate.md`);
 moved from FIT into VGEOM 2026-10-26; released by INTENT 2026-10-26
-when D′1–D′3 (PRs 5592, 5613, 5636) merged. Re-read after D′: nothing
-picks through world coordinates, so D′ did not overtake it.
+when D′1–D′3 (PRs 5592, 5613, 5636) merged. A re-read after D′ said
+"nothing picks through world coordinates, so D′ did not overtake it",
+which was false: the edge lane's `own_crossing` and `Candidate`'s
+chord ends were placed in the world, which is what the self-occlusion
+half was. PR 7792 moved the chord's reading into the part's frame.
