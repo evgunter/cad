@@ -363,3 +363,20 @@ fn a_circle_naming_no_frame_refuses_typed() {
         );
     }
 }
+
+/// **A spline carrier is refused as unsupported**, not read: C5's line
+/// arm finds a line's crossings of a chart, but a crossing's sense is
+/// read off a closed-form outward normal, which a spline has none of.
+#[test]
+fn a_ray_across_a_spline_carrier_refuses_as_unsupported() {
+    let patch = geom::test_support::unit_patch();
+    let ray = geom::Ray::new(
+        Point3::new(0.3, 0.4, -1.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let got = ray_crossings(&patch, true, &ray, 4.0, band());
+    assert!(
+        matches!(got, Err(TraceFault::Unsupported { carrier }) if carrier == patch.kind()),
+        "{got:?}"
+    );
+}

@@ -202,7 +202,8 @@
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 //! - **`bool_point_past_every_reach`**: where the ray test has no arm for
-//!   a face of the selection, how far `q` stands past the hull of every
+//!   a face of the selection, or a spline face's trim does not read in
+//!   its chart, how far `q` stands past the hull of every
 //!   face's reach along a direction that turns with the body, less the
 //!   sweep pad (metres); Positive ⇒ the side at infinity
 //!   ([`past_every_reach`]). **`bool_point_axis`**: the offset from the
@@ -2159,14 +2160,18 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         let geo = match face_geo(body, face, &sel.charts, band, T::spline_face_reader()) {
             Ok(geo) => geo,
             // **A point past the whole selection's reach**, read only
-            // where the ray test cannot cross a face of it: definitely
+            // where the ray test cannot cross a face of it (its kind, or
+            // a spline face whose trim does not read): definitely
             // outside the hull of every face's certified reach, it
             // leaves along a straight path that meets no face, and takes
             // the side at infinity. Outside each face's own reach is not
             // enough — the centre of a box solid lies outside every
             // face's slab and inside the solid. Either way this face
             // decides the whole query.
-            Err(refusal @ PointInSolidError::KindUnsupported { .. }) => {
+            Err(
+                refusal @ (PointInSolidError::KindUnsupported { .. }
+                | PointInSolidError::PartialSplineFace { .. }),
+            ) => {
                 if !past_every_reach(body, faces, q, band) {
                     return Rung::Aborts(Err(refusal));
                 }
@@ -4018,7 +4023,9 @@ fn spline_root_held<T: Decide>(
 /// **Whether trimmed curved `face` holds the point `p` of its carrier**,
 /// read off its own region: `None` on its boundary, or where its region
 /// cannot place `p` (a walk no ray of its own settled), which reads no
-/// side; a face the region cannot read there blocks the ray.
+/// side; a face the region cannot read there blocks the ray. A spline
+/// face's crossing is placed by its chart rectangle, `side`'s
+/// ([`spline_root_held`]).
 ///
 /// # Errors
 ///
@@ -4026,10 +4033,18 @@ fn spline_root_held<T: Decide>(
 fn root_held<T: Decide>(
     face: FaceKey,
     geo: &FaceGeo<T>,
-    p: Point3<T>,
+    (p, side): (Point3<T>, RootSide),
     band: Band,
 ) -> Result<Option<bool>, RayFault<PointInSolidError>> {
     let reading = match geo {
+        // A spline face's crossing is placed by its rectangle, not its
+        // point: the point is a bracket's middle.
+        FaceGeo::Spline { .. } => {
+            let RootSide::Spline { rect, .. } = side else {
+                return Err(RayFault::Fatal(PointInSolidError::CorruptFace { face }));
+            };
+            return spline_root_held(face, geo, rect, band);
+        }
         FaceGeo::Cylinder { region, .. } | FaceGeo::Cone { region, .. } => {
             return region_hit(face, region.contains(p, band));
         }
@@ -4263,11 +4278,11 @@ pub(crate) fn ray_crossings<T: Decide>(
                     (Cross::Plane, Some(p)) => {
                         point_in_face(body, f, p.normal, p.p, band).map_err(at_hit)
                     }
-                    (Cross::Root(_), _) => {
+                    (Cross::Root(k), _) => {
                         let geo = geo_of(f)
                             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face: f }))?;
                         if reaches_root_in_band(body, f, ray, m, t, band, rows)? {
-                            root_held(f, geo, q + d.get() * t, band)
+                            root_held(f, geo, (q + d.get() * t, roots[k].side), band)
                         } else {
                             Ok(None)
                         }
@@ -4402,13 +4417,10 @@ pub(crate) fn ray_crossings<T: Decide>(
                 }
                 _ => Ok(None),
             };
-            let reading = match (turned, r.side) {
-                (Ok(Some(inside)), _) => Ok(Some(inside)),
-                (Ok(None), RootSide::Spline { rect, .. }) => {
-                    spline_root_held(r.face, geo, rect, band)
-                }
-                (Ok(None), _) => root_held(r.face, geo, p, band),
-                (Err(fault), _) => Err(fault),
+            let reading = match turned {
+                Ok(Some(inside)) => Ok(Some(inside)),
+                Ok(None) => root_held(r.face, geo, (p, r.side), band),
+                Err(fault) => Err(fault),
             };
             match reading {
                 Ok(Some(true)) => held.push((r, geo)),

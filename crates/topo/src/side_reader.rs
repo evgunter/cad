@@ -372,7 +372,7 @@ fn aim_at<T: Decide>(
         // steers, and the ray reads the trim where it crosses.
         FaceGeo::Spline { ref surface, .. } => {
             let Some(chart) = surface.spline_chart() else {
-                return Ok(None);
+                unreachable!("a spline face has a spline chart")
             };
             let two = T::from_f64(2.0);
             let ((u0, u1), (v0, v1)) = (
@@ -1222,6 +1222,38 @@ mod pre_filter_tests {
         assert!(
             matches!(face_geo(&body, spline, &sel.charts, band, None), Err(e) if e == want),
             "a ray meets the same refusal"
+        );
+    }
+
+    /// **A point past every reach is read past a spline face whose trim
+    /// does not read**, as past a face of a kind the ray cannot cross: no
+    /// ray from it meets the face, so it takes the side at infinity, not
+    /// the face's refusal. That side is the selection's signed volume,
+    /// which a brick face re-carried on a patch its edges do not lie on
+    /// leaves uncertified, so it refuses as the volume; a point inside the
+    /// hull refuses with the face's refusal.
+    #[test]
+    fn a_point_past_every_reach_answers_past_a_spline_face_with_no_trim() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let (mut body, faces) = brick_and_faces(tol);
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") =
+            geom::test_support::unit_patch().into();
+        let sel = SolidFaces::select(&body, faces).expect("the faces select");
+        let at = |x: f64| {
+            crate::solid_contain::point_in_solid_faces(&body, &sel, Point3::new(x, x, x), band, tol)
+        };
+        assert_eq!(
+            at(9.0),
+            Err(PointInSolidError::VolumeUncertified),
+            "past every reach"
+        );
+        assert_eq!(
+            at(0.5),
+            Err(PointInSolidError::PartialSplineFace { face: spline }),
+            "inside the hull"
         );
     }
 
