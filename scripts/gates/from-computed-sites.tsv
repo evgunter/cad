@@ -1,6 +1,21 @@
 # The from_computed sites of scripts/gates/from-computed-sites.sh: one row per
 # (file, fn, argument), tab-separated: file, count, class, fn, argument, reason.
 crates/editor-core/src/mate/value.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	read_as	arm.get()	read_as: an f64 arm entering Lever<T>
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	closes	p.x	closes: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	closes	p.y	closes: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	miss	p.x	miss: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	miss	p.y	miss: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	nearest	u	nearest: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	nearest	v	nearest: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	polished	next.x	polished: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	polished	next.y	polished: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	polished	uv.x	polished: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	polished	uv.y	polished: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	predicted	uv.x	predicted: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	predicted	uv.y	predicted: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	settle	e.last_u	settle: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	settle	e.last_v	settle: a chart point of the wall image's foot path, read as a place of the wall; the image is evidence its certificate decides
+crates/geom-brep/src/carrier_image.rs	1	place-step	point	t0 + (t1 - t0) * at	Read::point: a place stepped inside the image's own evaluator of its carrier
 crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	carrier_span	hi	carrier_span: a bracket read re-entered, filed Payload
 crates/geom-brep/src/carrier_net.rs	1	owed(census-rows-whose-bracket-read-re-enters-the-scalar-are-filed-as-payload-or-selection)	carrier_span	lo	carrier_span: a bracket read re-entered, filed Payload
 crates/geom-brep/src/certify.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	run_checks	hi	run_checks: as lo
@@ -14,7 +29,6 @@ crates/geom-brep/src/edge_nurbs.rs	2	owed(the-fitted-chart-image-is-c6s-fit-lift
 crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	limb2_enclosure_as	floor	limb2_enclosure_as: a bound hulled into T
 crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	measured_foot	foot.x	measured_foot: a chart foot the plane x NURBS image is built on; checked by the image's limbs, not at the foot
 crates/geom-brep/src/edge_nurbs.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	measured_foot	foot.y	measured_foot: as foot.x
-crates/geom-brep/src/edge_nurbs.rs	1	place-step	station	t0 + (t1 - t0) * at	Schedule::station: a place stepped inside its own evaluator (the places unit's note)
 crates/geom-brep/src/edge_nurbs.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	limb2_enclosure_as	upper	limb2_enclosure_as: a bound hulled into T
 crates/geom-brep/src/pair_section.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	pad_and_reach	<fn>	pad_and_reach: an f64 carrier lifted to Interval to read a tube bound
 crates/geom-brep/src/pair_section.rs	1	owed(places-held-at-t-re-enter-through-from-computed)	witness	r.run.0	witness: a tube run's end, the window a foot is searched in (a place)
@@ -44,6 +58,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifte
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[1], hi[1]))	Net::of: as lo[0]
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[2], hi[2]))	Net::of: as lo[0]
 crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-computed)	sphere_region_cover	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
+crates/geom-brep/src/ssi/certify.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	image_miss	miss	image_miss: a wall image's measured miss hulled into T for limb 2's decision on it
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	hull.sup	hull_limb: a limb bound held as T

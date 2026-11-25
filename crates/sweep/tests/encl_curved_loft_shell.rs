@@ -203,12 +203,9 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 /// wall's offset fit before any edge. Where ε is tighter than the fit
 /// reaches it refuses at a wall's fit. Where the fit certifies, every
 /// wall–wall seam derives as the NURBS × NURBS section of its two moved
-/// fits, and the shell refuses at a top rim's at-rest certificate: the
-/// plane × fit lane's chart image of the rim is the degree-1 interpolant
-/// of its fixed foot schedule, and on this twisted wall limb 2's value
-/// at a break is about 1e-6 m: in the band at 1e-6, where it escalates,
-/// and past it at 1e-9, where it refuses outright
-/// (`work/isotail/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
+/// fits, every rim certifies at rest on its wall's image of it, and the
+/// thin solid is assembled; tier 3 then discards it, a fitted face's
+/// volume being one the kernel does not yet measure.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -218,97 +215,66 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         Tol::witness(),
     )
     .expect_err("a spline-walled body does not shell today");
+    // Which door answers first depends on ε: a wall's fit reaches
+    // `SADDLE_WALL_CAP_REACH` on a 62 x 35 grid, the last within the sample cap,
+    // so below that the fit refuses at the cap, and above it the fit
+    // certifies and the shell is assembled.
+    let eps = Tol::witness().eps();
+    if eps >= SADDLE_WALL_CAP_REACH {
+        let ShellError::NotValid { findings } = &e else {
+            panic!(
+                "eps {eps:e}: expected the thin solid's tier-3 refusal, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
+        };
+        assert!(
+            !findings.is_empty()
+                && findings.iter().all(|f| matches!(
+                    f,
+                    topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::QuadratureUnsupported { .. },
+                            ..
+                        },
+                        ..
+                    }
+                )),
+            "eps {eps:e}: expected only faces whose quadrature is not built, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
+        return;
+    }
     let ShellError::Face { face, error } = &e else {
         panic!(
             "expected a per-face offset refusal, got {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     };
-    // Which door answers first depends on ε: a wall's fit reaches
-    // `SADDLE_WALL_CAP_REACH` on a 62 x 35 grid, the last within the sample cap,
-    // so below that the fit refuses at the cap, and above it the fit
-    // certifies and the seams derive.
-    let eps = Tol::witness().eps();
-    if eps < SADDLE_WALL_CAP_REACH {
-        assert!(
-            is_spline_wall(&nurbs_walls(&body), *face),
-            "the refusing face is not a wall: {e_at}",
+    assert!(
+        is_spline_wall(&nurbs_walls(&body), *face),
+        "the refusing face is not a wall: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
+    let ReplaceFaceError::Fit {
+        error:
+            geom_brep::OffsetFitError::WallReached {
+                wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                achieved,
+                grid,
+                ..
+            },
+        ..
+    } = error.as_ref()
+    else {
+        panic!(
+            "eps {eps:e}: expected the wall's fit to reach the sample cap, got {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
         );
-        let ReplaceFaceError::Fit {
-            error:
-                geom_brep::OffsetFitError::WallReached {
-                    wall: geom_brep::OffsetFitWall::SampleCap { .. },
-                    achieved,
-                    grid,
-                    ..
-                },
-            ..
-        } = error.as_ref()
-        else {
-            panic!(
-                "eps {eps:e}: expected the wall's fit to reach the sample cap, got {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
-        };
-        assert!(
-            *grid == (62, 35) && (achieved - SADDLE_WALL_CAP_REACH).abs() < 1e-14,
-            "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
-        );
-    } else {
-        // Limb 2's hull value at a break on the rim: 1.5994e-6 m at 1e-9,
-        // past the band, so it refuses outright; 1.02e-6 m at 1e-6, in the
-        // band, so it escalates. The rim's own foot reads 2.2e-16 m at
-        // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
-        // so the 1e-9 arm reads it within 5%.
-        let ReplaceFaceError::Op {
-            error:
-                topo::EulerOpError::DescriptionUncertified {
-                    edge: topo::EdgeSubject::Keyed(edge),
-                    error,
-                },
-            ..
-        } = error.as_ref()
-        else {
-            panic!("eps {eps:e}: expected a rim's at-rest certificate to refuse, got {error:?}");
-        };
-        if eps < 1e-7 {
-            let geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                limb: geom_brep::ssi::SsiLimb::ImageMiss,
-                margin,
-            }) = error
-            else {
-                panic!("eps {eps:e}: expected limb 2's value to refuse outright, got {error:?}");
-            };
-            let value = margin.diagnostic_f64_for_error_text().value();
-            assert!(
-                value.is_some_and(|v| (v - 1.5994e-6).abs() <= 0.05 * 1.5994e-6),
-                "eps {eps:e}: limb 2 reads {value:?}"
-            );
-        } else {
-            assert!(
-                matches!(
-                    error,
-                    geom_brep::CertifyError::Escalated {
-                        check: geom_brep::CertCheck::PlaneNurbsHullValue,
-                        ..
-                    }
-                ),
-                "eps {eps:e}: expected limb 2 to escalate in the band, got {error:?}"
-            );
-        }
-        // The refusing edge is a top rim: the top cap's edge with a wall.
-        let halves = body.get_edge(*edge).expect("the refused edge resolves");
-        let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
-            .into_iter()
-            .filter_map(|he| body.face_of_half_edge(he))
-            .collect();
-        let walls = nurbs_walls(&body);
-        assert!(
-            sides.contains(&top_cap(&body)) && sides.iter().any(|k| is_spline_wall(&walls, *k)),
-            "eps {eps:e}: {edge:?} is not a top rim, its faces are {sides:?}"
-        );
-    }
+    };
+    assert!(
+        *grid == (62, 35) && (achieved - SADDLE_WALL_CAP_REACH).abs() < 1e-14,
+        "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
+    );
 }
 
 /// An OUTWARD cap offset runs each seam's corner past the end of the

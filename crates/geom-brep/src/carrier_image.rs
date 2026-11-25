@@ -34,8 +34,9 @@
 //!   the carrier's standoff there where that is the larger, is the image. Otherwise each
 //!   knot span holding a larger one takes a knot at its middle, or,
 //!   where the path crosses a knot line of the wall there across which
-//!   the wall is less smooth than the image, a knot at the crossing of
-//!   the multiplicity that leaves the image as smooth as the wall
+//!   the wall is less smooth than the image, a break at the crossing,
+//!   whose foot is put on the line so each span beside it lies in one
+//!   cell of the wall
 //!   ([`crossing`]); the feet are followed again, at most
 //!   [`IMAGE_ROUNDS`] times. Past that the miss is decided against the
 //!   band as limb 2 decides it: an image within the band stands, and
@@ -346,6 +347,9 @@ where
         (0.0, greville(&chain, degree).get(1).copied()),
         band,
     )?;
+    // The crossings of the wall's knot lines the chain holds a knot at:
+    // the unit fraction, the line's axis and its value.
+    let mut on_line: Vec<(f64, usize, f64)> = Vec::new();
     for round in 0..=IMAGE_ROUNDS {
         let knots = KnotVector::clamped(chain.clone(), degree).map_err(|_| ImageRefusal::Fit)?;
         // The chain on the carrier's own span, before any foot is read
@@ -356,7 +360,18 @@ where
             .and_then(|flat| flat.on_domain(t0, t1))
             .map_err(|e| domain_refusal(t0, t1, &e))?;
         let nodes = greville(&chain, degree);
-        let feet = path(&read, wall, &nodes, first)?;
+        let mut feet = path(&read, wall, &nodes, first)?;
+        // A foot at a crossing of a wall's knot line lies on the line:
+        // the spans either side of it each end in their own cell.
+        for foot in &mut feet {
+            if let Some(&(_, axis, k)) = on_line.iter().find(|(at, ..)| *at == foot.at) {
+                foot.uv = if axis == 0 {
+                    Point2::new(k, foot.uv.y)
+                } else {
+                    Point2::new(foot.uv.x, k)
+                };
+            }
+        }
         let collocation = geom::Collocation::on(&nodes, knots).map_err(|_| ImageRefusal::Fit)?;
         let uv: Vec<Point2<f64>> = feet.iter().map(|f| f.uv).collect();
         let image =
@@ -391,7 +406,7 @@ where
         add.dedup();
         // A crease's knot at the multiplicity that gives the image the
         // wall's continuity there, less what the chain holds of it.
-        for (k, multiplicity) in creases {
+        for (k, multiplicity, axis, line) in creases {
             // A break found again beside the knot it already has is that
             // knot's: two knots a rounding apart solve no collocation.
             let k = chain
@@ -403,6 +418,7 @@ where
                 continue;
             }
             add.retain(|x| (x - k).abs() > CREASE_SNAP);
+            on_line.push((k, axis, line));
             let held =
                 chain.iter().filter(|x| **x == k).count() + add.iter().filter(|x| **x == k).count();
             add.extend(core::iter::repeat_n(k, multiplicity.saturating_sub(held)));
@@ -426,8 +442,9 @@ where
 
 /// A line of the wall's chart across which the wall is less smooth than
 /// the image: the chart axis it is constant on (`0` for `u`), its value,
-/// and the multiplicity a knot of the image takes there to be as smooth
-/// as the wall and no smoother.
+/// and the multiplicity a knot of the image takes there, its degree: a
+/// break, so a foot of the path stands on the line itself and each span
+/// beside it lies in one cell of the wall.
 type KnotLine = (usize, f64, usize);
 
 /// The wall's interior knot lines whose continuity, `C^(p−m)` at a knot
@@ -442,7 +459,7 @@ fn knot_lines<T: Decide + Bounds>(wall: &NurbsSurface<T>, degree: usize) -> Vec<
             let p = knots.degree();
             interior(knots).into_iter().filter_map(move |(k, m)| {
                 let continuity = p.saturating_sub(m);
-                (continuity + 1 < degree).then(|| (axis, k, degree - continuity))
+                (continuity + 1 < degree).then_some((axis, k, degree))
             })
         })
         .collect()
@@ -470,7 +487,7 @@ fn rectangle<T: Decide + Bounds>(wall: &NurbsSurface<T>) -> [(f64, f64); 2] {
 /// **Where the path crosses a line of the wall between two feet**: the
 /// unit fraction of the crossing, found by halving the way between the
 /// feet [`CROSSING_HALVINGS`] times with the path followed to each
-/// middle, and the line's multiplicity. `None` where the feet lie on
+/// middle, with the line's multiplicity, axis and value. `None` where the feet lie on
 /// one side of every line, or a middle's foot is not reached. Of two
 /// lines crossed, the first listed.
 fn crossing<T>(
@@ -478,7 +495,7 @@ fn crossing<T>(
     wall: &NurbsSurface<T>,
     lines: &[KnotLine],
     (a, b): (Foot, Foot),
-) -> Option<(f64, usize)>
+) -> Option<(f64, usize, usize, f64)>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
@@ -500,7 +517,7 @@ where
             far = foot;
         }
     }
-    Some((far.at, multiplicity))
+    Some((far.at, multiplicity, axis, k))
 }
 
 /// The degree a carrier is imaged at.

@@ -312,8 +312,7 @@ measured miss of the foot path exceeds its share of the band (or of the
 carrier's own standoff from the wall, where that is the larger): at the
 middle of the span that misses, or, where the path crosses a knot line
 of the wall there across which the wall is less smooth than the image,
-at the crossing, at the multiplicity that leaves the image as smooth as
-the wall. It is refused, with that miss, past a fixed number of rounds
+a break at the crossing, its foot on the line. It is refused, with that miss, past a fixed number of rounds
 or knots. The foot path follows the carrier
 continuously: its first foot is the wall's nearest point to the
 carrier's start, on the side of a closed wall's seam the path leaves

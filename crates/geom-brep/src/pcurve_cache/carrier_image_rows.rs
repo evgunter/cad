@@ -624,3 +624,66 @@ fn the_foot_path_stays_on_the_sheet_its_carrier_lies_on() {
         "the image stays on the upper sheet: {miss:e} m off the carrier, u down to {lowest}"
     );
 }
+
+/// [`ring_wall`]'s cylinder over `z ∈ [−½, 1]` with its sub-arcs' shared
+/// knot at `u = 0.4`: the same wall, its chart's speed along `u` jumping
+/// across that line.
+fn split_ring_wall() -> NurbsSurface<f64> {
+    let h = 0.6_f64;
+    let mut ku = vec![0.0; 3];
+    ku.extend([0.4; 2]);
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=4 {
+        let theta = f64::from(j) * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for z in [-0.5, 1.0] {
+            control.push(Point3::new(reach * theta.cos(), reach * theta.sin(), z));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+/// **A foot where the path crosses a wall's knot line stands on the
+/// line.** The circle at `z = 0` of [`split_ring_wall`] crosses the line
+/// `u = 0.4` at `t = 0.6`, where the chart's speed jumps and the foot
+/// path with it. The image breaks there, and its point at the break is
+/// on the line to the bit, so the span on either side lies in one cell
+/// of the wall, and the image certifies at every ε.
+///
+/// Red against: no break at a knot line (the image misses the path's
+/// kink past its cap), and the break's foot left where Newton put it, an
+/// ulp past the line, where the certificate's hull of the span before it
+/// reads the next cell (refused at ε = 1e-12).
+#[test]
+fn a_foot_at_a_walls_knot_line_stands_on_the_line() {
+    let wall = split_ring_wall();
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let minted = mint::<f64>(FittedLane::<f64>::certified(), &carrier, (0.0, 1.2), &wall);
+    let at_the_line = minted.image.eval(0.6).x;
+    assert!(
+        at_the_line.to_bits() == 0.4_f64.to_bits(),
+        "the image's point at the crossing is on the line u = 0.4: {at_the_line:e}"
+    );
+    assert!(
+        minted.certified.is_ok(),
+        "the image certifies: {:?}",
+        minted.certified
+    );
+}
