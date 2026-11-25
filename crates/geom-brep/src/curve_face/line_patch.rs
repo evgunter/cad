@@ -178,8 +178,7 @@ impl<T: Decide> Frame<T> {
             1 => Vec3::new(T::zero(), T::one(), T::zero()),
             _ => Vec3::new(T::zero(), T::zero(), T::one()),
         };
-        let m = d.cross(axis);
-        let n1 = m * (T::one() / m.norm());
+        let n1 = d.cross(axis).normalize();
         Self {
             d,
             n1,
@@ -250,7 +249,8 @@ impl<T: Real> Form<T> {
         } else {
             (self.du, self.dv - 1)
         };
-        let n = T::from_f64(if along_u { self.du } else { self.dv } as f64);
+        let degree = if along_u { self.du } else { self.dv };
+        let n = T::from_f64(degree as f64);
         let mut c = Vec::with_capacity((du + 1) * (dv + 1));
         for i in 0..=du {
             for j in 0..=dv {
@@ -287,7 +287,8 @@ impl<T: Real> Form<T> {
         for i in 0..=du {
             for j in 0..=dv {
                 let at = i * (dv + 1) + j;
-                c[at] = c[at] / T::from_f64(binomial(du, i) * binomial(dv, j));
+                let over = binomial(du, i) * binomial(dv, j);
+                c[at] = c[at] / T::from_f64(over);
             }
         }
         Self { du, dv, c }
@@ -541,9 +542,12 @@ impl<T: Decide> Walk<T> {
             // them), or shown to hold none, leaves it in the other. A crossing within the
             // band of the cut leaves both undecided, and the cell is cut
             // elsewhere: the other way, then off the halving's grid.
-            let held = |c: &Cell<T>, pending: &mut Option<Indeterminate>| match self
-                .verdict(c, false, Some(incidence), pending)
-            {
+            let held = |c: &Cell<T>, pending: &mut Option<Indeterminate>| match self.verdict(
+                c,
+                false,
+                Some(incidence),
+                pending,
+            ) {
                 Verdict::One(_) => Some(true),
                 Verdict::Clear => Some(false),
                 _ => None,
