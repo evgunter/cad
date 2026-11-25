@@ -20,7 +20,7 @@ The embedding walk (`crates/topo/src/clearance.rs`, `RegionMemo::ask`
 and `RegionMemo::station`) drops a cell of an analytic face through
 `cell_region::cell_region_lifted`, whose witness is the face door
 `contain::curved_face_placement_reading`. That door now hands the
-certifying scalar's spline reader (`region::certified_crossings`) to a
+certifying scalar's spline reader (`props::certified_spline_face_crossings`) to a
 sphere's and a torus's region, so a cell off a sphere or torus face a
 spline section edge bounds is dropped.
 

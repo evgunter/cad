@@ -165,8 +165,8 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// [`crate::Replay`]'s "A tier-3 premise at a dual")). A spline is read on
 /// its certified carrier, and only through `splines`, the scalar's spline
 /// reader, where the caller holds one
-/// ([`crate::props::AtRestPolicy::spline_face_crossings`]): without it a
-/// face with a spline edge answers `None`.
+/// ([`crate::props::certified_spline_face_crossings`]): without it a face
+/// with a spline edge answers `None`.
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -1309,10 +1309,11 @@ mod tests {
     /// the certifying scalar's spline reader. Every point of a 9 × 8
     /// lattice over the whole chart and a 4 × 3 one over the patch, none
     /// within 0.05 rad of an edge's circle, answers definitely, and as its
-    /// chart coordinates say. The
-    /// meridian legs cross the parallels and the parallel legs the
-    /// meridians, each a spline across a leg's plane, so both families
-    /// read a spline. Without the reader the face has no region.
+    /// chart coordinates say. The meridian legs cross the parallels and
+    /// the parallel legs the meridians, each a spline across a leg's
+    /// plane, so both families read a spline. A point on a spline edge, or
+    /// half the band's zero off it, at 60 stations along each edge, is on
+    /// the boundary: the pre-pass reads the spline piece by piece.
     #[test]
     fn a_patch_bounded_by_spline_edges_reads_its_side() {
         let b = Band::new(1e-9, 1e-8).unwrap();
@@ -1324,7 +1325,7 @@ mod tests {
             Charted::record(Default::default(), &torus),
             true,
             edges,
-            Some(<f64 as crate::props::AtRestPolicy>::spline_face_crossings),
+            Some(crate::props::certified_spline_face_crossings::<f64>),
         );
         let clear = |x: f64, ends: (f64, f64)| {
             let gap = |e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
@@ -1352,9 +1353,170 @@ mod tests {
             asked += 1;
             inside += usize::from(truth);
         }
+        for (what, p) in patch_edge_queries(&[0.0, -5e-10, 5e-10]) {
+            assert_eq!(splines.contains(p, b), Ok(None), "{what}: on the boundary");
+        }
         assert!(
             asked >= 60 && inside >= 12,
             "the lattice reads both sides: {inside} inside of {asked}"
+        );
+    }
+
+    /// The patch `us × vs` of the torus `(R, MINOR)` about `z`: two
+    /// parallels and two meridians, carried on the exact rational
+    /// quadratics of their arcs and read through the certifying scalar's
+    /// spline reader.
+    fn spline_patch(us: (f64, f64), vs: (f64, f64)) -> TorusFaceRegion<f64> {
+        let torus = geom::Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            major_radius: R,
+            minor_radius: MINOR,
+        };
+        let meridian = |u: f64, forward: bool, key: u64| {
+            let mut e = meridian_arc(u, vs);
+            e.forward = forward;
+            e.edge = EdgeKey::from(KeyData::from_ffi(key));
+            e
+        };
+        let circles = [
+            parallel_arc(vs.0, us, true, 1),
+            meridian(us.1, true, 2),
+            parallel_arc(vs.1, us, false, 3),
+            meridian(us.0, false, 4),
+        ];
+        TorusFaceRegion::on(
+            Charted::record(Default::default(), &torus),
+            true,
+            circles.iter().map(on_a_spline).collect(),
+            Some(crate::props::certified_spline_face_crossings::<f64>),
+        )
+    }
+
+    /// **A spline patch reaching the tube's top or bottom circle reads no
+    /// wrong side there.** The top and bottom circles' planes (`v = ±π/2`)
+    /// are tangent to the torus along them, so a parallel leg there meets
+    /// a spline meridian at a tangency of the ring composite, which reads
+    /// it in band: the path is set aside, never read as a crossing missed.
+    /// Four patches span or end on a crest; each is asked at points on
+    /// both crests and `1e-9`, `1e-4` and `0.03` rad off them, and on a
+    /// coarse lattice, at azimuths in and out of the patch and a
+    /// millimetre either side of its meridians. No answer is a wrong
+    /// definite one, and each patch answers most queries definitely.
+    #[test]
+    fn a_spline_patch_reaching_a_crest_reads_no_wrong_side() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let us = (0.4, 2.9);
+        let cases = [
+            ("spans the top crest", (-0.5, 2.2)),
+            ("ends on the top crest", (0.2, FRAC_PI_2)),
+            ("ends on the bottom crest", (-FRAC_PI_2, 0.3)),
+            ("spans both crests", (-2.0, 2.0)),
+        ];
+        let gap = |x: f64, e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
+        for (name, vs) in cases {
+            let region = spline_patch(us, vs);
+            let mut vset = vec![FRAC_PI_2, -FRAC_PI_2];
+            for d in [1e-9, 1e-4, 0.03] {
+                vset.extend([FRAC_PI_2 + d, FRAC_PI_2 - d, -FRAC_PI_2 + d, -FRAC_PI_2 - d]);
+            }
+            vset.extend((0..6).map(|j| -PI + 0.013 + f64::from(j) * TAU / 6.0));
+            let mut uset: Vec<f64> = (0..6).map(|i| 0.021 + f64::from(i) * TAU / 6.0).collect();
+            uset.extend([1.65, us.0 + 1e-3, us.1 - 1e-3, us.0 - 1e-3, us.1 + 1e-3]);
+            let (mut definite, mut asked) = (0, 0);
+            for &u in &uset {
+                for &v in &vset {
+                    if gap(u, us.0) < 1e-6 || gap(u, us.1) < 1e-6 {
+                        continue;
+                    }
+                    if gap(v, vs.0) < 1e-6 || gap(v, vs.1) < 1e-6 {
+                        continue;
+                    }
+                    let vn = (v + PI).rem_euclid(TAU) - PI;
+                    let truth = (us.0..us.1).contains(&u) && (vs.0..vs.1).contains(&vn);
+                    asked += 1;
+                    if let Ok(Some(side)) = region.contains(at(u, v), b) {
+                        assert_eq!(side, truth, "{name}: ({u}, {v}) reads the wrong side");
+                        definite += 1;
+                    }
+                }
+            }
+            assert!(
+                2 * definite > asked,
+                "{name}: {definite} of {asked} answered definitely"
+            );
+        }
+    }
+
+    /// **A leg through a spline edge's ends reads no wrong side.** The
+    /// strip between the Villarceau circles at `φ = 0` and `φ₁ = 0.7`,
+    /// each carried on the exact rational quadratic of the whole circle
+    /// from `θ = 1` (the first) or `θ = 2` (the second), so each spline's
+    /// two ends meet at one point off the crests, where a parallel and a
+    /// meridian leg each cross the circle transversally. At that point
+    /// both ends land on the leg's plane, and the path sets the crossing
+    /// aside as one at a vertex. Queries on the parallel and the meridian
+    /// through each joint, `10⁻³` to `0.1` rad from it either side, read
+    /// their family parameter's side whenever they answer, and most
+    /// answer.
+    #[test]
+    fn a_leg_through_a_splines_joint_reads_no_wrong_side() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let phi1 = 0.7;
+        let (c0, n0, e0) = villarceau_frame();
+        let circle = |phi: f64, start: f64, forward: bool, key: u64| {
+            on_a_spline(&RegionEdge {
+                edge: EdgeKey::from(KeyData::from_ffi(key)),
+                r#loop: LoopKey::default(),
+                cycle: 0,
+                carrier: geom::Curve3::circle(
+                    Point3::origin() + turned(phi, c0),
+                    turned(phi, n0),
+                    R,
+                    turned(phi, e0),
+                ),
+                t0: start,
+                t1: start + TAU,
+                turn: None,
+                forward,
+            })
+        };
+        let edges = vec![circle(0.0, 1.0, true, 1), circle(phi1, 2.0, false, 2)];
+        let joints: Vec<Point3<f64>> = edges.iter().map(|e| e.at(e.t0)).collect();
+        let strip = region(R, MINOR, edges);
+        let strip = TorusFaceRegion {
+            splines: Some(crate::props::certified_spline_face_crossings::<f64>),
+            ..strip
+        };
+        let (mut definite, mut asked) = (0, 0);
+        for joint in joints {
+            let u = joint.y.atan2(joint.x);
+            let v = joint.z.atan2(joint.x.hypot(joint.y) - R);
+            for d in [1e-3, 1e-2, 0.1] {
+                for (du, dv) in [(d, 0.0), (-d, 0.0), (0.0, d), (0.0, -d)] {
+                    let p = at(u + du, v + dv);
+                    let f = villarceau_family(p);
+                    if f.min(TAU - f) < 1e-6 || (f - phi1).abs() < 1e-6 {
+                        continue;
+                    }
+                    asked += 1;
+                    if let Ok(Some(side)) = strip.contains(p, b) {
+                        assert_eq!(
+                            side,
+                            f < phi1,
+                            "({du}, {dv}) off the joint at ({u}, {v}): the wrong side"
+                        );
+                        definite += 1;
+                    }
+                }
+            }
+        }
+        assert!(
+            asked >= 20 && 2 * definite > asked,
+            "{definite} of {asked} answered definitely"
         );
     }
 }

@@ -153,10 +153,14 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         return CellRegion::Undecided;
     }
     let at = stored.eval_at(mu, mv);
-    let splines: SplineCrossings<T> = |net, params, surface, band| {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-    };
-    match place(body, face, stored, at, band, splines) {
+    match place(
+        body,
+        face,
+        stored,
+        at,
+        band,
+        crate::props::certified_spline_face_crossings::<T>,
+    ) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
         Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) | None => {
@@ -168,10 +172,8 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
 /// [`crate::contain::curved_face_placement_reading`] on a curved carrier,
-/// with the certifying scalar's spline reader: the ring
-/// composite (`geom_brep::NurbsLane::surface_crossings`), what
-/// [`crate::props::AtRestPolicy::spline_face_crossings`] answers at every
-/// certifying scalar. `None`
+/// with the certifying scalar's spline reader
+/// ([`crate::props::certified_spline_face_crossings`]). `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
@@ -192,10 +194,14 @@ pub fn station_region<T: Decide + CertifiedBounds>(
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface().ok()?;
     let station = surface.eval_at(u, v);
-    let splines: SplineCrossings<T> = |net, params, surface, band| {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
-    };
-    place(body, face, surface, station, band, splines)
+    place(
+        body,
+        face,
+        surface,
+        station,
+        band,
+        crate::props::certified_spline_face_crossings::<T>,
+    )
 }
 
 fn place<T: Decide>(

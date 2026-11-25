@@ -1089,7 +1089,8 @@ fn curved_interior_placement<T: Decide>(
         }
         geom::Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
-            sphere_face_containment(body, face, (center, radius), q, band, (cut, splines))
+            let carrier = SphereCarrier { center, radius };
+            sphere_face_containment(body, face, carrier, q, band, cut, splines)
         }
         geom::Surface::Torus {
             frame,
@@ -1111,7 +1112,8 @@ fn curved_interior_placement<T: Decide>(
                 },
                 q,
                 band,
-                (cut, splines),
+                cut,
+                splines,
             )
         }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
@@ -1145,11 +1147,13 @@ fn curved_interior_placement<T: Decide>(
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (center, radius): (Point3<T>, T),
+    carrier: SphereCarrier<T>,
     q: Point3<T>,
     band: Band,
-    (cut, splines): (Option<&[usize]>, Option<SplineCrossings<T>>),
+    cut: Option<&[usize]>,
+    splines: Option<SplineCrossings<T>>,
 ) -> Result<CurvedPlacement, ContainError> {
+    let SphereCarrier { center, radius } = carrier;
     if cut.is_none() {
         match decide(
             "bool_curved_contain_carrier",
@@ -1195,6 +1199,12 @@ fn region_placement(
     }
 }
 
+/// One sphere carrier's data, as [`sphere_face_containment`] reads it.
+struct SphereCarrier<T: geom_core::Real> {
+    center: Point3<T>,
+    radius: T,
+}
+
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
 struct TorusCarrier<T: geom_core::Real> {
     axis: geom::Line<T>,
@@ -1225,7 +1235,8 @@ fn torus_face_containment<T: Decide>(
     carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
-    (cut, splines): (Option<&[usize]>, Option<SplineCrossings<T>>),
+    cut: Option<&[usize]>,
+    splines: Option<SplineCrossings<T>>,
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
         axis,

@@ -577,6 +577,7 @@ not (
   (binary_id(editor-core) & (test(=names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op_at_every_pose) | test(=names::emit_topo::wavy_loft::a_union_across_a_nurbs_edge_stops_at_its_chords_image_at_rest))) |
   (binary_id(topo) & test(=sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=torus_region::tests::a_patch_bounded_by_spline_edges_reads_its_side)) |
+  (binary_id(topo) & test(=torus_region::tests::a_spline_patch_reaching_a_crest_reads_no_wrong_side)) |
   (binary_id(topo) & test(=boolean::slit::marched_rider::a_marched_edge_reads_off_a_crossed_surface_and_never_off_its_own)) |
   (binary_id(topo) & test(=live::tests::every_door_that_hands_out_a_live_looks_up_first)) |
   (binary_id(topo) & test(=live::tests::production_reads_an_edges_curve_only_through_the_view)) |

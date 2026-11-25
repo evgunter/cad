@@ -56,3 +56,16 @@ scalar-level door for a spline span against a plane (the ring
 composite, `None` at a dual), so the region needs no capability handed
 in; or the face door's chain bound at `AtRestPolicy` with its callers.
 Then drop `sphere_face_region`'s `splines` argument.
+
+## A second entry to fold back (EMBEDWALK, PR 7772, 2026-11-25)
+
+The embedding walk's cell door (`cell_region::place`, bound on
+certification rights) reaches the face door through
+`contain::curved_face_placement_reading(body, face, q, band, splines)`,
+a twin of `curved_face_placement` that hands
+`props::certified_spline_face_crossings` to the sphere's and the torus's
+regions (`torus_face_region` now takes `splines` too). When the face door
+reads spline arcs at its own bound, `curved_face_placement_reading` folds
+into `curved_face_placement`, and the `splines` parameters of
+`curved_face_placement_decided`, `curved_interior_placement`,
+`sphere_face_containment` and `torus_face_containment` go with it.

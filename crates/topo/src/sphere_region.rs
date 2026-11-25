@@ -918,7 +918,7 @@ mod tests {
                 turn: None,
                 forward,
             }],
-            Some(<f64 as crate::props::AtRestPolicy>::spline_face_crossings),
+            Some(crate::props::certified_spline_face_crossings::<f64>),
         )
     }
 

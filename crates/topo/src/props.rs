@@ -7599,6 +7599,23 @@ impl<T> CertifiedPolicy for T where
 {
 }
 
+/// **A spline span's crossings of an analytic face's carrier at a
+/// certifying scalar**: the curve × face table's ring-composite arm
+/// ([`geom_brep::NurbsLane::surface_crossings`]). It is the one body of
+/// every certifying [`AtRestPolicy::spline_face_crossings`], and the
+/// reader a door bound on certification rights rather than on the policy
+/// hands its regions ([`crate::cell_region`]).
+pub(crate) fn certified_spline_face_crossings<
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
+>(
+    net: &geom::NurbsCurve3<T>,
+    params: (T, T),
+    surface: &geom::Surface<T>,
+    band: geom_core::Band,
+) -> Option<Result<Vec<T>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+}
+
 impl AtRestPolicy for f64 {
     type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
 
@@ -7657,7 +7674,7 @@ impl AtRestPolicy for f64 {
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+        certified_spline_face_crossings(net, params, surface, band)
     }
 
     fn spline_chart_meetings(
@@ -7841,7 +7858,7 @@ impl AtRestPolicy for geom_core::Probe {
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+        certified_spline_face_crossings(net, params, surface, band)
     }
 
     fn spline_chart_meetings(
@@ -8023,7 +8040,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+        certified_spline_face_crossings(net, params, surface, band)
     }
 
     fn spline_chart_meetings(
@@ -8201,7 +8218,7 @@ where
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
     ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+        certified_spline_face_crossings(net, params, surface, band)
     }
 
     fn spline_chart_meetings(
