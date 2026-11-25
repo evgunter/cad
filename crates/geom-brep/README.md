@@ -1026,7 +1026,8 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×torus off the
-axis-aligned poses, plane×NURBS and plane×`Approx`,
+axis-aligned poses, a cone against an oblique cylinder, a cone, a
+sphere or a torus off its axis, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
@@ -1227,10 +1228,28 @@ discriminant is a tangency only where the rulings' clearance ceiling
 over it is decided `Zero`, the sweep's margin being a floor on that
 clearance; and an apex on the partner is divided out of the rulings'
 quadratic, its node's arcs ending at it. Two cones through one apex,
-and two on parallel axes of one aperture, are not built here. Its
-components are the general rung's, and carrying them refuses typed,
-since no march carries them: the pair has no march door. A crossing
-tangency is a node, its arcs one node-joined set.
+and two on parallel axes of one aperture, are not built here. A cone
+against a sphere off the cone's axis is the same sweep against the
+sphere, read over the sphere's own ball padded as cylinder × sphere's
+is, so no component is cut; its tangencies are decided on the pose
+before it, in closed form: the sphere's centre stands `(ρ, h)` from the
+apex across and along the axis, its distance from the double cone is
+critical only at its feet on the cone's two lines in its meridian plane,
+`g± = ρ cos α ∓ h sin α` from it, and `|g±| − R` decides each tangency,
+the sweep reading no ceiling. With the apex margin these are every
+critical value of the clearance, so a `Zero` line is a touch at its
+foot, the section's whole, only where every other one is decided
+positive: one point, or two where both lines are `Zero`. A `Zero` line
+beside a crossing (the other line nearer than `R`, or the apex inside)
+is a touch beside other components or a node, which the pose does not
+prove, and refuses by `kc_sphere_tangency`. A sphere on the cone's axis is
+`cone_sphere_section`'s closed form, read elsewhere. A cone pair's
+components are the general rung's, marched in ℝ³ from the count's
+witnesses (`ssi::cone_ruled_ssi`), the branches ending at the region
+or, for a sphere, closing in its ball. A crossing tangency is a node,
+its arcs one node-joined set; the apex on the partner is another. The
+ℝ³ march ends no branch at a node, so an arc ending at one is
+classified and not carried.
 A cone off a torus's axis (`ConeTorusPose`) reads its apex
 against the torus before its gap, the apex's residual there a
 closed-form margin whose Zero is a node or a touch by the cone's form
@@ -1242,7 +1261,8 @@ is the sweep, its transverse components the march's
 gap undecided beside an apex within a sixty-fourth of the tube radius
 of the torus escalates as the apex's question, the near-node's. A
 coaxial cone is `cone_torus_section`'s closed form, which the value
-reads elsewhere. A cone against a sphere refuses.
+reads elsewhere. Every other pair with a cone refuses: the cone
+against a plane is rung 2's, and against a spline side it has no arm.
 A plane against a torus (`PlaneTorusPose`) is read first by the C5
 table's own axis rows (`plane_torus_section`), levered over the torus's
 ball: a plane holding the axis, square to it, or parallel to it short of

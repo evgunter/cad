@@ -13,9 +13,8 @@
 //!   concentric circle or the spiric oval the chord's sites lie on, and
 //!   the op builds, or stops past the join (`germ_plane_torus_chord` and
 //!   `germ_plane_torus_spiric` hold the bodies to the truth);
-//! - any other transverse plane cuts a general spiric quartic and
-//!   refuses at the frame, naming the loops the section certificate
-//!   reads (`GermSectionSpiric`);
+//! - any other transverse plane cuts a general spiric quartic, which
+//!   the section value marches and the join reads by its components;
 //! - a plane touching the torus keeps its on-carrier refusal, ahead of
 //!   the frame.
 //!

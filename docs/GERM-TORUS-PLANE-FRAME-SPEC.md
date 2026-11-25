@@ -288,13 +288,14 @@ frame:
   torus seamed on `y = 0` both circles of a plane `y = h`, `|h| < r`,
   lie on one face and cross its wrap edge once each.
 
-**The extent.** This is `FrameExtent::Reach`, the torus face's farthest
-distance from the reading point (`face_reach_from`), handed to the table
-as its `extent`. It is the cone arm's measure (U-S3), and `frame_extent`
-gains the torus arm beside `cone_reach`. A definite verdict at that
-lever holds over the whole face, and so over the section the join
-consumes there. Any other extent is a desync. The extent levers only the
-axis tilt's fork; no served circle leans on it being long:
+**The lever.** The frame reads the pose the section value decided
+(`geom_brep::PlaneTorusPose`, its closed form `closed_form`), held by
+the operation's section table, which levers the axis tilt's fork from
+the torus's centre over its ball: one answer for the value, the frame,
+the chords and the C5 gate, so no pose reads closed to one and tilted to
+another. A definite verdict at that lever holds over the whole torus, and
+so over any face of it. The lever enters only the fork; no served circle
+leans on it being long:
 
 - **A meridian circle** is minted on the torus about a centre `d` off
   the plane, and the tilt leans its points off the plane by up to
@@ -315,37 +316,28 @@ axis tilt's fork; no served circle leans on it being long:
   off its plane (`chord_join::torus_chord_rows`).
 
 The frame reads only the circles' centres and axes. The chord reads
-the circles, at the divided face's reach, which can be shorter than `r`
-(the lily's weld cap reads `0.112 m`); the sum above bounds them there
-too.
+the circles at the same lever (`geom_brep::plane_torus_closed_form`); a
+reader levering `plane_torus_section` at an extent of its own, shorter
+than `r` (the lily's weld cap reads `0.112 m`), is bounded by the sum
+above too.
 
-### 1.2 The general pose: a typed refusal named for its configuration
+### 1.2 The general pose: the section value's
 
-Every `RoutesToGeneralRung` from the table refuses with a new
-`BooleanError::GermSectionSpiric`. It carries:
+A plane the pose does not read closed is the section value's
+(`geom_brep::PlaneTorusPose`). The value counts its loops on the pose's
+own rows (`PtCut`, from `pt_near_tube`, `pt_far_tube` and
+`pt_between_tubes`) and marches them (`ssi::plane_torus_ssi`). The
+operation's section table holds that section, and its germs ride the
+carried components, so a tilted pose never reaches the frame. One that
+does is a desync. The measured poses count:
 
-- the faces and kinds;
-- the table's `SectionError`;
-- `loops: SpiricLoops`, which is `AroundAxis`, `AroundTube` or `Null`.
-
-`loops` is the section certificate's own classification
-(`section_cert::torus_plane`'s NEAR, FAR and BETWEEN margins), exposed
-as a crate-private reading so that the refusal and the certificate name
-one decision. The measured poses take:
-
-| pose | `loops` |
+| pose | loops |
 |---|---|
-| S3, and B4's end square | `Null` |
-| O1, O2 | `AroundTube` |
-| a plane a few degrees off axis-normal that still cuts both tube circles | `AroundAxis` |
+| S3, and B4's end square | one null loop |
+| O1, O2 | two round the tube |
+| a plane a few degrees off axis-normal that still cuts both tube circles | two round the axis |
 
-The recourse is the one the dispatch's torus refusal gives
-(`meeting_recourse`), which names the planes a torus face is joined
-against since U-T3 built them: a plane through the torus's axis or
-square to it.
-A tangency (S2, S4, V1, P3) never reaches this refusal: F0 refuses it
-first, and the certificate's own tangent verdict would refuse it at the
-guard.
+A tangency (S2, S4, V1, P3) is refused at F0 first.
 
 **Why not serve a frame for loops round the axis.** That class has a
 proved frame:
@@ -450,19 +442,17 @@ bodies, measured in §0.1:
 
 ### 1.4 The corner bar's lens
 
-**On the donut (B4) the frame stays the barrier.** A corner bar of
+**On the donut (B4) the end squares are general poses.** A corner bar of
 half-width `w` with its corners on the inner face has its end squares at
 `z² = ρ² − w²`, with `ρ = R − s` and `s = √(r² − w²)`. Then
 
 `z² − (R − r)² = 2(r − s)(R − r − s)`.
 
 On this donut, `R − r − s ≥ 1 > 0`, so the end squares always lie past
-the inner equator. They cut one null oval, the general pose, and the
-frame refuses (`GermSectionSpiric { loops: Null }`) in every op,
-measured on B4. The row
-`germ_interior_oval::the_corner_bar_never_comes_back_a_body` stays green
-under every unit here. U-T1 re-pins its refusal to that named one at the
-end square, so it goes red the day anything serves that section.
+the inner equator. They cut one null oval, a general pose, which is the
+section value's (§1.2). The row
+`germ_interior_oval::the_corner_bar_never_comes_back_a_body` pins what
+the op does there.
 
 **On a fat torus the lens reaches the chord layer.** Where
 `R < r + s` (`R < 2r` is necessary), the end squares lie short of the
@@ -548,7 +538,7 @@ the item header's `cost:` as H→H, M→M, L→E. Cost is the size of the lane.
 
 | order | unit | scope | depends on | difficulty | cost | review |
 |---|---|---|---|---|---|---|
-| 1 | U-T1 `plane-torus-germ-frame` | F1: the frame per §1.1 (loops and their identity through `germ_section_frame`, `germs_face_each_other`, `nearer_along` and `one_site`); `FrameExtent::Reach` for the torus face; the general-pose refusal `GermSectionSpiric` (§1.2); re-pins B4 | — | M | one lane, about 14 rows | single |
+| 1 | U-T1 `plane-torus-germ-frame` | F1: the frame per §1.1 (loops and their identity through `germ_section_frame`, `germs_face_each_other`, `nearer_along` and `one_site`); the frame on the section value's pose (§1.1, the lever); the general pose the value's (§1.2); re-pins B4 | — | M | one lane, about 14 rows | single |
 | 2 | U-T2 `plane-torus-join-dispatch` | F2: `kind_arm`'s torus arms; measure, then make, the torus face's ring closure (§1.3: path parity, as the sphere's and the cone's) | U-T1 (the lily alone needs only this unit) | M | one lane; the ring closure is the unknown | single |
 | 3 | U-T3 `plane-torus-chord-circles` | F3 for the meridian and concentric sections: the torus arm of `section_case` and `wall_section`, with the two-loop pick at the chord's sites; the ring lane's reading of the tube's top and bottom circles (§1.3); then measure the doors behind F3 (§0.2) for T1, the lily, M1–M3 and P1–P4 | U-T2 | H | one lane; dual review | dual |
 | 4 | U-T4 `plane-torus-chord-spiric` | F3 for the spiric ovals: a spiric arm in `SectionCase`, an arc chosen on the oval's own parameter; **owns the corner bar's lens on a fat torus** (§1.4, Q1) | U-T3 | H | one lane; dual review | dual |
@@ -587,20 +577,20 @@ Rows run in-crate, against `pair_section_frame_at` and
 6. **The loop margin.** A site on the axis's trace in the plane
    (`(p − c)·ŵ = 0`), which no point of a served section comes near,
    decides its loop in band: a desync, never a loop.
-7. **The general pose is named.** S3 and B4's end square give
-   `GermSectionSpiric { loops: Null }`. O1 and O2 give `AroundTube`. A
-   plane 3° off axis-normal, through `(0, 0.2, 0)`, gives `AroundAxis`.
-   B3 refuses by name in all six ops. **Red against the mutant "the
-   general rung folded into `NoArm`"**, which names the wrong cause.
+7. **The general pose is the value's.** S3, B4's end square, O1, O2
+   and a plane 3° off axis-normal through `(0, 0.2, 0)` reaching the
+   frame are each a desync
+   (`torus_frame_rows::a_tilted_pose_reaching_the_frame_is_a_desync`).
 8. **Touching under a germ:** `TangentCircle` and `Empty` are the desync.
-9. **The lever:** a plane whose axis tilt is in band at the torus face's
-   reach and definite at ten times it escalates. It never snaps to a
-   meridian or a spiric.
+9. **The lever:** the frame takes the pose the section value decided
+   over the torus's ball, through the production path, including a tilt
+   the closed form reads closed at the torus face's own reach
+   (`torus_frame_rows::the_frame_takes_the_section_tables_answer_through_the_production_path`).
 10. **TANG** (T1): past the frame in all six ops, stopping at F3b until
     U-T3. Red on main: F1.
-11. **The corner bar on the donut** (B4): the refusal is
-    `GermSectionSpiric { loops: Null }` at the end square, in all six
-    ops. The row `the_corner_bar_never_comes_back_a_body` stays.
+11. **The corner bar on the donut** (B4): the end square's null oval is
+    the value's (§1.2). The row `the_corner_bar_never_comes_back_a_body`
+    stays.
 12. **The fat corner bar** (B5, B5′): past the frame in all six ops.
     Pinned at the next door until U-T4, so that each later unit's move
     is a red row.
@@ -699,7 +689,8 @@ Rows run in-crate, against `pair_section_frame_at` and
   the cone's hyperbola refuses at its frame. The proof is kept for the
   day the general rung retires.
 - **Q3 The general pose's refusal type** (answered: a new
-  `GermSectionSpiric`). Not `GermFrameUnsupported`, which says the kind
+  `GermSectionSpiric`; retired since, the general pose being the
+  section value's, §1.2). Not `GermFrameUnsupported`, which says the kind
   pair has no arm, and it will have one. Not `GermSectionOpenConic`:
   the hyperbola's arc is minted (C1) and only the Boolean's crossing
   layer for a NURBS carrier is missing, while the spiric quartic's
