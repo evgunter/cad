@@ -767,8 +767,9 @@ pub(super) fn plane_conic<T: Decide>(
         Ok(Sign::Negative) => Ok(Pose::Apart),
         Ok(Sign::Positive) => {
             // `cos(θ − φ) = −d₀/R`: the half-chord's sine
-            // `√(R² − d₀²) = √(h·(R + |d₀|))` is read from the depth.
-            let sine = (depth * (r + d0.abs())).sqrt();
+            // `√(R² − d₀²) = √(h·(R + |d₀|))`, `h = R − |d₀|` read from the
+            // same `R` and `d₀` the azimuth below reads.
+            let sine = ((r - d0.abs()).max(T::zero()) * (r + d0.abs())).sqrt();
             let delta = geom::Azimuth::of(sine, T::zero() - d0)
                 .near(T::from_f64(core::f64::consts::FRAC_PI_2));
             let turn = geom_core::period::Period::angle();
