@@ -623,13 +623,13 @@ pub fn wall3_pinned<S: Scalar>(
     let kind_of = |body: &AtRestBody<S>, f| body.face_surface(f).map(|s| s.kind());
     let between_walls = pncad::topo::readback::edge_sides(top, *edge).is_ok_and(|sides| {
         let (a, b) = sides.faces();
-        kind_of(top, a) == Some(SurfaceKind::Nurbs) && kind_of(top, b) == Some(SurfaceKind::Nurbs)
+        kind_of(top, a) == Ok(SurfaceKind::Nurbs) && kind_of(top, b) == Ok(SurfaceKind::Nurbs)
     });
     format!("{operand:?}") == "B"
         && format!("{decision:?}") == "Crossing(OnEdge)"
         && format!("{face:?}") == "FaceKey(4v1)"
         && format!("{edge:?}") == "EdgeKey(10v1)"
-        && kind_of(bulb, *face) == Some(SurfaceKind::Cylinder)
+        && kind_of(bulb, *face) == Ok(SurfaceKind::Cylinder)
         && between_walls
 }
 
@@ -814,14 +814,14 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // run-ADJACENCY decision inside one loop, and these two runs are
     // not adjacent, so each gets its own surface key: 12 faces on 12
     // keys, four of them cylinders that are geometrically two.
-    let (faces, surfaces) = (bulb.faces().count(), bulb.surfaces().count());
+    let (faces, surfaces) = (bulb.faces().count(), bulb.described_surfaces().count());
     assert_eq!(
         (faces, surfaces),
         (12, 12),
         "got {faces} faces on {surfaces} surfaces"
     );
     let cylinders: Vec<(Point3<f64>, f64)> = bulb
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(_, s)| match s {
             pncad::topo::Surface::Cylinder { frame, radius, .. } => {
                 let origin = frame.origin();
@@ -850,7 +850,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (t0, t1) = spine.domain();
     let ends = [spine.ders1(t0), spine.ders1(t1)];
     let caps: Vec<(Point3<f64>, pncad::geom_core::Vec3<f64>)> = top
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(_, sf)| match sf {
             pncad::topo::Surface::Plane { frame, .. } => {
                 let (origin, normal) = (frame.origin(), frame.axis());

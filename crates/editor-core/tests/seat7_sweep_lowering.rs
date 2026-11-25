@@ -303,7 +303,7 @@ fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
     topo::query::all_faces(body)
         .into_iter()
         .filter_map(|f| {
-            let s = body.face_surface(f)?;
+            let s = body.face_surface(f).ok()?;
             match s {
                 geom::Surface::Cylinder { radius, .. } => Some((f, *radius)),
                 _ => None,

@@ -1621,7 +1621,7 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
                     .recertify_stated(
                         carrier.eval(t0),
                         carrier.eval(t1),
-                        |_| Some(chart.clone()),
+                        |_| Ok(chart.clone()),
                         geom_core::test_support::fixture_lever(1.0),
                         b,
                         geom_brep::NurbsLane::certified(),

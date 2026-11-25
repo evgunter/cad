@@ -50,7 +50,7 @@ fn a_cut_by_a_seated_tool_cuts_its_ball_in_and_reads_back_to_the_tool() {
         .faces()
         .map(|(f, _)| f)
         .filter(|&f| {
-            matches!(tool.face_surface(f), Some(geom::Surface::Plane { frame })
+            matches!(tool.face_surface(f), Ok(geom::Surface::Plane { frame })
                 if (frame.origin().z - 3.0).abs() < 1e-12 && frame.axis().z.abs() > 0.5)
         })
         .collect();

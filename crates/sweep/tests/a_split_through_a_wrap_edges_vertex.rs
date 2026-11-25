@@ -234,12 +234,8 @@ fn is_wrap(body: &Body<f64>, edge: topo::EdgeKey) -> bool {
 /// edges between two of them or both of whose halves bound one. An
 /// edge whose wrap flag disagrees with its faces is an error.
 fn wall_census(body: &Body<f64>) -> Result<Wall, String> {
-    let on_wall = |face: topo::FaceKey| {
-        matches!(
-            body.face_surface(face),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
+    let on_wall =
+        |face: topo::FaceKey| matches!(body.face_surface(face), Ok(geom::Surface::Cylinder { .. }));
     let walls = body.faces().filter(|&(f, _)| on_wall(f)).count();
     let (mut wraps, mut parted) = (0, 0);
     for (edge, _) in body.edges() {

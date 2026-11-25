@@ -966,7 +966,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, PendingFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -2494,6 +2494,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 )),
             },
         ),
+        ("PendingFace", R::PendingFace { face }),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
@@ -3000,7 +3001,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
             },
         ),
-        ("NurbsPlaceholder", E::NurbsPlaceholder),
         (
             "Corrupt",
             E::Corrupt {
@@ -3011,8 +3011,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
     .chain([row(
-        "Mirror/NurbsPlaceholder",
-        NodeErrorKind::Mirror(E::NurbsPlaceholder),
+        "Mirror/NullScaffold",
+        NodeErrorKind::Mirror(E::NullScaffold {
+            edge: topo::EdgeKey::default(),
+        }),
     )])
     .chain(offset_fit_routes())
     .collect()
@@ -6717,6 +6719,17 @@ fn every_blend_detail_renders_within_the_budget() {
                 breach: Breach::Scaffolding,
                 detail,
             },
+            // A stale key is `unresolved`, a pending surface `scaffolding`:
+            // measured at the longer of the two.
+            "surface_missed" => [Breach::Unresolved, Breach::Scaffolding]
+                .into_iter()
+                .map(|breach| E::BodyNotIntact { at, breach, detail })
+                .max_by_key(|e| {
+                    e.render(geom_brep::recourse::Reading::Build)
+                        .split_whitespace()
+                        .count()
+                })
+                .expect("two breaches"),
             other => panic!("no arm for {other}"),
         };
         for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
@@ -6762,7 +6775,12 @@ fn every_blend_detail_renders_within_the_budget() {
             eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
             let keyed = matches!(
                 *helper,
-                "unresolved" | "unwalked" | "disagrees" | "scaffolding" | "degenerate"
+                "unresolved"
+                    | "unwalked"
+                    | "disagrees"
+                    | "scaffolding"
+                    | "degenerate"
+                    | "surface_missed"
             );
             test_utils::refusal::problems(name, text, &[], keyed)
         })
@@ -6822,6 +6840,7 @@ fn blend_details() -> Vec<(&'static str, String, String)> {
             "disagrees",
             "scaffolding",
             "degenerate",
+            "surface_missed",
         ] {
             let call = format!("{helper}(");
             for (at, _) in code.match_indices(&call) {

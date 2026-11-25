@@ -1114,12 +1114,12 @@ pub fn spout_belly_carriers(
         let body = body_at(ev, id, tol);
         let mut keys = Vec::new();
         for (fk, face) in body.faces() {
-            if !keys.contains(&face.surface) && body.face_surface(fk).is_some_and(keep) {
+            if !keys.contains(&face.surface) && body.face_surface(fk).is_ok_and(keep) {
                 keys.push(face.surface);
             }
         }
         keys.iter()
-            .filter_map(|&k| body.get_surface(k).cloned())
+            .filter_map(|&k| body.get_surface(k).ok().cloned())
             .collect::<Vec<_>>()
     };
     (
@@ -1370,7 +1370,7 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((origin, normal))
             }
@@ -1397,8 +1397,8 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let (mut flux, mut area) = (0.0, 0.0);
     for (fk, f) in body.faces() {
         let n = match body.face_surface(fk) {
-            Some(Surface::Plane { .. }) => continue,
-            Some(Surface::Nurbs(n)) => n,
+            Ok(Surface::Plane { .. }) => continue,
+            Ok(Surface::Nurbs(n)) => n,
             other => panic!("a quadrature over planes and NURBS, got {other:?}"),
         };
         let sense = if f.sense { 1.0 } else { -1.0 };
@@ -1654,7 +1654,7 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
     else {
         return false;
     };
-    spout.face_surface(*face).is_some_and(|s| match s {
+    spout.face_surface(*face).is_ok_and(|s| match s {
         Surface::Nurbs(n) => {
             let (u0, u1) = n.knot_values_u().domain();
             let (v0, v1) = n.knot_values_v().domain();
@@ -1740,7 +1740,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .faces()
         .filter(|(fk, _)| {
             matches!(bellied.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - Y_MOUTH).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - Y_MOUTH).abs() < 1e-12)
         })
         .count();
     assert_eq!(
@@ -1764,7 +1764,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let planes: Vec<(f64, f64)> = bellied
         .faces()
         .filter_map(|(fk, f)| match bellied.face_surface(fk) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 let outward = pncad::geom_brep::OutwardNormal::from_chart(normal, f.sense);
                 Some((origin.y, outward.vec().y))
@@ -1777,7 +1777,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             .faces()
             .filter(|(fk, _)| {
                 matches!(bellied.face_surface(*fk),
-                    Some(Surface::Plane { frame, .. }) if frame.axis().y < 0.0)
+                    Ok(Surface::Plane { frame, .. }) if frame.axis().y < 0.0)
             })
             .count();
     // Not merely reported: EVERY planar face of this pot stores `+y`,
@@ -1813,7 +1813,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let reach = bellied
         .faces()
         .filter_map(|(fk, _)| match bellied.face_surface(fk) {
-            Some(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
+            Ok(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
             _ => None,
         })
         .fold(f64::INFINITY, f64::min);
@@ -2005,7 +2005,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let lid_band = |y: f64| -> (f64, f64) {
         let mut hit = None;
         for (fk, f) in rolled.faces() {
-            let Some(Surface::Torus {
+            let Ok(Surface::Torus {
                 frame,
                 major_radius,
                 minor_radius,
