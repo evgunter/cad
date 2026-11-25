@@ -272,6 +272,17 @@ pub enum BooleanDecision {
     /// ([`crate::EdgeInFaceGap::AtACrossing`]), so the lever names the
     /// move that builds, the points clearly apart.
     PartingOrder,
+    /// Which side of a closed edge of the result, a conic lying inside a
+    /// face it divides, the disc it parts off the face lies on
+    /// (`slit::disc_loop`): the face's left of the edge against the way
+    /// to the conic's centre on a plane, and on a curved face against the
+    /// side of the conic's plane its outline lies on, each a signed
+    /// length. The conic and the face are the operands', so moving the
+    /// geometry reaches it; a Zero reading refuses
+    /// ([`crate::EdgeInFaceGap::DiscSide`]), so the lever names the move
+    /// that builds: the edge clearly larger than the tolerance and the
+    /// outline clearly off its plane.
+    ClosedDisc,
     /// Whether the material the result's edges along one line bound
     /// overlaps there, asked at the result gate of every op of each pair
     /// of the result's edges on one line (`census::line_wedges`): each
@@ -797,6 +808,13 @@ const PARTING_ORDER_LEVER: &str = geom_core::move_lever!(
     "so the points where that edge crosses the \
                                    face's boundary, and the vertices resting on it, lie clearly \
                                    apart"
+);
+
+/// [`BooleanDecision::ClosedDisc`]'s lever.
+const CLOSED_DISC_LEVER: &str = geom_core::move_lever!(
+    "so each closed edge lying in a face is clearly \
+                                 larger than the tolerance and the face's outline lies clearly off \
+                                 its plane"
 );
 
 /// [`BooleanDecision::LineSpanPrecision`]' lever: the precision limit's
@@ -1373,6 +1391,9 @@ impl BooleanDecision {
             Self::PartingOrder => {
                 "the order of the points an edge running past a face is divided at"
             }
+            Self::ClosedDisc => {
+                "which side of a closed edge lying in a face the disc it bounds lies on"
+            }
             Self::LineWedges => {
                 "whether the material that the result's edges along one line bound overlaps there"
             }
@@ -1570,6 +1591,7 @@ impl BooleanDecision {
             Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
             Self::LineSpanPrecision => Ending::Lever(LINE_SPAN_PRECISION_LEVER),
             Self::PartingOrder => Ending::Lever(PARTING_ORDER_LEVER),
+            Self::ClosedDisc => Ending::Lever(CLOSED_DISC_LEVER),
             Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::Sphere(question) => question.ending(),
@@ -1895,6 +1917,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
                 BooleanDecisionKind::LineSpanPrecision => vec![BooleanDecision::LineSpanPrecision],
                 BooleanDecisionKind::PartingOrder => vec![BooleanDecision::PartingOrder],
+                BooleanDecisionKind::ClosedDisc => vec![BooleanDecision::ClosedDisc],
                 BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
@@ -2290,6 +2313,13 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(
                     "Recourse: move the geometry so the points where that edge crosses the face's \
                      boundary, and the vertices resting on it, lie clearly apart",
+                ),
+            ),
+            BooleanDecision::ClosedDisc => (
+                "which side of a closed edge lying in a face the disc it bounds lies on",
+                Ending::Lever(
+                    "Recourse: move the geometry so each closed edge lying in a face is clearly \
+                     larger than the tolerance and the face's outline lies clearly off its plane",
                 ),
             ),
             BooleanDecision::LineWedges => (

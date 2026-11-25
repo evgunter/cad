@@ -79,7 +79,21 @@ fn refuses(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, gap: &EdgeInFac
 /// parting ships them unrecorded (3′ refuses an `EdgeEdgeOverlap`), or
 /// as a zero-area ring of one face.
 fn divides(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64, pairs: usize) {
-    let r = match subtract(a, b, tol()) {
+    holds(what, subtract(a, b, tol()), volume, pairs, true);
+}
+
+/// `r` is one body at `volume` that passes tiers 1, 3 and 3′ on its
+/// records, among them `pairs` edge–edge records, the two edges of each
+/// bounding two faces of their surface where `divided`, one face (a
+/// zero-area ring of it) otherwise.
+fn holds(
+    what: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    volume: f64,
+    pairs: usize,
+    divided: bool,
+) {
+    let r = match r {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("{what}: {:?}, not a body", other.map(drop)),
     };
@@ -120,7 +134,11 @@ fn divides(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64, pa
                 })
                 .unwrap_or_else(|| panic!("{what}: {x:?} and {y:?} bound no faces of one surface"))
         };
-        assert_ne!(floor(x), floor(y), "{what}: {x:?} and {y:?} bound one face");
+        assert_eq!(
+            floor(x) != floor(y),
+            divided,
+            "{what}: {x:?} and {y:?} bound two faces of their surface"
+        );
     }
     let got =
         topo::test_support::pinned_volume(what, &finished(what, body.clone(), tol()), tol()).volume;
@@ -293,6 +311,142 @@ fn a_rim_whose_vertex_lies_on_a_wrap_edge_refuses_shared() {
             &small,
             &puck,
             &EdgeInFaceGap::Shared,
+        );
+    }
+}
+
+/// **A small closed rim divides its plane face at every scale clear of
+/// the tolerance**: the block's ring and the slab's groove scaled by `s`
+/// about the revolve's axis, each profile in both windings. The side the
+/// disc lies on is read as a length, the way to the rim's centre, so it
+/// stays clear of the band down to rims a few hundred ε across.
+#[test]
+fn a_small_closed_rim_in_a_plane_face_divides_it() {
+    let block = finished(
+        "the block",
+        brick::<f64>((-2.0, 2.0), (0.0, 1.0), (-2.0, 2.0), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the slab",
+        brick::<f64>((-3.0, 3.0), (-1.0, 0.0), (-3.0, 3.0), tol()),
+        tol(),
+    );
+    for s in [1e-1, 3e-3, 1e-3, 5e-4] {
+        let ring = [
+            (0.5 * s, 1.0 - 0.5 * s),
+            (s, 1.0 - 0.5 * s),
+            (s, 1.0),
+            (0.6 * s, 1.0 - 0.4 * s),
+        ];
+        let groove = [(s, 0.0), (0.5 * s, -0.5 * s), (1.5 * s, -0.5 * s)];
+        for reversed in [false, true] {
+            let wound = |pts: &[(f64, f64)]| {
+                let mut pts = pts.to_vec();
+                if reversed {
+                    pts.reverse();
+                }
+                revolved("the keel", &pts, Revolution::Full)
+            };
+            divides(
+                &format!("the block less the ring at s = {s:e}, reversed {reversed}"),
+                &block,
+                &wound(&ring),
+                16.0 - 2.0 * PI * 5.0 / 48.0 * s.powi(3),
+                1,
+            );
+            divides(
+                &format!("the slab less the groove at s = {s:e}, reversed {reversed}"),
+                &slab,
+                &wound(&groove),
+                36.0 - PI / 2.0 * s.powi(3),
+                1,
+            );
+        }
+    }
+}
+
+/// **A small closed rim on the sphere divides its face** where the
+/// face's mass properties read the disc: the ball less a keel whose
+/// rim has radius `ρ`, the keel scaled with it. Where the disc's solid
+/// angle levered by the radius, `π ρ² / R`, is within ten ε, the result
+/// gate's sphere lane reads the hole's area in band and refuses
+/// `VolumeUncomputable`
+/// (`work/nearpoint/a-small-hole-in-a-sphere-face-reads-its-solid-angle-levered-by-the-radius-against-the-band.md`):
+/// a correct body it does not measure, never a wrong one.
+#[test]
+fn a_small_closed_rim_on_a_sphere_divides_its_face() {
+    let eps = tol().eps();
+    let ball = finished("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()), tol());
+    for rho in [0.55, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 5e-4] {
+        let k = rho / 0.55;
+        let polar = (rho / SQRT_2).asin();
+        let apex = (SQRT_2 * polar.sin(), SQRT_2 * polar.cos());
+        let b = (apex.0 - 0.1 * k, apex.1 - 0.15 * k);
+        let c = (apex.0 + 0.15 * k, apex.1 - 0.25 * k);
+        let keel = revolved("the keel", &[apex, b, c], Revolution::Full);
+        let area = ((b.0 - apex.0) * (c.1 - apex.1) - (c.0 - apex.0) * (b.1 - apex.1)).abs() / 2.0;
+        let volume = 4.0 / 3.0 * PI * SQRT_2.powi(3) - area * 2.0 * PI * (apex.0 + b.0 + c.0) / 3.0;
+        let what = format!("the ball less the keel at ρ = {rho:e}");
+        let r = subtract(&ball, &keel, tol());
+        if PI * rho * rho / SQRT_2 < 10.0 * eps {
+            assert!(
+                matches!(
+                    &r,
+                    Err(BooleanError::ResultInvalid { findings })
+                        if matches!(
+                            findings.as_slice(),
+                            [topo::ValidationError::VolumeUncomputable { .. }]
+                        )
+                ),
+                "{what}: {:?}, not the sphere lane's limit",
+                r.map(drop)
+            );
+            continue;
+        }
+        holds(&what, r, volume, 1, true);
+    }
+}
+
+/// **A closed rim in a face with a hole keeps its ring form**: the
+/// block bored by a pin of radius 0.2 through its top face, outside the
+/// rim's disc or at its centre, less the ring. The divided disc would
+/// take the face's rings inside it, which the parting does not move
+/// (`work/heldrecords/a-closed-rider-in-a-face-with-rings-keeps-its-zero-area-ring.md`),
+/// so the rim's two circles bound the one face, a zero-area ring of it.
+#[test]
+fn a_closed_rim_in_a_holed_plane_face_keeps_its_ring() {
+    let block = finished(
+        "the block",
+        brick::<f64>((-2.0, 2.0), (0.0, 1.0), (-2.0, 2.0), tol()),
+        tol(),
+    );
+    let ring = revolved(
+        "the ring",
+        &[(0.5, 0.5), (1.0, 0.5), (1.0, 1.0), (0.6, 0.6)],
+        Revolution::Full,
+    );
+    for (what, x) in [("outside the disc", 1.6), ("inside the disc", 0.0)] {
+        let pin = revolved(
+            "the pin",
+            &[(0.0, -1.0), (0.2, -1.0), (0.2, 2.0), (0.0, 2.0)],
+            Revolution::Full,
+        );
+        let pin = topo::transform_rigid(
+            &pin,
+            &geom_core::test_support::rigid(&Affine3::translation(Vec3::new(x, 0.0, 0.0)), tol()),
+        )
+        .unwrap();
+        let holed = match subtract(&block, &finished("the pin", pin, tol()), tol()) {
+            Ok(BooleanResult::Body(b)) => finished("the bored block", b.body, tol()),
+            other => panic!("the block bored {what}: {:?}", other.map(drop)),
+        };
+        holds(
+            &format!("the block bored {what}, less the ring"),
+            subtract(&holed, &ring, tol()),
+            16.0 - PI * 0.04 - 2.0 * PI * 5.0 / 48.0,
+            1,
+            false,
         );
     }
 }

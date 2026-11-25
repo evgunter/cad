@@ -26,7 +26,9 @@
 //!   the face a plane;
 //! - two faces, where the edge is a closed conic inside a face with no
 //!   rings: its vertex parts into one per edge, and the circle that
-//!   bounds the disc bounds a piece of its own;
+//!   bounds the disc bounds a piece of its own. A face with rings keeps
+//!   the zero-area ring, the rings inside the disc not moved to a piece
+//!   (`work/heldrecords/a-closed-rider-in-a-face-with-rings-keeps-its-zero-area-ring.md`);
 //! - a slit of the loop an end lies on, that end parted into one vertex
 //!   per wedge;
 //! - a slit of the loop a vertex on an end's point lies on, the two
@@ -196,6 +198,12 @@ pub enum EdgeInFaceGap {
     /// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
     /// It retires when that row closes: the parting itself builds there.
     CurvedFace,
+    /// Which side of a closed edge inside the face the disc it parts off
+    /// lies on is not read: a side reads zero within the band (an edge
+    /// whose reach is the band's order, or an outline vertex on the
+    /// edge's plane), or the face is a torus, which the edge's plane cuts
+    /// in more than the edge ([`disc_loop`]).
+    DiscSide,
     /// The parting divides a curved face between two pieces of the
     /// result that touch only along its two edges, and the census does
     /// not read whether curved faces of two pieces touch
@@ -315,6 +323,10 @@ impl EdgeInFaceGap {
                 "the parting would leave a slit or a zero-area ring in the curved face rather than \
                  divide it, and a zero-area ring in a curved face is not measured \
                  (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`)"
+            }
+            Self::DiscSide => {
+                "which side of the closed edge lying in the face the disc it bounds lies on reads \
+                 within the band, or the face is a torus"
             }
             Self::PartsTouch => {
                 "the parting divides the curved face between two pieces of the result that touch \
@@ -518,59 +530,44 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 _ => return Err(refused(EdgeInFaceGap::Shared)),
             }
         }
+        let floor = proven(&body.faces, face, EntityId::Face).surface;
+        let curved_floor = !matches!(
+            body.proven_face(face).surface(),
+            geom::Surface::Plane { .. }
+        );
         // An arc's two coincident edges are recorded, citing the decision
         // that put the arc on the face: the parting's own row of it
         // ([`arc_on_face`]), with an edge-on-face record of the arc where
         // one names it, both read before the parting divides the face.
         // Two lines between shared point keys are one segment by
         // structure.
-        let arc = (!crate::census::edge_is_line(body, edge)).then(|| {
-            // Every reading [`holding`] puts a curve in a face by carries
-            // its margin ([`Placed::On`]).
-            let lies = lies.unwrap_or_else(|| {
-                unreachable!(
-                    "edge {edge:?}, a curve lying in face {face:?}, was placed there by no \
-                     reading with a margin"
-                )
-            });
+        let arc = if crate::census::edge_is_line(body, edge) {
+            None
+        } else {
+            // A reading that bounds the arc's distance from the surface
+            // over its whole span carries that bound ([`Placed::On`]);
+            // one that does not is no decision to cite.
+            let lies = lies.ok_or_else(|| refused(EdgeInFaceGap::CarrierUnread))?;
             let recorded: Vec<Cites> = records
                 .rows()
                 .iter()
                 .filter(|r| r.record.cells() == [Cell::Edge(edge), Cell::Face(face)])
                 .map(|r| r.cites.clone())
                 .collect();
-            (
-                lies,
-                recorded,
-                proven(&body.faces, face, EntityId::Face).surface,
-            )
-        });
+            Some((lies, recorded))
+        };
         let p = part(body, edge, face, &joined, band, tol)?;
         // Read once every parting is made: a slit one makes in a curved
         // face, a later one ending on it may close into a division.
-        if !matches!(
-            body.proven_face(face).surface(),
-            geom::Surface::Plane { .. }
-        ) {
-            let surface = proven(&body.faces, face, EntityId::Face).surface;
-            curved.push((p.parted.kept, p.parted.minted, surface));
+        if curved_floor {
+            curved.push((p.parted.kept, p.parted.minted, floor));
         }
-        if let Some((lies, recorded, surface)) = arc {
+        if let Some((lies, recorded)) = arc {
             // The row is of the arc as the parting leaves it: the kept edge
             // and the face of its surface it bounds, `face` or the piece of
             // it a division left holding the arc.
             let kept = p.parted.kept;
-            let edge = proven(&body.edges, kept, EntityId::Edge);
-            let on = [edge.he_plus, edge.he_minus]
-                .into_iter()
-                .filter_map(|he| body.face_of_half_edge(he))
-                .find(|&f| body.get_face(f).is_some_and(|d| d.surface == surface))
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "the kept edge {kept:?} of a parting bounds no face of the surface it \
-                         was parted in"
-                    )
-                });
+            let [on] = floors(body, [kept], floor);
             let row = arc_on_face(kept, on, lies, rows);
             let cites = recorded
                 .iter()
@@ -718,13 +715,13 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     Ok((parted, kept))
 }
 
-/// The faces of `surface` the two edges of a parting each bound beside
-/// their wall: the floor's pieces, one where the parting divided it.
-fn floors<T: Decide>(
+/// The face of `surface` each of `edges`, an edge a parting left, bounds
+/// beside its wall: the floor, or the piece of it a division left.
+fn floors<T: Decide, const N: usize>(
     body: &Body<T>,
-    edges: [EdgeKey; 2],
+    edges: [EdgeKey; N],
     surface: crate::geometry::SurfaceKey,
-) -> [FaceKey; 2] {
+) -> [FaceKey; N] {
     edges.map(|e| {
         let d = proven(&body.edges, e, EntityId::Edge);
         [d.he_plus, d.he_minus]
@@ -1413,12 +1410,14 @@ const LEBESGUE_NINE: f64 = 2.37;
 /// ([`carrier_on_surface`]).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Placed {
-    /// On the surface over the whole span, with the margin of the
-    /// reading that put it there, which a parting of a curve cites
-    /// ([`arc_on_face`]): a conic's pose `Lies` or a spiric's own plane
-    /// on a plane, a conic's samples (and a torus's bound between them)
-    /// on a curved surface. `None` for a line on a cylinder or a cone,
-    /// whose reading keeps no margin, and which no row cites.
+    /// On the surface over the whole span, with the margin of a reading
+    /// that bounds the carrier's distance from it over the span, which a
+    /// parting of a curve cites ([`arc_on_face`]): a conic's pose `Lies`
+    /// or a spiric's own plane on a plane, the bound between a conic's
+    /// samples on a sphere, a cylinder or a torus. `None` where the
+    /// reading bounds nothing: a line on a cylinder or a cone, which no
+    /// row cites, and a conic on a cone or a quadric whose bound does not
+    /// decide, which a parting refuses ([`EdgeInFaceGap::CarrierUnread`]).
     On(Option<geom_core::MarginDiag>),
     /// Off it along every piece of the span.
     Off,
@@ -1639,12 +1638,9 @@ fn conic_or_line_on<T: Decide>(
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
         Samples::Even(n) => even_points(carrier, t0, n),
     };
-    let Some(sampled) = variety
-        .read_piece_on(&points, site, band)
-        .map_err(refused)?
-    else {
+    if variety.read_piece(&points, site, band).map_err(refused)? == Piece::Off {
         return Ok(Placed::Off);
-    };
+    }
     match *surface {
         geom::Surface::Torus {
             frame,
@@ -1660,13 +1656,48 @@ fn conic_or_line_on<T: Decide>(
                     dir: axis,
                 },
                 (major_radius, minor_radius),
-                sampled,
                 band,
             )
             .map_err(refused)
         }
-        _ => Ok(Placed::On(Some(sampled))),
+        geom::Surface::Sphere { .. } | geom::Surface::Cylinder { .. } => {
+            Ok(Placed::On(quadric_between(&points, surface, band)))
+        }
+        // The cone's residual is no polynomial along a conic, so its
+        // samples bound nothing between them: the conic lies on it, by
+        // the degree argument, at no margin a row can cite
+        // (`work/heldrecords/a-conic-on-a-cone-reads-no-bounded-margin.md`).
+        _ => Ok(Placed::On(None)),
     }
+}
+
+/// [`LEBESGUE_NINE`]'s five-point twin, rounded up from `1.98885`:
+/// trigonometric interpolation at five equispaced points over a turn
+/// (degree 2).
+const LEBESGUE_FIVE: f64 = 1.99;
+
+/// **The bound on a conic's distance from a sphere or a cylinder over
+/// its whole turn**, from its five equispaced samples `points`: the
+/// surface's residual is a quadratic in the point, so along a conic a
+/// trigonometric polynomial of degree 2, which no point of the turn
+/// exceeds [`LEBESGUE_FIVE`] times its largest sample. The bound's
+/// margin where it decides on the surface, `None` where it does not:
+/// the samples put the conic there, and nothing bounds how far between
+/// them.
+fn quadric_between<T: Decide>(
+    points: &[Point3<T>],
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Option<geom_core::MarginDiag> {
+    let worst = points
+        .iter()
+        .map(|&p| geom_brep::implicit_residual(surface, p).abs())
+        .fold(T::zero(), T::max);
+    let bound = worst * T::from_f64(LEBESGUE_FIVE);
+    geom_core::k_stats::decide_reported(RIDER_ON_CURVED, Margin::of(bound), band)
+        .ok()
+        .filter(|between| between.sign == Sign::Zero)
+        .map(|between| between.margin)
 }
 
 /// **Whether a spline carrier is certified off a plane over its whole
@@ -1812,13 +1843,11 @@ fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point
 
 /// [`carrier_on_surface`]'s bound between a conic's nine samples on the
 /// torus about the unit `axis` line, radii `(R, r)`, decided
-/// where every sample read on it, at margin `sampled`: on the torus at
-/// the worse of the two.
+/// where every sample read on it: on the torus at the bound's margin.
 fn torus_between<T: Decide>(
     points: &[Point3<T>],
     axis: geom::Line<T>,
     (big, small): (T, T),
-    sampled: geom_core::MarginDiag,
     band: Band,
 ) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
@@ -1832,7 +1861,7 @@ fn torus_between<T: Decide>(
     let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
     let between = geom_core::k_stats::decide_reported(RIDER_ON_CURVED, Margin::of(bound), band)?;
     Ok(match between.sign {
-        Sign::Zero => Placed::On(Some(sampled.worst(between.margin))),
+        Sign::Zero => Placed::On(Some(between.margin)),
         Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
     })
 }
@@ -1925,6 +1954,19 @@ mod torus_rows {
                 false,
             ),
             ("a meridian shifted 1e-3", meridian(3.001), false),
+            // On within the band, its first sample on the torus and its
+            // offset largest a quarter turn on: a margin read off the
+            // samples alone states it on at none.
+            (
+                "the outer equator moved 5e-11 along y",
+                circle(
+                    Point3::new(0.0, 5e-11, 0.0),
+                    Vec3::unit_z(),
+                    4.0,
+                    Vec3::unit_x(),
+                ),
+                true,
+            ),
             (
                 "an ellipse of semi-axes 3 and 3.001 in the top plane, through (3, 0, 1)",
                 geom::Curve3::Ellipse(geom::Ellipse::new(
@@ -1940,12 +1982,28 @@ mod torus_rows {
                 false,
             ),
         ];
+        let torus = body.proven_face(face).surface();
         for (what, carrier, on) in rows {
             let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), face, band)
                 .unwrap_or_else(|e| panic!("{what}: {e:?}"));
-            // A conic read on the torus carries the reading's margin.
+            // A conic read on the torus carries a bound on its distance
+            // from it over the turn, no less than a dense sampling of it.
             let got = match &read {
-                super::Placed::On(lies) => lies.map(|_| true),
+                super::Placed::On(Some(lies)) => {
+                    let bound: f64 = format!("{lies:e}").parse().unwrap();
+                    let dense = (0..4000)
+                        .map(|k| {
+                            let q = carrier.eval(TAU * f64::from(k) / 4000.0);
+                            geom_brep::implicit_residual(torus, q).abs()
+                        })
+                        .fold(0.0, f64::max);
+                    assert!(
+                        bound.abs() + 1e-15 >= dense,
+                        "{what}: margin {bound:e} under the offset {dense:e}"
+                    );
+                    Some(true)
+                }
+                super::Placed::On(None) => None,
                 super::Placed::Off => Some(false),
                 super::Placed::Unread(_) => None,
             };
@@ -2644,19 +2702,32 @@ pub(super) const RIDER_CLOSED_DISC: &str = "bool_rider_closed_disc";
 
 /// **Whether ring `ring` of face `face`, one closed conic, bounds the
 /// disc it parts off `face`**: `face`'s region lies on the ring's left,
-/// the outward normal crossed with the ring's heading, at the conic's
-/// midpoint. On a plane the disc is the conic's inside, the side toward
-/// its centre; on a curved surface, which crosses the conic's plane
-/// there, the side of that plane `face`'s outline does not lie on,
-/// read at the first vertex of the outline off the plane.
+/// the unit outward normal crossed with the ring's unit heading, at the
+/// conic's midpoint. Each side is read on a signed length against the
+/// band:
+///
+/// - on a plane the disc is the conic's inside: the left's projection
+///   of the way to the conic's centre;
+/// - on a sphere, a cylinder or a cone, which the conic's plane cuts in
+///   the conic alone, the two pieces of the surface it parts are the
+///   plane's two sides, and the disc is the side `face`'s outline is not
+///   on: the left's rise off the plane, levered by the conic's reach,
+///   against each outline vertex's height over the plane. The outline,
+///   one loop, connected, meets no point of the conic, so every vertex
+///   of it lies on one side.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] where a side, or the normal, is in band;
-/// [`BooleanError::EdgeInFace`] ([`EdgeInFaceGap::NoNormal`]) where
-/// `face` has no normal at the midpoint, or where every vertex of the
-/// outline lies on the conic's plane (a curved face tangent to it);
-/// [`BooleanError::JoinDesync`] where the ring is no closed conic.
+/// [`BooleanError::EdgeInFace`] ([`EdgeInFaceGap::DiscSide`]) where a
+/// side reads zero in the band, an outline vertex on the conic's plane
+/// among them, or the surface is another kind (a torus, which a plane
+/// cuts in more than the conic); ([`EdgeInFaceGap::NoNormal`]) where
+/// `face` has no normal at the midpoint;
+/// [`BooleanError::Escalated`] ([`BooleanDecision::ClosedDisc`]) where a
+/// side, or the normal, is in band past the zero;
+/// [`BooleanError::ClassificationInvariant`] where two outline vertices
+/// read on the plane's two sides; [`BooleanError::JoinDesync`] where the
+/// ring is no closed conic.
 fn disc_loop<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2679,6 +2750,11 @@ fn disc_loop<T: Decide>(
         _ => None,
     }
     .ok_or_else(|| desync("a closed edge's ring is no conic"))?;
+    let refused = |gap| BooleanError::EdgeInFace {
+        edge: half.edge,
+        face,
+        gap,
+    };
     let (t0, t1) = curve.params();
     let mid = geom::mid_param(t0, t1);
     let p = curve.carrier().eval(mid);
@@ -2686,11 +2762,6 @@ fn disc_loop<T: Decide>(
         curve.carrier().deriv(mid)
     } else {
         -curve.carrier().deriv(mid)
-    };
-    let refused = |gap| BooleanError::EdgeInFace {
-        edge: half.edge,
-        face,
-        gap,
     };
     let normal = match crate::face_normal::face_outward_normal_at(body, face, p, band) {
         Ok(Some(n)) => n.vec(),
@@ -2703,36 +2774,51 @@ fn disc_loop<T: Decide>(
         }
         Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
     };
-    let left = normal.cross(heading);
-    let side = |x: T| {
-        crate::validate::decide(RIDER_CLOSED_DISC, Margin::of(x), band).map_err(|diag| {
-            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-        })
+    let left = normal.normalize().cross(heading.normalize());
+    let side = |margin: Margin<T>| match crate::validate::decide(RIDER_CLOSED_DISC, margin, band) {
+        Ok(Sign::Zero) => Err(refused(EdgeInFaceGap::DiscSide)),
+        Ok(sign) => Ok(sign),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::ClosedDisc,
+            diag,
+        }),
     };
     let (centre, axis) = (frame.origin(), frame.axis().normalize());
-    if matches!(
-        body.proven_face(face).surface(),
-        geom::Surface::Plane { .. }
-    ) {
-        return Ok(side(left.dot(centre - p))? == Sign::Positive);
-    }
-    let outer = body
-        .get_face(face)
-        .ok_or_else(|| desync("a divided face is lost"))?
-        .outer;
-    let outline = body
-        .loop_halves(outer)
-        .ok_or_else(|| desync("a divided face's outline does not walk"))?;
-    for he in outline {
-        let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-        let q = crate::readback::vertex_point(body, start)
-            .map_err(|_| desync("a vertex of a divided face's outline has no point"))?;
-        match side((q - centre).dot(axis))? {
-            Sign::Zero => continue,
-            outline_side => return Ok(side(left.dot(axis))? != outline_side),
+    match body.proven_face(face).surface() {
+        geom::Surface::Plane { .. } => {
+            Ok(side(Margin::of(left.dot(centre - p)))? == Sign::Positive)
         }
+        geom::Surface::Sphere { .. }
+        | geom::Surface::Cylinder { .. }
+        | geom::Surface::Cone { .. } => {
+            let reach = crate::wedge_reach(body, [face, face], curve.carrier(), (t0, t1));
+            let disc_side = side(Margin::levered(left.dot(axis), reach))?;
+            let outer = body
+                .get_face(face)
+                .ok_or_else(|| desync("a divided face is lost"))?
+                .outer;
+            let outline = body
+                .loop_halves(outer)
+                .ok_or_else(|| desync("a divided face's outline does not walk"))?;
+            let mut outline_side = None;
+            for he in outline {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                let q = crate::readback::vertex_point(body, start)
+                    .map_err(|_| desync("a vertex of a divided face's outline has no point"))?;
+                let here = side(Margin::of((q - centre).dot(axis)))?;
+                if outline_side.is_some_and(|s| s != here) {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a face's outline crosses the plane of a closed conic inside the face",
+                    });
+                }
+                outline_side = Some(here);
+            }
+            let outline_side =
+                outline_side.ok_or_else(|| desync("a divided face's outline has no vertex"))?;
+            Ok(disc_side != outline_side)
+        }
+        _ => Err(refused(EdgeInFaceGap::DiscSide)),
     }
-    Err(refused(EdgeInFaceGap::NoNormal))
 }
 
 /// What [`divide`] left: the edge's pieces, the edge's key holding the
