@@ -38,3 +38,36 @@ Choosing among these changes how the ratified rule is measured, so it is a desig
 ## Who reads the drift
 
 GREEN's orchestrator reads the latest run of `.github/workflows/fast-set-drift.yml` at the start of each sitting, since a scheduled red notifies only by email. Nothing in `memories/` or `docs/prompts/` says so yet: writing it there is Ev's call (PR 7448's review, finding 8).
+
+## 2026-11-24: two designers agree; asked of Ev
+
+Two Opus designers weighed this independently. Their reports are at
+`~/.local/share/cad-work/green-speedclass-designer-{a,b}.md`, and both
+reach the same recommendation.
+- **The speed class is one multiplier per runner, not noise.** One test
+  timed three times alone on one runner agrees to within about 1–2%. The
+  two drift runs differ by one factor over the whole population: 0.77× on
+  app and 1.32× on kernel, with deciles of 0.75–0.81 and 1.26–1.49.
+- **Dividing that factor out makes the lists agree.** The app lists then
+  agree on 68/68 and the kernel lists on 223/238, and the 15 left over sit
+  near the bar.
+- **The recommendation:** time a fixed, dependency-free reference
+  workload in each re-time pass, and scale every alone reading to the
+  median hosted runner. One definition, in `scripts/fast_set_alone.py`,
+  serves the gate and the drift check alike. Both screens widen to the
+  bar × 0.75.
+- **What it costs:** about 0.25 s per re-time pass, and only on jobs
+  that re-time anything.
+- **Rejected:**
+  - persistence across days, which filters noise and cannot remove a
+    bias;
+  - dropping off-class runs, which leaves no drift reading on most days;
+  - a table from CPU model to speed class.
+
+The gate half rewords ratified text (`implementer-discipline.md` §2) and
+reverses PR 7397's acceptance of the gate-side flap, so it is asked of Ev
+in an `[ev]` PR.
+
+**Until Ev rules,** the orchestrator moves only tests the drift names at
+0.33 s or more raw. A test that reads that raw costs at least 0.25 s on
+any runner class.
