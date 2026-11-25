@@ -1319,12 +1319,12 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
 /// face a whole turn round whose small end is `h` from the apex. Both
 /// halves mesh at δ `10⁻³`, `2·10⁻⁴` and `3·10⁻⁵`, each mesh is the
 /// body's ([`geometry`]), and the two halves' volumes sum to the cone's
-/// within the mesh's chord loss. It holds because the cone arm grades
-/// every gap of its rows to its lower radius (`chart_table`'s
-/// `reach_rows`): with no row inside the radius where every chord
-/// certifies, the triangulation joined the small end to the first row
-/// across most of a turn, and a triangle reaching past a quarter turn
-/// winds into the surface (`FoldedTriangle`).
+/// within the mesh's chord loss. It holds because the trimmed lane
+/// grades every gap of a cone face more than a quarter turn round to its
+/// lower radius (`trimmed::reach_graded`): with no row inside the radius
+/// where every chord certifies, the triangulation joined the small end
+/// to the first row across most of a turn, and a triangle reaching past
+/// a quarter turn winds into the surface (`FoldedTriangle`).
 ///
 /// Off the default ε a split that refuses or leaves no half is printed
 /// and skipped.

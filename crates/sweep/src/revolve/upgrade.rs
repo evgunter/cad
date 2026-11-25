@@ -65,13 +65,13 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
 /// this, so none reaches here; the restatement refuses an edge whose
 /// halves bound two faces. Carrier and interval kept verbatim, and the
 /// stored certificate the one a fresh run mints
-/// ([`crate::swept::describe_wrap_edge`]).
+/// ([`crate::swept::describe_wrap_edge_fresh`]).
 pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
     tol: Tol,
 ) -> Result<(), RevolveError> {
-    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
+    crate::swept::describe_wrap_edge_fresh(body, edge, wall, tol)?;
     Ok(())
 }

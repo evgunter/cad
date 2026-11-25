@@ -2875,7 +2875,7 @@ pub(crate) fn no_crossings_certificates(
 /// normal's own norm widens `s` and moves the scan's escalations):
 /// `Negative` is a ball definitely clear of the carrier, `Zero` a
 /// tangency, `Positive` a ball the carrier cuts in a circle of radius
-/// `√((r − |s|)(r + |s|))` about `centre − n̂·s` ([`plane_section`]).
+/// `√((r − |s|)(r + |s|))` about `centre − n̂·s` ([`sphere_plane_circle`]).
 /// Returns the sign and `s`. Read by the no-crossings sphere scan
 /// ([`sphere_extent_scan`]) and the crossings path's cut-in
 /// ([`interior_cuts`]).
@@ -2899,7 +2899,12 @@ fn ball_against_plane<T: Decide>(
 /// foot `centre − n̂·s` of the centre on the plane, of radius
 /// `√((r − |s|)(r + |s|))`, where `s` is [`ball_against_plane`]'s
 /// signed distance along the stored normal `n̂`. Its foot and radius.
-fn plane_section<T: Real>(center: Point3<T>, radius: T, normal: Vec3<T>, s: T) -> (Point3<T>, T) {
+fn sphere_plane_circle<T: Real>(
+    center: Point3<T>,
+    radius: T,
+    normal: Vec3<T>,
+    s: T,
+) -> (Point3<T>, T) {
     (
         center - normal * s,
         ((radius - s.abs()) * (radius + s.abs())).sqrt(),
@@ -6658,7 +6663,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // of every boundary-edge box cannot
                                 // cross the boundary, so one exact
                                 // witness extends to the whole circle.
-                                let (foot, rho) = plane_section(center, radius, normal, s);
+                                let (foot, rho) = sphere_plane_circle(center, radius, normal, s);
                                 let circle = crate::separating::Circle {
                                     center: foot,
                                     u_ref,
@@ -7016,6 +7021,40 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         },
         deferred,
     ))
+}
+
+/// **The cut a plane crossing a sphere asks of `holder`**, the face of
+/// `operand`'s sphere about `center` of `radius` that holds the circle
+/// the plane `plane` cuts it in: the circle's foot and radius
+/// ([`sphere_plane_circle`]), the plane's normal and `u_ref`. `None` where the
+/// ball is not read crossing the plane ([`ball_against_plane`]), which
+/// leaves the caller's refusal standing.
+fn plane_cut_of_sphere<T: Decide>(
+    (operand, holder): (Operand, FaceKey),
+    center: Point3<T>,
+    radius: T,
+    plane: geom::Frame<T>,
+    band: Band,
+) -> Option<SphereCutIn<T>> {
+    let normal = plane.axis();
+    match ball_against_plane(center, radius, plane.origin(), normal, band) {
+        Ok((NonzeroSign::Positive, s)) => {
+            let (foot, rho) = sphere_plane_circle(center, radius, normal, s);
+            Some(SphereCutIn {
+                operand,
+                face: holder,
+                center,
+                radius,
+                section: CutSection::Circle {
+                    foot,
+                    rho,
+                    normal,
+                    u_ref: plane.u_ref(),
+                },
+            })
+        }
+        Ok((NonzeroSign::Negative, _)) | Err(_) => None,
+    }
 }
 
 /// **The cut a sphere pair's crossing asks of `holder`**, the face of
