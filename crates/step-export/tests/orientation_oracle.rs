@@ -393,8 +393,10 @@ fn every_fixture_shell_is_edge_use_coherent() {
         // loop the two uses come from, which is exactly right — and its
         // two plane annuli carry no seam.
         ("washer", &[6]),
-        ("ball", &[2]),
-        ("cone", &[4]),
+        // The ball and the cone's curved wall are each one band, its
+        // wrap meridian used twice inside the band's one loop.
+        ("ball", &[1]),
+        ("cone", &[2]),
         ("donut", &[4]),
     ];
     for (name, counts) in expect {
@@ -441,18 +443,19 @@ fn negative_control_double_composed_face_is_incoherent() {
 }
 
 /// **Negative control 2: a single inverted face.** Flip every
-/// `ORIENTED_EDGE` flag of one face of the ball — the curved analogue
-/// of the planar whole-shell inversion control above, but scoped to
-/// ONE face so the result is not merely a globally reversed (and
-/// therefore still coherent) shell.
+/// `ORIENTED_EDGE` flag of one face of the cone, its conical band — the
+/// curved analogue of the planar whole-shell inversion control above,
+/// but scoped to ONE face so the result is not merely a globally
+/// reversed (and therefore still coherent) shell. The band's base
+/// circle then runs the same way as the base disc's use of it.
 #[test]
 fn negative_control_one_inverted_curved_face_is_incoherent() {
-    let text = fixture("ball");
-    // The ball's second face is the one whose EDGE_LOOP comes last.
+    let text = fixture("cone");
+    // The cone's conical band is the face whose EDGE_LOOP comes first.
     let loop_line = text
         .lines()
-        .rfind(|l| l.contains("= EDGE_LOOP("))
-        .expect("two edge loops");
+        .find(|l| l.contains("= EDGE_LOOP("))
+        .expect("the band's edge loop");
     let oriented: Vec<u64> = refs(loop_line.split_once(" = ").expect("record").1);
     let flipped: String = text
         .lines()

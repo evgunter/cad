@@ -330,12 +330,17 @@ fn a_loops_edges_read_simple_knots_at_every_scale() {
     }
 }
 
-/// **A ball against a donut, and a rod through one, build on periodic
-/// loops**: the union and the intersection of each, and the donut less
-/// the rod. The mesh stops at the sphere's and the torus's faces'
-/// projected spline images.
+/// **A rod through a donut builds on periodic loops, and a ball against
+/// the donut refuses its interior loop typed: this row pins a gap**
+/// (`work/lathe/a-section-loop-inside-two-one-band-curved-faces-refuses-at-the-section-certificate.md`).
+/// The union, the intersection and the difference of the donut and the
+/// rod build, and their mesh stops at the torus faces' projected spline
+/// images. The ball and the donut are each one face round their axis,
+/// and their section loop crosses neither's seam: every op of the pair,
+/// both orders of the difference, refuses at the section certificate,
+/// which counts the loop inside both faces and has no cut-in for it.
 #[test]
-fn a_ball_and_a_rod_against_a_donut_build_on_periodic_loops() {
+fn a_rod_through_a_donut_builds_and_a_ball_against_it_refuses_its_interior_loop() {
     let x = Vec3::new(1.0, 0.0, 0.0);
     let ball = finished("the ball", ball(0.5), tol());
     let ring = posed(
@@ -344,15 +349,39 @@ fn a_ball_and_a_rod_against_a_donut_build_on_periodic_loops() {
         Affine3::translation(Vec3::new(0.1, 0.35, 0.2))
             * Affine3::rotation_about_axis(Point3::origin(), x, 0.7),
     );
-    assert_ops(
-        "the ball and the donut",
-        [
-            ("A ∪ B", topo::union(&ball, &ring, tol())),
-            ("A ∩ B", topo::intersect(&ball, &ring, tol())),
-        ],
-        &[5e-3],
-        &Got::ProjectedSpline,
-    );
+    for (op, run, operand) in [
+        ("A ∪ B", topo::union(&ball, &ring, tol()), topo::Operand::B),
+        (
+            "A ∩ B",
+            topo::intersect(&ball, &ring, tol()),
+            topo::Operand::B,
+        ),
+        (
+            "A ∖ B",
+            topo::subtract(&ball, &ring, tol()),
+            topo::Operand::B,
+        ),
+        (
+            "B ∖ A",
+            topo::subtract(&ring, &ball, tol()),
+            topo::Operand::A,
+        ),
+    ] {
+        match run {
+            Err(BooleanError::FallbackExtentUnsupported {
+                operand: on, what, ..
+            }) => assert!(
+                on == operand
+                    && what.contains("the loop is certified, and cutting it in is not built"),
+                "the ball and the donut, {op}: the donut's face refuses the interior loop, got \
+                 {on:?}: {what}"
+            ),
+            other => panic!(
+                "the ball and the donut, {op}: refuses the interior loop, got {:?}",
+                other.as_ref().err()
+            ),
+        }
+    }
     let donut = finished("the donut", donut(0.6, 0.2), tol());
     let rod = posed(
         "the rod",

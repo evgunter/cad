@@ -388,7 +388,9 @@ impl<'a> AnalyticRow<'a> {
     /// face's widest). Two rows at roots `s` and `s + Δs` then stand
     /// `Δs·(2s + Δs) ≤ hv·√(v_m/v_w)` apart, `v_m` the slant midway
     /// between them in `s`: `hv` at the widest radius, shorter toward the
-    /// apex, and at most twice the uniform count over a window.
+    /// apex, and at most twice the uniform count over a window. The
+    /// trimmed lane then grades the gaps of a cone face whose span lets a
+    /// triangle reach far round the axis (`trimmed::reach_graded`).
     ///
     /// *What is proved.* A chord of 3-D length `L` from radius `ρ₁` to a
     /// larger one, `Δu` round the axis, sags at most
