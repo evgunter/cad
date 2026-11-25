@@ -135,7 +135,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopKey};
+use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
@@ -166,8 +166,6 @@ pub(crate) struct SphereFaceRegion<T: geom_core::Real> {
     /// The face's sense bit: `false` points its outward normal at the
     /// centre.
     sense: bool,
-    /// The face's outer loop, named by an exhaustion.
-    outer: LoopKey,
     edges: Vec<Arc<T>>,
 }
 
@@ -225,7 +223,6 @@ pub(crate) fn sphere_face_region<T: Decide>(
     Ok(Some(SphereFaceRegion::on(
         Charted::record(f.surface, surface),
         f.sense,
-        f.outer,
         edges,
     )))
 }
@@ -236,7 +233,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// # Panics
     ///
     /// Where `charted` is not a sphere: the caller reads the record first.
-    fn on(charted: Charted<T>, sense: bool, outer: LoopKey, edges: Vec<Arc<T>>) -> Self {
+    fn on(charted: Charted<T>, sense: bool, edges: Vec<Arc<T>>) -> Self {
         let &geom::Surface::Sphere { frame, radius, .. } = charted.surface() else {
             unreachable!("a sphere region is built on a sphere record")
         };
@@ -246,7 +243,6 @@ impl<T: Decide> SphereFaceRegion<T> {
             center,
             radius,
             sense,
-            outer,
             edges,
         }
     }
@@ -307,7 +303,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                 }
                 Probe::Path(path) => region::read_path(self, foot, path, band),
             },
-            || RegionRefusal::RayExhausted { outer: self.outer },
+            || RegionRefusal::RayExhausted,
         )
         .map(Some)
     }
@@ -480,19 +476,8 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
         &mut self.edges
     }
 
-    fn outer(&self) -> LoopKey {
-        self.outer
-    }
-
     fn on_edge(&self, arc: &Arc<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        circle_edge_hit(
-            &arc.carrier,
-            arc.turn.as_ref(),
-            BOUNDARY,
-            p,
-            self.outer,
-            band,
-        )
+        circle_edge_hit(&arc.carrier, arc.turn.as_ref(), BOUNDARY, p, band)
     }
 }
 
@@ -524,7 +509,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::entity::EdgeKey;
+    use crate::entity::{EdgeKey, LoopKey};
     use slotmap::KeyData;
 
     /// The sphere `(center, radius)` charted about `z`, its seam at `x`,
@@ -556,7 +541,6 @@ mod tests {
         SphereFaceRegion::on(
             on,
             true,
-            LoopKey::default(),
             vec![RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
@@ -697,7 +681,6 @@ mod tests {
         SphereFaceRegion::on(
             fixture_sphere(Point3::origin(), 1.0),
             true,
-            LoopKey::default(),
             vec![
                 meridian(0.0, true, 1),
                 meridian(core::f64::consts::FRAC_PI_2, false, 2),
@@ -749,12 +732,7 @@ mod tests {
 
     /// A unit-sphere face of `sense` bounded by `edges`.
     fn face(sense: bool, edges: Vec<RegionEdge<f64>>) -> SphereFaceRegion<f64> {
-        SphereFaceRegion::on(
-            fixture_sphere(Point3::origin(), 1.0),
-            sense,
-            LoopKey::default(),
-            edges,
-        )
+        SphereFaceRegion::on(fixture_sphere(Point3::origin(), 1.0), sense, edges)
     }
 
     /// **The aim lands in the face**, on the sphere, for both senses:
@@ -1342,7 +1320,6 @@ mod tests {
         SphereFaceRegion::on(
             fixture_sphere(Point3::new(lift(0.0), lift(0.0), lift(0.0)), lift(1.0)),
             true,
-            LoopKey::default(),
             vec![
                 edge(meridian(pi), (1.0, pi), true, 1),
                 edge(parallel, (0.0, pi / 2.0), true, 2),
@@ -1656,12 +1633,7 @@ mod tests {
                     }
                 })
                 .collect();
-            SphereFaceRegion::on(
-                fixture_sphere(p3(c), l(r)),
-                sense,
-                LoopKey::default(),
-                edges,
-            )
+            SphereFaceRegion::on(fixture_sphere(p3(c), l(r)), sense, edges)
         }
 
         pub(super) fn sph(polar: f64, az: f64) -> V {

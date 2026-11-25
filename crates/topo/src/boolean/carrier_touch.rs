@@ -351,7 +351,7 @@ fn ball_off_face<T: Decide + Bounds>(
             ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::Uncrossable(_),
         ) => Ok(false),
         // The foot is placed only where every boundary edge's whole

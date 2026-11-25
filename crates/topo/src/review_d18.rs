@@ -3727,11 +3727,12 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             | Err(
                 ContainError::Escalated { .. }
                 | ContainError::ArcEndClearOfCorners(_)
-                | ContainError::RayExhausted
+                | ContainError::RayExhausted(_)
                 | ContainError::EmptyLoop(_)
                 | ContainError::Uncrossable(_)
                 | ContainError::Curved(
                     Solid::Escalated { .. }
+                    | Solid::RegionRayExhausted { .. }
                     | Solid::PartialConeFace { .. }
                     | Solid::PartialTorusFace { .. }
                     | Solid::WallOutlineUnsupported { .. }
