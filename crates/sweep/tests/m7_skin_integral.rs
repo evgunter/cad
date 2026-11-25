@@ -753,14 +753,16 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
         "the elbow must turn the level planes a quarter turn along v, not \
          {turned} rad against {want} — a straight path would hold them parallel"
     );
-    let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0][0].unwrap(), 0.5, 0.5);
+    let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0][0][0].unwrap(), 0.5, 0.5);
     assert!(
         surface.weights().iter().any(|w| *w != 1.0),
         "the fixture stopped exercising a RATIONAL chart: every weight is 1.0, so \
          this row now restates the integral elbow next door"
     );
 
+    // Four walls: each half arc of the section is wider than one
+    // rational-quadratic piece, so the skin cuts it at its sub-arc joint.
     let oracle = |q| index.contains(q);
-    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 2);
+    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
 }
