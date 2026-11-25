@@ -2,11 +2,14 @@
 id: two-copies-of-a-pierce-carry-edges-that-run-within-the-band
 kind: issue
 title: A near-tangent two-run pierce leaves its copies apart on one point, and the two edges leaving them run within the band for a stretch the census passes, at 89 poses main refused
-status: open
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start, 4335, 4026]
+closed: 2026-11-25
+pr: 7750
+branch: inside/pierce-copies-remeasure
 ---
 
 
