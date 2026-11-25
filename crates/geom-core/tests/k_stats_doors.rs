@@ -596,11 +596,10 @@ fn a_past_band_rejection_offers_no_declaration() {
 fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     use geom_core::k_stats::decide_across;
     use geom_core::{Band, ErrorTextReading, Interval, Sign};
-    const NAMES: [&str; 2] = ["row", "row_floor"];
     let band = Band::new(1e-9, 1e-8).unwrap();
     let k = band.escalate() / band.zero();
 
-    let fixed = decide_across(NAMES, 6e-9, 2e-9, band).unwrap_err();
+    let fixed = decide_across(["row", "row_floor"], 6e-9, 2e-9, band).unwrap_err();
     assert_eq!(fixed.predicate, Some("row"));
     assert_eq!(
         fixed.margin.diagnostic_f64_for_error_text(),
@@ -610,24 +609,25 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     let offered = fixed.offered_band().unwrap();
     assert_eq!(offered.zero(), band.offer_deciding(6e-9 - 2e-9).unwrap());
     assert_eq!(
-        decide_across(NAMES, 6e-9, 2e-9, offered),
+        decide_across(["row", "row_floor"], 6e-9, 2e-9, offered),
         Ok(Sign::Positive)
     );
     assert_eq!(
-        decide_across(NAMES, -6e-9, 2e-9, offered),
+        decide_across(["row", "row_floor"], -6e-9, 2e-9, offered),
         Ok(Sign::Negative)
     );
     let far_offer = Band::new(8e-9 / k, 8e-9).unwrap();
     assert_eq!(
-        decide_across(NAMES, 6e-9, 2e-9, far_offer)
+        decide_across(["row", "row_floor"], 6e-9, 2e-9, far_offer)
             .unwrap_err()
             .predicate,
         Some("row_floor"),
         "the far reading's own offer leaves the floor in band"
     );
 
-    let scaled =
-        |datum: f64, bands: f64, band: Band| decide_across(NAMES, datum, bands * band.zero(), band);
+    let scaled = |datum: f64, bands: f64, band: Band| {
+        decide_across(["row", "row_floor"], datum, bands * band.zero(), band)
+    };
     let tie = scaled(0.0, 9.9, band).unwrap_err();
     assert_eq!(tie.predicate, Some("row"));
     assert!(!tie.offers_tolerance(), "a reading that is its own swing");
@@ -656,7 +656,7 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
 
     let boxed = |lo: f64, hi: f64, swing: f64| {
         decide_across(
-            NAMES,
+            ["row", "row_floor"],
             Interval::from_bounds(lo, hi),
             Interval::from_bounds(swing, swing),
             band,
@@ -687,7 +687,6 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
 fn a_band_scaled_swing_is_decided_below_a_band_that_offers_none() {
     use geom_core::k_stats::decide_across;
     use geom_core::{Band, Sign};
-    const NAMES: [&str; 2] = ["row", "row_floor"];
     let band = Band::new(1e-9, 1e-8).unwrap();
     let k = band.escalate() / band.zero();
     for (datum, bands, refused_on) in [
@@ -695,18 +694,19 @@ fn a_band_scaled_swing_is_decided_below_a_band_that_offers_none() {
         (3e-10, 9.9, "row_floor"),
         (5e-9, 9.9, "row_floor"),
     ] {
-        let refusal = decide_across(NAMES, datum, bands * band.zero(), band).unwrap_err();
+        let refusal =
+            decide_across(["row", "row_floor"], datum, bands * band.zero(), band).unwrap_err();
         assert_eq!(refusal.predicate, Some(refused_on), "{datum:e}");
         assert!(!refusal.offers_tolerance(), "{datum:e}: offered none");
         let eps = 0.99 * datum / (k + bands);
         let smaller = Band::new(eps, k * eps).unwrap();
         assert_eq!(
-            decide_across(NAMES, datum, bands * smaller.zero(), smaller),
+            decide_across(["row", "row_floor"], datum, bands * smaller.zero(), smaller),
             Ok(Sign::Positive),
             "{datum:e}: decided at {eps:e} with the swing scaled to it"
         );
         assert!(
-            decide_across(NAMES, datum, bands * band.zero(), smaller).is_err(),
+            decide_across(["row", "row_floor"], datum, bands * band.zero(), smaller).is_err(),
             "{datum:e}: the same swing held fixed is not"
         );
     }

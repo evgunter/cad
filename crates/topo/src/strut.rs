@@ -12,7 +12,8 @@
 //!   seam on its survivor (`Body::merge_coplanar_faces`);
 //! - the Boolean, whose zip glues a slit's face to itself where the
 //!   result keeps that face on both sides of the slit's line
-//!   (`boolean::slit::close_struts`).
+//!   (`boolean::slit::close_struts`), and whose sphere cut-ins leave
+//!   pieces of a chart cut (`boolean::slit::close_cuts`).
 //!
 //! An edge whose two halves bound one face and neither of whose ends is
 //! free is no strut: it closes the face across a stretch of a slit the

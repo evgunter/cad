@@ -1161,7 +1161,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         // (`arms::Branch`). The link records the end's reading as its
         // convexity margin: that is the decision its convexity came
         // from.
-        geom_brep::WedgeVerdict::End { end, margin } => {
+        geom_brep::WedgeVerdict::End { end, margin, .. } => {
             let convexity = match end {
                 geom_brep::WedgeEnd::Cusp => Convexity::Convex,
                 geom_brep::WedgeEnd::Slit => Convexity::Concave,

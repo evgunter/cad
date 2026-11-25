@@ -525,7 +525,7 @@ fn the_proof_is_inside_the_locally_valid_range() {
 /// a `canonical_order_*` verdict picks where a loop's statement starts,
 /// and a build at another value can record it differently and build the
 /// same shape (`CertifiedRange::proven_offsets`,
-/// `work/scalar/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
+/// `work/certread/the-leaf-protocol-pins-representation-choices-the-witness-recorded`).
 fn decisions_at(doc: &ProfileDoc, value: f64) -> editor_core::VerdictVector {
     let at = editor_core::apply(
         doc,

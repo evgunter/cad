@@ -342,32 +342,28 @@ fn the_radius_floor_refuses_typed() {
     );
 }
 
-/// **The C5 boundary.** A cone's rims are intersections with the walls
-/// either side, and `cone × cone` has no route arm: the moved cone
-/// cannot be re-stated against its untouched neighbour, so the door
-/// refuses naming the pair.
-///
-/// The fixture is a pair of cones because `cone × cylinder` — this
-/// row's operand until the coaxial arm landed — is now routed. What the
-/// row holds is the GATE, not the pair: a neighbour the C5 table
-/// declines stops the door before any mutation, and the refusal names
-/// which pair declined.
+/// **The offset door's own boundary.** A cone's rims are intersections
+/// with the walls either side. `cone × cone` is routed (the general
+/// rung marches it), but the offset door derives a moved edge only from
+/// a closed-form section, so the moved cone cannot be re-stated against
+/// its untouched neighbour: the door refuses naming the pair and its
+/// section's verdict, before any mutation.
 #[test]
 fn an_undescribable_neighbor_pair_refuses_typed() {
     let mut body = double_coned_tube();
     let face = cone_face_with_tan(&body, 0.2 / 0.3);
     let e = topo::replace_face_offset(&mut body, face, 0.05, Tol::witness())
-        .expect_err("the cone's neighbours have no route arm");
+        .expect_err("the cone's neighbours have no closed-form section");
     assert!(
         matches!(
             e,
-            ReplaceFaceError::NeighborPairUnroutable {
+            ReplaceFaceError::EdgeSection {
                 kind: geom::SurfaceKind::Cone,
                 other_kind: geom::SurfaceKind::Cone,
                 ..
             }
         ),
-        "expected the C5 refusal naming (cone, cone), got {e_at}",
+        "expected the door's section refusal naming (cone, cone), got {e_at}",
         e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }

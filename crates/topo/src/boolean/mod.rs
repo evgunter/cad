@@ -245,8 +245,8 @@ pub use nary::{
 pub use ops::refused_face_kind;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, PairTaken, Placed,
-    PlacedBooleanError, Recharts, SettleError, Settler, boolean_op_with, boolean_placed, intersect,
-    subtract, union,
+    PlacedBooleanError, SettleError, Settler, boolean_op_with, boolean_placed, intersect, subtract,
+    union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
@@ -919,42 +919,43 @@ impl Mints {
             .map(|&(_, by)| by)
     }
 
-    /// The keys of `edge`'s pieces after `operand`'s splits, in order
-    /// along it (a split keeps the parent's leading span, so its child is
-    /// the piece right after the parent), and every vertex a split minted
-    /// on it.
-    pub(crate) fn pieces(
-        &self,
-        operand: Operand,
-        edge: crate::entity::EdgeKey,
-    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
-        self.pieces_since(operand, edge, SplitMark(0))
-    }
-
     /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
     /// the splits made after it.
     pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
         SplitMark(self.vertices[operand.index()].len())
     }
 
-    /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
-    /// splits made since cut it into, and the vertices they minted on it.
+    /// The pieces of `edge` as it stood at `mark`, in order along it: the
+    /// pieces `operand`'s splits made since cut it into, and the vertices
+    /// they minted on it ([`split_pieces`]).
     pub(crate) fn pieces_since(
         &self,
         operand: Operand,
         edge: crate::entity::EdgeKey,
         SplitMark(mark): SplitMark,
     ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
-        let mut keys = vec![edge];
-        let mut minted = Vec::new();
-        for (parent, vertex, child) in self.of(operand).skip(mark) {
-            if let Some(i) = keys.iter().position(|&k| k == parent) {
-                keys.insert(i + 1, child);
-                minted.push(vertex);
-            }
-        }
-        (keys, minted)
+        split_pieces(edge, self.of(operand).skip(mark))
     }
+}
+
+/// **`edge`'s pieces after `splits`**, `(parent, vertex, child)` in the
+/// order made, in order along it, and every vertex a split minted on it.
+/// A split keeps the parent's leading span under the parent's key, so
+/// its child is the piece right after the parent. No reader relies on
+/// the order beyond an unsplit edge's one piece, so no test pins it.
+pub(crate) fn split_pieces(
+    edge: crate::entity::EdgeKey,
+    splits: impl IntoIterator<Item = (crate::entity::EdgeKey, VertexKey, crate::entity::EdgeKey)>,
+) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+    let mut keys = vec![edge];
+    let mut minted = Vec::new();
+    for (parent, vertex, child) in splits {
+        if let Some(i) = keys.iter().position(|&k| k == parent) {
+            keys.insert(i + 1, child);
+            minted.push(vertex);
+        }
+    }
+    (keys, minted)
 }
 
 /// One cell of a body: what a contact record names, two at a time
@@ -1348,7 +1349,7 @@ impl<T: Real> Glue<T> {
 /// **What the glue door decided of a pair it glued**, per class, which
 /// the declaration door records ([`verify_glued_contacts`]): a pair is
 /// decided once.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Glued<T: Real> {
     /// One carrier ([`carrier_pair::carrier_pair_decided`]): its
     /// orientation, never `Distinct` ([`GluedPair::one_carrier`]), and the
@@ -1370,7 +1371,7 @@ enum Glued<T: Real> {
 
 /// Where a glued pair's decision comes from: the glue door, or the fold
 /// step's given verdict. The class is the decision's.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Origin<T: Real> {
     /// The glue door decided it.
     Decided(Glued<T>),
@@ -1386,7 +1387,7 @@ enum Origin<T: Real> {
 /// operation decided, or one an n-ary union's fold step was given
 /// ([`GlueVerdict::decision`]). Its class is its decision's
 /// ([`Self::class`]).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
@@ -1449,8 +1450,8 @@ impl<T: Real> GluedPair<T> {
 
     /// What the glue door decided; none for a given pair.
     fn decided(&self) -> Option<Glued<T>> {
-        match self.origin {
-            Origin::Decided(glued) => Some(glued),
+        match &self.origin {
+            Origin::Decided(glued) => Some(glued.clone()),
             _ => None,
         }
     }
@@ -1773,8 +1774,12 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 /// is tangent to it along an equator and is a global side. A kind row
 /// cannot tell the coaxial cylinder from the tube chain, and admitting
 /// the chain would cover a crossing, so the row stays out and the
-/// coaxial case keeps its typed frontier. A cone's tangent plane leaves its second nappe on the
-/// other side. A spline (STEP adoption, blends) carries no global
+/// coaxial case keeps its typed frontier. A cone's tangent plane leaves
+/// its second nappe on the other side. While (Sphere, Cylinder) is
+/// covered, a junction's end on that pair never reaches the end-root
+/// door's side check (`reduce::junction_end_window`); if it ever leaves
+/// the cover, a hemisphere cap's great circle leaving its rim becomes a
+/// real-geometry pin for that check. A spline (STEP adoption, blends) carries no global
 /// convexity. Two planes, two spheres or a plane and a sphere are never
 /// tangent along a curve on distinct carriers.
 ///
@@ -2206,6 +2211,20 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
         self.one_sided
             .get(&(tagged(o1, f1), tagged(o2, f2)))
             .copied()
+    }
+
+    /// The rim the (operand-tagged) pair was glued on as a junction, if
+    /// it was.
+    pub(in crate::boolean) fn junction_rim(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<(crate::rim_wedge::Rim<T>, &crate::rim_wedge::Touch<T>)> {
+        Self::key(o1, f1, o2, f2)
+            .and_then(|k| self.verified.junction.get(&k))
+            .and_then(|cert| Some((cert.rim?, &cert.touch)))
     }
 
     /// The coincidence the (operand-tagged) face pair is declared under,
@@ -2770,33 +2789,6 @@ pub enum AlongFace {
     FacesInOnePlane,
 }
 
-/// **The loops a plane cuts on a ring torus**, as the section
-/// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
-///
-/// **NOT carried to the façade's curated list, and that is a decision
-/// rather than an omission** (`scripts/payload-rung-sweep.py` names
-/// this rung; the disposition table cites this paragraph as its home).
-/// A Rust caller can already name and match it — `pncad` re-exports
-/// `topo` whole — and the refusal's sentence names the loops, while the
-/// recourse it states is the same for all three (cut the torus with a
-/// plane the frame serves). Carrying it would add the CUR3 property row
-/// and a Python word with no reader that acts on the difference.
-///
-/// **The falsifier is a caller whose recourse depends on which loops a
-/// slanted plane cuts**: the day the general rung serves one class (the
-/// loops round the axis have a proved frame), a caller must tell it from
-/// the others to know whether the cut builds. Then carry it and delete
-/// this paragraph and the disposition row with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpiricLoops {
-    /// Two loops, each winding once round the torus's axis.
-    AroundAxis,
-    /// Two loops, each winding once round the tube.
-    AroundTube,
-    /// One loop on the tube that winds round neither.
-    Null,
-}
-
 /// **Whose record a [`BooleanError::CarryRefused`] refused**, which says
 /// what the refusal's record index counts.
 ///
@@ -3105,6 +3097,26 @@ pub enum BooleanError {
     CurvedSectorSideUnsupported {
         /// The charge's decided verdict at the sector's arm.
         verdict: geom_brep::recourse::Refused,
+    },
+    /// **An edge of `operand` ends on a rim its face and `face` both end
+    /// on, glued a smooth junction, and the end's touch with `face`'s
+    /// carrier is not read**: the carrier and the surface have no lane
+    /// that factors the end's root (`geom_brep::curve_face::end_root`),
+    /// no window past it holds the root's order against the rest of the
+    /// span or the edge's side of the rim over it, or the edge is closed.
+    /// The parts meet there by construction; what a move can do is the
+    /// gap's sentence.
+    ///
+    /// A limit: the end's lane not built (row 2).
+    JunctionEndUnread {
+        /// The operand whose edge ends on the rim.
+        operand: Operand,
+        /// The other operand's face the rim bounds.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// What is not read there.
+        gap: JunctionEndGap,
     },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
@@ -3908,7 +3920,7 @@ pub enum BooleanError {
     /// blocker left is a JOIN lane, not `revert`:
     ///
     /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
-    ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
+    ///   (exact C5 Circle) plus the extent-certified fallback cut-in.
     /// - **Torus**: not gated up front — its pairs meet the same typed
     ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
     ///   no-crossings section pass, the join catch-all below, and this
@@ -4034,29 +4046,6 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
-    /// **A decision on a re-charted sphere's cell is not stated by the
-    /// input cells that cell reads back as.** The containment re-cut
-    /// turns a closed sphere shell about its centre
-    /// (`ops::apply_recuts`), so each cell of the turned shell reads back
-    /// as the set of the input shell's faces, which wear that sphere. A
-    /// point decided on such a cell (a meeting, a vertex on a carrier) is
-    /// the meeting of those faces and the row's other cells, where a row
-    /// holds that many; any other decision, of carriers or of shapes,
-    /// holds of them only where the shell is one face and the cell that
-    /// face. Otherwise it is refused here rather than published against
-    /// faces it was not decided on.
-    ///
-    /// A limit: a decision stated of its faces not built (row 2).
-    RechartedRowUnstated {
-        /// The operand whose sphere shell was re-charted.
-        operand: Operand,
-        /// What was decided on the turned cell.
-        relation: crate::Relation,
-        /// The input shell's faces the turned cell reads back as, sorted.
-        faces: Vec<FaceKey>,
-        /// Why they do not state it.
-        what: &'static str,
-    },
     /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
     /// crossing a face: their spheres touch within the tolerance, the
@@ -4065,10 +4054,10 @@ pub enum BooleanError {
     /// share lies off every edge, so the join's carried lane
     /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
-    /// faces (its R-loop), are not refused: each sphere is re-cut so an
-    /// edge of it reaches the circle (a closed ball re-charted with its
-    /// pole on the centre line, any other face cut along a meridian
-    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// faces (its R-loop), are not refused: the face holding the circle
+    /// on each sphere is cut along its chart's meridian through the
+    /// circle, so an edge of it reaches the circle
+    /// (`ops::sphere_extent_scan`), and a crossing
     /// whose circle the certificate cannot place refuses with the
     /// certificate's own reason
     /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
@@ -4156,29 +4145,6 @@ pub enum BooleanError {
         b_kind: geom::SurfaceKind,
         /// The conic.
         conic: geom_brep::OpenConic,
-    },
-    /// **A germ pair whose plane cuts a torus face in a general spiric
-    /// quartic**: a plane neither through the torus's axis, nor square to
-    /// it, nor parallel to it short of its inner equator. The C5 table
-    /// routes that section to its general rung, which is unbuilt, and no
-    /// carrier holds the curve, so the pair is refused at its frame.
-    /// `loops` is the section certificate's own classification of the
-    /// section, and `section` the table's refusal.
-    ///
-    /// A limit: a section not built (row 2).
-    GermSectionSpiric {
-        /// The A-side germ face.
-        a_face: FaceKey,
-        /// Its kind.
-        a_kind: geom::SurfaceKind,
-        /// The B-side germ face.
-        b_face: FaceKey,
-        /// Its kind.
-        b_kind: geom::SurfaceKind,
-        /// The loops the plane cuts.
-        loops: SpiricLoops,
-        /// The section table's refusal.
-        section: geom_brep::SectionError,
     },
     /// **A node of an equal cylinder pair's section that the Boolean
     /// does not build.** Two equal cylinder walls whose axes meet cut
@@ -4585,7 +4551,8 @@ pub enum BooleanError {
     /// slit or zero-area ring, whose two edges the zip glued into one
     /// edge of that face with a free end, a strut, and deleting a strut
     /// from a curved face is not built (`slit::close_struts`,
-    /// `crate::strut`'s `StrutRefusal::Curved`). Of a strut with both
+    /// `crate::strut`'s `StrutRefusal::Curved`), or of a chart cut's
+    /// piece with a free end (`slit::close_cuts`). Of a strut with both
     /// ends free, the lone ring's bridge is a line chord, which lies in
     /// no curved face; the strut deleted with one free end by `kev`
     /// mints nothing and is refused with it. A construction gap, with
@@ -4705,6 +4672,8 @@ pub enum BooleanErrorKind {
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
+    /// [`BooleanError::JunctionEndUnread`].
+    JunctionEndUnread,
     /// [`BooleanError::CurvedPierceEscalated`].
     CurvedPierceEscalated,
     /// [`BooleanError::CrossingAtConeApex`].
@@ -4789,8 +4758,6 @@ pub enum BooleanErrorKind {
     NurbsExtentUnsupported,
     /// [`BooleanError::FallbackExtentUnsupported`].
     FallbackExtentUnsupported,
-    /// [`BooleanError::RechartedRowUnstated`].
-    RechartedRowUnstated,
     /// [`BooleanError::SpheresMeet`].
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
@@ -4799,8 +4766,6 @@ pub enum BooleanErrorKind {
     GermSectionUnbuilt,
     /// [`BooleanError::GermSectionOpenConic`].
     GermSectionOpenConic,
-    /// [`BooleanError::GermSectionSpiric`].
-    GermSectionSpiric,
     /// [`BooleanError::NodeUnbuilt`].
     NodeUnbuilt,
     /// [`BooleanError::Euler`].
@@ -5121,6 +5086,7 @@ impl BooleanError {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
+            Self::JunctionEndUnread { .. } => BooleanErrorKind::JunctionEndUnread,
             Self::CurvedPierceEscalated { .. } => BooleanErrorKind::CurvedPierceEscalated,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
@@ -5167,12 +5133,10 @@ impl BooleanError {
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
-            Self::RechartedRowUnstated { .. } => BooleanErrorKind::RechartedRowUnstated,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermSectionUnbuilt { .. } => BooleanErrorKind::GermSectionUnbuilt,
             Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
-            Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
@@ -5295,6 +5259,7 @@ impl BooleanError {
             Self::DegenerateTorus { .. } => Err(Aborts),
             Self::CurvedSectorSideUnsupported { .. }
             | Self::CurvedPierceUnsupported { .. }
+            | Self::JunctionEndUnread { .. }
             | Self::CurvedBooleanUnsupported { .. }
             | Self::VertexPairAtConeApex { .. }
             | Self::ResultPinchedAtConeApex { .. }
@@ -5315,12 +5280,10 @@ impl BooleanError {
             | Self::CurvedPairUnsupported { .. }
             | Self::NurbsExtentUnsupported { .. }
             | Self::FallbackExtentUnsupported { .. }
-            | Self::RechartedRowUnstated { .. }
             | Self::SpheresMeet { .. }
             | Self::GermFrameUnsupported { .. }
             | Self::GermSectionUnbuilt { .. }
             | Self::GermSectionOpenConic { .. }
-            | Self::GermSectionSpiric { .. }
             | Self::NodeUnbuilt { .. }
             | Self::JoinCarrierUnsupported { .. }
             | Self::Revert { .. }
@@ -5420,8 +5383,6 @@ pub enum CarveStep {
     /// The kept first operand's component, which the second's is
     /// grafted into.
     Combine,
-    /// A sphere face's re-cut: its shell turned, the rest kept.
-    Recut(Operand),
     /// Operands whose boundaries do not cross: each one's kept shells.
     Fallback,
 }
@@ -5435,10 +5396,6 @@ impl CarveStep {
                 operand_word(operand)
             ),
             Self::Combine => "while the kept parts were put together".to_owned(),
-            Self::Recut(operand) => format!(
-                "while a sphere face of the {} solid was cut again",
-                operand_word(operand)
-            ),
             Self::Fallback => {
                 "while the kept shells of solids that do not cross were taken".to_owned()
             }
@@ -5500,6 +5457,66 @@ impl BooleanError {
                 ..
             } => f.write_str(
                 &geom_brep::TorusRefusal::decided(*convention, *verdict).said("a torus face's", at),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::NoLane { curve, surface },
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, and the Boolean cannot yet read how a {curve:?} edge leaves a \
+                 {surface:?} face there. There is no way through this in the kernel yet",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::Window,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, and the Boolean cannot find a stretch past its end where the \
+                 edge clearly leaves the other face's surface. Turning the parts so the edge \
+                 leaves the rim more steeply, or ends farther from where the two faces curve \
+                 alike across it, may let it through",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::OpposedStretches,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at a point where two stretches of that join meet running opposite \
+                 ways, and the Boolean cannot read which side of the rim the edge leaves on. There \
+                 is no way through this in the kernel yet",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::ReflexCorner,
+                ..
+            } => write!(
+                f,
+                "an edge of the {} operand ends on a rim where its face and a face of the other \
+                 join smoothly, at the point where that join stops, and the other face turns \
+                 there through more than a straight angle (or not clearly less), so the Boolean \
+                 cannot read that the edge leaves it. Moving the edge's end off that corner, or \
+                 the corner off the rim, may let it through",
+                operand_word(*operand),
+            ),
+            Self::JunctionEndUnread {
+                operand,
+                gap: JunctionEndGap::Closed,
+                ..
+            } => write!(
+                f,
+                "a closed edge of the {} operand runs through a rim where its face and a face of \
+                 the other join smoothly, and the Boolean cannot yet read past an end that is \
+                 both of its ends. There is no way through this in the kernel yet",
+                operand_word(*operand),
             ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
@@ -5761,19 +5778,6 @@ impl BooleanError {
                  cylinders or spheres",
                 operand_word(*operand),
             ),
-            Self::RechartedRowUnstated {
-                operand,
-                relation,
-                what,
-                ..
-            } => write!(
-                f,
-                "the Boolean turned a sphere of the {} operand about its centre to find where \
-                 it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({}) on that sphere's own faces: {what}",
-                operand_word(*operand),
-                relation.noun(),
-            ),
             // No operand is named: the raise sites pass the operand being
             // scanned, which is not always the one whose face the refusal cites.
             Self::FallbackExtentUnsupported { what, .. } => write!(
@@ -5823,17 +5827,6 @@ impl BooleanError {
                  edges. Recourse: tilt the parts so the flat face cuts the cone all the \
                  way round, or keep it clear of the cone face",
                 conic.named(),
-            ),
-            Self::GermSectionSpiric { loops, .. } => write!(
-                f,
-                "a flat face of one part cuts a torus face of the other at a slant, along a \
-                 curve the Boolean cannot yet trace ({}). {}",
-                match loops {
-                    SpiricLoops::AroundAxis => "two loops round the axis",
-                    SpiricLoops::AroundTube => "two loops round the tube",
-                    SpiricLoops::Null => "one loop on the tube",
-                },
-                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
@@ -6715,7 +6708,15 @@ pub(crate) fn through_the_join(
     tol: Tol,
 ) -> Result<Option<crate::test_support::JoinedOperands>, BooleanError> {
     Ok(
-        match ops::through_the_join(op, a, b, &Glue::none(), SweepStrategy::Realized, true, tol)? {
+        match ops::through_the_join(
+            op,
+            a,
+            b,
+            &Glue::none(),
+            SweepStrategy::Realized,
+            &ops::Pass::First,
+            tol,
+        )? {
             ops::Joined::Answered(_) => None,
             ops::Joined::Connected {
                 red,
@@ -7841,6 +7842,7 @@ fn verify_glued_contacts<T: Decide>(
                     JunctionCert {
                         kinds: junction.kinds,
                         rim: Some(junction.rim),
+                        touch: junction.touch,
                     },
                 );
             }
@@ -7963,6 +7965,7 @@ fn given_verdicts<T: Decide>(
                     JunctionCert {
                         kinds: (kind(a, fa), kind(b, fb)),
                         rim,
+                        touch: crate::rim_wedge::Touch::default(),
                     },
                 );
             }
@@ -8069,6 +8072,47 @@ pub(crate) enum TangencyFailure {
     Unrouted,
 }
 
+/// What [`BooleanError::JunctionEndUnread`] does not read.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it — `pncad` re-exports `topo`
+/// whole — and the Python door says which refusal it rides in
+/// (`junction_end_unread`) and carries its sentence, which names the two
+/// kinds or the window. Publishing it owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a missing lane from
+/// a missing window** without reading the sentence. When the façade
+/// carries the reading, delete this paragraph and the disposition row
+/// with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JunctionEndGap {
+    /// The end-root door has no lane for the edge's carrier and the
+    /// face's surface.
+    NoLane {
+        /// The edge's carrier.
+        curve: geom::CurveKind,
+        /// The face's surface.
+        surface: geom::SurfaceKind,
+    },
+    /// No window past the end holds its root's order, none ends clear of
+    /// the surface, or the edge does not hold its own face's side of the
+    /// rim over the window's spread.
+    Window,
+    /// The edge is closed, both its ends at the one point on the rim.
+    Closed,
+    /// The end lies where two stretches of the junction meet, ridden
+    /// opposite ways: the rim names no side of it.
+    OpposedStretches,
+    /// The end lies where the junction's touch stops, at a corner of the
+    /// other face not decided within π: the face may hold a sector on the
+    /// edge's own side of the rim.
+    ReflexCorner,
+}
+
 /// What the door's tangency check certified of a pair.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Tangency<T: Real> {
@@ -8091,13 +8135,16 @@ pub(crate) struct Tangency<T: Real> {
 /// kinds, which the cover reads, and the rim the junction was certified
 /// over, which its sector readers place their sites on
 /// ([`GluedPairs::junction_at`]).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) struct JunctionCert<T: Real> {
     /// The two carriers' kinds, A's first.
     pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The rim, or none for a given junction whose record carries no
     /// circle.
     pub(in crate::boolean) rim: Option<crate::rim_wedge::Rim<T>>,
+    /// Where along the rim the junction was glued
+    /// ([`crate::rim_wedge::Touch`]); empty for a given junction.
+    pub(in crate::boolean) touch: crate::rim_wedge::Touch<T>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -8332,7 +8379,7 @@ fn glued_face<T: Real>(
 /// **What the glue door glues of two distinct carriers**
 /// ([`verify_distinct`]): a tangency the table certified along its
 /// locus, or a junction on a rim both faces end on.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) enum DistinctGlue<T: Real> {
     /// C4's `Tangent`: the pair touches along the locus it was read on.
     Tangent(Tangency<T>),
@@ -8350,12 +8397,14 @@ pub(in crate::boolean) enum DistinctGlue<T: Real> {
 /// material, which its convex edge closes below π. What it owes is the
 /// rim's identity and that wedge, decided once over the whole rim; it
 /// claims no touch along a locus, and no reader of a tangency reads it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::boolean) struct GluedJunction<T: Real> {
     /// The two carriers' kinds, A's first.
     pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The circle both faces end on.
     pub(in crate::boolean) rim: crate::rim_wedge::Rim<T>,
+    /// Where along it they both end, leaving it on opposite sides.
+    pub(in crate::boolean) touch: crate::rim_wedge::Touch<T>,
     /// The rim's identity margin ([`crate::rim_wedge::shared_rim`]), the
     /// decision the record carries.
     pub(in crate::boolean) margin: MarginDiag,
@@ -8622,15 +8671,20 @@ fn junction_of<T: Decide>(
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
     let routing = crate::rim_wedge::classify_shared_rim(sa, sense_a, sb, sense_b, rim, reach, band);
-    let departure =
-        || crate::rim_wedge::departures(a, fa, b, fb, crate::rim_wedge::Locus::Rim(rim), band);
-    (matches!(routing, Ok(crate::rim_wedge::RimRouting::Seam))
-        && matches!(departure(), Ok(crate::rim_wedge::Departure::Opposite))
-        && crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
+    if !matches!(routing, Ok(crate::rim_wedge::RimRouting::Seam)) {
+        return None;
+    }
+    let Ok((crate::rim_wedge::Departure::Opposite, touch)) =
+        crate::rim_wedge::touch(a, fa, b, fb, crate::rim_wedge::Locus::Rim(rim), band)
+    else {
+        return None;
+    };
+    (crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
         && crate::rim_wedge::rim_edges_convex(b, fb, rim, band))
     .then_some(GluedJunction {
         kinds: (sa.kind(), sb.kind()),
         rim,
+        touch,
         margin,
     })
 }
@@ -10056,6 +10110,12 @@ mod tests {
                 edge,
                 band,
             },
+            BooleanError::JunctionEndUnread {
+                operand: Operand::A,
+                face,
+                edge,
+                gap: JunctionEndGap::Window,
+            },
             BooleanError::CurvedPierceEscalated {
                 operand: Operand::A,
                 face,
@@ -10253,12 +10313,6 @@ mod tests {
                 face,
                 what: "an uncertifiable pose",
             },
-            BooleanError::RechartedRowUnstated {
-                operand: Operand::B,
-                relation: crate::Relation::SameOpposite,
-                faces: vec![face],
-                what: "only a point decided there is stated by the faces that hold it",
-            },
             BooleanError::SpheresMeet {
                 operand: Operand::A,
                 face,
@@ -10278,17 +10332,6 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Cone,
                 conic: geom_brep::OpenConic::Hyperbola,
-            },
-            BooleanError::GermSectionSpiric {
-                a_face: face,
-                a_kind: geom::SurfaceKind::Plane,
-                b_face: face,
-                b_kind: geom::SurfaceKind::Torus,
-                loops: SpiricLoops::Null,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "a folded loop",
-                },
             },
             BooleanError::NodeUnbuilt {
                 a_face: face,
@@ -10418,6 +10461,7 @@ mod tests {
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::JunctionEndUnread => "JunctionEndUnread",
                 BooleanErrorKind::CurvedPierceEscalated => "CurvedPierceEscalated",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
@@ -10460,12 +10504,10 @@ mod tests {
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
-                BooleanErrorKind::RechartedRowUnstated => "RechartedRowUnstated",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionUnbuilt => "GermSectionUnbuilt",
                 BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
-                BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",

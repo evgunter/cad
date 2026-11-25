@@ -153,3 +153,7 @@ Corrections to family 1's sums and arc lengths and to family 5, each checked in 
 - **`rim_wedge` `same_circle` was one site, not two**; it now reads both circles' covers from `ra`'s centre.
 - **`ring_path`'s arc piece**, `chart_region`'s `hyp` (2), `curve_pair::pose`'s `route`, `line_line` and `line_conic`, and `overlap::one_sense` are converted by that unit.
 - **`profile`'s six are not one kind.** `sugar::arc_fillet_trims` levers `Leg::arm`, a field `Leg::at_corner` fills: a record. `seg::junction_reverses` and `junction_turn` and `path`'s seam side take `Seg::arm()`, for an arc `min(radius, chord)`: a curvature arm folded with a two-point read, so the conversion needs a 2D curvature door as well as the 2D point reads. `seg::sagitta` (the chord) and `path::resolve_fillet` (the anchors' separation) are two-point reads alone. The point-level reads (`points_lever_from`, `points_diameter`) are `lever-doors.sh` doors whose pins only fall, and they read `Point3`.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The `topo::boolean::ops` entry above (`SphereRecut` holds `arm` alone) is gone: `SphereRecut` and its lever are deleted with the re-chart.

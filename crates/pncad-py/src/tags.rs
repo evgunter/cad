@@ -1628,6 +1628,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::JunctionEndUnread => "junction_end_unread",
         BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
@@ -1670,12 +1671,10 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
-        BooleanErrorKind::RechartedRowUnstated => "recharted_row_unstated",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermSectionUnbuilt => "germ_section_unbuilt",
         BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
-        BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
         BooleanErrorKind::Pcurves => "pcurves",
@@ -1922,7 +1921,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
-        NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
         NamingError::PartnerUnread { .. } => "partner_unread",
@@ -1932,7 +1930,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
         NamingError::HoldingsUnread { .. } => "holdings_unread",
-        NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
         NamingError::WayInZeroBand { shape, .. } => way_shape_tag(shape),
@@ -1997,8 +1994,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count, a
-/// torus carrier its gate refused or left in band; or
-/// the face has no cover to lever the piece over.
+/// torus carrier its gate refused or left in band, a circle whose
+/// stated axis and seam name no frame; or the face has no cover to lever
+/// the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -2022,6 +2020,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
         F::Carrier(C::Torus(_)) => "torus",
+        F::Carrier(C::Frame(_)) => "circle_frame",
         F::Uncovered(_) => "uncovered",
     }
 }

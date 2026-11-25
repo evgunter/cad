@@ -389,9 +389,27 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
+    touch(a, fa, b, fb, locus, band).map(|(departure, _)| departure)
+}
+
+/// [`departures`], with the touch it was read over: each stretch (or
+/// point) of the locus both faces end on, and the way A rides it.
+///
+/// # Errors
+///
+/// As [`departures`].
+pub(crate) fn touch<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    locus: Locus<T>,
+    band: Band,
+) -> Result<(Departure, Touch<T>), RimUnread> {
+    let mut held = Touch { pieces: Vec::new() };
     let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
     else {
-        return Ok(Departure::EdgeKindUnread);
+        return Ok((Departure::EdgeKindUnread, held));
     };
     let tau = geom::conic_period::<T>().length();
     let mut cuts: Vec<T> = ra.cuts.iter().chain(&rb.cuts).copied().collect();
@@ -445,13 +463,18 @@ pub(crate) fn departures<T: Decide>(
         }
         touched = true;
         match (ca, cb) {
-            (Cover::Unread, _) | (_, Cover::Unread) => return Ok(Departure::EdgeKindUnread),
+            (Cover::Unread, _) | (_, Cover::Unread) => {
+                return Ok((Departure::EdgeKindUnread, held));
+            }
             (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
-                return Ok(Departure::Mixed);
+                return Ok((Departure::Mixed, held));
             }
             (Cover::Rides(x), Cover::Rides(y)) if x == y => same = true,
-            (Cover::Rides(_), Cover::Rides(_)) => opposite = true,
-            _ => return Ok(Departure::NoEdge),
+            (Cover::Rides(x), Cover::Rides(_)) => {
+                opposite = true;
+                held.pieces.push((s0, s1, x));
+            }
+            _ => return Ok((Departure::NoEdge, held)),
         }
     }
     if !touched {
@@ -469,28 +492,137 @@ pub(crate) fn departures<T: Decide>(
                 let abut = climb(Answering::Any, [(ahi, blo), (alo, bhi)], |(x, y)| {
                     let gap = (locus_point(locus, x) - locus_point(locus, y)).norm();
                     Rung::decide("seam_cover_abut", Margin::of(gap), band, |d| {
-                        (d.sign == geom_core::Sign::Zero).then_some(())
+                        (d.sign == geom_core::Sign::Zero).then_some(x)
                     })
                 })
-                .into_reading()?
-                .is_some();
-                if abut {
+                .into_reading()?;
+                if let Some(at) = abut {
                     touched = true;
                     if sa == sb {
                         same = true;
                     } else {
                         opposite = true;
+                        held.pieces.push((at, at, sa));
                     }
                 }
             }
         }
     }
-    Ok(match (touched, opposite, same) {
+    let departure = match (touched, opposite, same) {
         (false, _, _) => Departure::Untouched,
         (true, true, true) => Departure::Mixed,
         (true, true, false) => Departure::Opposite,
         (true, false, _) => Departure::Same,
-    })
+    };
+    Ok((departure, held))
+}
+
+/// **Where two faces leaving a rim on opposite sides touch along it**
+/// ([`touch`]): each stretch, `lo ≤ hi` on the rim's own angle with `lo`
+/// in `[0, τ)` (a stretch across the seam runs past `τ`), or a point,
+/// `lo = hi`, where the two faces' riding edges abut; and the sign A's
+/// riding half-edge runs it with against the rim's tangent. B's runs it
+/// the other way.
+#[derive(Clone, Debug)]
+pub(crate) struct Touch<T: Real> {
+    pieces: Vec<(T, T, geom_core::Sign)>,
+}
+
+impl<T: Real> Touch<T> {
+    /// A touch of these pieces, for the rows that read one.
+    #[cfg(test)]
+    pub(crate) fn of(pieces: Vec<(T, T, geom_core::Sign)>) -> Self {
+        Self { pieces }
+    }
+}
+
+impl<T: Real> Default for Touch<T> {
+    fn default() -> Self {
+        Self { pieces: Vec::new() }
+    }
+}
+
+/// Where an end on a rim lies against the touch there ([`Touch::holds`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OnTouch {
+    /// Off every stretch of it.
+    Off,
+    /// On a stretch: A rides it with `sign` there. `stops` where the end
+    /// is within the band of where the touch stops (a stretch's end no
+    /// other stretch carries on, or a touch that is a point).
+    Inside {
+        /// The sign A rides the stretch with.
+        sign: geom_core::Sign,
+        /// The end is where the touch stops.
+        stops: bool,
+    },
+    /// On two stretches ridden opposite ways, where they meet.
+    Opposed,
+}
+
+impl<T: Decide> Touch<T> {
+    /// **Where `p`, a point decided on `rim`, lies against the touch**
+    /// (`junction_end_in_extent`, metered along the rim): inside a
+    /// stretch, where the touch stops, or off it.
+    ///
+    /// # Errors
+    ///
+    /// The first in-band reading of where a stretch starts or stops.
+    pub(crate) fn holds(
+        &self,
+        rim: Rim<T>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<OnTouch, Indeterminate> {
+        use geom_core::Sign::{Positive, Zero};
+        let tau = geom::conic_period::<T>().length();
+        let at = locus_param(Locus::Rim(rim), p);
+        let meter = |m: T| {
+            crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
+        };
+        let (mut inside, mut starts, mut stops) = (Vec::new(), Vec::new(), Vec::new());
+        let mut point = false;
+        for &(lo, hi, rides) in &self.pieces {
+            // A stretch all the way round has no end of its own.
+            if meter(tau - (hi - lo))? == Zero {
+                inside.push(rides);
+                continue;
+            }
+            let past = at - lo - tau * ((at - lo) / tau).floor();
+            let from_start = meter(past)?;
+            let to_stop = meter(hi - lo - past)?;
+            let at_start = from_start == Zero || meter(tau - past)? == Zero;
+            match (at_start, from_start, to_stop) {
+                (true, _, Zero) => {
+                    starts.push(rides);
+                    point = true;
+                }
+                (true, _, _) => starts.push(rides),
+                (false, Positive, Zero) => stops.push(rides),
+                (false, Positive, Positive) => inside.push(rides),
+                _ => {}
+            }
+        }
+        let Some(sign) = inside.first().or(starts.first()).or(stops.first()).copied() else {
+            return Ok(OnTouch::Off);
+        };
+        if !inside
+            .iter()
+            .chain(&starts)
+            .chain(&stops)
+            .all(|&s| s == sign)
+        {
+            return Ok(OnTouch::Opposed);
+        }
+        // An end where one stretch stops and the next starts is inside the
+        // touch; one where only a start or only a stop holds it, or a
+        // touch that is a point, is where the touch stops.
+        let carried = !inside.is_empty() || (!starts.is_empty() && !stops.is_empty() && !point);
+        Ok(OnTouch::Inside {
+            sign,
+            stops: !carried,
+        })
+    }
 }
 
 /// Sort locus parameters ascending by decided differences (metered in
@@ -1109,26 +1241,27 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 }
 
 /// The circle carriers of a face's boundary edges.
-fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
+fn face_boundary_circles<T: geom_core::SpanLocate>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| rim_of(c.carrier()))
         .collect()
 }
 
-/// A circle carrier as a [`Rim`]; none for any other carrier.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
-fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
+/// A circle carrier as a [`Rim`]; none for any other carrier. The
+/// centre is read through the circle's own readings: its point at the
+/// parameter's zero lies `radius` along `u_ref` from it.
+fn rim_of<T: geom_core::SpanLocate>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
     match *carrier {
-        geom::Curve3::Circle(circle) => Some(Rim {
-            center: circle.frame().origin(),
-            axis: circle.axis_unit(),
-            radius: circle.radius(),
-            u_ref: circle.u_ref(),
-        }),
+        geom::Curve3::Circle(circle) => {
+            let (radius, u_ref) = (circle.radius(), circle.u_ref());
+            Some(Rim {
+                center: carrier.eval(T::zero()) - u_ref * radius,
+                axis: circle.axis_unit(),
+                radius,
+                u_ref,
+            })
+        }
         _ => None,
     }
 }
@@ -1161,7 +1294,6 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         let crate::live::BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
-        let ek = edge.key();
         let Some(curve) = edge.certified() else {
             return false;
         };
@@ -1175,7 +1307,7 @@ pub(crate) fn rim_edges_convex<T: Decide>(
         }
         on_rim += 1;
         if !matches!(
-            crate::edge_wedge(body, ek, band),
+            crate::edge_wedge(body, edge.key(), band),
             Some(geom_brep::WedgeVerdict::Crease {
                 convexity: geom_brep::Convexity::Convex,
                 ..
@@ -1266,7 +1398,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         RIM_PHASES,
     );
     use geom_brep::WedgeVerdict as V;
-    match geom_brep::edge_wedge_over_as(&walk, reach, band, geom_core::k_stats::Role::Check) {
+    match geom_brep::rim_routing_wedge(&walk, reach, band) {
         V::Crease { .. } => Ok(RimRouting::Transverse),
         V::Seam { .. } => Ok(RimRouting::Seam),
         V::End { end, .. } => Ok(RimRouting::Cusp(end)),

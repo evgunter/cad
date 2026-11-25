@@ -998,6 +998,11 @@ pub(super) fn tangent_lump<T: Decide>(
 /// off it, or a junction whose record carries no circle): each is outside
 /// what the certificate states. A placement in band, of the site on the
 /// rim or of the other operand's vertex at it, is the rim's coincidence.
+///
+/// **Not yet answered**: no row reaches a sector site on a junction's rim
+/// (the three mutants of the readers' Junction arms survive every elbow,
+/// junction and tube-chain row), so a site the certificate covers is
+/// refused typed too, as above, until one does.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn junction_lump<T: Decide>(
     rim: Option<crate::rim_wedge::Rim<T>>,
@@ -1039,11 +1044,16 @@ pub(super) fn junction_lump<T: Decide>(
             return Err(unplaced());
         }
     }
-    Ok(SideCode::Out)
+    // The certificate above states `Out`, but no geometry any row builds
+    // reaches a sector site on a junction's rim, so no row would see this
+    // arm answer wrongly; it refuses until one does
+    // (`work/heldrecords/the-junction-sector-arms-are-reached-by-no-row.md`).
+    Err(unplaced())
 }
 
 /// **A declared-`Junction` sector bound's side** at a v-v site on the
-/// rim, on the certificate [`junction_lump`] states: `On` for a bound
+/// rim, refused with [`junction_lump`] until a row reaches it; on the
+/// certificate it states: `On` for a bound
 /// that IS the glued rim's edge (its edge a circle the rim's identity
 /// ladder decides the rim, [`crate::rim_wedge::circle_is_rim`]), the edge
 /// both sectors share; `Out` for every bound that leaves the rim, every
@@ -1530,7 +1540,7 @@ struct Along {
 /// the site into the face along the germ, and the sweep would split it
 /// where it crossed out. Called by every site kind, before that site's
 /// surgery moves the orbit the bounds are read from.
-pub(super) fn germ_locus<T: Decide>(
+pub(super) fn germ_locus<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
@@ -1814,7 +1824,7 @@ impl ClosedReach {
 /// inside and the reading leaves the edge's carrier unread against some
 /// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
-fn closed_reach<T: Decide>(
+fn closed_reach<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     e: Along,
     (body, faces): (&Body<T>, &[FaceKey]),
@@ -3144,13 +3154,13 @@ mod tests {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 1.0, 0.0);
         let h = core::f64::consts::FRAC_PI_4;
-        let apex = ConeApex {
-            apex: o,
-            axis: geom_core::UnitVec3::exact_y(),
-            half_angle: h,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        };
+        let apex = ConeApex::stated(
+            o,
+            geom_core::UnitVec3::exact_y(),
+            h,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        );
         let start = Vec3::new(h.sin(), -h.cos(), 0.0);
         for turn in [0.25, 0.45, 0.75] {
             let azimuth = turn * core::f64::consts::TAU;
@@ -3176,7 +3186,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis.get()) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis().get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(
@@ -5202,7 +5212,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
+            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex().equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

@@ -329,9 +329,14 @@ edge the result carries on the locus. One tangent pair can leave a seam
 under one op, a knife edge under another and no edge under a third.
 Where both faces end on a rim, the pair is a `Junction` (C4) when the
 routing reads the π seam with the faces leaving on opposite sides and
-each operand's own rim edge is a convex crease; the zip mints a seam
-carrying `TangentIntersection`. Any other rim is read as a tangency
-along its circle, the table first and the routing after a touch (C7). A G1 joint authored inside one
+each operand's own rim edge is a convex crease. The zip leaves a seam,
+carrying the rim edge's own description where it rests:
+`TangentIntersection` where the jet is determinate along it (`|κ_rel|`
+certified bounded away from zero over the edge), the pair where it is
+not (a bend whose `κ_rel` crosses zero on the edge, at a station or
+between them), its bend under-determined. Any other rim is read as a
+tangency along its circle, the table first and the routing after a
+touch (C7). A G1 joint authored inside one
 profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
@@ -365,6 +370,43 @@ parent face, and an endpoint off the carrier is eventless only on that
 side. It is never read from values: a root verdict of "tangent" is a
 band decision, so a graze within the band refuses, and an exact tangency
 is reached only through structure or a glue.
+
+*An end on a junction's rim.* Where an edge's parent face and the
+target face were glued a junction on a rim (C4's `Junction` row: both
+end on it, leaving it on opposite sides) and the edge's end lies on that
+rim (decided Zero, `junction_end_on_rim`) inside the stretch the two
+faces were glued over (`junction_end_in_extent`), the end's root on the
+target's carrier is the junction's, and no cover is claimed. The
+end-root door (`geom_brep::curve_face::end_root`) reads a line or a
+circle against a plane, a cylinder, a sphere, a cone or a torus; it
+composes the carrier from the end with the target's canonical form and
+decides the root's order: the least coefficient decided nonzero, a
+coefficient decided Zero stepped past and charged at the zero band's
+width, one in band refused (`BooleanDecision::JunctionEndOrder`). It
+then certifies a window past the end that holds no root but those the
+dropped terms can move, within the window's spread of the end.
+
+*The junction's side.* A root inside the spread is off the target face
+once the edge stands on its own face's side of the rim beyond the band,
+since the target face lies on the other side. The edge's departure from
+the rim is signed, its component along its face's inward conormal there,
+and the side margin (`junction_end_side`) is that departure's lead over
+the spread less the edge's and the rim's bends over it, decided Positive
+(in band, `BooleanDecision::JunctionEndSide`). A root nearer the end
+than where that margin clears the band lies within the band of the
+target face's boundary, not necessarily at the vertex, and is the touch
+the vertex's own placement records. No window, or a side not held,
+refuses `JunctionEndUnread` with `Window`. An end where the glued
+stretch stops is read only where the target face's corner there is
+decided within π (`junction_end_corner`), since only then does that face
+lie on its own side of the rim's tangent; a reflex or undecided corner
+refuses with `ReflexCorner`, and an end where two stretches ridden
+opposite ways meet with `OpposedStretches`. The rest of the span is the
+root doors' as any span's, so a root of the carrier there is found and
+placed in the trim: a straight tube leaving a bend G1 does meet the
+bend's carrier again, off its face. A carrier or a surface the door has
+no lane for refuses `JunctionEndUnread` with `NoLane`, and a closed edge
+with `Closed`.
 
 *Touches inside the edge.* A covered LINE touching a cylinder or a
 sphere inside the edge is read again on the edge's fragments once both
@@ -884,8 +926,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      one lineage, which states for each cell what the op made of it:
      kept; substituted by a cell that holds its interior (a merge's
      face, a join's edge, a seam); divided, into its pieces and the
-     cells the op minted between them, the division exhaustive or with
-     its remainder removed; or removed. One carry, for the boolean and
+     cells the op minted between them, and the cells it removed, each
+     named; or removed whole. One carry, for the boolean and
      every surgery verb alike, lands a record whose two cells the op kept
      or substituted on their images by lineage, unread, each image on
      its cell's carrier and holding its old interior and the record read
@@ -900,9 +942,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      op that cuts with many surfaces (the boolean's tool) decides every
      such meeting at its door ([coincidence]), and the landing cites the decision
      beside the record; any other op refuses one. A record
-     that lands on no pair, every pair read definitely, is consumed
-     where one of its cells was removed, divided with its remainder
-     removed, or moved, or where the op put its two cells in different
+     that lands on no kept pair is read the same way against the
+     cells the op removed, and is consumed where it lands only on
+     them, or where the op put its two cells in different
      result bodies, each holding images of one cell alone and each
      reaching the cut by a decision the op made: the touch is
      then a meeting between two bodies, as a split's two sides meet
@@ -1165,8 +1207,10 @@ sides of a face (`MaterialOnBothSides`).
   the circle's identity (`rim_wedge::shared_rim`, decided Zero or
   refused in band); the routing's π wedge at every station round it
   (`rim_wedge::classify_shared_rim`, whose fold runs
-  `second_order_walk` at each station, so a station's in-band bend
-  still stops it, `work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`);
+  `second_order_walk` at each station, read through
+  `geom_brep::rim_routing_wedge`: a station whose bend lands in the band
+  leaves the seam's bend under-determined, not its wedge; the seam's
+  description still refuses on it);
   the two faces leaving it on opposite sides (`rim_wedge::departures`);
   and each operand's own edges on the circle convex creases
   (`rim_wedge::rim_edges_convex`, `dihedral_sign` at each station of
@@ -1186,13 +1230,15 @@ sides of a face (`MaterialOnBothSides`).
   order.
 
   MATE-7's "osculating rims (in-band κ_rel) escalate" is the routing's
-  in-band arm: a station whose bend lands in the band leaves the
-  routing undecided, so no junction glues, and the table along the rim
-  escalates as it always has. An isolated decided zero of `κ_rel` on a
-  π seam is not that: the wedge there is π, a first-order fact the
+  in-band arm where the bend decides the wedge: faces facing each other
+  part at a cusp or a slit by the sign of `κ_rel`, so a station whose
+  bend lands in the band leaves that wedge undecided, no junction
+  glues, and the table along the rim escalates as it always has. On a π
+  seam the bend decides no wedge: the wedge is π, a first-order fact the
   normals decide at every station, and the material is smooth through
-  the rim whatever the bend does between them; only a tangency, whose
-  interiors meet along the locus, needs the side the sheets part to.
+  the rim whatever the bend does there, a decided zero or one in band;
+  only a tangency, whose interiors meet along the locus, needs the side
+  the sheets part to.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own

@@ -151,7 +151,8 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
         ("cut_cylinder", 0x578d_6718_4b8b_6b9f_u64),
-        ("part_select", 0xa89f_95cc_00c7_a63b),
+        // Re-cut: PR 7471's along-edge chord keeps the edge's own description, so the cut box's rim lines name the surface record their edges carried in.
+        ("part_select", 0x93b9_dff5_cd18_00d3),
         ("kitchen_sink", 0x0027_ff77_60b2_466b),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));

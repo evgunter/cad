@@ -4,9 +4,10 @@ kind: issue
 title: A face pair with a certified interior loop (the section certificate's R-loop) refuses where the loop could be cut into both faces and answered
 status: open
 opened: 2026-09-28
-priority: P3
+priority: P0
 cost: H
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+design: true
 ---
 
 ## What
@@ -90,3 +91,35 @@ refuse `FallbackExtentUnsupported` with the R-loop sentence ("a closed
 loop interior to both faces"), at ε 1e-6, 1e-9 and 1e-12.
 
 Moved from GERMTAIL to GERM on 2026-11-20, by `git mv`, when GERMTAIL merged into GERM: GERMTAIL held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## 2026-11-23 — re-banded P0: a ball at a slab's edge or corner (ORBIT)
+
+ORBIT's PR 7602, which cuts every sphere escape along a meridian (no more re-charts), went to two independent reviewers. Both measured this row's refusal on ordinary pip geometry, identically on main (merge-base 62cf6a975) and on the PR (05f03d174).
+
+- **Which poses refuse.** A closed ball poking two or three faces of a 4 × 4 × 1 slab (r 0.4), spun about its own pole in 30° steps, refuses `CurvedPairUnsupported { site: InteriorLoopGuard }` (`boolean::ops`, `interior_loop_verdict`) on roughly half the spins. Those are the spins where the ball's seam crosses one escape circle while another circle lies off every edge. Examples:
+  - a y-poled pip at the slab's edge, at every spin;
+  - 12 of 14 corner poses;
+  - the (1, 1, 1) and odd pole axes.
+- **Why the cut-in does not reach them.** It answers only on the no-crossings path (`through_the_join` takes it only when `red.null_pairs` is empty).
+
+A ball sunk at a die's edge or corner is a normal verb on normal geometry, so this row takes P0 (`work/README.md`, Priority). The probes are in the PR 7602 review reports; ORBIT can supply them. (ORBIT orchestrator)
+
+## 2026-11-23 — the cut-in is transient now; the class stays split by path (ORBIT)
+
+Evidence from `orbit/transient-chart-cut`. The re-entered op's output
+stage now deletes every piece of a cut-in's meridian
+(`topo::boolean::slit::close_cuts`). A sphere face that keeps the region
+round a section circle ends holding that circle as a **ring**: the
+ringed sphere face this row's 2026-10-05 evidence found nothing reads.
+It now passes tier 3, and props measure it at its closed form. The
+mesher draws it, except where the ring reader cannot clear the ring
+against an outer row whose box does not tighten
+(`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+
+The class is still split by path. The cut-in serves only **sphere**
+faces, and only on the **no-crossings** path (`sphere_extent_scan`,
+then `apply_cut_ins`). On the crossings path, an R-loop anywhere refuses
+the op (`boolean::ops::interior_loop_verdict`), a sphere's included,
+however other pairs cross. Whether a certified interior loop is cut in
+(and closed) on every path and surface, or stays a refusal off the
+sphere case, is a design question: `design: true`.

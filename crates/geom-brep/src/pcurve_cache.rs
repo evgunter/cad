@@ -534,52 +534,39 @@ pub enum Pcurve<T: Real> {
     /// measuring, which is why the variants are distinct and no arm
     /// is ever a catch-all for the other.
     General(Arc<NurbsCurve2<T>>),
-    /// The **exact straight line in UV**: `P(t) = p0 + pl·t` — the
-    /// iso-parameter lane of a NURBS chart (M6-3; M5 PR 10 §3's
-    /// "Line-in-UV pcurve variant", landed where its first minting
-    /// construction lands).
+    /// The **exact iso line in UV**: a row or a column of a NURBS chart
+    /// (M6-3), stated as the chart line it lies on and one map along it,
+    /// `P(t) = line.point(at0 + rate·t)`.
     ///
-    /// Why a dedicated variant instead of a [`Pcurve::Harmonic`] with
-    /// zero trigonometric channels: the iso lane's certification
-    /// hinges on the image being exactly line-shaped, and scalar
-    /// equality is deliberately not a thing this kernel does outside
-    /// `f64` structure (C6) — the VARIANT makes the shape structural,
-    /// so no zero-test on `T` ever has to run. Every loft/sweep wall
-    /// boundary stores this form: wall–wall seams as `u = const`
-    /// lines, cap–wall rims as `v = const` lines (the definitional
-    /// payoff — no fit anywhere). A `u = const` line may sit on an
-    /// INTERIOR column of its chart (a chart wider than the face it
-    /// trims): the certificate's hull then rests on the de Boor
-    /// collapse rather than a boundary row, and the variant is the same
-    /// one — nothing reads "boundary" off it.
+    /// **The held line is structure.** `line` says which chart
+    /// coordinate the image holds fixed and the one value it holds it
+    /// at, exact where a mint placed it (a boundary row's `v = 1`, a
+    /// seam's `u = 0`); the map moves the other coordinate over the
+    /// edge's parameter. So "this image is a row" is the variant's
+    /// answer, never a zero read off a slope, a diagonal line of the
+    /// chart is unwritable, and the image states no ends: where a row
+    /// meets a column the corner is the meet of the two held values
+    /// (`topo`'s `Lift::joint_point`), exact wherever both are, and
+    /// anywhere else an end is the map's value there, which at an
+    /// enclosure scalar encloses it (a rim whose span is a computed
+    /// length `L` moves at `1/L`, and `(1/L)·L` encloses `1` without
+    /// being it).
     ///
-    /// **Its ends, where they are stated.** `p0 + pl·t` read at an end of
-    /// its edge's span is that end through arithmetic, and at an
-    /// enclosure scalar the arithmetic forgets what the construction
-    /// knew: a rim whose span is a computed length `L` is minted with
-    /// `pl = 1/L`, and `pl·L` encloses `1` without being it. A mint that
-    /// places the image from one chart point at its edge's start to
-    /// another at its end (a boundary row or column traversed whole)
-    /// stores the two in `ends`, and [`Pcurve::span_ends`] reads them
-    /// there; every other image reads its ends through the map. A stated
-    /// end is certified twice: check 3 reads it at the span end it images
-    /// (`schedule_residuals`), so an end the carrier does not reach is
-    /// refused, and check 4's envelope carries its metred distance from
-    /// the map's value there, which the rectangle lane pads by.
+    /// Every loft/sweep wall boundary stores this form: wall–wall seams
+    /// as columns, cap–wall rims as rows (the definitional payoff: no
+    /// fit anywhere). A column may sit on an INTERIOR column of its
+    /// chart (a chart wider than the face it trims): the certificate's
+    /// hull then rests on the de Boor collapse rather than a boundary
+    /// row, and the variant is the same one — nothing reads "boundary"
+    /// off it.
     IsoLine {
-        /// The chart point at `t = 0`.
-        p0: Point2<T>,
-        /// The velocity in chart coordinates (constant).
-        pl: Vec2<T>,
-        /// The chart points at the start and the end of the span of the
-        /// edge the image is stored on. `Some` holds what a mint stated
-        /// (a boundary row's corners, exact; the importer's column, whose
-        /// corners a banded selection chose), and, where an operation
-        /// moved one end of the span, the map's value there
-        /// ([`Pcurve::with_end_at`]: a split's cut, a re-anchored end, both
-        /// ends of a joined edge). `None` is an image placed by its map
-        /// alone, every end read through the map.
-        ends: Option<[Point2<T>; 2]>,
+        /// The chart line the image lies on.
+        line: ChartLine<T>,
+        /// The moving coordinate at `t = 0`.
+        at0: T,
+        /// The moving coordinate's rate over the edge's parameter
+        /// (constant).
+        rate: T,
     },
     /// The **circular-ARC rim** on a NURBS chart (M8-3): the chart
     /// image is again an exact straight line in UV — the boundary
@@ -617,10 +604,15 @@ pub enum Pcurve<T: Real> {
     /// `enclosure_hull`, the same mechanism [`Pcurve::Fitted`] already
     /// uses to stay sound at interval scalars.
     IsoArc {
-        /// The chart point at the arc's start (`g = 0`).
-        p0: Point2<T>,
-        /// The chart displacement over the WHOLE arc (`g: 0 → 1`).
-        pd: Vec2<T>,
+        /// The chart line the image lies on: the boundary row or column
+        /// the arc rim runs along, held as structure as an
+        /// [`Pcurve::IsoLine`]'s is.
+        line: ChartLine<T>,
+        /// The moving coordinate at the arc's start (`g = 0`).
+        g0: T,
+        /// The moving coordinate's displacement over the WHOLE arc
+        /// (`g: 0 → 1`).
+        gd: T,
         /// The carrier parameter at `g = 0`.
         t0: T,
         /// The arc's total turn: the image's arc is
@@ -1059,96 +1051,111 @@ pub fn harmonic_form_of<T: Real>(u: Channel<T>, v: Channel<T>) -> HarmonicForm<T
     )
 }
 
-/// **The span of the edge an image is stored on**, the one span
-/// [`Pcurve::span_ends`] reads an image's ends over. It is handed out by
-/// the holders of that pairing, a cache ([`PcurveCache::edge_span`]) and
-/// an edge's certified curve ([`crate::EdgeCurve::edge_span`]), so no
-/// caller can ask an image for its ends over another span.
+/// **A row or a column of a chart**: the coordinate held fixed and the
+/// one value it is held at. What an iso image stores of where it lies
+/// ([`Pcurve::IsoLine`], [`Pcurve::IsoArc`]): the value is the one a
+/// mint placed, never a difference or a product of it.
 #[derive(Clone, Copy, Debug)]
-pub struct StoredSpan<T>(T, T);
+pub struct ChartLine<T> {
+    /// The coordinate held fixed: [`ChartAxis::U`](crate::ssi::ChartAxis::U)
+    /// for a column, [`ChartAxis::V`](crate::ssi::ChartAxis::V) for a row.
+    pub axis: crate::ssi::ChartAxis,
+    /// The value the line holds that coordinate at.
+    pub value: T,
+}
 
-impl<T: Copy> StoredSpan<T> {
-    /// The span `(t0, t1)`, held by the caller that pairs it with its image.
-    pub(crate) fn new(t0: T, t1: T) -> Self {
-        Self(t0, t1)
+impl<T: Real> ChartLine<T> {
+    /// The row `v = value`.
+    pub fn row(value: T) -> Self {
+        Self {
+            axis: crate::ssi::ChartAxis::V,
+            value,
+        }
     }
 
-    /// A span stated by a suite, for an image it builds by hand.
-    #[cfg(any(test, feature = "test-support"))]
-    #[must_use]
-    pub fn for_tests(t0: T, t1: T) -> Self {
-        Self(t0, t1)
+    /// The column `u = value`.
+    pub fn column(value: T) -> Self {
+        Self {
+            axis: crate::ssi::ChartAxis::U,
+            value,
+        }
     }
 
-    /// The span's ends `(t0, t1)`.
-    #[must_use]
-    pub fn ends(self) -> (T, T) {
-        (self.0, self.1)
+    /// The line's chart point where the moving coordinate is `along`.
+    pub fn point(self, along: T) -> Point2<T> {
+        match self.axis {
+            crate::ssi::ChartAxis::U => Point2::new(self.value, along),
+            crate::ssi::ChartAxis::V => Point2::new(along, self.value),
+        }
+    }
+
+    /// The chart vector `along` the line: its held coordinate's component
+    /// is the zero it is by structure.
+    pub fn vector(self, along: T) -> Vec2<T> {
+        match self.axis {
+            crate::ssi::ChartAxis::U => Vec2::new(T::zero(), along),
+            crate::ssi::ChartAxis::V => Vec2::new(along, T::zero()),
+        }
+    }
+
+    /// The moving coordinate of the chart point `p`, the one the line
+    /// does not hold.
+    pub fn along(self, p: Point2<T>) -> T {
+        match self.axis {
+            crate::ssi::ChartAxis::U => p.y,
+            crate::ssi::ChartAxis::V => p.x,
+        }
+    }
+
+    /// The line under a map of the chart: its held value through the map
+    /// of the axis it holds.
+    fn mapped(self, map: ChartMap<T>) -> Self {
+        let held = match self.axis {
+            crate::ssi::ChartAxis::U => map.u,
+            crate::ssi::ChartAxis::V => map.v,
+        };
+        Self {
+            axis: self.axis,
+            value: held.point(self.value),
+        }
+    }
+
+    /// The map of the axis the line runs ALONG, the one it does not hold.
+    fn along_map(self, map: ChartMap<T>) -> AxisMap<T> {
+        match self.axis {
+            crate::ssi::ChartAxis::U => map.v,
+            crate::ssi::ChartAxis::V => map.u,
+        }
     }
 }
 
-/// **The chart line an iso image lies on** ([`Pcurve::held_line`]): the
-/// channel it holds fixed, the value it holds there, and the moving
+/// **The chart line an iso image lies on, and how it runs along it**
+/// ([`Pcurve::held_line`]): the image's own [`ChartLine`], and the moving
 /// channel's rate along the image's own parameter.
 #[derive(Clone, Copy, Debug)]
 pub struct HeldLine<T> {
-    /// The channel held fixed: [`ChartAxis::U`](crate::ssi::ChartAxis::U)
-    /// for a column, [`ChartAxis::V`](crate::ssi::ChartAxis::V) for a row.
-    pub axis: crate::ssi::ChartAxis,
-    /// The value the line holds that channel at.
-    pub value: T,
-    /// The moving channel's rate: an `IsoLine`'s slope there, an `IsoArc`'s
+    /// The line: the channel held fixed and the value it is held at.
+    pub line: ChartLine<T>,
+    /// The moving channel's rate: an `IsoLine`'s rate, an `IsoArc`'s
     /// whole displacement (its parameter increases with the carrier's).
     /// Its sign is the way the image runs along the line.
     pub rate: T,
 }
 
-/// Why an image lies on no held line ([`Pcurve::held_line`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NoHeldLine {
-    /// The image is not an iso image: no variant states it straight.
-    NotIso,
-    /// Both channels move: a diagonal line of the chart.
-    Diagonal,
-    /// Neither channel moves: the image is one chart point.
-    Point,
-}
-
 impl<T: Real> Pcurve<T> {
-    /// **The chart line the image lies on** ([`HeldLine`]): an
-    /// [`Pcurve::IsoLine`]'s or an [`Pcurve::IsoArc`]'s fixed coordinate,
-    /// read where that channel's slope is an exact zero, so every point
-    /// of the image holds it. The one reading of a held line; a reader
-    /// that admits fewer images filters this one.
-    ///
-    /// # Errors
-    ///
-    /// [`NoHeldLine`]: a non-iso image, or an iso image with both channels
-    /// moving or neither.
-    pub fn held_line(&self) -> Result<HeldLine<T>, NoHeldLine> {
-        use crate::ssi::ChartAxis;
-        let (p0, slope) = match *self {
-            Pcurve::IsoLine { p0, pl, .. } => (p0, pl),
-            Pcurve::IsoArc { p0, pd, .. } => (p0, pd),
-            _ => return Err(NoHeldLine::NotIso),
+    /// **The chart line the image lies on** ([`HeldLine`]): what an
+    /// [`Pcurve::IsoLine`] or an [`Pcurve::IsoArc`] stores as its
+    /// [`ChartLine`], with the rate it moves along it. The one reading
+    /// of a held line; a reader that admits fewer images filters this
+    /// one. `None` for every image that is not an iso image: no other
+    /// variant states a line.
+    pub fn held_line(&self) -> Option<HeldLine<T>> {
+        let (line, rate) = match *self {
+            Pcurve::IsoLine { line, rate, .. } => (line, rate),
+            Pcurve::IsoArc { line, gd, .. } => (line, gd),
+            _ => return None,
         };
-        match (
-            geom_core::is_exact_zero(slope.x),
-            geom_core::is_exact_zero(slope.y),
-        ) {
-            (true, false) => Ok(HeldLine {
-                axis: ChartAxis::U,
-                value: p0.x,
-                rate: slope.y,
-            }),
-            (false, true) => Ok(HeldLine {
-                axis: ChartAxis::V,
-                value: p0.y,
-                rate: slope.x,
-            }),
-            (false, false) => Err(NoHeldLine::Diagonal),
-            (true, true) => Err(NoHeldLine::Point),
-        }
+        Some(HeldLine { line, rate })
     }
 
     /// **Whether the image's FORM is one no iso line of its chart takes**:
@@ -1170,31 +1177,73 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
-    /// The `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0` to
-    /// `u1` at `t1`, the span of the edge it is minted for, with its two
-    /// ends stored: the row a mint places by its ends (a boundary row
-    /// traversed whole), read there as placed at every scalar
-    /// ([`Pcurve::span_ends`]). The map is `u0 + (u1 − u0)·(t − t0)/(t1 − t0)`
-    /// and `v` itself, never a difference of it.
+    /// The row `v = const` [`Pcurve::IsoLine`] that runs from `u0` at `t0`
+    /// to `u1` at `t1`, the span of the edge it is minted for: the map is
+    /// `u0 + (u1 − u0)·(t − t0)/(t1 − t0)`, and `v` is held as given.
     #[must_use]
     pub fn iso_row(v: T, (u0, u1): (T, T), (t0, t1): (T, T)) -> Self {
-        let slope = (u1 - u0) / (t1 - t0);
+        let rate = (u1 - u0) / (t1 - t0);
         Pcurve::IsoLine {
-            p0: Point2::new(u0 - slope * t0, v),
-            pl: Vec2::new(slope, T::zero()),
-            ends: Some([Point2::new(u0, v), Point2::new(u1, v)]),
+            line: ChartLine::row(v),
+            at0: u0 - rate * t0,
+            rate,
         }
     }
 
-    /// [`Pcurve::iso_row`]'s transpose: the `u = const` column from `v0`
-    /// at `t0` to `v1` at `t1`, its ends stored.
+    /// [`Pcurve::iso_row`]'s transpose: the column `u = const` from `v0`
+    /// at `t0` to `v1` at `t1`.
     #[must_use]
     pub fn iso_column(u: T, (v0, v1): (T, T), (t0, t1): (T, T)) -> Self {
-        let slope = (v1 - v0) / (t1 - t0);
+        let rate = (v1 - v0) / (t1 - t0);
         Pcurve::IsoLine {
-            p0: Point2::new(u, v0 - slope * t0),
-            pl: Vec2::new(T::zero(), slope),
-            ends: Some([Point2::new(u, v0), Point2::new(u, v1)]),
+            line: ChartLine::column(u),
+            at0: v0 - rate * t0,
+            rate,
+        }
+    }
+
+    /// **A suite's fixture line `p0 + pl·t` as the iso image it is**: the
+    /// column `u = p0[0]` where `pl[0]` is the literal `0.0`, the row
+    /// `v = p0[1]` where `pl[1]` is. `None` for a diagonal line, which is
+    /// no iso image (a suite states it as [`Pcurve::General`]), and for a
+    /// point. The fixture's `f64` literals are read here, never a scalar's
+    /// value: an image's own axis is its [`ChartLine`].
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn iso_line_for_tests(p0: [f64; 2], pl: [f64; 2]) -> Option<Self> {
+        let c = T::from_f64;
+        match (pl[0] == 0.0, pl[1] == 0.0) {
+            (true, false) => Some(Pcurve::IsoLine {
+                line: ChartLine::column(c(p0[0])),
+                at0: c(p0[1]),
+                rate: c(pl[1]),
+            }),
+            (false, true) => Some(Pcurve::IsoLine {
+                line: ChartLine::row(c(p0[1])),
+                at0: c(p0[0]),
+                rate: c(pl[0]),
+            }),
+            _ => None,
+        }
+    }
+
+    /// An iso line read as `p0 + pl·t`: its chart point at `t = 0` and
+    /// its constant chart velocity, whose held component is the zero it
+    /// is by structure. `None` for every other variant.
+    pub fn iso_line_form(&self) -> Option<(Point2<T>, Vec2<T>)> {
+        match *self {
+            Pcurve::IsoLine { line, at0, rate } => Some((line.point(at0), line.vector(rate))),
+            _ => None,
+        }
+    }
+
+    /// An arc rim's straight chart segment read as `p0 → p0 + pd`: its
+    /// chart point at `g = 0` and its whole displacement. `None` for
+    /// every other variant.
+    pub fn iso_arc_segment(&self) -> Option<(Point2<T>, Vec2<T>)> {
+        match *self {
+            Pcurve::IsoArc { line, g0, gd, .. } => Some((line.point(g0), line.vector(gd))),
+            _ => None,
         }
     }
 
@@ -1405,26 +1454,34 @@ impl<T: Real> Pcurve<T> {
             },
             Pcurve::Fitted(image) => Pcurve::Fitted(Arc::new(image.map_points(point))),
             Pcurve::General(image) => Pcurve::General(Arc::new(image.map_points(point))),
-            Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
-                p0: point(*p0),
-                pl: vector(*pl),
-                ends: ends.map(|e| e.map(point)),
-            },
+            Pcurve::IsoLine { line, at0, rate } => {
+                let along = line.along_map(map);
+                Pcurve::IsoLine {
+                    line: line.mapped(map),
+                    at0: along.point(*at0),
+                    rate: along.vector(*rate),
+                }
+            }
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,
                 ends,
-            } => Pcurve::IsoArc {
-                p0: point(*p0),
-                pd: vector(*pd),
-                t0: *t0,
-                angle: *angle,
-                breaks: breaks.clone(),
-                ends: ends.clone(),
-            },
+            } => {
+                let along = line.along_map(map);
+                Pcurve::IsoArc {
+                    line: line.mapped(map),
+                    g0: along.point(*g0),
+                    gd: along.vector(*gd),
+                    t0: *t0,
+                    angle: *angle,
+                    breaks: breaks.clone(),
+                    ends: ends.clone(),
+                }
+            }
             // The CAP image is linear in its chart-space coefficients
             // exactly as the harmonic one is — `p0` through `point`,
             // the `f` and `sin` coefficients through `vector` — and a
@@ -1589,8 +1646,8 @@ impl<T: SpanLocate> Pcurve<T> {
     /// - a [`Pcurve::Harmonic`] channel with no period (a constant
     ///   angle, or a free channel with no `cos`/`sin` term) has its rate
     ///   divided by `k`;
-    /// - a [`Pcurve::IsoLine`] has its velocity divided by `k`, its stated
-    ///   ends, chart points, kept.
+    /// - a [`Pcurve::IsoLine`] has its rate divided by `k`; the line it
+    ///   holds and its origin along it are chart values, kept.
     ///
     /// `None` for every other image (one with a period, an arc's, a
     /// spiric's, a focal section's, a projected or a 2-D NURBS image):
@@ -1612,72 +1669,13 @@ impl<T: SpanLocate> Pcurve<T> {
                 u: channel(u)?,
                 v: channel(v)?,
             }),
-            Pcurve::IsoLine { p0, pl, ends } => Some(Pcurve::IsoLine {
-                p0: *p0,
-                pl: *pl / k,
-                ends: *ends,
+            Pcurve::IsoLine { line, at0, rate } => Some(Pcurve::IsoLine {
+                line: *line,
+                at0: *at0,
+                rate: *rate / k,
             }),
             _ => None,
         }
-    }
-
-    /// The chart points at the two ends of `span`, the span of the edge
-    /// this image is stored on: an [`Pcurve::IsoLine`]'s stated `ends`
-    /// where it holds them, the map's value at the span's ends
-    /// ([`Pcurve::eval`]) otherwise. The ends are the edge's, which is why
-    /// the span is a [`StoredSpan`]: a sub-span cannot be asked.
-    pub fn span_ends(&self, span: StoredSpan<T>) -> [Point2<T>; 2] {
-        match self {
-            Pcurve::IsoLine {
-                ends: Some(ends), ..
-            } => *ends,
-            _ => {
-                let (t0, t1) = span.ends();
-                [self.eval(t0), self.eval(t1)]
-            }
-        }
-    }
-
-    /// This image over its edge's span with one end moved to `t` (the
-    /// span's end where `end`, its start otherwise): the same map, an
-    /// [`Pcurve::IsoLine`]'s stated end at the moved end read through
-    /// the map there, and the other kept.
-    #[must_use]
-    pub fn with_end_at(&self, end: bool, t: T) -> Self {
-        match self {
-            Pcurve::IsoLine {
-                p0,
-                pl,
-                ends: Some(ends),
-            } => {
-                let mut ends = *ends;
-                ends[usize::from(end)] = self.eval(t);
-                Pcurve::IsoLine {
-                    p0: *p0,
-                    pl: *pl,
-                    ends: Some(ends),
-                }
-            }
-            _ => self.clone(),
-        }
-    }
-
-    /// This image over a span `(t0, t1)` its edge was given anew, its
-    /// stated ends read through the map at both ([`Pcurve::with_end_at`]):
-    /// where an edge's span is re-read, nothing says either end is still
-    /// the one the mint placed.
-    #[must_use]
-    pub fn over_span(&self, (t0, t1): (T, T)) -> Self {
-        self.with_end_at(false, t0).with_end_at(true, t1)
-    }
-
-    /// This image as its edge's two children at the split parameter `t`
-    /// store it, `(first, second)` over `[t0, t]` and `[t, t1]`
-    /// ([`Pcurve::with_end_at`]): a stated end kept on the child that
-    /// keeps that end of the span, and the cut read through the map.
-    #[must_use]
-    pub fn split_at(&self, t: T) -> (Self, Self) {
-        (self.with_end_at(true, t), self.with_end_at(false, t))
     }
 
     /// The chart point at the **carrier parameter** `t` (module docs:
@@ -1694,17 +1692,18 @@ impl<T: SpanLocate> Pcurve<T> {
                 )
             }
             Pcurve::Fitted(image) | Pcurve::General(image) => image.eval(t),
-            Pcurve::IsoLine { p0, pl, .. } => Point2::new(p0.x + pl.x * t, p0.y + pl.y * t),
+            Pcurve::IsoLine { line, at0, rate } => line.point(*at0 + *rate * t),
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,
                 ends,
             } => {
                 let g = iso_arc_g(t, *t0, *angle, breaks, ends);
-                Point2::new(p0.x + pd.x * g, p0.y + pd.y * g)
+                line.point(*g0 + *gd * g)
             }
             // One `sin_cos`, one `sqrt` (inside `spiric_radial`), one
             // `atan2` on the wall — the carrier's own evaluation order
@@ -1791,9 +1790,9 @@ impl<T: SpanLocate> Pcurve<T> {
             }
             // A straight line is a harmonic image with no
             // trigonometric part, and its box is its endpoint hull.
-            Pcurve::IsoLine { p0, pl, .. } => {
+            Pcurve::IsoLine { line, at0, rate } => {
                 let zero = Vec2::new(T::zero(), T::zero());
-                harmonic_span_box(*p0, zero, zero, *pl, t0, t1)
+                harmonic_span_box(line.point(*at0), zero, zero, line.vector(*rate), t0, t1)
             }
             // The arc rim's chart image is the SEGMENT `p0 → p0 + pd`
             // (`g` is monotone in `t`: `tan` is monotone on
@@ -1805,8 +1804,8 @@ impl<T: SpanLocate> Pcurve<T> {
             // sub-span — what a restriction of a stored row to one
             // child of a parameter split asks for — gets a
             // conservative box, never a wrong one.
-            Pcurve::IsoArc { p0, pd, .. } => {
-                let b = Point2::new(p0.x + pd.x, p0.y + pd.y);
+            Pcurve::IsoArc { line, g0, gd, .. } => {
+                let (p0, b) = (line.point(*g0), line.point(*g0 + *gd));
                 ChartWindow {
                     u_min: p0.x.min(b.x),
                     u_max: p0.x.max(b.x),
@@ -1900,15 +1899,59 @@ impl<T: SpanLocate> Pcurve<T> {
     /// shift is not a re-derivation: the row stays the placed one, and
     /// only the walk's deck element names a lift.
     ///
-    /// The iso lane lives on NURBS charts, which have no periodic
-    /// azimuth, so no minted iso line or arc rim is ever shifted; the
-    /// map is kept total over them rather than special-cased — a
-    /// shift by `k` periods of a non-periodic chart is meaningless
-    /// but harmless, and the loop walk never computes a nonzero `k`
-    /// there.
+    /// **An iso image's held value is moved as a value, not by a sum**
+    /// ([`Period::moved`]): a seam column held at one end of a closed
+    /// spline chart's domain, lifted one period, is held at the other end
+    /// itself, where a translation would hold it at `lo + (hi − lo)`.
     #[must_use]
     pub fn shift_branch(&self, k: i32, period: Period<T>) -> Self {
-        self.translate(period.times(k), T::zero())
+        self.shift_along(crate::ssi::ChartAxis::U, k, period)
+    }
+
+    /// [`Pcurve::shift_branch`] on the SECOND channel, for the charts
+    /// closed in `v` (sphere, torus, a net closed in `v`).
+    #[must_use]
+    pub fn shift_branch_v(&self, k: i32, period: Period<T>) -> Self {
+        self.shift_along(crate::ssi::ChartAxis::V, k, period)
+    }
+
+    /// The image moved `k` whole periods of the channel `axis`: an iso
+    /// image holding that channel has its held value moved
+    /// ([`Period::moved`]); every other image is translated by
+    /// `k·period`.
+    fn shift_along(&self, axis: crate::ssi::ChartAxis, k: i32, period: Period<T>) -> Self {
+        let held = |line: ChartLine<T>| ChartLine {
+            axis,
+            value: period.moved(line.value, k),
+        };
+        match self {
+            Pcurve::IsoLine { line, at0, rate } if line.axis == axis => Pcurve::IsoLine {
+                line: held(*line),
+                at0: *at0,
+                rate: *rate,
+            },
+            Pcurve::IsoArc {
+                line,
+                g0,
+                gd,
+                t0,
+                angle,
+                breaks,
+                ends,
+            } if line.axis == axis => Pcurve::IsoArc {
+                line: held(*line),
+                g0: *g0,
+                gd: *gd,
+                t0: *t0,
+                angle: *angle,
+                breaks: breaks.clone(),
+                ends: ends.clone(),
+            },
+            _ => match axis {
+                crate::ssi::ChartAxis::U => self.translate(period.times(k), T::zero()),
+                crate::ssi::ChartAxis::V => self.translate(T::zero(), period.times(k)),
+            },
+        }
     }
 }
 
@@ -1934,14 +1977,18 @@ impl Pcurve<f64> {
         }
         match self {
             Pcurve::Harmonic { u, v } => Ok(speed::harmonic_speeds(*u, *v)),
-            Pcurve::IsoLine { pl, .. } => Ok((pl.x.abs(), pl.y.abs())),
+            Pcurve::IsoLine { line, rate, .. } => {
+                let pl = line.vector(*rate);
+                Ok((pl.x.abs(), pl.y.abs()))
+            }
             Pcurve::IsoArc {
-                pd,
+                line,
+                gd,
                 angle,
                 breaks,
                 ends,
                 ..
-            } => speed::iso_arc_speeds(*pd, *angle, breaks, ends),
+            } => speed::iso_arc_speeds(line.vector(*gd), *angle, breaks, ends),
             Pcurve::General(image) => speed::general_speeds(image, (t0, t1)),
             Pcurve::Fitted(_) => Err(NoSpeedBound::Fitted),
             Pcurve::Spiric {
@@ -2378,8 +2425,10 @@ pub enum PcurveCertifyError {
     /// refuse one outside the domain); an
     /// interior column or row of a chart whose weight net varies along both
     /// parameters (the collapsed row's weights are computed, so no
-    /// stored carrier shares its space); a DIAGONAL line in UV; a
-    /// degenerate iso (neither chart channel moves); an image that
+    /// stored carrier shares its space); a
+    /// degenerate iso (its moving chart channel does not definitely move
+    /// over the span; a line slanted in its chart is no iso image and is
+    /// stated as a curve in UV, so no diagonal reaches this lane); an image that
     /// leaves the chart's parameter domain, where the hull bound does
     /// not hold; a carrier whose spline structure is not the traversed
     /// column's, or whose weights are not positive (the convex-hull
@@ -5332,12 +5381,6 @@ impl<T: Real> PcurveCache<T> {
         (self.param_start, self.param_end)
     }
 
-    /// [`Self::params`] as the span [`Pcurve::span_ends`] reads this
-    /// cache's image over.
-    pub fn edge_span(&self) -> StoredSpan<T> {
-        StoredSpan::new(self.param_start, self.param_end)
-    }
-
     /// The certification record of the run that admitted this cache.
     pub fn certificate(&self) -> &PcurveCertificate<T> {
         &self.certificate
@@ -5499,14 +5542,15 @@ impl<T: Decide> PcurveCache<T> {
                         run_iso_checks(iso, t0, t1, carrier, surface, band)
                     }
                     Pcurve::IsoArc {
-                        p0,
-                        pd,
+                        line,
+                        g0,
+                        gd,
                         t0: at0,
                         angle,
                         breaks,
                         ends,
                     } => run_iso_arc_checks(
-                        *p0, *pd, *at0, *angle, breaks, ends, t0, t1, carrier, surface, band,
+                        *line, *g0, *gd, *at0, *angle, breaks, ends, t0, t1, carrier, surface, band,
                     ),
                     // EXHAUSTIVE by variant, never a catch-all (D3): a
                     // catch-all here would route a NEW closed-form variant
@@ -5758,7 +5802,7 @@ impl<T: Decide> PcurveCache<T> {
     /// whether the fitted door is held, compared), and derived again
     /// everywhere else.
     ///
-    /// The carrier's incidence on the chart is read over `edge_span`, the
+    /// The carrier's incidence on the chart is read over `(t0, t1)`, the
     /// edge's own interval (`incidence_ended`): first on an analytic chart;
     /// on a spline chart where the row refuses, or where the row's span
     /// is not shown to cover the edge's, since the row's certificate
@@ -5836,15 +5880,17 @@ impl<T: Decide> PcurveCache<T> {
                 band,
             ),
             Pcurve::IsoArc {
-                p0,
-                pd,
+                line,
+                g0,
+                gd,
                 t0,
                 angle,
                 breaks,
                 ends,
             } => run_iso_arc_checks(
-                *p0,
-                *pd,
+                *line,
+                *g0,
+                *gd,
                 *t0,
                 *angle,
                 breaks,
@@ -7049,10 +7095,41 @@ fn rim_slant<T: Real>(h: T, radius: T, half_angle: T, nappe: Nappe) -> T {
 
 /// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
 /// polynomial in the carrier's and the chart's data and `√(p²) = p` is
-/// never asked of the arithmetic. `p_sq` is `p²` in the caller's own
-/// spelling; `p ≥ 0`.
+/// never asked of the arithmetic: [`geom_core::radius_gap`]'s identity
+/// for a length `p` that is no stored radius and whose square the
+/// caller holds in its own spelling `p_sq` (a root's radicand, a
+/// magnitude's signed square, a product). `p ≥ 0`; a chart's own radius
+/// is read through [`wall_gap`].
 fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
+}
+
+/// **A point's distance from a chart of radius `radius`**, `w` its offset
+/// from the chart's centre or axis: `|‖w‖ − radius|` through
+/// [`geom_core::Vec3::radius_gap`], so a point built at
+/// `centre + radius·x`, `x` a unit direction, reads the zero form. The
+/// radius is positive wherever the surface is at rest (check 1's
+/// `radius > 0`); the `abs` is of the whole quotient so that a radius
+/// `−R` that reaches here all the same reads `‖w‖ + R`, never on.
+fn wall_gap<T: Real>(radius: T, w: Vec3<T>) -> T {
+    #[cfg(test)]
+    if mutants::distance_raw_norm() {
+        return (w.norm() - radius).abs();
+    }
+    w.radius_gap(radius).abs()
+}
+
+/// **A cylinder ruling's direction in the chart's angular frame**
+/// (`cv`, `u_ref`): its radial offset `w_r` over the chart's radius. A
+/// ruling built at `origin + radius·x` reads `x`'s own components, with
+/// no sign asked of the radius; wherever the radius is positive it is
+/// `w_r`'s angle.
+fn ruling_direction<T: Real>(w_r: Vec3<T>, radius: T, cv: Vec3<T>, u_ref: Vec3<T>) -> Azimuth<T> {
+    #[cfg(test)]
+    if mutants::ruling_azimuth_unscaled() {
+        return Azimuth::of(w_r.dot(cv), w_r.dot(u_ref));
+    }
+    Azimuth::of(w_r.dot(cv) / radius, w_r.dot(u_ref) / radius)
 }
 
 /// `p/‖q‖ − 1`, the factor that stretches `q` to length `p` (`q·(1 + k)`
@@ -7220,7 +7297,7 @@ fn incidence<T: Decide>(
                 // the moving arm is a conic's, whose `l` is zero.
                 _ => {
                     terms.add(Line, radial(l).norm() * reach);
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
+                    terms.add(Radius, wall_gap(radius, w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
             }
@@ -8941,17 +9018,9 @@ fn schedule_residuals<T: Decide>(
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
-    // The first and last stations are the span's ends, read as the image
-    // states them there: a stated end is certified where it is read.
-    let last = CERT_SAMPLES - 1;
-    let [start, end] = pcurve.span_ends(StoredSpan::new(stations.at(0), stations.at(last)));
     for i in 0..CERT_SAMPLES {
         let t = stations.at(i);
-        let chart_point = match i {
-            0 => start,
-            i if i == last => end,
-            _ => pcurve.eval(t),
-        };
+        let chart_point = pcurve.eval(t);
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
         check_residual_as(
@@ -9329,8 +9398,9 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
 )]
 fn run_iso_arc_checks<T: Decide>(
-    p0: Point2<T>,
-    pd: Vec2<T>,
+    line: ChartLine<T>,
+    g0: T,
+    gd: T,
     at0: T,
     angle: T,
     breaks: &KnotVector,
@@ -9413,9 +9483,11 @@ fn run_iso_arc_checks<T: Decide>(
     }
 
     // ---- Check 3: the schedule, in metres through the map. ----
+    let (p0, pd) = (line.point(g0), line.vector(gd));
     let pcurve = Pcurve::IsoArc {
-        p0,
-        pd,
+        line,
+        g0,
+        gd,
         t0: at0,
         angle,
         breaks: breaks.clone(),
@@ -9741,6 +9813,13 @@ fn run_iso_arc_checks<T: Decide>(
 /// construction off a boundary), so each call site owns its own text.
 /// Escalations escalate. Shared by the iso-line and iso-arc classes.
 ///
+/// **The drift.** An iso line's held channel is its [`ChartLine`]'s one
+/// value, which does not move by structure, so the iso-line classes pass
+/// a zero drift and the slack is the snap to the boundary alone. The
+/// arc-rim class still reads every arc as a row and passes its segment's
+/// `v` displacement, which is zero for a row arc and the whole travel
+/// for a column arc.
+///
 /// **The domain, not the unit square (#327).** A chart the kernel
 /// BUILT is normalized to `[0, 1]²` and `(lo, hi) = (0, 1)` reads
 /// exactly as before; a chart the kernel IMPORTED carries the file's
@@ -9787,12 +9866,15 @@ fn side_of<T: Decide>(
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the harmonic lane's
 /// fidelity idiom transposed. Every slack is exactly zero on the
-/// minted path (the builder mints exact `0`/`1` chart values). A stated
-/// end ([`Pcurve::span_ends`]) adds its metred distance from the map's
-/// value at that end, so the envelope covers the image wherever either
-/// places that end: the readers of stated ends pad by it, and the
-/// rectangle lane, which reads the line the image holds and the map's
-/// end, pads by it beside the joint's gap.
+/// minted path (the builder mints exact `0`/`1` chart values).
+///
+/// **Which channel is held is the image's structure** ([`ChartLine`]),
+/// so no axis is decided here: the seam class runs on the chart for a
+/// column and on its transpose for a row, and the held channel has no
+/// drift to pay. **An end is the map's value**: check 3's first and last
+/// stations read the image at its edge's two span ends, so a map that
+/// runs to where its carrier does not is refused there, and the envelope
+/// is the map's alone.
 #[allow(clippy::too_many_lines)] // one check sequence, kept whole like its two siblings
 fn run_iso_checks<T: Decide>(
     pcurve: &Pcurve<T>,
@@ -9832,7 +9914,7 @@ fn run_iso_checks<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
 
-    let &Pcurve::IsoLine { p0, pl, ends } = pcurve else {
+    let &Pcurve::IsoLine { line, at0, rate } = pcurve else {
         unreachable!("run_iso_checks reads an IsoLine: both its callers dispatch on the variant")
     };
 
@@ -9855,78 +9937,57 @@ fn run_iso_checks<T: Decide>(
         cause,
     };
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
-    let du_extent = Margin::metered_sup(pl.x.abs() * span, stretch_u);
-    let dv_extent = Margin::metered_sup(pl.y.abs() * span, stretch_v);
-    let u_moves = !matches!(
-        decide("pcurve_iso_axis_u", du_extent, band).map_err(esc)?,
-        Sign::Zero
-    );
-    let v_moves = !matches!(
-        decide("pcurve_iso_axis_v", dv_extent, band).map_err(esc)?,
-        Sign::Zero
-    );
-    let envelope = match (u_moves, v_moves) {
-        // The SEAM class: u banded-constant, v traverses the carrier's
-        // own parameter. With `u*` the row's parameter (a domain end
-        // for a boundary row, `u_start` itself for a collapsed one):
-        // sup |S(P(t)) − C(t)| ≤
-        //   |S(u(t), v(t)) − S(u*, v(t))|     (u snap + drift slack)
-        // + |S(u*, v(t)) − B(v(t))|           (exactly 0: B IS S(u*, ·))
-        // + |B(v(t)) − C(v(t))|               (control hull, same basis)
-        // + |C(v(t)) − C(t)|                  (parameter-map slack).
-        (false, true) => seam_envelope(
+    // The moving channel moves: its extent over the span, in metres
+    // through its own stretch, is decided past the band.
+    let moves = match line.axis {
+        crate::ssi::ChartAxis::U => decide(
+            "pcurve_iso_axis_v",
+            Margin::metered_sup(rate.abs() * span, stretch_v),
+            band,
+        ),
+        crate::ssi::ChartAxis::V => decide(
+            "pcurve_iso_axis_u",
+            Margin::metered_sup(rate.abs() * span, stretch_u),
+            band,
+        ),
+    };
+    if let Sign::Zero = moves.map_err(esc)? {
+        return Err(PcurveCertifyError::IsoUnsupported {
+            what: "a DEGENERATE iso line (its moving chart channel does not definitely \
+                   move over the span)",
+        });
+    }
+    // The SEAM class, on the chart for a column (`u` held, `v`
+    // traversing the carrier's own parameter) and on its transpose for a
+    // row (a row of the chart is a column of its transpose: a line rim or
+    // a spline row, on a boundary row, a control-net copy, or an interior
+    // one, the collapse). With `u*` the column's parameter (a domain end
+    // for a boundary column, the held value itself for a collapsed one):
+    // sup |S(P(t)) − C(t)| ≤
+    //   |S(u, v(t)) − S(u*, v(t))|        (u snap slack)
+    // + |S(u*, v(t)) − B(v(t))|           (exactly 0: B IS S(u*, ·))
+    // + |B(v(t)) − C(v(t))|               (control hull, same basis)
+    // + |C(v(t)) − C(t)|                  (parameter-map slack).
+    let envelope = match line.axis {
+        crate::ssi::ChartAxis::U => seam_envelope(
             payload,
-            (p0, pl, ends.map(|[a, b]| [a.y, b.y])),
+            (line.value, at0, rate),
             (t0, t1),
             carrier,
             (stretch_u, stretch_v),
-            du_extent.value(),
             band,
             &esc,
         )?,
-        // The CAP class: `v` banded-constant, `u` traversing. A row of
-        // the chart is a column of its transpose, so this is the seam
-        // class run there: a line rim or a spline row, on a boundary
-        // row (a control-net copy) or an interior one (the collapse).
-        (true, false) => seam_envelope(
+        crate::ssi::ChartAxis::V => seam_envelope(
             &payload.transposed(),
-            (
-                Point2::new(p0.y, p0.x),
-                Vec2::new(pl.y, pl.x),
-                ends.map(|[a, b]| [a.x, b.x]),
-            ),
+            (line.value, at0, rate),
             (t0, t1),
             carrier,
             (stretch_v, stretch_u),
-            dv_extent.value(),
             band,
             &esc,
         )?,
-        (false, false) => {
-            return Err(PcurveCertifyError::IsoUnsupported {
-                what: "a DEGENERATE iso line (neither chart channel definitely moves \
-                       over the span)",
-            });
-        }
-        (true, true) => {
-            return Err(PcurveCertifyError::IsoUnsupported {
-                what: "a DIAGONAL line in UV (both channels move): only axis-aligned \
-                       isos have the boundary-row closed form",
-            });
-        }
     };
-    let off_map = ends.map_or(T::zero(), |stated| {
-        let mapped = [pcurve.eval(t0), pcurve.eval(t1)];
-        stated
-            .iter()
-            .zip(mapped)
-            .map(|(end, at)| {
-                stretch_u.to_meters((end.x - at.x).abs())
-                    + stretch_v.to_meters((end.y - at.y).abs())
-            })
-            .fold(T::zero(), |a, b| a.max(b))
-    });
-    let envelope = envelope + off_map;
     envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
@@ -9941,18 +10002,17 @@ fn run_iso_checks<T: Decide>(
 /// slack its fixed channel pays: a boundary column is a control-net
 /// COPY and pays the boundary snap `|u_start − side|·stretch`; an
 /// interior column is the de Boor COLLAPSE at `u_start` itself, so
-/// there is nothing to snap and the slack is the channel's drift alone.
+/// there is nothing to snap and no slack.
 fn traversed_column<T: Decide>(
     payload: &geom::NurbsSurface<T>,
     u_start: T,
     stretch_u: SupSpeed<T>,
-    du_drift: T,
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<(NurbsCurve3<T>, T), PcurveCertifyError> {
     let (cu0, cu1) = payload.knot_values_u().domain();
     Ok(
-        match side_of(u_start, cu0, cu1, stretch_u, du_drift, band, esc)? {
+        match side_of(u_start, cu0, cu1, stretch_u, T::zero(), band, esc)? {
             Some((end, slack_u)) => (
                 crate::nurbs_iso::boundary_iso_u(payload, end)
                     .map_err(|source| PcurveCertifyError::ChartRow { source })?,
@@ -10003,44 +10063,32 @@ fn traversed_column<T: Decide>(
                             ),
                         },
                     )?;
-                (row, du_drift)
+                (row, T::zero())
             }
         },
     )
 }
 
-/// **The SEAM class's envelope**: `u` banded-constant, `v` traversing
-/// the carrier's own parameter, on `payload`'s chart (run on the
-/// transposed chart, it is the cap class's: a row is a column of the
+/// **The SEAM class's envelope**: `u` held at `u_start`, `v = v0 + rate·t`
+/// traversing the carrier's own parameter, on `payload`'s chart (run on
+/// the transposed chart, it is a row's: a row is a column of the
 /// transpose). With `u*` the column's parameter (a domain end for a
 /// boundary column, `u_start` itself for a collapsed one):
 /// sup |S(P(t)) − C(t)| ≤
-///   |S(u(t), v(t)) − S(u*, v(t))|     (u snap + drift slack)
+///   |S(u_start, v(t)) − S(u*, v(t))|  (u snap slack)
 /// + |S(u*, v(t)) − B(v(t))|           (exactly 0: B IS S(u*, ·))
 /// + |B(v(t)) − C(v(t))|               (control hull, same basis)
 /// + |C(v(t)) − C(t)|                  (parameter-map slack).
-#[allow(clippy::too_many_arguments)]
 fn seam_envelope<T: Decide>(
     payload: &geom::NurbsSurface<T>,
-    (p0, pl, stated): (Point2<T>, Vec2<T>, Option<[T; 2]>),
+    (u_start, v0, rate): (T, T, T),
     (t0, t1): (T, T),
     carrier: &Curve3<T>,
     (stretch_u, stretch_v): (SupSpeed<T>, SupSpeed<T>),
-    du_drift: T,
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<T, PcurveCertifyError> {
     let span = t1 - t0;
-    // The moving channel's reach for the domain gates below: the map's
-    // value at both span ends and, where they are stated, the stated
-    // ends, which `span_ends`' readers read in their place. The gate
-    // decides on that reach; the envelope folds only the map's own
-    // excursion, since a stated end's distance from the map is already
-    // in it (`run_iso_checks`).
-    let reach = |a: T, b: T| {
-        let (lo, hi) = (a.min(b), a.max(b));
-        stated.map_or((lo, hi), |[x, y]| (lo.min(x).min(y), hi.max(x).max(y)))
-    };
     // **The LINE-carrier limb** (#388): a straight ruling
     // edge whose carrier was promoted to `Curve3::Line`
     // upstream (D7 curve recognition) claims the same
@@ -10059,8 +10107,7 @@ fn seam_envelope<T: Decide>(
     // sampling. A RATIONAL column (`constant_weight` answers `None`)
     // refuses typed: linear precision is a polynomial-basis fact.
     if let Some(geom::Line { origin, dir }) = carrier.as_line() {
-        let u_start = p0.x + pl.x * t0;
-        let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
+        let (b, slack_u) = traversed_column(payload, u_start, stretch_u, band, esc)?;
         if b.constant_weight().is_none() {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
@@ -10072,10 +10119,9 @@ fn seam_envelope<T: Decide>(
         }
         let (p, kn) = (b.knots_f64_interim().degree(), b.knot_values().values());
         let mut hull = T::zero();
-        // `pl.y ≠ 0` is this class's own classification: the
-        // `(false, true)` arm means the v channel MOVES, so
-        // the `t_at` division is over a nonzero slope by
-        // construction. The hull runs over the FULL column —
+        // The moving channel is decided to move (`run_iso_checks`),
+        // so the `t_at` division is over a nonzero rate. The hull
+        // runs over the FULL column —
         // for an image trimmed to part of the domain that is
         // a superset bound: sound and conservative, and no
         // measured caller exercises the partial case.
@@ -10085,21 +10131,19 @@ fn seam_envelope<T: Decide>(
             let window = &kn[i + 1..=i + p];
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
-            let t_at = (xi - p0.y) / pl.y;
+            let t_at = (xi - v0) / rate;
             hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
         // the column's own knot domain only.
-        let v_at_0 = p0.y + pl.y * t0;
-        let v_at_1 = p0.y + pl.y * t1;
+        let v_at_0 = v0 + rate * t0;
+        let v_at_1 = v0 + rate * t1;
         let (d0, d1) = b.knot_values().domain();
-        let (lo, hi) = reach(v_at_0, v_at_1);
-        let gate = escape((d0 - lo).max(hi - d1));
         let over = escape((d0 - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - d1));
         match decide(
             "pcurve_iso_domain",
-            Margin::metered_sup(gate, stretch_v),
+            Margin::metered_sup(over, stretch_v),
             band,
         )
         .map_err(esc)?
@@ -10145,7 +10189,6 @@ fn seam_envelope<T: Decide>(
                        fails there",
         });
     }
-    let u_start = p0.x + pl.x * t0;
     // Which way the image runs the column: a wrap edge a
     // construction laid against the column's own direction (D1)
     // is carried by the column run back — on any exact reflection
@@ -10153,7 +10196,7 @@ fn seam_envelope<T: Decide>(
     // read backwards.
     let backward = match decide(
         "pcurve_iso_seam_sense",
-        Margin::metered_sup(pl.y * span, stretch_v),
+        Margin::metered_sup(rate * span, stretch_v),
         band,
     )
     .map_err(esc)?
@@ -10170,11 +10213,10 @@ fn seam_envelope<T: Decide>(
     // The traversed column: a boundary row is a control-net
     // COPY and pays the boundary snap `|u_start − side|·stretch`;
     // an interior column is the de Boor COLLAPSE at `u_start`
-    // itself, so there is nothing to snap and the slack is the
-    // channel's drift alone. Both rows are `S(u_start, ·)` in
+    // itself, so there is nothing to snap. Both rows are `S(u_start, ·)` in
     // the chart's own `v` space, which is all the hull below
     // ever used.
-    let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
+    let (b, slack_u) = traversed_column(payload, u_start, stretch_u, band, esc)?;
     // One spline space: the knots bitwise, or — run back — the
     // carrier's knots the row's EXACT reflection (a reflection
     // rebuilt in `f64` is not that space); and the weights, read
@@ -10210,13 +10252,13 @@ fn seam_envelope<T: Decide>(
         let pb = b.control()[if backward { n - 1 - i } else { i }];
         hull = hull.max((pb - *pc).norm());
     }
-    // Parameter map v(t) = p0.y + pl.y·t vs the identity, or
+    // Parameter map v(t) = v0 + rate·t vs the identity, or
     // vs `S − t` on a column run back (the reflection's sum, the
     // row's first knot plus the carrier's last): the difference is
     // affine, so its extremes are at the endpoints; metered through
     // the carrier's own rate bound.
-    let v_at_0 = p0.y + pl.y * t0;
-    let v_at_1 = p0.y + pl.y * t1;
+    let v_at_0 = v0 + rate * t0;
+    let v_at_1 = v0 + rate * t1;
     let along = |t: T| {
         if backward {
             b.knot_values().domain().0 + c.knot_values().domain().1 - t
@@ -10232,8 +10274,6 @@ fn seam_envelope<T: Decide>(
     // carrier's (one domain, unless the carrier is reflected).
     let (r0, r1) = b.knot_values().domain();
     let (d0, d1) = c.knot_values().domain();
-    let (lo, hi) = reach(v_at_0, v_at_1);
-    let gate = escape((r0 - lo).max(hi - r1).max(d0 - t0).max(t1 - d1));
     let over = escape(
         (r0 - v_at_0.min(v_at_1))
             .max(v_at_0.max(v_at_1) - r1)
@@ -10242,7 +10282,7 @@ fn seam_envelope<T: Decide>(
     );
     match decide(
         "pcurve_iso_domain",
-        Margin::metered_sup(gate, stretch_v),
+        Margin::metered_sup(over, stretch_v),
         band,
     )
     .map_err(esc)?
@@ -11610,7 +11650,7 @@ fn derive_class_zero<T: Decide>(
             // amplitude.
             let moving = match carrier {
                 Curve3::Line(line) => {
-                    let standoff = norm_gap(radius, radius.powi(2), w_r);
+                    let standoff = wall_gap(radius, w_r);
                     #[cfg(test)]
                     let standoff = if mutants::meridian_standoff_unread() {
                         T::zero()
@@ -11636,7 +11676,7 @@ fn derive_class_zero<T: Decide>(
                     Pcurve::Harmonic {
                         u: Channel::fixed_angle(place.phase(
                             Along::Azimuth,
-                            Azimuth::of(w_r.dot(cv), w_r.dot(u_ref)),
+                            ruling_direction(w_r, radius, cv, u_ref),
                             |_| T::zero(),
                             band,
                         )?),
@@ -13292,7 +13332,8 @@ const TORUS_OFF: &str = "the carrier's points are not on the torus (its distance
 const INCIDENCE_SAMPLES: u32 = 64;
 
 /// The exact distance of `p` from an analytic curved chart: the sphere's
-/// `|‖p − c‖ − R|`, the double cone's `|elevation|`
+/// and the cylinder's `|‖w‖ − R|`, `w` the point's offset from the centre
+/// or the axis ([`wall_gap`]), the double cone's `|elevation|`
 /// ([`crate::implicit::cone_elevation`], exact on the double cone), the
 /// torus's `|√((ρ − R)² + h²) − r|`. On a spindle sheet the torus's
 /// form is the distance from the sheet's whole revolved circle, which
@@ -13300,10 +13341,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// reading [`incidence_over_span_as`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
-        Surface::Sphere { frame, radius, .. } => {
-            let center = frame.origin();
-            (p.distance(center) - radius).abs()
-        }
+        Surface::Sphere { frame, radius, .. } => wall_gap(radius, p - frame.origin()),
         Surface::Cone {
             frame, half_angle, ..
         } => {
@@ -13343,7 +13381,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let (_, w) = crate::implicit::axial_radial(p, origin, axis);
-            (w.norm() - radius).abs()
+            wall_gap(radius, w)
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("chart_distance: the incidence test reads an analytic chart")
@@ -14231,6 +14269,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod radial_reader_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;
@@ -16132,9 +16173,9 @@ mod tests {
     fn a_line_ruling_on_its_column_certifies_through_the_seam_class() {
         let cache = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: crate::ChartLine::column(0.0),
+                at0: 0.0,
+                rate: 1.0,
             },
             0.0,
             1.0,
@@ -16159,9 +16200,9 @@ mod tests {
     fn the_reversed_column_certifies_too() {
         let cache = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(0.0, 1.0),
-                pl: Vec2::new(0.0, -1.0),
-                ends: None,
+                line: crate::ChartLine::column(0.0),
+                at0: 1.0,
+                rate: -1.0,
             },
             0.0,
             1.0,
@@ -16181,9 +16222,9 @@ mod tests {
     fn the_wrong_column_side_refuses() {
         let got = PcurveCache::certify(
             Pcurve::IsoLine {
-                p0: Point2::new(1.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-                ends: None,
+                line: crate::ChartLine::column(1.0),
+                at0: 0.0,
+                rate: 1.0,
             },
             0.0,
             1.0,
@@ -16207,9 +16248,9 @@ mod tests {
         let displaced =
             |d: f64| ruling_line(Point3::new(1.0 + d, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let image = || Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: crate::ChartLine::column(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let d = 0.3 * Tol::witness().get().eps;
         let cache = PcurveCache::certify(image(), 0.0, 1.0, &displaced(d), &ruled_wall(), band())
@@ -16247,9 +16288,9 @@ mod tests {
         let certify = |weights: [f64; 6]| {
             PcurveCache::certify(
                 Pcurve::IsoLine {
-                    p0: Point2::new(0.0, 0.0),
-                    pl: Vec2::new(0.0, 1.0),
-                    ends: None,
+                    line: crate::ChartLine::column(0.0),
+                    at0: 0.0,
+                    rate: 1.0,
                 },
                 0.0,
                 1.0,
@@ -16282,15 +16323,8 @@ mod tests {
     #[test]
     fn an_image_leaving_the_column_domain_refuses() {
         let carrier = ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let (p0, pl) = (Point2::new(0.0, 0.0), Vec2::new(0.0, 1.0));
-        let at_door = PcurveCache::certify(
-            Pcurve::IsoLine { p0, pl, ends: None },
-            0.0,
-            1.5,
-            &carrier,
-            &ruled_wall(),
-            band(),
-        );
+        let image = || Pcurve::iso_column(0.0, (0.0, 1.0), (0.0, 1.0));
+        let at_door = PcurveCache::certify(image(), 0.0, 1.5, &carrier, &ruled_wall(), band());
         assert!(
             matches!(
                 at_door.as_ref().err().and_then(IncidenceRead::of),
@@ -16298,14 +16332,7 @@ mod tests {
             ),
             "a ruling past the patch's end is off the patch: {at_door:?}"
         );
-        let got = run_iso_checks(
-            &Pcurve::IsoLine { p0, pl, ends: None },
-            0.0,
-            1.5,
-            &carrier,
-            &ruled_wall(),
-            band(),
-        );
+        let got = run_iso_checks(&image(), 0.0, 1.5, &carrier, &ruled_wall(), band());
         match got {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(
@@ -17986,7 +18013,7 @@ mod row_support_rows {
 
     use geom::{Curve3, NurbsCurve2, Surface};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec2, Vec3};
+    use geom_core::{Band, Point2, Point3, Vec3};
 
     use super::{Pcurve, PcurveCache, RowSupport};
 
@@ -18035,9 +18062,9 @@ mod row_support_rows {
     fn a_row_reads_its_own_support_and_misses_each_changed_input() {
         let ulp = f64::from_bits(1);
         let iso = Pcurve::IsoLine {
-            p0: Point2::new(0.0, 0.0),
-            pl: Vec2::new(0.0, 1.0),
-            ends: None,
+            line: crate::ChartLine::column(0.0),
+            at0: 0.0,
+            rate: 1.0,
         };
         let surface = wall();
         let cache = PcurveCache::certify(iso, 0.0, 1.0, &line(0.0), &surface, band())
@@ -18176,7 +18203,6 @@ mod row_support_rows {
 #[allow(clippy::unwrap_used)]
 mod stretched_rows {
     use super::{Channel, Pcurve};
-    use geom_core::{Point2, Vec2};
 
     /// **An affine image reads the same point at the stretched
     /// parameter, and a periodic one refuses**: an iso line and a
@@ -18190,9 +18216,9 @@ mod stretched_rows {
     fn an_affine_image_reads_its_point_at_the_stretched_parameter() {
         let k = 1.0 + 20.0 * f64::EPSILON;
         let iso = Pcurve::IsoLine {
-            p0: Point2::new(0.3, -1.2),
-            pl: Vec2::new(0.8, -0.6),
-            ends: None,
+            line: super::ChartLine::column(0.3),
+            at0: -1.2,
+            rate: -0.6,
         };
         let harmonic = Pcurve::Harmonic {
             u: Channel::fixed_angle(0.7),

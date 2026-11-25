@@ -568,6 +568,18 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
             2,
             "a cell's own `seed()`, not a foot's",
         ),
+        (
+            "viewer/src/session/range.rs",
+            1,
+            "a certified range's own `seed()` (`editor_core::CertifiedRange`, how far \
+             its search looked), not a foot's",
+        ),
+        (
+            "pncad-py/src/py/range.rs",
+            1,
+            "a certified range's own `seed()` (`editor_core::CertifiedRange`, how far \
+             its search looked), not a foot's",
+        ),
     ];
     let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut found: Vec<(String, usize)> = test_utils::source::rust_sources(&crates)

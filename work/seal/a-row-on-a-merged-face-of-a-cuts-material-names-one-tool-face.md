@@ -30,3 +30,7 @@ A row on a merged face of a cut's material is stated by the faces that hold it, 
   - A seam the union minted with no split parent (`Through::seam_faces`) is restated, in a row, as the meeting of the first tool face on each side.
 
   The editor names a face holding several tool faces from its holdings (`Merged`), not from that root. Not measured: whether any name reads the root of such a face's division row; the editor's fragment grouping (`descend_face`) is the reader to check.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`, PR 7602)
+
+The analogue this row cites, `respell_through_cuts` refusing `RechartedRowUnstated` at a sphere re-chart, is gone: that PR retires the re-chart and the refusal with it. `respell_through_cuts` now reads each cell through the cuts' division rows, one cell for one. The row's own shape, a merged face of the material, is unchanged.

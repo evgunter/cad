@@ -22,7 +22,7 @@ The kernel half of the decided certify design (Ev, #7340). The spec is the `## D
   - Replay the far half too, so the search looks past undecided ground and can find a proven difference beyond it. A grow-outward-only schedule would make that arm dead, because a certified leaf and a flip leaf are never neighbours (`walk`'s docs).
 - **Determinism.** The answer after n steps is a pure function of the inputs and n. No clock is read.
 - **Pricing.** Ground the search has not reached is priced as budget (E6).
-- **Resolver.** The search takes the session's part resolver. `drive` takes none today: `work/scalar/the-box-driver-carries-no-part-resolver`.
+- **Resolver.** The search takes the session's part resolver. `drive` takes none today: `work/certread/the-box-driver-carries-no-part-resolver`.
 
 **The answer type.**
 - A proven interval, possibly empty, derived from the two sides.

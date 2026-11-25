@@ -238,7 +238,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
     /// # Errors
     ///
     /// [`SectionError::RadiusEscalated`] or
-    /// [`SectionError::DegenerateOperand`] for a radius not definitely
+    /// [`SectionError::RadiusNotPositive`] for a radius not definitely
     /// positive; [`SectionError::CoincidentSurfaces`] for one surface;
     /// [`SectionError::Escalated`] for a question in the band.
     pub fn decide(
@@ -305,8 +305,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
                     ..
                 }) => {}
                 Ok(_) => {
-                    return Err(SectionError::DegenerateOperand {
-                        what: "a cylinder's radius is not definitely positive",
+                    return Err(SectionError::RadiusNotPositive {
+                        radius: SectionRadius::Cylinder,
                     });
                 }
                 Err(diag) => {

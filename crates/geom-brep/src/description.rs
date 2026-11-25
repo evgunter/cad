@@ -273,18 +273,24 @@ impl<T: Real> SharedRow<T> {
 /// A row image's reading: whether it moves along `u` (else along `v`),
 /// and its fixed coordinate. `None` for anything else. **The guard the
 /// shared row's crossing reading stands on**: each image it admits moves
-/// along exactly one chart coordinate, strictly monotonically and with
-/// nonzero speed, so over a piece it lies in the hull of its two ends'
-/// images and its tangent has its coordinate's sign. An iso line is affine
-/// with a nonzero velocity along one axis; an arc rim moves along `u`
-/// (the only way an arc-rim image is stated or certified), its chart
-/// parameter increasing with the carrier's with a positive derivative on
-/// every sub-arc ([`Pcurve::IsoArc`]'s map).
+/// along exactly one chart coordinate, strictly monotonically, so over a
+/// piece it lies in the hull of its two ends' images and its tangent has
+/// its coordinate's sign. An iso line is affine along the one axis it
+/// does not hold; an arc rim moves along `u` (the only way an arc-rim
+/// image is stated or certified), its chart parameter increasing with
+/// the carrier's with a positive derivative on every sub-arc
+/// ([`Pcurve::IsoArc`]'s map).
+///
+/// That the image MOVES is not read here: an iso line whose rate is zero
+/// holds its line like any other, and this admits it. It is the image's
+/// certificate that decides the moving channel moves over the span
+/// (`pcurve_iso_axis_u`/`_v`, check 4), and refuses one that does not as
+/// a degenerate iso line, so every stored row this reads has moved.
 ///
 /// It is [`Pcurve::held_line`] with an arc rim held to rows: an arc rim
 /// whose image holds `u` admits no crossing reading here.
 pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
-    let line = image.held_line().ok()?;
+    let line = image.held_line()?.line;
     let along_u = line.axis == crate::ssi::ChartAxis::V;
     (along_u || !matches!(image, Pcurve::IsoArc { .. })).then_some((along_u, line.value))
 }
@@ -454,27 +460,15 @@ pub(crate) fn domain_side<T: Real>(
     chart: &geom::NurbsSurface<T>,
     image: &Pcurve<T>,
 ) -> Option<crate::ssi::ChartSide> {
-    use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+    use crate::ssi::{ChartAxis, ChartSide};
     let (along_u, fixed) = row_of(image)?;
-    let (lo, hi) = if along_u {
+    let domain = if along_u {
         chart.knot_values_v().domain()
     } else {
         chart.knot_values_u().domain()
     };
     let axis = if along_u { ChartAxis::V } else { ChartAxis::U };
-    if geom_core::is_exact_zero(fixed - lo) {
-        Some(ChartSide {
-            fixed: axis,
-            end: ChartEnd::Low,
-        })
-    } else if geom_core::is_exact_zero(fixed - hi) {
-        Some(ChartSide {
-            fixed: axis,
-            end: ChartEnd::High,
-        })
-    } else {
-        None
-    }
+    geom_core::period::domain_end(fixed, domain).map(|end| ChartSide { fixed: axis, end })
 }
 
 /// The canonical edge description (module docs): D2's two intrinsic

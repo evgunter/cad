@@ -1853,18 +1853,21 @@ impl DoorCheck for CertCheck {
     }
 }
 
-/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum less
-/// its certified drift, as a sagitta at the folded arm, must classify
-/// positive. Both refusing verdicts are reachable: the drift is a bound
-/// independent of the sampled minimum, so it can exceed it.
-fn tube_separation<T: Decide>(
+/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum (the
+/// schedule's every sample, its ends included) less its certified drift,
+/// as a sagitta at the least folded arm, must classify
+/// positive ([`crate::dihedral::tube_separation`]). Both refusing
+/// verdicts are reachable: the drift is a bound independent of the
+/// sampled minimum, so it can exceed it.
+fn tube_separated<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
-    let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
-    match decide_reported("tangent_tube_margin", tube, band).map(|d| Refused::of(d, band)) {
+    match crate::dihedral::tube_separation(kappa_min, kappa_drift, arm, band)
+        .map(|d| Refused::of(d, band))
+    {
         Ok(None) => Ok(()),
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
@@ -3330,12 +3333,6 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
-    /// [`Self::params`] as the span [`crate::Pcurve::span_ends`] reads
-    /// this edge's chart images over.
-    pub fn edge_span(&self) -> crate::StoredSpan<T> {
-        crate::StoredSpan::new(self.param_start, self.param_end)
-    }
-
     /// What the scalar's door gave this edge to carry
     /// ([`Real::Carries`]): the attachment-time certification record at
     /// a certifying scalar, nothing at a tangent-transport one.
@@ -3602,11 +3599,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let (t0, t1) = (self.param_start, self.param_end);
         let span = t1 - t0;
         let a = (t - t0) / span;
-        let images = match self.description {
-            EdgeDescription::Chart(ref c) => Some(c.pcurve.split_at(t)),
-            _ => None,
-        };
-        let child = |s0: T, s1: T, ta: T, tb: T, second: bool| -> EdgeCurveSpec<T> {
+        let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
             let description = match self.description {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
@@ -3633,22 +3626,16 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
-                // the parent's map, verbatim, with a stated end kept
-                // only on the child that keeps that end
-                // ([`crate::Pcurve::split_at`]). Stating it exactly is
+                // the parent's image, verbatim. Stating it exactly is
                 // what keeps the sub-arc's description the restriction
                 // of its parent's rather than a re-derivation that can
                 // land a few ulps away from it.
-                EdgeDescription::Chart(ref c) => {
-                    EdgeDescriptionSpec::Chart {
-                        surface: c.surface,
-                        image: images.as_ref().map(|(first, rest)| {
-                            if second { rest.clone() } else { first.clone() }
-                        }),
-                        wrap: c.wrap,
-                        declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
-                    }
-                }
+                EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    image: Some(c.pcurve.clone()),
+                    wrap: c.wrap,
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
+                },
             };
             EdgeCurveSpec {
                 description,
@@ -3657,10 +3644,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (
-            child(T::zero(), a, t0, t, false),
-            child(a, T::one(), t, t1, true),
-        )
+        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
     }
 
     /// This carrier's spec view (for re-certification).
@@ -5491,6 +5475,18 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                         band,
                         &mut max_residual,
                     )?;
+                } else {
+                    // An end sample decides nothing of its own here, but
+                    // its `|κ_rel|` and arm enter the tube's minima, as
+                    // the second-order walk's do
+                    // (`crate::dihedral::second_order_walk`): one sample
+                    // set for the tube the walk demands and the tube this
+                    // certificate reads.
+                    let (_, end_tau) = spec.carrier.ders1(t);
+                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, end_tau);
+                    let arm = crate::folded_lever_arm(surf1, surf2, p, reach);
+                    tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                 }
             }
             // The fenced scaffolding arm (D3): the ONE conventional
@@ -5649,7 +5645,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                 CERT_SAMPLES - 2
             );
         };
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
+        tube_separated(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
@@ -7389,10 +7385,10 @@ mod tests {
             .iter()
             .map(|&(anchor, _, _)| {
                 let (chart, _) = d2_iso_chart(anchor);
-                let Pcurve::IsoLine { p0, pl, .. } = chart.pcurve else {
+                let Pcurve::IsoLine { at0, rate, .. } = chart.pcurve else {
                     panic!("the iso arm mints an IsoLine chart image");
                 };
-                (anchor, p0.y.to_bits(), pl.y.to_bits())
+                (anchor, at0.to_bits(), rate.to_bits())
             })
             .collect();
         assert_eq!(
@@ -7426,7 +7422,7 @@ mod tests {
     /// | `t0` (m) | legacy (m) | collapsed (m) | ULP | relative |
     /// |---|---|---|---|---|
     /// | 0     | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
-    /// | 1.7   | 4.4409e-16 | 7.7716e-16 | 3.38e15 | +75 % |
+    /// | 1.7   | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
     /// | 1e3   | 5.9064e-14 | 1.7053e-13 | 6.58e15 | **+189 %** |
     /// | 1e6   | 6.0536e-11 | 5.8208e-11 | 1.80e14 | **−3.85 %** |
     ///
@@ -7447,13 +7443,8 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: the two expressions agree, and the move is check 4's.
-    /// The description states its ends (`EdgeDescriptionSpec::iso`), the
-    /// map at `t1` stands one ulp from the stated `v1`, and the envelope
-    /// carries that ulp metred by the chart's `stretch_v = 3`, about
-    /// 3.4e-16 m; the certificate's residual is the larger of the
-    /// schedule's and the envelope, 7.8e-16 m against the legacy 4.4e-16 m.
-    const D2_A1: i64 = 3_377_699_720_527_872;
+    /// Anchor 1.7 m: the two expressions agree.
+    const D2_A1: i64 = 0;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;
     /// Anchor 1e6 m: they disagree by 3.85 %, the other way.
@@ -8417,7 +8408,7 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     kappa_min,
                     drift,
                     geom_core::test_support::fixture_lever(1.0),
@@ -8427,7 +8418,7 @@ mod tests {
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     point(kappa_min),
                     point(drift),
                     geom_core::test_support::fixture_lever(point(1.0)),

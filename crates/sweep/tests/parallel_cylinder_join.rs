@@ -430,21 +430,52 @@ fn the_lens_oracle_agrees_with_a_second_slicing() {
 /// of radius `r` about `(c, 0)` over `z ∈ [−half, half]`, tipped `theta`
 /// about the `x` axis through its centre.
 fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
+    try_tipped(r, c, half, theta)
+        .unwrap_or_else(|e| panic!("the tipped rod is not a finished body: {e:?}"))
+}
+
+/// [`tipped`], or the tipped rod's own finish refusal.
+fn try_tipped(r: f64, c: f64, half: f64, theta: f64) -> Result<Pose, topo::NotFinished> {
     let tol = Tol::witness();
     let m = Affine3::rotation_about_axis(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
     let rod_b = rod(r, (c, 0.0), (-half, half));
-    Pose {
+    let b = topo::finish(
+        topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
+        tol,
+    )?;
+    Ok(Pose {
         label: format!("drum × rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
-        b: finished(
-            "the tipped rod",
-            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
-            tol,
-        ),
+        b,
         va: PI * 0.25 * (2.0 * half + 2.0),
         vb: PI * r * r * 2.0 * half,
         shared: lens((0.0, 0.0), 0.5, (c, 0.0), r).0 * 2.0 * half,
+    })
+}
+
+/// **The half-lengths at which a tipped rod past the band refuses its
+/// own finish at ε 1e-12** (`crate::common::frame_cost::at_the_least_band`):
+/// its wall's volume escalates `props_cylinder_circle_off_axis`, margin
+/// in `(1.25e-12, 1.35e-12]` (measured 1.307e-12 at every tip and both
+/// radii), so [`tipped_poses`] holds no such pose there. Cause: polar, the rod's stored frame read as its polar
+/// enclosure, levered by its length; mutant A (PR 7131's body) finishes
+/// it, and turns this pin red; mutant F1X does not. At half-length 50
+/// the rod finishes and every op refuses `CurvedPierceUnsupported`.
+const TIPPED_ROD_FRAME_COST: [f64; 1] = [200.0];
+
+/// Whether the rod [`try_tipped`] builds at `(r, c, half, theta)` is
+/// pinned by [`TIPPED_ROD_FRAME_COST`] here, after checking that it
+/// refuses as pinned.
+fn tipped_rod_refuses_as_pinned(r: f64, c: f64, half: f64, theta: f64) -> bool {
+    if !(crate::common::frame_cost::at_the_least_band() && TIPPED_ROD_FRAME_COST.contains(&half)) {
+        return false;
     }
+    crate::common::frame_cost::assert_rod_refuses_its_finish(
+        &format!("the rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
+        &try_tipped(r, c, half, theta).map(|_| ()),
+        (1.25e-12, 1.35e-12),
+    );
+    true
 }
 
 /// The tipped poses [`a_rod_tipped_off_parallel_over_a_long_wall_is_read_as_skew`]
@@ -453,7 +484,9 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
 /// rod's length, and two rods. The r 0.2 rod stands at `x = 0.55`, off
 /// the drum's seam: at `x = 0.5` its axis runs within the tip's drift of
 /// the drum's seam line, which is a reading of its own
-/// ([`a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band`]).
+/// ([`a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band`]). At
+/// ε 1e-12 the half-length 200 rods refuse their own finish and are not
+/// read ([`TIPPED_ROD_FRAME_COST`]).
 fn tipped_poses() -> Vec<(f64, f64, Pose)> {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let mut poses = Vec::new();
@@ -461,6 +494,9 @@ fn tipped_poses() -> Vec<(f64, f64, Pose)> {
         for k in [2.0, 20.0] {
             for (r, c) in [(0.2, 0.55), (0.3, 0.6)] {
                 let drift = k * band.escalate();
+                if tipped_rod_refuses_as_pinned(r, c, half, drift / (2.0 * half)) {
+                    continue;
+                }
                 poses.push((half, k, tipped(r, c, half, drift / (2.0 * half))));
             }
         }
@@ -501,8 +537,8 @@ fn built_at_coarse(half: f64, k: f64) -> Option<f64> {
 ///   [`built_at_coarse`] admits, but for the larger tip over the
 ///   half-length 50, which escalates;
 /// - at `1e-12` the half-length 50 poses refuse at
-///   `CurvedPierceUnsupported`; the half-length 200 rod is not a finished
-///   body there (`work/onehome/pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted.md`).
+///   `CurvedPierceUnsupported`; the half-length 200 rods refuse their own
+///   finish there ([`TIPPED_ROD_FRAME_COST`]).
 ///
 /// At `1e-6` these tips refused every op until PR 7112, with
 /// `JoinDesync { "the march found one loop of the section twice" }`:

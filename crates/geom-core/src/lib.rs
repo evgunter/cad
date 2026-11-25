@@ -34,6 +34,7 @@ pub mod readable;
 pub mod real;
 pub mod rows;
 pub mod running;
+pub mod solved;
 pub mod spline;
 pub mod structure;
 pub mod sym;
@@ -67,8 +68,8 @@ pub use interval::Interval;
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
     Affine3, Angle, FrameError, FrameInput, LEAST_TURN_CONDITIONING, LengthOutOfFormat,
-    LeveredUnitError, Mat3, MotionPart, NoDirection, OrthoAxis, OrthonormalizeError, Point2,
-    Point3, RigidMotion, RigidMotionError, TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3,
+    LeveredUnitError, Mat3, MotionPart, Negated, NoDirection, OrthoAxis, OrthonormalizeError,
+    Point2, Point3, RigidMotion, RigidMotionError, TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3,
     UnitVec3Error, Vec2, Vec3, decide_unit_direction, not_rigid_reading,
 };
 pub use line2::{Line2, LineMeet};
@@ -88,9 +89,10 @@ pub use predicate::{
 pub use quantity::{self, Notation};
 pub use readable::Readable;
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, NoLane, Real, TangentTransport,
-    Uncertified, Witness, fold_signed_zero, is_exact_zero, is_finite_length, is_underflowed_length,
-    is_zero_length, poison, pow2, width,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, Expression, NoExpression, NoLane,
+    ProvedZero, Real, StoredHarmonic, TangentTransport, Uncertified, Witness, fold_signed_zero,
+    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2,
+    radius_gap, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

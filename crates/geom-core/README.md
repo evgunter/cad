@@ -252,6 +252,25 @@ interior as well as at its doors:
   widened to every scalar the body happens to compile at, and no work
   is done to support a scalar the code has no meaning for.
 
+## Asking a scalar's expression (ERROR-DESIGN E12)
+
+**EX1 — the expression is a type, and the question is its method.**
+`Real::Expression` is what a scalar carries beside its value: at
+`Sym<T>` the node its value was computed as, and at `f64`, `Interval`,
+`Dual<T>` and `Probe` a type with no values (`NoExpression`), as a
+dual's lanes are (DL5.3). E12's structural question, whether a value
+is zero as a function of the document's variables, is
+`Expression::proves_zero`: a method of the expression, so it cannot be
+written against a number or against a generic `T`. Generic code
+reaches it through `Real::expression`, and at a numeric scalar the arm
+that asks is unreachable by type; no impl answers "no". Code whose
+whole meaning is symbolic takes the expression, or a bound only the
+symbolic scalar meets. `Real::register_equal` and
+`Decide::free_identity` are methods every scalar answers: a numeric
+scalar's `register_equal` checks the claim at its value and records
+nothing, and its `free_identity` drops the identity
+(`work/decide/register-equal-and-free-identity-are-answered-by-every-scalar.md`).
+
 ## Choosing among spellings of one quantity (W1)
 
 **W1 — a spelling is chosen by what its width and its error scale

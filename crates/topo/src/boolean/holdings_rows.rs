@@ -311,7 +311,7 @@ fn the_pair_door_reads_an_uncut_row_as_a_substitution() {
         super::BooleanOp::Union,
         &out.naming,
         &out.body,
-        ([&p, &tile], [None, None]),
+        [&p, &tile],
         band(),
     );
     let top = tops_at(&out.body, 1.0)[0];
