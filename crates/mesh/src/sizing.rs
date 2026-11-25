@@ -556,7 +556,12 @@ pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 
 ///
 /// The grid's triangles are cell-halves, and the off-lattice ones
 /// beside a rim or meridian chord point stay within one cell **while
-/// the lattice's UV aspect `h_u/h_v` is under `2√2`**: a triangle on
+/// the lattice's aspect `h_u/h_v`, in the plane the CDT runs in, is
+/// under `2√2`** (the curved lane's plane is its lattice's metric,
+/// `curved::cdt_metric`, where the aspect is within `√2` of one). The
+/// argument is Delaunay's, so it is read in that plane; what it
+/// concludes, a triangle inside one cell, is the same in every plane,
+/// since the scale between them is axis-aligned and affine: a triangle on
 /// two vertically adjacent lattice points and a boundary point a
 /// distance `x` along the row from their column has a circumcircle
 /// that holds the next column's point exactly when
@@ -596,9 +601,18 @@ pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) 
 }
 
 /// The largest UV aspect `h_u/h_v` [`sphere_grid_steps`] chooses: half
-/// of the `2√2` past which the off-lattice lemma fails, the other half
-/// spent on the `ceil` that can halve `h_v`. **Structural**: it keeps
-/// the lattice in the shape its theorem is stated for.
+/// of the `2√2` past which the off-lattice lemma fails in raw UV, the
+/// other half spent on the `ceil` that can halve `h_v`. **Structural**:
+/// it keeps the lattice in the shape its theorem is stated for. Past
+/// 45° of latitude it sets the steps themselves (the AM–GM optimum
+/// asks a wider `h_u`). The trimmed lane's sphere arm reads it only
+/// through those steps: its CDT runs in the chart's metric at mid
+/// latitude (`chart_table::AnalyticRow::trimmed_metric`), which is not
+/// the lemma's plane, and what holds its triangles is the certificate
+/// (`work/tesslane/the-trimmed-sphere-arm-triangulates-a-raw-uv-lattice-in-the-chart-metric.md`).
+/// On the curved lane, whose CDT runs in its lattice's metric, the
+/// lemma's premise holds at any raw aspect
+/// (`work/tesslane/the-sphere-cell-aspect-cap-was-chosen-for-a-raw-uv-cdt.md`).
 pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 
 /// The cosine of a sphere face's latitude nearest the equator: 1 when
@@ -618,6 +632,10 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// projected image is a conservative one. The chord pass, the curved lane
 /// and the trimmed lane read it from this one place, through the face's
 /// chart row (`crate::chart_table::ChartRow::of`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_face_widest_cos(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
@@ -715,11 +733,7 @@ fn outer_loop_curves(
     crate::walk::loop_half_edges(body, face.outer, fk)?
         .into_iter()
         .map(|(hek, ek, _)| {
-            let curve = body
-                .get_edge(ek)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            let curve = crate::walk::edge_curve(body, ek)?;
             Ok((hek, ek, curve))
         })
         .collect()

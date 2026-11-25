@@ -95,6 +95,9 @@ const CROSSING_HALVINGS: u32 = 60;
 /// is that knot's ([`crossing`]).
 const CREASE_SNAP: f64 = 1e-13;
 
+/// The Newton steps a settled foot is polished by ([`polished`], D9).
+const FOOT_POLISH: usize = 2;
+
 /// How many times [`follow`] halves the way to a foot it cannot reach
 /// from the last one (D9).
 const FOLLOW_HALVINGS: u32 = 16;
@@ -184,7 +187,11 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     match wall.project_from_seed(p, u, v) {
-        Ok(proj) => Ok((Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance))),
+        Ok(proj) => Ok(polished(
+            wall,
+            p,
+            (Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance)),
+        )),
         Err(e) => {
             let jet = wall.ders(T::from_computed(e.last_u), T::from_computed(e.last_v));
             let at = Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
@@ -200,6 +207,46 @@ where
             }
         }
     }
+}
+
+/// **A settled foot, polished**: [`FOOT_POLISH`] more Newton steps on
+/// the two orthogonality conditions, each kept where it brings the foot
+/// no farther from `p`. The projection accepts a foot within its
+/// coincidence threshold of `p` as it stands, wherever along the wall
+/// that is; a path of such feet wanders by that threshold, which a fine
+/// band's image may not.
+fn polished<T>(wall: &NurbsSurface<T>, p: Point3<T>, foot: Settled<T>) -> Settled<T>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    let [ud, vd] = rectangle(wall);
+    let mut best = foot;
+    for _ in 0..FOOT_POLISH {
+        let (uv, _, distance) = best;
+        let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
+        let r = mid3(jet.point - p);
+        let (su, sv) = (mid3(jet.du), mid3(jet.dv));
+        let (fu, fv) = (su.dot(r), sv.dot(r));
+        let a = su.dot(su) + mid3(jet.duu).dot(r);
+        let b = su.dot(sv) + mid3(jet.duv).dot(r);
+        let d = sv.dot(sv) + mid3(jet.dvv).dot(r);
+        let det = a * d - b.powi(2);
+        let step = (-(d * fu - b * fv) / det, -(a * fv - b * fu) / det);
+        if !(step.0.is_finite() && step.1.is_finite()) {
+            break;
+        }
+        let next = Point2::new(
+            (uv.x + step.0).clamp(ud.0, ud.1),
+            (uv.y + step.1).clamp(vd.0, vd.1),
+        );
+        let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
+        let moved = mid((at - p).norm());
+        if moved.is_nan() || moved > distance || next.equals_exactly(uv) {
+            break;
+        }
+        best = (next, at, moved);
+    }
+    best
 }
 
 fn mid<T: Decide + Bounds>(x: T) -> f64 {

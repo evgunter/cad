@@ -196,6 +196,18 @@ pub enum BooleanDecision {
     /// axis or an ellipse whose projection off it is a circle, otherwise
     /// the half-angle quartic's rows.
     ArcCylinderRoots,
+    /// Where an edge ends on a rim its face and a face of the other
+    /// operand both end on (a smooth junction): the order of its touch
+    /// with the other face's carrier there, or the window past it
+    /// (`geom_brep::curve_face::end_root`).
+    JunctionEndOrder,
+    /// Whether an edge's end lies on a junction's rim, inside the stretch
+    /// the two faces were joined over.
+    JunctionEndOnRim,
+    /// Whether an edge leaving a junction's rim stands on its own face's
+    /// side of it beyond the band, over the stretch past its end where
+    /// the other face's surface may meet it.
+    JunctionEndSide,
     /// Where a straight edge crosses a cone: the line × cone quadratic's
     /// rungs (`curve_face::line_quadric`) — its leading coefficient, its
     /// discriminant read as the depth its vertex reaches, and each
@@ -574,16 +586,18 @@ impl Coincide {
     /// [`GluedPairs::read`](super::GluedPairs::read) settles by.
     ///
     /// - [`Coincide::Sectors`]: a one-carrier pair's lump is its record's,
-    ///   and a `Tangent` pair's descends to the second order
-    ///   (`sectors::tangent_lump`).
+    ///   a `Tangent` pair's descends to the second order
+    ///   (`sectors::tangent_lump`), and a `Junction` pair's reads its rim
+    ///   bound on and every other bound outside the other operand, on the
+    ///   junction's certificate (`sectors::junction_lump`).
     ///
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
     pub const fn settled_by(self, class: GlueClass) -> bool {
-        use GlueClass::{Continuation, Rest, Tangent};
+        use GlueClass::{Continuation, Junction, Rest, Tangent};
         match (self, class) {
-            (Self::Sectors, Rest | Tangent | Continuation) => true,
+            (Self::Sectors, Rest | Tangent | Continuation | Junction) => true,
             (
                 Self::VertexOnFace
                 | Self::VertexOnSection
@@ -604,7 +618,7 @@ impl Coincide {
                 | Self::Contact
                 | Self::Section
                 | Self::Join,
-                Rest | Tangent | Continuation,
+                Rest | Tangent | Continuation | Junction,
             ) => false,
         }
     }
@@ -903,23 +917,11 @@ pub enum SphereQuestion {
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
     /// clearance passes, and so do a negative one and a decided zero
     /// whose two spheres' faces the section certificate certifies apart.
-    /// A crossing whose circle lies inside both faces re-cuts both
-    /// spheres, and a decided zero touching on both faces refuses
+    /// A crossing whose circle lies inside both faces cuts both
+    /// spheres in, and a decided zero touching on both faces refuses
     /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
-    /// Whether the escapes one closed sphere group re-charts for share
-    /// an axis: plane faces' normals, other spheres' centre lines
-    /// (`bool_sphere_escape_parallel`). Only a zero is one re-chart; a
-    /// definite lean cuts sphere escapes in instead, or refuses where a
-    /// plane is among them, so no smaller tolerance decides a margin
-    /// passing.
-    EscapeParallel,
-    /// Whether the sphere's stored polar axis leans away from the escape
-    /// normal it is re-charted onto (`bool_sphere_recut_align`, the
-    /// axes' cross levered at the radius): a definite lean passes, and a
-    /// decided zero refuses with its decided margin.
-    RecutAlign,
-    /// Where the meridian cut through a trimmed sphere face's section
+    /// Where the meridian cut through a sphere face's section
     /// circle meets the face's boundary (`bool_sphere_cut_*`): the
     /// meridian's placement, its roots on each boundary arc, and their
     /// order along it. Its arms pass on different sets (a root at an
@@ -938,10 +940,6 @@ impl SphereQuestion {
             }
             Self::Apart => "whether a sphere of each solid stands clear of the other",
             Self::Nested => "whether the smaller of two spheres lies strictly inside the larger",
-            Self::EscapeParallel => "whether the plane faces a sphere pokes through are parallel",
-            Self::RecutAlign => {
-                "whether a sphere's polar axis leans away from the face it pokes through"
-            }
             Self::CutIn => {
                 "where a cut through the circle a plane cuts on a sphere face meets that face's \
                  boundary"
@@ -954,13 +952,6 @@ impl SphereQuestion {
         match self {
             Self::AgainstPlane => Ending::Sized(SPHERE_AGAINST_PLANE),
             Self::Apart | Self::Nested => Ending::Sized(SPHERES),
-            Self::EscapeParallel => Ending::Lever(EXTENT_LEVER),
-            // The lean is the axes' cross, a norm levered at the radius.
-            Self::RecutAlign => Ending::Sized(SizedDecision {
-                size: "lean of the sphere's polar axis",
-                passes: SizedPass::Positive,
-                ..SPHERE_AGAINST_PLANE
-            }),
             Self::CutIn => Ending::Lever(CUT_LEVER),
         }
     }
@@ -1345,6 +1336,17 @@ impl BooleanDecision {
             Self::ArcCylinderRoots => {
                 "whether an arc crosses a cylinder wall, grazes it or misses it"
             }
+            Self::JunctionEndOrder => {
+                "how closely an edge ending on a smooth seam's rim follows the other face's \
+                 surface there"
+            }
+            Self::JunctionEndOnRim => {
+                "whether an edge ends on the rim where its face joins the other smoothly"
+            }
+            Self::JunctionEndSide => {
+                "whether an edge leaving a smooth seam's rim leaves it steeply enough to stay off \
+                 the other face"
+            }
             Self::ConeRoots => "whether an edge crosses a cone, grazes it or misses it",
             Self::ArcConeRoots => "whether an arc crosses a cone, grazes it or misses it",
             Self::PierceCurvature => {
@@ -1548,6 +1550,20 @@ impl BooleanDecision {
             Self::ArcCylinderRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the cylinder or clearly misses it",
             ),
+            // The order's coefficients and the window's far end pass on
+            // different sets, and the escalation does not say which refused.
+            Self::JunctionEndOrder => Ending::Lever(
+                "turn the parts so the edge does not end where the two faces curve alike \
+                 across the rim",
+            ),
+            // The end's distance from the rim and its place along the
+            // touch pass on different sets.
+            Self::JunctionEndOnRim => Ending::Lever(
+                "build the edge so it ends exactly on the rim, or clearly away from it",
+            ),
+            Self::JunctionEndSide => {
+                Ending::Lever("turn the parts so the edge leaves the rim more steeply")
+            }
             // The lead and the depth pass on different sets (a zero lead
             // is a ruling the lane does not answer), and the escalation
             // does not say which refused.
@@ -1884,6 +1900,9 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
+                BooleanDecisionKind::JunctionEndOrder => vec![BooleanDecision::JunctionEndOrder],
+                BooleanDecisionKind::JunctionEndOnRim => vec![BooleanDecision::JunctionEndOnRim],
+                BooleanDecisionKind::JunctionEndSide => vec![BooleanDecision::JunctionEndSide],
                 BooleanDecisionKind::ConeRoots => vec![BooleanDecision::ConeRoots],
                 BooleanDecisionKind::ArcConeRoots => vec![BooleanDecision::ArcConeRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
@@ -2239,6 +2258,26 @@ pub(in crate::boolean) mod tests {
                      misses it",
                 ),
             ),
+            BooleanDecision::JunctionEndOrder => (
+                "how closely an edge ending on a smooth seam's rim follows the other face's \
+                 surface there",
+                Ending::Lever(
+                    "Recourse: turn the parts so the edge does not end where the two faces curve \
+                     alike across the rim",
+                ),
+            ),
+            BooleanDecision::JunctionEndOnRim => (
+                "whether an edge ends on the rim where its face joins the other smoothly",
+                Ending::Lever(
+                    "Recourse: build the edge so it ends exactly on the rim, or clearly away from \
+                     it",
+                ),
+            ),
+            BooleanDecision::JunctionEndSide => (
+                "whether an edge leaving a smooth seam's rim leaves it steeply enough to stay off \
+                 the other face",
+                Ending::Lever("Recourse: turn the parts so the edge leaves the rim more steeply"),
+            ),
             BooleanDecision::ConeRoots => (
                 "whether an edge crosses a cone, grazes it or misses it",
                 Ending::Lever(
@@ -2318,17 +2357,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::Sphere(SphereQuestion::Nested) => (
                 "whether the smaller of two spheres lies strictly inside the larger",
                 Ending::Sized(SPHERES, SizedPass::Positive),
-            ),
-            BooleanDecision::Sphere(SphereQuestion::EscapeParallel) => (
-                "whether the plane faces a sphere pokes through are parallel",
-                Ending::Lever(
-                    "Recourse: move them so their boundaries cross, or so their curved faces \
-                     stand further apart",
-                ),
-            ),
-            BooleanDecision::Sphere(SphereQuestion::RecutAlign) => (
-                "whether a sphere's polar axis leans away from the face it pokes through",
-                Ending::Sized(AGAINST, SizedPass::Positive),
             ),
             BooleanDecision::Sphere(SphereQuestion::CutIn) => (
                 "where a cut through the circle a plane cuts on a sphere face meets that face's \
@@ -2663,9 +2691,12 @@ pub(in crate::boolean) mod tests {
         let none = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         let settled = |which: Coincide| -> &'static [GlueClass] {
             match which {
-                Coincide::Sectors => {
-                    &[GlueClass::Rest, GlueClass::Tangent, GlueClass::Continuation]
-                }
+                Coincide::Sectors => &[
+                    GlueClass::Rest,
+                    GlueClass::Tangent,
+                    GlueClass::Continuation,
+                    GlueClass::Junction,
+                ],
                 Coincide::VertexOnFace
                 | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace

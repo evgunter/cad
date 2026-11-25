@@ -15,7 +15,7 @@ use super::{
     Certified, DerivedRow, SingularMiss, Walked, certify_walked, loop_rows, walk_loop, walk_runs,
 };
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
+use crate::entity::{EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::live::{FaceView, linked, proven};
 use crate::props::AtRestPolicy;
 
@@ -687,7 +687,8 @@ pub(super) fn edge_vertex_points<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> (geom_core::Point3<T>, geom_core::Point3<T>) {
-    let (edge, data) = edge_record(body, half_edge);
+    let view = edge_record(body, half_edge);
+    let (edge, data) = (view.key(), view.record());
     let point = |he, field| {
         let start = linked(
             &body.half_edges,
@@ -724,21 +725,14 @@ pub(super) fn half_edge_record<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> &Hal
     proven(&body.half_edges, he, EntityId::HalfEdge)
 }
 
-/// `he`'s edge and its record, a link `he`'s record holds.
+/// `he`'s edge, a link `he`'s record holds.
 #[track_caller]
 pub(super) fn edge_record<T: Real>(
     body: &Body<T>,
     he: HalfEdgeKey,
-) -> (EdgeKey, &crate::entity::Edge) {
+) -> crate::live::EdgeView<'_, T> {
     let edge = half_edge_record(body, he).edge;
-    let data = linked(
-        &body.edges,
-        edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    (edge, data)
+    body.linked_edge(edge, EntityId::HalfEdge(he), "edge")
 }
 
 /// The face `he` bounds: a link of `he`'s record and of
@@ -767,8 +761,7 @@ pub(crate) fn half_edge_curve<T: Real>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, PcurveMintError> {
-    let (edge, data) = edge_record(body, half_edge);
-    body.edge_curve_linked(edge, data)
+    edge_record(body, half_edge)
         .certified()
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
@@ -957,7 +950,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<ChartImage<T>, PcurveMintError> {
-    use geom_core::{Point2, Vec2};
     let refuse = |what: &'static str| PcurveMintError::Certify {
         half_edge,
         error: PcurveCertifyError::IsoUnsupported { what },
@@ -1138,17 +1130,17 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .into_iter()
                 .filter(|_| row_space.admits(rising))
                 .map(|y| Pcurve::IsoLine {
-                    p0: Point2::new(f0.x - su * t0, y),
-                    pl: Vec2::new(su, T::zero()),
-                    ends: None,
+                    line: geom_brep::ChartLine::row(y),
+                    at0: f0.x - su * t0,
+                    rate: su,
                 });
             let columns = [cu0, cu1, f0.x]
                 .into_iter()
                 .filter(|_| line)
                 .map(|x| Pcurve::IsoLine {
-                    p0: Point2::new(x, f0.y - sv * t0),
-                    pl: Vec2::new(T::zero(), sv),
-                    ends: None,
+                    line: geom_brep::ChartLine::column(x),
+                    at0: f0.y - sv * t0,
+                    rate: sv,
                 });
             if let Ok(Some(cand)) = probe_pick(
                 what,
@@ -1208,28 +1200,32 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // stated `v` map is a candidate only, since nothing here says
         // the two charts share the seam's parameterization.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
-            pcurve: Pcurve::IsoLine { p0, pl, ends },
+            pcurve: Pcurve::IsoLine { line, at0, rate },
             ..
         }) => {
-            // The neighbour's `v` map and its stated `v` ends, verbatim, as a column of this
-            // chart: at each chart boundary, then at the column the
-            // start's measured foot names (a chart wider than the face
-            // it trims). They lead the boundary-iso schedule, which
-            // judges every candidate at the probe, so a stated
-            // map this chart does not share, or a stated image that is
-            // no column at all, is passed over rather than trusted. A
-            // foot that will not converge places no column: that
-            // candidate is dropped, and the schedule goes on.
+            // The neighbour's column, its `v` map verbatim, as a column
+            // of this chart: at each chart boundary, then at the column
+            // the start's measured foot names (a chart wider than the
+            // face it trims). They lead the boundary-iso schedule, which
+            // judges every candidate at the probe, so a stated map this
+            // chart does not share is passed over rather than trusted;
+            // a neighbour's ROW states no column. A foot that will not
+            // converge places no column: that candidate is dropped, and
+            // the schedule goes on.
             let column = |x: T| Pcurve::IsoLine {
-                p0: Point2::new(x, p0.y),
-                pl: Vec2::new(T::zero(), pl.y),
-                ends: ends.map(|e| e.map(|p| Point2::new(x, p.y))),
+                line: geom_brep::ChartLine::column(x),
+                at0,
+                rate,
             };
-            let at_foot = derive_chart_foot(carrier.eval(t0), surface)
-                .ok()
-                .flatten()
-                .map(|foot| column(computed_foot::<T>(foot).x));
-            let stated = [cu0, cu1].map(column).into_iter().chain(at_foot).collect();
+            let stated = if line.axis == geom_brep::ChartAxis::U {
+                let at_foot = derive_chart_foot(carrier.eval(t0), surface)
+                    .ok()
+                    .flatten()
+                    .map(|foot| column(computed_foot::<T>(foot).x));
+                [cu0, cu1].map(column).into_iter().chain(at_foot).collect()
+            } else {
+                Vec::new()
+            };
             iso_schedule("pcurve_iso_wall_seam", stated).map(image)
         }
         // **The boundary-iso arms: an INTERSECTION seam, and a LINE rim
@@ -1361,8 +1357,8 @@ pub(super) fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> 
 /// forward in the carrier parameter)?
 #[track_caller]
 pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
-    let (ek, data) = edge_record(body, half_edge);
-    crate::live::claimed(half_edge, ek, data).plus
+    let view = edge_record(body, half_edge);
+    crate::live::claimed(half_edge, view.key(), view.record()).plus
 }
 
 /// The FIRST-CHANNEL arm of a chart — the metres a unit step of the
@@ -1466,7 +1462,7 @@ pub(crate) fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Opt
     }
     let payload = surface.spline_chart()?;
     let (u0, u1) = payload.knot_values_u().domain();
-    net_closes_as(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
+    net_closes_as(payload, NetChannel::U, band).then(|| Period::of_domain(u0, u1))
 }
 
 /// The chart's SECOND channel period — the `v` companion of
@@ -1492,7 +1488,7 @@ pub(super) fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Opt
     }
     let payload = surface.spline_chart()?;
     let (v0, v1) = payload.knot_values_v().domain();
-    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
+    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::of_domain(v0, v1)))
 }
 
 /// **Which channels of `surface`'s chart close on themselves**, `[u, v]`,
@@ -1636,7 +1632,8 @@ pub(crate) enum VPeriod<T> {
         /// The polar radius, metres per radian: exact, so a sup.
         polar: SupSpeed<T>,
     },
-    /// A spline net closed in `v`: its `v` knot domain's length.
+    /// A spline net closed in `v`: its `v` knot domain, stated by its two
+    /// ends ([`Period::of_domain`]).
     Net(Period<T>),
 }
 
@@ -1701,8 +1698,8 @@ impl<T: Decide> ChartPeriods<T> {
         let (u0, u1) = payload.knot_values_u().domain();
         let (v0, v1) = payload.knot_values_v().domain();
         Self {
-            u: Some(Period::new(u1 - u0)),
-            v: Some(VPeriod::Net(Period::new(v1 - v0))),
+            u: Some(Period::of_domain(u0, u1)),
+            v: Some(VPeriod::Net(Period::of_domain(v0, v1))),
         }
     }
 }
@@ -1783,11 +1780,14 @@ pub(super) fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// A whole-period shift of the SECOND channel — the `v` twin of
 /// [`geom_brep::Pcurve::shift_branch`], for the charts closed in `v`
 /// (sphere, torus, a net closed in `v`: [`chart_v_period`]): `image`
-/// translated `k` periods along the second channel. A translation's linear part is the
-/// identity, so every image form takes it exactly
-/// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
-pub(crate) fn shift_v_branch<T: Real>(pcurve: &Pcurve<T>, k: i32, period: Period<T>) -> Pcurve<T> {
-    pcurve.translate(T::zero(), period.times(k))
+/// moved `k` periods along the second channel
+/// ([`Pcurve::shift_branch_v`]); the walk and the lift read the one map.
+pub(crate) fn shift_v_branch<T: Decide>(
+    pcurve: &Pcurve<T>,
+    k: i32,
+    period: Period<T>,
+) -> Pcurve<T> {
+    pcurve.shift_branch_v(k, period)
 }
 
 /// The sphere chart's INVOLUTION twin of an image: `S(u + π, π − v) =

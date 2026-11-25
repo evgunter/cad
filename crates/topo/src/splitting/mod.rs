@@ -22,7 +22,7 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
 //!    plane may meet its padded reach box; one behind a box that
 //!    clears passes through the split whole. Edge carriers
-//!    `Line`/`Circle`/`Ellipse` pass; `Spiric` and `Nurbs` refuse
+//!    `Line`/`Circle`/`Ellipse`/`Spiric` pass; a spline refuses
 //!    ([`SplitReduceError::CurvedEdgeUnsupported`]) on the same
 //!    reach-scoped terms.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
@@ -76,6 +76,7 @@ pub mod rules;
 mod section;
 mod section_cones;
 mod section_loops;
+pub use section_loops::UnplacedHole;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
@@ -123,13 +124,28 @@ impl<T: Real> SplitPlane<T> {
     /// the plane's own frame ([`geom::cover::BoxAxes::aimed`], the frame
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
+        // The normal is the witness the caller minted, and the seam its
+        // own orthonormal basis's first row: the frame they state
+        // ([`geom_core::RigidMotion::squared`]), its stated-point read at an
+        // enclosure scalar kept, with nothing left to decide.
         geom::Surface::Plane {
-            frame: geom::Frame::new(
+            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared(
                 self.origin,
                 self.normal.get(),
                 geom::cover::BoxAxes::aimed(self.normal).rows()[1],
-            ),
+            )),
         }
+    }
+
+    /// The plane's frame for reading loops in it: its axis the normal,
+    /// bit for bit, and its `u_ref` the one [`Self::surface`] charts
+    /// with.
+    pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.origin,
+            self.normal,
+            geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+        ))
     }
 }
 
@@ -430,9 +446,9 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom::SurfaceKind,
     },
-    /// The plane may meet an edge on a `Spiric` or `Nurbs` carrier, which
-    /// no crossing lane reads (`Line`, `Circle` and `Ellipse` carriers
-    /// all pass). An edge clears behind its own reach box or the box of
+    /// The plane may meet an edge on a spline carrier, which no crossing
+    /// lane reads (`Line`, `Circle`, `Ellipse` and `Spiric` carriers all
+    /// pass). An edge clears behind its own reach box or the box of
     /// either face it bounds.
     CurvedEdgeUnsupported {
         /// The offending edge.
@@ -777,7 +793,7 @@ impl SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
+                "the split plane may meet an edge on a spline (NURBS) curve, which \
                  the split cannot take yet. Recourse: move the split plane clear of the \
                  bounding boxes of that edge and the faces beside it"
             ),
@@ -1374,7 +1390,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.frame(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

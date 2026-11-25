@@ -1,12 +1,12 @@
 ---
 id: curved-demo-joins-build
 kind: issue
-title: The curved demo joins build: klein walls 3 and 4, teapot walls 2 and 3, lily walls 2 and 8, each tracked at the stop it reaches today
+title: The curved demo joins build: klein walls 3 and 4, teapot walls 2 and 3, lily wall 8, each tracked at the stop it reaches today
 status: parked
 opened: 2026-11-03
 priority: P0
 cost: C
-blocked_on: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, c5-plane-torus-cone-cylinder-arms, cone-torus-rung-three-arm-waits-on-the-cone]
+blocked_on: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, c5-plane-torus-cone-cylinder-arms]
 ---
 
 
@@ -35,8 +35,7 @@ the same change.
 | **klein wall 4**: bulb ∖ loop, the self-intersection cut | `demos/tour/src/klein.rs` `wall4_pinned` | wall 3's stop, the same refusal and payload as wall 3's union (`wall4_pinned` compares them): `GermFrameUnsupported { a_face: 6v1 Cone, b_face: 4v1 Nurbs }` at every ε row (measured 2026-11-04 on PR 6481), `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | everything wall 3 meets, under ∖ |
 | **teapot wall 2**: handle (torus) ∪ vessel (sphere) | `demos/tour/src/teapot.rs` `wall_probes` | the union builds and validates: its chorded sphere face and the handle's chorded torus face measure through the rotational lane (SPIRICARM stages 2 and 3, 2026-11-10); the probe is retired to an assertion that the join composes | re-cut the handle's 11.2 mm overshoot, join it into the pot, re-state the caption, and hold the joined teapot to an independent volume (none reads it yet) |
 | **teapot wall 3**: lofted spout ∪ vessel | `demos/tour/src/teapot.rs` `wall_probes` | past its seam split since PR 6441 and past the held pierce since PR 6435 (2026-11-03). `GermFrameUnsupported { a_face: 6v1 Sphere, b_face: 3v3 Nurbs }` at every ε row (measured 2026-11-04 on `splice/teapot-1e6-floor`; `wall3_pinned` is one pin across ε): the belly's sphere against the spout's outer wall in the join, `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`. Its 1e-6 stop before, `SplineCrossingUnsettled { why: Floor }` on the belly meridian against a spout bore wall, is taken (`splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`) | the NURBS × sphere section (the SECTARMS row above) |
-| **lily wall 8**: the lofted leaf grown out of the stem's tube | `demos/tour/src/lily.rs` `wall_probes` | `GermSectionSpiric { RoutesToGeneralRung { "plane×torus" } }`: the tube's torus against the leaf's tilted cap, `sect/c5-plane-torus-cone-cylinder-arms` | the NURBS × torus section, `sectarms/a-nurbs-face-against-a-torus-has-no-section-arm` |
-| **lily wall 2**: the lantern (cone neck) welded onto the arch (torus) | `demos/tour/src/lily.rs` `wall_probes`, `demos/tour/tests/lily.rs` `the_weld_refuses_at_the_cone_torus_pair` | `CurvedPairUnsupported { site: InteriorLoopGuard, Cone, Torus }`: no certificate arm for a cone against a torus off its axis, `sect/cone-torus-rung-three-arm-waits-on-the-cone` | itself parked on the cone row; past it, unmeasured |
+| **lily wall 8**: the lofted leaf grown out of the stem's tube | `demos/tour/src/lily.rs` `wall_probes` | `GermSectionUnbuilt { a_kind: Torus, b_kind: Nurbs, why: Refused(Unaccounted { … 200000-cell budget }) }`, the stem's tube against the leaf's ridge wall, measured at ε 1e-9 on 2026-11-24 (ORBIT's PR 7713, which retired `GermSectionSpiric`, the leaf's tilted cap's old stop; that pair is now the section value's carried section) | the NURBS × torus section, `sectarms/a-nurbs-face-against-a-torus-has-no-section-arm` |
 
 Not joins, so not on this row: the tour's other walls are other verbs
 (lily 3 and 4, an oblique extrude and a non-uniform scale), meshes
@@ -56,9 +55,9 @@ frontier is.
 
 - **C5's section arms** (`crates/geom-brep/src/intersect.rs` `route`).
   Unimplemented today:
-  - cone × cone, cone × sphere and cone × torus, all behind
-    `sect/the-cone-has-no-implicit-enclosure-or-metres-conversion`
-    (cone × sphere in general pose has no row of its own);
+  - cone × cone and cone × sphere in general pose,
+    `sectcone/cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door`
+    (cone × torus off the axis has its door since PR 7395);
   - NURBS × cylinder, cone, sphere and torus, which is
     `sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
     (X, staged) and its torus row;

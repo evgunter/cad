@@ -2,10 +2,11 @@
 id: the-slow-tests-a-diff-adds-run-at-the-default-eps-only
 kind: issue
 title: The slow-set tests a diff adds or edits run at the default eps only, so a red at 1e-6 or 1e-12 first shows on the nightly
-status: open
+status: closed
 opened: 2026-10-28
 priority: P2
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -32,3 +33,11 @@ Run the step's seeded slow tests at 1e-6 and 1e-12 as well (or say in
 `work/ciw/latency-cut.md` why the latency cut keeps them out). The four
 rows cost 9–60 s each at 1e-6 and 4–50 min at 1e-12 in a debug build
 on a shared box, so the 1e-12 row is the expensive half.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Duplicates `a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them`:
+the same gap at `ci.yml:432-475`.
+- PR 5872's instance and its cost data (9 to 60 s at 1e-6, 4 to 50 min
+at 1e-12 in debug) are carried into that row's reform, which adds the
+1e-12 cap those numbers call for.

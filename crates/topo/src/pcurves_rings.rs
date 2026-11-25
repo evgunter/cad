@@ -148,18 +148,9 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
-    /// The outer loop is one vertex (`LoopBoundary::Empty`) and the face
-    /// holds rings: there is no region to place them in. Tier 2 admits
-    /// one at rest. A face with no ring is answered its empty lift, which
-    /// a reader walks and finds empty.
+    /// The outer loop is one vertex: the face has no outline
+    /// ([`crate::NoOutline`]), so no region to lift.
     OuterEmpty,
-    /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
-    /// no lift and no place in the chart, and it bounds no region of the
-    /// face. Tier 2 admits one at rest, as a lone vertex inside a face.
-    RingEmpty {
-        /// The ring.
-        ring: LoopKey,
-    },
     /// No whole-period shift puts the ring's first point in the outer
     /// loop's region.
     NoShift {
@@ -210,7 +201,6 @@ impl RingPlacementError {
             Self::OuterOpen { .. } => "outer_open",
             Self::RingOpen { .. } => "ring_open",
             Self::OuterEmpty => "outer_empty",
-            Self::RingEmpty { .. } => "ring_empty",
             Self::NoShift { .. } => "no_shift",
             Self::Shifts { .. } => "shifts",
             Self::Copies { .. } => "copies",
@@ -370,15 +360,14 @@ pub(crate) fn face_lift<T: Decide>(
     band: Band,
 ) -> Result<FaceLift<T>, RingPlacementError> {
     let view = body.proven_face(face);
-    let mut loops = view.loops().map(|(lk, _, _)| lk);
-    let Some(outer_loop) = loops.next() else {
-        unreachable!("a face's record holds its outer loop")
-    };
-    let rings: Vec<LoopKey> = loops.collect();
+    // A lone ring bounds no area, so it has no lift and no place; a
+    // face with no outline has no region to lift.
+    let area = view
+        .area_loops()
+        .map_err(|_| RingPlacementError::OuterEmpty)?;
+    let outer_loop = area.outer().key();
+    let rings: Vec<LoopKey> = area.rings().map(|(_, ring)| ring.key()).collect();
     let outer = Lift::read(body, outer_loop).map_err(RingPlacementError::Gap)?;
-    if outer.is_empty() && !rings.is_empty() {
-        return Err(RingPlacementError::OuterEmpty);
-    }
     let winding = outer
         .winding()
         .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -388,9 +377,6 @@ pub(crate) fn face_lift<T: Decide>(
     let mut read = Vec::with_capacity(rings.len());
     for &ring in &rings {
         let lift = Lift::read(body, ring).map_err(RingPlacementError::Gap)?;
-        if lift.is_empty() {
-            return Err(RingPlacementError::RingEmpty { ring });
-        }
         let winding = lift
             .winding()
             .unwrap_or_else(|| unreachable!("a read lift is a whole loop"));
@@ -585,7 +571,7 @@ impl<'a, T: Decide> Outer<'a, T> {
         for (i, row) in lift.rows().iter().enumerate() {
             pieces.push(Piece::Image {
                 pcurve: &row.pcurve,
-                span: row.params.ends(),
+                span: row.params(),
             });
             let next = ends[(i + 1) % ends.len()].0;
             pieces.push(Piece::Segment(ends[i].1, next));

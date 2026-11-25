@@ -3676,6 +3676,11 @@ impl<T: Decide> Core<T> {
     /// Records `dir` as the director of the straight segment leaving
     /// vertex `segment`, just set by a verb that drew it along `dir`.
     fn direct_leaving(&mut self, segment: usize, dir: Dir<T>) {
+        debug_assert!(
+            segment < self.verts.len(),
+            "the directed segment {segment} is one of the chain's {}",
+            self.verts.len()
+        );
         if let Some(v) = self.verts.get_mut(segment) {
             v.director = Some(dir.unit);
         }
@@ -4399,8 +4404,8 @@ fn seam_arrival_check<T: Decide>(
             let side = decide(
                 Gate::PathSeamArrivalSide,
                 // Unsourced lever: the shorter leg's arm (a line's length, an arc's lesser of
-                // radius and chord), a length of the consumed legs with no extent home in
-                // `profile`.
+                // radius and chord), a length of the consumed legs with no 2D door
+                // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
                 Margin::levered(
                     arriving.unit.dot(start_ang.unit),
                     geom_core::Lever::unsourced(arm),
@@ -5072,7 +5077,7 @@ impl<T: Decide> Core<T> {
                 decide(
                     Gate::PathCornerTurn,
                     // Unsourced lever: the two anchors' separation, a length of the consumed path
-                    // with no extent home in `profile`.
+                    // with no 2D point door (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
                     Margin::levered(cross, geom_core::Lever::unsourced(wn)),
                     band,
                 )
@@ -5513,6 +5518,22 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
         return Dir::from_unit(Vec2::new(T::one(), T::zero()));
     }
     Dir::from_unit(d.normalize())
+}
+
+/// **A hop's director**: the direction of the line a point-to-point
+/// verb draws along `d`, minted once ([`seg::mint_director`]) from the
+/// chord and its ray ([`chord_director`]). The verb's junction checks
+/// read it and the segment records it, so validation mints nothing for
+/// the hop.
+///
+/// # Errors
+///
+/// [`PathError::Escalated`] where the hop lies along an axis and which
+/// way is undecided over the box.
+fn hop_director<T: Decide>(d: Vec2<T>) -> Result<Dir<T>, PathError<T>> {
+    seg::mint_director(d, chord_director(d).unit)
+        .map(Dir::from_unit)
+        .map_err(|unsigned| PathError::escalated(unsigned.source))
 }
 
 /// The vector `v` rotated by `by` radians — the one spelling of a
@@ -6293,7 +6314,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let pos = self.tip_pos()?;
         let at = pos.at;
         let d = p - at;
-        let gamma = chord_director(d);
+        let gamma = hop_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, false, tol)?;
@@ -6307,6 +6328,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let head = self.core.head()?;
         self.core.push_line(p)?;
+        self.core.direct_leaving(self.core.verts.len() - 2, gamma);
         let arm = (p - head).norm_squared().sqrt();
         Ok(in_state(self.core, leg_end_tip(p, gamma, arm)))
     }
@@ -6324,7 +6346,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let at = self.tip_pos()?.at;
         let d = start_pos - at;
-        let gamma = chord_director(d);
+        let gamma = hop_director(d)?;
         if self.core.pending.is_some() {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, true, tol)?;
@@ -6342,6 +6364,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             tol,
         )?;
         self.core.close_leaving(None, FirstSeg::Line)?;
+        self.core.direct_leaving(self.core.verts.len() - 1, gamma);
         self.core.build(tol)
     }
 
@@ -6478,16 +6501,23 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         )
     }
 
-    /// The leg's derived tangents ([`chord_tangents`] for its stored
-    /// sweep) and its chord length.
+    /// The leg's derived tangents and its chord length: an arc's are
+    /// [`chord_tangents`] for its stored sweep; a leg lowered to a line
+    /// is a hop, and both are its minted director ([`hop_director`]).
     fn arc_angles(
         at: Point2<T>,
         target: Point2<T>,
         leg: Option<BuiltArc<T>>,
-    ) -> (Dir<T>, Dir<T>, T) {
+    ) -> Result<(Dir<T>, Dir<T>, T), PathError<T>> {
         let d = target - at;
-        let (start, end) = chord_tangents(d, sweep_of(leg));
-        (start, end, d.norm_squared().sqrt())
+        let (start, end) = match leg {
+            Some(_) => chord_tangents(d, sweep_of(leg)),
+            None => {
+                let director = hop_director(d)?;
+                (director, director)
+            }
+        };
+        Ok((start, end, d.norm_squared().sqrt()))
     }
 
     pub(super) fn arc_to_point(
@@ -6499,7 +6529,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         order::arc_leg_leaves_no_open_fillet(self.core.pending.is_some(), order::site::ARC_TO)?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, p, leg)?;
         if let Some(inc) = pos.incoming {
             self.core.pend_junction(&inc, start_t, tol)?;
         }
@@ -6508,6 +6538,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         }
         let carrier = carrier_of(leg);
         self.core.push_leg(p, leg)?;
+        if leg.is_none() {
+            self.core.direct_leaving(self.core.verts.len() - 2, start_t);
+        }
         let arm = leg_arm(carrier, chord);
         Ok(in_state(self.core, leg_end_tip(p, end_t, arm)))
     }
@@ -6531,7 +6564,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         })?;
         let pos = self.tip_pos()?;
         let at = pos.at;
-        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg);
+        let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, leg)?;
         if let Some(inc) = pos.incoming {
             self.core.pend_junction(&inc, start_t, tol)?;
         }
@@ -6546,6 +6579,9 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             tol,
         )?;
         self.core.close_leaving(leg, FirstSeg::Arc)?;
+        if leg.is_none() {
+            self.core.direct_leaving(self.core.verts.len() - 1, start_t);
+        }
         self.core.build(tol)
     }
 }

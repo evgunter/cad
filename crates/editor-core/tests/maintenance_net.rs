@@ -176,7 +176,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     // `c` joins `a`'s space, as an operator's operands share one.
     let (doc, c) = crate::fixture::stood_in(doc, c, a);
     let other = Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), c.into()]),
     };
 
     let mut action = Recording::start(&doc, Tol::witness());
@@ -267,7 +267,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let (doc, c) = crate::fixture::stood_in(doc, c, b);
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
-        members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
+        members: editor_core::Bodies::spelled(vec![b.into(), c.into()]),
     };
 
     let mut action = Recording::start(&doc, Tol::witness());

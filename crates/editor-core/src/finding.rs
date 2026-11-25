@@ -43,25 +43,24 @@ pub(crate) trait Finding {
     /// act on (a check and its `(placement, output)` subject, a mate's
     /// declaration, a refusing op). No trailing punctuation;
     /// [`compose`] supplies the joint.
-    fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn subject(&self, f: &mut crate::Sentence) -> fmt::Result;
     /// Writes what was found — forwarding the payload's own `Display`
     /// where one exists.
-    fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn story(&self, f: &mut crate::Sentence) -> fmt::Result;
     /// The one recourse, or `""` when the story already carries it.
-    fn recourse(&self) -> &str;
+    fn recourse(&self) -> crate::Sentence;
 }
 
 /// The one composition: `subject: story — recourse` (the recourse
 /// joint is omitted when [`Finding::recourse`] answers `""`, because
 /// the story then ends in the site's own recourse).
-pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: &F) -> fmt::Result {
+pub(crate) fn compose<F: Finding + ?Sized>(f: &mut crate::Sentence, finding: &F) -> fmt::Result {
     finding.subject(f)?;
     f.write_str(": ")?;
     finding.story(f)?;
     let recourse = finding.recourse();
     if !recourse.is_empty() {
-        f.write_str(" — ")?;
-        f.write_str(recourse)?;
+        crate::say!(f, " — ", recourse)?;
     }
     Ok(())
 }
@@ -81,19 +80,19 @@ pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: 
 ///
 /// Both kinds route through this loop, so the list SHAPE — the
 /// newline, the indent — is written once for the layer.
-pub(crate) fn render_lines<T, I>(f: &mut fmt::Formatter<'_>, items: I) -> fmt::Result
+pub(crate) fn render_lines<T, I>(f: &mut crate::Sentence, items: I) -> fmt::Result
 where
-    T: fmt::Display,
+    T: crate::Put,
     I: IntoIterator<Item = T>,
 {
     for item in items {
-        write!(f, "\n  {item}")?;
+        crate::say!(f, "\n  ", item)?;
     }
     Ok(())
 }
 
 /// [`render_lines`] over findings: each one [`compose`]d onto its line.
-pub(crate) fn render_list<'a, F, I>(f: &mut fmt::Formatter<'_>, findings: I) -> fmt::Result
+pub(crate) fn render_list<'a, F, I>(f: &mut crate::Sentence, findings: I) -> fmt::Result
 where
     F: Finding + 'a,
     I: IntoIterator<Item = &'a F>,
@@ -105,8 +104,8 @@ where
 // [`render_lines`] rather than a second copy of its loop.
 struct Composed<'a, F: ?Sized>(&'a F);
 
-impl<F: Finding + ?Sized> fmt::Display for Composed<'_, F> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        compose(f, self.0)
+impl<F: Finding + ?Sized> crate::Put for Composed<'_, F> {
+    fn put(self, out: &mut crate::Sentence) {
+        let _ = compose(out, self.0);
     }
 }

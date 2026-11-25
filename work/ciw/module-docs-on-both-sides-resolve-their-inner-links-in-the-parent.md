@@ -4,7 +4,7 @@ kind: issue
 title: a module documented on both sides of its declaration resolves its //! links in the parent's scope, so they can resolve to the wrong item with the gate green
 status: open
 opened: 2026-10-15
-priority: P3
+priority: P4
 cost: M
 ---
 
@@ -52,3 +52,5 @@ explicit path is usually absolute already).
   (the module's own `//!` is its doc) or require crate-absolute paths in
   those `//!` halves; then sweep the 43 files to it.
 - Optionally a `scripts/gates/` check that refuses the two-sided shape.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Rustdoc link hygiene. The rustdoc gate is nightly-only, so there is no PR cost.

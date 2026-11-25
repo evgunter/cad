@@ -2,10 +2,11 @@
 id: r1-dual-digest-ladder-collides-and-has-no-keeper
 kind: issue
 title: The R1 dual digest's hand-numbered tag ladder collides at 24, beside a comment claiming the opposite
-status: open
+status: closed
 opened: 2026-09-12
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -168,3 +169,7 @@ fix reproduces the defect it closes.
 The `AxisInPlane` arm cited above is gone: INTENT stage 3 A retired `Datum::AxisInPlane` into `Revolve`'s axis slots, so tag 24 is `MeasureUnavailable`'s alone (`work/tint/value-channel-digest-tag-24-collides.md`, closed). The ladder and keeper halves of this finding are untouched.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). The collision and the false comment are gone. `d.u64(24)` no longer appears in `crates/editor-core/tests/r1_dual_probes.rs`, `r2_m10_di_probes.rs` or `m10_di_dual_corpus.rs`; the only repeats are the nested 0/1 enumeration, which the row excluded. "at its own tag" matches nothing under `crates/`. `AxisInPlane` was retired by INTENT 3A and `MeasureUnavailable` by PR 6292. Defect 2 is answered by the header at :37-45 ("Every path below is upstream of an assertion in this file"). What remains is a speculative keeper for a test-only differential ladder.

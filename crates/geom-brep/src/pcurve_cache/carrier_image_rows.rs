@@ -102,7 +102,10 @@ fn uneven_wall() -> NurbsSurface<f64> {
 /// A diagonal line across [`uneven_wall`], over `t ∈ [0, 1.2]`.
 fn uneven_line() -> Curve3<f64> {
     let r = core::f64::consts::FRAC_1_SQRT_2;
-    Curve3::line(Point3::new(0.05, 0.0, 0.05), Vec3::new(r, 0.0, r))
+    Curve3::line(
+        Point3::new(0.05, 0.0, 0.05),
+        geom::stated_direction(Vec3::new(r, 0.0, r)),
+    )
 }
 
 /// The plane `y = 0` over `[0, 1]²` as a bilinear wall: its chart is
@@ -243,7 +246,10 @@ fn the_bending_carriers_refine_at_interval() {
 /// A carrier whose chain's image follows it keeps that chain, and
 /// certifies.
 fn straight_feet_keep_their_chain<T: geom_core::Certifies>(lane: FittedLane<T>) {
-    let line = Curve3::line(Point3::new(0.1, 0.0, 0.2), Vec3::new(0.6, 0.0, 0.8));
+    let line = Curve3::line(
+        Point3::new(0.1, 0.0, 0.2),
+        geom::stated_direction(Vec3::new(0.6, 0.0, 0.8)),
+    );
     let spline = Curve3::Nurbs(Arc::new(
         NurbsCurve3::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -269,7 +275,10 @@ fn straight_feet_keep_their_chain<T: geom_core::Certifies>(lane: FittedLane<T>) 
     // In band of the wall: its certificate is the incidence read's, but
     // its image is its chain's.
     let standoff = 3.0 * band().zero();
-    let off = Curve3::line(Point3::new(0.1, standoff, 0.2), Vec3::new(0.6, 0.0, 0.8));
+    let off = Curve3::line(
+        Point3::new(0.1, standoff, 0.2),
+        geom::stated_direction(Vec3::new(0.6, 0.0, 0.8)),
+    );
     let image = lane
         .general_image(
             &off.map_scalar(|x: f64| T::from_f64(x)),
@@ -394,7 +403,7 @@ fn a_miss_beside_a_standoff_takes_a_knot<T: geom_core::Certifies>(lane: FittedLa
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let off = Curve3::line(
         Point3::new(0.05, 0.9 * band().zero(), 0.05),
-        Vec3::new(r, 0.0, r),
+        geom::stated_direction(Vec3::new(r, 0.0, r)),
     );
     let lift = |x: f64| T::from_f64(x);
     let image = lane

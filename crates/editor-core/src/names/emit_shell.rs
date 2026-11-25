@@ -52,7 +52,7 @@
 //! non-designated source face there, so a face that is neither minted
 //! nor listed has no provenance and panics the same way. Anything that
 //! is neither a survivor nor a recorded mint is
-//! [`NamingError::MissingUpstream`], loudly; the final [`check_total`]
+//! [`NamingError::MissingUpstream`], loudly; the final totality check ([`super::emit::finish`])
 //! closes the other direction.
 //!
 //! # An upstream tie PROPAGATES (B1)
@@ -71,7 +71,7 @@ use std::sync::Arc;
 use topo::{Body, EdgeKey, FaceKey, ShellNaming, VertexKey};
 
 use super::defer::{TieRows, put as put_row, upstream_name};
-use super::emit::{NamingError, check_total, ent, name1};
+use super::emit::{NamingError, ent, name1};
 use super::role::{EntityKind, RoleSeg};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
@@ -327,7 +327,7 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     }
     named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
-    check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Arc::new(t))
 }
 
@@ -521,7 +521,10 @@ mod tests {
                     topo::construction::MefSite::Chords { he1, he2 },
                     geom_brep::EdgeCurveSpec {
                         description: geom_brep::EdgeDescriptionSpec::chart(surface),
-                        carrier: geom::Curve3::line(p, (q - p) / (q - p).norm()),
+                        carrier: geom::Curve3::line(
+                            p,
+                            geom::stated_direction((q - p) / (q - p).norm()),
+                        ),
                         param_start: 0.0,
                         param_end: (q - p).norm(),
                     },

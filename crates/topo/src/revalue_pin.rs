@@ -59,7 +59,7 @@ pub(crate) fn revalued_at(
     let run = |at: f64| record(|| build(at, S::param(symbol, at)));
     let ((values1, decided1), _) = with_session(budget, || {
         let (out, decided) = run(p[1]);
-        let values: Vec<f64> = out.iter().map(|x| x.value).collect();
+        let values: Vec<f64> = out.iter().map(|x| x.value()).collect();
         (values, decided)
     });
     let (found, _) = with_session(budget, || {
@@ -86,7 +86,7 @@ pub(crate) fn revalued_at(
         let nodes = decided
             .iter()
             .map(|d| (d.node, value(d)))
-            .chain(out.iter().map(|x| (x.node(), x.value)));
+            .chain(out.iter().map(|x| (x.node(), x.value())));
         let wants = decided1.iter().map(value).chain(values1.iter().copied());
         for ((node, own), want) in nodes.zip(wants) {
             assert!(

@@ -759,6 +759,18 @@ impl Band {
         }
         Self::new(self.zero + pad, self.escalate + pad)
     }
+
+    /// **The band one K-step finer**, `(ε/K, ε)` for this band's
+    /// `(ε, K·ε)`: a length decided Zero in it lies within the `ε/K`
+    /// share of this band's zero, and one decided past it reaches that
+    /// zero itself. Where `ε/K` underflows to zero (a subnormal band or
+    /// an unbounded `K`, which no run's is) it is [`Band::least`], the
+    /// finest band there is: a length decided Zero there is zero to the
+    /// last subnormal.
+    #[must_use]
+    pub fn a_step_finer(self) -> Self {
+        Self::new(self.zero / (self.escalate / self.zero), self.zero).unwrap_or(Self::least())
+    }
 }
 
 /// **A verdict's lever arm**: the length at which a dimensionless
@@ -3455,7 +3467,33 @@ impl Indeterminate {
     /// which only an escalation with a tolerance to offer can be.
     #[must_use]
     pub fn offers_tolerance(&self) -> bool {
-        matches!(self.margin.shows(self.band, self.passes()), Shows::Offer(_))
+        self.offer().is_some()
+    }
+
+    /// The tolerance [`Indeterminate::ending`] offers, as it tells it:
+    /// the one reading of whether this refusal offers one.
+    fn offer(&self) -> Option<Told> {
+        match self.margin.shows(self.band, self.passes()) {
+            Shows::Offer(offer) => Some(offer),
+            _ => None,
+        }
+    }
+
+    /// **The band at the tolerance this refusal offers**: `(ε′, K·ε′)`,
+    /// `ε′` the tolerance [`Indeterminate::ending`] offers to tighten
+    /// below, the float its sentence spells, and `K` this escalation's
+    /// band's. At it the refused margin stands at or past the
+    /// escalation edge, so a reading decided in it is decided as a run
+    /// at the offered tolerance decides it. `None` where the refusal
+    /// offers no tolerance ([`Indeterminate::offers_tolerance`]).
+    #[must_use]
+    pub fn offered_band(&self) -> Option<Band> {
+        let k = self.band.escalate / self.band.zero;
+        self.offer()?.spelled().map(|eps| {
+            Band::from_thresholds(eps, k).unwrap_or_else(|e| {
+                unreachable!("an offered tolerance is above the least a run admits: {e:?}")
+            })
+        })
     }
 }
 
@@ -3761,6 +3799,93 @@ mod tests {
     // never land a margin on an exact boundary — so they corroborate the
     // structure but do not, and cannot, pin the boundary semantics.
 
+    /// **A refusal's offered band is the band at the tolerance its
+    /// sentence spells**, at the refused band's own K: the told offer,
+    /// not the raw `|m|/K`; off an enclosure, the end nearer zero; and
+    /// none where the refusal offers none. The refused margin decides
+    /// in it, at both lanes.
+    #[test]
+    fn the_offered_band_stands_at_the_spelled_offer_with_the_refused_bands_k() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let k = band.escalate() / band.zero();
+        let refused = |margin: MarginDiag| Indeterminate {
+            margin,
+            terminal_sliver: false,
+            band,
+            predicate: None,
+        };
+        let m = 3.456_789_012_345e-9;
+        let offered = refused(MarginDiag::value(m)).offered_band().unwrap();
+        let spelled = band.offer_deciding(m).unwrap();
+        assert_eq!(offered.zero(), spelled, "the told offer");
+        assert!(
+            spelled < band.tolerance_deciding(m),
+            "the fixture's offer is told below the raw one: {spelled:e}"
+        );
+        assert_eq!(offered.escalate(), k * spelled, "the refused band's K");
+        assert!(
+            refused(MarginDiag::value(m))
+                .ending("L")
+                .contains(&format!("{spelled:e} m")),
+            "the sentence spells the band's zero: {}",
+            refused(MarginDiag::value(m)).ending("L")
+        );
+        assert_eq!(m.sign_within(offered).map(|d| d.sign), Ok(Sign::Positive));
+        let (lo, hi) = (2.345_678_901_2e-9, 6.5e-9);
+        let boxed = refused(MarginDiag::enclosure(lo, hi))
+            .offered_band()
+            .unwrap();
+        assert_eq!(
+            boxed.zero(),
+            band.offer_deciding(lo).unwrap(),
+            "the end nearer zero"
+        );
+        assert_eq!(
+            crate::Interval::from_bounds(lo, hi)
+                .sign_within(boxed)
+                .map(|d| d.sign),
+            Ok(Sign::Positive)
+        );
+        for none in [
+            MarginDiag::value(0.0),
+            MarginDiag::value(f64::NAN),
+            MarginDiag::enclosure(-2e-9, 3e-9),
+            MarginDiag::value(0.5 * EPS_MIN),
+        ] {
+            assert_eq!(refused(none).offered_band(), None, "{none}");
+        }
+    }
+
+    /// **The band one K-step finer is `(ε/K, ε)`**, its escalation the
+    /// coarser band's zero to the bit, and a band whose `ε/K` underflows
+    /// gets the least band.
+    #[test]
+    fn a_step_finer_ends_at_the_bands_own_zero() {
+        let band = Band::new(1e-9, 7e-9).unwrap();
+        let finer = band.a_step_finer();
+        assert_eq!(finer.zero(), 1e-9 / (7e-9 / 1e-9));
+        assert_eq!(finer.escalate(), 1e-9);
+        // `ε/K` underflows to zero: the least band, in which only a zero
+        // to the last subnormal reads Zero.
+        let wide = Band::new(1e-300, 1e300).unwrap();
+        for underflowing in [Band::least(), wide] {
+            assert_eq!(
+                underflowing.a_step_finer(),
+                Band::least(),
+                "{underflowing:?}"
+            );
+        }
+        assert_eq!(
+            f64::from_bits(1).sign_within(Band::least()).map(|d| d.sign),
+            Ok(Sign::Zero)
+        );
+        assert!(
+            f64::from_bits(2)
+                .sign_within(Band::least())
+                .is_ok_and(|d| d.sign == Sign::Positive)
+        );
+    }
+
     /// The fixed band used by the boundary table: exactly the default
     /// tolerance's linear band, but constructed purely.
     fn band_1e9() -> Band {
@@ -3957,7 +4082,15 @@ mod tests {
             (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
-            assert_eq!(margin.shows(band, pass), want, "{pass:?} over {margin:e}");
+            // An offer is pinned by what the person reads.
+            match (margin.shows(band, pass), want) {
+                (Shows::Offer(got), Shows::Offer(want)) => assert_eq!(
+                    crate::Tell::told_in(&got, quantity::Notation::CANONICAL).to_string(),
+                    crate::Tell::told_in(&want, quantity::Notation::CANONICAL).to_string(),
+                    "{pass:?} over {margin:e}"
+                ),
+                (got, want) => assert_eq!(got, want, "{pass:?} over {margin:e}"),
+            }
         }
     }
 
@@ -4348,7 +4481,10 @@ mod tests {
     /// in a gate's rejection, whose word names the proof and whose payload
     /// does not call the reading unclassifiable.
     /// The same reading unproven is offered one, in band, in the zero
-    /// band and as an enclosure.
+    /// band and as an enclosure clear of 0. A proven enclosure straddles
+    /// 0 where the tier proved the margin's own expression zero (the
+    /// check on a proven zero, `sym::discharge_checked`), and need not
+    /// where a free identity's caller measured it.
     #[test]
     fn a_proven_zero_is_offered_no_tolerance() {
         let band = band_1e9();
@@ -4371,25 +4507,40 @@ mod tests {
         };
         let proved =
             "a zero the symbolic tier proved, which no tolerance makes a size; Recourse: L";
+        // Each row: the reading unproven, the reading the tier may stamp
+        // proven beside it, the offer, and the proven rejection's
+        // payload. Each reading is asked unproven and proven: the value
+        // rows and the clear enclosure's own twin differ only by the
+        // proof, and the straddling twin is the reading a proven zero
+        // of the margin's own expression has (`sym::discharge_checked`).
         let rows = [
             (
+                MarginDiag::value(5e-9),
                 MarginDiag::value(5e-9),
                 "5e-10",
                 "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)",
             ),
             (
                 MarginDiag::value(5e-10),
+                MarginDiag::value(5e-10),
                 "5e-11",
                 "margin 5e-10 lies within the zero band (±1e-9)",
             ),
             (
                 MarginDiag::enclosure(2e-9, 5e-9),
+                MarginDiag::enclosure(-2e-9, 5e-9),
+                "2e-10",
+                "enclosure [-2e-9, 5e-9] reaches into the ambiguity band (1e-9, 1e-8)",
+            ),
+            (
+                MarginDiag::enclosure(2e-9, 5e-9),
+                MarginDiag::enclosure(2e-9, 5e-9),
                 "2e-10",
                 "enclosure [2e-9, 5e-9] reaches into the ambiguity band (1e-9, 1e-8)",
             ),
         ];
-        for (unproven, below, payload) in rows {
-            let proven = unproven.as_proven();
+        for (unproven, twin, below, payload) in rows {
+            let proven = twin.as_proven();
             assert_eq!(
                 unproven.sized_recourse(band, words),
                 format!(
@@ -4405,17 +4556,22 @@ mod tests {
             assert_eq!(
                 proven.sized_recourse(band, words),
                 "Recourse: L; n",
-                "{unproven}: proven, at rest"
+                "{twin}: proven, at rest"
+            );
+            assert_ne!(
+                unproven.sized_recourse_in_file(band, words, file),
+                head,
+                "{unproven}: unproven, at the import door"
             );
             assert_eq!(
                 proven.sized_recourse_in_file(band, words, file),
                 head,
-                "{unproven}: proven, at the import door"
+                "{twin}: proven, at the import door"
             );
             assert_eq!(
                 rejected(proven).under("L").to_string(),
                 format!("{payload} — {proved}"),
-                "{unproven}: proven, a gate's rejection"
+                "{twin}: proven, a gate's rejection"
             );
         }
         // Only a proof takes the subdivision lever from an enclosure a
@@ -4430,12 +4586,34 @@ mod tests {
                 ending.starts_with("Recourse: subdivide the parameter box"),
                 "{unproven}: unproven, a gate's rejection: {ending}"
             );
-            assert_eq!(
-                rejected(unproven.as_proven()).ending("L"),
-                "Recourse: L",
-                "{unproven}: proven, a gate's rejection"
-            );
         }
+        let straddling = MarginDiag::enclosure(-2e-9, 5e-9);
+        assert_eq!(
+            rejected(straddling.as_proven()).ending("L"),
+            "Recourse: L",
+            "{straddling}: proven, a gate's rejection"
+        );
+        // A free identity's zero (`Decide::free_identity`) is proven over
+        // the bound its caller measured, which need not hold 0: the
+        // limb-2 row (`geom-brep/src/edge_nurbs.rs`'s tests) returns
+        // one over [1e-12, 3e-12]. Proven, it reads as every proven zero
+        // does.
+        let free = MarginDiag::enclosure(1e-12, 3e-12).as_proven();
+        assert_eq!(
+            free.sized_recourse(band, words),
+            "Recourse: L; n",
+            "{free}: at rest"
+        );
+        assert_eq!(
+            free.sized_recourse_in_file(band, words, file),
+            head,
+            "{free}: at the import door"
+        );
+        assert_eq!(
+            rejected(free).under("L").to_string(),
+            format!("enclosure [1e-12, 3e-12] lies within the zero band (±1e-9) — {proved}"),
+            "{free}: a gate's rejection"
+        );
     }
 
     /// **An offer is the deciding tolerance told on its working side**,

@@ -4,7 +4,7 @@ kind: issue
 title: topo's two display-contract enums could carry a compiler-derived variant list beside the enum, as its own src rows already do
 status: open
 opened: 2026-09-15
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -77,3 +77,5 @@ unit-sized one.
 row.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** The transcription is compiler-checked both ways (`crates/topo/tests/display_contract.rs:31,55` `f6_variants!`), so nothing can drift silently. `contact.rs:129` already derives `EnumIter` for `ContactRefusalKind`. This is code improvement with no latency effect.

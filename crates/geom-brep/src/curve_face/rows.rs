@@ -23,7 +23,7 @@ fn line(origin: [f64; 3], dir: [f64; 3]) -> Curve3<f64> {
     let [x, y, z] = dir;
     Curve3::line(
         Point3::new(origin[0], origin[1], origin[2]),
-        Vec3::new(x, y, z).normalize(),
+        geom_core::UnitVec3::squared(Vec3::new(x, y, z)),
     )
 }
 
@@ -68,6 +68,7 @@ fn every_kind_pair_routes_to_its_door() {
                 (_, Spindle) => (Door::Sheet, false),
                 (Spiric, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, true),
+                (Spiric, Plane) => (Door::SpiricPlane, true),
                 (Spiric, _) => (Door::Spiric, false),
                 (Nurbs, _) => (Door::SplineComposite, true),
                 (_, Plane) => (Door::PlaneCrossing, true),
@@ -279,7 +280,7 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
             let vertex = p + normal * (0.5 * z);
             let leaving = Curve3::Line(geom::Line {
                 origin: vertex,
-                dir: normal,
+                dir: geom::stated_direction(normal),
             });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
             match boundary(&swept, &edges, &[], band) {
@@ -489,6 +490,11 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("CONE_DEFLATED_DEPTH"),
         NameCarrier::Const("CONE_DEFLATED_SIDE"),
         NameCarrier::Const("CONE_ROOT_SLACK"),
+        NameCarrier::Const("END_ROOT_ORDER"),
+        NameCarrier::Const("END_ROOT_SPREAD"),
+        NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
+        NameCarrier::Const("OVAL_IN_BAND"),
+        NameCarrier::Const("OVAL_SIDE"),
         NameCarrier::Call("spread_readings"),
         NameCarrier::Call("harmonic_roots_as"),
         NameCarrier::Call("constant_residual_as"),
@@ -549,6 +555,10 @@ fn every_door_name_carries_a_listed_prefix() {
             "conic_quadric.rs: CONE_DEFLATED_DEPTH",
             "conic_quadric.rs: CONE_DEFLATED_SIDE",
             "conic_quadric.rs: CONE_ROOT_SLACK",
+            "end_root.rs: END_ROOT_ORDER",
+            "end_root.rs: END_ROOT_WINDOW_CLEAR",
+            "spiric_plane.rs: OVAL_IN_BAND",
+            "spiric_plane.rs: OVAL_SIDE",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
             "spline_face.rs: PAST_THE_END",

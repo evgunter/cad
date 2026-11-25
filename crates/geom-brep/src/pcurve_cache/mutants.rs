@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 57] = [
+pub(super) const SITES: [&str; 59] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -82,6 +82,8 @@ pub(super) const SITES: [&str; 57] = [
     "first-reading-sym-discarded-on-pass",
     "across-once",
     "sphere-meridian-unprojected",
+    "distance-raw-norm",
+    "ruling-azimuth-unscaled",
 ];
 
 fn on(site: &str) -> bool {
@@ -297,6 +299,18 @@ pub(super) fn ruling_unplaced() -> bool {
 /// radial standoff unread (its row is `ruling_reading_rows`).
 pub(super) fn meridian_standoff_unread() -> bool {
     on("meridian-standoff-unread")
+}
+
+/// A point's distance from a cylinder or sphere read as its measured
+/// norm less the radius (its rows are `radial_reader_rows`).
+pub(super) fn distance_raw_norm() -> bool {
+    on("distance-raw-norm")
+}
+
+/// A cylinder ruling's azimuth read off its radial offset at its
+/// length (its rows are `radial_reader_rows`).
+pub(super) fn ruling_azimuth_unscaled() -> bool {
+    on("ruling-azimuth-unscaled")
 }
 
 /// A line's incidence read at the sampled schedule again, its critical

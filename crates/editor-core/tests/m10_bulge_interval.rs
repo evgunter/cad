@@ -265,11 +265,21 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// moves none of these counts: the copy's stated images are carried with
 /// its certificates, so none is metered again where it is placed.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
+///
+/// **An adjacent line pair's shared vertex is not read**
+/// (`profile::seg`'s `line_line`): the tab's two straight corners each
+/// lose their two `chord_side` sides, two `line_span` spans and two
+/// `contact_at_shared_vertex` coincidences, all of which the tier proved,
+/// so `chord_side` 6/12 -> 2/12, `line_span` 6/4 -> 2/4 and
+/// `contact_at_shared_vertex` 12/4 -> 8/4, in both spellings and at every
+/// ε row. What stands of the three is read elsewhere, the tab's
+/// line × arc joints among them, whose shared vertex is still read
+/// (`profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`).
+/// Nothing else moved.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -282,9 +292,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_1", [126, 18]),
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
-    ("chord_side", [6, 12]),
+    ("chord_side", [2, 12]),
     ("circle_side", [2, 2]),
-    ("contact_at_shared_vertex", [12, 4]),
+    ("contact_at_shared_vertex", [8, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the
     // arm, the wedge and a corner's sign at 7 stations, where it read
@@ -295,7 +305,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
-    ("line_span", [6, 4]),
+    ("least_turn_conditioning", [0, 1]),
+    ("line_span", [2, 4]),
+    ("mate_chart_pole", [0, 1]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
@@ -311,10 +323,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_line_chart_incident", [10, 4]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
-    // Validation's mint reads each component of its three straight
-    // sides' chords exactly (audit row F43): of the six, three are the
-    // zero a theorem proves, and the bulge's sign signs its radials.
-    ("segment_direction_axis", [3, 3]),
+    // The direction mint asks each of its three straight sides' chords
+    // whether a component is zero as an expression (no decision) and
+    // reads the other's sign (audit row F43); the bulge's sign signs
+    // its radials.
+    ("segment_direction_axis", [0, 3]),
     ("segment_direction_sign", [0, 1]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
@@ -484,11 +497,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// 126/0, `pcurve_chart_radial_moving` 22/20 -> 14/12, the other
 /// `pcurve_*` rows about four in ten, `ssi_hull_sup` 28/0 -> 20/0.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -519,7 +531,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
+            ("least_turn_conditioning", [0, 1]),
             ("line_span", [2, 0]),
+            ("mate_chart_pole", [0, 1]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
@@ -528,17 +542,21 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_radial_moving", [14, 12]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
-            // and [28, 6] -> [20, 4].
-            ("pcurve_cylinder_chart_incident", [8, 4]),
+            // and [28, 6] -> [20, 4]. A carrier's distance from its own
+            // wall is read through the rationalized gap
+            // (`geom_core::radius_gap`), so the four numeric Zeros of
+            // each incidence predicate are theorems: [8, 4] -> [12, 0]
+            // and [10, 4] -> [14, 0].
+            ("pcurve_cylinder_chart_incident", [12, 0]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_interval_forward", [0, 12]),
-            ("pcurve_line_chart_incident", [10, 4]),
+            ("pcurve_line_chart_incident", [14, 0]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),
-            // Validation's mint reads its one straight side's chord
-            // exactly (audit row F43), and the bulge's sign signs its
-            // radials.
-            ("segment_direction_axis", [1, 1]),
+            // The direction mint reads the sign of its one straight
+            // side's chord along its axis (audit row F43), and the
+            // bulge's sign signs its radials.
+            ("segment_direction_axis", [0, 1]),
             ("segment_direction_sign", [0, 1]),
             ("segment_straightness", [2, 6]),
             // The boss's placement asks the session box of where it

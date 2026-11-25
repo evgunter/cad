@@ -2276,16 +2276,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
                 for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
-                    let BoundaryMember::Edge {
-                        he,
-                        ek: edge,
-                        edge: e,
-                        ..
-                    } = member
-                    else {
+                    let BoundaryMember::Edge { he, edge: e, .. } = member else {
                         continue;
                     };
-                    let Some(claim) = e.claim(he) else {
+                    let edge = e.key();
+                    let Some(claim) = e.record().claim(he) else {
                         unreachable!(
                             "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
                              an edge claims the two half-edges that name it"
@@ -2783,14 +2778,15 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
         }
         // Intra-face duplicates: edges now occurring twice within the
-        // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
-        // same-face duplicate means the cosurface run CLOSED THE FULL
-        // PERIOD — a shape outside the merge's inventory (neither the
-        // ring form nor the kept-cut seam form is integrable by the
-        // exact-B-rep props yet), refused typed here; the driver
-        // records it as a LOUD skip, so sub-period re-merges (the C12.5
-        // through-cut case) proceed and full closures stay unmerged
-        // exactly as the operands arrived.
+        // survivor's loops. On a CURVED survivor (C12.5) a same-face
+        // duplicate means the cosurface run CLOSED THE FULL PERIOD, and
+        // the run's pieces are the ones an author wrote on a closed wall,
+        // which it keeps (`docs/DESIGN.md`, `[edges]`: the kernel adds
+        // no cut, so none it made reaches here; the Boolean closes its
+        // own chart cuts first, `boolean::slit::close_cuts`). Refused
+        // typed here; the driver records it as a LOUD skip, so sub-period
+        // re-merges (the C12.5 through-cut case) proceed and full
+        // closures stay unmerged exactly as the operands arrived.
         //
         // On a PLANAR survivor every duplicate is one of two things,
         // told apart by topology alone:

@@ -1,5 +1,5 @@
-//! **The face walk answers the same thing at any thread count, and the
-//! same thing `main` answered.**
+//! **The face walk answers the same thing at any thread count as the
+//! serial walk does.**
 //!
 //! `topo::props` runs each face's flux in an indexed parallel map
 //! (PERF-PLAN §2.2 idiom 1) and sums the slots in a sequential
@@ -10,13 +10,16 @@
 //! worker records into that worker's frame and sink unless the walk
 //! composes them back.
 //!
-//! **The baseline is a committed golden, not the other width.** Two
-//! widths of the SAME code agree whenever the loss is width-independent
-//! — a walk that dropped every worker's recording identically at one
-//! and four threads would pass a t1-vs-t4 row while asserting nothing.
-//! So `thread-count-digest/eps-*.txt` holds what the SERIAL walk reads
-//! (the one-thread row holds it to that), and the four-thread walk is
-//! read against it. When a line of it moves, the rule is at `expected`.
+//! **The baseline is the serial walk, run beside the pooled ones, not
+//! the other width.** Two widths of the SAME code agree whenever the
+//! loss is width-independent — a walk that dropped every worker's
+//! recording identically at one and four threads would pass a
+//! t1-vs-t4 row while asserting nothing. So the reference reading is
+//! taken with the shape report installed, under which `topo::props`'
+//! `decide_faces` takes its serial arm: every face decided on the
+//! caller's thread, in arena order, into the caller's own frame and
+//! sink, with no worker, no detached recording and no splice. The one-
+//! and four-thread walks are read against that.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -27,9 +30,9 @@
 //! `Indeterminate` of their OWN for a budget that ran out, which the
 //! frame never sees
 //! (`work/props/escalation-channel-misses-op-minted-indeterminates.md`,
-//! and `k_stats`' module docs say the same). So these rows pin that the
-//! escalation log is still exactly what `main` recorded — which is
-//! nothing — and they would catch a composition that invented
+//! and `k_stats`' module docs say the same). So these rows hold that the
+//! escalation log the pooled walks record is the serial walk's — which
+//! is nothing — and they would catch a composition that invented
 //! escalations or moved them; they cannot demonstrate a non-empty
 //! escalation log surviving a worker, because no body in this tree
 //! produces one. The thin strip is here as the body whose target-level
@@ -39,7 +42,7 @@
 //! **Its `probe` row lives in `thread_count_probe_populations`**: the
 //! sample population is the thing k-lint counts, and only the probe
 //! sweep runs a `probe` build, so the row sits in a file the sweep can
-//! select without re-running the goldens here.
+//! select without re-running the rows here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
@@ -132,7 +135,7 @@ fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
 /// its height), would pass the session box's own extent: at ε = 1e-6
 /// the unit is `1e-9`, and the bodies there are the 1e-9 row's. The
 /// extent and not the far end (`common::FAR_END`) because the 1e-9
-/// row's strip already reaches the box's edge, and its golden is kept. The scaled bodies are
+/// row's strip already reaches the box's edge. The scaled bodies are
 /// measured at `1024` units, the fixed ones at the pinned `1024·ε`. The
 /// names keep `eps` for the unit.
 fn unit() -> f64 {
@@ -259,16 +262,12 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
 /// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sym={} rref={} rcon={} num={} disp={} chk={}/{} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sym={} rref={} num={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic,
         c.registrations_refused,
-        c.registrations_contradicted,
         c.numeric,
-        c.theorems_disputed,
-        c.checks_expanded,
-        c.checks_expanded + c.checks_frozen,
         c.frozen,
         shapes,
     )
@@ -307,10 +306,8 @@ struct Receipt {
 /// own under `budget` that BUILDS the body before reading it.
 ///
 /// **Built inside, receipted after.** A node minted before the session
-/// is not in its table, so the walk can only make it an unknown, and a
-/// contradiction check over the body's arithmetic would be reading
-/// unknowns (`SymCounts::checks_expanded`). So the session is installed
-/// first, and the receipt is the door's alone: the counts the build
+/// is not in its table, so the walk can only make it an unknown. So the
+/// session is installed first, and the receipt is the door's alone: the counts the build
 /// left ([`session_counts`](geom_core::sym::session_counts)) are taken
 /// off the end, and the shape report opens after the build.
 fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receipt> {
@@ -356,10 +353,6 @@ fn since(end: SymCounts, start: SymCounts) -> SymCounts {
     let SymCounts {
         symbolic,
         registrations_refused,
-        registrations_contradicted,
-        theorems_disputed,
-        checks_expanded,
-        checks_frozen,
         numeric,
         retried,
         frozen,
@@ -367,10 +360,6 @@ fn since(end: SymCounts, start: SymCounts) -> SymCounts {
     SymCounts {
         symbolic: symbolic - start.symbolic,
         registrations_refused: registrations_refused - start.registrations_refused,
-        registrations_contradicted: registrations_contradicted - start.registrations_contradicted,
-        theorems_disputed: theorems_disputed - start.theorems_disputed,
-        checks_expanded: checks_expanded - start.checks_expanded,
-        checks_frozen: checks_frozen - start.checks_frozen,
         numeric: numeric - start.numeric,
         retried: retried - start.retried,
         frozen: frozen - start.frozen,
@@ -385,108 +374,71 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
     )
 }
 
-/// The committed digest for each ε row the matrix gates: what the
-/// serial walk reads. An ε with no entry prints its block and fails,
-/// which is how a new row gets cut.
+/// **One reading of the whole roster**: the `# f64` block, one line per
+/// roster body ([`line`]) — the certified volume, area and their pads
+/// as bits, or the typed refusal naming its face, then the verdict and
+/// escalation channels' counts and hashes — and the `# sym-session`
+/// block, one line per `Sym` body and door ([`counts_line`]), each the
+/// DOOR's receipt over a body the same session built ([`receipts`]).
 ///
-/// **What a golden holds.** The `# f64` block is one line per roster
-/// body ([`line`]): the certified volume, area and their pads as bits,
-/// or the typed refusal naming its face, then the verdict and
-/// escalation channels' counts and hashes. The `# sym-session` block is
-/// one line per `Sym` body and door ([`counts_line`]), each the DOOR's
-/// receipt over a body the same session built ([`receipts`]): by
-/// outcome (`sym`, `rref`, `rcon`, `num`), its disputes (`disp`), its
-/// contradiction checks as the ones that saw a whole form over all of
-/// them (`chk`), the nodes its plain walks froze (`frozen`) and the
-/// shape report's length. Every receipt also clears
-/// [`dispute_coverage`] before the table is read.
-///
-/// **When a line moves.** The table is the SERIAL walk's reading:
-/// [`the_walk_matches_the_serial_golden_at_one_thread`] holds it to
-/// that, so a re-cut cannot record a width-dependent move as the
-/// baseline. A line whose move is explained and right is re-cut, with
-/// the cause named in the PR body (a certified bound that gets tighter
-/// re-baselines like any other move, and so does a looser one that is
-/// the named consequence of a change that makes the code right, with an
-/// item filed for the looseness). A line whose move nobody has
-/// explained is PINNED at the serial reading and named here with the
-/// row that owes the account, so the row is green and the next move
-/// reds; a pin is not a judgment that the reading is right.
-///
-/// **Pinned, unexplained**, read by
-/// [`the_walk_matches_the_serial_golden_at_four_threads`]: the two `Sym`
-/// bodies' `validate_geometric` lines at every ε row, and
-/// `arc_loft_1e9eps`' volume at 1e-12. They wait on
-/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`;
-/// their `frozen` counts' latest move (PR 7028, 14 and 12 to 16) waits on
-/// `work/sectarms/check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden.md`.
-/// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
-/// `the_walk_matches_the_serial_golden_at_four_threads` alike,
-/// `arc_loft_1e11eps`' two pads at 1e-12:
-/// `work/boxfinish/main-red-boxfinishs-merges-left-slow-rows-red-through-the-gates-slow-set-gap.md`.
-fn expected(eps: f64) -> Option<&'static str> {
-    match eps {
-        1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
-        1e-9 => Some(include_str!("thread-count-digest/eps-1e-9.txt")),
-        1e-12 => Some(include_str!("thread-count-digest/eps-1e-12.txt")),
-        _ => None,
-    }
-}
-
-fn check_against_golden(threads: usize) {
-    let eps = Tol::witness().get().eps;
-    let (f64_block, receipts) =
-        on_pool(threads, || (f64_block(), receipts(&sym_bodies(), budget())));
-    for r in &receipts {
-        if let Err(why) = dispute_coverage(&r.counts) {
-            panic!("{} {}: {why}: {:?}", r.name, r.door, r.counts);
-        }
-    }
-    let got = digest(&f64_block, &receipts);
-    let Some(want) = expected(eps) else {
-        panic!("no committed digest for eps={eps:e}; this run produced\n{got}");
+/// `serial` takes the f64 block with the shape report installed, which
+/// is what sends `topo::props`' face walk down its serial arm
+/// (`geom_core::sym::decisions_are_thread_portable`); the session block
+/// is read under an installed session, where the walk is serial at
+/// every width.
+fn reading(serial: bool) -> String {
+    let f64_block = if serial {
+        geom_core::sym::report::start_shape_report();
+        let block = f64_block();
+        geom_core::sym::report::take_shape_report();
+        block
+    } else {
+        f64_block()
     };
-    assert_eq!(
-        got.trim(),
-        want.trim(),
-        "at {threads} thread(s) the face walk's readings or its recorded channels differ \
-         from what the SERIAL walk recorded (eps={eps:e}). This is not a baseline to \
-         preserve: `expected` says what to do with a line that moved."
-    );
+    let receipts = receipts(&sym_bodies(), budget());
+    digest(&f64_block, &receipts)
 }
 
-#[test]
-fn the_walk_matches_the_serial_golden_at_four_threads() {
-    check_against_golden(4);
-}
-
-/// The golden is the SERIAL walk's reading, so the serial walk must
-/// read it too: a golden re-cut from the four-thread row alone would
-/// otherwise record a width-dependent move as the baseline.
-#[test]
-fn the_walk_matches_the_serial_golden_at_one_thread() {
-    check_against_golden(1);
-}
-
-/// Non-vacuity, and it is about the GOLDEN as much as about the code:
-/// a table of empty channels would compare equal to a re-cut table of
-/// empty channels forever. Two reads, one cheap body each way — the
-/// committed digest must carry verdicts at all, and a live walk must
-/// record the props lanes' OWN predicates rather than someone else's.
-#[test]
-fn the_roster_records_the_props_lanes_own_verdicts() {
-    let eps = Tol::witness().get().eps;
-    let want = expected(eps).expect("a committed digest for this eps");
-    let recorded: usize = want
+/// The verdicts a reading's `# f64` block records, summed over its
+/// bodies.
+fn verdicts_recorded(reading: &str) -> usize {
+    reading
         .lines()
         .filter_map(|l| l.split("verdicts n=").nth(1))
         .filter_map(|t| t.split_whitespace().next())
         .filter_map(|n| n.parse::<usize>().ok())
-        .sum();
+        .sum()
+}
+
+/// **At one thread and at four, the face walk reads what the serial
+/// walk reads**: every body's bits or refusal, both recorded channels,
+/// and every session receipt. The serial reading must carry verdicts,
+/// or two empty channels would compare equal.
+#[test]
+fn the_walk_matches_the_serial_walk_at_one_and_four_threads() {
+    let eps = Tol::witness().get().eps;
+    let serial = reading(true);
     assert!(
-        recorded > 0,
-        "the committed digest records no verdict on any body — it is a table of empty channels"
+        verdicts_recorded(&serial) > 0,
+        "the serial walk records no verdict on any body — the comparison below would be \
+         between empty channels:\n{serial}"
     );
+    for threads in [1, 4] {
+        let pooled = on_pool(threads, || reading(false));
+        assert_eq!(
+            pooled.trim(),
+            serial.trim(),
+            "at {threads} thread(s) the face walk's readings or its recorded channels differ \
+             from what the serial walk records (eps={eps:e})"
+        );
+    }
+}
+
+/// A live walk records the props lanes' OWN predicates rather than
+/// someone else's: the described-spline body reaches the quadrature
+/// lane, so the comparison above is over a walk that does something.
+#[test]
+fn the_roster_records_the_props_lanes_own_verdicts() {
     let prism =
         topo::test_support::finished("the loft prism", loft_prism(Tol::witness()), Tol::witness());
     let bracket = Bracket::open();
@@ -504,113 +456,45 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
     assert!(
         quad > 0,
         "the described-spline body recorded no props_quad verdict — the roster no longer \
-         reaches the quadrature lane, so the golden above pins a walk that does nothing"
+         reaches the quadrature lane"
     );
 }
 
-// ---------------------------------------------------------------- //
-// Dispute coverage: what a `disp=0` in the session block speaks for.  //
-// ---------------------------------------------------------------- //
-
-/// **The least share of a receipt's contradiction checks that must
-/// have seen a whole form**, as `(numerator, denominator)`.
-///
-/// Measured at all three ε with the bodies built inside the session:
-/// 103/110 (0.936) on the arc loft's `validate_geometric` and 104/116
-/// (0.897) on the strip's — the lowest share, ten points over this
-/// floor, eleven checks of its 116. Built outside the session the same
-/// arc door reads 14/110 (0.127).
-const COVERAGE_FLOOR: (u64, u64) = (4, 5);
-
-/// **The fewest checks the floor is read over.** A share of a handful
-/// is noise — on the 2-check `mass_properties` receipt one freeze is
-/// half of it — so below this the guard asks only that a check ran,
-/// and the golden table pins those receipts' `chk` exactly.
-const COVERAGE_MIN_CHECKS: u64 = 20;
-
-/// **The guard on `disp=0`.** A contradiction check over a form it
-/// cannot see whole cannot dispute (`SymCounts::checks_expanded`), so a
-/// receipt's zero disputes are evidence only for the checks that saw
-/// their form. The guard is a floor on that share, not on a count: it
-/// holds when the walk takes more or fewer decisions for reasons of its
-/// own, and fails when the checks it does take go blind. A receipt with
-/// no check at all fails too — its `disp=0` is about nothing.
-fn dispute_coverage(c: &SymCounts) -> Result<(), String> {
-    let checks = c.checks_expanded + c.checks_frozen;
-    let (n, d) = COVERAGE_FLOOR;
-    if checks == 0 {
-        return Err("no contradiction check ran, so disp=0 speaks for nothing".to_owned());
-    }
-    if checks >= COVERAGE_MIN_CHECKS && c.checks_expanded * d < checks * n {
-        return Err(format!(
-            "{} of {checks} contradiction checks saw a whole form, under the floor of \
-             {n}/{d}: disp={} speaks for too few of them",
-            c.checks_expanded, c.theorems_disputed
-        ));
-    }
-    Ok(())
-}
-
-/// **The guard trips where the checks go blind, and `disp=0` alone
-/// does not.** The arc loft built BEFORE the session is installed, then
-/// read through both doors inside one: every node of the body is
-/// unknown to the session, the checks of `validate_geometric` read
-/// unknowns, and the guard fails there while both doors still read no
-/// dispute. Built inside, the same door clears the guard in the golden
-/// row.
+/// **The contradiction instrument over the session block's bodies**
+/// (`geom_core::sym::contradiction`): each `Sym` body built and read
+/// through both reporting doors inside one session, and the instrument
+/// asking every definite decision whether the tier's algebra or a
+/// registration would have claimed `Zero` there. It finds nothing, and
+/// it asked: every door's decisions include definite ones, none on a node
+/// the session does not hold.
 #[test]
-fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() {
-    let body = sym_arc_loft();
-    // The measurement door's body is finished outside the session too, so
-    // its receipt is the door's own; the validation door reads it as built.
-    let finished = topo::test_support::finished("the arc loft", body.clone(), Tol::witness());
-    let all: Vec<_> = ["mass_properties", "validate_geometric"]
-        .into_iter()
-        .map(|door| {
-            let (_, c) = with_session(budget(), || match door {
-                "mass_properties" => {
-                    topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
-                }
-                _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
+fn the_session_blocks_bodies_contradict_nothing() {
+    use geom_core::sym::contradiction;
+    use geom_core::sym::revalue::record;
+    for (name, build) in sym_bodies() {
+        for door in ["mass_properties", "validate_geometric"] {
+            let (report, _) = with_session(budget(), || {
+                let ((), decisions) = record(|| {
+                    let body = build();
+                    let _ = if door == "mass_properties" {
+                        let finished =
+                            topo::test_support::finished("the built body", body, Tol::witness());
+                        topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
+                    } else {
+                        topo::validate_geometric(&body, Tol::witness()).is_err()
+                    };
+                });
+                contradiction::check(&decisions).expect("inside the session")
             });
-            (door, c)
-        })
-        .collect();
-    for (door, c) in &all {
-        println!("sym_arc_loft {door} built outside: {c:?}");
-        assert_eq!(
-            c.theorems_disputed, 0,
-            "{door}: the blind run disputes nothing, so disp=0 cannot be the guard: {c:?}"
-        );
-    }
-    let tripped: Vec<_> = all
-        .iter()
-        .filter(|(_, c)| dispute_coverage(c).is_err())
-        .map(|(door, _)| *door)
-        .collect();
-    assert_eq!(
-        tripped,
-        ["validate_geometric"],
-        "the doors whose checks a body built outside the session blinds: {all:?}"
-    );
-}
-
-/// The guard's three branches at their edges: no check, a small
-/// receipt the floor is not read over, and a large one either side of
-/// the floor.
-#[test]
-fn the_guard_reads_its_floor_over_enough_checks() {
-    let at = |expanded, frozen| SymCounts {
-        checks_expanded: expanded,
-        checks_frozen: frozen,
-        ..SymCounts::default()
-    };
-    for (expanded, frozen, holds) in [(0, 0, false), (1, 1, true), (16, 4, true), (15, 5, false)] {
-        assert_eq!(
-            dispute_coverage(&at(expanded, frozen)).is_ok(),
-            holds,
-            "{expanded} of {} checks on whole forms",
-            expanded + frozen
-        );
+            println!("{name} {door}: {report:?}");
+            assert!(
+                report.checked > 0 && report.absent == 0,
+                "{name} {door}: the instrument must have asked something it could read: {report:?}"
+            );
+            assert!(
+                report.contradictions.is_empty(),
+                "{name} {door}: the two channels contradict: {report:?}"
+            );
+        }
     }
 }

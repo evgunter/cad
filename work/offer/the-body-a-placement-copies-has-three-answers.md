@@ -5,6 +5,7 @@ title: viewer/editor-core: the body a placement copies has three answers that di
 status: open
 opened: 2026-11-23
 priority: P2
+cost: M
 ---
 
 Found in review of PR 7356 (the relations unit). Three sites each answer "the body this placement copies", and they disagree in two cases.

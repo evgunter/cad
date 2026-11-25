@@ -270,9 +270,22 @@ fn a_read_through_a_definition_counts() {
 }
 
 /// The human form says the node failed, with its cause, on the line
-/// under its own class's count.
-fn assert_spoken_under_its_class(said: &str, leaves: usize, node: &str, cause: &str) {
+/// under its own class's count, the node mentioned in the driven
+/// document `doc`. (The loft's cause names no other node; a cause that
+/// does is `drive::tests::a_failed_leafs_cause_mentions_the_node_it_names`.)
+fn assert_spoken_under_its_class(
+    lines_said: &editor_core::Lines,
+    leaves: usize,
+    node: &editor_core::SpokenNode,
+    doc: editor_core::DocumentId,
+    cause: &editor_core::Sentence,
+) {
+    let said = lines_said.to_string();
     let lines: Vec<&str> = said.lines().collect();
+    let (node, cause_text) = (
+        editor_core::test_support::node_text(node),
+        cause.to_string(),
+    );
     let at = lines
         .iter()
         .position(|l| *l == format!("  {leaves} leaf/leaves refused reads_no_variable"))
@@ -281,11 +294,18 @@ fn assert_spoken_under_its_class(said: &str, leaves: usize, node: &str, cause: &
         lines.get(at + 1).copied(),
         Some(
             format!(
-                "    {node} fails and reads no variable of the box: no split changes it ({cause})"
+                "    {node} fails and reads no variable of the box: no split changes it \
+                 ({cause_text})"
             )
             .as_str()
         ),
         "the node's line follows its class's count:\n{said}"
+    );
+    let line: Vec<_> = lines_said[at + 1].mentions().collect();
+    assert!(
+        line.first()
+            .is_some_and(|m| m.node().is_some() && m.document() == Some(doc)),
+        "the line mentions its node in the driven document: {line:?}"
     );
 }
 
@@ -345,8 +365,13 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
         v.serialize()
     );
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
-    let said = v.render(&r.doc, &analyzed);
-    assert_spoken_under_its_class(&said, 1, &r.doc.spoken(loft).to_string(), cause);
+    assert_spoken_under_its_class(
+        &v.render(&r.doc, &analyzed),
+        1,
+        &r.doc.spoken(loft),
+        r.doc.id(),
+        cause,
+    );
 
     let mut r = Recorder::new();
     declare_in_eps(&mut r, "depth", UNDECIDED);
@@ -382,7 +407,8 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     assert_spoken_under_its_class(
         &v.render(&r.doc, &analyzed),
         named.len(),
-        &r.doc.spoken(loft).to_string(),
+        &r.doc.spoken(loft),
+        r.doc.id(),
         cause,
     );
     for leaf in named {
@@ -524,8 +550,8 @@ fn moving_a_variable_moves_no_key_outside_its_readers() {
                     reads.get(&node).is_some_and(|set| set.contains(&var)),
                     "{}: moving {} moved the key of {}, whose read set lacks it",
                     d.name,
-                    d.doc.spoken_var(var),
-                    d.doc.spoken(node)
+                    editor_core::test_support::var_text(&d.doc.spoken_var(var)),
+                    editor_core::test_support::node_text(&d.doc.spoken(node))
                 );
             }
         }

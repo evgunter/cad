@@ -156,10 +156,7 @@ impl KilledSplits {
                 }
             }
         }
-        for (operand, carved) in [Operand::A, Operand::B]
-            .into_iter()
-            .zip(&naming.carved_lineage)
-        {
+        for (operand, carved) in Operand::BOTH.into_iter().zip(&naming.carved_lineage) {
             if let Some(hops) = out.space(naming, operand) {
                 hops.extend(carved);
             }
@@ -345,7 +342,8 @@ pub(crate) fn name_split<T: Decide>(
     }
 
     for s in &sides {
-        super::emit::check_total(&halves[s.slot()].t, s.body, 0)?;
+        let h = &mut halves[s.slot()];
+        h.t = super::emit::finish(std::mem::take(&mut h.t), s.body, 0)?;
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
@@ -1316,10 +1314,13 @@ fn name_split_edges_vertices<T: Decide>(
                         target_node,
                     )
                 })?;
-            if target_table
-                .name_of(&ent(0, EntityKey::Vertex(src)))
-                .is_some()
-            {
+            let src_name = target_table.name_of(&ent(0, EntityKey::Vertex(src)));
+            // The plane through the target's conventional vertex crosses
+            // its closed edge's interior there, as a plane a hair away
+            // would: the vertex has no identity of its own.
+            let through_conventional =
+                super::emit::cut_through_conventional(target_body, src, src_name, body, v);
+            if src_name.is_some() && through_conventional.is_none() {
                 // The plane passed THROUGH an operand vertex: its
                 // copies in this half, named below. Its own birth
                 // record, if any, is the operation that made the
@@ -1339,14 +1340,16 @@ fn name_split_edges_vertices<T: Decide>(
             }
             // A vertex the split minted: the original's record lives in
             // whichever side kept it.
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_split_edge_to_table(sides, target_table, *edge))
-                    }
-                    _ => None,
-                });
+            let parent_edge = through_conventional.or_else(|| {
+                sides
+                    .iter()
+                    .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+                        Some(Provenance::SplitEdge { edge }) => {
+                            Some(chase_split_edge_to_table(sides, target_table, *edge))
+                        }
+                        _ => None,
+                    })
+            });
             let Some(parent_edge) = parent_edge else {
                 unreachable!(
                     "split vertex {v:?} (standing for {src:?}) has neither a `SplitEdge` record \
@@ -1693,82 +1696,6 @@ impl GraftInverse {
     }
 }
 
-/// **No name reads a cell a sphere re-chart turned**
-/// (`topo::BooleanNaming::recharted`): a live edge whose descent reaches
-/// one, chased as the edge pass chases it ([`chase_edge_to_table`],
-/// through the split hops the kills dropped), or a live vertex that is
-/// one, is a turned seam piece or pole, which descends from no cell of
-/// its operand. A re-charted face is not asked after: a kept piece of a
-/// turned sphere is a band or a cap about the turned axis, which a
-/// turned seam crosses or a turned pole lies in, so its edges or
-/// vertices refuse first. `reads` are the operands' reads, A's then
-/// B's, and `b_body` B's body, which a grafted B's descent is chased in.
-///
-/// # Errors
-///
-/// [`NamingError::UnsupportedTurnedCell`] for the first such edge, in
-/// arena order, else the first such vertex;
-/// [`NamingError::SplitLineage`] for a cycling lineage.
-pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
-    body: &Body<T>,
-    naming: &topo::BooleanNaming,
-    inv: &GraftInverse,
-    reads: [crate::VarId; 2],
-    b_body: &Body<T>,
-) -> Result<(), NamingError> {
-    use topo::Operand;
-    let turned = |operand: Operand, cell: topo::Cell| {
-        naming.recharted[usize::from(operand == Operand::B)].contains(cell)
-    };
-    if naming
-        .recharted
-        .iter()
-        .all(topo::boolean::Recharts::is_empty)
-    {
-        return Ok(());
-    }
-    let refuse = |operand: Operand, cell| NamingError::UnsupportedTurnedCell {
-        read: reads[usize::from(operand == Operand::B)],
-        cell,
-    };
-    let killed = KilledSplits::of(naming);
-    for (e, _) in body.edges() {
-        let (root, space) = operand_key(naming, &inv.edges, e);
-        let (operand, root) = match (root, space) {
-            (OpSide::A(k), _) | (OpSide::B(k), KeySpace::Arena) => {
-                let operand = root.operand();
-                let at = |k| turned(operand, topo::Cell::Edge(k));
-                (operand, chase_edge_until(body, &killed.arena, at, k)?)
-            }
-            (OpSide::B(_), KeySpace::Graft) => {
-                let at_b = |k| turned(Operand::B, topo::Cell::Edge(k));
-                let root = body.split_root(e, |r| inv.lineage.get(&r).is_none_or(|&k| at_b(k)))?;
-                // A walk that leaves the graft rows is the edge pass's to
-                // refuse.
-                let Some(&kb) = inv.lineage.get(&root) else {
-                    continue;
-                };
-                (
-                    Operand::B,
-                    chase_edge_until(b_body, &killed.graft_b, at_b, kb)?,
-                )
-            }
-        };
-        let cell = topo::Cell::Edge(root);
-        if turned(operand, cell) {
-            return Err(refuse(operand, cell));
-        }
-    }
-    for (v, _) in body.vertices() {
-        let (operand, k, _) = naming.operand_of(&inv.vertices, v);
-        let cell = topo::Cell::Vertex(k);
-        if turned(operand, cell) {
-            return Err(refuse(operand, cell));
-        }
-    }
-    Ok(())
-}
-
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 #[allow(clippy::too_many_arguments)] // the pair emitter's signature (`PairEmitter`)
 pub(crate) fn name_boolean<T: Decide>(
@@ -1793,7 +1720,6 @@ pub(crate) fn name_boolean<T: Decide>(
         naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect();
     let inv = GraftInverse::of(naming);
     let (inv_edges, lineage_inv, inv_vertices) = (&inv.edges, &inv.lineage, &inv.vertices);
-    refuse_turned_cells(body, naming, &inv, [a.read, b.read], b.body)?;
     let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
     let inc = Incidence::of(body);
@@ -1962,7 +1888,7 @@ pub(crate) fn name_boolean<T: Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
 
-    super::emit::check_total(&t, body, 0)?;
+    let t = super::emit::finish(t, body, 0)?;
     Ok(Emitted::new(t, rec))
 }
 
@@ -2561,11 +2487,6 @@ fn name_boolean_edges<T: Decide>(
             op.table.name_of(&ent(0, EntityKey::Edge(k))).is_some() && !joined_faces.contains(&e);
         if resolves {
             groups.entry(root).or_default().push(e);
-        } else if naming.chart_cuts[usize::from(root.operand() == topo::Operand::B)].contains(&k) {
-            // The output stage glues a chart cut away with the two
-            // pieces of the face it divided; one left is a body the
-            // emitter cannot read.
-            return Err(bug("a chart cut survives in the result"));
         } else {
             match chord_kind(e)? {
                 ChordKind::Cross(fa, fb, one) => {
@@ -2891,16 +2812,25 @@ fn name_boolean_vertices<T: Decide>(
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
     // An operand vertex's upstream name, if that operand's table names
-    // it. A key the table does not name (a vertex the reduction minted)
-    // yields nothing; a table that names a key and then fails to resolve
-    // it is corrupt, and says so.
-    let named_in = |side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
-        let (op, k) = side.of(a, b);
-        if op.table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
-            return Ok(None);
-        }
-        upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
-    };
+    // it, for result vertex `v`. A key the table does not name (a vertex
+    // the reduction minted) yields nothing; a table that names a key and
+    // then fails to resolve it is corrupt, and says so. An operand's
+    // conventional vertex yields nothing at a result vertex that is no
+    // longer one: it has no identity of its own, so the vertex a cut
+    // leaves at its point is named as a point of its edge's interior, as
+    // one a hair away would be. Where the result vertex is still one, its
+    // edge names it (`emit::finish`).
+    let named_in_at =
+        |v: VertexKey, side: OpSide<VertexKey>| -> Result<Option<Upstream>, NamingError> {
+            let (op, k) = side.of(a, b);
+            let name = op.table.name_of(&ent(0, EntityKey::Vertex(k)));
+            if name.is_none()
+                || super::emit::cut_through_conventional(op.body, k, name, body, v).is_some()
+            {
+                return Ok(None);
+            }
+            upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
+        };
     // The vertex named as operand vertex `side`, its upstream `u`.
     let identity_of = |side: OpSide<VertexKey>, u: Upstream| {
         let parent = side.map(EntityKey::Vertex).parent();
@@ -2946,6 +2876,7 @@ fn name_boolean_vertices<T: Decide>(
             order.push(operand_key(naming, inv_vertices, fused.origin(k)).0);
         }
         order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
+        let named_in = |side| named_in_at(v, side);
         for side in order {
             if let Some(u) = named_in(side)? {
                 identity = Some(identity_of(side, u));
@@ -3638,12 +3569,8 @@ fn senses_at<T: Decide>(
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
-    // A chart cut is no edge of its operand, so no line of a vertex.
-    let cut = |row: &topo::EdgePieceClass| {
-        naming.chart_cuts[usize::from(row.operand == topo::Operand::B)].contains(&row.edge)
-    };
     for row in &naming.edge_classes {
-        if keys.contains(&(row.operand, row.vertex)) && !cut(row) {
+        if keys.contains(&(row.operand, row.vertex)) {
             sides.entry((row.operand, row.edge)).or_default()[usize::from(row.starts)]
                 .insert(row.class != topo::SideCode::Out);
         }
@@ -3657,8 +3584,8 @@ fn senses_at<T: Decide>(
         let Some(name) = op.table.name_of(&ent(0, EntityKey::Edge(edge))) else {
             unreachable!(
                 "operand edge {edge:?} of {side:?}, classified at result vertex {v:?}, is not \
-                 named: `topo::EdgePieceClass` holds an operand's own edge key, chart cuts \
-                 aside, and an operand's table is total over its body"
+                 named: `topo::EdgePieceClass` holds an operand's own edge key, and an \
+                 operand's table is total over its body"
             )
         };
         let name = name.clone();
@@ -4490,7 +4417,7 @@ fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     carrier.param_near(origin, T::zero()).is_some()
 }
 
-/// Edge `e`'s certified curve in `body` ([`Body::stored_curve`]).
+/// Edge `e`'s certified curve in `body` ([`Body::edge`]).
 ///
 /// # Panics
 ///
@@ -4499,13 +4426,16 @@ fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a null edge at rest (`topo::validate`'s `ScaffoldAtRest`).
 #[track_caller]
 fn certified_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> &geom_brep::EdgeCurve<T> {
-    match body.stored_curve(e) {
-        Ok(curve) => curve,
-        Err(err) => unreachable!(
-            "edge {e:?} has no certified curve ({err:?}): its caller holds it live in a body at \
-             rest, where tier 2 refuses a null edge"
-        ),
-    }
+    let Some(edge) = body.edge(e) else {
+        unreachable!("edge {e:?} is stale: its caller holds it live in a body at rest")
+    };
+    let Some(curve) = edge.certified() else {
+        unreachable!(
+            "edge {e:?} is null scaffolding: its caller holds it in a body at rest, where tier 2 \
+             refuses a null edge"
+        )
+    };
+    curve
 }
 
 impl<T: Decide> Track<T> {
@@ -4897,7 +4827,9 @@ fn rim_holding<T: Decide>(
 /// edge's chord is not its locus (a sphere's two meridians share both
 /// ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
-    topo::readback::edge_carrier_ref(body, e).is_ok_and(|c| !c.is_curved())
+    body.edge(e)
+        .and_then(topo::EdgeView::certified)
+        .is_some_and(|c| !c.carrier().is_curved())
 }
 
 /// Whether edge `e` of `body` holds point `p`, its ends included,
@@ -5047,7 +4979,13 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         let (v0, v1) = edge_ends(body, e);
         let mut ends = Vec::with_capacity(2);
         for v in [v0, v1] {
-            let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
+            let end = t.name_of(&ent(ix, EntityKey::Vertex(v)));
+            // A closed edge's conventional vertex is named for the edge,
+            // so the edge's name cites none of it.
+            if super::emit::conventional_edge(body, v, end).is_some() {
+                continue;
+            }
+            let Some(end) = end else {
                 unreachable!(
                     "edge piece {e:?} under {base:?} ends at vertex {v:?}, which the table does \
                      not name: every caller (split, boolean, shell, union) names each vertex of \
@@ -6714,7 +6652,7 @@ mod split_carries_candidates {
             doc,
             Node::Subtract {
                 from: a.into(),
-                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)),
+                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)).into(),
             },
         );
         let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0], Tol::witness());
@@ -7114,7 +7052,7 @@ mod wavy_loft {
         let (doc, union) = ins(
             doc,
             Node::Union {
-                members: crate::Bodies::Spelled(vec![
+                members: crate::Bodies::spelled(vec![
                     crate::BodyRead::plain(loft),
                     crate::BodyRead::plain(crate::Operand::output(copy, 0)),
                 ]),
@@ -7295,7 +7233,7 @@ mod edge_pieces_of_one_line_tie {
             doc,
             Node::Subtract {
                 from: from.into(),
-                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)).into(),
             },
         )
     }

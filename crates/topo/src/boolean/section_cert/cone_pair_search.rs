@@ -31,12 +31,18 @@
 //! - the swapped order the same classification.
 //!
 //! Below the trace's resolution (`0.03` of the scale) the class is not
-//! traced: an offset inside the band's Zero (a quarter of it) must
-//! refuse R-tan, and every answer's witnesses lie on both carriers. A
+//! traced, and every answer's witnesses lie on both carriers. The
+//! section value decides an offset inside the band's Zero (the apex on
+//! the partner a node or a touch, a tangency a node or a touch at C5),
+//! so such a pose may answer, its witnesses read on the exact pose
+//! within the margin of either carrier. A
 //! pose standing [`must_answer`] or farther from every degeneracy — the
 //! built one, and each the search measures from the carriers itself
 //! ([`clear_of`]) — must answer, or refuse a chart's precision floor
-//! (`_precision`: the `f64` reading cannot resolve the band). Every
+//! (`_precision`: the `f64` reading cannot resolve the band), or the
+//! region's boundary ([`region_cut`]): the value reads each pose over a
+//! ball ([`region_of`]) wide enough to hold whole every bounded
+//! component the trace sees. Every
 //! refusal is tallied by row, with the farthest each stood off its
 //! degeneracies.
 
@@ -49,7 +55,8 @@
 
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
-    "crates/topo/src/boolean/section_cert/ruling.rs",
+    "crates/geom-brep/src/pair_section/ruling.rs",
+    "crates/geom-brep/src/pair_section/cones.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
@@ -61,7 +68,7 @@ test_utils::gated_to![
 ];
 
 use super::cone_search::{Class, Frame, Traced, random_cone, trace};
-use super::search_kit::{band, matched, offset, unit_vec};
+use super::search_kit::{band, matched, offset, region_cut, unit_vec};
 use super::*;
 use core::f64::consts::{FRAC_PI_2, TAU};
 use geom::Surface;
@@ -112,7 +119,7 @@ fn ruled((line, slop): (LineAt<'_>, Slop), scale: f64, partner: &Surface<f64>) -
                 let traced = trace(
                     &|u, psi| {
                         let geom::Line { origin: b, dir: v } = line(u + shift);
-                        b + v * (scale * psi.tan())
+                        b + v.get() * (scale * psi.tan())
                     },
                     &|q| geom_brep::implicit_residual(partner, q),
                     window,
@@ -160,9 +167,14 @@ struct Slop {
     dir: f64,
 }
 
+/// The trace's own rounding of a chart line, in units of `ε` (the
+/// [`Slop`] docs' `64ε`): a bound on the oracle's arithmetic, unrelated
+/// to [`DECIDED_SLACK`] and [`WITNESS_ROUNDING`].
+const CHART_ROUNDING: f64 = 64.0;
+
 /// The [`Slop`] of the ruling chart on `carrier`.
 fn slop_of(carrier: &Surface<f64>) -> Slop {
-    let unit = 64.0 * f64::EPSILON;
+    let unit = CHART_ROUNDING * f64::EPSILON;
     match *carrier {
         Surface::Cone { .. } => Slop {
             base: 0.0,
@@ -353,7 +365,7 @@ fn resolves(
     let (coefficients, errors): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
             let geom::Line { origin: b, dir: v } = line(TAU * (i as f64 + SHIFT) / n as f64);
-            along(partner, b, v, slop)
+            along(partner, b, v.get(), slop)
         })
         .unzip();
     // `E` is true to within what its coefficients' errors and its own two
@@ -490,7 +502,7 @@ fn cylinder(o: Point3<f64>, d: Vec3<f64>, r: f64, scale: f64) -> Partner {
         },
         line: Box::new(move |u| geom::Line {
             origin: o + (e1 * u.cos() + e2 * u.sin()) * r,
-            dir: d,
+            dir: geom::stated_direction(d),
         }),
         chart: Box::new(move |q| {
             let w = q - o;
@@ -510,7 +522,7 @@ fn cone(k: Frame) -> Partner {
             let (s, c) = k1.alpha.sin_cos();
             geom::Line {
                 origin: k1.apex,
-                dir: k1.a * c + k1.radial(u) * s,
+                dir: geom::stated_direction(k1.a * c + k1.radial(u) * s),
             }
         }),
         chart: Box::new(move |q| {
@@ -578,7 +590,11 @@ fn cylinder_near_apex(rng: &mut Rng, k: &Frame) -> Option<Pose> {
     let beta = rng.range(0.1, FRAC_PI_2);
     let d = leaning(rng, k, beta);
     let o = k.apex + unit_vec(rng) * (sc * rng.range(0.2, 1.5));
-    let dist = geom::Line { origin: o, dir: d }.distance(k.apex);
+    let dist = geom::Line {
+        origin: o,
+        dir: geom::stated_direction(d),
+    }
+    .distance(k.apex);
     let shift = sc * offset(rng);
     let r = dist + shift;
     (r > 0.05 * sc).then(|| Pose {
@@ -776,6 +792,16 @@ fn reach_of(k: &Frame) -> Reach<f64> {
     geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
 }
 
+/// **The region the section value reads every search pose over**: wide
+/// enough to hold every bounded component the trace sees whole, which
+/// the value would otherwise read cut, as the operation's region does.
+fn region_of(k: &Frame) -> Option<ExtentBall<f64>> {
+    Some(geom_brep::ExtentBall::fixture(k.apex, REGION * k.scale))
+}
+
+/// [`region_of`]'s radius, in units of the pose's scale.
+const REGION: f64 = 50.0;
+
 fn class_on(c: &Component<f64>, essential: bool) -> Class {
     match (c.unbounded, essential) {
         (true, _) => Class::Unbounded,
@@ -807,7 +833,7 @@ const MUST_ANSWER: f64 = 2e3;
 /// The distance from every degeneracy past which a pose at `scale` must
 /// answer: [`MUST_ANSWER`] times the larger of the escalation threshold
 /// and `√(escalation · scale)`.
-fn must_answer(scale: f64) -> f64 {
+pub(super) fn must_answer(scale: f64) -> f64 {
     let e = band().escalate();
     MUST_ANSWER * e.max((e * scale).sqrt())
 }
@@ -824,7 +850,7 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
     let off_cone = |apex: Point3<f64>, a: Vec3<f64>, alpha: f64, q: Point3<f64>| {
         let (h, rho) = geom::Line {
             origin: apex,
-            dir: a,
+            dir: geom::stated_direction(a),
         }
         .height_and_distance(q);
         (rho * alpha.cos() - h.abs() * alpha.sin()).abs()
@@ -833,7 +859,13 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
         Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let d = axis.normalize();
-            let apex = (geom::Line { origin, dir: d }.distance(k.apex) - radius).abs();
+            let apex = (geom::Line {
+                origin,
+                dir: geom::stated_direction(d),
+            }
+            .distance(k.apex)
+                - radius)
+                .abs();
             let aperture = (d.dot(k.a).abs().acos() - k.alpha).abs() * lever;
             apex.min(aperture)
         }
@@ -909,6 +941,14 @@ fn off_asymptotic_planes(
         .fold(f64::INFINITY, f64::min)
 }
 
+/// **How far a witness read on a pose decided on a `Zero` margin may
+/// stand off the carriers**, in units of that margin: the exact pose's
+/// section is the margin off the carriers' own, conditioned by the
+/// carriers' angle there. Chosen, not derived: the hosted runs saw at
+/// most about `2.1` margins, and this is thirtyfold headroom. It shares
+/// only its value with [`CHART_ROUNDING`].
+pub(super) const DECIDED_SLACK: f64 = 64.0;
+
 /// A chart's precision floor: the representation, not the band, cannot
 /// resolve the pose, and any pose may refuse it.
 fn precision_floor(row: &str) -> bool {
@@ -974,7 +1014,7 @@ fn against_the_trace(
         (
             &|u| geom::Line {
                 origin: k.apex,
-                dir: k.a * c + k.radial(u) * s,
+                dir: geom::stated_direction(k.a * c + k.radial(u) * s),
             },
             slop_of(&cone),
         ),
@@ -1035,11 +1075,13 @@ fn against_the_trace(
 }
 
 /// How far a witness may stand off each carrier, in units of rounding
-/// of its distance from the cone's apex (plus the scale): the section's
-/// premise that a witness is within rounding of the section
-/// (`section_cert.rs`). Measured over `1.7·10⁴` draws across the three
-/// ε: at most `4.1`.
-const WITNESS_ROUNDING: f64 = 64.0;
+/// of its distance from the cone's apex (plus the scale). The section
+/// value's witness is the middle of its sweep's meeting box at one
+/// ruling, which the sweep widens by its rounding charges, so it stands
+/// up to those charges off the section: seen at about `10³` of these
+/// units on the hosted runs, against the retired charts' `4.1`
+/// (`work/sectcone/a-cone-pairs-witness-claims-no-pad-for-its-meeting-box.md`).
+const WITNESS_ROUNDING: f64 = 1.0e4;
 
 /// The mismatches of one pose, as sentences.
 fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
@@ -1051,7 +1093,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         &cone,
         partner,
         &reach,
-        None,
+        region_of(k),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1059,7 +1101,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         partner,
         &cone,
         &reach,
-        None,
+        region_of(k),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1072,7 +1114,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             if !matches!(back, Section::Tangent(_)) {
                 bad.push(format!("one order R-tan, the other {back:?}"));
             }
-            if clear >= must_answer(k.scale) && !precision_floor(name) {
+            if clear >= must_answer(k.scale) && !precision_floor(name) && !region_cut(name) {
                 bad.push(format!(
                     "{clear:.3e} m off every degeneracy ({:.1e} of the must-answer floor), refused {name}",
                     clear / must_answer(k.scale)
@@ -1080,11 +1122,38 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             }
             return (Outcome::Refused(name), bad);
         }
+        // A touch the value decided at one point (the apex on the
+        // partner, its form definite there, or a tangency the section
+        // shrinks to): only near a degeneracy, and the point on both
+        // carriers, within the margin where the pose is decided `Zero`.
+        Section::Touch(t) => {
+            if !matches!(back, Section::Touch(_)) {
+                bad.push(format!("one order a touch, the other {back:?}"));
+            }
+            if clear >= must_answer(k.scale) {
+                bad.push(format!(
+                    "{clear:.3e} m off every degeneracy ({:.1e} of the must-answer floor), a touch at {:?}",
+                    clear / must_answer(k.scale),
+                    t.at
+                ));
+            }
+            let decided = if m <= b.zero() {
+                DECIDED_SLACK * m
+            } else {
+                0.0
+            };
+            let within =
+                decided + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
+            for surf in [&cone, partner] {
+                let r = geom_brep::implicit_residual(surf, t.at);
+                if r.abs() > within {
+                    bad.push(format!("the touch {:?} is {r} off {surf:?}", t.at));
+                }
+            }
+            return (Outcome::Answered, bad);
+        }
         other => return (Outcome::Refused("other"), vec![format!("{other:?}")]),
     };
-    if m <= 0.25 * b.zero() {
-        bad.push(format!("margin {m} in the band, answered {sec:?}"));
-    }
     match &back {
         Section::Components {
             parts: bp,
@@ -1104,7 +1173,15 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             }
             continue;
         };
-        let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale);
+        // A pose decided on a `Zero` margin (the apex on the partner, a
+        // tangency) is read on the exact pose, whose section the witness
+        // lies on: the carriers stand up to the margin off it.
+        let decided = if m <= b.zero() {
+            DECIDED_SLACK * m
+        } else {
+            0.0
+        };
+        let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale) + decided;
         for surf in [&cone, partner] {
             let r = geom_brep::implicit_residual(surf, w);
             if r.abs() > rounding {
@@ -1286,7 +1363,7 @@ fn dump_for_the_mpmath_oracle() {
                 &k.surface(),
                 &pose.partner.surface,
                 &reach_of(&k),
-                None,
+                region_of(&k),
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             );

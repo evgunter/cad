@@ -19,7 +19,7 @@ Ev, on PR 5742 (2026-10-26): "the python facade should never have code that's no
 Resting an existing part on a face has no façade gesture, so each caller builds the raw `Mate { on, to }` and decides where the `Flip` goes:
 - **Python:** `pncad-py/src/py/mate.rs:60-75` (the `Mate` docstring) teaches the rest as a flip on the target (`PoseDef.flip(PoseDef.plane(...))`), and Python authors write it that way by hand.
 - **Viewer:** `viewer/src/matetool.rs:718` builds the same mate itself and flips the target.
-- **Sketch-on-face**, the one rest the façade does own (`editor-core/src/edit.rs:6466`, re-exported at `pncad/src/document.rs:105`, called from `pncad-py/src/py/doc.rs:1696`), flips the copy.
+- **Sketch-on-face**, the one rest editor-core owns (`Recording::sketch_on_face` in `editor-core/src/edit.rs`), flips the copy. Only the viewer calls it now. pncad no longer re-exports it, and pncad-py's `Doc.draw_on_face` (`py/doc.rs`) draws a profile on the face's chart and places nothing.
 
 - **The viewer's snap** (`viewer/src/session/snap.rs`, `snapped`) restates the value chart to write a fresh mate's values: the least turn onto the mated direction, the nearest orientation, the residual spin about the target's own direction, and which slides the mate leaves. That is gesture logic in the viewer. The façade rest gesture should own it, so the viewer and Python call one door. PR 5742 moved sketch-on-face's own orientation pick into the façade (`Recording::sketch_on_face`, `orient: None`) for the same reason; the snap is the rest of that class.
 

@@ -178,7 +178,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let (graze, arcs) = case(q, o, r, phi, beta, -gap, 0.3, (Vec3::unit_x(), 0.0));
     let got = path_parity(&graze, &arcs, None, band);
     assert!(
-        matches!(&got, Err(diag) if diag.predicate == Some("split_ring_path_meets_plane")),
+        matches!(&got, Err(diag) if diag.predicate == Some("curve_face_pose_belly_graze")),
         "the graze escalates on the gap: {got:?}"
     );
     let Piece::Arc(piece) = graze.pieces[0] else {
@@ -516,14 +516,14 @@ fn parallel_ruling(
             LoopArc::Line {
                 line: geom::Line {
                     origin: apex,
-                    dir: e,
+                    dir: geom::stated_direction(e),
                 },
                 span: (l - s, l),
             },
             LoopArc::Line {
                 line: geom::Line {
                     origin: apex + dir * jitter,
-                    dir: (e + dir.cross(e) * (jitter / l)).normalize(),
+                    dir: geom_core::UnitVec3::squared(e + dir.cross(e) * (jitter / l)),
                 },
                 span: (l, l + s),
             },
@@ -582,7 +582,7 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
     let ruling = |span| LoopArc::Line {
         line: geom::Line {
             origin: at - Vec3::unit_z() * 0.5,
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         span,
     };
@@ -622,7 +622,10 @@ fn a_pair_that_says_nothing_answers_past_a_pair_in_band() {
         reach: None,
     };
     let ruling = |origin: Point3<f64>, dir: Vec3<f64>| LoopArc::Line {
-        line: geom::Line { origin, dir },
+        line: geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        },
         span: (0.0, 1.0),
     };
     let tilted = ruling(

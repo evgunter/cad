@@ -583,7 +583,10 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
         let refused = |r: &CarrierDomainRefusal| {
             r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
         };
-        let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = Curve3::line(
+            Point3::new(1.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let mint_refuses = |name: &str, carrier: &Curve3<f64>| {
             let mint =
                 FittedLane::<f64>::certified().general_image(carrier, (lo, hi), &wall, band());

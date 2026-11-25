@@ -537,6 +537,35 @@ pub fn interpolate_columns_in<T: SpanLocate>(
     degree: usize,
     rows: &[Vec<T>],
 ) -> Result<(Knots<T>, Vec<Vec<T>>), FitError> {
+    interpolate_columns_held(params, degree, rows, None)
+}
+
+/// [`interpolate_columns_in`] over knots the caller states in place of
+/// the averages formed in `T`: for a parameterization that is structure
+/// (a count's fractions, read from no value of the model), whose
+/// averaged knots ([`averaged_knot_vector`], at `f64`) are constants of
+/// the construction and enter `T` as points at every scalar.
+///
+/// # Errors
+///
+/// [`interpolate_columns_in`]'s, and [`FitError::ParamCountMismatch`]
+/// for knots that are not `degree`'s over as many control rows as there
+/// are parameters.
+pub fn interpolate_columns_over<T: SpanLocate>(
+    params: &[T],
+    knots: Knots<T>,
+    rows: &[Vec<T>],
+) -> Result<(Knots<T>, Vec<Vec<T>>), FitError> {
+    let degree = knots.degree();
+    interpolate_columns_held(params, degree, rows, Some(knots))
+}
+
+fn interpolate_columns_held<T: SpanLocate>(
+    params: &[T],
+    degree: usize,
+    rows: &[Vec<T>],
+    stated: Option<Knots<T>>,
+) -> Result<(Knots<T>, Vec<Vec<T>>), FitError> {
     let n = params.len();
     if rows.len() != n {
         return Err(FitError::ParamCountMismatch {
@@ -559,7 +588,18 @@ pub fn interpolate_columns_in<T: SpanLocate>(
     }
     check_ordered(params)?;
     check_degree(n, degree)?;
-    let knots = averaged_knots_in(params, degree)?;
+    let knots = match stated {
+        Some(knots) => {
+            if knots.degree() != degree || knots.values().len() != n + degree + 1 {
+                return Err(FitError::ParamCountMismatch {
+                    params: n,
+                    points: knots.values().len().saturating_sub(degree + 1),
+                });
+            }
+            knots
+        }
+        None => averaged_knots_in(params, degree)?,
+    };
     let (first, basis) = banded_rows(params.iter().map(|u| unit_row_in(&knots, *u)), n);
     let lu = banded::factor(&first, &basis).map_err(lsq)?;
     let control = lu.solve(rows).map_err(lsq)?;

@@ -26,7 +26,7 @@ use crate::shared::tol::{band, eps};
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
 use geom_brep::intersect::{
-    PlaneConeSection, SectionError, plane_cone_section, plane_torus_section, route, route_pose,
+    PlaneConeSection, SectionError, cone_cylinder_section, plane_cone_section, route, route_pose,
 };
 use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
@@ -167,16 +167,16 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
             true,
         ),
         (
-            "axis-parallel plane past the inner equator (one folded loop)",
+            "axis-parallel plane past the inner equator (one folded loop, marched)",
             plane(Point3::new(1.8, 0.0, 0.0), Vec3::unit_x()),
             &tor,
-            false,
+            true,
         ),
         (
-            "tilted plane",
+            "tilted plane (marched)",
             plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 1.0, 0.0)),
             &tor,
-            false,
+            true,
         ),
     ];
     for (what, a, b, want) in &cases {
@@ -207,14 +207,14 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
 /// served, and the kind-level note says what the arm does serve.
 #[test]
 fn a_refused_pose_carries_the_arms_own_grounds() {
-    let tor = torus_y();
-    let tilted = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 1.0, 0.0));
-    let posed = route_pose(&tilted, &tor, &at_apex(4.0), band()).unwrap();
-    let kind = route(SurfaceKind::Plane, SurfaceKind::Torus);
+    let cone = cone_z(PI_6);
+    let tilted = cyl(Point3::new(0.0, 0.0, 1.0), Vec3::new(0.2, 0.0, 1.0), 0.5);
+    let posed = route_pose(&cone, &tilted, &at_apex(4.0), band()).unwrap();
+    let kind = route(SurfaceKind::Cone, SurfaceKind::Cylinder);
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_torus_section(&tilted, &tor, fixture_lever(4.0), band())
+        cone_cylinder_section(&cone, &tilted, fixture_lever(4.0), band())
     else {
         panic!("the arm refuses this pose");
     };
@@ -248,9 +248,9 @@ fn cylinder_pairs_are_refused_only_where_no_evidence_admits_them() {
     }
 }
 
-/// **Every pose of the unscoped implemented pairs is served**, and an
-/// unimplemented kind pair answers the table unchanged — including a
-/// pose that WOULD be the easy one (a coaxial cone×sphere).
+/// **Every pose of the unscoped implemented pairs is served**: a cone
+/// against a sphere or a cone is among them, its coaxial and common-apex
+/// poses the closed forms' and every other the general rung's.
 #[test]
 fn unscoped_pairs_answer_the_kind_table() {
     let cone = cone_z(PI_6);
@@ -261,8 +261,9 @@ fn unscoped_pairs_answer_the_kind_table() {
     assert!(served(&tilted, &c));
     assert!(served(&c, &s));
     assert!(served(&s, &sphere(Point3::new(1.0, 0.0, 0.0), 0.7)));
-    assert!(!served(&cone, &sphere(Point3::new(0.0, 0.0, -1.0), 0.5)));
-    assert!(!served(&cone, &cone_z(0.4)));
+    assert!(served(&cone, &sphere(Point3::new(0.0, 0.0, -1.0), 0.5)));
+    assert!(served(&cone, &sphere(Point3::new(0.3, 0.0, 2.0), 0.5)));
+    assert!(served(&cone, &cone_z(0.4)));
 }
 
 /// **An in-band pose escalates**; it is neither served nor refused. The

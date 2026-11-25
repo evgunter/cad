@@ -220,7 +220,7 @@ fn a_redefinition_through_its_own_copy_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -386,7 +386,7 @@ fn a_cycle_through_a_source_of_a_source_is_refused() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c).into(),
                 Operand::Node(d).into(),
             ]),
@@ -481,10 +481,11 @@ fn a_family_source_cannot_be_redefined_onto_one_body() {
 
 /// **A body source redefined onto a family is held to its readers**:
 /// `bracket = B`, `c = place(bracket)`, a shell of `c`; `bracket = row`
-/// makes `c` a family, which the shell's seat admits, so the door writes a
-/// document the load takes.
+/// would hand the placement a family its binder yields, and a placement's
+/// source takes one body (D10 `[repetition]`), so the door refuses by kind
+/// and the document stays one the load takes.
 #[test]
-fn a_body_source_redefined_onto_a_family_writes_what_loads() {
+fn a_body_source_redefined_onto_a_family_is_refused_at_its_placement() {
     let doc = ProfileDoc::empty_derived("named-source-family-onto", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -503,11 +504,21 @@ fn a_body_source_redefined_onto_a_family_writes_what_loads() {
         },
     );
     let bracket = doc.var_named("bracket").expect("bracket");
-    // A shell reads a family as a family of shells, so the door admits the
-    // redefinition, and what it writes saves and loads.
-    let doc = redefine(&doc, bracket, VarDecl::source(Operand::Node(row))).expect("admitted");
+    let refused = redefine(&doc, bracket, VarDecl::source(Operand::Node(row)))
+        .map(|_| ())
+        .expect_err("a family at a placement's source is refused");
+    assert!(
+        matches!(
+            refused,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            }
+        ),
+        "refused by kind at the placement: {refused:?}"
+    );
     let text = editor_core::save(&doc, Tol::witness()).expect("saves");
-    editor_core::load(&text, Tol::witness()).expect("what the door writes loads");
+    editor_core::load(&text, Tol::witness()).expect("the document as it stands loads");
 }
 
 /// **The reader count, reading (a)** (VR2): a lone placement whose mate
@@ -575,7 +586,7 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
     let (doc, f) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 Operand::Node(c1).into(),
                 Operand::Node(dd).into(),
             ]),
@@ -612,11 +623,12 @@ fn the_load_refuses_a_shared_anonymous_source_and_a_cycle_through_nodes() {
     );
 }
 
-/// **A source written in place at a family's own indices is the family
-/// read whole** (`mint_source`): `place(source(row[k]))`, `k` the index the
-/// row is over, mints the same plain source as `place(row)`.
+/// **A source written in place at a family's own indices is stored as
+/// written** (`mint_source`, REFERENCES DM3): `place(source(row[k]))`, `k`
+/// the index the row's binder mints, reads one member at each value of
+/// `k`; the plain read would be the family whole.
 #[test]
-fn a_source_at_the_familys_own_indices_reads_it_whole() {
+fn a_source_at_the_familys_own_indices_is_stored_as_written() {
     let doc = ProfileDoc::empty_derived("named-source-own-index", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, k, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -629,11 +641,16 @@ fn a_source_at_the_familys_own_indices_reads_it_whole() {
         ))),
     );
     let source = doc.copied_read(copy).expect("a source");
+    let at = doc
+        .source(source)
+        .map(|body| body.at.clone())
+        .expect("the source reads the row");
     assert_eq!(
-        doc.source(source).cloned(),
-        Some(editor_core::BodyRead::plain(out(&doc, row))),
-        "the family read whole"
+        doc.source(source).map(|body| body.read),
+        Some(out(&doc, row)),
+        "the source reads the row"
     );
+    assert_eq!(at.len(), 1, "at one index, as written: {at:?}");
 }
 
 /// **The takeover door refuses what is no source**, in its own words.

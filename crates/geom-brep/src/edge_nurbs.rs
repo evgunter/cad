@@ -1290,6 +1290,10 @@ pub fn arc_rim_candidates<T: SpanLocate>(
 /// and decides that the edge's span lies in the arc. Empty for a carrier
 /// that is not a circle.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_rim_measured<T: Decide>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
@@ -1356,8 +1360,9 @@ fn arc_rim_images<T: SpanLocate>(
             let ends = row_end_weights(chart, end);
             [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
                 arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
-                    p0: Point2::new(p0x, v),
-                    pd: geom_core::Vec2::new(sign, T::zero()),
+                    line: crate::ChartLine::row(v),
+                    g0: p0x,
+                    gd: sign,
                     t0,
                     angle,
                     breaks: breaks.clone(),
@@ -2465,7 +2470,7 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
             },
         ) => {
             let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
+            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(dir.get()));
             let (o, n) = (vec(origin - geom_core::Point3::origin()), vec(normal));
             let lever = n.norm();
             Some([params.0, params.1].map(|t| ((q + d * lift(t) - o).dot(n), lever)))
@@ -3299,6 +3304,37 @@ mod tests {
         );
     }
 
+    /// **A measured floor clear of zero, under an identity that
+    /// discharges, passes limb 2** at `Sym<Interval>`: the margin's
+    /// number is the bound `[floor, upper]`, not its expression's value,
+    /// so the tier's zero is returned beside an enclosure that excludes
+    /// 0 and the check on a proven zero (`sym::discharge_checked`) leaves it out
+    /// (`Decide::free_identity`). Red if that check stops reading the
+    /// margin's DAG for its free parameter (it panics here).
+    #[test]
+    fn a_floor_clear_of_zero_under_a_discharging_identity_passes_limb_two() {
+        use geom_core::{Interval, Sym, SymBudget, SymRules};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let (out, counts) = geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+            limb2_enclosure_as::<Sym<Interval>>(
+                geom::SurfaceKind::Plane,
+                1.0e-12,
+                3.0e-12,
+                band,
+                |free| {
+                    let t = free(Sym::from_f64(0.5));
+                    t - t
+                },
+            )
+        });
+        assert!(out.is_ok(), "the identity passes limb 2: {out:?}");
+        assert_eq!(counts.symbolic, 1, "the tier proved it: {counts:?}");
+    }
+
     /// **A silent tube is carried whole and ends as the SSI door ends
     /// it**: one whose rungs had a transversality enclosure refused is a
     /// pair the tube cannot yet enclose, and one that built no chain at
@@ -3886,8 +3922,11 @@ mod tests {
         }
         .map_scalar(lift);
         let edge = |d: f64| {
-            let line =
-                Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, d, 0.0)).map_scalar(lift);
+            let line = Curve3::line(
+                Point3::new(0.0, 0.0, 0.0),
+                geom::stated_direction(Vec3::new(1.0, d, 0.0)),
+            )
+            .map_scalar(lift);
             analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
         };
         assert_eq!(edge(0.0), Ok(()));
@@ -3937,10 +3976,12 @@ mod tests {
             ),
         }
         .map_scalar(lift);
-        // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
-        let line =
-            Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 2e-6, 0.0)).map_scalar(lift);
-        let ends = line_plane_ends(&line, (lift(0.0), lift(1.0)), &wall).unwrap();
+        // Off the wall by 1e-6 at its start and by 3e-6 at its end: the
+        // chord between them, its span in metres.
+        let (chord, len) =
+            geom::Line::chord(Point3::new(0.0, 1e-6, 0.0), Point3::new(1.0, 3e-6, 0.0));
+        let line = Curve3::Line(chord).map_scalar(lift);
+        let ends = line_plane_ends(&line, (lift(0.0), lift(len)), &wall).unwrap();
         let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
             Some(Err(AnalyticRung3Refusal::Limb { margin, .. })) => margin.readable().to_string(),
             other => panic!("both ends decided off answer a miss: {other:?}"),
@@ -3998,12 +4039,14 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
+        // The segment `(−8, 6, 0)` long from the stated start: on its
+        // unit direction, `10` m.
         let line = Curve3::line(
             Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
-            Vec3::new(-8.0, 6.0, 0.0),
+            geom::stated_direction(Vec3::new(-0.8, 0.6, 0.0)),
         );
         // The f64 reading the old rule took sits inside the band.
-        for t in [0.0, 1.0] {
+        for t in [0.0, 10.0] {
             let p = line.eval(t);
             let Surface::Plane { frame, .. } = tilted else {
                 unreachable!()
@@ -4015,12 +4058,12 @@ mod tests {
                 "the f64 reading at t = {t} is {read:e}"
             );
         }
-        let at_f64 = analytic_edge_limbs(&line, (0.0, 1.0), &tilted, &floor, band);
+        let at_f64 = analytic_edge_limbs(&line, (0.0, 10.0), &tilted, &floor, band);
         assert!(at_f64.is_err(), "f64: {at_f64:?}");
         let lift = geom_core::Interval::from_f64;
         let at_iv = analytic_edge_limbs(
             &line.map_scalar(lift),
-            (lift(0.0), lift(1.0)),
+            (lift(0.0), lift(10.0)),
             &tilted.map_scalar(lift),
             &floor.map_scalar(lift),
             band,
@@ -4062,7 +4105,10 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, y0, 0.0));
+        let line = Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, y0, 0.0)),
+        );
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
             matches!(
                 got,
@@ -4119,7 +4165,7 @@ mod tests {
         .map_scalar(lift);
         let line = Curve3::line(
             Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
-            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            geom_core::UnitVec3::exact_x(),
         );
         let got = analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &wall, &floor, band);
         assert!(
@@ -4217,7 +4263,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         assert_eq!(result, Ok(()));
@@ -4294,7 +4343,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

@@ -461,14 +461,14 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
     def test_the_message_speaks_the_node_as_the_evaluated_document_holds_it(self):
         # The refusal is raised from the evaluation alone; the binding
         # holds the document the evaluation is of, so its sentence
-        # says the node's kind, label and tag. `node` keeps the id.
+        # says the node's label and tag. `node` keeps the id.
         doc = Doc()
         sketch = square(doc)
         doc.apply(DocEdit.set_label(sketch, "floor sketch"))
         err = self.refusal(lambda: NodePick.build(evaluate(doc), sketch, 0, DELTA))
         self.assertEqual(err.node, sketch)
         self.assertIn(
-            f'pick: Profile "floor sketch" ({tag(sketch)})\'s value',
+            f'pick: "floor sketch" ({tag(sketch)})\'s value',
             str(err),
         )
 
