@@ -112,7 +112,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::readback::edge_sides_of;
@@ -1085,7 +1085,7 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             dead.extend([gone.he_plus, gone.he_minus]);
         }
         join_one(body, w, &join, band, tol)?;
-        drop_kept_faces_rows(body, join.kept);
+        complete_kept_faces(body, join.kept, tol);
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).
         let conventional =
@@ -1099,26 +1099,38 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// **The rows of the faces `kept` bounds, dropped** after a join grew
-/// it: the join re-describes `kept` over the two edges' interval
-/// (`kev_describing`), which leaves a described edge's face rows as
-/// found, so each image of `kept`, and every joint element decided
-/// against it, is about the interval it had. Dropped, so the faces hold
-/// no row about the old edge, and the finish's completion derives them
-/// whole (`crate::pcurves`' completion) — current or absent.
-fn drop_kept_faces_rows<T: Decide>(body: &mut Body<T>, kept: EdgeKey) {
+/// **The faces `kept` bounds, completed afresh** after a join grew it:
+/// the join re-describes `kept` over the two edges' interval
+/// (`kev_describing`), and the site rows that description writes or
+/// keeps can stand over the interval `kept` had — on a sphere's two
+/// faces a joined meridian's half reads `LoopDiscontinuity` at tier 3
+/// (`two_rims_review_probes::a_ball_segment_inside_its_ball_builds_every_op`,
+/// through the Boolean fallback's join stage). So each such face's rows
+/// are dropped and derived whole again (`crate::pcurves`' completion,
+/// over those faces alone): current, or — where the derivation refuses —
+/// absent, for the finish to report. Every other face keeps its rows.
+fn complete_kept_faces<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    kept: EdgeKey,
+    tol: Tol,
+) {
     let Some(edge) = body.get_edge(kept) else {
         return;
     };
-    let faces: BTreeSet<_> = [edge.he_plus, edge.he_minus]
+    let faces: Vec<FaceKey> = [edge.he_plus, edge.he_minus]
         .into_iter()
         .filter_map(|he| body.face_of_half_edge(he))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect();
     let halves: Vec<HalfEdgeKey> = faces
-        .into_iter()
-        .flat_map(|face| body.proven_face(face).half_edges())
+        .iter()
+        .flat_map(|&face| body.proven_face(face).half_edges())
         .collect();
     body.drop_rows(halves);
+    // A face whose derivation refuses stays rowless: absent, which the
+    // finish completes or refuses with every other finding.
+    let _rowless = crate::pcurves::complete_faces(body, &faces, tol).err();
 }
 
 /// **`gone`'s far parameter, carried**: where `gone` is `kept`'s carrier

@@ -366,7 +366,7 @@ mod mint;
 mod site;
 mod tier3;
 
-pub(crate) use complete::complete_pcurves;
+pub(crate) use complete::{complete_faces, complete_pcurves};
 pub use decision::*;
 pub use lift::*;
 pub use mint::*;

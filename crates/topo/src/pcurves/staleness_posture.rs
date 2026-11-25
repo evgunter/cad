@@ -139,8 +139,10 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         (
             "join_edges",
             Completes,
-            "kills through `kev_describing`, on that entry's terms, and drops the dead \
-                 cells' rows",
+            "kills through `kev_describing`, on that entry's terms, drops the dead \
+                 cells' rows, and derives the faces the joined edge bounds whole again \
+                 (`complete_kept_faces`): the description's site rows can stand over the \
+                 interval the kept edge had",
         ),
         (
             "join_edges_within",

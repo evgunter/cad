@@ -53,7 +53,12 @@ ball ∪ segment goes through the Boolean's fallback, whose
 (`crates/topo/src/boolean/edge_join.rs`, `join_one`). The kept edge's
 rows stood over its old interval and tier 3 refused them
 (`LoopDiscontinuity`), where the old closing mint had replaced them.
-The join doors now drop the rows of every face the kept edge bounds
-(`drop_kept_faces_rows`, in `join_all`), so completion derives those
-faces whole. The general door, `kev_describing` / `set_edge_curve`
-keeping a described edge's spline-face rows, stays this row's.
+That face is on a **sphere**, where `description_remints` says the
+description re-mints it, so the site rows the description writes or
+keeps over a grown edge can be stale off spline charts too — wider than
+this row's title. The join doors now drop the rows of every face the
+kept edge bounds and derive those faces whole again
+(`complete_kept_faces`, in `join_all`, through
+`crate::pcurves::complete_faces`). The general door, `kev_describing` /
+`set_edge_curve` keeping or writing a described edge's stale face rows,
+stays this row's.

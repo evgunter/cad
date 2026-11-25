@@ -76,9 +76,36 @@ pub(crate) fn complete_pcurves<T: AtRestPolicy>(
         .collect();
     body.drop_rows(dead);
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    fill_faces(body, &faces, band)
+}
+
+/// **`faces`' pcurve rows completed** ([`complete_pcurves`] over those
+/// faces alone): for a door that dropped those faces' rows, so the door
+/// leaves them complete rather than absent. Every other face is left as
+/// found.
+///
+/// # Errors
+///
+/// As [`complete_pcurves`], over `faces`.
+pub(crate) fn complete_faces<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: Tol,
+) -> Result<(), Vec<PcurveMintError>> {
+    let band = Band::linear(tol).map_err(|e| vec![PcurveMintError::Band(e)])?;
+    fill_faces(body, faces, band)
+}
+
+/// Each of `faces` filled ([`fill_face`]) before any is written, a face
+/// that refuses left as found.
+fn fill_faces<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+) -> Result<(), Vec<PcurveMintError>> {
     let mut fills: Vec<(HalfEdgeKey, Fill<T>)> = Vec::new();
     let mut refused = Vec::new();
-    for face in faces {
+    for &face in faces {
         let mut face_fills = Vec::new();
         match fill_face(body, face, band, &mut face_fills) {
             Ok(()) => fills.extend(face_fills),
