@@ -46,7 +46,7 @@ use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::k_stats::{decide, prove};
 use geom_core::spline::compose::CanonicalSurface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::CompositeRefusal;
 use crate::curve_face::cross::Walked;
@@ -77,6 +77,9 @@ const FLOOR_SHARE: f64 = 1.0 / 1_099_511_627_776.0;
 
 /// The halvings that close on a crossing in its monotone piece.
 const BISECTIONS: u32 = 64;
+
+/// The span's least and greatest speed ([`Span::speeds`]).
+type Speeds<T> = (InfSpeed<T>, SupSpeed<T>);
 
 /// One piece of the composite: its parameter's ends at the scalar, their
 /// `f64` shadow, and the numerator's and denominator's Bernstein rows.
@@ -118,6 +121,9 @@ enum Meeting<T> {
     /// A span end's stretch, from the end to where `f` reads past the
     /// band, that no reading places, and why.
     Stretch((T, T), MeetFault),
+    /// A near end whose meeting lies past the end, beyond the band: no
+    /// meeting of the span.
+    Past,
 }
 
 /// **The ring composite's method** for the curve × face table: the
@@ -133,7 +139,7 @@ pub(in crate::curve_face) fn method<T: Decide>(
     let geom::Curve3::Nurbs(net) = span.carrier() else {
         return Walked::whole(params, MeetFault::Desync);
     };
-    read(net, crate::curve_face::ascending(params), surface, band)
+    read(net, crate::curve_face::ascending(params), span.speeds(), surface, band)
         .unwrap_or_else(|refusal| Walked::whole(params, refusal.fault()))
 }
 
@@ -141,6 +147,7 @@ pub(in crate::curve_face) fn method<T: Decide>(
 fn read<T: Decide>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
+    speeds: Speeds<T>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Walked<T>, CompositeRefusal> {
@@ -186,10 +193,10 @@ fn read<T: Decide>(
                     return cut(piece, floor, &read).map(Step::Halve);
                 }
                 (Reading::Near(_), Reading::Past(far)) if piece.shadow.0 == shadow.0 => {
-                    meetings.push(near_end(&piece, true, far, &off, net, band)?);
+                    meetings.push(near_end(&piece, true, far, (&off, speeds), net, band)?);
                 }
                 (Reading::Past(far), Reading::Near(_)) if piece.shadow.1 == shadow.1 => {
-                    meetings.push(near_end(&piece, false, far, &off, net, band)?);
+                    meetings.push(near_end(&piece, false, far, (&off, speeds), net, band)?);
                 }
                 (Reading::Past(far), Reading::Near(_)) => {
                     if open.is_some() {
@@ -603,12 +610,14 @@ fn knot_crossing<T: Decide>(
 
 /// **A span end within the band**, read on the monotone `piece` that
 /// starts (`at_start`) or ends at it, its far end past the band on the
-/// side `far` (the module docs).
+/// side `far` (the module docs). Where `f` at the end is proved on the
+/// far side too, the meeting is the carrier's past the end: the piece's
+/// own polynomial, continued past it ([`continued`]), is read for it.
 fn near_end<T: Decide>(
     piece: &Piece<T>,
     at_start: bool,
     far: Sign,
-    off: &impl Fn(T) -> (Point3<T>, Margin<T>),
+    (off, speeds): (&impl Fn(T) -> (Point3<T>, Margin<T>), Speeds<T>),
     net: &NurbsCurve3<T>,
     band: Band,
 ) -> Result<Meeting<T>, CompositeRefusal> {
@@ -618,7 +627,8 @@ fn near_end<T: Decide>(
             let left = if at_start { s } else { far };
             Ok(Meeting::Crossing(bisect_row(piece, left, off, band)?))
         }
-        Ok(_) => Ok(Meeting::End(end)),
+        Ok(Sign::Zero) => Ok(Meeting::End(end)),
+        Ok(_) => past_the_end(piece, at_start, far, (off, speeds), band),
         Err(_) => {
             let proved = |v: T| matches!(prove(SIDE, Margin::sign_of(v)), Ok(s) if s == far);
             let until = stretch(piece, at_start, proved);
@@ -629,6 +639,92 @@ fn near_end<T: Decide>(
                 Err(diag) => Ok(Meeting::Stretch(window, MeetFault::Escalated(diag))),
             }
         }
+    }
+}
+
+/// The shares of a piece's width its polynomial is continued past an
+/// end by, tried in order until the continuation is proved monotone.
+const CONTINUATIONS: [f64; 3] = [1.0, 0.0625, 0.003_906_25];
+
+/// **The meeting past a near end**, `f` there on the side `far` as at the
+/// piece's other end: the root of the end piece's own polynomial
+/// continued past the end, which is the carrier's continuation there,
+/// placed against the end by its parameter's distance metered at the
+/// span's speeds (`spline_composite_end_stretch`), as the table places a
+/// root by its chord: within the band's zero of the end it is the end's
+/// meeting, past the band's escalation no meeting of the span, and in
+/// the gap a window at the end. A continuation not proved monotone, or
+/// proved monotone with no root on it, refuses at the end.
+fn past_the_end<T: Decide>(
+    piece: &Piece<T>,
+    at_start: bool,
+    far: Sign,
+    (off, (inf, sup)): (&impl Fn(T) -> (Point3<T>, Margin<T>), Speeds<T>),
+    band: Band,
+) -> Result<Meeting<T>, CompositeRefusal> {
+    let end = if at_start { piece.a } else { piece.b };
+    let tangency = Meeting::Stretch((end, end), MeetFault::Unsettled(Unsettled::Tangency));
+    let Some(beyond) = CONTINUATIONS
+        .iter()
+        .map(|&k| continued(piece, at_start, k))
+        .find(|c| one_signed(&slope_row(&c.num, &c.den)).is_some())
+    else {
+        return Ok(tangency);
+    };
+    // The continuation's far end, proved past zero on the other side.
+    match prove(SIDE, Margin::sign_of(end_value(&beyond, at_start))) {
+        Ok(s @ (Sign::Positive | Sign::Negative)) if s != far => {}
+        _ => return Ok(tangency),
+    }
+    let left = if at_start { far.flip() } else { far };
+    let root = bisect_row(&beyond, left, off, band)?;
+    let along = root - end;
+    match decide(STRETCH, Margin::metered_sup(along, sup), band) {
+        Ok(Sign::Zero) => return Ok(Meeting::End(end)),
+        Ok(_) => {}
+        Err(diag) => return Ok(Meeting::Stretch((end, end), MeetFault::Escalated(diag))),
+    }
+    match decide(STRETCH, Margin::metered(along, inf), band) {
+        Ok(Sign::Positive | Sign::Negative) => Ok(Meeting::Past),
+        Ok(Sign::Zero) => Ok(tangency),
+        Err(diag) => Ok(Meeting::Stretch((end, end), MeetFault::Escalated(diag))),
+    }
+}
+
+/// **The piece's polynomial continued past its start (`at_start`) or its
+/// end** by the share `k` of its width: the rows over
+/// `[a − k·(b − a), a]` or `[b, b + k·(b − a)]`, by de Casteljau's split
+/// at a share outside `[0, 1]`, which the polynomial identity holds at
+/// every share.
+fn continued<T: Decide>(piece: &Piece<T>, at_start: bool, k: f64) -> Piece<T> {
+    let (sa, sb) = piece.shadow;
+    let w = sb - sa;
+    let width = piece.b - piece.a;
+    let kk = T::from_f64(k);
+    let rows = |row: &[T]| -> Vec<T> {
+        if at_start {
+            // Over `[a − k·w, b]`, then its part before `a`.
+            let (_, right) = split_row(row, -kk);
+            let share = kk / (T::one() + kk);
+            split_row(&right, share).0
+        } else {
+            // Over `[a, b + k·w]`, then its part past `b`.
+            let (left, _) = split_row(row, T::one() + kk);
+            let share = T::one() / (T::one() + kk);
+            split_row(&left, share).1
+        }
+    };
+    let (a, b, shadow) = if at_start {
+        (piece.a - width * kk, piece.a, (sa - w * k, sa))
+    } else {
+        (piece.b, piece.b + width * kk, (sb, sb + w * k))
+    };
+    Piece {
+        a,
+        b,
+        shadow,
+        num: rows(&piece.num),
+        den: rows(&piece.den),
     }
 }
 
@@ -681,6 +777,7 @@ fn settle<T: Decide>(
                 walked.windows.push((window, fault));
                 continue;
             }
+            Meeting::Past => continue,
         };
         let (p, on) = off(t);
         for &crease in &creases {

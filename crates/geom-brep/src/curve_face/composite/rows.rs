@@ -116,7 +116,7 @@ fn an_in_band_pass_inside_the_span_refuses() {
     );
     let got = read(&net, &ground());
     assert!(
-        matches!(got, Err(MeetFault::Escalated(_))),
+        matches!(got, Err(MeetFault::Touch(_))),
         "{got:?}"
     );
 }
@@ -154,7 +154,7 @@ fn a_tangency_refuses() {
     );
     let got = read(&net, &ground());
     assert!(
-        matches!(got, Err(MeetFault::Escalated(_))),
+        matches!(got, Err(MeetFault::Touch(_))),
         "{got:?}"
     );
 }

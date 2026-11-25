@@ -3,7 +3,7 @@
 //! composed along the span's NURBS carrier, the ring composite `f ∘ C`
 //! ([`geom_core::spline::compose::CanonicalSurface::piece_rows`], in
 //! `geom_core::spline::canonical_rows`), read
-//! piece by piece at the scalar ([`walk`]'s module docs). It reads a
+//! piece by piece at the scalar (`walk`'s module docs). It reads a
 //! plane, cylinder, cone, sphere or torus, metered through the form's
 //! distance divisor.
 //!
@@ -28,7 +28,7 @@
 //! `KnotStructure::crease_runs`), where the carrier has no tangent,
 //! refuses, read in metres from the crease's point. A touch refuses. A
 //! crossing must read ON the surface. Its place against the span's ends
-//! and the crossing before it is the table's ([`super::cross::place`]).
+//! and the crossing before it is the table's (`cross::place`).
 //!
 //! The walk is `geom_core::bisect::bisect_within`, with its piece budget
 //! past the knot spans it starts from. A crossing the body stores is a
@@ -76,8 +76,12 @@ impl CompositeRefusal {
     /// one home of the mapping, read by every reader through the table's
     /// window ([`super::CrossWhy::Method`]).
     ///
-    /// - [`Self::Escalated`] is a band reading: [`MeetFault::Escalated`],
-    ///   ranked by its margin, which a finer tolerance can settle;
+    /// - [`Self::Escalated`] is a band reading where the carrier comes
+    ///   within the band of the surface: [`MeetFault::Touch`], a meeting
+    ///   in band, ranked by its margin, which a finer tolerance can
+    ///   settle. It is no placement's escalation about a root (which a
+    ///   reader may read off its window's centre): the window is the whole
+    ///   span;
     /// - [`Self::Unsettled`] is the walk's limit or a reading it has no
     ///   arm for (a tangency, a crease, the floor, the budget):
     ///   [`MeetFault::Unsettled`], with no margin;
@@ -91,7 +95,7 @@ impl CompositeRefusal {
     pub fn fault(self) -> crate::curve_pair::MeetFault {
         use crate::curve_pair::MeetFault;
         match self {
-            Self::Escalated(diag) => MeetFault::Escalated(diag),
+            Self::Escalated(diag) => MeetFault::Touch(diag),
             Self::Unsettled(why) => MeetFault::Unsettled(why),
             Self::FaceDegenerate(pose) | Self::Unread(pose) => MeetFault::Unsupported { pose },
         }
