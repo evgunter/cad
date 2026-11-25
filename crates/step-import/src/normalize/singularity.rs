@@ -4,23 +4,25 @@
 //!
 //! The trigger is incidence, read off the face's region: a sphere's
 //! pole or a cone's apex that lies in the face's closure and is not a
-//! vertex of it with an edge on each side. Where it lies decides the
-//! disposition ([`SingularityFound`]):
+//! vertex of it. Where it lies decides the disposition
+//! ([`SingularityFound`]):
 //!
-//! - **Interior**: a vertex is minted there with the pole form's two
-//!   meridians ([`geom::pole_form`]), each running to the first
-//!   boundary edge it meets, and the face is cut in two along them.
+//! - **Interior**: a vertex is minted there with one wrap edge to it,
+//!   the surface's meridian ([`geom::pole_form`]) run to the first
+//!   boundary edge it meets, which the face's loop walks out and back.
 //! - **Inside an edge**: the edge is split there.
-//! - **A valence-1 vertex** (Open CASCADE's seam meridian ending at
-//!   the pole or apex): the pole form is completed from the seam with
-//!   its half-turn twin, which runs to the first boundary edge it
-//!   meets, and the face is cut in two along the pair.
+//!
+//! A vertex there already is settled. Where it is the tip of a wrap
+//! edge the file states (Open CASCADE's seam meridian ending at the
+//! pole or apex, a valence-1 vertex the face's loop walks out and
+//! back), the face is adopted as stated, once its material is read to
+//! hold the seam: a seam outside it is an inverted face.
 //!
 //! Each split of a boundary edge propagates to every face sharing it,
 //! so the shell stays closed. A face holding both poles of a sphere is
-//! cut at the azimuth of its loop's centroid, through the hole the loop
-//! bounds, so the pole met second is reached on a meridian of the first
-//! and completed as a valence-1 vertex. Where a meridian lands is the
+//! reached at each by a wrap edge at the azimuth of its loop's
+//! centroid, so each meridian runs into the hole the loop bounds
+//! rather than to the other pole. Where a meridian lands is the
 //! kernel's meeting reading of it against each boundary edge
 //! ([`geom_brep::curve_pair::meet`]) at the pass's band: at a boundary
 //! vertex where the meeting reads at the edge's end, splitting the edge
@@ -44,10 +46,10 @@ use geom_brep::props::LoopEdge;
 use geom_core::{Point3, Vec3};
 
 use super::surgery::{
-    self, At, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
+    self, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
 };
 use super::valences;
-use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+use crate::entities::{EdgeSpec, EdgeUse, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::interpret::FileBand;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
@@ -156,9 +158,6 @@ enum Action {
         t: f64,
         point: Point3<f64>,
     },
-    /// The singular point is `vertex`, whose one edge the face uses
-    /// both ways.
-    StrutTip { fi: usize, vertex: u64 },
 }
 
 /// A point the pass reads coincident with another (a singular point, a
@@ -216,12 +215,6 @@ impl Read {
     /// The band itself, for a kernel reading that takes one.
     fn band(&self) -> geom_core::Band {
         self.file.band()
-    }
-
-    /// Whether the distance `d` reads Zero at the pass's band under the
-    /// decision `name`.
-    fn on(&self, name: &'static str, d: f64) -> bool {
-        self.file.read(name, d) == crate::interpret::Read::Zero
     }
 
     /// Whether the finite distance `d` does not read apart at the pass's
@@ -312,13 +305,14 @@ fn inverted(id: u64) -> StepImportError {
 
 /// The disposition the face `fi` owes, if any (module docs): the first
 /// singular point, in the kernel's order, that the kernel's reading
-/// places inside an edge or inside the face, or at a valence-1 vertex
-/// the face uses as a strut tip.
+/// places inside an edge or inside the face. A wrap tip the file states
+/// (a valence-1 vertex the face walks its one edge out and back to) owes
+/// none, and refuses where the face's material does not hold it.
 fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, StepImportError> {
     let face = &solid.faces[fi];
-    if Chart::of(solid.surface_of(face)).is_none() {
+    let Some(chart) = Chart::of(solid.surface_of(face)) else {
         return Ok(None);
-    }
+    };
     let valence = valences(solid);
     let loops = loop_edges(solid, fi);
     // Each vertex's stored point: what "at a vertex" reads.
@@ -352,8 +346,11 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
         match located.lies.map_err(|why| read.unread(why, face.id))? {
             Lies::AtVertex { r#loop, edge } => {
                 let v = use_start(solid, face.loops[r#loop].uses[edge]);
-                if valence.get(&v) == Some(&1) && strut_uses(solid, fi, v).is_some() {
-                    return Ok(Some(Action::StrutTip { fi, vertex: v }));
+                if valence.get(&v) == Some(&1)
+                    && walks_out_and_back(solid, fi, v)
+                    && !holds(solid, fi, chart, k, read)?
+                {
+                    return Err(inverted(face.id));
                 }
             }
             Lies::InsideEdge { r#loop, edge, t } => {
@@ -435,12 +432,12 @@ fn use_edges(solid: &SolidSpec, uses: &[EdgeUse]) -> Vec<LoopEdge<f64>> {
         .collect()
 }
 
-/// The two uses of the single edge at `vertex` in face `fi`'s loop: the
-/// one arriving at the vertex and the one leaving it, when the face
-/// uses that edge once each way (a seam ending at a strut tip).
-fn strut_uses(solid: &SolidSpec, fi: usize, vertex: u64) -> Option<(usize, usize)> {
+/// Whether face `fi`'s one loop arrives at `vertex` once and leaves it
+/// once, along one edge: the tip of a wrap edge the face walks out and
+/// back.
+fn walks_out_and_back(solid: &SolidSpec, fi: usize, vertex: u64) -> bool {
     let [lp] = solid.faces[fi].loops.as_slice() else {
-        return None;
+        return false;
     };
     let arrive: Vec<usize> = (0..lp.uses.len())
         .filter(|&i| use_end(solid, lp.uses[i]) == vertex)
@@ -448,10 +445,7 @@ fn strut_uses(solid: &SolidSpec, fi: usize, vertex: u64) -> Option<(usize, usize
     let leave: Vec<usize> = (0..lp.uses.len())
         .filter(|&i| use_start(solid, lp.uses[i]) == vertex)
         .collect();
-    match (arrive.as_slice(), leave.as_slice()) {
-        ([a], [l]) if lp.uses[*a].edge == lp.uses[*l].edge => Some((*a, *l)),
-        _ => None,
-    }
+    matches!((arrive.as_slice(), leave.as_slice()), ([a], [l]) if lp.uses[*a].edge == lp.uses[*l].edge)
 }
 
 /// Whether the singular point `k` of `chart` lies on the face's side of
@@ -501,27 +495,21 @@ fn apply(
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     let fi = match action {
-        Action::Interior { fi, .. }
-        | Action::InsideEdge { fi, .. }
-        | Action::StrutTip { fi, .. } => fi,
+        Action::Interior { fi, .. } | Action::InsideEdge { fi, .. } => fi,
     };
     let face_id = solid.faces[fi].id;
     let (entry_edges, entry_vertices) = boundary_census(solid, &[fi]);
-    let (found, faces) = match action {
+    let found = match action {
         Action::InsideEdge { edge, t, point, .. } => {
             split_at_point(solid, edge, t, point, mint)?;
-            (SingularityFound::InsideEdge, 1)
+            SingularityFound::InsideEdge
         }
-        Action::Interior { k, .. } => (
-            SingularityFound::Interior,
-            interior(solid, fi, k, read, mint)?,
-        ),
-        Action::StrutTip { vertex, .. } => (
-            SingularityFound::ValenceOneVertex,
-            strut_tip(solid, fi, vertex, read, mint)?,
-        ),
+        Action::Interior { k, .. } => {
+            interior(solid, fi, k, read, mint)?;
+            SingularityFound::Interior
+        }
     };
-    let (edges, vertices) = boundary_census(solid, &(fi..fi + faces).collect::<Vec<_>>());
+    let (edges, vertices) = boundary_census(solid, &[fi]);
     sink.push(StructureNormalization {
         face: face_id,
         kind: NormalizationKind::ChartSingularityVertex { found },
@@ -531,7 +519,7 @@ fn apply(
             vertices: entry_vertices,
         },
         kernel_census: FaceCensus {
-            faces,
+            faces: 1,
             edges,
             vertices,
         },
@@ -588,8 +576,8 @@ impl Ray {
             .fold(0.0, f64::max);
         let Some(speed) = geom::carrier_speed::speed_at(&self.carrier, self.from) else {
             unreachable!(
-                "an unbounded ray runs on a cone's generator line (`meridian_rays`, \
-                 `strut_tip`), whose speed `speed_at` reads in closed form"
+                "an unbounded ray runs on a cone's generator line (`meridian_ray`), \
+                 whose speed `speed_at` reads in closed form"
             )
         };
         (far + 2.0 * read.band().escalate()) / speed
@@ -610,8 +598,7 @@ enum Hit {
 type Landing = (f64, Hit, Point3<f64>);
 
 /// The first point past its start at which `ray` meets the boundary of
-/// face `fi`, ignoring `skip`'s edge (a seam the ray leaves from), or
-/// reaches one of `singular` off the boundary.
+/// face `fi`, or reaches one of `singular` off the boundary.
 ///
 /// Each edge is read against the ray by the kernel's one meeting reader
 /// ([`curve_pair::meet`]) at the pass's band. The landings it decides,
@@ -625,7 +612,6 @@ fn first_hit(
     solid: &SolidSpec,
     fi: usize,
     ray: &Ray,
-    skip: Option<u64>,
     singular: &[Point3<f64>],
     read: &Read,
 ) -> Result<(Hit, Point3<f64>), StepImportError> {
@@ -634,7 +620,6 @@ fn first_hit(
         .loops
         .iter()
         .flat_map(|lp| lp.uses.iter().map(|u| u.edge))
-        .filter(|&e| Some(e) != skip)
         .collect();
     edges.sort_unstable();
     edges.dedup();
@@ -795,11 +780,11 @@ fn span_refused(why: curve_pair::SpanRefusal, read: &Read, id: u64) -> StepImpor
     }
 }
 
-/// The pole form's meridian rays from singular point `k` of `chart`,
-/// at the azimuths `d` and `−d`, walked into the face (`nappe` is the
-/// sign of the cone face's chart `v`).
-fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
-    geom::pole_form::azimuths(d).map(|d| match chart {
+/// The wrap edge's ray from singular point `k` of `chart`: the
+/// surface's meridian at the azimuth `d`, walked into the face (`nappe`
+/// is the sign of the cone face's chart `v`).
+fn meridian_ray(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> Ray {
+    match chart {
         Chart::Sphere {
             center,
             radius,
@@ -831,7 +816,7 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             sign: nappe,
             reach: f64::INFINITY,
         },
-    })
+    }
 }
 
 /// Requires every boundary carrier of face `fi` to be a line or a
@@ -908,16 +893,16 @@ fn mint_spoke(
     Ok((id, forward))
 }
 
-/// **Interior**: mints the singular point `k` as a vertex with the pole
-/// form's two meridians and cuts the face along them. Answers how many
-/// faces the face became.
+/// **Interior**: mints the singular point `k` as a vertex with one wrap
+/// edge to it, and splices the edge into the face's loop, walked out
+/// from where it lands on the boundary and back.
 fn interior(
     solid: &mut SolidSpec,
     fi: usize,
     k: usize,
     read: &Read,
     mint: &mut dyn FnMut() -> u64,
-) -> Result<usize, StepImportError> {
+) -> Result<(), StepImportError> {
     require_read_carriers(solid, fi)?;
     let face_id = solid.faces[fi].id;
     let Some(chart) = Chart::of(solid.surface(fi)) else {
@@ -979,174 +964,65 @@ fn interior(
     };
     let pole = mint();
     solid.vertices.insert(pole, x);
-    let mut spokes = Vec::with_capacity(2);
-    // Each ray is read against the boundary as the previous one left
-    // it, so a split the first made is an edge the second can meet.
-    for ray in meridian_rays(chart, k, d, nappe) {
-        let (hit, p) = first_hit(solid, fi, &ray, None, &others, read)?;
-        let far = land(solid, hit, p, mint)?;
-        spokes.push(mint_spoke(solid, ray.carrier, ray.sign, pole, far, mint)?);
-    }
-    cut(solid, fi, pole, &spokes, None)
-}
-
-/// **A valence-1 vertex**: completes the pole form at `vertex` with the
-/// half-turn twin of the seam that ends there, and cuts the face along
-/// the pair. Answers how many faces the face became.
-fn strut_tip(
-    solid: &mut SolidSpec,
-    fi: usize,
-    vertex: u64,
-    read: &Read,
-    mint: &mut dyn FnMut() -> u64,
-) -> Result<usize, StepImportError> {
-    let face_id = solid.faces[fi].id;
-    let Some(chart) = Chart::of(solid.surface(fi)) else {
-        unreachable!("the scan reads only sphere and cone faces")
-    };
-    let singular = chart.singular();
-    let x = solid.vertices[&vertex];
-    let Some(k) = singular
-        .iter()
-        .position(|s| read.on(STEP_SINGULARITY_POINT, (*s - x).norm()))
-    else {
-        unreachable!("the scan finds a strut tip at a singular point")
-    };
-    // The face's material must hold the seam it uses both ways: a seam
-    // outside it is an inverted face (the module docs' orientation
-    // doctrine).
-    if !holds(solid, fi, chart, k, read)? {
-        return Err(inverted(face_id));
-    }
-    require_read_carriers(solid, fi)?;
-    let Some((arrive, _)) = strut_uses(solid, fi, vertex) else {
-        unreachable!("the scan finds a strut tip only where the face uses its seam both ways")
-    };
-    let seam = solid.faces[fi].loops[0].uses[arrive].edge;
-    let spec = &solid.edges[&seam];
-    let Some(twin) = geom::pole_form::half_turn_curve(
-        &spec.carrier,
-        geom::Line {
-            origin: chart.origin(),
-            dir: chart.axis(),
-        },
-        crate::signed_zero::plus_zero_point,
-        crate::signed_zero::plus_zero,
-    ) else {
-        return Err(foreign_carrier(face_id));
-    };
-    // The twin leaves the tip the way the seam does, turned.
-    let (from, sign) = if spec.start == vertex {
-        (spec.t0, 1.0)
-    } else {
-        (spec.t1, -1.0)
-    };
-    // A closed carrier is walked at most a turn; an open one without end.
-    let reach = twin.period().map_or(f64::INFINITY, |turn| turn.length());
-    let ray = Ray {
-        carrier: twin,
-        from,
-        sign,
-        reach,
-    };
-    let others: Vec<Point3<f64>> = singular
-        .iter()
-        .enumerate()
-        .filter(|&(j, _)| j != k)
-        .map(|(_, s)| *s)
-        .collect();
-    let (hit, p) = first_hit(solid, fi, &ray, Some(seam), &others, read)?;
+    let ray = meridian_ray(chart, k, d, nappe);
+    let (hit, p) = first_hit(solid, fi, &ray, &others, read)?;
     let far = land(solid, hit, p, mint)?;
-    let spoke = mint_spoke(solid, ray.carrier, ray.sign, vertex, far, mint)?;
-    cut(solid, fi, vertex, &[spoke], Some(seam))
+    let spoke = mint_spoke(solid, ray.carrier, ray.sign, pole, far, mint)?;
+    splice(solid, fi, spoke)
 }
 
-/// Cuts face `fi` along the spokes leaving `pole`, each an edge and
-/// whether it runs from the pole, and the seam `seam` the face already
-/// uses both ways at the pole. The face's loop and the spokes, each
-/// walked both ways, are re-linked into cycles ([`surgery::relink`]): a
-/// spoke enters the face
-/// where it meets the loop, each walk at the pole leaves along the
-/// other edge there, and a spoke whose far end is off the loop is
-/// walked out and back. Each cycle is a face. Answers how many.
-fn cut(
-    solid: &mut SolidSpec,
-    fi: usize,
-    pole: u64,
-    spokes: &[(u64, bool)],
-    seam: Option<u64>,
-) -> Result<usize, StepImportError> {
+/// Splices the wrap edge `spoke` (an edge, and whether it runs from the
+/// pole) into face `fi`'s one loop, as a cut whose far end is attached
+/// where the loop leaves it and whose pole end is free
+/// ([`surgery::relink`]): the loop arrives at the far end, walks the
+/// edge out to the pole and back, and goes on.
+fn splice(solid: &mut SolidSpec, fi: usize, spoke: (u64, bool)) -> Result<(), StepImportError> {
     let face_id = solid.faces[fi].id;
     let internal = |what| StepImportError::Topology { id: face_id, what };
     let [lp] = solid.faces[fi].loops.as_slice() else {
         return Err(internal(
-            "internal: a chart singularity cut on a face with rings, which the face gate \
-             admits on no sphere or cone",
+            "internal: a chart singularity reached on a face with rings, which the face \
+             gate admits on no sphere or cone",
         ));
     };
     let loops = vec![lp.uses.clone()];
-    // Where a spoke's end meets the loop: the one use leaving its vertex.
-    let leaving = |v: u64| -> Result<Option<At>, StepImportError> {
-        let found: Vec<usize> = (0..loops[0].len())
-            .filter(|&i| use_start(solid, loops[0][i]) == v)
-            .collect();
-        match found.as_slice() {
-            [] => Ok(None),
-            [i] => Ok(Some((0, *i))),
-            _ => Err(internal(
-                "a pole-form meridian ends at a vertex the face's loop passes more than once; \
-                 the cut there has no one reading",
-            )),
+    let (edge, from_pole) = spoke;
+    let first = EdgeUse {
+        edge,
+        forward: from_pole,
+    };
+    let far = use_end(solid, first);
+    let leaving: Vec<usize> = (0..loops[0].len())
+        .filter(|&i| use_start(solid, loops[0][i]) == far)
+        .collect();
+    let at = match leaving.as_slice() {
+        [i] => (0, *i),
+        [] => {
+            return Err(internal(
+                "a sphere face whose wrap edge from one pole reaches the other before any \
+                 of its boundary, which would leave the edge a ring of its own: this \
+                 re-mint adopts no ring on a curved chart",
+            ));
+        }
+        _ => {
+            return Err(internal(
+                "a wrap edge ends at a vertex the face's loop passes more than once; \
+                 where the loop walks it out and back has no one reading",
+            ));
         }
     };
-    let pole_edges = || internal("internal: a pole vertex with other than two edges");
-    if !matches!((seam, spokes.len()), (Some(_), 1) | (None, 2)) {
-        return Err(pole_edges());
-    }
-    let mut cuts = Vec::with_capacity(spokes.len());
-    for &(edge, from_pole) in spokes {
-        let first = EdgeUse {
-            edge,
-            forward: from_pole,
-        };
-        // Out of the pole, then back: the pole is on the loop only as
-        // the tip of the seam the face uses both ways.
-        let far = leaving(use_end(solid, first))?;
-        let pole_at = match seam {
-            Some(_) => leaving(pole)?,
-            None => None,
-        };
-        cuts.push(CutLine {
-            first,
-            ends: [pole_at, far],
-        });
-    }
-    let cycles = surgery::relink(solid, &loops, &cuts, &[]).map_err(|why| match why {
-        Unlinked::Branch => pole_edges(),
-        Unlinked::Open => internal("internal: a chart singularity cut's walk does not close"),
+    let cut = CutLine {
+        first,
+        ends: [None, Some(at)],
+    };
+    let cycles = surgery::relink(solid, &loops, &[cut], &[]).map_err(|why| match why {
+        Unlinked::Branch => internal("internal: a wrap tip with other than one edge"),
+        Unlinked::Open => internal("internal: a wrap edge's splice does not close"),
     })?;
-    if cycles.len() > 2 {
-        return Err(internal(
-            "a sphere face whose pole-form meridians close round both poles without meeting \
-             its boundary, which would leave the boundary a ring of one half: this re-mint \
-             adopts no ring on a curved chart",
-        ));
-    }
-    let template = &solid.faces[fi];
-    let (record, sense) = (template.record, template.sense);
-    let faces: Vec<FaceSpec> = cycles
-        .into_iter()
-        .map(|uses| FaceSpec {
-            id: face_id,
-            record,
-            sense,
-            loops: vec![LoopSpec { outer: true, uses }],
-            band: false,
-        })
-        .collect();
-    let count = faces.len();
-    solid.faces.splice(fi..=fi, faces);
-    Ok(count)
+    let [uses] = <[Vec<EdgeUse>; 1]>::try_from(cycles)
+        .map_err(|_| internal("internal: a wrap edge's splice is not one cycle"))?;
+    solid.faces[fi].loops = vec![LoopSpec { outer: true, uses }];
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1462,7 +1338,7 @@ mod meetings_are_the_kernels {
     use geom::{Curve3, Surface};
     use geom_core::{Point3, Vec3};
 
-    use super::{Chart, Hit, Ray, Read, first_hit, meridian_rays};
+    use super::{Chart, Hit, Ray, Read, first_hit, meridian_ray};
     use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
     use crate::error::{SingularityBand, StepImportError};
 
@@ -1540,7 +1416,7 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let ray = meridian_ray(chart, 0, x, 1.0);
         let at = |phi: f64, eps_in: f64| {
             let (edge, vertex) = closed(
                 11,
@@ -1554,7 +1430,7 @@ mod meetings_are_the_kernels {
             );
             let solid = face(sphere.clone(), vec![edge], vec![vertex]);
             let read = Read::of(crate::interpret::FileBand::with_run(eps_in, 1e-9, 10.0).unwrap());
-            first_hit(&solid, 0, &ray, None, &[], &read)
+            first_hit(&solid, 0, &ray, &[], &read)
         };
         // ε_in 1e-6 over a run of 1e-9: the band (1e-6, 1e-5).
         let got = at(3e-7, 1e-6);
@@ -1615,7 +1491,7 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let ray = meridian_ray(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(1.0);
         let beta: f64 = 1e-7;
         let Curve3::Line(generator) = ray.carrier else {
@@ -1649,7 +1525,7 @@ mod meetings_are_the_kernels {
             vec![(1, graze.eval(0.0)), (2, graze.eval(1.0)), rim_vertex],
         );
         let read = Read::of(crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap());
-        let got = first_hit(&solid, 0, &ray, None, &[], &read);
+        let got = first_hit(&solid, 0, &ray, &[], &read);
         let Ok((Hit::Edge { edge: 11, t }, p)) = got else {
             panic!("the grazing line is met first: {}", shown(&got))
         };
@@ -1687,7 +1563,7 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let ray = meridian_ray(chart, 0, x, 1.0);
         for (height, met_first) in [(-0.5_f64, false), (0.5, true)] {
             let r = (1.0 - height * height).sqrt();
             let phi = 3e-9 / r;
@@ -1712,7 +1588,7 @@ mod meetings_are_the_kernels {
                 ),
             );
             let solid = face(sphere.clone(), vec![equator, latitude], vec![v1, v2]);
-            let got = first_hit(&solid, 0, &ray, None, &[], &read_at(1e-9));
+            let got = first_hit(&solid, 0, &ray, &[], &read_at(1e-9));
             if met_first {
                 assert!(
                     matches!(
@@ -1732,47 +1608,27 @@ mod meetings_are_the_kernels {
         }
     }
 
-    /// **A strut tip's twin is read a full turn, and a boundary landing at
-    /// the other pole is that landing.** The seam (edge 10, skipped) runs
-    /// from the north pole down the `+x` meridian; its half-turn twin
-    /// leaves down the `−x` meridian, through the south pole at a half
-    /// turn and back up the `+x` side. A circle across the twin's `+x`
-    /// side (the plane `x = 0.5`) lies past the south pole, which is
-    /// reached first. Moved to the plane `x = 5e-10`, its crossing lies
-    /// past the pole along the ray but within the band's zero of it: the
-    /// boundary landing is the pole's, and the edge is split there.
+    /// **A boundary landing at the other pole is that landing.** A ray
+    /// read a full turn from the north pole leaves down the `−x`
+    /// meridian, through the south pole at a half turn and back up the
+    /// `+x` side. A circle across its `+x` side (the plane `x = 0.5`) lies
+    /// past the south pole, which is reached first. Moved to the plane
+    /// `x = 5e-10`, its crossing lies past the pole along the ray but
+    /// within the band's zero of it: the boundary landing is the pole's,
+    /// and the edge is split there.
     #[test]
-    fn a_strut_twin_reaches_the_other_pole_and_a_boundary_landing_there_wins() {
+    fn a_ray_reaches_the_other_pole_and_a_boundary_landing_there_wins() {
         let (x, y, z) = (
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
         let origin = Point3::new(0.0, 0.0, 0.0);
-        let seam_carrier = geom::pole_form::sphere_meridian(origin, 1.0, z, x);
-        let Some(twin) = geom::pole_form::half_turn_curve(
-            &seam_carrier,
-            geom::Line { origin, dir: z },
-            crate::signed_zero::plus_zero_point,
-            crate::signed_zero::plus_zero,
-        ) else {
-            unreachable!("a meridian circle has a half-turn twin")
-        };
-        let reach = twin.period().unwrap().length();
         let ray = Ray {
-            carrier: twin,
+            carrier: geom::pole_form::sphere_meridian(origin, 1.0, z, -x),
             from: 0.0,
             sign: 1.0,
-            reach,
-        };
-        let seam = || EdgeSpec {
-            start: 1,
-            end: 2,
-            carrier: seam_carrier.clone(),
-            t0: 0.0,
-            t1: core::f64::consts::PI,
-            reversed: false,
-            curve: None,
+            reach: core::f64::consts::TAU,
         };
         let south = Point3::new(0.0, 0.0, -1.0);
         let across = |offset: f64| {
@@ -1786,12 +1642,8 @@ mod meetings_are_the_kernels {
                     y,
                 ),
             );
-            let solid = face(
-                unit_sphere(),
-                vec![(10, seam()), edge],
-                vec![(1, seam_carrier.eval(0.0)), (2, south), vertex],
-            );
-            first_hit(&solid, 0, &ray, Some(10), &[south], &read_at(1e-9))
+            let solid = face(unit_sphere(), vec![edge], vec![vertex]);
+            first_hit(&solid, 0, &ray, &[south], &read_at(1e-9))
         };
         let got = across(0.5);
         assert!(
@@ -1823,7 +1675,7 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&cone) else {
             unreachable!("a cone has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let ray = meridian_ray(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(2.0);
         let line = Curve3::line(crossing - y * 1e-3, y * 2e-3);
         let solid = face(
@@ -1842,7 +1694,7 @@ mod meetings_are_the_kernels {
             )],
             vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
         );
-        let got = first_hit(&solid, 0, &ray, None, &[], &read_at(1e-9));
+        let got = first_hit(&solid, 0, &ray, &[], &read_at(1e-9));
         let Ok((Hit::Edge { edge: 11, t }, _)) = got else {
             panic!("the line at slant 2: {}", shown(&got))
         };
@@ -1859,10 +1711,10 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, Vec3::new(1.0, 0.0, 0.0), 1.0);
+        let ray = meridian_ray(chart, 0, Vec3::new(1.0, 0.0, 0.0), 1.0);
         let solid = face(sphere, Vec::new(), Vec::new());
         let off = Point3::new(0.0, 3e-9, -1.0);
-        let got = first_hit(&solid, 0, &ray, None, &[off], &read_at(1e-9));
+        let got = first_hit(&solid, 0, &ray, &[off], &read_at(1e-9));
         assert!(
             matches!(
                 got,
@@ -1886,7 +1738,7 @@ mod meetings_are_the_kernels {
         let Some(chart) = Chart::of(&sphere) else {
             unreachable!("a sphere has a chart")
         };
-        let [ray, _] = meridian_rays(chart, 0, x, 1.0);
+        let ray = meridian_ray(chart, 0, x, 1.0);
         let meridian = geom::pole_form::sphere_meridian(Point3::new(0.0, 0.0, 0.0), 1.0, z, x);
         for stop in [1.5, core::f64::consts::PI + 3e-9] {
             let solid = face(
@@ -1905,7 +1757,7 @@ mod meetings_are_the_kernels {
                 )],
                 vec![(1, meridian.eval(1.0)), (2, meridian.eval(stop))],
             );
-            let got = first_hit(&solid, 0, &ray, None, &[], &read_at(1e-9));
+            let got = first_hit(&solid, 0, &ray, &[], &read_at(1e-9));
             assert!(
                 matches!(got, Ok((Hit::Vertex(1), _))),
                 "an arc along the ray to {stop}: {}",

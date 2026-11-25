@@ -211,11 +211,18 @@ fn split_cap(r: f64, h: f64, deg: f64) -> (Body<f64>, Vec<FaceKey>, f64, f64) {
         .unwrap();
     let (s0, s1) = seam_geom.params();
     let carrier = seam_geom.carrier().clone();
-    let axis = geom::Line {
-        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
-        dir: geom_core::Vec3::new(0.0, 1.0, 0.0),
+    // The seam's half turn about the y axis.
+    let turn = |w: geom_core::Vec3<f64>| geom_core::Vec3::new(-w.x, w.y, -w.z);
+    let geom::Curve3::Circle(c) = carrier else {
+        panic!("the seam is a meridian circle: {carrier:?}")
     };
-    let turned = geom::pole_form::half_turn_curve(&carrier, axis, |q| q, |w| w).unwrap();
+    let o = c.frame().origin();
+    let turned = geom::Curve3::circle(
+        geom_core::Point3::new(-o.x, o.y, -o.z),
+        turn(c.frame().axis()),
+        c.radius(),
+        turn(c.frame().u_ref()),
+    );
     // The turned meridian runs from the opposite point to the pole as the
     // seam runs from its foot to the pole, or both the other way.
     let seam_plus = body.get_edge(seam).unwrap().he_plus;

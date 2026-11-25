@@ -5,19 +5,21 @@
 //! (`side_cut_meridian_split.step`). Each file puts a chart pole inside a
 //! face, or inside an edge, without making it a vertex. A chart
 //! singularity in a face is a vertex of it, so import makes each pole one
-//! (`chart_singularity_vertex.rs`): a face holding a pole is cut in two
-//! along the pole form's meridians, and an edge through one is split
-//! there. Every pole then lies on an edge interior to the sphere's seam
-//! region, where tier 3 reads the region's side, so a flipped sphere face
-//! is named, alone or with the rest.
+//! (`chart_singularity_vertex.rs`): a face holding a pole reaches it by
+//! one wrap edge walked out and back, and an edge through one is split
+//! there. Tier 3 reads the sphere's seam region's side, so a flipped
+//! sphere face is named, alone or with the rest.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
-const FILES: [&str; 2] = [
-    "side_cut_equator_split.step",
-    "side_cut_meridian_split.step",
+/// Each file, with the number of faces its sphere comes in: the two
+/// halves the equator split states, or those with the lower half split
+/// again along its meridian.
+const FILES: [(&str, usize); 2] = [
+    ("side_cut_equator_split.step", 2),
+    ("side_cut_meridian_split.step", 3),
 ];
 
 fn import(name: &str) -> topo::Body<f64> {
@@ -47,7 +49,7 @@ fn a_side_cut_ball_holding_its_poles_inside_its_faces_imports_and_measures() {
     let tol = Tol::witness();
     let (r, h) = (0.010_f64, 0.002_f64);
     let exact = core::f64::consts::PI * (4.0 * r * r * r - h * h * (3.0 * r - h)) / 3.0;
-    for name in FILES {
+    for (name, _) in FILES {
         let body = import(name);
         topo::validate_geometric(&body, tol)
             .unwrap_or_else(|e| panic!("{name}: tier 3 refuses it: {e:?}"));
@@ -69,10 +71,10 @@ fn a_side_cut_ball_holding_its_poles_inside_its_faces_imports_and_measures() {
 #[test]
 fn a_flipped_sphere_face_is_named_by_its_regions_side() {
     let tol = Tol::witness();
-    for name in FILES {
+    for (name, faces) in FILES {
         let body = import(name);
         let sphere = sphere_faces(&body);
-        assert_eq!(sphere.len(), 4, "{name}: the sphere's faces: {sphere:?}");
+        assert_eq!(sphere.len(), faces, "{name}: the sphere's faces: {sphere:?}");
         for face in sphere {
             let flipped = body
                 .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
@@ -88,33 +90,36 @@ fn a_flipped_sphere_face_is_named_by_its_regions_side() {
     }
 }
 
-/// Every sphere face flipped: each claims its complement, so the cover
-/// census counts the region claimed four times over, and each face is
-/// named by the region's side.
+/// Every sphere face flipped: each claims its complement, which holds
+/// the pole the face does not reach, off any vertex of it, so each face
+/// is named twice: by the region's side and by that pole. (The cover
+/// census is not read here: a flipped face's lift no longer closes at
+/// its wrap tip, and check 6 exempts a refused derivation.)
 #[test]
-fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover_and_its_side() {
+fn the_side_cut_ball_flipped_whole_names_each_face_by_its_side_and_its_pole() {
     let tol = Tol::witness();
-    for name in FILES {
+    for (name, faces) in FILES {
         let body = import(name);
         let sphere = sphere_faces(&body);
+        assert_eq!(sphere.len(), faces, "{name}: the sphere's faces: {sphere:?}");
         let flipped = sphere.iter().fold(body.clone(), |b, &k| {
             b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
                 .unwrap()
         });
         let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
-        assert!(
-            errs.iter().any(|e| matches!(
-                e,
-                topo::ValidationError::SeamRegionOvercovered { times: 4, .. }
-            )),
-            "{name}: the flipped faces overlap four times over: {errs:?}"
-        );
         for face in sphere {
             assert!(
                 errs.iter().any(
                     |e| matches!(e, topo::ValidationError::CurvedSenseInverted { face: f } if *f == face)
                 ),
                 "{name}: {face:?} is not named CurvedSenseInverted: {errs:?}"
+            );
+            assert!(
+                errs.iter().any(|e| matches!(
+                    e,
+                    topo::ValidationError::ChartSingularityNotAVertex { face: f, .. } if *f == face
+                )),
+                "{name}: {face:?} is not named by the pole its complement holds: {errs:?}"
             );
         }
     }
