@@ -1516,44 +1516,18 @@ pub(super) enum NetChannel {
     V,
 }
 
-/// **Whether a spline net closes in `channel`**: every control point of
-/// its first boundary row (column) is decided at zero distance from the
-/// matching one of its last, at `band` (`pcurve_chart_u_closed`,
-/// `pcurve_chart_v_closed`). One rule for both channels, so the two
-/// periods cannot drift apart.
-///
-/// Any other answer is "open", an in-band one included; that fold, and
-/// a test that compares neither weights nor reads an unclamped knot
-/// vector's boundary, are
-/// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
-/// for both channels.
+/// **Whether a spline net closes in `channel`**
+/// ([`geom_brep::spline_net_closes`], the one rule).
 fn net_closes_as<T: Decide>(
     payload: &geom::NurbsSurface<T>,
     channel: NetChannel,
     band: Band,
 ) -> bool {
-    let (nu, nv) = payload.control_counts();
-    let control = payload.control();
-    let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
-        NetChannel::U if nu >= 2 && nv > 0 => (
-            "pcurve_chart_u_closed",
-            (0..nv).map(|iv| (iv, (nu - 1) * nv + iv)).collect(),
-        ),
-        NetChannel::V if nv >= 2 && nu > 0 => (
-            "pcurve_chart_v_closed",
-            (0..nu).map(|iu| (iu * nv, iu * nv + nv - 1)).collect(),
-        ),
-        NetChannel::U | NetChannel::V => return false,
+    let axis = match channel {
+        NetChannel::U => geom_brep::ChartAxis::U,
+        NetChannel::V => geom_brep::ChartAxis::V,
     };
-    pairs.into_iter().all(|(i, j)| {
-        let (Some(a), Some(b)) = (control.get(i), control.get(j)) else {
-            return false;
-        };
-        matches!(
-            decide(name, Margin::of(a.distance(*b)), band),
-            Ok(Sign::Zero)
-        )
-    })
+    geom_brep::spline_net_closes(payload, axis, band)
 }
 
 /// **The metres a whole sweep of a spline net's `channel` moves a point,

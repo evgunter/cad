@@ -1319,7 +1319,7 @@ fn pole_beyond<T: Decide>(
         }
         let Some(geom::Curve3::Circle(circle)) = body
             .edge(e)
-            .and_then(crate::live::EdgeView::certified)
+            .and_then(|view| view.certified())
             .map(|c| c.carrier().clone())
         else {
             continue;

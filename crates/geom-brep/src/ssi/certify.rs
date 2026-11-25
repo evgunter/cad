@@ -600,22 +600,15 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, cut
     // at `cuts` besides the round's grid, in metres.
-    let grid = chart_grid(carrier, pcurve.knots_f64_interim());
+    let (pknots, pweights) = (pcurve.knots_f64_interim(), pcurve.weights_f64_interim());
+    let (sknots_u, sknots_v) = (surface.knots_u_f64_interim(), surface.knots_v_f64_interim());
+    let grid = chart_grid(carrier, pknots);
     let (pcoords, scoords) = (pcurve.certified_coords(), surface.certified_coords());
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
         carrier_chart_round(
             carrier,
-            (
-                pcurve.knots_f64_interim(),
-                pcurve.weights_f64_interim(),
-                &pcoords,
-            ),
-            (
-                surface.knots_u_f64_interim(),
-                surface.knots_v_f64_interim(),
-                surface.weights_f64_interim(),
-                &scoords,
-            ),
+            (pknots, pweights, &pcoords),
+            (sknots_u, sknots_v, surface.weights_f64_interim(), &scoords),
             &grid,
             cuts,
         )
@@ -696,7 +689,16 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
         _ => &CHART_HULL,
     };
-    let sup = hull_limb(arm, stopped, band, at)?;
+    let reach = chart_domain_limb::<T>(
+        (pknots, pweights, &pcoords),
+        (t0, t1),
+        (sknots_u, sknots_v),
+        surface,
+        arm,
+        band,
+        at,
+    )?;
+    let sup = hull_limb(arm, stopped, reach, band, at)?;
     Ok((worst, sup))
 }
 
@@ -1165,6 +1167,7 @@ const CHART_IMAGE_HULL: HullArm = HullArm {
 pub(crate) fn hull_limb<T: Decide>(
     arm: &HullArm,
     stopped: Subdivided,
+    reach: f64,
     band: Band,
     at: &mut Refused,
 ) -> Result<T, SsiError> {
@@ -1183,18 +1186,140 @@ pub(crate) fn hull_limb<T: Decide>(
             hull
         }
     };
-    let sup = T::from_computed(hull.sup);
+    let bound = if reach == 0.0 {
+        hull.sup
+    } else {
+        (Interval::from_bounds(hull.sup, hull.sup) + Interval::from_bounds(reach, reach)).hi()
+    };
+    let sup = T::from_computed(bound);
     let decided = decide_reported(arm.sup, Margin::of(sup), band);
     if locatable(&decided) {
         hull.uncleared(band, &mut at.spans);
     }
-    limb_verdict(
-        arm.sup_limb,
-        decided,
-        || RefusedResidual::Over(hull.sup),
-        at,
-    )?;
+    limb_verdict(arm.sup_limb, decided, || RefusedResidual::Over(bound), at)?;
     Ok(sup)
+}
+
+/// **Limb 2's hold of the image to its chart's knot rectangle**: a
+/// certified bound on how far `image` leaves the rectangle over `span`,
+/// in metres, decided at
+/// `ssi_chart_domain` and refused under `arm`'s bound limb; zero where it
+/// stays inside, and nothing decided. Off the rectangle the composite
+/// reads the boundary cell's polynomial extension
+/// (`geom_core::spline::compose::tensor`, "Domain posture"), which is no
+/// point of the chart, so the hull bound says nothing there: a carrier
+/// past the wall's rim between two of the image's nodes, and on the
+/// extension, would clear it. The escape is metered at the chart's sup
+/// arms, so it bounds how far the extension's point is from the chart's
+/// own, and an escape inside the band is the reach [`hull_limb`] adds to
+/// the hull bound, as the iso lanes' `pcurve_iso_domain` adds theirs.
+///
+/// # Errors
+///
+/// [`SsiError::CertificateLimb`] for an escape past the band, its
+/// escalation for one in it, and [`SsiError::UnsupportedCertificate`]
+/// for an image whose enclosures refuse.
+pub(crate) fn chart_domain_limb<T: Decide + Bounds + CertifiedEnclosure>(
+    image: (&KnotVector, &[f64], &[Vec<Interval>]),
+    span: (f64, f64),
+    (knots_u, knots_v): (&KnotVector, &KnotVector),
+    chart: &NurbsSurface<T>,
+    arm: &HullArm,
+    band: Band,
+    at: &mut Refused,
+) -> Result<f64, SsiError> {
+    let (over_u, over_v) = image_escape(image, span, knots_u.domain(), knots_v.domain()).ok_or(
+        SsiError::UnsupportedCertificate {
+            what: "the image's coordinates have no certified enclosure over the edge's \
+                   interval, so nothing holds it to its chart's knot rectangle",
+        },
+    )?;
+    // A channel the net closes in is a seam an image may cross: its
+    // window past the rectangle is a period over, which the composite
+    // reads on the boundary cell's extension and not on the chart a
+    // period back
+    // (`work/pcert/a-closed-spline-charts-image-across-its-seam-is-read-on-the-extension.md`),
+    // so only an open channel is held here. Asked only of an escape.
+    let open = |over: f64, axis| {
+        if over > 0.0 && crate::spline_net_closes(chart, axis, band) {
+            0.0
+        } else {
+            over
+        }
+    };
+    let (over_u, over_v) = (
+        open(over_u, crate::ChartAxis::U),
+        open(over_v, crate::ChartAxis::V),
+    );
+    if over_u == 0.0 && over_v == 0.0 {
+        return Ok(0.0);
+    }
+    let at_up = |x: f64| Interval::from_bounds(x, x);
+    let (arm_u, arm_v) = chart.stretch_sup();
+    let reach =
+        (at_up(arm_u.get().hi()) * at_up(over_u) + at_up(arm_v.get().hi()) * at_up(over_v)).hi();
+    let decided = decide_reported("ssi_chart_domain", Margin::<T>::bound(reach), band);
+    limb_verdict(arm.sup_limb, decided, || RefusedResidual::Over(reach), at)?;
+    Ok(reach)
+}
+
+/// The halvings [`image_escape`] cuts a piece by while its enclosure
+/// leaves the rectangle.
+const ESCAPE_ROUNDS: usize = 16;
+
+/// **Certified upper bounds of a 2-D image's escape past the rectangle
+/// `u × v`** over the pieces of its Bernstein form that meet `span`:
+/// each piece's coordinate enclosure
+/// ([`geom_core::spline::compose::CurveCertData::coordinate_spans`]),
+/// a piece cut in half while it leaves the rectangle, for
+/// [`ESCAPE_ROUNDS`] rounds. The control hull alone over-states an
+/// escape by the curve's sag, which halving shrinks quadratically.
+/// `None` where an enclosure refuses.
+fn image_escape(
+    (knots, weights, coords): (&KnotVector, &[f64], &[Vec<Interval>]),
+    (lo, hi): (f64, f64),
+    u: (f64, f64),
+    v: (f64, f64),
+) -> Option<(f64, f64)> {
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let past = |(d0, d1): (f64, f64), x: Interval| {
+        let below = Bounds::hi(at(d0) - at(Bounds::lo(x)));
+        let above = Bounds::hi(at(Bounds::hi(x)) - at(d1));
+        below.max(above).max(0.0)
+    };
+    let mut cuts = vec![lo, hi];
+    let mut over = (0.0_f64, 0.0_f64);
+    for round in 0..=ESCAPE_ROUNDS {
+        let data = CurveCertData::new(knots, weights, coords)
+            .ok()?
+            .with_breaks(&cuts);
+        let (breaks, us) = data.coordinate_spans(0);
+        let (_, vs) = data.coordinate_spans(1);
+        over = (0.0, 0.0);
+        let mut halves = Vec::new();
+        for ((ends, eu), ev) in breaks.windows(2).zip(&us).zip(&vs) {
+            let (a, b) = (ends[0], ends[1]);
+            if b <= lo || hi <= a {
+                continue;
+            }
+            if !(eu.is_certified() && ev.is_certified()) {
+                return None;
+            }
+            let (pu, pv) = (past(u, *eu), past(v, *ev));
+            if pu.is_nan() || pv.is_nan() {
+                return None;
+            }
+            over = (over.0.max(pu), over.1.max(pv));
+            if pu > 0.0 || pv > 0.0 {
+                halves.push(geom_core::bracket_mid((a, b)));
+            }
+        }
+        if halves.is_empty() || round == ESCAPE_ROUNDS {
+            break;
+        }
+        cuts.extend(halves);
+    }
+    Some(over)
 }
 
 /// The uniform breaks limb 2's composite is cut at: the carrier
@@ -4322,7 +4447,7 @@ mod tests {
                 data: (),
             };
             let mut at = super::Refused::default();
-            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
+            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), 0.0, band, &mut at)
                 .expect_err("a bound in the band escalates");
             let SsiError::CertificateEscalated { ref cause, .. } = err else {
                 panic!("{}: not the escalation: {err:?}", arm.sup);

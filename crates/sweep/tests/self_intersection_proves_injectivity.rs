@@ -2952,11 +2952,10 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// the wall's presentation by the disc's carrier, reading no corner. At
 /// `Interval` the rims' axial terms on the wall's chart are enclosures of
 /// zero, which the pcurve derivation decides zero at
-/// `pcurve_cylinder_chart_axial`. Red if it does not: the wall then reads
-/// each rim as a curve through its corners (`cornered` 8). One receipt at
-/// both scalars is this axis-aligned vessel's: on a cylinder whose axis
-/// is not a coordinate axis, `f64` rounds a rim's terms to nonzero values
-/// and reads a curve where `Interval` reads the line.
+/// `pcurve_cylinder_chart_axial`, as it decides an `f64` rounding off
+/// zero on a cylinder whose axis is not a coordinate axis. Red if it
+/// does not: the wall then reads each rim as a curve through its corners
+/// (`cornered` 8).
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
@@ -4574,22 +4573,19 @@ fn rounded_plate_drawn_turned<T: Scalar>() -> Option<topo::AtRestBody<T>> {
 /// Departure plane x torus across an edge`) or is read from the arc's
 /// side only (plane x cylinder).
 ///
-/// **The plate drawn turned 30°** is not embedded: built off the axes,
-/// a strip's section arc is stored a rounding off a parallel, and the
-/// strip's own corner is read by its ruling run on past the vertex
-/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`).
-/// Pinned at the exit it reads, a finding: `Uncertified Departure
-/// cylinder x plane across an edge`.
+/// **The plate drawn turned 30°**, built off the axes, is embedded too:
+/// a strip's section arc is a rounding off a parallel there, and the
+/// mint decides it a parallel (`cylinder_rim_axial`). Red if it does
+/// not: the strip's corner is then read by its ruling run on past the
+/// vertex, `Uncertified Departure cylinder x plane across an edge`.
 #[test]
 fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     door_reads::<f64>("the inset corner", inset_filleted(), "Embedded");
     door_reads::<f64>("the rounded plate", rounded_plate(), "Embedded");
-    let turned = rounded_plate_drawn_turned::<f64>().expect("f64 fillets");
-    let class = door_class::<f64>(&turned);
-    println!("[tangent] the plate drawn turned: {class}");
-    assert!(
-        class.starts_with("Uncertified Departure cylinder x plane across an edge"),
-        "the plate drawn turned: {class}"
+    door_reads::<f64>(
+        "the plate drawn turned",
+        rounded_plate_drawn_turned(),
+        "Embedded",
     );
 }
 
@@ -4725,16 +4721,13 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
 /// units out, 990 units out on each axis (the session box's wall is at
 /// 1000; at ε = 1e-12 that move does not finish, at `shared_row_touch`,
 /// and only that refusal is passed over), and
-/// mirrored across `x = 0`, all `Embedded`.
-///
-/// **Mirrored across a generic plane it is not**: it reads `Uncertified
-/// Departure cylinder x plane across an edge`, pinned at that exit as a
-/// finding, likely the cause of
-/// `work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`
-/// (the mirror re-mints the rows on a turned frame) and untraced. The
+/// mirrored across `x = 0` and across a generic plane, all `Embedded`.
+/// The generic mirror re-mints the rows on a turned frame, where a
+/// strip's section arc is a rounding off a parallel that the mint
+/// decides a parallel (`cylinder_rim_axial`); red if it does not
+/// (`Uncertified Departure cylinder x plane across an edge`). The
 /// mirror's result is asked as a body and not put through the at-rest
-/// finish, which refuses its re-minted rows on a generic plane. The
-/// probe is the re-review's.
+/// finish, which refuses its re-minted rows on a generic plane.
 #[test]
 fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     use crate::band_closed_mixed_chain_shapes::{every_edge, prism, rect};
@@ -4793,11 +4786,7 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
         "mirrored across x = 0"
     );
     let generic = mirrored(Point3::new(0.2, -0.1, 0.3), Vec3::new(0.3, -0.5, 0.81));
-    println!("[tangent] the uneven plate mirrored across a generic plane: {generic}");
-    assert!(
-        generic.starts_with("Uncertified Departure cylinder x plane across an edge"),
-        "mirrored across a generic plane: {generic}"
-    );
+    assert_eq!(generic, "Embedded", "mirrored across a generic plane");
 }
 
 /// **A copy pushed through a tangent joint crosses**: the inset corner
