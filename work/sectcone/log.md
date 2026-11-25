@@ -66,3 +66,6 @@ The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (o
 
 ## 2026-11-24: 7725 merged (the cone_search main red)
 The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-tan, and a fixed row reproduces the first seed. cone_search passed on three kernel runs, each with a fresh seed. Orchestrator's read. Merged main and resolved the conflict with 7457's `RadiusNotPositive` line in `of_pair_section`. Merged over CI: the kernel job was red only on `square_search` (germ row).
+
+## 2026-11-24 — (GREEN U21) the tour at 1e-6 is red since 7395
+Filed `the-lily-lanterns-weld-still-refuses-at-the-interior-loop-guard-at-1e-6` (P1). It is bisected on hosted CI to PR 7395 (`f5744c8c20`). Lily wall 2, which 7395 retired, still refuses `CurvedPairUnsupported { InteriorLoopGuard, Cone, Torus }` at ε 1e-6. `demos/tour`'s `tour_runs_green_at_eps_1e_6` is red on main because of it, and it is not held. The judgement is yours: a fix, or a re-pin of the wall at 1e-6. Also yours, and already fixed: editor-core's `trim_3_windows_interval::a_holed_cylinder_wall_drops_the_cells_in_its_hole` went red at PR 7408 (`323c16d098`) on the straight-carrier `section_site_foot_bend` cause, which PR 7734 fixes.
