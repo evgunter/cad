@@ -111,6 +111,9 @@ pub(super) enum Formed<T: Real> {
     LineCone { parallel: bool },
     /// A line against a torus, which it never lies on.
     LineTorus,
+    /// A line against a spline chart: the method reads its cells
+    /// ([`super::line_patch`]).
+    LinePatch,
     /// A conic on the first-harmonic lane, crossing: its extremes read
     /// definitely on either side.
     FirstHarmonic(super::circle_roots::FirstHarmonic<T>),
@@ -290,6 +293,11 @@ pub fn pose<T: Decide>(
         Door::ConicQuadric => conic_quadric(span, surface, band),
         Door::ConicTorus => conic_torus(span, surface, band),
         Door::SpiricPlane => spiric_plane(span, surface, band),
+        // A line against a spline chart is read by its method alone
+        // (`super::line_patch`): no pose is decided ahead of its cells.
+        Door::SplineFace if matches!(carrier, geom::Curve3::Line(_)) => {
+            Ok(Pose::Isolated(Form(Formed::LinePatch)))
+        }
         Door::SplineComposite | Door::SplineFace => Err(PoseRefusal::Enclosed),
         Door::Spiric | Door::Sheet => Err(PoseRefusal::Unbuilt(way)),
     }

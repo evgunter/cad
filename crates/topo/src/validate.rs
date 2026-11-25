@@ -4346,6 +4346,7 @@ pub(crate) fn classify_point_in_solid(
         S::PartialSphereFace { .. }
         | S::PartialConeFace { .. }
         | S::PartialTorusFace { .. }
+        | S::PartialSplineFace { .. }
         | S::WallOutlineUnsupported { .. } => (
             "a curved face's trim is one the check cannot yet read".into(),
             NOT_YET_ENDING.into(),
@@ -12963,6 +12964,7 @@ mod tests {
             S::PartialSphereFace { face },
             S::PartialConeFace { face },
             S::PartialTorusFace { face },
+            S::PartialSplineFace { face },
             S::WallOutlineUnsupported { face },
         ] {
             assert_eq!(

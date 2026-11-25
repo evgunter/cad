@@ -44,6 +44,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(projected-hull-boun
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[0], hi[0]))	Net::of: the cell walk's translation origin, data (its row closed without it)
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[1], hi[1]))	Net::of: as lo[0]
 crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	owed(f64-data-left-lifted-when-the-built-at-t-unit-closed)	of	geom_core::bracket_mid((lo[2], hi[2]))	Net::of: as lo[0]
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	1	place-step	split_at	s	Cell::split_at's cut point, a place stepped inside the module's own evaluator
 crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-computed)	sphere_region_cover	c	sphere_region_cover: a census threshold (a count and a half), a constant spelled as computed
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T

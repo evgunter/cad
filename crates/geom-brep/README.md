@@ -1416,7 +1416,23 @@ otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite is formed
 in a chart frame built in certification arithmetic, so the frame's
-rounding enters its enclosures. The span ×
+rounding enters its enclosures. A line against a spline face is read
+by its own method (`curve_face::line_patch`, through `curve_face::cross`):
+the line is the meet of two planes through it, and each plane's residual
+composed with the chart, with the offset along the line, is a rational
+Bernstein form on each of the chart's cells whose coefficients are linear
+in the net, computed at the scalar. A cell is clear where one residual's
+coefficients are all past the band on one side; holds at most one
+crossing where the residuals' gradient boxes (the quotient-rule
+numerators, on a rational chart) have corner determinants of one proved
+sign, which is also the crossing's incidence on `S_u × S_v`; and holds
+exactly one where, so, the image of its boundary winds round the line,
+read by the parity of a ray in the residuals' plane on the boundary
+rows' coefficient signs. A crossing is narrowed until its offset along
+the line spans no more than the band's escalation, and reported with its
+cell's chart rectangle, which the face's trim places; a cell within the
+band of the line that no test reads is a stretch the line is not read
+over, and nothing there is counted. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
