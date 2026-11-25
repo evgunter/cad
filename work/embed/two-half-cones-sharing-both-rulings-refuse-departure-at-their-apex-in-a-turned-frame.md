@@ -150,8 +150,41 @@ singular vertex, which holds in any frame and does not turn on which
 cells the walk happens to visit. A plain cone that refuses is a body
 the at-rest gate would refuse at its door, hence P0.
 
-Pinned: `the_unit_cone_on_the_third_turned_plane_refuses_departure_at_its_apex`
-(a refuser on `ae076e050`), and the cones that hold there in
-`singular_points_hold_far_from_the_origin_and_in_turned_frames`. A pin
+Pinned: the cones that hold in
+`singular_points_hold_far_from_the_origin_and_in_turned_frames`, the
+third plane's unit cone among them since `embedwalk/unit-cone`. A pin
 that goes red on a later main is this row's evidence, not a regression
 of the pole and apex reading.
+
+## Evidence from EMBEDWALK: the turned windows reached past the apex
+
+Lane `embedwalk/unit-cone` (on main `e74caf6479`; the trace is on
+`work/embedwalk/the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since.md`).
+A half-cone's `v` window was the slant of its boundary's WORLD box, so
+in a turned frame it reached past the apex into the other nappe, by
+`0.11` to `0.6` on the unit cone, and how far moved with each main's box
+reading. With main's `injective.rs` unchanged, the turned-3 unit
+cone's verdict follows that reach: it holds with the window ending at
+the apex (or `1e-12` past it) in about 250 splits, holds to a reach of
+`0.4`, and refuses `Departure` at `0.5` and `0.6`. So "which cells the
+walk happens to visit" was, for these cones, where the window put the
+apex inside a cell rather than on its side.
+
+`window_of` now reads the slant (and every affine chart coordinate) off
+the boundary pieces' supports along the axis, which end at the apex
+within rounding. On the review sweep's 68 turned cases at f64
+(`review_sweep_delta_shapes`), main against the branch:
+
+- the four turned-3 unit-cone cases hold, at 247 / 273 / 268 / 269
+  splits (refused at 50,652 / 50,587 / 50,735 / 50,334);
+- every other turned cone and ice-cream that held still holds; the
+  unit cone and the `(20, 50)` cone drop from 1,000 to 6,000 splits to
+  under 360, the turned ice-creams from up to 9,646 to under 800;
+- the two small `(0.013, 0.9)` cavities still refuse as before: turned
+  1 `Departure` on `3v1`, `4v1`, `Edge(2v1)` at 6,356 splits (5,852),
+  turned 2 `Budget(Pairs)` at 65,530;
+- every plain-frame case is unchanged to the split.
+
+`review_probe_far_witnesses`' one refuser is still `Budget(Depth { 40 })`,
+at 908 / 1 / 924 (1,040 / 1 / 1,065). The reading's exits A to D are
+not touched: the two small cavities are what remains here.
