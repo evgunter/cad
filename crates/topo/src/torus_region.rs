@@ -1292,4 +1292,94 @@ mod tests {
         }
         queries
     }
+
+    /// `edge`, a circle arc, carried on the rational quadratic that is
+    /// exactly that arc: one segment per quarter turn or less, run the
+    /// arc's way over `[0, 1]`.
+    fn on_a_spline(edge: &Edge<f64>) -> Edge<f64> {
+        let Some(frame) = edge.carrier.frame() else {
+            unreachable!("the patch's edges are circles")
+        };
+        let centre = frame.origin();
+        let sweep = edge.t1 - edge.t0;
+        let segments = (sweep / FRAC_PI_2).ceil().max(1.0);
+        let half = sweep / segments / 2.0;
+        let (mut control, mut weights) = (vec![edge.at(edge.t0)], vec![1.0]);
+        let mut knots = vec![0.0; 3];
+        for k in 0..segments as usize {
+            let k = k as f64;
+            let middle = edge.at(edge.t0 + (2.0 * k + 1.0) * half);
+            control.push(centre + (middle - centre) / half.cos());
+            weights.push(half.cos());
+            control.push(edge.at(edge.t0 + (2.0 * k + 2.0) * half));
+            weights.push(1.0);
+            knots.extend([(k + 1.0) / segments; 2]);
+        }
+        knots.push(1.0);
+        let knots = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
+        let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
+        RegionEdge {
+            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+            t0: 0.0,
+            t1: 1.0,
+            turn: None,
+            ..edge.clone()
+        }
+    }
+
+    /// **A patch bounded by spline edges reads its side**: the patch of
+    /// [`patch_on_frames`] (two parallels, two meridians) with each edge
+    /// carried on the exact rational quadratic of its arc, read through
+    /// the certifying scalar's spline reader. Every point of a 9 × 8
+    /// lattice over the whole chart and a 4 × 3 one over the patch, none
+    /// within 0.05 rad of an edge's circle, answers definitely, and as its
+    /// chart coordinates say. The
+    /// meridian legs cross the parallels and the parallel legs the
+    /// meridians, each a spline across a leg's plane, so both families
+    /// read a spline. Without the reader the face has no region.
+    #[test]
+    fn a_patch_bounded_by_spline_edges_reads_its_side() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let (us, vs) = PATCH;
+        let circles = patch_on_frames().swap_remove(0);
+        let edges = circles.edges.iter().map(on_a_spline).collect();
+        let torus = circles.charted.surface().clone();
+        let splines = TorusFaceRegion::on(
+            Charted::record(Default::default(), &torus),
+            true,
+            LoopKey::default(),
+            edges,
+            Some(crate::region::certified_crossings::<f64>),
+        );
+        let clear = |x: f64, ends: (f64, f64)| {
+            let gap = |e: f64| (x - e).rem_euclid(TAU).min((e - x).rem_euclid(TAU));
+            gap(ends.0) > 0.05 && gap(ends.1) > 0.05
+        };
+        let lattice = (0..9).flat_map(|i| {
+            (0..8).map(move |j| {
+                let u = f64::from(i) * TAU / 9.0 + 0.11;
+                (u, f64::from(j) * TAU / 8.0 - PI + 0.07)
+            })
+        });
+        let within = (0..4).flat_map(|i| {
+            (0..3).map(move |j| {
+                let u = us.0 + (us.1 - us.0) * (f64::from(i) + 0.6) / 4.0;
+                (u, vs.0 + (vs.1 - vs.0) * (f64::from(j) + 0.4) / 3.0)
+            })
+        });
+        let (mut inside, mut asked) = (0, 0);
+        for (u, v) in lattice.chain(within) {
+            if !clear(u, us) || !clear(v, vs) || !clear(v, (PI - vs.0, PI - vs.1)) {
+                continue;
+            }
+            let truth = (us.0..us.1).contains(&u) && (vs.0..vs.1).contains(&v);
+            assert_eq!(splines.contains(at(u, v), b), Ok(Some(truth)), "({u}, {v})");
+            asked += 1;
+            inside += usize::from(truth);
+        }
+        assert!(
+            asked >= 60 && inside >= 12,
+            "the lattice reads both sides: {inside} inside of {asked}"
+        );
+    }
 }
