@@ -24,7 +24,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real};
 /// (module docs).
 #[derive(Debug, Clone, Copy)]
 pub enum Roots<T, const N: usize, C = Infallible> {
-    /// A certified count of zero: the carrier misses the surface.
+    /// A certified count of zero: the carrier misses the surface, on the
+    /// arc that was read (a door's wrapper reads its arc only, so a
+    /// meeting off it is no meeting here).
     Miss,
     /// The residual is a zero constant along the carrier: it lies on the
     /// surface.

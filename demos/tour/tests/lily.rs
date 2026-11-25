@@ -712,9 +712,11 @@ mod review_probes {
             // (71 snapped bands -> 0: their aspects are malign in raw
             // UV and benign over the face's metric), so each band keeps
             // its own columns and the grid drops 1_152 -> 1_081 cells —
-            // 5_374 -> 5_254. Leaf c measures unchanged.
+            // 5_374 -> 5_254. Leaf c measured unchanged then; it is now
+            // leaf b's mirror image across the stem, and meshes as leaf b
+            // does — 4_962 -> 5_254.
             ("lily_leaf_b", 2e-3, 5_254),
-            ("lily_leaf_c", 2e-3, 4_962),
+            ("lily_leaf_c", 2e-3, 5_254),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -801,7 +803,9 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
+        // `lily_leaf_c` is `lily_leaf_b` mirrored across the stem, so it
+        // is held to the same section, path and Pappus volume.
+        for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_B)] {
             let pappus = lance_area(leaf.section)
                 * leaf
                     .curl

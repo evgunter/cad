@@ -33,7 +33,10 @@
 //!   settle it. Ends definitely past the band on one side are clear; on
 //!   opposite sides, one crossing, bisected and read ON the surface
 //!   ([`crate::implicit_residual`]). An end within the band at the span's
-//!   end is that end's meeting, which the caller reads; one at a knot is
+//!   end is that end's meeting, reported as the end's reading with the
+//!   stretch it may lie on, bisected to where `f` is definitely past the
+//!   band ([`EndReading::Within`]), so a caller reads the end on this one
+//!   margin and decides it nowhere else; one at a knot is
 //!   read with the piece on the knot's other side, a crossing where their
 //!   far ends lie on opposite sides and a touch otherwise;
 //! - otherwise the piece is cut where `f` is definitely past the band. A
@@ -46,7 +49,8 @@
 //! `KnotStructure::crease_runs`), where the carrier has no tangent,
 //! refuses, read in metres from the crease's point. A touch refuses. A
 //! crossing must read ON the surface; one within the band of an end of
-//! the span is that end's meeting, and two within the band of each other
+//! the span is that end's meeting (the end reads near, its stretch the
+//! end alone), and two within the band of each other
 //! cannot be told apart, so they refuse.
 //!
 //! The walk is `geom_core::bisect::bisect_within`, with its piece budget
@@ -59,6 +63,7 @@ use geom_core::solved::decide_admit;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
+use super::{EndReading, SpanCrossings};
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
@@ -159,10 +164,11 @@ impl Reading {
 
 /// **The crossings of a spline span with an analytic face's carrier**:
 /// the parameters strictly inside `params` where the carrier crosses
-/// `surface`, ascending, each read ON it (module docs). A meeting at an
-/// end of the span is not reported: it is the end vertex's. Each is a
-/// parameter whose point reads ON the surface, not an enclosure of the
-/// true crossing's parameter.
+/// `surface`, ascending, each read ON it (module docs), and how the span
+/// stands at each end ([`EndReading`]). A meeting at an end of the span
+/// is not among the crossings: it is the end's, and the end's reading
+/// says where it may lie. Each crossing is a parameter whose point reads
+/// ON the surface, not an enclosure of the true crossing's parameter.
 ///
 /// `cross` takes a scalar of the body into certification arithmetic: it
 /// is the door's ([`crate::NurbsLane::surface_crossings`]). The routine
@@ -208,7 +214,7 @@ pub fn crossings<T: geom_core::Certifies>(
     surface: &Surface<T>,
     band: Band,
     cross: impl Fn(T) -> Interval,
-) -> Result<Vec<T>, CompositeRefusal> {
+) -> Result<SpanCrossings<T>, CompositeRefusal> {
     let (start, end) = (cross(params.0), cross(params.1));
     if !(start.is_certified() && end.is_certified()) {
         return Err(CompositeRefusal::Unread(
@@ -238,6 +244,13 @@ pub fn crossings<T: geom_core::Certifies>(
         decide("spline_composite_root_on", off(net.eval_at(t)), band)
             .map_err(CompositeRefusal::Escalated)
     };
+    // Each end of the span, read on the one margin every piece end is
+    // read on; how far a near end's stretch runs is found by the walk.
+    let at_ends = match (pieces.first(), pieces.last()) {
+        (Some(first), Some(last)) => [read(end_value(first, true)), read(end_value(last, false))],
+        _ => return Err(CompositeRefusal::Unread("the span holds no piece")),
+    };
+    let mut until: [Option<f64>; 2] = [None, None];
     // The knot at which a piece ended within the band, that piece, and
     // its other end's side: read with the piece that starts there.
     let mut open: Option<(f64, Piece, Sign)> = None;
@@ -265,9 +278,14 @@ pub fn crossings<T: geom_core::Certifies>(
                     return cut(piece, floor, &read).map(Step::Halve);
                 }
                 // Within the band at the span's own end: that end's
-                // meeting, `f` being monotone over the piece.
-                (Reading::Near(_), Reading::Past(_)) if piece.a == a => {}
-                (Reading::Past(_), Reading::Near(_)) if piece.b == b => {}
+                // meeting, `f` being monotone over the piece, on the
+                // stretch to where it is definitely past the band.
+                (Reading::Near(_), Reading::Past(_)) if piece.a == a => {
+                    until[0] = Some(near_stretch(&piece, true, &read));
+                }
+                (Reading::Past(_), Reading::Near(_)) if piece.b == b => {
+                    until[1] = Some(near_stretch(&piece, false, &read));
+                }
                 (Reading::Past(far), Reading::Near(_)) => {
                     if open.is_some() {
                         return Err(rb.refused());
@@ -304,7 +322,43 @@ pub fn crossings<T: geom_core::Certifies>(
         return Err(read(end_value(&piece, false)).refused());
     }
     let creases = creases(net, (a, b), &cross)?;
-    settle(net, params, band, &creases, meetings, &off)
+    let (roots, at_end) = settle(net, params, band, &creases, meetings, &off)?;
+    let mut ends = [EndReading::Past(Sign::Zero); 2];
+    for (k, end) in [a, b].into_iter().enumerate() {
+        ends[k] = match (at_ends[k], until[k], at_end[k]) {
+            (Reading::Near(_), Some(until), _) => EndReading::Within { until },
+            // A near end is read with the monotone piece that starts or
+            // ends there, so the walk found its stretch.
+            (Reading::Near(_), None, _) => return Err(Unsettled::Tangency.into()),
+            (Reading::Past(_), _, true) => EndReading::Within { until: end },
+            (Reading::Past(side), _, false) => EndReading::Past(side),
+        };
+    }
+    Ok(SpanCrossings { roots, ends })
+}
+
+/// **How far a span's near end's stretch runs** along the monotone `piece` that
+/// starts (`at_start`) or ends at it: the parameter, found by bisection,
+/// past which `f` is definitely past the band. `f` is monotone over the
+/// piece, so the parameters where it is not past the band are one
+/// stretch from the end, and every meeting of the piece lies on it.
+fn near_stretch(piece: &Piece, at_start: bool, read: &impl Fn(Interval) -> Reading) -> f64 {
+    let (mut near, mut past) = if at_start {
+        (piece.a, piece.b)
+    } else {
+        (piece.b, piece.a)
+    };
+    for _ in 0..BISECTIONS {
+        let c = geom::bracket_mid((near.min(past), near.max(past)));
+        if c == near || c == past {
+            break;
+        }
+        match read(value_at(piece, share(piece, c))) {
+            Reading::Past(_) => past = c,
+            Reading::Near(_) => near = c,
+        }
+    }
+    past
 }
 
 /// [`framed_form`]'s answer: the points' coordinates in the chart frame,
@@ -754,7 +808,7 @@ fn settle<T: geom_core::Certifies>(
     creases: &[f64],
     meetings: Vec<Meeting>,
     off: &impl Fn(Point3<T>) -> Margin<T>,
-) -> Result<Vec<T>, CompositeRefusal> {
+) -> Result<(Vec<T>, [bool; 2]), CompositeRefusal> {
     let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
             Ok(Sign::Zero) => Ok(false),
@@ -764,6 +818,7 @@ fn settle<T: geom_core::Certifies>(
     let ends = [net.eval(t0), net.eval(t1)];
     let creases: Vec<Point3<T>> = creases.iter().map(|&k| net.eval_at(k)).collect();
     let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
+    let mut at_end = [false; 2];
     for meeting in meetings {
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let place = net.eval_at(t);
@@ -786,11 +841,14 @@ fn settle<T: geom_core::Certifies>(
             (off(p), p)
         })
         .map_err(|refused| unadmitted(refused, CompositeRefusal::Escalated))?;
-        let mut at_end = false;
-        for end in ends {
-            at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
+        let mut at_this_end = false;
+        for (k, end) in ends.into_iter().enumerate() {
+            if !apart_as("spline_composite_root_at_end", p, end)? {
+                at_end[k] = true;
+                at_this_end = true;
+            }
         }
-        if at_end {
+        if at_this_end {
             continue;
         }
         if let Some(&(_, before)) = roots.last()
@@ -800,7 +858,7 @@ fn settle<T: geom_core::Certifies>(
         }
         roots.push((at, p));
     }
-    Ok(roots.into_iter().map(|(t, _)| t).collect())
+    Ok((roots.into_iter().map(|(t, _)| t).collect(), at_end))
 }
 
 #[cfg(test)]

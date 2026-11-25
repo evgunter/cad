@@ -9,7 +9,7 @@
 //! A residual that is a trigonometric polynomial `F(θ)` of degree TWO —
 //! a circle against a torus's implicit, or against a cylinder wall it is
 //! tilted to, an ellipse against a sphere or a wall — has at most four
-//! roots round the turn. [`half_angle_roots`] answers it with
+//! roots round the turn. [`half_angle_roots_past`] answers it with
 //! [`certified_subdivision`], decided on the residual itself in the
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
@@ -28,7 +28,7 @@
 //! tangent half-angle `t = tan(φ/2)`, `F·(1 + t²)²` is a quartic in `t`,
 //! which the certified quartic ladder ([`crate::quartic`]) decides; an in-band
 //! sign it meets escalates ([`RootRefusal::Escalated`]), and that `Err` is
-//! all [`half_angle_roots`] keeps. Its answers are dropped: they are
+//! all [`half_angle_roots_past`] keeps. Its answers are dropped: they are
 //! decided in its root variable `τ`, arc length only to first order
 //! about the anchor (and along an ellipse only up to the ratio of its
 //! semi-axes), and measured, it placed roots fifteen zero bands off the
@@ -90,7 +90,7 @@ pub use crate::rows::{HalfAngleRows, SubdivisionRows, TouchRows};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Indeterminate, Margin, Rounded, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Rounded, Sign};
 
 use crate::piece::{Taylor, sign_change};
 use crate::quartic::depressed_quartic_roots;
@@ -100,8 +100,9 @@ use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 /// torus ([`crate::ConicTorusHarmonics`]).
 pub const MAX_DEGREE: usize = 4;
 
-/// What [`certified_subdivision`] (and so [`half_angle_roots`]) answers
-/// about a residual round the whole turn: [`Roots::Miss`], or a
+/// What [`certified_subdivision`] answers about a residual round the
+/// whole turn (a door's wrapper reads only its arc of it, so its `Miss`
+/// is a miss of the arc): [`Roots::Miss`], or a
 /// certified count (even, at most twice the residual's degree) of
 /// carrier parameters `θ`, each within `π` of the arc's midpoint
 /// ([`geom_core::period::Period::near`]). A
@@ -185,7 +186,7 @@ impl<T: geom_core::Real> TrigPoly<T> {
 
 /// A trigonometric polynomial of degree two,
 /// `c₀ + c₁ cos θ + s₁ sin θ + c₂ cos 2θ + s₂ sin 2θ`: what
-/// [`half_angle_roots`] takes, since its quartic in the tangent half-angle
+/// [`half_angle_roots_past`] takes, since its quartic in the tangent half-angle
 /// describes no higher degree.
 #[derive(Clone, Copy)]
 pub struct DegreeTwo<T> {
@@ -356,7 +357,7 @@ pub struct Touch<T> {
     pub spread: T,
 }
 
-/// Where [`half_angle_roots`] works: the subdivision's frame (`walk`)
+/// Where [`half_angle_roots_past`] works: the subdivision's frame (`walk`)
 /// and its local reading of `F` where the door has one (`jet`),
 /// the carrier's least speed `|C′|` (a circle's radius; an ellipse's
 /// semi-minor axis; the top speed is `walk`'s), and the ladder's `lever`
@@ -390,40 +391,7 @@ const POLE_CONDITIONING: f64 = 1.0 / 16.0;
 /// [`POLE_CONDITIONING`]).
 const POLE_CANDIDATES: u32 = 32;
 
-/// **The certified real roots of a degree-2 trigonometric polynomial
-/// `F(θ)` along a conic** (module docs). General over the surface: `residual` is
-/// the surface's residual (metres) along the carrier, which must share
-/// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
-/// ladder runs first and only its escalations are kept.
-///
-/// `slack` is the subdivision's root-slack meter: an answer rests on
-/// the roots it reports.
-///
-/// # Errors
-///
-/// [`RootRefusal::Escalated`], the ladder's in-band sign, and the
-/// subdivision's [`RootRefusal`]: a touch, a limit or a fault.
-pub fn half_angle_roots<T: Decide>(
-    f: &DegreeTwo<T>,
-    residual: impl Fn(T) -> T,
-    frame: HalfAngleFrame<'_, T>,
-    rows: &HalfAngleRows,
-    slack: &RootSlack<'_, T>,
-    band: Band,
-) -> Result<TrigRoots<T>, RootRefusal> {
-    ladder_roots(f, &residual, &frame, rows, band)?;
-    let poly = f.poly();
-    certified_subdivision(
-        frame.jet.map_or(Terms::Harmonics(&poly), Terms::Local),
-        &residual,
-        &frame.walk,
-        rows.verify(),
-        Some(slack),
-        band,
-    )
-}
-
-/// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
+/// [`half_angle_roots_past`]'s ladder: the quartic in the tangent half-angle
 /// (module docs). It answers nothing but an escalation (the `Err`): its
 /// quartic's count and roots are not read, and [`certified_subdivision`]
 /// decides the roots in the residual's own metres.
@@ -602,7 +570,7 @@ const ROOT_SLOPE_ROOM: &str = "root_slack_slope_room";
 /// **The certified real roots of a trigonometric polynomial `F(θ)` of
 /// degree `N ≤ MAX_DEGREE` over the whole turn about the arc's midpoint,
 /// by subdivision decided in the RESIDUAL's metres.** It is
-/// [`half_angle_roots`]' answer at `N = 2`, the ladder before it keeping
+/// [`half_angle_roots_past`]' answer at `N = 2`, the ladder before it keeping
 /// only its escalations, and the whole answer at `N = 4` (e.g. an ellipse
 /// against a torus).
 ///
@@ -677,7 +645,7 @@ const ROOT_SLOPE_ROOM: &str = "root_slack_slope_room";
 /// one scalar step of a true root of that evaluation, not within the
 /// band of the true root, and a pair inside the band of a true graze
 /// can stand for none. No answer rests on such roots: every door that
-/// answers meters its walk ([`half_angle_roots`] takes its meter by
+/// answers meters its walk ([`half_angle_roots_past`] takes its meter by
 /// type; `ellipse_torus`'s `torus_walk` takes an `Option` that only its
 /// own rows pass as `None`), and the meterless walks are the ruling
 /// charts' uncharged reading, which only chooses a refusal's row, and
@@ -690,7 +658,101 @@ pub fn certified_subdivision<T: Decide>(
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
-    subdivision(terms, residual, frame, rows, slack, None, band).map(|t| t.roots)
+    subdivision(terms, residual, frame, rows, slack, None, false, band)
+        .map(|walk| walk.held().roots)
+}
+
+/// **[`certified_subdivision`] read past what it refuses**: a refused
+/// piece is recorded with its window and the walk goes on, so the roots it
+/// answers are every root outside the windows. A window is where its
+/// meetings lie, the refused piece or a refused root's slack about it,
+/// its middle within `π` of the arc's midpoint (it may run past `±π`
+/// from it); how much wider a reader holds it, and where it meets the
+/// caller's arc at each turn, are the reader's to read (`curve_face`'s W2,
+/// W3). The turn's parity and degree checks read only a walk with no
+/// window: the count inside one is unknown.
+///
+/// # Errors
+///
+/// As [`certified_subdivision`], for the turn as a whole: no first cut,
+/// the piece budget, or an impossible count where every piece was read.
+pub fn certified_subdivision_past<T: Decide>(
+    terms: Terms<'_, T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<T>,
+    rows: &SubdivisionRows,
+    slack: Option<&RootSlack<'_, T>>,
+    band: Band,
+) -> Result<ReadPast<T>, RootRefusal> {
+    subdivision(terms, residual, frame, rows, slack, None, true, band).map(|walk| ReadPast {
+        roots: walk.roots,
+        refused: walk.refused,
+    })
+}
+
+/// **The certified real roots of a degree-2 trigonometric polynomial
+/// `F(θ)` along a conic** (module docs). General over the surface: `residual` is
+/// the surface's residual (metres) along the carrier, which must share
+/// `F`'s sign. The answer is [`certified_subdivision_past`]'s, read past what it
+/// refuses; the half-angle ladder runs first and only its escalations
+/// are kept, its in-band sign refusing the turn whole.
+///
+/// `slack` is the subdivision's root-slack meter: an answer rests on
+/// the roots it reports.
+///
+/// # Errors
+///
+/// [`RootRefusal::Escalated`], the ladder's in-band sign, and what
+/// [`certified_subdivision_past`] refuses for the turn as a whole.
+pub fn half_angle_roots_past<T: Decide>(
+    f: &DegreeTwo<T>,
+    residual: impl Fn(T) -> T,
+    frame: HalfAngleFrame<'_, T>,
+    rows: &HalfAngleRows,
+    slack: &RootSlack<'_, T>,
+    band: Band,
+) -> Result<ReadPast<T>, RootRefusal> {
+    ladder_roots(f, &residual, &frame, rows, band)?;
+    let poly = f.poly();
+    certified_subdivision_past(
+        frame.jet.map_or(Terms::Harmonics(&poly), Terms::Local),
+        &residual,
+        &frame.walk,
+        rows.verify(),
+        Some(slack),
+        band,
+    )
+}
+
+/// **What [`certified_subdivision_past`] read**: the roots outside every
+/// window, each within `π` of the arc's midpoint, and the windows, each
+/// with what refused it, in the walk's order.
+#[derive(Clone, Debug)]
+pub struct ReadPast<T> {
+    /// The roots.
+    pub roots: Vec<T>,
+    /// The windows.
+    pub refused: Vec<((T, T), RootRefusal)>,
+}
+
+/// [`subdivision`]'s walk: its roots, touches and refused pieces.
+struct Walk<T> {
+    roots: Vec<T>,
+    touches: Vec<Touch<T>>,
+    refused: Vec<((T, T), RootRefusal)>,
+}
+
+impl<T: Real> Walk<T> {
+    /// A walk that stopped at its first refusal, which therefore refused
+    /// nothing it answers, as [`Touching`].
+    fn held(self) -> Touching<T> {
+        // At most `2N ≤ 2·MAX_DEGREE` roots: the walk's degree check held.
+        Touching {
+            roots: Roots::of(&self.roots)
+                .unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")),
+            touches: self.touches,
+        }
+    }
 }
 
 /// **[`certified_subdivision`] that places a touch** where the walk
@@ -747,12 +809,12 @@ pub fn certified_subdivision_touching<T: Decide>(
     touch: &TouchRows,
     band: Band,
 ) -> Result<Touching<T>, RootRefusal> {
-    subdivision(terms, residual, frame, rows, None, Some(touch), band)
+    subdivision(terms, residual, frame, rows, None, Some(touch), false, band).map(Walk::held)
 }
 
 /// [`certified_subdivision`]'s walk, placing touches where `touch` is
 /// given ([`certified_subdivision_touching`]).
-#[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)] // one walk: the cut, the pieces, the bisection
 fn subdivision<T: Decide>(
     terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
@@ -760,8 +822,9 @@ fn subdivision<T: Decide>(
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     touch: Option<&TouchRows>,
+    past: bool,
     band: Band,
-) -> Result<Touching<T>, RootRefusal> {
+) -> Result<Walk<T>, RootRefusal> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -848,7 +911,7 @@ fn subdivision<T: Decide>(
     let reported = |t: T| geom_core::period::Period::angle().near(t, mid);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<Touch<T>> = Vec::new();
-    let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
+    let mut visit = |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
         // The true `F` over the piece, from its jet at `m`.
@@ -893,11 +956,11 @@ fn subdivision<T: Decide>(
                 root = nearer(close(l - turn, r - turn));
                 match decide(rows.side(), Margin::of(residual(root)), band) {
                     Ok(Sign::Zero) => {}
-                    Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                    Err(diag) => return Step::Stop((None, RootRefusal::Touch(diag))),
                     // Definitely off beside a sign change: the residual's
                     // step between adjacent scalars is past the band.
                     Ok(Sign::Positive | Sign::Negative) => {
-                        return Step::Stop(Unsettled::Meter { row: rows.side() }.into());
+                        return Step::Stop((None, Unsettled::Meter { row: rows.side() }.into()));
                     }
                 }
             }
@@ -921,7 +984,12 @@ fn subdivision<T: Decide>(
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
                     Ok(Sign::Positive) | Err(_) => {
-                        return Step::Stop(Unsettled::Meter { row: meter.row }.into());
+                        // The true root lies within the slack of it.
+                        let slack = reach / lever;
+                        return Step::Stop((
+                            Some((root - slack, root + slack)),
+                            Unsettled::Meter { row: meter.row }.into(),
+                        ));
                     }
                 }
             }
@@ -967,7 +1035,7 @@ fn subdivision<T: Decide>(
                             });
                             return Step::Settled;
                         }
-                        Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                        Err(diag) => return Step::Stop((None, RootRefusal::Touch(diag))),
                         Ok(Sign::Positive | Sign::Negative) => {}
                     }
                 }
@@ -977,21 +1045,49 @@ fn subdivision<T: Decide>(
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
         if !definitely_as(rows.width(), speed_hi * (r - l)) {
-            return Step::Stop(Unsettled::Tangency.into());
+            return Step::Stop((None, Unsettled::Tangency.into()));
         }
         first_in_gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(uncut());
+            return Step::Stop((None, uncut()));
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
+    };
+    // Read past: a refused piece is recorded and the walk goes on. Each
+    // window is the piece, or a root's slack, where its meetings lie, its
+    // middle within half a turn of the arc's (the piece moved by the turn
+    // its middle is reported at).
+    let mut refused: Vec<((T, T), RootRefusal)> = Vec::new();
+    let walk = bisect(pieces, |piece: ((T, Sign), (T, Sign))| {
+        let ((l, _), (r, _)) = piece;
+        match (visit(piece), past) {
+            (Step::Settled, _) => Step::Settled,
+            (Step::Halve(halves), _) => Step::Halve(halves),
+            (Step::Stop((_, why)), false) => Step::Stop(why),
+            (Step::Stop((window, why)), true) => {
+                let middle = l + (r - l) / two;
+                let moved = middle - reported(middle);
+                refused.push((window.unwrap_or((l - moved, r - moved)), why));
+                Step::Settled
+            }
+        }
     });
     match walk {
         Ok(None) => {}
         Ok(Some(why)) => return Err(why),
         Err(_) => return Err(Unsettled::Exhausted.into()),
+    }
+    if !refused.is_empty() {
+        // The count inside a window is unknown: the turn's parity and
+        // degree are not read.
+        return Ok(Walk {
+            roots,
+            touches,
+            refused,
+        });
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -1002,11 +1098,10 @@ fn subdivision<T: Decide>(
     if roots.len() + 2 * touches.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Err(RootFault::ImpossibleCount.into());
     }
-    // At most `2N ≤ 2·MAX_DEGREE` roots: the capacity holds them.
-    Ok(Touching {
-        roots: Roots::of(&roots)
-            .unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")),
+    Ok(Walk {
+        roots,
         touches,
+        refused,
     })
 }
 

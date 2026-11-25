@@ -3746,9 +3746,10 @@ mod tests {
 
     /// **A circle piece decided apart from a conic arc misses it, past a
     /// plane meeting read in band** ([`coplanar_apart`]): the piece, a
-    /// unit circle in the `xz` plane, rises to the conic's plane `z = h`
-    /// within the band of touching it (its gap `1 − h` mid-band), so
-    /// [`plane_roots`] refuses; the conic, a unit circle about
+    /// unit circle in the `xz` plane over `(−2, 1)`, rises at `−π/2` to
+    /// the conic's plane `z = h` within the band of touching it (its gap
+    /// `1 − h` mid-band), so [`plane_roots`] refuses; the conic, a unit
+    /// circle about
     /// `(10, 0, h)`, lies decided apart from it whatever the planes. The
     /// pair crosses nowhere and flips nothing. Red against the old order,
     /// which refused at the plane meeting.
@@ -3764,7 +3765,7 @@ mod tests {
         );
         let piece = CircleArc {
             circle: geom::Circle::new(geom::Frame::new(o, y, x), 1.0),
-            span: (-1.0, 1.0),
+            span: (-2.0, 1.0),
         };
         let arc = LoopArc::of(
             &geom::Curve3::circle(Point3::new(10.0, 0.0, h), z, 1.0, x),

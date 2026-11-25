@@ -128,7 +128,8 @@ fn settle_and_the_splits_interiority_answer_alike_on_admitted_parameters() {
             &[],
             vec![Meeting::Crossing(t)],
             &|p: Point3<f64>| Margin::of(crate::implicit_residual(&ground(), p)),
-        );
+        )
+        .map(|(roots, _)| roots);
         (
             settled,
             span.place_param_read(t, band()).map(|(place, _)| place),
@@ -162,7 +163,7 @@ fn settle_and_the_splits_interiority_answer_alike_on_admitted_parameters() {
         Interval::from_certified,
     );
     assert!(
-        matches!(&found, Ok(ts) if ts.is_empty()),
+        matches!(&found, Ok(ts) if ts.roots.is_empty()),
         "the walk reads the end within the band first: {found:?}"
     );
 }
@@ -194,7 +195,8 @@ fn a_leafs_proposal_sits_bands_along_the_edge_from_its_witnesss() {
         band(),
         Interval::from_certified,
     )
-    .unwrap();
+    .unwrap()
+    .roots;
     let fat = net
         .map_scalar(Interval::point)
         .map_points(|q| Point3::new(q.x, q.y, q.z + Interval::from_bounds(-h, h)));
@@ -205,7 +207,8 @@ fn a_leafs_proposal_sits_bands_along_the_edge_from_its_witnesss() {
         band(),
         |x| x,
     )
-    .unwrap();
+    .unwrap()
+    .roots;
     assert!(
         witness.len() == 1 && leaf.len() == 1,
         "{witness:?} {leaf:?}"
@@ -268,7 +271,9 @@ fn on_a_thin_torus_the_proposal_sits_bands_along_the_edge_from_the_residuals_roo
     let d = unit(e2 * (1.0f64 - sin * sin).sqrt() + e1 * sin);
     let len = 0.5 * (major + minor) * sin;
     let net = segment(3, q - d * (0.37 * len), q + d * (0.63 * len));
-    let found = crossings(&net, (0.0, 1.0), &ring, band(), Interval::from_certified).unwrap();
+    let found = crossings(&net, (0.0, 1.0), &ring, band(), Interval::from_certified)
+        .unwrap()
+        .roots;
     assert_eq!(found.len(), 1, "{found:?}");
     let (proposal, root) = (found[0], residual_root(&net, &ring));
     let off = |t: f64| crate::implicit_residual(&ring, net.eval(t)).abs();
