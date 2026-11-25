@@ -9087,7 +9087,7 @@ mod properties_pane_tests {
             driven.settle();
             let delta = driven.app.delta;
             driven.app.derived.budget_delta = Some(crate::scene::FittedDelta {
-                requested_cost: Some(1),
+                requested_cost: Some(1.0),
                 ..crate::scene::FittedDelta::as_requested(delta)
             });
             let derived = driven.app.derived;
