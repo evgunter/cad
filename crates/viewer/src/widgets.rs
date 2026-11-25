@@ -1001,7 +1001,7 @@ pub(crate) fn value_field_ops<Op>(
         source,
     } = showing;
     let (over, mut number) = match number {
-        Ok(over) => (over, over.shown),
+        Ok(over) => (over, over.shown()),
         // No number for the field to hold, so no field is built. It
         // makes no difference whether the field would have SHOWN that
         // number or a fixed text over it: an `egui::DragValue` is
@@ -1083,7 +1083,7 @@ pub(crate) fn value_field_ops<Op>(
     // typed arm would emit the number door's operation before that
     // match ran and for every text the widget marked changed,
     // including the echo this field is built to swallow.
-    drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
+    drag_gesture_ops(&widget, over.canonical_of(number), gesture, ops);
     let id = widget.id;
     let mut open = ui.data(|data| data.get_temp::<OpenEdit>(id));
     if widget.gained_focus() {
@@ -1169,7 +1169,7 @@ pub(crate) fn value_field_ops<Op>(
         // a value that never became one, so it goes onto the frame's
         // notices instead.
         Some(props::FieldEdit::Number(written)) => {
-            match props::SlotValue::of(dimension, writing.authored(written)) {
+            match props::SlotValue::of(dimension, over.canonical_of(written)) {
                 Ok(value) => ops.push((doors.number)(value)),
                 Err(error) => notices.push(crate::frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
@@ -1235,28 +1235,22 @@ fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
 /// the caller's `gesture.preview` and `typed` take the whole `[f64; 3]`
 /// rather than one box's number.
 ///
-/// `canonical` is the value each box is over, and `components` the
-/// number each holds for it in `writing`'s unit, which each box spells
-/// ([`props::FieldNumber`]).
+/// `over` is the value each box is over in `writing`'s unit
+/// ([`props::FieldNumber`]), and `components` the number each box holds,
+/// which starts as each one's [`props::FieldNumber::shown`].
 ///
 /// It does not draw the label: the probe names its row above it, in a
 /// sentence that carries the unit.
 pub(crate) fn vec3_row_ops(
     ui: &mut egui::Ui,
     writing: FieldWriting,
-    (components, canonical): (&mut [f64; 3], [f64; 3]),
+    (components, over): (&mut [f64; 3], [props::FieldNumber; 3]),
     gesture: GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
     typed: impl Fn([f64; 3]) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
-    let over = |shown: f64, canonical: f64| props::FieldNumber {
-        unit: writing.unit,
-        canonical,
-        shown,
-    };
     let [x, y, z] = components;
-    let [cx, cy, cz] = canonical;
-    let (ox, oy, oz) = (over(*x, cx), over(*y, cy), over(*z, cz));
+    let [ox, oy, oz] = over;
     let row = ui.add(number_field(x, writing.tick, ox))
         | ui.add(number_field(y, writing.tick, oy))
         | ui.add(number_field(z, writing.tick, oz));
@@ -1325,7 +1319,7 @@ pub(crate) fn named_field(
         Ok(props::FieldNumber::bare(*canonical))
     };
     let (over, mut written) = match shown {
-        Ok(over) => (over, over.shown),
+        Ok(over) => (over, over.shown()),
         Err(unit) => {
             let marker = props::no_reading(unit);
             ui.weak(if name.is_empty() {
@@ -1345,7 +1339,7 @@ pub(crate) fn named_field(
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = writing.authored(written);
+        *canonical = over.canonical_of(written);
     }
     response.changed()
 }
@@ -2723,8 +2717,13 @@ mod tests {
                             None,
                             crate::props::Notation::CANONICAL.with(pncad::quantity::MM.def()),
                         );
-                        let canonical = mm.map(|v| v * 1.0e-3);
-                        vec3_row_ops(ui, writing, (mm, canonical), gesture, typed, ops_ref);
+                        // Each box over the value its float of a
+                        // millimetre stands for, through the one door.
+                        let over = mm.map(|v| {
+                            crate::props::shown_value(writing.unit, writing.authored(v))
+                                .expect("millimetres name a dragged value")
+                        });
+                        vec3_row_ops(ui, writing, (mm, over), gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three
@@ -3215,12 +3214,10 @@ mod field_tests {
             None,
             crate::props::Notation::CANONICAL.with(mm),
         );
-        let canonical = cases.map(|(canonical, _)| canonical);
-        let mut shown = canonical.map(|canonical| {
-            crate::props::shown_value(writing.unit, canonical)
-                .expect("millimetres name it")
-                .shown
+        let over = cases.map(|(canonical, _)| {
+            crate::props::shown_value(writing.unit, canonical).expect("millimetres name it")
         });
+        let mut shown = over.map(crate::props::FieldNumber::shown);
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             let frame_of = |shown: [f64; 3]| Frame::translation(shown.map(|v| writing.authored(v)));
@@ -3230,7 +3227,7 @@ mod field_tests {
                 super::vec3_row_ops(
                     ui,
                     writing,
-                    (&mut shown, canonical),
+                    (&mut shown, over),
                     gesture,
                     typed,
                     &mut Vec::new(),
@@ -3501,10 +3498,24 @@ mod field_tests {
     /// `crate::props::in_written` → render → parse →
     /// `crate::props::from_written`, and only the real constructor has
     /// all four.
+    ///
+    /// 1.6126853483868848 m is the row's teeth: its text,
+    /// `1612.6853483868848`, types back to it through the text door, and
+    /// read as an `f64` of millimetres it is a float away from the one
+    /// the field holds, which the number door reads as another value (`work/told/a-float-door-loses-what-the-text-door-keeps.md`).
+    /// So only the echo veto keeps this click from committing.
     #[test]
     fn a_creation_forms_field_commits_nothing_on_a_click_through() {
+        const SHARED: f64 = 1.612_685_348_386_884_8;
+        let mm = pncad::quantity::MM.def();
+        let typed: f64 = "1612.6853483868848".parse().expect("a number");
+        assert_ne!(
+            crate::props::from_written(typed, mm),
+            SHARED,
+            "the fixture's text, read by the number door, is the value"
+        );
         // 1.000001 m is 1000.001 mm, which `egui` spells `1000.0`.
-        for canonical in [1.000_001_f64, -1.000_001, 0.012_5, 4.0e-8, 2.5e14] {
+        for canonical in [1.000_001_f64, -1.000_001, 0.012_5, 4.0e-8, 2.5e14, SHARED] {
             let mut field = Field::named(canonical);
             field.click_in_and_away();
             assert_eq!(
@@ -3952,10 +3963,7 @@ mod value_field_tests {
         fn showing(&self) -> (f64, String) {
             let field = self.field();
             let number = field.number.expect("this row's notation names its value");
-            (
-                number.shown,
-                field.text.unwrap_or_else(|| number.text(number.shown)),
-            )
+            (number.shown(), field.text.unwrap_or_else(|| number.seed()))
         }
 
         fn row(&self) -> props::VariableRow {
@@ -4502,7 +4510,7 @@ mod value_field_tests {
             "while its edit still opens on its SOURCE"
         );
         assert_eq!(
-            number.map(|number| number.shown),
+            number.map(|number| number.shown()),
             Ok(0.0),
             "over a field that is drawn"
         );
@@ -4527,14 +4535,15 @@ mod value_field_tests {
     }
 
     /// **A number a hair from what the field shows is still an
-    /// edit.**
+    /// edit**, the echo veto being a comparison of texts and not of
+    /// numbers.
     ///
     /// A field showing `1000` millimetres and a user typing
     /// `1000.00000000001`: a guard that judged the two numbers rather
-    /// than the two TEXTS, within any band, would discard it —
+    /// than the two TEXTS, within any tolerance, would discard it —
     /// silently, with the field reverting and no refusal to read.
     #[test]
-    fn a_number_inside_the_renders_accuracy_is_still_an_edit() {
+    fn a_number_a_hair_from_the_fields_text_is_still_an_edit() {
         const TYPED: f64 = 1_000.000_000_000_01;
         let mut row = Row::millimetres("auth2-near", 1.0);
         let (_, text) = row.showing();

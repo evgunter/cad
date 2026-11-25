@@ -172,6 +172,13 @@ impl Decimal {
     /// Its width is the magnitude's: `1e-300` is 302 characters, and a
     /// finite float's decimal in any unit of [`crate::UNITS`] is at
     /// most 330.
+    ///
+    /// **For a spelling of a finite float.** [`Decimal::parse`] admits
+    /// exponents far past any float's, and a positional spelling of one
+    /// is as long as its exponent; so a decimal whose leading digit is
+    /// past [`POSITIONAL_DECADES`] in either direction, which no finite
+    /// float's decimal in a unit reaches, is written as `Display` writes
+    /// it, in exponent form, rather than as a string that size.
     #[must_use]
     pub const fn positional(&self) -> Positional<'_> {
         Positional(self)
@@ -324,6 +331,12 @@ impl fmt::Display for Decimal {
     }
 }
 
+/// The decades of the leading digit [`Decimal::positional`] spells
+/// positionally: every finite float's decimal in a unit of
+/// [`crate::UNITS`] (the float format spans 1e-324 to 1e309, and no
+/// unit is more than a few decades from canonical), with room.
+pub const POSITIONAL_DECADES: i64 = 1000;
+
 /// A [`Decimal`] displayed positionally ([`Decimal::positional`]).
 #[derive(Clone, Copy, Debug)]
 pub struct Positional<'a>(&'a Decimal);
@@ -335,6 +348,14 @@ impl fmt::Display for Positional<'_> {
             digits,
             exponent,
         } = self.0;
+        if self
+            .0
+            .leading_exponent()
+            .is_some_and(|decade| decade.abs() > POSITIONAL_DECADES)
+        {
+            // `Display` is scientific there.
+            return fmt::Display::fmt(self.0, f);
+        }
         if *negative {
             f.write_str("-")?;
         }
@@ -413,6 +434,14 @@ mod tests {
     /// every magnitude**: it reads back as the same decimal, it is the
     /// `Display` wherever that is positional, and its zeros are the
     /// magnitude's (`1e-5` is `0.00001`, `1.5e17` is eighteen digits).
+    #[test]
+    fn a_decimal_past_every_floats_decades_is_not_spelled_out() {
+        for text in ["1e1001", "-2.5e-1001", "1e100000"] {
+            assert_eq!(d(text).positional().to_string(), d(text).to_string());
+        }
+        assert_eq!(d("1e1000").positional().to_string().len(), 1001);
+    }
+
     #[test]
     fn a_positional_spelling_is_the_decimal_at_every_magnitude() {
         for (text, positional) in [

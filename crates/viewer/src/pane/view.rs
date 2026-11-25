@@ -206,29 +206,24 @@ fn camera_reading(canonical: f64, unit: UnitDef) -> String {
 /// [`delta_text_edit`]'s width is a sum of two numbers this file names.
 const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
 
-/// **The δ field, as wide as its text.**
+/// **The δ field, one width whatever it holds.**
 ///
-/// A text the field cannot show is clipped, and a clipped text reads
-/// as a different δ, so the text area is the wider of
-/// [`crate::widgets::widest_number`] in the field's own font, which
-/// keeps the field one width while δ moves through ordinary values,
-/// and the text's own laid-out width: δ's exact spelling
+/// The text area is [`crate::widgets::widest_number`] in the field's
+/// own font, which a told number fits
+/// (`the_field_shows_every_render_the_bound_covers` measures it), plus
+/// [`FIELD_MARGIN`]. δ's exact spelling
 /// ([`crate::scene::DisplayTolerance::field_text_in`]) is as long as
-/// its figures and its zeros make it. The field is that plus
-/// [`FIELD_MARGIN`]. `the_field_shows_every_render_the_bound_covers`
-/// measures it.
+/// its figures and its zeros make it, up to hundreds of characters, and
+/// a field as wide as that would push the pane out; so a longer text
+/// scrolls inside the field (egui's single-line edit follows its
+/// cursor) rather than widening it
+/// (`the_field_keeps_its_width_over_a_long_spelling`).
 ///
 /// A pane narrower than this clips anyway; that is every field in the
 /// chrome and is not this width's to fix.
 fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextEdit<'text> {
     let font = egui::FontSelection::Default.resolve(ui.style());
-    let own = ui.fonts_mut(|fonts| {
-        fonts
-            .layout_no_wrap(text.clone(), font.clone(), egui::Color32::PLACEHOLDER)
-            .size()
-            .x
-    }) + 1.0 / ui.ctx().pixels_per_point();
-    let room = crate::widgets::widest_number(ui, &font).max(own);
+    let room = crate::widgets::widest_number(ui, &font);
     egui::TextEdit::singleline(text)
         .margin(FIELD_MARGIN)
         .desired_width(room + FIELD_MARGIN.sum().x)
@@ -765,6 +760,30 @@ mod tests {
                     crate::readout::MAX_CHARS + 1
                 );
             }
+        });
+        output.textures_delta.clear();
+    }
+
+    /// **A spelling longer than the bound does not widen the field**:
+    /// the field over a told number's widest text and the field over a
+    /// ninety-figure spelling are one width.
+    #[test]
+    fn the_field_keeps_its_width_over_a_long_spelling() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let mut bound: String =
+                std::iter::repeat_n('0', crate::readout::MAX_CHARS + 1).collect();
+            let mut long = format!("0.{}1", "0".repeat(88));
+            let bounded = super::delta_text_edit(ui, &mut bound)
+                .show(ui)
+                .response
+                .rect;
+            let longer = super::delta_text_edit(ui, &mut long).show(ui).response.rect;
+            assert_eq!(
+                longer.width(),
+                bounded.width(),
+                "a long spelling widened the field"
+            );
         });
         output.textures_delta.clear();
     }

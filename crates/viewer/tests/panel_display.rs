@@ -982,7 +982,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None, Notation::DEFAULT);
         let number = props::shown_value(unit, canonical).expect("the notation names it");
-        let text = number.text(number.shown);
+        let text = number.seed();
         let read: f64 = text
             .parse()
             .unwrap_or_else(|_| panic!("{canonical} renders as {text}, which is not a number"));
@@ -997,7 +997,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
         );
         // And a number the user actually moved still is.
         assert!(
-            !props::echoed(&number.text(number.shown * 2.0), &text),
+            !props::echoed(&number.text(number.shown() * 2.0), &text),
             "{dimension}: a number nobody echoed is an edit"
         );
     }

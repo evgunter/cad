@@ -1583,8 +1583,10 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // session's driven-slot guard, and a typed number writes what
         // was typed, so a zero held there lands nowhere — the same zero
         // held under the text of a slot with no one value: one that did
-        // not evaluate, or one with a value per member.
-        Err(_) if row.driver.is_driven() => Ok(props::FieldNumber::bare(0.0)),
+        // not evaluate, or one with a value per member. The zero is in
+        // the field's own unit, which every notation names, so a typed
+        // number is read in the unit the field is written in.
+        Err(_) if row.driver.is_driven() => props::shown_value(writing.unit, 0.0),
         number => number,
     };
     let (text, source) = match draft {
@@ -1868,16 +1870,14 @@ fn free_move_probe(
     // ([`crate::props::shown_value`]): a translation dragged or typed in
     // a coarse notation can have no value in a finer one the notation
     // was switched to.
-    let mut written = [0.0; 3];
-    for (shown, canonical) in written.iter_mut().zip(current) {
-        match crate::props::shown_value(field.unit, canonical) {
-            Ok(number) => *shown = number.shown,
-            Err(unit) => {
-                crate::widgets::message(ui, crate::props::no_reading(unit));
-                return;
-            }
+    let over = match current.map(|canonical| crate::props::shown_value(field.unit, canonical)) {
+        [Ok(x), Ok(y), Ok(z)] => [x, y, z],
+        [Err(unit), ..] | [_, Err(unit), _] | [.., Err(unit)] => {
+            crate::widgets::message(ui, crate::props::no_reading(unit));
+            return;
         }
-    }
+    };
+    let mut written = over.map(crate::props::FieldNumber::shown);
     // The G1 gesture triple over DISPLAY state, through the one
     // widget→gesture mapping (`drag_ops`) so the typed-input arm exists
     // here too: typing a value performs a one-shot begin/preview/commit,
@@ -1890,7 +1890,7 @@ fn free_move_probe(
     let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
     let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
     ui.horizontal(|ui| {
-        vec3_row_ops(ui, field, (&mut written, current), gesture, typed, ops);
+        vec3_row_ops(ui, field, (&mut written, over), gesture, typed, ops);
     });
 }
 

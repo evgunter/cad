@@ -49,16 +49,10 @@ pub fn literal_field_text(row: &crate::props::SlotRow, notation: crate::props::N
         "{:?} shows a text over its number",
         row.slot
     );
-    let value = row
-        .value
-        .as_ref()
-        .ok()
-        .and_then(crate::props::Reading::one)
-        .expect("a literal that evaluated holds one value")
-        .as_f64();
-    let unit = crate::props::rendering_unit(row.dimension, row.unit, notation);
-    let number = crate::props::shown_value(unit, value).expect("its notation names its value");
-    number.text(number.shown)
+    crate::pane::properties::slot_showing(row, None, notation)
+        .number
+        .expect("its notation names its value")
+        .seed()
 }
 
 // --- literals -------------------------------------------------------

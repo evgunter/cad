@@ -531,17 +531,23 @@ pub fn shown_value(unit: Option<UnitDef>, canonical: f64) -> Result<FieldNumber,
 /// from the float: the float is the value's exact number of the unit
 /// rounded once, and one float of the unit can stand for two canonical
 /// values, so its own digits are not always the value's. What the
-/// field shows is [`Self::canonical_of`] spelled exactly in `unit`
-/// (`crate::widgets::number_text_over`).
+/// field shows is [`Self::canonical_of`] spelled exactly in its unit
+/// ([`Self::text`]).
+///
+/// **Made only by [`shown_value`] and [`Self::bare`]**, so the float is
+/// always the value's number of the unit, rounded once: the fields are
+/// private, and the field's unit is held here alone. A field commits
+/// through [`Self::canonical_of`], so what it shows and what it writes
+/// are read in one unit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldNumber {
     /// The unit the field is written in; `None` is a bare number (a
     /// count), whose shown number is its value.
-    pub unit: Option<UnitDef>,
+    unit: Option<UnitDef>,
     /// The value, canonical.
-    pub canonical: f64,
+    canonical: f64,
     /// The float of `unit` the widget is bound to.
-    pub shown: f64,
+    shown: f64,
 }
 
 impl FieldNumber {
@@ -552,6 +558,27 @@ impl FieldNumber {
             canonical: value,
             shown: value,
         }
+    }
+
+    /// The unit the field is written in; `None` is a bare number.
+    pub const fn unit(self) -> Option<UnitDef> {
+        self.unit
+    }
+
+    /// The value the field is over, canonical.
+    pub const fn canonical(self) -> f64 {
+        self.canonical
+    }
+
+    /// The float of the field's unit the widget is bound to.
+    pub const fn shown(self) -> f64 {
+        self.shown
+    }
+
+    /// **The text the field shows over its own value**, which a
+    /// keyboard edit opens on: [`Self::text`] of the float it holds.
+    pub fn seed(self) -> String {
+        self.text(self.shown)
     }
 
     /// **The canonical value the widget's float `value` stands for**:
@@ -575,12 +602,22 @@ impl FieldNumber {
     /// end of its text lands in the number, not in an exponent.
     ///
     /// The digits are the shortest that type back to the value in the
-    /// unit ([`UnitDef::shortest`]), so `25 mm` reads `25`, `4e-5 mm`
+    /// unit through the TEXT door ([`UnitDef::canonical`] of the decimal
+    /// as written; [`UnitDef::shortest`]), so `25 mm` reads `25`, `4e-5 mm`
     /// reads `0.00004`, and a value no short decimal names reads in as
-    /// many figures as it takes, up to seventeen. A count is a bare
+    /// many figures as it takes, up to seventeen. From sixteen figures
+    /// the field's own number door (the text read as an `f64` of the
+    /// unit, then multiplied out) can land a float away from the value
+    /// the text names (`work/told/a-float-door-loses-what-the-text-door-keeps.md`):
+    /// what saves an unedited text is the echo veto
+    /// ([`echoed`]), and a retyped one that reads as the float the
+    /// field holds commits the field's own value ([`Self::canonical_of`]).
+    /// A count is a bare
     /// number whose value is an integer, so it reads as its digits.
-    /// Nothing bounds the width: a length of `1e300 m` in millimetres
-    /// is 304 characters.
+    /// Nothing bounds the text: a length of `1e300 m` in millimetres
+    /// is 304 characters. An `egui::DragValue` is as wide as its text,
+    /// so a long one widens its field
+    /// (`work/vgeom/a-numeric-field-widens-its-pane-with-its-text.md`).
     ///
     /// A `value` that is not finite reads as std spells it (`inf`,
     /// `NaN`). A finite `value` whose canonical value is not (one past
@@ -2327,7 +2364,7 @@ mod written_tests {
                 let canonical = unit.canonical(&decimal);
                 let number = super::shown_value(Some(unit), canonical)
                     .unwrap_or_else(|_| panic!("{written} {} has a number", unit.symbol()));
-                let text = number.text(number.shown);
+                let text = number.seed();
                 let said = format!("{written} {}: {text}", unit.symbol());
                 assert!(!text.contains(['e', 'E']), "exponent form: {said}");
                 assert_eq!(
@@ -2371,6 +2408,6 @@ mod written_tests {
             0.1,
             "the fixture's float of the unit types back as another value"
         );
-        assert_eq!(number.text(number.shown), "100.00000000000002");
+        assert_eq!(number.seed(), "100.00000000000002");
     }
 }

@@ -175,7 +175,7 @@ impl DisplayTolerance {
     /// the number.
     pub fn field_text_in(self, unit: LengthUnit) -> String {
         match crate::props::shown_value(Some(unit.def()), self.0) {
-            Ok(number) => number.text(number.shown),
+            Ok(number) => number.seed(),
             Err(unit) => unreachable!(
                 "δ = {:e} m has no {} number, yet `DisplayTolerance::new` admits only \
                  a positive δ whose millimetres are finite, and no length unit is finer",
