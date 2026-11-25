@@ -134,10 +134,9 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
     let station = surface.eval_at(mu, mv);
-    let reach = (surface.eval(span(u), span(v)) - station).norm();
+    let reach = (surface.rect_enclosure(u, v) - station).norm();
     let clear_as = |row: &'static str, distance: Interval| {
         matches!(
             decide(row, Margin::of(distance - reach), band),
