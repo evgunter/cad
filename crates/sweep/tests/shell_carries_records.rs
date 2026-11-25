@@ -20,7 +20,7 @@ fn shell_opens_lineage_reads_through_its_join() {
     let wall: Vec<topo::FaceKey> = body
         .faces()
         .filter(|(fk, _)| {
-            body.face_surface(*fk).map(geom::Surface::kind) == Some(geom::SurfaceKind::Cylinder)
+            body.face_surface(*fk).map(geom::Surface::kind) == Ok(geom::SurfaceKind::Cylinder)
         })
         .map(|(k, _)| k)
         .collect();

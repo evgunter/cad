@@ -390,9 +390,9 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         (
             "mfkrh_plug",
             Transfers,
-            "`mfkrh` with a PLACEHOLDER surface — see `mfkrh`; a placeholder is not a \
-             described surface, so it is not the chart any row was stated in and the \
-             promoted ring's rows always go, with no refusal: it is a spline chart. \
+            "`mfkrh` onto a PENDING surface slot — see `mfkrh`; a pending face has no \
+             surface, so it is not the chart any row was stated in and the promoted \
+             ring's rows always go, with no refusal. \
              Decided by kind, not by the fresh key the sugar happens to mint",
         ),
         (
@@ -495,7 +495,7 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
              `Body::half_edges_proven_whole` proves). \
              Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
-             or a placeholder left a COMPLETE row set stated in the chart the face left, \
+             or a pending slot left a COMPLETE row set stated in the chart the face left, \
              which that pass skips entirely",
         ),
         (

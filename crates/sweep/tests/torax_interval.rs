@@ -135,7 +135,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
         Revolution::Full,
     );
     assert!(
-        body.surfaces()
+        body.described_surfaces()
             .any(|(_, s)| matches!(s, Surface::Torus { .. })),
         "the barrel's wall is a torus at this scalar too"
     );

@@ -143,7 +143,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
         let geom_brep::EdgeDescription::Chart(c) = curve.description() else {
             continue;
         };
-        if !matches!(reverted.get_surface(c.surface), Some(Surface::Plane { .. }))
+        if !matches!(reverted.get_surface(c.surface), Ok(Surface::Plane { .. }))
             || !matches!(curve.carrier(), geom::Curve3::Circle(..))
         {
             continue;

@@ -78,8 +78,8 @@
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
-//!   (`Pcurve::IsoArc`). Only the mvfs placeholder mints nothing: it
-//!   is not a described surface.
+//!   (`Pcurve::IsoArc`). A pending face mints nothing: it has no
+//!   surface.
 //!
 //! # The loop walk: images and joint elements (spec §3)
 //!
@@ -285,8 +285,8 @@
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
 //! the loops [`crate::Body::half_edges_proven_whole`] proves), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
-//! placeholder used to leave a COMPLETE row set stated in the chart
-//! the face left, and this pass skips exactly that face.
+//! pending slot leaves a COMPLETE row set stated in the chart the face
+//! left, and this pass skips exactly that face.
 //!
 //! **Completes the map** — [`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) and
 //! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)'s listed members. A carrier swap is

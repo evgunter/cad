@@ -3486,7 +3486,7 @@ mod tests {
     #[test]
     fn the_folded_arm_is_poison_when_any_operand_is() {
         let p = plane(Vec3::unit_z(), Vec3::unit_x());
-        let n = Surface::nurbs_placeholder();
+        let n = geom::test_support::unit_patch();
         let o = Point3::origin();
         assert!(
             folded_lever_arm(&p, &n, o, fixture_lever(1.0))
@@ -3793,13 +3793,13 @@ mod tests {
         );
     }
 
-    /// Nurbs (representable-unimplemented) escalates as poison too.
+    /// A NURBS operand (no implicit form) escalates as poison too.
     #[test]
     fn nurbs_escalates() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(
             &s1,
-            &Surface::nurbs_placeholder(),
+            &geom::test_support::unit_patch(),
             Point3::origin(),
             fixture_lever(1.0),
             band(),

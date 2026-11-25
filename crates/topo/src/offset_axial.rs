@@ -574,7 +574,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
         let first_data = body.proven_face(first);
         let d = match first_data.surface() {
-            Surface::Cone { .. } => {
+            Ok(Surface::Cone { .. }) => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
             _ => m.distance,
@@ -583,7 +583,10 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = data.surface().clone();
+            let old = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?
+                .clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &new, &frame, band)?;
@@ -1025,7 +1028,10 @@ pub(crate) fn is_axial_in<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let surface = f.surface();
+        // A pending face is no axial chart, as a spline one is not.
+        let Ok(surface) = f.surface() else {
+            return Ok(false);
+        };
         match classify(face, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -1061,7 +1067,10 @@ fn axial_frame<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let found = match f.surface() {
+        let Ok(surface) = f.surface() else {
+            return Err(ReplaceFaceError::PlaceholderSurface { face });
+        };
+        let found = match surface {
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
@@ -3961,7 +3970,7 @@ mod tests {
         let mut body = wedge;
         let (face, f) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Cylinder { .. })))
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {

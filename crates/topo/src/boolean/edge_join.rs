@@ -615,11 +615,12 @@ fn joinable<T: Decide>(
         }))
     };
     let (sf, sg) = s1.surfaces();
-    let surface = |side: crate::readback::EdgeSide| {
-        let face = body.proven_face(side.face);
-        face.surface()
+    let surface = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface().ok();
+    // A pending face carries no description a join could keep: the
+    // validator and the merge door read this over bodies mid-build.
+    let (Some(surf_f), Some(surf_g)) = (surface(s1.plus), surface(s1.minus)) else {
+        return Ok(None);
     };
-    let (surf_f, surf_g) = (surface(s1.plus), surface(s1.minus));
     let planar = |s: &geom::Surface<T>| matches!(s, geom::Surface::Plane { .. });
     if planar(surf_f) && planar(surf_g) {
         // One carrier by structure: both edges certified as the

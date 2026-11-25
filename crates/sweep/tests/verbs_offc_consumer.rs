@@ -76,7 +76,7 @@ fn an_approx_faced_body_validates_at_tier_three() {
         let (body, faces) = prism_with_approx_walls(d, MINT_TARGET);
         let face = faces[0];
         assert!(
-            matches!(body.face_surface(face), Some(Surface::Approx(_))),
+            matches!(body.face_surface(face), Ok(Surface::Approx(_))),
             "d = {d}: the face carries the approximating surface"
         );
         assert_eq!(
@@ -122,7 +122,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     let d = 0.05;
     let (mut body, faces) = prism_with_approx_walls(d, MINT_TARGET);
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.face_surface(face) else {
+    let Ok(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -289,7 +289,7 @@ fn rigid() -> Affine3<f64> {
 /// The approximating surface `face` wears.
 fn approx_face_surface(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
     match body.face_surface(face) {
-        Some(Surface::Approx(a)) => Arc::clone(a),
+        Ok(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }
 }
@@ -837,7 +837,7 @@ fn an_approx_face_moves_at_a_scalar_with_no_fit_lane() {
                 // The outward cap: `Interval` orders no better than its
                 // bracket does, so the choice reads the enclosure's low
                 // end — definite on these exact dyadic coordinates.
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if Bounds::lo(frame.axis().z) > 0.5 && Bounds::lo(frame.origin().z) > 0.5
             )
         })

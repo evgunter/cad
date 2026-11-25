@@ -196,7 +196,7 @@ fn interference<'a>(body: &Body<f64>, findings: &'a [ValidationError]) -> Vec<&'
 /// The surface kind of face `f`'s carrier.
 fn kind(body: &Body<f64>, f: EntityId) -> Option<geom::SurfaceKind> {
     let EntityId::Face(f) = f else { return None };
-    Some(body.face_surface(f)?.kind())
+    Some(body.face_surface(f).ok()?.kind())
 }
 
 /// The undecidable face pairs on two carriers of `kind` each.

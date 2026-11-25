@@ -42,16 +42,16 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     assert_eq!(counts(&t.body), (3, 4, 3, 0));
     // Two surfaces total (one plane, one cone; the cone's two band
     // faces share it).
-    assert_eq!(t.body.surfaces().count(), 2);
+    assert_eq!(t.body.described_surfaces().count(), 2);
     // Walls: segment 0 (base) a plane, segment 1 (slant) a cone with
     // apex (0, 1, 0) and half-angle π/4; segment 2 (axis) omitted.
     let base = t.walls()[0][0].expect("base wall");
     assert!(matches!(
         t.body.face_surface(base),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     let slant = t.walls()[0][1].expect("slant wall");
-    let Some(&Surface::Cone {
+    let Ok(&Surface::Cone {
         frame, half_angle, ..
     }) = t.body.face_surface(slant)
     else {

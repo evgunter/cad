@@ -794,7 +794,7 @@ class ReadbackError(PncadError):
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
     under its OWN tags rather than a wrapper tag (`dangling_entity`,
-    `no_canonical_frame`, `no_carrier`). `dangling_entity` is a stale
+    `no_canonical_frame`, `no_carrier`, `pending_surface`). `dangling_entity` is a stale
     or foreign handle.
 
     `ambiguous` is the one to read twice: a tie is a naming success
@@ -6691,7 +6691,7 @@ class MateFault:
     @property
     def inner_variant(self) -> Optional[str]:
         """The nested refusal's own word: the lever refusal's
-        (`part_unresolved`, `face_unbounded`,
+        (`part_unresolved`, `face_unbounded`, `face_pending`,
         `malformed_body`, `no_extent`, `no_finite_bound`, with the
         instance it is about as `instance` or the copied shape as
         `shape`, or `out_of_range` and `below_zero_band`, about the

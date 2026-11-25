@@ -648,7 +648,7 @@ fn ring_move_between_faces_on_one_surface_carries_every_row() {
 }
 
 /// `mfkrh` is the third loop re-parenting, and its default sugar always
-/// changes chart: the placeholder surface is a fresh key, so the
+/// changes chart: the pending slot is a fresh key, so the
 /// promoted ring arrives rowless rather than carrying four cylinder
 /// rows onto a face that is not a described surface at all.
 #[test]
@@ -656,7 +656,7 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once on the placeholder, whose dropped rows are the row.
+    // Lifts RechartStrandsDescriptions: the ring's lower rim names the cylinder, which neither of its faces wears once on the pending slot, whose dropped rows are the row.
     let made = s
         .body
         .lifting_rechart_refusals_for_tests(|b| b.mfkrh_plug(ring, true))
@@ -2018,7 +2018,7 @@ fn arc_sheet(tied: bool) -> ArcSheet {
         );
     }
     let arc = |k| match s.body.get_surface(k) {
-        Some(Surface::Nurbs(x)) => x.clone(),
+        Ok(Surface::Nurbs(x)) => x.clone(),
         _ => panic!("every face was put on the patch"),
     };
     assert_eq!(
@@ -2072,7 +2072,7 @@ fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
                 .unwrap();
         }
         assert!(
-            s.body.get_surface(keys[0]).is_none(),
+            s.body.get_surface(keys[0]).err() == Some(topo::SurfaceMiss::Stale),
             "the old key was reaped"
         );
         let want = if tied { (4, 0) } else { (0, 4) };
@@ -2096,7 +2096,7 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
             .unwrap();
         assert_eq!(killed.killed_face, s.low);
         assert!(
-            s.body.get_surface(keys[0]).is_none(),
+            s.body.get_surface(keys[0]).err() == Some(topo::SurfaceMiss::Stale),
             "the dying key was reaped"
         );
         let want = if tied { (6, 0) } else { (3, 3) };
@@ -2363,7 +2363,7 @@ fn sense_of(body: &Body<f64>, face: FaceKey) -> bool {
 /// The payload `Arc` a patch-charted key holds.
 fn payload_of(body: &Body<f64>, key: topo::SurfaceKey) -> std::sync::Arc<geom::NurbsSurface<f64>> {
     match body.get_surface(key) {
-        Some(Surface::Nurbs(x)) => x.clone(),
+        Ok(Surface::Nurbs(x)) => x.clone(),
         _ => panic!("the key is on a patch"),
     }
 }
@@ -2661,7 +2661,7 @@ fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
     let caps: Vec<FaceKey> = rings(&body).into_iter().map(|(f, _, _)| f).collect();
     for cap in caps {
         let key = body.get_face(cap).unwrap().surface;
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
         }) = body.get_surface(key).cloned()
         else {
@@ -2803,7 +2803,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
         .map(|(f, _, _)| f)
         .filter(|&f| {
             let key = body.get_face(f).unwrap().surface;
-            matches!(body.get_surface(key), Some(Surface::Plane { frame, .. }) if frame.axis().z > 0.5)
+            matches!(body.get_surface(key), Ok(Surface::Plane { frame, .. }) if frame.axis().z > 0.5)
         })
         .collect();
     let top = caps[0];
@@ -2890,7 +2890,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
     // on the face; the other bit is the control, and must draw
     // `LoopRoleInverted`. (Adopted from the first review of PR 3467.)
     assert!(
-        body.get_surface(plane_key).is_some(),
+        body.get_surface(plane_key).is_ok(),
         "the rims keep the cap's plane key live"
     );
     for f in [first.face, second.face] {

@@ -728,7 +728,7 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     body.faces()
         .filter_map(|(fk, face)| {
-            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk)? else {
+            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk).ok()? else {
                 return None;
             };
             let (apex, axis) = (frame.origin(), frame.axis());

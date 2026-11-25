@@ -2517,7 +2517,7 @@ fn record_rooted<T: Real>(operand: &Body<T>, result: &Body<T>, naming: &ShellNam
         check(result.get_loop(l).is_none(), &l, GONE);
     }
     for &g in dead_surfaces {
-        check(result.get_surface(g).is_none(), &g, GONE);
+        check(result.surface_slot(g).is_none(), &g, GONE);
     }
     for &s in dead_shells {
         check(result.get_shell(s).is_none(), &s, GONE);
@@ -2755,7 +2755,7 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let chart = body.proven_face(anchor).surface().clone();
+        let chart = body.proven_face(anchor).expect_described().clone();
         let escalated = |source| ShellError::Escalated { source };
         let ring_first =
             if is_inner_of_concentric_pair(&chart, &p1, &p2, band).map_err(escalated)? {
@@ -2899,7 +2899,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let surface = body.proven_face(faces[0]).surface();
+    let surface = body.proven_face(faces[0]).expect_described();
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_u_period(surface, band),
         crate::chart::Chart::of(surface),
@@ -3890,7 +3890,7 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
-    let chart = body.proven_face(rim).surface().clone();
+    let chart = body.proven_face(rim).expect_described().clone();
     let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
@@ -4231,7 +4231,7 @@ fn offset_door<T: Decide>(
     let all_planar = body
         .face_views()
         .filter(|f| scope.holds_face(f.key()))
-        .all(|f| matches!(f.surface(), geom::Surface::Plane { .. }));
+        .all(|f| matches!(f.expect_described(), geom::Surface::Plane { .. }));
     if all_planar {
         return Ok(OffsetDoor::Planar);
     }
@@ -4322,7 +4322,7 @@ fn lift_to<T: Decide>(
 ) -> Result<T, ReplaceFaceError<T>> {
     let surface = |face: FaceKey| {
         let view = body.proven_face(face);
-        view.surface()
+        view.expect_described()
     };
     let d = match geom_brep::offset_distance(surface(from[0]), surface(onto)) {
         Ok(d) => d,
@@ -4628,7 +4628,7 @@ fn planar_faces<T: Decide>(
         let face = view.key();
         let geom::Surface::Plane {
             frame: carrier_frame,
-        } = view.surface()
+        } = view.expect_described()
         else {
             continue;
         };
@@ -5336,7 +5336,7 @@ fn moved_walls<T: Decide>(
     let mut out = Vec::new();
     for view in cavity.face_views() {
         let face = view.key();
-        let geom::Surface::Plane { frame, .. } = view.surface() else {
+        let geom::Surface::Plane { frame, .. } = view.expect_described() else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());

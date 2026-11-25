@@ -106,7 +106,7 @@ fn counts(body: &Body<f64>, face: FaceKey) -> (Vec<usize>, Vec<usize>) {
 fn wall(body: &Body<f64>) -> FaceKey {
     let mut curved = body
         .faces()
-        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })));
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Ok(geom::Surface::Plane { .. })));
     let (face, _) = curved.next().expect("a curved face");
     assert!(curved.next().is_none(), "one curved face");
     face

@@ -174,9 +174,8 @@ fn read_loop<T: AtRestPolicy>(
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Stale`] when `face` does not resolve, and
-/// [`PcurveMintError::PlaceholderChart`] when `chart` is the mvfs
-/// placeholder; the loop walk's own refusals;
+/// [`PcurveMintError::Stale`] when `face` does not resolve; the loop
+/// walk's own refusals;
 /// [`PcurveMintError::Certify`] for a row that does not certify against
 /// `chart`; [`PcurveMintError::JointWithoutRoom`] for a joint without
 /// room; and [`PcurveMintError::Escalated`] for a joint whose incidence
@@ -191,7 +190,7 @@ pub fn loop_windings<T: AtRestPolicy>(
         role: "face",
         key: EntityId::Face(face),
     })?;
-    let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
+    let described = DescribedChart::of(chart);
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
     for (cycle, _) in view.cycle_loops() {
@@ -349,10 +348,10 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
     let lane = T::fitted_lane();
     for face in body.face_views() {
         let face_key = face.key();
-        let surface = face.surface();
-        let Some(chart) = DescribedChart::minting(surface) else {
+        let Some(chart) = face.surface().ok().and_then(DescribedChart::minting) else {
             continue;
         };
+        let surface = chart.surface();
         // One walk of the face's loops ([`stored_rows`], shared with
         // `split_cache` and the Euler operators' site mint): the rows
         // it stores and the gaps.

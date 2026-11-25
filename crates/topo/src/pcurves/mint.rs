@@ -181,17 +181,10 @@ pub enum PcurveMintError {
     },
     /// The run's linear band could not be built.
     Band(BandError),
-    /// The chart [`loop_windings`] was handed is the placeholder
-    /// ([`Surface::is_placeholder_chart`]): it has no description yet,
-    /// so there is no lever arm to meter a joint gap through and no
-    /// region of it for a loop to bound. Refused before any loop is
-    /// walked, so there is no half-edge to carry a
-    /// [`PcurveMintError::Certify`] with
-    /// [`PcurveCertifyError::PlaceholderChart`] — the same fact, refused
-    /// per half-edge by the certification lanes. Never produced at rest:
-    /// the minting pass and the validator skip a placeholder face.
-    ///
-    /// [`loop_windings`]: super::loop_windings
+    /// The face is pending ([`crate::SurfaceSlot::Pending`]): it has no
+    /// surface yet, so a row on it has no chart to be derived or carried
+    /// on. Never produced at rest: the minting pass and the validator
+    /// skip a pending face.
     PlaceholderChart {
         /// The face whose boundary was asked for.
         face: FaceKey,
@@ -205,7 +198,7 @@ impl PcurveMintError {
     /// an undecided reading's "not yet", as the at-rest table ends it
     /// (`validate::classify_pcurve`); and the lever of a refusal a lever
     /// answers (a joint too near a pole, a band the tolerance cannot form,
-    /// a placeholder chart). `None` for a torn arm (a key that does not
+    /// a face with no surface yet). `None` for a torn arm (a key that does not
     /// resolve, a null carrier, a loop that does not meet or close, a row
     /// missing, misstated or unminted): on a body the kernel built, the
     /// door's defect.
@@ -317,9 +310,8 @@ impl PcurveMintError {
             Self::Band(e) => write!(f, "{e}"),
             Self::PlaceholderChart { face } => write!(
                 f,
-                "the chart offered for face {face:?}: {}, so nothing on it can be metred. \
-                 {PLACEHOLDER_RECOURSE}",
-                geom::PLACEHOLDER_SURFACE
+                "face {face:?}: {}, so nothing on it can be metred. {PLACEHOLDER_RECOURSE}",
+                geom_brep::PENDING_SURFACE
             ),
         }
     }
@@ -339,38 +331,27 @@ const JOINT_WITHOUT_ROOM_RECOURSE: &str = "Recourse: ask about a face whose loop
 pub(crate) const SINGULAR_TURN_RECOURSE: &str = "Recourse: open the face's corner at that point, so its \
      two edges leave it along different directions on one side of it";
 
-/// The recourse for a placeholder chart, whichever enum refuses it.
+/// The recourse for a face with no surface yet, whichever enum refuses
+/// it.
 pub(crate) const PLACEHOLDER_RECOURSE: &str = geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE;
 
-/// A chart that is not the placeholder
-/// ([`Surface::is_placeholder_chart`]) — the only kind of chart the
-/// loop walk and its meters ([`chart_u_arm`], [`v_meter`]) accept.
-///
-/// The placeholder's control net is all-poison: it has no locus, so
-/// `geom_brep::chart_stretch_sup` refuses it rather than answer a lever
-/// arm, and a gap metred through it would be a verdict about nothing.
-/// Every door into the walk takes the refusal here, once, where it can
-/// still say what to do about it: the minting pass and the validator
-/// skip the face (a placeholder mints nothing), and [`loop_windings`]
-/// refuses with [`PcurveMintError::PlaceholderChart`].
-///
-/// [`loop_windings`]: super::loop_windings
+/// A described chart the loop walk and its meters ([`chart_u_arm`],
+/// [`v_meter`]) read: the slot's surface once a door has refused a
+/// pending slot ([`crate::SurfaceSlot::described`]).
 #[derive(Clone, Copy)]
 pub(crate) struct DescribedChart<'a, T: Real>(&'a Surface<T>);
 
 impl<'a, T: Real> DescribedChart<'a, T> {
-    /// `None` for exactly the surface `geom_brep::chart_stretch_sup`
-    /// refuses as [`geom_brep::NoChartSup::Placeholder`]: both read
-    /// [`Surface::is_placeholder_chart`].
-    pub(crate) fn of(surface: &'a Surface<T>) -> Option<Self> {
-        (!surface.is_placeholder_chart()).then_some(Self(surface))
+    /// The chart `surface`.
+    pub(crate) fn of(surface: &'a Surface<T>) -> Self {
+        Self(surface)
     }
 
-    /// The chart of a face the minting pass writes rows for: described,
-    /// and of a kind that mints ([`chart_mints`]). `None` is "this face
-    /// carries no rows by construction" — the placeholder and the plane.
+    /// The chart of a face the minting pass writes rows for: of a kind
+    /// that mints ([`chart_mints`]). `None` is "this face carries no
+    /// rows by construction" — the plane.
     pub(crate) fn minting(surface: &'a Surface<T>) -> Option<Self> {
-        Self::of(surface).filter(|c| chart_mints(*c))
+        Some(Self::of(surface)).filter(|c| chart_mints(*c))
     }
 
     pub(crate) fn surface(self) -> &'a Surface<T> {
@@ -400,8 +381,7 @@ fn chart_mints<T: Real>(chart: DescribedChart<'_, T>) -> bool {
         // exact line images (`Pcurve::IsoLine`); an ARC cap rim on a
         // rational wall has an exact image too — the same boundary
         // line, on the chart's own rational-quadratic parameter
-        // (`Pcurve::IsoArc`). The placeholder is not a described chart
-        // and never reaches here; it mints nothing. An approximating
+        // (`Pcurve::IsoArc`). An approximating
         // surface's chart is its fit's, described by construction.
         Surface::Nurbs(_) | Surface::Approx(_) => true,
     }
@@ -457,7 +437,7 @@ pub(crate) fn derived_pcurve_of<T: AtRestPolicy>(
         });
     }
     let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
-    let surface = half_edge_surface(body, half_edge);
+    let surface = half_edge_surface(body, half_edge)?;
     // A SPLINE chart's images are description-driven (M6-3) — the iso
     // derivation, not the closed-form harmonic table. An approximating
     // surface's chart IS its fit's, so it takes the same route.
@@ -809,10 +789,17 @@ pub(crate) fn half_edge_carrier<T: Decide>(
     Ok((curve.carrier().clone(), t0, t1))
 }
 
-/// The surface of the face `half_edge` bounds.
+/// The surface of the face `half_edge` bounds, or
+/// [`PcurveMintError::PlaceholderChart`] where that face is pending.
 #[track_caller]
-pub(super) fn half_edge_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Surface<T> {
-    half_edge_face(body, half_edge).surface().clone()
+pub(super) fn half_edge_surface<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<Surface<T>, PcurveMintError> {
+    let face = half_edge_face(body, half_edge);
+    face.surface()
+        .cloned()
+        .map_err(|_| PcurveMintError::PlaceholderChart { face: face.key() })
 }
 
 /// The surface KEY of the face `half_edge` bounds (the key twin of
@@ -1381,13 +1368,9 @@ pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool
 /// [`singular_at`]: super::singular_at
 pub(super) fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
     // `chart_stretch_sup` refuses only the cone, whose arm grows with
-    // `v` and which no caller asks here, and the placeholder, which a
-    // [`DescribedChart`] is not.
+    // `v` and which no caller asks here.
     let Ok((sup_u, _)) = geom_brep::chart_stretch_sup(chart.surface()) else {
-        unreachable!(
-            "chart_u_arm is asked on a plane or spline chart only, and DescribedChart::of \
-             excludes the placeholder"
-        )
+        unreachable!("chart_u_arm is asked on a plane or spline chart only")
     };
     sup_u
 }
@@ -1722,12 +1705,7 @@ pub(super) fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
         // included (its `v` is a slant length, so the rate is exactly
         // 1), which is why this reads the `v`-only door rather than
         // the pair.
-        None => geom_brep::chart_stretch_sup_v(chart.surface()).unwrap_or_else(|_| {
-            unreachable!(
-                "chart_stretch_sup_v refuses only the placeholder, which \
-                 DescribedChart::of excludes"
-            )
-        }),
+        None => geom_brep::chart_stretch_sup_v(chart.surface()),
     }
 }
 
@@ -1952,6 +1930,7 @@ fn carry_rows<T: AtRestPolicy>(
         // A producer that moved the edge's interval under the row
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
+        let surface = surface.map_err(|_| PcurveMintError::PlaceholderChart { face })?;
         let restated = row
             .restated(&carrier, surface, band, T::fitted_lane())
             .map_err(|error| PcurveMintError::Certify {
@@ -2010,10 +1989,10 @@ pub(super) fn derive_face<T: AtRestPolicy>(
     band: Band,
 ) -> Result<Certified<T, HalfEdgeKey>, PcurveMintError> {
     let view = body.proven_face(face);
-    let surface = view.surface();
-    let Some(chart) = DescribedChart::minting(surface) else {
+    let Some(chart) = view.surface().ok().and_then(DescribedChart::minting) else {
         return Ok(Vec::new());
     };
+    let surface = chart.surface();
     let loops: Vec<LoopKey> = view.loops().map(|(lk, _, _)| lk).collect();
     let mut walked: Vec<Walked<T>> = Vec::new();
     let mut refused: Vec<PcurveMintError> = Vec::new();
@@ -2165,16 +2144,10 @@ mod not_owed_rows {
             })),
             "a dual owes no fitted row"
         );
-        for defect in [
-            PcurveCertifyError::IntervalNotForward,
-            PcurveCertifyError::PlaceholderChart,
-        ] {
-            let shown = format!("{defect:?}");
-            assert!(
-                !not_owed::<Dual64>(&of(defect)),
-                "a defective image is owed its refusal at a dual: {shown}"
-            );
-        }
+        assert!(
+            !not_owed::<Dual64>(&of(PcurveCertifyError::IntervalNotForward)),
+            "a defective image is owed its refusal at a dual"
+        );
         assert!(
             !not_owed::<f64>(&of(PcurveCertifyError::FittedLaneUnsupported {
                 scalar: "f64"

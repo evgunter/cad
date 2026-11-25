@@ -1405,7 +1405,7 @@ impl<T: Decide> Body<T> {
     /// decision at a band, so no door restates them without one.
     pub(crate) fn sides_agree(&self, surface: SurfaceKey, from: bool, to: bool) -> bool {
         from == to
-            || !self.get_surface(surface).is_some_and(|s| {
+            || !self.get_surface(surface).is_ok_and(|s| {
                 geom_brep::chart_singularity::singular_points(s)
                     .iter()
                     .any(|(which, _)| {
@@ -1433,7 +1433,7 @@ impl<T: Decide> Body<T> {
             return true;
         }
         match (self.get_surface(a), self.get_surface(b)) {
-            (Some(x), Some(y)) => one_payload(x, y),
+            (Ok(x), Ok(y)) => one_payload(x, y),
             _ => false,
         }
     }
@@ -1450,7 +1450,8 @@ impl<T: Decide> Body<T> {
             FaceSurface::Shared { key, .. } => self.same_chart(from, *key),
             FaceSurface::New { surface, .. } => self
                 .get_surface(from)
-                .is_some_and(|own| one_payload(own, surface)),
+                .is_ok_and(|own| one_payload(own, surface)),
+            FaceSurface::Pending { .. } => false,
         }
     }
 
@@ -2444,7 +2445,7 @@ mod tests {
             prov(),
         );
         body.get_solid_mut(solid).unwrap().shells.push(shell);
-        let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+        let surface = body.add_pending_surface();
         let lp = body.add_loop(
             Loop {
                 boundary: LoopBoundary::Cycle { first: h1 },
@@ -3109,7 +3110,7 @@ mod tests {
         // Shared surface (every mef face shares mvfs's): kept, and the
         // op reports it kept it.
         assert_eq!(result.killed_surface, None);
-        assert_eq!(body.surfaces().count(), 1);
+        assert_eq!(body.surface_slots().count(), 1);
         // The loop SURVIVES — repointed and demoted, with its birth
         // record intact (kfmrh mints nothing and rewrites no records).
         let ring = body.get_loop(split.r#loop).unwrap();
@@ -3155,7 +3156,7 @@ mod tests {
             },
             prov(),
         );
-        let surface = t.body.add_surface(crate::fixtures::test_surface(p(9.0)));
+        let surface = t.body.add_pending_surface();
         let lp = t.body.add_loop(
             Loop {
                 boundary: LoopBoundary::Empty { vertex: v },
@@ -3190,7 +3191,7 @@ mod tests {
         // Face C's private surface was orphaned by the kill and removed
         // (geometry hygiene).
         assert_eq!(result.killed_surface, Some(surface));
-        assert!(t.body.get_surface(surface).is_none());
+        assert!(t.body.get_surface(surface).err() == Some(crate::SurfaceMiss::Stale));
     }
 
     #[test]

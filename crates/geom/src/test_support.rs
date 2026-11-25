@@ -272,3 +272,25 @@ pub fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
         _ => unreachable!("only a framed analytic surface is reframed"),
     }
 }
+
+/// A described NURBS surface for rows that need one of the spline kind
+/// and nothing more: the bilinear patch over `[0, 1]²` on `z = 0`.
+///
+/// # Panics
+///
+/// Never: the knots and net are fixed and valid.
+#[must_use]
+#[allow(clippy::unwrap_used)]
+pub fn unit_patch() -> Surface<f64> {
+    let kv = || {
+        geom_core::spline::Knots::from(
+            geom_core::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        )
+    };
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .map(|(x, y)| Point3::new(x, y, 0.0))
+        .to_vec();
+    Surface::Nurbs(std::sync::Arc::new(
+        crate::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap(),
+    ))
+}

@@ -495,7 +495,7 @@ fn twin_of(naming: &ShellNaming, source: FaceKey) -> FaceKey {
 /// solid-scoped face query.
 fn wall(body: &Body<f64>, solid: SolidKey, axis: Vec3<f64>, value: f64) -> FaceKey {
     for face in faces_of(body, solid) {
-        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
+        let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -744,7 +744,7 @@ fn plane_face_at_z(body: &Body<f64>, solid: SolidKey, z0: f64) -> Vec<FaceKey> {
         .filter(|&f| {
             matches!(
                 body.face_surface(f),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z0).abs() < 1e-12 && frame.axis().z.abs() > 0.5
             )
         })
@@ -766,13 +766,13 @@ fn r2_move_shells_to_new_solid_keeps_every_chart_and_the_slab_thickens() {
     });
     // The top, bottom, front and back planes, each cut in two.
     assert_eq!(across_shells.len(), 4, "shared charts across the shells");
-    let charts_before: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
+    let charts_before: Vec<topo::SurfaceKey> = body.described_surfaces().map(|(k, _)| k).collect();
 
     body.move_shells_to_new_solid(&[shells[1]])
         .expect("one component moves to its own solid");
 
     assert_eq!(body.solids().count(), 2);
-    let charts_after: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
+    let charts_after: Vec<topo::SurfaceKey> = body.described_surfaces().map(|(k, _)| k).collect();
     assert_eq!(
         charts_after, charts_before,
         "the move mints and drops no chart"
@@ -828,7 +828,7 @@ fn r2_replace_faces_offset_on_one_solids_wearers_leaves_the_other_on_the_old_key
         "the other solid's wearer keeps the old key"
     );
     assert!(
-        body.get_surface(old).is_some(),
+        body.get_surface(old).is_ok(),
         "the old chart still resolves"
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
@@ -863,7 +863,7 @@ fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
     let body = b.body;
     assert_eq!(body.shells().count(), 2, "the subtract files two caps");
     assert_eq!(body.solids().count(), 2, "each cap a solid of its own");
-    let is_sphere = |f: FaceKey| matches!(body.face_surface(f), Some(geom::Surface::Sphere { .. }));
+    let is_sphere = |f: FaceKey| matches!(body.face_surface(f), Ok(geom::Surface::Sphere { .. }));
     let across = sharing(&body, &|fa, fb| {
         is_sphere(fa) && solid_of(&body, fa) != solid_of(&body, fb)
     });
@@ -901,7 +901,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
     let top = plane_face_at_z(&body, down, 1.0)[0];
     let bottom = plane_face_at_z(&body, up, 1.0)[0];
     let key = body.get_face(top).unwrap().surface;
-    let Some(geom::Surface::Plane {
+    let Ok(geom::Surface::Plane {
         frame: carrier_frame,
         ..
     }) = body.get_surface(key).cloned()
@@ -910,7 +910,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
     };
     let n_top = carrier_frame.axis();
     let bottom_data = body.get_face(bottom).unwrap();
-    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(bottom).cloned() else {
+    let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(bottom).cloned() else {
         panic!("bottom is planar")
     };
     let n_bottom = frame.axis();
@@ -1144,7 +1144,7 @@ fn r2_three_solids_on_one_sphere_chart_open_additively() {
     assert_eq!(topo::validate_geometric(&body, tol), Ok(()));
     let sphere_keys: std::collections::BTreeSet<topo::SurfaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
         .map(|(_, f)| f.surface)
         .collect();
     assert_eq!(sphere_keys.len(), 1, "one sphere chart across three solids");

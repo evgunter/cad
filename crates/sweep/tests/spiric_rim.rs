@@ -445,7 +445,7 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
     };
     let torus_face = [face_of(e.he_plus), face_of(e.he_minus)]
         .into_iter()
-        .find(|f| matches!(cavity.face_surface(*f), Some(Surface::Torus { .. })))
+        .find(|f| matches!(cavity.face_surface(*f), Ok(Surface::Torus { .. })))
         .expect("a spiric rim bounds a torus face");
     let face = cavity.get_face(torus_face).expect("face");
     let surface = cavity.face_surface(torus_face).expect("surface");
@@ -644,7 +644,7 @@ fn the_cavity_pcurves_certify_on_both_charts() {
     // harmonic caches too.
     let torus_face = cavity
         .faces()
-        .find(|(fk, _)| matches!(cavity.face_surface(*fk), Some(Surface::Torus { .. })))
+        .find(|(fk, _)| matches!(cavity.face_surface(*fk), Ok(Surface::Torus { .. })))
         .expect("the cavity carries a torus wall");
     let lp = cavity.get_loop(torus_face.1.outer).expect("loop");
     let topo::LoopBoundary::Cycle { first } = lp.boundary else {
@@ -1128,7 +1128,7 @@ mod interval_rows {
                     .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
                     .expect("loop")
                     .face;
-                if !matches!(cavity.face_surface(face), Some(Surface::Torus { .. })) {
+                if !matches!(cavity.face_surface(face), Ok(Surface::Torus { .. })) {
                     continue;
                 }
                 walls += 1;

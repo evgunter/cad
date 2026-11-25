@@ -136,9 +136,10 @@ fn fill_face<T: AtRestPolicy>(
 ) -> Result<(), PcurveMintError> {
     let view = body.proven_face(face);
     let surface = view.surface();
-    let Some(chart) = DescribedChart::minting(surface) else {
+    let Some(chart) = surface.ok().and_then(DescribedChart::minting) else {
         return Ok(());
     };
+    let surface = chart.surface();
     let rows = stored_rows(body, face);
     if rows.complete() {
         return Ok(());

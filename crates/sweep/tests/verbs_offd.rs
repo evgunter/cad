@@ -86,7 +86,7 @@ fn cone_face_with_tan(body: &Body<f64>, tan_a: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Cone { half_angle, .. }) if (half_angle.tan() - tan_a).abs() < 1e-9
+                Ok(Surface::Cone { half_angle, .. }) if (half_angle.tan() - tan_a).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)
@@ -97,7 +97,7 @@ fn cone_face_with_tan(body: &Body<f64>, tan_a: f64) -> FaceKey {
 fn cylinder_face(body: &Body<f64>, radius: f64) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))
@@ -107,7 +107,7 @@ fn cylinder_face(body: &Body<f64>, radius: f64) -> FaceKey {
 fn plane_face(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -116,7 +116,7 @@ fn plane_face(body: &Body<f64>, y: f64) -> FaceKey {
 /// The body's one cone face.
 fn cone_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .expect("the fixture has a cone face")
 }
@@ -124,16 +124,14 @@ fn cone_face(body: &Body<f64>) -> FaceKey {
 /// Every non-placeholder spline wall of `body`.
 fn spline_walls(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Nurbs(n)) if !n.is_placeholder())
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Nurbs(_))))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn radius_of(body: &Body<f64>, face: FaceKey) -> f64 {
     match body.face_surface(face) {
-        Some(Surface::Cylinder { radius, .. }) => *radius,
+        Ok(Surface::Cylinder { radius, .. }) => *radius,
         other => panic!("expected a cylinder, got {other:?}"),
     }
 }
@@ -268,7 +266,7 @@ fn a_planar_cap_offsets_at_both_signs() {
             )
         });
 
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(face) else {
             panic!("the cap is still a plane")
         };
         let origin = frame.origin();
@@ -397,7 +395,7 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
     let cylinders: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            Ok(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })
         .collect();
@@ -476,7 +474,7 @@ fn a_shared_surface_key_refuses_typed() {
     .into_body();
     let wall = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .expect("the extruded disc has cylinder walls");
     let shared = body.get_face(wall).unwrap().surface;
@@ -548,7 +546,7 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let d = 5e-10;
     let body = prism();
     let wall = *spline_walls(&body).first().unwrap();
-    let Some(Surface::Nurbs(base)) = body.face_surface(wall) else {
+    let Ok(Surface::Nurbs(base)) = body.face_surface(wall) else {
         panic!("the wall carries a spline")
     };
     let seed_degree = base.knots_v_f64_interim().degree();

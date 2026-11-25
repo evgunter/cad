@@ -358,7 +358,7 @@ fn each_curved_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
         let is_plane = |f| {
             matches!(
                 source.get_surface(surface_of(&source, f)),
-                Some(geom::Surface::Plane { .. })
+                Ok(geom::Surface::Plane { .. })
             )
         };
         for (x, y) in [(a0, a1), (b0, b1)] {

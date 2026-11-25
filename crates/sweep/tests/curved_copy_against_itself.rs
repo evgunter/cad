@@ -171,7 +171,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             .and_then(|g| g.certified())
             .map(|c| c.carrier().clone());
         let (
-            Some(geom::Surface::Cone {
+            Ok(geom::Surface::Cone {
                 frame, half_angle, ..
             }),
             Some(geom::Curve3::Line(geom::Line { dir, .. })),

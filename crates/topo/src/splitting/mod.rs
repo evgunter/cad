@@ -647,6 +647,14 @@ pub enum SplitReduceError {
         /// Why it has no cover.
         why: crate::cover::FaceUncovered,
     },
+    /// A face at the vertex has no surface yet (its slot is pending), so
+    /// its sector has no carrier to read. A finished body carries no
+    /// such face; [`classify_neighborhood`] is public and takes any
+    /// body, and the split's carrier gate reads every face first.
+    PendingFace {
+        /// The face.
+        face: FaceKey,
+    },
     /// `split_edge` refused while inserting the crossing vertex on an
     /// edge whose endpoints straddle the plane — typically the
     /// certification lane's `ResidualExceeded` re-certifying the
@@ -955,6 +963,13 @@ impl SplitReduceError {
             Self::UncoveredFace { face, why } => write!(
                 f,
                 "face {face:?} has no cover ({why}), so no extent to meter a predicate across"
+            ),
+            Self::PendingFace { .. } => write!(
+                f,
+                "a face of the body has no surface yet, so its sector has no carrier to read: \
+                 {}. {}",
+                geom_brep::PENDING_SURFACE,
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::CrossingInsertion {
                 edge,

@@ -174,7 +174,7 @@ fn stored_minors(body: &Body<f64>) -> Vec<u64> {
     let mut out: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .collect();
