@@ -368,7 +368,7 @@ pub fn pose<T: Decide>(
 /// extremes `c₀ ± A` (which cancel for a far-centred pair at `u·|e|²/2R`):
 /// an axis's offset as `|e × n|`, never `e − (e·n)n`, which cancels far
 /// along it. So posed, the margin is decided as exact; it charges nothing.
-fn culled<T: Decide>(
+pub(super) fn culled<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn Conic<T>,
     surface: &geom::Surface<T>,
@@ -1231,12 +1231,14 @@ fn line_wall<T: Decide>(
     .pose(span, band)
 }
 
-/// [`line_wall`]'s span-free half, over the line's run `(t0, t1)`.
+/// [`line_wall`]'s span-free half, over the line's run `(t0, t1)`. A
+/// drift in the axis-parallel rung's gap is `Apart` where the offset
+/// (`curve_face_pose_axis_offset`) clears its drift.
 ///
 /// # Errors
 ///
 /// The axis-parallel rung's diagnostics in band
-/// ([`PoseRung::AxisParallel`]).
+/// ([`PoseRung::AxisParallel`]), where the offset does not clear.
 pub(super) fn line_wall_read<T: Decide>(
     line: geom::Line<T>,
     (wall, radius): (geom::Line<T>, T),
@@ -1250,11 +1252,21 @@ pub(super) fn line_wall_read<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at_mid = wall.distance(line.origin + d.get() * mid) - radius;
     let speed = dp.norm();
-    if axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band)? {
-        return Ok(LineQuadric::Parallel {
-            at_mid,
-            half_drift: speed * run / T::from_f64(2.0),
-        });
+    let half_drift = speed * run / T::from_f64(2.0);
+    match axis_drift(Margin::metered(run, geom_core::InfSpeed::new(speed)), band) {
+        Ok(true) => return Ok(LineQuadric::Parallel { at_mid, half_drift }),
+        Ok(false) => {}
+        // A drift in the gap reads neither as parallel nor as the
+        // discriminant's: it still bounds the line's distance from the
+        // axis, 1-Lipschitz along it, to within `half_drift` of `at_mid`
+        // over the span, so a line whose offset is one-signed past that
+        // is apart however it drifts; a `Lies` is never read here.
+        Err(diag) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(LineQuadric::Apart),
+                Ok(_) | Err(_) => Err(diag),
+            };
+        }
     }
     let centred = super::line_quadric::wall_quadratic(line, (wall, radius), run, about);
     Ok(discriminant(
@@ -2260,7 +2272,3 @@ fn torus_parallel<T: Decide>(
         Pose::Apart
     })
 }
-
-#[cfg(test)]
-#[path = "cull_rows.rs"]
-mod cull_rows;

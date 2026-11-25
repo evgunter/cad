@@ -718,6 +718,8 @@ pub mod composite;
 pub mod conic_oracle;
 pub mod conic_quadric;
 pub mod cross;
+#[cfg(test)]
+mod cull_rows;
 pub mod ellipse_torus;
 pub mod end_root;
 #[cfg(test)]

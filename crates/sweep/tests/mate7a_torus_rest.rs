@@ -330,8 +330,9 @@ fn the_g1_tube_chain_is_one_bent_tube() {
     let tube = core::f64::consts::PI * TUBE * TUBE;
     let want = tube * RING * TURN.to_radians() + tube * 1.1 * 170.0_f64.to_radians();
     for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
-        let Ok(BooleanResult::Body(bb)) = topo::union(x, y, Tol::witness()) else {
-            panic!("{order}: the chain unions to one body");
+        let got = topo::union(x, y, Tol::witness());
+        let Ok(BooleanResult::Body(bb)) = got else {
+            panic!("{order}: the chain unions to one body: {got:?}");
         };
         assert_eq!(bb.body.solids().count(), 1, "{order}: one solid");
         assert_eq!(

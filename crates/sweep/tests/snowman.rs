@@ -328,8 +328,10 @@ fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
 /// one pole, where a meridian of each touches the other sphere without
 /// crossing it. The circle × sphere roots read that as a tangency, which
 /// is not a crossing at any order the crossing layer sees, so every op
-/// refuses typed at the pierce door — naming a MERIDIAN (a circle edge)
-/// of one ball against a SPHERE face of the other — rather than
+/// refuses typed — at the pierce door, naming a MERIDIAN (a circle edge)
+/// of one ball against a SPHERE face of the other, or, where the touch is
+/// the meridian's own end (a pole), past the crossing layer, which reads
+/// an end's meeting as the end vertex's, on the sphere face — rather than
 /// guessing a contact.
 #[test]
 fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
@@ -340,6 +342,16 @@ fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     ] {
         for op in OPS {
             let e = refusal(op, &a, &b);
+            // A meridian whose end is the touch reads it as that end's
+            // meeting (the vertex rows'), and the pair is refused typed
+            // past the crossing layer, on the sphere face.
+            if let topo::BooleanError::CurvedBooleanUnsupported {
+                kind: geom::SurfaceKind::Sphere,
+                ..
+            } = e
+            {
+                continue;
+            }
             let topo::BooleanError::CurvedPierceUnsupported {
                 operand,
                 edge,

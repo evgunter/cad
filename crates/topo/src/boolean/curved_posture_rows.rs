@@ -167,6 +167,30 @@ fn a_covered_cone_reads_its_pose() {
     ));
 }
 
+/// **A method's sign in band is the zero posture**: a circle in the `xz`
+/// plane touching the generator `x = z` of the cone of half-angle `π/4`
+/// from outside at `(1, 0, 1)`. Its form has a second harmonic, so the
+/// pose hands it to the ladder, whose walk reads its side in band at the
+/// touch (`conic_quadric_sub_side`); under the cover, which rules out a
+/// crossing, that is a touch, read by the covered rung's ends and interior.
+/// Mutant: a method's sign in band read as the coincidence's refusal, red.
+#[test]
+fn a_method_sign_in_band_is_the_zero_posture() {
+    let cone = geom::Surface::Cone {
+        frame: frame(Point3::origin()),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let out = Vec3::new(1.0, 0.0, -1.0).normalize();
+    let touching = Curve3::circle(
+        Point3::new(1.0, 0.0, 1.0) + out * 0.3,
+        Vec3::unit_y(),
+        0.3,
+        Vec3::unit_x(),
+    );
+    let got = posture(&touching, &cone);
+    assert!(matches!(got, CoveredPosture::Sign(Sign::Zero)), "{got:?}");
+}
+
 fn frontier() -> BooleanError {
     BooleanError::ClassificationInvariant {
         what: "the row's frontier",

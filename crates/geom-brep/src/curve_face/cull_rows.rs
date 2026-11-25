@@ -1,4 +1,4 @@
-//! **The ball cull's rows** ([`super::culled`], `curve_face_pose_clearance`):
+//! **The ball cull's rows** ([`super::pose::culled`], `curve_face_pose_clearance`):
 //! the cull decides `Apart` only where the exact oracle
 //! ([`crate::curve_face::conic_oracle::exact::truth`], double-double on the
 //! stored data) finds no crossing and no point of the conic within the
@@ -12,7 +12,7 @@ use core::f64::consts::TAU;
 use geom::Curve3;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{Pose, culled, pose};
+use super::pose::{Pose, culled, pose};
 use crate::curve_face::conic_oracle::exact::{Dd, truth};
 use crate::curve_face::conic_oracle::{ellipse, unit};
 use crate::curve_pair::Span;

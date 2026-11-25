@@ -5728,12 +5728,13 @@ fn crossing_refused<T: Decide>(
 #[derive(Debug)]
 enum CoveredPosture {
     /// `Positive`: clear, no event (`Apart`, or no meeting on the span);
-    /// `Zero`: the zero posture (the span on the carrier, a touch, or a
-    /// meeting at an end); `Negative`: a crossing strictly inside the
+    /// `Zero`: the zero posture (the span on the carrier, a touch, a
+    /// meeting at an end, or a method's sign in band, which under the
+    /// cover is a touch); `Negative`: a crossing strictly inside the
     /// span, or a cone's apex on it, which the cover rules out.
     Sign(Sign),
-    /// A rung's or a method's sign in the band: the coincidence the
-    /// cover's posture cannot call.
+    /// A pose rung's reading in the band: the coincidence the cover's
+    /// posture cannot call.
     InBand(geom_core::Indeterminate),
     /// Any other refusal (a meter, a limit): the frontier.
     Frontier,
@@ -5780,11 +5781,15 @@ fn covered_posture<T: geom_core::Real>(
                 return CoveredPosture::Fault(what);
             }
             match refusal.leading().why {
-                CrossWhy::Pose(PoseRefusal::InBand { diag, .. })
-                | CrossWhy::Method {
-                    fault: MeetFault::Escalated(diag) | MeetFault::Touch(diag),
+                CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => CoveredPosture::InBand(diag),
+                // The method read the arc within the band of the carrier
+                // (a walk's side, or a touch, in band): the cover rules
+                // out a crossing, so it is a touch, the zero posture,
+                // which the covered rung reads by its ends and interior.
+                CrossWhy::Method {
+                    fault: MeetFault::Escalated(_) | MeetFault::Touch(_),
                     ..
-                } => CoveredPosture::InBand(diag),
+                } => CoveredPosture::Sign(Sign::Zero),
                 _ => CoveredPosture::Frontier,
             }
         }
