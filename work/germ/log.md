@@ -2055,3 +2055,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **U4b dispatched** to the same session (`session_01BJC3B22anXfC4i4rZjepZv`) on `germ/u4b-face-reading`.
     - It is an implementer continuing on Opus, with no draw taken (outage).
     - Its reviewers will be two Opus lanes, per the user's ruling.
+- 2026-11-25 13:20 — **U4b open points, ruled by the orchestrator:**
+  - Q1: `off_face` is kept for `composite_count` until U4d, unless the gate counts no composite rescues.
+  - Q2: the covered conic arm reads `pose` on the arc. Every posture mapping is rowed, and every changed answer against main is argued.
+  - Q3: no drop at split.
+  - Q4: `boolean/face_reading.rs`.
+  - Q5: the straddle arm with no window fails loud, as the spec says.
+  - Q6: the gate's whole-span-rescue list comes to the orchestrator before the line × torus arm is built; if needed, an `[ev]` question per the spec.
