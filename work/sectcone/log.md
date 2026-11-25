@@ -63,3 +63,6 @@ The single FULL review returned APPROVE-WITH-FIXES with one MAJOR. The new Touch
 - the green roster row records all nine lines.
 
 The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (orchestrator read) and accepted it. Kernel CI is red only on the inherited reds: topo's `recourse_roster` decide-site row (`green/main-red-recourse-roster-misses-chain-parity-and-spline-trim-decide-sites`) and `square_search` (`germ/the-square-wall-fuzzer-finds-a-strip-crossing-at-a-tubes-top-read-tangent`). Merged over CI after a main merge whose only conflict was the topo lever count (branch +7 on main's 320 = 327). U3 `the-join-reads-the-cone-pairs-on-the-value` is un-parked: U2 and the limb-2 reader (7350) are both closed. 7457 must narrow its `cone_pair` arms to Plane | Sphere when it merges main.
+
+## 2026-11-24: 7725 merged (the cone_search main red)
+The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-tan, and a fixed row reproduces the first seed. cone_search passed on three kernel runs, each with a fresh seed. Orchestrator's read. Merged main and resolved the conflict with 7457's `RadiusNotPositive` line in `of_pair_section`. Merged over CI: the kernel job was red only on `square_search` (germ row).
