@@ -1112,8 +1112,8 @@ the ray's are the walk's own, bare literals:
 | `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
 | `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Nineteen
-names from `topo/src/sphere_region.rs`. Ten are its rays',
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Eighteen
+names from `topo/src/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
 first-harmonic root door. Nine are its boundary pre-pass's: a
@@ -1141,7 +1141,6 @@ spline arc through piece by piece:
 | `bool_sphere_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
 | `bool_sphere_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
 | `bool_sphere_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
-| `bool_sphere_region_spline_landing` | a bare literal: an end of a spline arc against a leg's plane, in metres: a landing at the end, or none |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
@@ -1180,12 +1179,13 @@ for its boundary pre-pass:
 They pool with nothing: the region is read by the point doors at points
 on a torus.
 
-**Roster addition (EMBEDWALK): a torus face's spline edges.** Five names
+**Roster addition (EMBEDWALK): a torus face's spline edges.** Four names
 from `topo/src/torus_region.rs`, read where the region's builder hands
-it the scalar's spline reader: four an `ArcRows` value (`SPLINE`) its
-boundary pre-pass reads each spline edge through piece by piece, and
-one bare literal for a spline edge's ends against a leg's plane. They
-pool with the torus region's other names:
+it the scalar's spline reader: an `ArcRows` value (`SPLINE`) its
+boundary pre-pass reads each spline edge through piece by piece. A
+spline edge's crossings of a leg's plane, ends included, are the ring
+composite's (`spline_composite_*`). They pool with the torus region's
+other names:
 
 | name | carrier |
 |---|---|
@@ -1193,7 +1193,6 @@ pool with the torus region's other names:
 | `bool_torus_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
 | `bool_torus_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
 | `bool_torus_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
-| `bool_torus_region_spline_landing` | a bare literal: an end of a spline arc against a leg's plane, in metres: a landing at the end, or none |
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of

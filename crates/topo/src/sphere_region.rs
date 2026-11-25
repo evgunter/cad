@@ -136,10 +136,9 @@
 //! - `bool_sphere_region_spline_end`, `_clear`, `_on`, `_leaf`: a spline
 //!   arc's boundary reading
 //!   ([`PiecedArc::contact`](crate::splitting::pieced_arc::PiecedArc::contact)'s rows).
-//! - `bool_sphere_region_spline_landing`: an end of a spline arc against
-//!   a leg's plane, in metres: a landing that reads no side, or none
-//!   ([`region::landings`]). Where a spline arc crosses the plane inside
-//!   its span is the ring composite's (`spline_composite_*`).
+//! - Where a spline arc crosses a leg's plane, and whether an end of it
+//!   is near the plane, is the ring composite's (`spline_composite_*`,
+//!   [`region::landings`]).
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -150,7 +149,7 @@ use crate::entity::FaceKey;
 use crate::ray_walk::{self, RayFault};
 use crate::region::{
     self, End, Fault, Leg, Legs, Path, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, Splines, circle_edge_hit, spline_edge_hit, targets,
+    SplineCrossings, circle_edge_hit, spline_edge_hit, targets,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicRows, SCHEDULE};
@@ -208,7 +207,7 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 /// its certified carrier (a periodic cubic's clamped view over the
 /// edge's span), which tier 3 places on the face's sphere, as every
 /// edge of the face, and only through `splines`, the scalar's spline
-/// reader ([`crate::props::AtRestPolicy::spline_face_crossings`]) where
+/// reader ([`crate::props::AtRestPolicy::spline_face_reader`]) where
 /// the caller's bound holds one: without it a face with a spline arc
 /// answers `None` (`work/inside/the-face-door-reads-no-spline-arc-of-a-sphere-face.md`).
 ///
@@ -563,11 +562,8 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         geom_brep::OutwardNormal::from_chart(w.normalize(), self.sense).vec()
     }
 
-    fn splines(&self) -> Option<Splines<T>> {
-        self.splines.map(|crossings| Splines {
-            crossings,
-            end: "bool_sphere_region_spline_landing",
-        })
+    fn splines(&self) -> Option<SplineCrossings<T>> {
+        self.splines
     }
 }
 
@@ -1943,7 +1939,6 @@ mod tests {
     /// end itself where the end lies on the leg's plane), or sets the path
     /// aside. No reading answers that the leg misses the arc.
     #[test]
-    #[ignore = "red until PR 7755's fix of spline_landings' deferred end lands; run with `cargo test -p topo --lib -- --ignored a_crossing_beside_a_spline_end_is_never_lost`"]
     fn a_crossing_beside_a_spline_end_is_never_lost() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let (polar, azimuths) = (1.0f64, (0.3, 2.5));
@@ -1992,3 +1987,7 @@ mod tests {
         assert!(lost.is_empty(), "crossings lost: {lost:#?}");
     }
 }
+
+#[cfg(test)]
+#[path = "sphere_region_spline_rows.rs"]
+mod sphere_region_spline_rows;

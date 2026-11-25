@@ -84,10 +84,9 @@
 //! - `bool_torus_region_arc_*`, `bool_torus_region_spiric_*` and
 //!   `bool_torus_region_spline_{end,clear,on,leaf}`: the boundary
 //!   readings' rows.
-//! - `bool_torus_region_spline_landing`: an end of a spline edge against
-//!   a leg's plane, in metres: a landing that reads no side, or none
-//!   ([`region::landings`]). Where a spline edge crosses the plane inside
-//!   its span is the ring composite's (`spline_composite_*`).
+//! - Where a spline edge crosses a leg's plane, and where its ends lie
+//!   against it, is the ring composite's (`spline_composite_*`,
+//!   [`region::landings`]).
 //!
 //! # Which bound makes each verdict sound
 //!
@@ -110,7 +109,7 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::region::{
     self, End, Fault, Legs, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
-    SplineCrossings, Splines, circle_edge_hit, pieced_edge_hit, spline_edge_hit,
+    SplineCrossings, circle_edge_hit, pieced_edge_hit, spline_edge_hit,
 };
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::UncrossableCarrier;
@@ -431,11 +430,8 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
         geom_brep::OutwardNormal::from_chart(self.chart_normal(y), self.sense).vec()
     }
 
-    fn splines(&self) -> Option<Splines<T>> {
-        self.splines.map(|crossings| Splines {
-            crossings,
-            end: "bool_torus_region_spline_landing",
-        })
+    fn splines(&self) -> Option<SplineCrossings<T>> {
+        self.splines
     }
 }
 
@@ -1429,9 +1425,9 @@ mod tests {
     /// each carried on the exact rational quadratic of the whole circle
     /// from `θ = 1` (the first) or `θ = 2` (the second), so each spline's
     /// two ends meet at one point off the crests, where a parallel and a
-    /// meridian leg each cross the circle transversally. At that point
-    /// both ends land on the leg's plane, and the path sets the crossing
-    /// aside as one at a vertex. Queries on the parallel and the meridian
+    /// meridian leg each cross the circle transversally. There the ring
+    /// composite reads both ends near the leg's plane, and the path grazes
+    /// rather than reading a side. Queries on the parallel and the meridian
     /// through each joint, `10⁻³` to `0.1` rad from it either side, read
     /// their family parameter's side whenever they answer, and most
     /// answer.
@@ -1503,7 +1499,6 @@ mod tests {
     /// lies on the leg's plane) or sets the path aside. None answers that
     /// the leg misses the edge.
     #[test]
-    #[ignore = "red until PR 7755's fix of spline_landings' deferred end lands; run with `cargo test -p topo --lib -- --ignored a_crossing_beside_a_spline_end_is_never_lost`"]
     fn a_crossing_beside_a_spline_end_is_never_lost() {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let reading = |edge: Edge<f64>| TorusFaceRegion {

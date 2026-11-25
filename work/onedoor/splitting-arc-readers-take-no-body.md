@@ -23,6 +23,6 @@ reading into the region skeleton as `region::pieced_edge_hit`
 spline arc through (`splitting::spline_arc::SplineArc`,
 `sphere_region::SphereFaceRegion`'s `on_edge`). `engine-leaves`'
 `names-splitting` pins moved with it: `torus_region.rs` 18 → 8,
-`region.rs` 16 → 31 and `sphere_region.rs` 4 → 11, the two rises
+`region.rs` 14 → 29 and `sphere_region.rs` 4 → 10, the two rises
 citing this row. Moving the arc readers out of `splitting` takes
 `region.rs`'s and `sphere_region.rs`'s sites with them.
