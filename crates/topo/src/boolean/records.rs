@@ -813,9 +813,11 @@ impl<T: Real> RemovedIn<'_, T> {
 ///   of a division consumes nothing);
 /// - its two vertices became one vertex (D1's strict record-drop rule);
 /// - for an op that glues cells ([`crate::Lineage::glued`]), every pair
-///   of its images is structure, or a cell the op minted in one record
-///   cell is itself an image of the other (the record's edge, now the
-///   section the cut ran along it: structure needs no record).
+///   of its images is structure, or an image of one record cell is
+///   itself an image of the other (the record's edge, now the section
+///   the cut ran along it, or the one edge a glue made of two that
+///   overlapped: structure needs no record); an image merely incident
+///   to the other's consumes nothing.
 ///
 /// # Errors
 ///
@@ -922,15 +924,15 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
-                            // A cell the op minted in one record cell that
-                            // is itself an image of the other (the record's
-                            // edge, now the section the cut ran along it)
-                            // holds the touch as structure, which needs no
-                            // record (D1). A minted cell merely incident to
-                            // an image of the other cell holds nothing.
-                            on_structure |= lineage.glues()
-                                && matches!(error, ContactPairError::OneCell(_))
-                                && (a_minted || b_minted);
+                            // An image of one record cell that is itself an
+                            // image of the other (the record's edge, now the
+                            // section the cut ran along it, or the piece a
+                            // glue made of two overlapping edges) holds the
+                            // touch as structure, which needs no record
+                            // (D1). An image merely incident to an image of
+                            // the other cell holds nothing.
+                            on_structure |=
+                                lineage.glues() && matches!(error, ContactPairError::OneCell(_));
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -994,10 +996,22 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                         continue;
                     };
                     removed_read = true;
-                    if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
-                        record,
-                        cells: pair.cells(),
-                    })? {
+                    // The reading body holds the cells as the cut left
+                    // them, not as the op's result joins and orients them
+                    // (the boolean's clones are two whole solids), so the
+                    // census may class a touch it finds there otherwise
+                    // than the record does: found is found.
+                    let met = match confirm.meets(pair) {
+                        Ok(met) => met,
+                        Err(crate::ValidationError::ContactContradicted { .. }) => true,
+                        Err(_) => {
+                            return Err(CarryRefusal::Unread {
+                                record,
+                                cells: pair.cells(),
+                            });
+                        }
+                    };
+                    if met {
                         on_removed = true;
                         break 'members;
                     }
@@ -1221,8 +1235,8 @@ mod tests {
         );
     }
 
-    /// **Structure consumes a glued record only where a cell the op
-    /// minted in one record cell is an image of the other.** A
+    /// **Structure consumes a glued record only where an image of one
+    /// record cell is an image of the other.** A
     /// bookkeeping vertex–face record (the prism's top corner against
     /// its bottom, no touch) through glued hand lineages that keep the
     /// corner and divide the bottom into itself and one minted cell. The
@@ -1233,7 +1247,7 @@ mod tests {
     /// its cells, and the record is consumed. Red where structure never
     /// consumes.
     #[test]
-    fn structure_consumes_only_on_a_minted_image_of_the_other_cell() {
+    fn structure_consumes_only_on_an_image_of_the_other_cell() {
         use crate::props::AtRestPolicy;
         let p = prism();
         let corner = Cell::Vertex(p.top[0]);
