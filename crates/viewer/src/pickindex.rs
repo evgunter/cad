@@ -1750,11 +1750,14 @@ impl PickIndex {
     /// caller's display view happened to split the scene into rather
     /// than on the geometry.
     ///
-    /// The parameters stay comparable because the display layer
-    /// admits only rigid probe frames (lengths preserved, so `t` in
-    /// units of `|dir|` means the same world distance in every group);
-    /// a moved body's hit crosses back with its point converted
-    /// and its interval carried, which is
+    /// **Every group's parameters are the caller's ray's.** A moved
+    /// body is picked by that ray carried through its map's inverse,
+    /// and an affine map carries a ray's parameter with it (the carried
+    /// ray at `t` is the caller's at `t`, mapped), so its span needs no
+    /// conversion, rigid map or not, and its point is read off the
+    /// caller's ray at `t`, as `pick_face` reads every hit's. The
+    /// certificate is the carried ray's, which is the caller's to
+    /// within the map's rounding:
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
     /// # Errors
@@ -1808,13 +1811,8 @@ impl PickIndex {
                 dir: inverse.transform_vec(ray.dir),
             };
             for hit in group_answer(pick_face(eval, &targets, &local))? {
-                // The hit's point is display-local; the answer the
-                // caller compares against the picture is world. The
-                // interval rides across unconverted, which is the
-                // rigid-frame argument above and
-                // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
                 candidates.push(PickHit {
-                    point: map.transform_point(hit.point),
+                    point: ray.origin + ray.dir * hit.t,
                     ..hit
                 });
             }
@@ -2420,7 +2418,11 @@ impl PickIndex {
             };
             let Some(pixel) = camera
                 .project(place(position), aspect)
-                .map_err(PickError::Camera)?
+                .map_err(|error| PickError::Projection {
+                    node: edge.node,
+                    body: Some(edge.body),
+                    error,
+                })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
             else {
                 continue;
@@ -2478,10 +2480,12 @@ impl PickIndex {
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        let project = |world: Point3<f64>| -> Result<Projected, PickError> {
+        let project = |world: Point3<f64>,
+                       (node, body): (RecipeNodeId, Option<u32>)|
+         -> Result<Projected, PickError> {
             Ok(camera
                 .project(world, aspect)
-                .map_err(PickError::Camera)?
+                .map_err(|error| PickError::Projection { node, body, error })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
                 .map(|pixel| (world, pixel)))
         };
@@ -2498,7 +2502,7 @@ impl PickIndex {
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
         if lines.outlines || lines.datums {
-            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
+            for (rank, &(node, datum, loops)) in outlines.iter().enumerate() {
                 if !(if datum { lines.datums } else { lines.outlines }) {
                     continue;
                 }
@@ -2506,7 +2510,7 @@ impl PickIndex {
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points
                         .iter()
-                        .map(|&world| project(world))
+                        .map(|&world| project(world, (node, None)))
                         .collect::<Result<Vec<_>, _>>()?;
                     // The loop's position rides as the candidate's
                     // `boundary`, the tie-break's coordinate.
@@ -2551,7 +2555,7 @@ impl PickIndex {
                     .points
                     .iter()
                     .map(|&index| match mesh.positions.get(index as usize) {
-                        Some(&position) => project(place(position)),
+                        Some(&position) => project(place(position), (node, Some(body))),
                         None => Ok(None),
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -2586,9 +2590,13 @@ impl PickIndex {
             // the line behind a face and the line in front of it are
             // both near the same cursor exactly when a body is seen
             // through its own silhouette.
+            let (node, body) = match line {
+                Line::Edge(rank) => (bodies[rank].node(), Some(bodies[rank].body())),
+                Line::Outline(rank) => (outlines[rank].0, None),
+            };
             let ray = camera
                 .ray_through(candidate.pixel, viewport)
-                .map_err(PickError::Camera)?;
+                .map_err(|error| PickError::Projection { node, body, error })?;
             let [a, b] = candidate.ends;
             let (s, point) = ray_segment_closest(&ray, a, b);
             // A body edge's own crossing is widened by its incident
@@ -2605,12 +2613,8 @@ impl PickIndex {
                 continue;
             };
             // Each front span is one face's: the hull of that face's
-            // tied crossings, as the door answers it. A moved copy's
-            // are its LOCAL ray's parameters, carried across
-            // unconverted, while `own` is the world ray's: comparable
-            // because the display admits only rigid probe frames,
-            // which is
-            // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+            // tied crossings, as the door answers it, a moved copy's
+            // included (`PickIndex::pick_for`).
             let mut spans: Vec<TSpan> = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
@@ -3255,6 +3259,21 @@ fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point
 pub enum PickError {
     /// The cursor could not be un-projected.
     Camera(CameraError),
+    /// A drawn point the cursor is measured against (a line's chord
+    /// point, an edge's end) has no pixel the camera can compute
+    /// ([`Camera::project`]'s refusal), or its pixel names no ray to
+    /// probe it with, so what it belongs to cannot be measured. The
+    /// whole pick refuses: a pixel made up for it would decide the
+    /// contest.
+    Projection {
+        /// The node whose drawing holds the point.
+        node: RecipeNodeId,
+        /// The body of `node` whose edge holds it; `None` for a
+        /// profile's or datum's drawn outline.
+        body: Option<u32>,
+        /// The camera's refusal.
+        error: CameraError,
+    },
     /// The hit test refused.
     HitTest(HitTestError),
     /// The picked edge has no name here — [`EdgeNameFault`], per arm:
@@ -3539,6 +3558,17 @@ impl Say for PickError {
     fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
+            Self::Projection { node, body, error } => {
+                match body {
+                    Some(body) => say!(
+                        f,
+                        "a drawn point on an edge of ",
+                        Said(&DrawnBody::new(*node, *body), by)
+                    )?,
+                    None => say!(f, "a drawn point on the outline of ", by.node(*node))?,
+                }
+                write!(f, " has no pixel: {error}")
+            }
             Self::HitTest(error) => say!(f, "the hit test refused: ", Said(error, by)),
             Self::EdgeName(fault) => {
                 say!(f, "the picked edge has no name: ", Said(fault, by))
@@ -3836,8 +3866,8 @@ mod tests {
     /// cursor that is not a number never arrives, because every door
     /// seeds on a ray through it and `Camera::ray_through` refuses one
     /// first; and a mesh position that is a `NaN` never arrives
-    /// either, because `Camera::project` answers `None` for it and the
-    /// walk drops a chord point with no pixel. Neither is what
+    /// either, because `Camera::project` refuses it and the walk
+    /// forwards the refusal. Neither is what
     /// produces the distance this row is about.
     ///
     /// Both halves, because neither says anything alone: the poisoned
