@@ -4248,6 +4248,8 @@ pub(super) struct Ledger {
 pub(super) struct Incidence {
     vertex: BTreeMap<VertexKey, Vec<FaceKey>>,
     edge: BTreeMap<EdgeKey, Vec<FaceKey>>,
+    /// The cells beside a null face: the section the join cut along.
+    section: BTreeSet<Cell>,
     /// The join's null faces: a division's fragment that became one
     /// holds none of the divided face's region.
     scaffold: BTreeSet<FaceKey>,
@@ -4255,43 +4257,58 @@ pub(super) struct Incidence {
 
 impl Incidence {
     /// The cells the division of one face into `fragments` minted in
-    /// its interior: each edge between two of them (a chord), and each
-    /// vertex no face but them bounds (where chords meet inside it).
-    fn chords<'a>(&'a self, fragments: &'a [FaceKey]) -> impl Iterator<Item = Cell> + 'a {
-        let inside = move |fs: &[FaceKey]| {
-            fs.len() >= 2
+    /// its interior: each edge between two of them (a chord) or between
+    /// one and a null face (the section the cut ran along), and each
+    /// vertex no face but them bounds (where chords meet inside it), or,
+    /// with `section_vertices`, them and null faces.
+    fn chords<'a>(
+        &'a self,
+        fragments: &'a [FaceKey],
+        section_vertices: bool,
+    ) -> impl Iterator<Item = Cell> + 'a {
+        let inside = move |c: Cell, fs: &[FaceKey]| {
+            let section =
+                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+            !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
-                && fs.iter().any(|f| f != &fs[0])
+                && (fs.iter().any(|f| f != &fs[0]) || section)
         };
         self.edge
             .iter()
-            .filter(move |(_, fs)| inside(fs))
-            .map(|(&e, _)| Cell::Edge(e))
-            .chain(
-                self.vertex
-                    .iter()
-                    .filter(move |(_, fs)| inside(fs))
-                    .map(|(&v, _)| Cell::Vertex(v)),
-            )
+            .map(|(&e, fs)| (Cell::Edge(e), fs))
+            .chain(self.vertex.iter().map(|(&v, fs)| (Cell::Vertex(v), fs)))
+            .filter(move |&(c, fs)| inside(c, fs))
+            .map(|(c, _)| c)
     }
 
     fn of<T: Real>(clone: &Body<T>, scaffold: &BTreeSet<FaceKey>) -> Self {
         let real = |fs: Vec<FaceKey>| -> Vec<FaceKey> {
             fs.into_iter().filter(|f| !scaffold.contains(f)).collect()
         };
+        let mut section = BTreeSet::new();
         let edge = clone
             .edges()
             .filter_map(|(e, _)| {
                 let (f0, f1) = crate::readback::edge_sides(clone, e).ok()?.faces();
+                if scaffold.contains(&f0) || scaffold.contains(&f1) {
+                    section.insert(Cell::Edge(e));
+                }
                 Some((e, real(vec![f0, f1])))
             })
             .collect();
+        let vertex = faces_by_vertex(clone)
+            .into_iter()
+            .map(|(v, fs)| {
+                if fs.iter().any(|f| scaffold.contains(f)) {
+                    section.insert(Cell::Vertex(v));
+                }
+                (v, real(fs))
+            })
+            .collect();
         Self {
-            vertex: faces_by_vertex(clone)
-                .into_iter()
-                .map(|(v, fs)| (v, real(fs)))
-                .collect(),
+            vertex,
             edge,
+            section,
             scaffold: scaffold.clone(),
         }
     }
@@ -4807,7 +4824,10 @@ fn face_pieces(
             fragments.push(g);
         }
     }
-    let chords = incidence.chords(&fragments).collect();
+    // A carried record's cells meeting at two section vertices would
+    // need a decision between cells no input holds, so only a row the
+    // reduction found names them.
+    let chords = incidence.chords(&fragments, keys == Keys::Recut).collect();
     let divided = fragments.len() > 1;
     (
         fragments.into_iter().map(Cell::Face).collect(),

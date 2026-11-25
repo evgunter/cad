@@ -800,7 +800,9 @@ impl<T: Real> RemovedIn<'_, T> {
 /// consumes nothing), where its
 /// two vertices became one vertex (D1's strict record-drop rule), or,
 /// for an op that glues cells ([`crate::Lineage::glued`]), where every
-/// pair of its images is structure.
+/// pair of its images is structure, or a pair on a cell the op minted
+/// in one of them is (the touch now lies on the section the cut ran
+/// along: structure needs no record).
 ///
 /// # Errors
 ///
@@ -873,6 +875,7 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
         let mut landed = false;
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
+        let mut on_structure = false;
         let mut held_by: [bool; 2] = [false, false];
         let mut held_at: [Vec<(usize, Cell)>; 2] = [Vec::new(), Vec::new()];
         for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.sides).enumerate() {
@@ -905,6 +908,11 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
+                            // Structure on a cell the op minted in a
+                            // record's cell (a section the cut ran along
+                            // the touch) holds the touch, and needs no
+                            // record (D1).
+                            on_structure |= lineage.glues() && (a_minted || b_minted);
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -932,7 +940,7 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
                 }
             }
         }
-        if landed {
+        if landed || on_structure {
             continue;
         }
         // The touch read against what the op removed: the members each
