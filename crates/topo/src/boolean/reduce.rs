@@ -5292,7 +5292,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     curve: &geom_brep::EdgeCurve<T>,
     (y, face): (&Body<T>, FaceKey),
     band: Band,
-) -> Result<geom_brep::curve_face::composite::Crossings<T>, BooleanError> {
+) -> Result<geom_brep::roots::Crossings<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
     let surface = y.proven_face(face).surface();
     let arm = route(curve.carrier().kind(), surface.kind());
@@ -5325,7 +5325,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
 enum Counted<T> {
     /// Every crossing strictly inside the span, ascending, each with its
     /// reach.
-    Crossings(geom_brep::curve_face::composite::Crossings<T>),
+    Crossings(geom_brep::roots::Crossings<T>),
     /// The arm refused a touch, and every meeting of the span with the
     /// carrier is certified off the face: the span crosses this face
     /// nowhere inside.

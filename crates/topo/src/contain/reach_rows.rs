@@ -25,6 +25,11 @@ fn arc(t: f64) -> Point3<f64> {
     Point3::new(2.0 * t, 4.0 * t * (1.0 - t) * H, 0.0)
 }
 
+/// The scalars the rows run at: the witness's and a leaf's.
+trait Scalar: geom_core::Certifies + crate::props::AtRestPolicy {}
+impl Scalar for f64 {}
+impl Scalar for geom_core::Interval {}
+
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's band")
 }
@@ -38,25 +43,26 @@ fn stretch() -> f64 {
 /// whose trim edge stands at `x = x1`: read as a closed form's point
 /// (`reach` is `None`), or as a crossing admitted by its point reading ON
 /// the plane, with `reach` along.
-fn placed(
+fn placed<T: Scalar>(
     x1: f64,
     x: f64,
     reach: Option<f64>,
 ) -> Result<Result<FaceContainment, BeyondReach>, ContainError> {
     let y = arc(0.25).y;
-    let b: Body<f64> = brick((-0.5, x1), (y, y + 3.0), (-1.0, 1.0), Tol::witness());
+    let b: Body<T> = brick((-0.5, x1), (y, y + 3.0), (-1.0, 1.0), Tol::witness());
     let (face, plane) = b
         .faces()
         .find_map(|(k, _)| {
             let plane = crate::face_normal::face_plane(&b, k)?;
-            (plane.normal.dot(Vec3::unit_y()) < -0.5).then_some((k, plane))
+            let facing = plane.normal.dot(Vec3::unit_y()).certified_bracket()?;
+            (facing.1 < -0.5).then_some((k, plane))
         })
         .expect("the brick has the face");
-    let p = arc(0.5 * x);
+    let p = arc(0.5 * x).map(T::from_f64);
     let off = (p - plane.origin).dot(plane.normal);
     let reach: Option<Reach> = reach.map(|along| {
         let (admitted, ()) =
-            decide_admit::<f64, ()>("spline_composite_root_on", 0.5 * x, band(), |_| Checked {
+            decide_admit::<T, ()>("spline_composite_root_on", 0.5 * x, band(), |_| Checked {
                 residual: Margin::of(off),
                 reach: along,
                 witness: (),
@@ -96,10 +102,15 @@ fn placed(
 /// trim edge ten reaches away, every parameter of the stretch reads `In`.
 #[test]
 fn a_shallow_crossings_containment_answers_one_way_or_refuses() {
+    one_way_or_refuses::<f64>();
+    one_way_or_refuses::<geom_core::Interval>();
+}
+
+fn one_way_or_refuses<T: Scalar>() {
     let (zero, escalate) = (band().zero(), band().escalate());
     let x1 = 0.5 + 2.0 * escalate;
     let (truth, over, short, past) = (0.5, x1, x1 - 5.0 * zero, x1 + 3.0 * escalate);
-    let alone = |x: f64| placed(x1, x, None);
+    let alone = |x: f64| placed::<T>(x1, x, None);
     assert!(
         matches!(alone(truth), Ok(Ok(FaceContainment::In)))
             && matches!(alone(over), Ok(Ok(FaceContainment::OnEdge(_))))
@@ -111,7 +122,7 @@ fn a_shallow_crossings_containment_answers_one_way_or_refuses() {
         alone(short),
         alone(past)
     );
-    let reaching = |x: f64| placed(x1, x, Some(stretch()));
+    let reaching = |x: f64| placed::<T>(x1, x, Some(stretch()));
     assert!(
         matches!(reaching(over), Ok(Err(BeyondReach))),
         "over the trim edge: {:?}",
@@ -127,7 +138,7 @@ fn a_shallow_crossings_containment_answers_one_way_or_refuses() {
     let far = 0.5 + 10.0 * (escalate + stretch());
     for along in [-0.9, -0.4, 0.0, 0.4, 0.9] {
         let x = 0.5 + along * zero / H;
-        let got = placed(far, x, Some(stretch()));
+        let got = placed::<T>(far, x, Some(stretch()));
         assert!(
             matches!(got, Ok(Ok(FaceContainment::In))),
             "x = {x}: no trim edge within the reach: {got:?}"
@@ -142,7 +153,7 @@ fn a_shallow_crossings_containment_answers_one_way_or_refuses() {
 #[test]
 fn a_crossing_reaching_less_than_the_zero_band_keeps_its_boundary_verdict() {
     let x1 = 0.5 + 2.0 * band().escalate();
-    let got = placed(x1, x1, Some(1e-3 * band().zero()));
+    let got = placed::<f64>(x1, x1, Some(1e-3 * band().zero()));
     assert!(
         matches!(got, Ok(Ok(FaceContainment::OnEdge(_)))),
         "over the trim edge: {got:?}"

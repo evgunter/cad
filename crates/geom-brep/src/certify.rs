@@ -2816,15 +2816,14 @@ pub struct NurbsLane<T: geom_core::Certifies> {
     >,
     /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
     /// crossed by their certified enclosures.
-    composite: fn(
-        &geom::NurbsCurve3<T>,
-        (T, T),
-        &Surface<T>,
-        Band,
-    ) -> Result<
-        crate::curve_face::composite::Crossings<T>,
-        crate::curve_face::composite::CompositeRefusal,
-    >,
+    composite:
+        fn(
+            &geom::NurbsCurve3<T>,
+            (T, T),
+            &Surface<T>,
+            Band,
+        )
+            -> Result<crate::roots::Crossings<T>, crate::curve_face::composite::CompositeRefusal>,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2886,10 +2885,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<
-        crate::curve_face::composite::Crossings<T>,
-        crate::curve_face::composite::CompositeRefusal,
-    > {
+    ) -> Result<crate::roots::Crossings<T>, crate::curve_face::composite::CompositeRefusal> {
         crate::curve_face::composite::crossings(
             net,
             params,
@@ -3069,10 +3065,7 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<
-        crate::curve_face::composite::Crossings<T>,
-        crate::curve_face::composite::CompositeRefusal,
-    > {
+    ) -> Result<crate::roots::Crossings<T>, crate::curve_face::composite::CompositeRefusal> {
         (self.composite)(net, params, surface, band)
     }
 

@@ -74,11 +74,15 @@ crates/topo/src/boolean/mod.rs 1
 crates/topo/src/boolean/overlap.rs 1
 # recl: recl_edges classifies every mention pair: NOT A SEARCH.
 crates/topo/src/boolean/recl.rs 3
-# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
-# spline_wall_event (1) and wall_crossing (1), which crossing is the
-# event: WHICH. (first_unsupported_pair's two box reads left with main's
-# operand gate, e4516384d5.)
-crates/topo/src/boolean/reduce.rs 5
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (1)
+# and wall_crossing (1), which crossing is the event: WHICH. Not counted
+# here, their `?` standing on a line of its own after a call that takes
+# the band in a closure: spline_interior's and spline_wall_event's
+# placements of a crossing within its reach
+# (`contain::placed_within_reach`), WHICH as the others are.
+# (first_unsupported_pair's two box reads left with main's operand gate,
+# e4516384d5.)
+crates/topo/src/boolean/reduce.rs 3
 # rim_wedge: departures's two cover reads: WHICH, the first piece whose
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's

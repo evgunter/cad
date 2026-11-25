@@ -191,6 +191,36 @@ fn a_box_past_the_end_refuses_wherever_its_middle_is() {
     }
 }
 
+/// **Two meetings are told apart for every parameter each box holds.**
+/// The line lying in the chart's plane meets it at every parameter, so
+/// two boxes are handed in, their middles thirty zero bands apart. Each
+/// twenty zero bands long, a parameter of one lies within the band of a
+/// parameter of the other, and they refuse at the row that parts them;
+/// each a zero band long, both are reported.
+#[test]
+fn two_meetings_are_parted_with_their_boxes_lengths() {
+    let level = Curve3::Line(geom::Line {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        dir: geom_core::UnitVec3::exact_x(),
+    });
+    let read = |half: f64| {
+        let cell = |t: f64| [(t - half, t + half), (t, t), (0.5, 0.5)];
+        let isolated = Isolated {
+            span: (0.0, 1.0),
+            speed: 1.0,
+            roots: vec![cell(0.4), cell(0.4 + 30.0 * ZERO)],
+        };
+        settle(&level, &flat(), &isolated, band())
+    };
+    let refused = read(10.0 * ZERO);
+    assert!(
+        matches!(refused, Err(SplineFaceRefusal::Escalated(d)) if d.predicate == Some("spline_face_roots_apart")),
+        "the boxes' reaches overlap: {refused:?}"
+    );
+    let found = read(0.5 * ZERO).unwrap();
+    assert_eq!(found.len(), 2, "apart past both reaches: {found:?}");
+}
+
 /// A bicubic patch over the square of side `size`, waved by a twentieth
 /// of it.
 #[allow(clippy::cast_precision_loss)]

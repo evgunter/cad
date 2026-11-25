@@ -79,7 +79,7 @@ use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sig
 use crate::half_angle::SPLITS;
 use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
-use crate::roots::{Unsettled, touch_or_tangency, unadmitted};
+use crate::roots::{Crossings, Unsettled, touch_or_tangency, unadmitted};
 
 /// Why [`crossings`] gave no answer.
 #[derive(Clone, Copy, Debug)]
@@ -118,10 +118,6 @@ impl From<Unsettled> for CompositeRefusal {
         Self::Unsettled(why)
     }
 }
-
-/// **The crossings of one span** ([`crossings`]): each parameter with
-/// what its check bounded.
-pub type Crossings<T> = Vec<Admitted<T, Reach>>;
 
 /// K name: a part of the span read against the surface, metered, as
 /// definitely apart from it or not.
@@ -268,7 +264,7 @@ pub fn crossings<T: geom_core::Certifies>(
     let off = |p: Point3<T>| Margin::of(crate::implicit_residual(surface, p));
     let middle = |t: f64| {
         let r = cross(off(net.eval_at(t)).value());
-        0.5 * (r.lo() + r.hi())
+        geom::mid_param(r.lo(), r.hi())
     };
     let crossing = |bracket: (f64, f64)| {
         Meeting::Crossing(propose(bracket, &middle), length_over(&rails, bracket))

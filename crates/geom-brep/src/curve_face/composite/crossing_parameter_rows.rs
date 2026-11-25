@@ -187,6 +187,59 @@ fn settle_answers_one_way_or_refuses_on_admitted_parameters_and_the_split_follow
     );
 }
 
+/// **Two crossings, and a crossing and a crease, are told apart for
+/// every parameter each could be stored at.** On the unit segment
+/// through the plane, two meetings three hundred zero bands apart, each
+/// reaching two hundred, refuse at the row that parts them: a parameter
+/// of one's reach lies within the band of a parameter of the other's.
+/// Reaching ten each, they are both reported. A crease's point three
+/// hundred zero bands from one meeting refuses it at the crease's row
+/// where the meeting reaches four hundred, and lets it through where it
+/// reaches ten.
+#[test]
+fn crossings_and_creases_are_parted_with_the_reach() {
+    let d = Vec3::new(1.0, 0.0, 0.0);
+    let net = segment(3, Point3::origin() - d * 0.5, Point3::origin() + d * 0.5);
+    // Every point of the segment lies in the plane: each parameter reads
+    // ON, and the meetings are handed in.
+    let read = |meetings: Vec<Meeting>, creases: &[f64]| {
+        settle(&net, (0.0, 1.0), band(), creases, meetings, &|p: Point3<
+            f64,
+        >| {
+            Margin::of(crate::implicit_residual(&ground(), p))
+        })
+    };
+    let (t, apart) = (0.4, 300.0 * ZERO);
+    let pair = |reach: f64| {
+        read(
+            vec![
+                Meeting::Crossing(t, reach),
+                Meeting::Crossing(t + apart, reach),
+            ],
+            &[],
+        )
+    };
+    let refused = pair(200.0 * ZERO);
+    assert!(
+        matches!(refused, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_roots_apart")),
+        "the reaches overlap: {refused:?}"
+    );
+    assert!(
+        matches!(pair(10.0 * ZERO).as_deref(), Ok([_, _])),
+        "apart past both reaches"
+    );
+    let by_crease = |reach: f64| read(vec![Meeting::Crossing(t, reach)], &[t + apart]);
+    let refused = by_crease(400.0 * ZERO);
+    assert!(
+        matches!(refused, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_at_crease")),
+        "the crease lies within the reach: {refused:?}"
+    );
+    assert!(
+        matches!(by_crease(10.0 * ZERO).as_deref(), Ok([_])),
+        "the crease lies past the reach"
+    );
+}
+
 /// **A leaf and its witness place a crossing alike, or the leaf
 /// refuses.** The cubic unit segment crosses the plane at a sine of
 /// `10⁻³`, at `t = 0.3`. Its witness (the `f64` net) brackets the

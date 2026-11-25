@@ -301,6 +301,10 @@ pub fn touch_or_tangency<R: From<Unsettled>>(
     gap.map_or_else(|| Unsettled::Tangency.into(), touch)
 }
 
+/// **The crossings of one span with a face's carrier, each with what its
+/// check bounded** ([`crate::curve_face::composite::crossings`]).
+pub type Crossings<T> = Vec<geom_core::solved::Admitted<T, geom_core::solved::Reach>>;
+
 /// **A stored root the solved-value door refused**, told as the walk's
 /// refusal: a residual read definitely off is [`Unsettled::Meter`] under
 /// the door's row, one in the band's escalation the caller's

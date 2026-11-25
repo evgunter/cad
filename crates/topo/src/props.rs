@@ -7288,7 +7288,7 @@ pub trait AtRestPolicy: Decide {
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     >;
@@ -7610,7 +7610,7 @@ impl AtRestPolicy for f64 {
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
@@ -7793,7 +7793,7 @@ impl AtRestPolicy for geom_core::Probe {
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
@@ -7974,7 +7974,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
@@ -8151,7 +8151,7 @@ where
         band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
@@ -8344,7 +8344,7 @@ where
         _band: geom_core::Band,
     ) -> Option<
         Result<
-            geom_brep::curve_face::composite::Crossings<Self>,
+            geom_brep::roots::Crossings<Self>,
             geom_brep::curve_face::composite::CompositeRefusal,
         >,
     > {
