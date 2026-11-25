@@ -801,3 +801,41 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
         );
     }
 }
+
+/// **A thin lemon never meshes as `Ok`.** At `R = −0.99999` the one
+/// band about the wrap edge is narrower than δ = `1e-2` and emits no
+/// triangle along the wrap edge's chord, so the mesh would be open
+/// there. Today the cross-face chord census refuses it by its
+/// `debug_assert` (issue 897), which runs in every profile this
+/// workspace builds (the root `Cargo.toml`'s release stanza); the row
+/// reads the outcome, not the mechanism, so it goes red if any build
+/// returns the open mesh as `Ok`
+/// (`work/tesslane/a-thin-lemons-one-band-meshes-no-triangle-along-its-wrap-edge-and-trips-the-chord-census.md`).
+/// The two coarser lemons mesh.
+#[test]
+fn a_thin_lemon_never_meshes_as_ok() {
+    let tol = Tol::witness();
+    for (big, meshes) in [(-0.999, true), (-0.9999, true), (-0.99999, false)] {
+        let built = revolve(
+            &validated(vec![football(big, 1.0)]),
+            y_axis(),
+            Revolution::Full,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("R {big}: {e}"));
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mesh::tessellate(&built.body, 1e-2, tol).is_ok()
+        }));
+        if meshes {
+            assert!(
+                matches!(got, Ok(true)),
+                "R {big}: the lemon meshes, got {got:?}"
+            );
+        } else {
+            assert!(
+                !matches!(got, Ok(true)),
+                "R {big}: the band narrower than δ comes back as an Ok mesh"
+            );
+        }
+    }
+}

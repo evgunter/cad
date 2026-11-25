@@ -1143,6 +1143,14 @@ fn one_vertex_sense<T: Decide>(
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
     let (outer_curve, ring_curve) = (curve_of(outer)?, curve_of(ring)?);
     // The lever is the outer half's own span's extent, the span it consumes.
+    // At a real seam the two halves leave the vertex antiparallel, so the
+    // margin is `cos · arm` with `cos = −1`, and the span's extent is at
+    // most the carrier's: a narrower lever can only move a decided
+    // `Negative` toward `Zero` (a refusal), never flip a sense. Every
+    // one-vertex seam the suites build closes over a full period, where
+    // the span's extent is the carrier's; no row reaches a partial span,
+    // which needs a one-vertex seam whose carrier runs past its edge's
+    // ends, and no builder is known to mint one.
     let (t0, t1) = outer_curve.0.params();
     let arm = geom_brep::ExtentBall::of_covered(
         outer_curve
