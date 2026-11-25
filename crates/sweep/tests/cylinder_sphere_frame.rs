@@ -785,7 +785,7 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
         tol,
     );
     let volume = |body: &AtRestBody<f64>| {
-        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+        let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("unmeasured: {e:?}"));
         (m.enclosure.volume, m.enclosure.volume_pad)
     };
@@ -800,17 +800,17 @@ fn a_brick_into_the_chorded_cap_combines_with_every_result() {
             let Ok(result) = run(op, x, y) else { continue };
             let Some(body) = result.body() else { continue };
             let label = format!("{}, {op_label}", pose.label);
-            let (vx, px) = volume(body);
+            let (vx, px) = volume(&body.body);
             let mut with = Vec::new();
             for (name, by) in [
                 ("∪", BooleanOp::Union),
                 ("∩", BooleanOp::Intersect),
                 ("∖", BooleanOp::Subtract),
             ] {
-                match run(by, body, &brick) {
+                match run(by, &body.body, &brick) {
                     Ok(r) => match r.body() {
                         Some(got) if topo::validate_closed(&got.body).is_ok() => {
-                            with.push(Some(volume(got)));
+                            with.push(Some(volume(&got.body)));
                         }
                         Some(_) => off.push(format!("{label} {name} the brick: not closed")),
                         // An empty common part: no volume.
