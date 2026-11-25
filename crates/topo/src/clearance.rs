@@ -7384,6 +7384,128 @@ mod depth_rows {
             );
         }
     }
+
+    /// **A sphere's centre is carried through the relative motion.** A
+    /// unit-sphere zone at heights 0.9 to 0.99 read through a shift of 0.8,
+    /// against a wall of radius 0.3, heights 0 to 0.5, about an axis at
+    /// `(0.8, 0, 0)`: only the sphere's centre parts them (the wall lies
+    /// within 0.59 of it, the zone at 1), either side placed, either way
+    /// round. Then a smaller wall about an axis at `(0.3, 0, 0)`, which the
+    /// zone crosses when read through the shift `(0.211, −0.092, −0.795)`:
+    /// not parted. Red where the centre is not carried: the first reads
+    /// the wall about the uncarried centre, and the crossing pair reads the
+    /// whole small wall within 0.6 of it, a spurious part.
+    #[test]
+    fn a_sphere_centre_is_carried_through_the_relative_motion() {
+        let sphere = crate::boxes::sphere_rect_rows::sphere_zone_sheet(
+            (0.2, 1.4),
+            (0.9, 0.99),
+            Tol::witness(),
+        );
+        let wall = |x: f64, radius: f64, height: f64| {
+            let mut body = Body::<f64>::new();
+            let frame = CylFrame {
+                origin: Point3::new(x, 0.0, 0.0),
+                ..CylFrame::canonical(radius)
+            };
+            let f = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, height), Tol::witness());
+            (body, f)
+        };
+        let shift = |x: f64, y: f64, z: f64| RigidMotion::translation(Vec3::new(x, y, z)).unwrap();
+        let parted = |a: &(Body<f64>, FaceKey),
+                      ma: Option<RigidMotion<f64>>,
+                      b: &(Body<f64>, FaceKey),
+                      mb: Option<RigidMotion<f64>>| {
+            let wa = window_of(&a.0, a.1, Which::First, ma.as_ref()).unwrap();
+            let wb = window_of(&b.0, b.1, Which::Second, mb.as_ref()).unwrap();
+            let at = |x: &Window<'_, f64>, y: &Window<'_, f64>| {
+                parted_in_depth(
+                    x,
+                    y,
+                    Interval::from_f64(0.0),
+                    band(),
+                    Interval::from_certified,
+                )
+            };
+            (at(&wa, &wb), at(&wb, &wa))
+        };
+        let (wide, small) = (wall(0.8, 0.3, 0.5), wall(0.3, 0.2, 0.3));
+        for (what, a, ma, b, mb, want) in [
+            (
+                "the zone across the small wall",
+                &sphere,
+                Some(shift(0.211, -0.092, -0.795)),
+                &small,
+                None,
+                false,
+            ),
+            (
+                "the sphere placed",
+                &sphere,
+                Some(shift(0.8, 0.0, 0.0)),
+                &wide,
+                None,
+                true,
+            ),
+            (
+                "the sphere placed, second",
+                &wide,
+                None,
+                &sphere,
+                Some(shift(0.8, 0.0, 0.0)),
+                true,
+            ),
+            (
+                "the wall placed",
+                &sphere,
+                None,
+                &wide,
+                Some(shift(-0.8, 0.0, 0.0)),
+                true,
+            ),
+        ] {
+            assert_eq!(parted(a, ma, b, mb), (want, want), "{what}");
+        }
+    }
+
+    /// **Crossing torus patches read through a motion are never parted.**
+    /// Tubes 0.425 and 0.45 over one chart window, their cores 0.2 apart
+    /// along the axis, so the patches cross; the inner read through a skew
+    /// motion beside the outer built at its image. Red where a core's axis
+    /// is not carried, or a site is read in the wrong frame: the tubes'
+    /// core depths then read 0.025 apart, a spurious part.
+    #[test]
+    fn crossing_tori_read_through_a_motion_are_not_parted() {
+        let axis = UnitVec3::new(Vec3::new(1.0, -2.0, 0.5), "a skew axis", band()).unwrap();
+        let m = RigidMotion::translation(Vec3::new(7.0, -3.0, 4.0))
+            .unwrap()
+            .compose(RigidMotion::rotation(axis, 0.9).unwrap())
+            .unwrap();
+        let torus = |minor: f64, lift: f64, motion: Option<&RigidMotion<f64>>| {
+            let (o, z, x) = (Point3::new(0.0, 0.0, lift), Vec3::unit_z(), Vec3::unit_x());
+            let (o, z, x) = motion.map_or((o, z, x), |m| {
+                (m.transform_point(o), m.transform_vec(z), m.transform_vec(x))
+            });
+            crate::boxes::tests::torus_wall(o, z, x, 2.0, minor, (0.1, 3.0), (-3.0, 3.0))
+        };
+        let (inner, outer_moved) = (torus(0.425, 0.2, None), torus(0.45, 0.0, Some(&m)));
+        let wa = window_of(&inner.0, inner.1, Which::First, Some(&m)).unwrap();
+        let wb = window_of(&outer_moved.0, outer_moved.1, Which::Second, None).unwrap();
+        let at = |p: &Window<'_, f64>, q: &Window<'_, f64>| {
+            parted_in_depth(
+                p,
+                q,
+                Interval::from_f64(0.0),
+                band(),
+                Interval::from_certified,
+            )
+        };
+        assert_eq!(
+            (at(&wa, &wb), at(&wb, &wa)),
+            (false, false),
+            "the patches cross"
+        );
+    }
 }
 
 #[cfg(test)]

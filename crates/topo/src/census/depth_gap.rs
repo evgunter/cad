@@ -250,6 +250,14 @@ fn least_on<T: Decide>(
     greatest([Some(near)].into_iter())
 }
 
+/// **A site either face proposes, in both faces' coordinates**
+/// ([`gaps_in_depth`]).
+#[derive(Clone, Copy)]
+struct Carried<T: geom_core::Real> {
+    in_a: Around<T>,
+    in_b: Around<T>,
+}
+
 /// **Each gap in depth between two faces**, read as `ra`, `rb`
 /// ([`face_read`]) off the bodies of their seats, each in its body's
 /// coordinates.
@@ -257,8 +265,9 @@ fn least_on<T: Decide>(
 /// For each depth either proposes and each order of the two, one face's
 /// least depth less the other's greatest, less both faces' pads, where
 /// both are read; each face's depth about the site is read in its own
-/// coordinates, the site carried into the other's through the seats'
-/// relative motion ([`Seat::relative`]). A gap that is positive bounds
+/// coordinates, a site of `b`'s carried into `a`'s through the seats'
+/// relative motion ([`Seat::relative`]) and one of `a`'s into `b`'s
+/// through its inverse. A gap that is positive bounds
 /// the faces' separation from below; any other says nothing of the
 /// pair, and a relative motion that does not hold finite numbers
 /// yields no gap.
@@ -274,22 +283,23 @@ pub(crate) fn gaps_in_depth<'r, T: Decide>(
     let (body_a, body_b) = (seat_a.body(), seat_b.body());
     let carry =
         |into: Option<RigidMotion<T>>, site: Around<T>| into.map_or(site, |m| site.moved(&m));
-    // Each site either face proposes, in `a`'s coordinates and in `b`'s.
-    let sites = (seat_a.relative(&seat_b).ok())
-        .zip(seat_b.relative(&seat_a).ok())
-        .into_iter()
-        .flat_map(move |(into_a, into_b)| {
-            let of_a = ra
-                .depths
-                .iter()
-                .map(move |p| (p.depth, carry(into_b, p.depth)));
-            let of_b = rb
-                .depths
-                .iter()
-                .map(move |p| (carry(into_a, p.depth), p.depth));
-            of_a.chain(of_b)
+    // One reading of the relative motion, and its inverse: two readings
+    // would be two motions at `f64`, ulps apart.
+    let frames = seat_a
+        .relative(&seat_b)
+        .and_then(|into_a| Ok((into_a, into_a.map(RigidMotion::inverse).transpose()?)));
+    let sites = frames.ok().into_iter().flat_map(move |(into_a, into_b)| {
+        let of_a = ra.depths.iter().map(move |p| Carried {
+            in_a: p.depth,
+            in_b: carry(into_b, p.depth),
         });
-    sites.flat_map(move |(in_a, in_b)| {
+        let of_b = rb.depths.iter().map(move |p| Carried {
+            in_a: carry(into_a, p.depth),
+            in_b: p.depth,
+        });
+        of_a.chain(of_b)
+    });
+    sites.flat_map(move |Carried { in_a, in_b }| {
         // A least bound costs a point placement, so it is read only
         // against a greatest the other face has.
         [

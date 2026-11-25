@@ -73,3 +73,14 @@ the motion's application (about an ulp of the translation's and the
 site's magnitude) and the motion's own distance from rigid
 (`RigidMotion::rounding`, about an ulp per composition). It belongs to
 this row's question, and is not measured separately here.
+
+**Measured by the review of PR 7778** (a throwaway probe, 2,000 random
+skew motions): the site error of `a⁻¹ ∘ b`, with `b` the motion `a`
+followed by a unit shift, is `1.7e-15` at a translation of size about
+1, `1.9e-14` at `1e2`, `2.1e-13` at `1e3`, `1.5e-12` at `1e4` and
+`1.5e-11` at `1e5`, and the gap moves by at most twice that. Against
+`2·sweep_pad` at the default ε (`2.4e-8`) that leaves four orders of
+room at `1e4`. Near `ε_min` (`4.8e-12`) it is of the same order at
+`1e4` and over it at `1e5`, and the term has no known sign. The
+relative motion is read once and its inverse taken for the other way
+(`gaps_in_depth`), so the two directions are one motion's.

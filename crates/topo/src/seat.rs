@@ -87,9 +87,9 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         }
     }
 
-    /// **The map from `other`'s body coordinates into this one's**:
-    /// `self⁻¹ ∘ other`, composed through the reader's frame the two
-    /// seats share, `None` where both are read in it as they stand.
+    /// **The map from `other`'s body coordinates into this one's**,
+    /// through the reader's frame the two seats share
+    /// ([`RigidMotion::relative`]).
     ///
     /// # Errors
     ///
@@ -98,12 +98,7 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         &self,
         other: &Seat<'_, T>,
     ) -> Result<Option<RigidMotion<T>>, RigidMotionError> {
-        Ok(match (self.at, other.at) {
-            (None, None) => None,
-            (None, Some(b)) => Some(b),
-            (Some(a), None) => Some(a.inverse()?),
-            (Some(a), Some(b)) => Some(a.inverse()?.compose(b)?),
-        })
+        RigidMotion::relative(self.at.as_ref(), other.at.as_ref())
     }
 
     /// **A point of the reader's frame, in the body's own coordinates**:
