@@ -587,3 +587,27 @@ fn admissible_candidates_of_one_shallow_crossing_place_three_ways() {
         "a candidate within the end's zero is the end's: {end:?}"
     );
 }
+
+/// **A root past the span's end is placed by a bound on its chord, never
+/// by its parameter.** The quadratic `x = −(t − 1)(t − 1.04)`,
+/// `z = 1.2·10⁻⁸·(t − 1.04)` ends `4.8·10⁻¹⁰` m under the plane and
+/// meets it, continued, at `t = 1.04`, a chord of `4.8·10⁻¹⁰` m from the
+/// end along a curve that bends back. The parameter gap times the span's
+/// least speed reads past the band, which would answer no meeting; the
+/// arm answers the end's meeting or a window, never no meeting.
+#[test]
+fn a_continuation_that_bends_back_places_its_root_by_chord_not_parameter() {
+    let (r, a) = (1.04_f64, 1.2e-8_f64);
+    let xz = [
+        (-r, -a * r),
+        ((1.0 - r) / 2.0, -a * r + a / 2.0),
+        (0.0, a * (1.0 - r)),
+    ];
+    let net = spline(2, &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0], &xz);
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net.clone()));
+    let found = cross(&Span::new(&carrier, net.domain()), &ground(), band());
+    assert!(
+        !matches!(&found, Ok(f) if f.meetings.is_empty()),
+        "{found:?}"
+    );
+}
