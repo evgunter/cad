@@ -2,10 +2,11 @@
 id: a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a spindle sheet's face or an approximated face, so every finished body holding one refuses Unsupported at the at-rest gate
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: H
+branch: embedwalk/spindle-window
 ---
 
 

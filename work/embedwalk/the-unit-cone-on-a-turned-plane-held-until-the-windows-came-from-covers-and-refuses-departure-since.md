@@ -2,10 +2,11 @@
 id: the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since
 kind: issue
 title: The unit cone revolved on one turned sketch plane held until a face's window was read from its edges' covers (PR 7120) and refuses Departure at its apex since
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P1
 cost: M
+branch: embedwalk/unit-cone
 ---
 
 ## Finding

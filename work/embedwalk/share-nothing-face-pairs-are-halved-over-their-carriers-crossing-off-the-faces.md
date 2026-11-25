@@ -2,11 +2,12 @@
 id: share-nothing-face-pairs-are-halved-over-their-carriers-crossing-off-the-faces
 kind: issue
 title: Two faces of one solid that share no cell, centimetres apart, are halved to the depth floor over cells that hold their carriers' crossing and no point of a face, because the sphere and torus region readings read no face a spline edge bounds
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P0
 cost: M
 refs: [a-refusing-ask-runs-on-to-its-whole-budget-looking-for-a-verified-crossing, nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance]
+branch: embedwalk/share-nothing-region
 ---
 
 
