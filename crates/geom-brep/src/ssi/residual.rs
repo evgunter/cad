@@ -816,6 +816,83 @@ mod tests {
         );
     }
 
+    /// **The torus's form over a box holds the quartic at the box's
+    /// points, and certifies wherever the expanded quartic alone does.**
+    /// Seeded frame boxes on four tori, from a box `1e-12` wide to one
+    /// `1e150` wide, many straddling the axis (the radial enclosure's
+    /// lower end exactly zero): each box's value meets both spellings'
+    /// own point enclosures at its 27 corner, edge and centre points, so
+    /// no slack enters. Red against either factor read without its `z²`,
+    /// and against a meet that refuses or keeps a `Trv` root at the axis.
+    #[test]
+    fn a_torus_form_over_a_box_holds_its_points_at_every_scale() {
+        use geom_core::Interval;
+        use geom_core::interval::certification::Certification;
+        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let expanded = |major: f64, minor: f64, q: Vec3<Interval>| {
+            let (major, minor) = (Interval::point(major), Interval::point(minor));
+            let radial = q.x.sqr() + q.y.sqr();
+            let s = radial + q.z.sqr() + major.sqr() - minor.sqr();
+            s.sqr() - Interval::point(4.0) * major.sqr() * radial
+        };
+        let overlaps = |a: Interval, b: Interval| a.lo() <= b.hi() && b.lo() <= a.hi();
+        let mut axial = 0;
+        for (big, small) in [(5.0, 0.06), (1.0, 0.9), (1e-6, 1e-8), (1e3, 1.0)] {
+            let form = ImplicitForm::of(&torus(big, small)).expect("a ring torus");
+            for scale in [1e-12, 1e-3, 1.0, 1e3, 1e150] {
+                for _ in 0..100 {
+                    let side = |c: f64, w: f64| {
+                        let w = w.abs() * scale;
+                        Interval::from_bounds(c - w, c + w)
+                    };
+                    let reach = big + small;
+                    let q = Vec3::new(
+                        side(next() * reach * 1.5, next()),
+                        side(next() * reach * 1.5, next()),
+                        side(next() * small * 2.0, next()),
+                    );
+                    let f = form.value(q);
+                    let e = expanded(big, small, q);
+                    assert_eq!(f.is_certified(), e.is_certified(), "{q:?}: {f:?} vs {e:?}");
+                    if !f.is_certified() {
+                        continue;
+                    }
+                    if q.x.lo() <= 0.0 && 0.0 <= q.x.hi() && q.y.lo() <= 0.0 && 0.0 <= q.y.hi() {
+                        axial += 1;
+                    }
+                    let ends = |i: Interval| [i.lo(), i.hi(), 0.5 * i.lo() + 0.5 * i.hi()];
+                    for x in ends(q.x) {
+                        for y in ends(q.y) {
+                            for z in ends(q.z) {
+                                let p = Vec3::new(
+                                    Interval::point(x),
+                                    Interval::point(y),
+                                    Interval::point(z),
+                                );
+                                for at in [expanded(big, small, p), form.value(p)] {
+                                    assert!(
+                                        at.is_certified() && overlaps(f, at),
+                                        "({x:e}, {y:e}, {z:e}) reads {at:?} outside {f:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            axial > 100,
+            "only {axial} certified boxes straddle the axis"
+        );
+    }
+
     /// **A thin torus's form clears a box at the box's own distance.**
     /// Lily wall 8's stem, `R = 5`, `r = 0.06` (`R/r ≈ 83`): a cube of
     /// side `w` centred `d = 1 cm` outside the tube on the outer equator
