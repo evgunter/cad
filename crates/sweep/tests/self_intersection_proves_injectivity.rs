@@ -4913,19 +4913,15 @@ fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
 /// against the apex alone. `Embedded` at both scalars: the unit
 /// triangle in each of [`apex_frames`] and a thousand units off the
 /// origin, and a triangle a hundred times the size, a needle and a flat
-/// one in the plain frame; and the same poses revolved by `−θ`, but one.
+/// one in the plain frame; and the same poses revolved by `−θ`.
 /// Red while the departure arm reads no plane but those through the
 /// shared ruling. Off the plain frame the `−θ` poses are red, too, where
 /// the shared ruling's image stops a rounding of its stored end short of
 /// the apex and is not run on to the apex's collapsed side
 /// (`ends_on_collapse`): the cone is then not presented at the apex and
-/// no plane is tried.
-///
-/// The one pose that is not embedded: revolved by `−5.5` in the turned
-/// frame the wedge runs out of depth between its start plane and its
-/// cone, at both scalars and every ε, and is pinned as that refusal
-/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
-/// Red when it holds.
+/// no plane is tried. The `−5.5` wedge in the turned frame is red, out
+/// of depth between its start plane and its cone, where its faces'
+/// windows are read off their boundaries' world boxes.
 #[test]
 fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
     use geom_core::{Affine3, Mat3, Vec3};
@@ -5008,16 +5004,6 @@ fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
                     .into_iter()
                     .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
                 {
-                    if turn == -5.5 && *name == "turned" {
-                        let verdict = format!("{:?}", report.verdict);
-                        assert!(
-                            verdict.starts_with("Refused(Budget { stop: Depth {")
-                                && verdict.ends_with("a: FaceKey(1v1), b: FaceKey(4v1) })"),
-                            "{what} at {scalar} runs out of depth between its start \
-                             plane and its cone: {verdict}"
-                        );
-                        continue;
-                    }
                     assert_eq!(
                         report.verdict,
                         Embedding::Embedded,
@@ -5108,7 +5094,8 @@ fn door<T: Scalar + geom_core::Certifies>(
 }
 
 /// **The embedding ask ends at its first finding, and a refusal is
-/// one.** The plate's top and a wall of its void run out of depth at
+/// one.** The plate with its void's base listed from its second vertex:
+/// the plate's top and a wall of its void run out of depth at
 /// the apex, on cells a rounding off it, before the cell that holds the
 /// apex is offered as a crossing on the same level: the ask ends there,
 /// refused on those two faces, which share no vertex, with one cell
@@ -5122,7 +5109,7 @@ fn door<T: Scalar + geom_core::Certifies>(
 fn a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first() {
     use topo::clearance::Embedding;
     fn at<T: Scalar + geom_core::Certifies>() -> Embedding {
-        let rest = void_touching_plate::<T>().into_body();
+        let rest = void_touching_plate_at::<T>([0.0; 3], false, 1).into_body();
         let report = door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET);
         let Embedding::Refused(EngineRefusal::Budget {
             stop: CellBudget::Depth { .. },
@@ -5247,7 +5234,7 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
 #[test]
 fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
     use topo::clearance::Embedding;
-    let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
+    let body = void_touching_plate_at::<Interval>([100.0; 3], false, 1).into_body();
     let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
     assert!(
         matches!(
@@ -5348,7 +5335,7 @@ fn a_budget_refusal_names_its_two_faces_and_ends_the_ask() {
 
 /// **A metric bound still reads a violation past a refusal.** The
 /// plate's top against the four faces of its void, asked `≥ 0.2` at a
-/// depth floor of 10: a cell pair runs out of depth before the pair at
+/// depth floor of 7: a cell pair runs out of depth before the pair at
 /// the apex is confirmed closer than the bound, and the verdict is the
 /// violation. The walk ends at the verified violation, which is why
 /// pairs are left abandoned, so a pair counted refused was refused
@@ -5376,7 +5363,7 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
             bound,
             band: band(),
             budgets: Budgets {
-                max_cell_depth: 10,
+                max_cell_depth: 7,
                 max_cell_pairs: BUDGET,
             },
         };
