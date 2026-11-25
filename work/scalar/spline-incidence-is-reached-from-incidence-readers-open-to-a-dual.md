@@ -2,7 +2,8 @@
 id: spline-incidence-is-reached-from-incidence-readers-open-to-a-dual
 kind: issue
 title: spline_incidence.rs is certification arithmetic reached from point_incident and incident_as at T: Decide, which a dual instantiates
-status: dispatched
+status: closed
+closed: 2026-11-25
 opened: 2026-11-20
 priority: P1
 cost: M
@@ -47,3 +48,7 @@ Dispatched as a unit on branch `scalar/spline-incidence-is-reached-from-incidenc
 - (a) **A typed refusal naming the missing lane.** If it is `FittedLaneUnsupported`, `not_owed` excuses it, so a dual's carrier off its spline wall is carried silently: both `at_a_dual_an_off_carrier_*` rows flip, and the catch-all arm's `IsoUnsupported` becomes an excused refusal. If it is a kind of its own, nothing excuses it, so every dual face on a spline chart whose mint reaches the read refuses (the diagonal row's `Ok(0)` becomes a refusal; the corpus is unmeasured). Either way every pcurve door's refusal at a dual on a spline chart ends as the lane refusal rather than as the read.
 - (b) **The base scalar's verdict, with its claim stated.** Today's values, no consumer moves. The doors take `T: Decide` with `T::Value: Certifies` (a scalar whose value channel certifies), the interior takes `Certifies`, and the file can be listed (the gate reads the name in the record). The claim to state: a dual's incidence verdict is the base build's decision, not a certification of the dual.
 - (c) **No read at a dual** ("mints and never checks"). The off-carrier rows flip as in (a), and `incidence_ended` at a dual takes a door's own refusal and its uncovered spans as they stand.
+
+## Superseded, 2026-11-25
+
+Ev ruled the question this stopped on (`[ev]` PR 7719): a dual never runs the incidence read, and the pcurve door splits into derive and certify. The work is `the-pcurve-door-is-two-functions-and-a-dual-holds-no-proposal`; this file's measurements are that unit's starting point. No code changed under this id.
