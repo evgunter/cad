@@ -5,7 +5,7 @@ title: Two copies' crossings are ordered by spans each certified on the ray carr
 status: open
 opened: 2026-10-22
 priority: P1
-cost: E
+cost: M
 design: true
 ---
 
@@ -36,14 +36,27 @@ certified on one ray:
   batches (one per space) and each moved body's group.
 - `crates/editor-core/src/resolve/pick.rs`, `pick_face`: the
   survivors taken over every target of one call, each target's spans
-  certified on the ray read into its own frame. (Folded in from the
-  filed `doctail/pick-face-orders-targets-on-rays-each-carried-by-its-own-body-frame`.)
+  certified on the ray read into its own frame.
 - The viewer's merge of unmoved batches of different spaces, which
-  carry body frames only. (Folded in from the filed
-  `vgeom/unmoved-batches-of-two-spaces-merge-on-body-frame-carried-spans`;
+  carry body frames only;
   `pick3_acceptance::the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex`
   pins those spans bit for bit against `FlatReference`, which carries
-  the same frames.)
+  the same frames.
+- `PickIndex::near`'s outline arm: a profile outline's span is read on
+  the caller's ray against its world-drawn points
+  (`ray_segment_point(&ray, candidate.ends, s)`), while the face it
+  lies on is certified on the ray carried through that face's display
+  map and body frame, so under a large free move an outline can read
+  as behind its own face. It is not repaired alongside the edge's
+  reading because an outline holds no part frame: it knows its space
+  and the copy that carries it (`DisplayView::outline`), not the body
+  whose face it lies on, and that body's frame is a second carry the
+  outline's space coordinates do not share — so "the face it lies on"
+  is a second drawing, ordered across frames like any two copies.
+
+Two P3 rows filed on PR 7792's branch covered the kernel's merge and
+the cross-space merge above; they never reached main, and are folded
+in here as one class.
 
 **The witness.** A copy posed by an exact frame (a dyadic translation
 up to the session box, a half turn or not) and free-moved back onto
@@ -57,7 +70,10 @@ crossing near the origin certifies. The fuzzer and a pinned ray
 `vgeom/moved-copy-twin-witness` (`crates/viewer/tests/moved_copy_pick.rs`:
 `a_moved_copy_drawn_on_its_twin_ties_with_it`,
 `a_copy_moved_back_far_onto_its_twin_ties_with_it`), to land with the
-fix.
+fix. **Take only those two rows** (and the helpers they call) from
+that branch: at b94591be3b it also carries the margined repair PR 7792
+took out — in `pickindex.rs`, editor-core's `pick.rs`, `gpu.rs` and
+pncad-py's `pick.rs` — and the two issue files folded in here.
 
 **Not here any more.** The edge lane's own-face reading: an edge of a
 moved or posed copy read as hidden by its own face (130 of 554 hovers
@@ -75,7 +91,7 @@ and took it out.
 
 ## Next step
 
-The band verdict, `[ev]` pending: two designers agree the pick should
+The band verdict, `[ev]` pending on PR 7793: two designers agree the pick should
 order crossings by a margined band verdict at ε (no certificate
 widths), with editor-core owning the one merge and each target handed
 in under its drawn map. Land the twin witness with that fix.

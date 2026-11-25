@@ -468,11 +468,11 @@ fn a_moved_copys_edge_is_not_hidden_by_its_own_face() {
 /// **A copy posed far off and moved back near the origin picks every
 /// edge it shows**, as a copy posed straight there does — a pinned
 /// counterexample of the search above. The move's translation cancels
-/// the pose's, so the probe ray carried back through both is the
-/// caller's only to the rounding of a coordinate six hundred lengths
-/// out, some two hundred times the width a crossing near the origin
-/// certifies, and a quarter of these hovers read the edge as behind its
-/// own face. Every edge, from a fixed spread of eye directions at two
+/// the pose's, so the probe ray carried back through both keeps none
+/// of its origin's bits below that coordinate's rounding, far coarser
+/// than the width a crossing near the origin certifies, and an edge
+/// read in the world against its face read on the carried ray fell
+/// behind it. Every edge, from a fixed spread of eye directions at two
 /// distances.
 #[test]
 fn a_copy_moved_back_from_far_off_picks_every_edge_it_shows() {
