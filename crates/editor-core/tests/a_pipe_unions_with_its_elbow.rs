@@ -786,3 +786,48 @@ fn an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions() {
         }
     }
 }
+
+/// Review probe: the short elbow's far rim swept through the spread.
+#[test]
+fn review_probe_far_rim_sweep() {
+    let eps = Tol::witness().eps();
+    let mut bad = 0;
+    for (delta, sname, spread) in [
+        (0.2, "d0.2", 3.6 * (eps / 0.2).sqrt()),
+        (0.05, "d0.05", 3.6 * (eps / 0.05).sqrt()),
+        (0.5, "d0.5", 3.6 * (eps / 0.5).sqrt()),
+        (3.0 * eps.sqrt(), "d3rte", 8.8 * eps.powf(0.25)),
+    ] {
+        for hollow in [true, false] {
+            for share in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.05, 1.1, 1.2, 1.3, 1.5, 2.0, 3.0] {
+                let off = short_off_the_seam(delta, share * spread / BEND);
+                let j = join(hollow, CapEnd::End, off);
+                let out = if let Some(e) = j.ev.node_error(j.union) {
+                    match &e.kind {
+                        editor_core::NodeErrorKind::Boolean(b) => format!("REFUSE {}", short(b)),
+                        k => format!("REFUSE-other {k}"),
+                    }
+                } else {
+                    let b = built(&j);
+                    let want = closed_form(hollow, off);
+                    let rel = (b.volume - want).abs() / want;
+                    let ok = b.solids == 1 && b.tier3.is_ok() && b.tier3_prime.is_ok() && rel <= 1e-9;
+                    if !ok { bad += 1; }
+                    format!("BUILD solids={} t3={} t3p={} rel={rel:.2e} {}", b.solids, b.tier3.is_ok(), b.tier3_prime.is_ok(), if ok {"ok"} else {"WRONG"})
+                };
+                println!("PROBE eps={eps:e} {sname} hollow={hollow} share={share}: {out}");
+            }
+        }
+    }
+    println!("PROBE bad={bad}");
+}
+
+fn short(b: &topo::BooleanError) -> String {
+    let s = format!("{b:?}");
+    let s: String = s.split(['{', '(']).next().unwrap_or("").into();
+    match b {
+        topo::BooleanError::JunctionEndUnread { gap, .. } => format!("{s} {gap:?}"),
+        topo::BooleanError::CurvedPierceEscalated { decision, .. } => format!("{s} {decision:?}"),
+        _ => format!("{b:?}").chars().filter(|c| !c.is_whitespace()).take(110).collect(),
+    }
+}
