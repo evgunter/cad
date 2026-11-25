@@ -804,6 +804,24 @@ impl Real for Interval {
         enclose_expansion(&e, 0.0)
     }
 
+    /// The exact expansions enclosed where every coefficient is a stated
+    /// point whose digits an exact expansion keeps
+    /// ([`crate::exact::quartic_sign_algebra`]); the plain enclosure
+    /// elsewhere, which is sound.
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        let exact = (|| {
+            crate::exact::quartic_sign_algebra(
+                stated_point(p)?,
+                stated_point(q_hat)?,
+                stated_point(s)?,
+            )
+        })();
+        exact.map_or_else(
+            || crate::real::plain_quartic_sign_algebra(p, q_hat, s),
+            |parts| parts.map(|e| enclose_expansion(&e, 0.0)),
+        )
+    }
+
     /// The exact expansions enclosed where every input is a stated point
     /// whose digits an exact expansion keeps
     /// ([`crate::exact::harmonic_belly`]) and the denominator is

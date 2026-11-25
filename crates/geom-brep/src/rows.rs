@@ -191,7 +191,7 @@ impl TouchRows {
     }
 }
 
-/// The predicate rows one caller of [`crate::half_angle::half_angle_roots`] meters under.
+/// The predicate rows one caller of [`crate::half_angle::half_angle_roots_past`] meters under.
 #[derive(Clone, Copy, Debug)]
 pub struct HalfAngleRows {
     /// The pole is definitely off the surface (a residual, metres).

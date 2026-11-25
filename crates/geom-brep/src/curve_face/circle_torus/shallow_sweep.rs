@@ -213,31 +213,38 @@ fn arc_off((lo, hi): (f64, f64), root: f64, rho: f64) -> f64 {
     (turn.min(TAU - turn) - half).max(0.0) * rho
 }
 
-/// What is wrong with `got` against `truth` at `reach` metres, if
-/// anything.
+/// What is wrong with `got` against the true roots on the arc at
+/// `reach` metres, if anything: the roots `got` places on the arc are
+/// judged, those it reads off it are not.
 fn judge(
     got: &Result<Vec<(f64, f64)>, String>,
-    truth: &exact::Truth,
+    truth: &[f64],
+    arc: (f64, f64),
     rho: f64,
     reach: f64,
 ) -> Option<String> {
+    let on_arc =
+        |&(lo, hi): &(f64, f64)| crate::curve_face::conic_oracle::on_arc(arc, (lo + hi) / 2.0);
+    let got = &got
+        .as_ref()
+        .map(|roots| roots.iter().copied().filter(on_arc).collect::<Vec<_>>())
+        .map_err(Clone::clone);
     match got {
-        Ok(roots) if roots.len() != truth.roots.len() => Some(format!(
+        Ok(roots) if roots.len() != truth.len() => Some(format!(
             "certified {} roots, the truth has {}",
             roots.len(),
-            truth.roots.len()
+            truth.len()
         )),
         Ok(roots) => {
             let worst = roots
                 .iter()
                 .map(|&r| {
                     truth
-                        .roots
                         .iter()
                         .map(|&t| arc_off(r, t, rho))
                         .fold(f64::INFINITY, f64::min)
                 })
-                .chain(truth.roots.iter().map(|&t| {
+                .chain(truth.iter().map(|&t| {
                     roots
                         .iter()
                         .map(|&r| arc_off(r, t, rho))
@@ -247,12 +254,12 @@ fn judge(
             (worst > reach).then(|| {
                 format!(
                     "a root {worst:.3e} m from the truth ({roots:?} vs {:?})",
-                    truth.roots
+                    truth
                 )
             })
         }
-        Err(what) if what.starts_with("Miss") && !truth.roots.is_empty() => {
-            Some(format!("Miss on {} true roots", truth.roots.len()))
+        Err(what) if what.starts_with("Miss") && !truth.is_empty() => {
+            Some(format!("Miss on {} true roots", truth.len()))
         }
         Err(what)
             if what.starts_with("Miss")
@@ -285,7 +292,17 @@ fn no_certified_root_of_a_shallow_crossing_is_placed_past_the_band() {
             ] {
                 judged += 1;
                 refused += usize::from(matches!(&got, Err(w) if !w.starts_with("Miss")));
-                if let Some(why) = judge(&got, &truth, pose.radius, 10.0 * eps) {
+                let arc = (pose.t0, pose.t1);
+                let on_arc = crate::curve_face::conic_oracle::arc_truth(
+                    |t| crate::implicit_residual(&pose.torus(), pose.carrier().eval(t)),
+                    arc,
+                    &truth.roots,
+                    10.0 * eps,
+                );
+                if on_arc.at_an_end {
+                    continue;
+                }
+                if let Some(why) = judge(&got, &on_arc.roots, arc, pose.radius, 10.0 * eps) {
                     wrong.push(format!(
                         "{lane} at ε {eps:e}, depth {:.3e}: {why}\n  {pose:?}",
                         truth.depth

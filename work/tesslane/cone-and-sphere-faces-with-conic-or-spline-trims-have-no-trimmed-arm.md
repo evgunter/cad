@@ -4,7 +4,7 @@ kind: issue
 title: a sphere face bounded by a spline has no trimmed-lane arm (its cone half is carried by the torus-and-cone row)
 status: open
 opened: 2026-10-28
-priority: P2
+priority: P0
 cost: H
 ---
 
@@ -67,3 +67,15 @@ takes every carrier. What then answers, at δ 2e-2, 5e-3 and 1e-3
 
 So this row's sphere half is now the first stop of every cylinder ×
 sphere boolean in a general pose.
+
+## Re-banded P0 (2026-11-25)
+
+The teapot's handle union builds, and the joined pot does not mesh: the
+section edge between the vessel's sphere and the handle's torus refuses
+`UnsupportedCurve` from `mesh::chords::chart_image` ("trimmed analytic
+face bounded by the projected image of a spline or line carrier — the
+trimmed lane bounds the UV speed of a conic's image only"), measured on
+the tour's `tess-budget` sweep at δ 2e-4 (`teapot/teapotvessel`). Teapot
+wall 2 (`demos/tour/src/teapot.rs`, `wall_probes`) pins it, so this row
+is a stop of the P0 umbrella `splice/curved-demo-joins-build` and
+carries its band. The joined pot needs both this row and its torus half, `a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound`. The sphere's half meets `a-projected-spline-images-speed-bound-on-a-sphere-is-eleven-orders-loose` next: lifting the conic-only rule alone refuses at the chord budget.

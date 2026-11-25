@@ -1922,7 +1922,7 @@ fn conic_or_line_on<T: crate::props::AtRestPolicy>(
         {
             use geom_brep::curve_face::{Pose, PoseRefusal};
             let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
-            return match geom_brep::curve_face::pose(&span, surface, band) {
+            return match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
                 Ok(Pose::Lies) => Ok(Placed::On),
                 Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
                     Ok(Placed::Off)

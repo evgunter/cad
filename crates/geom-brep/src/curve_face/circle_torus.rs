@@ -11,7 +11,7 @@
 //! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
 //! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
 //! trigonometric polynomial of degree TWO, and the shared half-angle
-//! ladder ([`crate::half_angle::half_angle_roots`]) solves it — Bézout's
+//! ladder ([`crate::half_angle::half_angle_roots_past`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn. The
@@ -147,7 +147,7 @@ use geom::Conic;
 use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
+use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
@@ -206,7 +206,7 @@ pub(super) fn torus_wrapper<T: Decide>(
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     use super::pose::{Pose, PoseRefusal};
     let span = crate::curve_pair::Span::new(carrier, (t0, t1));
-    match super::pose::pose(&span, torus, band) {
+    match super::pose::pose(&span, torus, band).map_err(|u| u.why) {
         Err(refusal) if let Some(why) = refusal.unsettled() => Ok(Err(why)),
         Ok(Pose::Lies) => Ok(Ok(Roots::On(OnCarrier))),
         Ok(Pose::Apart) => Ok(Ok(Roots::Miss)),
@@ -214,7 +214,9 @@ pub(super) fn torus_wrapper<T: Decide>(
         Ok(Pose::Through(_)) => Err(DoorRefusal::Invariant(
             "a torus has no singular point a ring's pose reads",
         )),
-        Ok(Pose::Isolated(form)) => torus_method(&span, torus, form.0, band),
+        Ok(Pose::Isolated(form)) => torus_method(&span, torus, form.0, band)
+            .map_err(DoorRefusal::Invariant)
+            .and_then(|walked| super::circle_roots::door_shape(&span, &walked, band)),
         Err(PoseRefusal::InBand { diag, .. }) => Err(DoorRefusal::Escalated(diag)),
         Err(PoseRefusal::Meter { row, .. }) => Ok(Err(Unsettled::Meter { row })),
         Err(PoseRefusal::Torus(refusal)) => Err(DoorRefusal::Torus(refusal)),
@@ -227,33 +229,37 @@ pub(super) fn torus_wrapper<T: Decide>(
 /// what its pose computed. A circle parallel to the axis, its extremes
 /// placed: the contours it crosses, in closed form ([`parallel_roots`]);
 /// otherwise the half-angle walk on the residual's harmonics, of degree
-/// two on a circle and four on an ellipse.
+/// two on a circle and four on an ellipse, read past what it refuses
+/// ([`crate::half_angle::certified_subdivision_past`]).
 ///
 /// # Errors
 ///
-/// As [`circle_torus_roots`].
+/// A kernel fault's readings: a carrier, a surface or a form of another
+/// arm, or a walk's fault.
 pub(super) fn torus_method<T: Decide>(
     span: &crate::curve_pair::Span<'_, T>,
     torus: &geom::Surface<T>,
     form: super::pose::Formed<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+) -> Result<super::cross::Walked<T>, &'static str> {
     use super::pose::Formed;
-    let (t_center, t_axis, major_radius, minor_radius) =
-        torus_data(torus).ok_or(DoorRefusal::Invariant(DESYNC))?;
+    let (t_center, t_axis, major_radius, minor_radius) = torus_data(torus).ok_or(DESYNC)?;
     let (t0, t1) = span.params();
     match (span.carrier(), form) {
         (&geom::Curve3::Circle(circle), Formed::TorusParallel { far, near }) => {
             let axes = axes(&circle, (t_center, t_axis));
             let contours = contours(&circle, (major_radius, minor_radius), &axes, (t0, t1));
-            door_refusal(parallel_roots(
-                &circle,
-                (major_radius, minor_radius),
-                &axes,
-                &contours,
-                (far, near),
-                band,
-            ))
+            super::cross::Walked::of_core(
+                (t0, t1),
+                parallel_roots(
+                    &circle,
+                    (major_radius, minor_radius),
+                    &axes,
+                    &contours,
+                    (far, near),
+                    band,
+                ),
+            )
         }
         (&geom::Curve3::Circle(circle), Formed::TorusWalk { floor }) => circle_walk(
             &circle,
@@ -264,10 +270,7 @@ pub(super) fn torus_method<T: Decide>(
             band,
         ),
         (geom::Curve3::Ellipse(..), Formed::TorusWalk { floor }) => {
-            let conic = span
-                .carrier()
-                .conic()
-                .ok_or(DoorRefusal::Invariant(DESYNC))?;
+            let conic = span.carrier().conic().ok_or(DESYNC)?;
             super::ellipse_torus::torus_walk(
                 &conic,
                 (t_center, t_axis, major_radius, minor_radius),
@@ -277,9 +280,7 @@ pub(super) fn torus_method<T: Decide>(
                 band,
             )
         }
-        _ => Err(DoorRefusal::Invariant(
-            "the conic × torus method was handed a form of another arm",
-        )),
+        _ => Err("the conic × torus method was handed a form of another arm"),
     }
 }
 
@@ -399,7 +400,7 @@ fn circle_walk<T: Decide>(
     torus: &geom::Surface<T>,
     floor: T,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+) -> Result<super::cross::Walked<T>, &'static str> {
     let two = T::from_f64(2.0);
     let radius = circle.radius();
     let point_at = |theta: T| circle.point_at(theta);
@@ -441,7 +442,7 @@ fn circle_walk<T: Decide>(
         )
     };
     let noise = rounding_charge(h.terms) + T::from_f64(16.0) * dropped;
-    door_half_angle_roots(
+    let found = crate::half_angle::half_angle_roots_past(
         &harmonics,
         |theta| crate::implicit_residual(torus, point_at(theta)),
         HalfAngleFrame {
@@ -484,7 +485,8 @@ fn circle_walk<T: Decide>(
             f_per_metre_hi: T::one(),
         },
         band,
-    )
+    );
+    super::cross::Walked::of_walk((t0, t1), found)
 }
 
 /// **A bound on every carrier point's distance from the torus, read as
@@ -1568,14 +1570,16 @@ mod tests {
             "the pose dips into the tube at θ = 0: {dip:?}"
         );
         // The dip is chosen against the default band, pinned: at a band
-        // wider than 9.8e-8 m it is a graze the band calls touching.
+        // wider than 9.8e-8 m it is a graze the band calls touching. The
+        // turn is read whole: on a shorter arc the dip is off it, and its
+        // refusal set aside.
         let got = roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
             0.5017,
-            3.7658,
+            0.5017 + core::f64::consts::TAU,
             &torus(),
             fixed_band(),
         )
@@ -1600,7 +1604,7 @@ mod tests {
             Interval::from_f64(pose.rho),
             v3(pose.u),
             Interval::from_f64(0.5017),
-            Interval::from_f64(3.7658),
+            Interval::from_f64(0.5017 + core::f64::consts::TAU),
             &torus(),
             fixed_band(),
         );
@@ -1873,6 +1877,13 @@ mod tests {
         ),
     ];
 
+    /// Whether `t` lies on the arc `(t0, t1)`, at any turn of it.
+    fn on_arc((t0, t1): (f64, f64), t: f64) -> bool {
+        let (mid, half) = ((t0 + t1) / 2.0, (t1 - t0) / 2.0);
+        let turn = (mid - t).rem_euclid(core::f64::consts::TAU);
+        turn.min(core::f64::consts::TAU - turn) <= half
+    }
+
     /// **The jet is read at the torus's offset, and charged**: on every
     /// [`JET_CHARGE_POSES`] row the door's answer is the truth, each root
     /// within `ε` of arc of one, or a refusal — and the far thin torus's
@@ -1893,7 +1904,12 @@ mod tests {
             };
             let band = Band::new(eps, 10.0 * eps).unwrap();
             match roots_of(p(2), w(5), rho, w(8), v[19], v[20], &torus, band) {
-                Ok(Ok(CircleRoots::Miss)) => assert!(truth.is_empty(), "{label}: a false miss"),
+                // A miss of the arc: off it, a refusal the walk set aside
+                // leaves its roots unread.
+                Ok(Ok(CircleRoots::Miss)) => assert!(
+                    truth.iter().all(|&t| !on_arc((v[19], v[20]), t)),
+                    "{label}: a false miss"
+                ),
                 Ok(Ok(CircleRoots::Certified(found))) => {
                     let mut got = found.roots()[..found.count()].to_vec();
                     got.sort_by(f64::total_cmp);
@@ -2093,11 +2109,6 @@ mod tests {
                         panic!("{label} ({lane}): a refusal or the true roots, got {what}")
                     }
                 };
-                assert_eq!(
-                    roots.len(),
-                    truth.len(),
-                    "{label} ({lane}): the certified count"
-                );
                 for &r in &roots {
                     let near = truth
                         .iter()
@@ -2109,7 +2120,9 @@ mod tests {
                          every true root, past the band's {reach:e}"
                     );
                 }
-                for &t in truth {
+                // Every true root on the arc is certified; off it, a
+                // refusal the walk set aside leaves its roots unread.
+                for &t in truth.iter().filter(|&&t| off((v[0], v[1]), t) == 0.0) {
                     let near = roots
                         .iter()
                         .map(|&r| off(r, t))

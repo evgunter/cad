@@ -2,11 +2,13 @@
 id: a-side-read-through-a-motion-is-not-asked-its-depths
 kind: issue
 title: A clearance side read through a motion is not asked the depth gap, so a placed pair and the same pair built in place can read different verdicts, a budget refusal against a Holds at the root
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
 branch: embedwalk/placed-depth
+pr: 7778
+closed: 2026-11-25
 ---
 
 
@@ -42,3 +44,34 @@ A cover read through a motion (`Cover` has no map by a rigid motion),
 or the motion carried on the window so the depth gap can read both
 faces in one frame. Assemblies place instances, so a thin gap between
 two placed parts (a pin in a bore) is the case this leaves.
+
+## Measured (lane `embedwalk-placed-depth`, 2026-11-25)
+
+The hollow torus of `sweep`'s
+`two_nested_tori_a_thin_gap_apart_hold_at_their_roots` (`R = 2`, tube
+`0.45`, wall `0.025`), its outer two faces against its inner two, the
+strict bound at 65,536 pairs, both sides read in place and both read
+through one skew motion (a turn of 0.9 about `(1, −2, 0.5)`, then a
+shift `(7, −3, 4)`):
+
+| | in place | through the motion, before | through the motion, after |
+|---|---|---|---|
+| `f64` | Holds, 0 splits | `Budget(Pairs)`, 65,532 splits, 14.3 s | Holds, 0 splits |
+| `Interval` | Holds, 0 splits | `Budget(Pairs)`, 65,532 splits, 17.2 s | Holds, 0 splits |
+
+Two torus patches (`topo`'s
+`clearance::depth_rows::nested_tori_read_through_a_motion_hold_at_their_root_as_built_in_place`,
+chart window `(0.1, 3.0) × (−3.0, 3.0)`), at 65,536 pairs: in place
+Holds with no split; before, the inner placed beside an outer built
+where the motion puts it held after 36,998 splits, and both placed
+after 36,706; after, both hold with no split. The row asks at 4,096
+pairs, where before each placed pair refused `Budget(Pairs)`.
+
+## Closed
+
+2026-11-25 by PR 7778: the motion rides on the window, and the depth gap
+carries its sites (an axis, a centre, a core circle) into each face's own
+coordinates by one relative motion (`RigidMotion::relative`), so a placed
+pair and the same pair built in place reach the same verdict. The f64
+rounding of that motion is a term on
+`the-depth-gaps-f64-rounding-is-of-the-pads-order-near-the-least-tolerance`.
