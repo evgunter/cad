@@ -864,3 +864,44 @@ mod rows {
         ));
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
+mod review_belt_probes {
+    //! Review probes (PR 7731): the door across δ at three ε.
+    use super::*;
+    use geom_core::{Tol, Vec3};
+
+    fn bend() -> Surface<f64> {
+        super::super::conic_oracle::torus(Point3::new(3.0, 0.0, 2.0), Vec3::new(0.0, 1.0, 0.0), 3.0, 1.0)
+    }
+    fn ruling(theta: f64) -> Curve3<f64> {
+        Curve3::Line(geom::Line {
+            origin: Point3::new(theta.cos(), theta.sin(), 0.0),
+            dir: geom_core::UnitVec3::exact_z(),
+        })
+    }
+
+    #[test]
+    fn probe_scan() {
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let b = Band::linear_at(Tol::witness(), eps).unwrap();
+            let r = eps.sqrt();
+            let mut ds: Vec<(f64, String)> = [0.1, 0.3, 1.0, 1.5, 3.0, 10.0, 15.0, 20.0, 30.0, 100.0]
+                .iter().map(|&k| (k * eps, format!("{k}ε"))).collect();
+            ds.extend([0.1, 0.3, 1.0, 3.0, 5.0, 5.6, 6.0, 10.0, 30.0, 100.0].iter().map(|&k| (k * r, format!("{k}√ε"))));
+            for (d, what) in ds {
+                for span in [(0.0, 2.0), (-2.0, 2.0)] {
+                    let c = ruling(core::f64::consts::FRAC_PI_2 - d);
+                    let got = end_window(&c, span, SpanEnd::End, &bend(), b);
+                    let nr = (12.0 * d.sin()).sqrt();
+                    let s = match &got {
+                        Ok(w) => format!("ok order {} whole {} at {:.4} spread {:.5} near {:.5} holds_near {}", w.order, w.whole, w.at, w.spread, nr, w.spread > nr),
+                        Err(e) => format!("{e:?}"),
+                    };
+                    eprintln!("PROBE eps {eps:e} δ {what} span {span:?}: {s}");
+                }
+            }
+        }
+    }
+}

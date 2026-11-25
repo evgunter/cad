@@ -685,3 +685,27 @@ fn an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions() {
         }
     }
 }
+
+/// Review probe (PR 7731): the union across the band's edge.
+#[test]
+fn review_belt_probe_union_scan() {
+    let eps = Tol::witness().eps();
+    for k in [0.1, 0.3, 1.0, 1.5, 3.0, 10.0, 15.0, 20.0] {
+        let j = join(true, CapEnd::End, neutral_off_the_seam(k * eps));
+        match j.ev.node_error(j.union) {
+            Some(e) => eprintln!("UPROBE eps {eps:e} δ {k}ε: {:?}", e.kind),
+            None => {
+                let b = built(&j);
+                eprintln!("UPROBE eps {eps:e} δ {k}ε: builds vol err {:e} t3 {} t3' {}", (b.volume - closed_form(true, neutral_off_the_seam(k * eps))).abs(), b.tier3.is_ok(), b.tier3_prime.is_ok());
+            }
+        }
+    }
+    let r = eps.sqrt();
+    for k in [4.0, 5.0, 5.3, 5.6] {
+        let j = join(true, CapEnd::End, neutral_off_the_seam(k * r));
+        match j.ev.node_error(j.union) {
+            Some(e) => eprintln!("UPROBE eps {eps:e} δ {k}√ε: {:?}", e.kind),
+            None => eprintln!("UPROBE eps {eps:e} δ {k}√ε: builds"),
+        }
+    }
+}
