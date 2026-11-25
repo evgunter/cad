@@ -754,7 +754,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        requested_cost: Some(9_000_000),
+        requested_cost: Some(9.0e6),
         probe_triangles: 137_000,
         largest_probe: 125_000,
         stop: scene::ProbeStop::Converged,
@@ -1649,7 +1649,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        requested_cost: Some(9_000_000),
+        requested_cost: Some(9.0e6),
         probe_triangles: 137_000,
         largest_probe: 125_000,
         stop: scene::ProbeStop::Converged,
@@ -4077,7 +4077,7 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        requested_cost: Some(9_000_000),
+        requested_cost: Some(9.0e6),
         probe_triangles: 137_000,
         largest_probe: 125_000,
         stop: scene::ProbeStop::Converged,

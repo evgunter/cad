@@ -4044,7 +4044,7 @@ fn piece_reads(
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
         Err(
-            refusal @ (ContainError::RayExhausted
+            refusal @ (ContainError::RayExhausted(_)
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
@@ -7140,7 +7140,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     // nothing — each a piece not read against the circle.
                     let read_region = |e: crate::region::RegionRefusal| match e {
                         crate::region::RegionRefusal::Escalated(diag) => esc(diag),
-                        crate::region::RegionRefusal::RayExhausted { .. }
+                        crate::region::RegionRefusal::RayExhausted
                         | crate::region::RegionRefusal::WoundPastPeriod
                         | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };
@@ -10245,7 +10245,7 @@ mod tests {
         for (sphere_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
             for e in [
                 ContainError::LoopUnreadable(lk),
-                ContainError::RayExhausted,
+                ContainError::RayExhausted(lk),
                 ContainError::Curved(PointInSolidError::CorruptFace { face }),
             ] {
                 let got = super::extent_scan_refusal(e.clone(), sphere_is, face);
@@ -11169,7 +11169,12 @@ mod witness_rows {
             "a trim's verdict"
         );
         assert!(
-            matches!(witness_reads(Err(ContainError::RayExhausted)), Ok(None)),
+            matches!(
+                witness_reads(Err(ContainError::RayExhausted(
+                    crate::entity::LoopKey::default()
+                ))),
+                Ok(None)
+            ),
             "a door's refusal is no verdict"
         );
     }

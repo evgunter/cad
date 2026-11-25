@@ -5892,14 +5892,21 @@ impl BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => {
+                    ContainError::RayExhausted(_)
+                    | ContainError::Curved(PointInSolidError::RegionRayExhausted { .. }) => {
                         write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
                     }
+                    ContainError::Uncrossable(u) => {
+                        write!(f, "{preamble}: {u}. Recourse: {CONIC_OUTLINE_RECOURSE}")
+                    }
+                    ContainError::ArcEndClearOfCorners(gaps) => write!(
+                        f,
+                        "{preamble}: the point lies at an arc's end clear of its corners: \
+                         {gaps}. Recourse: {}",
+                        placement_lever(Some(ContainDecision::ArcEnd))
+                    ),
                     ContainError::Curved(e) => write!(f, "the Boolean {}", read_at(e, at)),
-                    ContainError::Escalated { .. }
-                    | ContainError::StaleFace(_)
-                    | ContainError::Uncrossable(_)
-                    | ContainError::ArcEndClearOfCorners(_) => {
+                    ContainError::Escalated { .. } | ContainError::StaleFace(_) => {
                         write!(f, "{preamble}: {}", read_at(refusal, at))
                     }
                 }
@@ -10350,7 +10357,7 @@ mod tests {
             BooleanError::PointInFaceRefused {
                 operand: Operand::B,
                 face,
-                refusal: ContainError::RayExhausted,
+                refusal: ContainError::RayExhausted(crate::entity::LoopKey::default()),
             },
             BooleanError::InsideOutOperand {
                 operand: Operand::B,
@@ -10732,7 +10739,9 @@ mod tests {
         };
         let door = refused(crate::rim_wedge::RimUnread::Unplaced {
             side: geom_brep::PairSide::Second,
-            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted),
+            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted(
+                crate::entity::LoopKey::default(),
+            )),
         });
         assert!(
             matches!(
@@ -10740,7 +10749,7 @@ mod tests {
                 BooleanError::PointInFaceRefused {
                     operand: Operand::B,
                     face,
-                    refusal: ContainError::RayExhausted,
+                    refusal: ContainError::RayExhausted(_),
                 } if face == fb
             ),
             "the door's refusal on the B face: {door:?}"
