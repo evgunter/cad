@@ -844,7 +844,7 @@ enum Hessian {
     /// The plane's: zero.
     Zero,
     /// The sphere's: `I/r`.
-    Ball { r: Interval },
+    Scaled { r: Interval },
     /// The cylinder's: `(I − k·ââᵀ)/r`, `k = 2 − |â|²`
     /// ([`implicit_gradient_enclosure`]'s own form).
     Axial {
@@ -859,7 +859,7 @@ impl Hessian {
     fn apply(&self, v: &[Interval; 3]) -> [Interval; 3] {
         match self {
             Self::Zero => [Interval::point(0.0); 3],
-            Self::Ball { r } => [v[0] / *r, v[1] / *r, v[2] / *r],
+            Self::Scaled { r } => [v[0] / *r, v[1] / *r, v[2] / *r],
             Self::Axial { a, k, r } => {
                 let h = dot(v, a) * *k;
                 [
@@ -876,7 +876,7 @@ impl AffineGradient {
     fn of<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Option<Self> {
         let hessian = match *surface {
             Surface::Plane { .. } => Hessian::Zero,
-            Surface::Sphere { radius, .. } => Hessian::Ball {
+            Surface::Sphere { radius, .. } => Hessian::Scaled {
                 r: Interval::from_certified(radius),
             },
             Surface::Cylinder { frame, radius, .. } => {

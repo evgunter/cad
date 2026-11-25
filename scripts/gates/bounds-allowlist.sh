@@ -1050,7 +1050,11 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 20 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound; limb 2s hold of the image to its chart knot rectangle (chart_domain_limb), read by limb 2 and by the fitted pcurve door, at the same bound'
+  # 20 -> 18: the accounting's reader of a tube's boxes, `tube_boxes`
+  # (`Decide + Bounds + CertifiedEnclosure`, two occurrences), reads at
+  # `f64` alone, as each of its callers does; the ℝ³ chain's builder
+  # keeps its bound, now on `CoverBase`'s block. The seam is unmoved.
+  'crates/geom-brep/src/ssi/certify.rs 18 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound; limb 2s hold of the image to its chart knot rectangle (chart_domain_limb), read by limb 2 and by the fitted pcurve door, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two

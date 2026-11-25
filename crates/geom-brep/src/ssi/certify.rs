@@ -124,10 +124,9 @@
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::interval::certification::Certification as _;
 use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{CurveCertData, tensor};
-use geom_core::spline::{KnotVector, RingRefinement};
+use geom_core::spline::{KnotVector, RingRefinement, restrict_segment};
 use geom_core::{
     Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
     Margin, Real, Sign, Vec3,
@@ -417,6 +416,16 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
     domain_grid_points(kv, SSI_CERT_SPANS)
 }
 
+/// What [`refined_net`] reads of a carrier: the refined vector, the
+/// Cartesian net, and the homogeneous channels and weights it was read
+/// from.
+type RefinedNet = (
+    KnotVector,
+    [Vec<Interval>; 3],
+    [Vec<Interval>; 3],
+    Vec<Interval>,
+);
+
 /// A carrier's control net refined at [`cert_grid`]: its homogeneous
 /// channels `(w·P, w)` through [`RingRefinement::refine`], kept, and
 /// de-homogenized ([`dehomogenize`]), so every point encloses the
@@ -426,7 +435,7 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
 /// that is not one entry per weight comes back refused entry by entry
 /// ([`RingRefinement::refine`]'s extent guard), which every hull read
 /// off it refuses.
-fn refined_net(kv: &KnotVector, weights: &[f64], coords: &[Vec<Interval>]) -> Option<CoverNet> {
+fn refined_net(kv: &KnotVector, weights: &[f64], coords: &[Vec<Interval>]) -> Option<RefinedNet> {
     let refinement = RingRefinement::new(kv, &cert_grid(kv)).ok()?;
     let [cx, cy, cz] = coords else {
         return None;
@@ -446,12 +455,7 @@ fn refined_net(kv: &KnotVector, weights: &[f64], coords: &[Vec<Interval>]) -> Op
         dehomogenize(y, &rw)?,
         dehomogenize(z, &rw)?,
     ];
-    Some(CoverNet {
-        kv: refinement.knots().clone(),
-        coords,
-        homogeneous,
-        weights: rw,
-    })
+    Some((refinement.knots().clone(), coords, homogeneous, rw))
 }
 
 /// The widest a frame direction's component may enclose and still be
@@ -1367,8 +1371,8 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 }
 
 /// One link of limb 3's cover of a carrier: an enclosure of the carrier
-/// over `span`, the axis its slices are square to, and the span of the
-/// cover's net ([`CoverNet`]) it is the whole or a part of.
+/// over `span`, the axis its slices are square to, and the link of the
+/// first cover it is the whole or a part of.
 #[derive(Clone, Copy, Debug)]
 struct Link<T: Real> {
     raw: Box3,
@@ -1380,44 +1384,33 @@ struct Link<T: Real> {
 /// A link as a reader takes it: its box, its axis and its span.
 pub(crate) type ChainBox<T> = (Box3, Vec3<T>, (f64, f64));
 
-/// **The net limb 3's cover is read off**: a carrier's [`refined_net`]
-/// with its homogeneous channels kept, which a part of a span is
-/// restricted from.
-struct CoverNet {
-    kv: KnotVector,
-    coords: [Vec<Interval>; 3],
-    homogeneous: [Vec<Interval>; 3],
-    weights: Vec<Interval>,
+/// **A span of the carrier as its Bernstein rows**: the span, and over
+/// it the homogeneous channels `w·x`, `w·y`, `w·z` and the weights `w`,
+/// which a part of the span is restricted from.
+struct SpanRows {
+    span: (f64, f64),
+    rows: [Vec<Interval>; 4],
 }
 
-impl CoverNet {
-    /// The control hull of the carrier over `span`, a part of the net's
-    /// span `base`: the Bernstein rows of the homogeneous channels and
-    /// the weights restricted to it (the blossom at the part's ends,
-    /// which is knot insertion at each to full multiplicity),
+impl SpanRows {
+    /// The control hull of the carrier over `part` of the span: each
+    /// row restricted to it ([`restrict_segment`], which is knot
+    /// insertion at the part's ends to full multiplicity),
     /// de-homogenized and hulled. `None` where a row or the quotient is
     /// refused.
-    fn part(&self, base: usize, (lo, hi): (f64, f64)) -> Option<Box3> {
-        let ends = (Interval::point(lo), Interval::point(hi));
-        let row = |channel: &[Interval]| {
-            self.kv
-                .with_coeffs(channel)?
-                .span(base)?
-                .restrict(ends)
-                .ok()
-        };
-        let w = row(&self.weights)?;
-        let hull = |channel: &[Interval]| {
-            let cartesian = dehomogenize(&row(channel)?, &w)?;
-            let (first, rest) = cartesian.split_first()?;
-            Some(rest.iter().fold(*first, |acc, c| Interval::hull(acc, *c)))
-        };
-        let [cx, cy, cz] = &self.homogeneous;
-        Some(Box3 {
-            x: hull(cx)?,
-            y: hull(cy)?,
-            z: hull(cz)?,
-        })
+    fn part(&self, part: (f64, f64)) -> Option<Box3> {
+        let [x, y, z, w] = &self.rows;
+        let w = restrict_segment(w, self.span, part);
+        let cartesian =
+            |channel: &[Interval]| dehomogenize(&restrict_segment(channel, self.span, part), &w);
+        let (x, y, z) = (cartesian(x)?, cartesian(y)?, cartesian(z)?);
+        let mut points = x.iter().zip(&y).zip(&z).map(|((x, y), z)| Box3 {
+            x: *x,
+            y: *y,
+            z: *z,
+        });
+        let first = points.next()?;
+        Some(points.fold(first, Box3::hull))
     }
 }
 
@@ -1479,8 +1472,10 @@ struct Cover<T: Real> {
 /// a piece of the same curve over half the span.
 struct CoverBase<'a, T: CertifiedBounds> {
     carrier: &'a NurbsCurve3<T>,
-    net: Option<CoverNet>,
+    /// The first cover's links.
     links: Vec<Link<T>>,
+    /// Each first link's span as its rows, in the links' order.
+    spans: Vec<SpanRows>,
 }
 
 impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
@@ -1489,49 +1484,65 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
     fn of(carrier: &'a NurbsCurve3<T>) -> Self {
         let mut out = Self {
             carrier,
-            net: None,
             links: Vec::new(),
+            spans: Vec::new(),
         };
-        let Some(net) = refined_net(
+        let Some((kv, coords, homogeneous, weights)) = refined_net(
             carrier.knots_f64_interim(),
             carrier.weights_f64_interim(),
             &carrier.certified_coords(),
         ) else {
             return out;
         };
-        {
-            let kv = &net.kv;
-            // One pair per coordinate channel, minted once outside the
-            // span walk. The net and the vector come from one insertion
-            // chain, so the count relation holds by construction and
-            // the refusal arm is unreachable; it too leaves the cover
-            // EMPTY.
-            let (Some(cx), Some(cy), Some(cz)) = (
-                kv.with_coeffs(&net.coords[0]),
-                kv.with_coeffs(&net.coords[1]),
-                kv.with_coeffs(&net.coords[2]),
-            ) else {
-                return out;
+        let kv = &kv;
+        // One pair per channel, minted once outside the span walk. The
+        // net and the vector come from one insertion chain, so the count
+        // relation holds by construction and the refusal arm is
+        // unreachable; it too leaves the cover EMPTY.
+        let [x, y, z] = &coords;
+        let [hx, hy, hz] = &homogeneous;
+        let (Some(cx), Some(cy), Some(cz)) =
+            (kv.with_coeffs(x), kv.with_coeffs(y), kv.with_coeffs(z))
+        else {
+            return out;
+        };
+        let (Some(hx), Some(hy), Some(hz), Some(hw)) = (
+            kv.with_coeffs(hx),
+            kv.with_coeffs(hy),
+            kv.with_coeffs(hz),
+            kv.with_coeffs(&weights),
+        ) else {
+            return out;
+        };
+        for index in kv.first_span()..=kv.last_span() {
+            // Emptiness check and window construction are one step; the
+            // channels share the vector, so they refuse alike.
+            let (Some(wx), Some(wy), Some(wz)) = (cx.span(index), cy.span(index), cz.span(index))
+            else {
+                continue;
             };
-            for index in kv.first_span()..=kv.last_span() {
-                // Emptiness check and window construction are one step;
-                // the three channels share the vector, so they refuse
-                // alike.
-                let (Some(wx), Some(wy), Some(wz)) =
-                    (cx.span(index), cy.span(index), cz.span(index))
-                else {
-                    continue;
-                };
-                let span = (kv.knots()[index], kv.knots()[index + 1]);
-                let raw = Box3 {
-                    x: wx.hull(),
-                    y: wy.hull(),
-                    z: wz.hull(),
-                };
-                out.links.push(out.link(raw, span, index));
-            }
+            let span = (kv.knots()[index], kv.knots()[index + 1]);
+            let raw = Box3 {
+                x: wx.hull(),
+                y: wy.hull(),
+                z: wz.hull(),
+            };
+            // The span's own Bézier segment, channel by channel. A
+            // channel that does not read leaves the span no rows, and
+            // its link no halves.
+            let ends = (
+                Interval::from_bounds(span.0, span.0),
+                Interval::from_bounds(span.1, span.1),
+            );
+            let rows = [hx, hy, hz, hw].map(|channel| {
+                channel
+                    .span(index)
+                    .and_then(|window| window.restrict(ends).ok())
+                    .unwrap_or_default()
+            });
+            out.links.push(out.link(raw, span, out.spans.len()));
+            out.spans.push(SpanRows { span, rows });
         }
-        out.net = Some(net);
         out
     }
 
@@ -1566,8 +1577,8 @@ impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
         if !(lo < mid && mid < hi) {
             return None;
         }
-        let net = self.net.as_ref()?;
-        let half = |span| Some(self.link(net.part(link.base, span)?, span, link.base));
+        let rows = self.spans.get(link.base)?;
+        let half = |span| Some(self.link(rows.part(span)?, span, link.base));
         Some([half((lo, mid))?, half((mid, hi))?])
     }
 
@@ -2413,9 +2424,9 @@ pub(crate) fn chart_partner_form<T: Real>(
 /// proved one-arc-ness on ([`tube_chain`]), so a cell inside one of
 /// these boxes is inside a region where the solution set is exactly the
 /// branch already found.
-pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-    pair: (&Surface<T>, &Surface<T>),
+pub(crate) fn tube_boxes(
+    carrier: &NurbsCurve3<f64>,
+    pair: (&Surface<f64>, &Surface<f64>),
     radius: f64,
 ) -> Vec<Box3> {
     tube_chain(carrier, pair, radius)
@@ -2432,11 +2443,11 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// limb 3's probe reads this one, so a reader holding a certificate's
 /// rung holds the region it proved; the certificate's box count is that
 /// chain's ([`SsiCertificate::tube_boxes`]).
-pub(crate) fn tube_chain<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-    pair: (&Surface<T>, &Surface<T>),
+pub(crate) fn tube_chain(
+    carrier: &NurbsCurve3<f64>,
+    pair: (&Surface<f64>, &Surface<f64>),
     radius: f64,
-) -> Vec<ChainBox<T>> {
+) -> Vec<ChainBox<f64>> {
     CoverBase::of(carrier)
         .at(pair, radius)
         .links
@@ -3140,17 +3151,6 @@ mod tests {
             const { core::cell::Cell::new(0) };
     }
 
-    /// A carrier's cover before any rung halves it.
-    fn first_cover<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-        carrier: &geom::NurbsCurve3<T>,
-    ) -> Vec<super::ChainBox<T>> {
-        super::CoverBase::of(carrier)
-            .links
-            .iter()
-            .map(|l| (l.raw, l.e, l.span))
-            .collect()
-    }
-
     /// A synthetic limb-2 hull over `[0, 1]` with its `cuts` added, every
     /// span bounded by `sup` and no break value certified.
     fn flat_hull(cuts: &[f64], sup: f64) -> super::Hull {
@@ -3849,7 +3849,11 @@ mod tests {
                     vec![geom_core::Real::one(); 3],
                 )
                 .unwrap();
-                let chain = first_cover(&curve);
+                let chain: Vec<super::ChainBox<f64>> = super::CoverBase::of(&curve)
+                    .links
+                    .iter()
+                    .map(|l| (l.raw, l.e, l.span))
+                    .collect();
                 let worst = chain
                     .iter()
                     .map(|(b, axis, _)| {
@@ -3935,11 +3939,7 @@ mod tests {
         let coords: Vec<Vec<Interval>> = (0..3)
             .map(|d| ctl.iter().map(|p| thin(p[d])).collect())
             .collect();
-        let super::CoverNet {
-            kv: fine,
-            coords: net,
-            ..
-        } = super::refined_net(&kv, &weights, &coords).unwrap();
+        let (fine, net, _, _) = super::refined_net(&kv, &weights, &coords).unwrap();
         let breaks = super::cert_grid(&kv);
         let exact: Vec<[Q; 4]> = ctl
             .iter()
@@ -3993,7 +3993,7 @@ mod tests {
         // A channel of the wrong length comes back refused, entry by entry.
         let mut short = coords.clone();
         short[1].pop();
-        let net = super::refined_net(&kv, &weights, &short).unwrap().coords;
+        let (_, net, _, _) = super::refined_net(&kv, &weights, &short).unwrap();
         assert!(net[1].iter().all(|x| !x.is_certified()));
         assert!(net[0].iter().all(|x| x.is_certified()));
     }
@@ -4061,13 +4061,18 @@ mod tests {
             }
             out
         };
-        let at_f64: Vec<Box3> = first_cover(&curve).into_iter().map(|(b, _, _)| b).collect();
+        let at_f64: Vec<Box3> = super::CoverBase::of(&curve)
+            .links
+            .iter()
+            .map(|l| l.raw)
+            .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
-            first_cover(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
-                .into_iter()
-                .map(|(b, _, _)| b)
+            super::CoverBase::of(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
+                .links
+                .iter()
+                .map(|l| l.raw)
                 .collect();
         let at_interval = misses(&at_interval);
         assert!(
