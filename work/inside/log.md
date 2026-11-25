@@ -54,3 +54,4 @@ Dispatch, with each unit's review tier:
 - `a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`
   (P1, M, design): two Opus designers on the contact-semantics question
   before any lane.
+- 2026-11-25 — Lanes in flight: `inside/sphere-chord-region` and `inside/contain-small-rows` as subagents in the orchestrator's container; `inside/quartic-disc-rounding` (session_013QoYWY7w6M1QPZjWjk8Vet) and `inside/pierce-copies-remeasure` (session_013QoYWXMsDpH4z556UGKhkC) in their own cloud sessions, since this 4-vCPU container's build mutex is the limit; two Opus designers on the tube-in-ball row. (INSIDE orchestrator)
