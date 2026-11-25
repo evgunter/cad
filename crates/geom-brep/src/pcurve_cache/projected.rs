@@ -729,7 +729,12 @@ pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<P
 /// chose (a partition or halving break, or the `f64` end of an edge's
 /// certified parameter enclosure), entered as the constant it is.
 fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
-    match net.knot_values().value_at(v) {
+    held_param(net.knot_values(), v)
+}
+
+/// [`net_param`] over a net's held knots, whichever its dimension.
+fn held_param<T: SpanLocate>(knots: &geom_core::spline::Knots<T>, v: f64) -> T {
+    match knots.value_at(v) {
         Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
         Err(e) => {
             unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
@@ -753,67 +758,67 @@ fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
 /// with `a < b` that is the span holding the piece; at `a == b` on a
 /// knot it is the span starting there, whose closure holds the point.
 pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) -> Vec<(Vec3<T>, T)> {
-    let ends = (piece.start(), piece.end());
-    let (span, _) = net.knots_f64_interim().span_range(piece);
-    let held = net.knot_values().values();
-    let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
-    let homogeneous: Vec<(Vec3<T>, T)> = span
-        .window()
-        .map(|i| {
-            let w = net.weights()[i];
-            ((net.control()[i] - Point3::origin()) * w, w)
-        })
-        .collect();
-    let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
-        let line: Vec<T> = homogeneous.iter().map(c).collect();
-        T::restrict_window(&line, span, held, ends, held_ends)
+    let homogeneous = |i: usize| {
+        let (c, w) = (net.control()[i], net.weights()[i]);
+        [c.x * w, c.y * w, c.z * w, w]
     };
-    let (x, y, z, w) = (
-        channel(|q| q.0.x),
-        channel(|q| q.0.y),
-        channel(|q| q.0.z),
-        channel(|q| q.1),
-    );
-    x.into_iter()
-        .zip(y)
-        .zip(z)
-        .zip(w)
-        .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
-        .collect()
+    restricted(
+        net.knots_f64_interim(),
+        net.knot_values(),
+        piece,
+        homogeneous,
+    )
+    .into_iter()
+    .map(|[x, y, z, w]| (Vec3::new(x, y, z) / w, w))
+    .collect()
 }
 
-/// [`piece_controls`] for a chart image's net: the control points and
-/// weights of `image`'s restriction to `piece`, a sub-interval of one of
-/// its knot spans, by the scalar's own restriction of each homogeneous
-/// channel `(w·P, w)`.
+/// [`piece_controls`] for a chart image's net: the control points of
+/// `image`'s restriction to `piece`, by the same restriction of each
+/// homogeneous channel `(w·P, w)`.
 pub(crate) fn image_piece_controls<T: SpanLocate>(
     image: &NurbsCurve2<T>,
     piece: ParamRange,
 ) -> Vec<Point2<T>> {
+    let homogeneous = |i: usize| {
+        let (c, w) = (image.control()[i], image.weights()[i]);
+        [c.x * w, c.y * w, w]
+    };
+    restricted(
+        image.knots_f64_interim(),
+        image.knot_values(),
+        piece,
+        homogeneous,
+    )
+    .into_iter()
+    .map(|[x, y, w]| Point2::new(x / w, y / w))
+    .collect()
+}
+
+/// The one body of [`piece_controls`] and [`image_piece_controls`]: each
+/// of a net's `N` homogeneous channels (`homogeneous(i)` at control `i`)
+/// restricted to `piece` over the net's held knots
+/// ([`SpanLocate::restrict_window`]), the restriction's controls in
+/// order. A piece end that is one of the net's breakpoints is that
+/// breakpoint's held value, any other end the caller's `f64` parameter.
+fn restricted<T: SpanLocate, const N: usize>(
+    kv: &KnotVector,
+    knots: &geom_core::spline::Knots<T>,
+    piece: ParamRange,
+    homogeneous: impl Fn(usize) -> [T; N],
+) -> Vec<[T; N]> {
     let ends = (piece.start(), piece.end());
-    let (span, _) = image.knots_f64_interim().span_range(piece);
-    let held = image.knot_values().values();
-    let at = |v: f64| match image.knot_values().value_at(v) {
-        Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
-        Err(e) => unreachable!("an image's net holds only point knots: {e}"),
-    };
-    let held_ends = (at(ends.0), at(ends.1));
-    let homogeneous: Vec<(T, T, T)> = span
-        .window()
-        .map(|i| {
-            let (c, w) = (image.control()[i], image.weights()[i]);
-            (c.x * w, c.y * w, w)
-        })
-        .collect();
-    let channel = |c: fn(&(T, T, T)) -> T| -> Vec<T> {
-        let line: Vec<T> = homogeneous.iter().map(c).collect();
+    let (span, _) = kv.span_range(piece);
+    let held = knots.values();
+    let held_ends = (held_param(knots, ends.0), held_param(knots, ends.1));
+    let window: Vec<[T; N]> = span.window().map(homogeneous).collect();
+    let channels: [Vec<T>; N] = core::array::from_fn(|k| {
+        let line: Vec<T> = window.iter().map(|c| c[k]).collect();
         T::restrict_window(&line, span, held, ends, held_ends)
-    };
-    let (x, y, w) = (channel(|q| q.0), channel(|q| q.1), channel(|q| q.2));
-    x.into_iter()
-        .zip(y)
-        .zip(w)
-        .map(|((x, y), w)| Point2::new(x / w, y / w))
+    });
+    let len = channels[0].len();
+    (0..len)
+        .map(|j| core::array::from_fn(|k| channels[k][j]))
         .collect()
 }
 
@@ -902,6 +907,11 @@ impl<T: SpanLocate> ProjectedImage<T> {
                         rho: None,
                     };
                 };
+                // The hull here is of the frame's three coordinates,
+                // before the chart's rotation and its window
+                // ([`Self::window`]): not the chart box's point fold
+                // (`pcurve_cache`'s `point_hull`), which boxes a chart
+                // image's controls already in chart coordinates.
                 let controls: Vec<(Vec3<T>, T)> = stretches
                     .into_iter()
                     .flat_map(|stretch| piece_controls(net, stretch))

@@ -1964,7 +1964,7 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 ///   over the span, so it tightens as the ring reader halves it, and the
 ///   ring places and the face meshes at every δ; it answered
 ///   `undecided` while the box was the whole period's
-///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+///   (`work/lathe/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
 /// - **A sphere ring passing near a pole**
 ///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
 ///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`

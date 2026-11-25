@@ -795,8 +795,8 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
     }
 }
 
-/// **Two faces on one sphere record whose union is a zone keep their
-/// meridian as the period closure.** A sphere zone, swept as one band
+/// **Two faces on one sphere record whose union is a zone keep the
+/// meridian between them.** A sphere zone, swept as one band
 /// between its two rims, halved along the meridian opposite its seam
 /// ([`halved`]), is the bridging run PR 7440 opened on a simply connected
 /// carrier: the absorption kefs one meridian and `kemr` takes the other,
@@ -804,12 +804,11 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
 /// free, so the pair would glue back to one face with two rings. The
 /// role pass then asks which ring is the outline, and on a zone neither
 /// closes in the chart: each rim winds a whole turn of azimuth, so each
-/// slot reads `OuterOpen`, a decided refusal in either order. The zone
-/// with no meridian left is a seamless band, and the meridian is the
-/// period closure its chart needs, so the run is left unmerged with a
-/// `PeriodClosure` skip naming the pair.
+/// slot reads `OuterOpen`, a decided refusal in either order. With no
+/// slot placing the other rim, the run is left unmerged with a
+/// `PeriodClosure` skip naming the pair, and the meridian stays.
 #[test]
-fn a_sphere_zone_halved_by_two_meridians_keeps_its_meridian_as_the_period_closure() {
+fn a_sphere_zone_halved_by_two_meridians_keeps_the_meridian_between_them() {
     // The unit sphere's zone |y| < 0.5, closed by the cylinder of radius
     // cos(30 deg) through its rims: the sphere wall is one band whose arc
     // sweeps 60 degrees, so the profile's bulge is tan(60 deg / 4).

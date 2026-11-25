@@ -2976,8 +2976,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// run killed, where no slot or more than one places every ring: the
     /// run is left unmerged. A sphere zone whose last meridian the
     /// absorption killed is one: neither rim closes in the chart
-    /// ([`crate::pcurves::RingPlacementError::OuterOpen`]), so the
-    /// meridian is the period closure the face's chart needs.
+    /// ([`crate::pcurves::RingPlacementError::OuterOpen`]), so no slot
+    /// places the other, and the meridian stays.
     fn curved_outline_ring(
         &self,
         face: FaceKey,

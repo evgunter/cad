@@ -996,12 +996,19 @@ fn net_span_box<T: SpanLocate>(image: &NurbsCurve2<T>, t0: T, t1: T) -> Option<C
     let (lo, hi) = image.domain();
     let range = geom_core::spline::ParamRange::new(a.max(lo), b.min(hi))?;
     let stretches = projected::span_stretches(image.knots_f64_interim(), range)?;
-    let mut w: Option<ChartWindow<T>> = None;
-    for p in stretches
-        .into_iter()
-        .flat_map(|stretch| projected::image_piece_controls(image, stretch))
-    {
-        w = Some(match w {
+    point_hull(
+        stretches
+            .into_iter()
+            .flat_map(|stretch| projected::image_piece_controls(image, stretch)),
+    )
+}
+
+/// The axis-aligned box of `points` in the chart, `None` for none: the
+/// one fold a NURBS chart image's control points are boxed by, over its
+/// whole net or over a span's restriction ([`net_span_box`]).
+fn point_hull<T: Real>(points: impl IntoIterator<Item = Point2<T>>) -> Option<ChartWindow<T>> {
+    points.into_iter().fold(None, |w, p| {
+        Some(match w {
             None => ChartWindow {
                 u_min: p.x,
                 u_max: p.x,
@@ -1014,9 +1021,8 @@ fn net_span_box<T: SpanLocate>(image: &NurbsCurve2<T>, t0: T, t1: T) -> Option<C
                 v_min: w.v_min.min(p.y),
                 v_max: w.v_max.max(p.y),
             },
-        });
-    }
-    w
+        })
+    })
 }
 
 /// **The harmonic image's span box.** Per channel
@@ -1740,15 +1746,16 @@ impl<T: SpanLocate> Pcurve<T> {
     /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
     /// a focal-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
-    /// **Restriction-monotone and restriction-tight on every arm**: a
-    /// sub-span's box lies inside the span's, and shrinks with it, which
-    /// a reader halving a span to clear a point needs (`topo`'s ring
-    /// reader). The harmonic arm by its construction's docs; a net's
-    /// restriction's controls are convex combinations of the span's; an
-    /// arc rim's or a spiric's channels are monotone or harmonic over the
-    /// span. An arc rim's span not decidedly inside its arc, or a net's
-    /// end with no bracket, reads the whole row's box, which holds every
-    /// sub-span's.
+    /// **Restriction-monotone on every arm, and restriction-tight but
+    /// for two fallbacks**: a sub-span's box lies inside the span's and
+    /// shrinks with it, which a reader halving a span to clear a point
+    /// needs (`topo`'s ring reader), except that an arc rim's span not
+    /// decidedly inside its arc, and a net image's span with an end that
+    /// has no bracket or that clips to nothing, read the whole row's box,
+    /// which holds every sub-span's but does not shrink. The harmonic arm
+    /// by its construction's docs; a net's restriction's controls are
+    /// convex combinations of the span's; an arc rim's and a spiric's
+    /// channels are monotone or harmonic over the span.
     pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         match self {
             Pcurve::Harmonic { u, v } => {
@@ -1768,34 +1775,19 @@ impl<T: SpanLocate> Pcurve<T> {
                 if let Some(w) = net_span_box(image, t0, t1) {
                     return w;
                 }
-                let mut ctl = image.control().iter();
-                let Some(first) = ctl.next() else {
-                    // An empty net is unrepresentable through
-                    // `NurbsCurve2::new`; a degenerate window here
-                    // would be a claim, so answer with the inverted
-                    // box, which contains nothing and escapes every
-                    // window loudly.
+                // An empty net is unrepresentable through
+                // `NurbsCurve2::new`; a degenerate window here would be a
+                // claim, so answer with the inverted box, which contains
+                // nothing and escapes every window loudly.
+                point_hull(image.control().iter().copied()).unwrap_or_else(|| {
                     let (lo, hi) = (T::one(), -T::one());
-                    return ChartWindow {
+                    ChartWindow {
                         u_min: lo,
                         u_max: hi,
                         v_min: lo,
                         v_max: hi,
-                    };
-                };
-                let mut w = ChartWindow {
-                    u_min: first.x,
-                    u_max: first.x,
-                    v_min: first.y,
-                    v_max: first.y,
-                };
-                for p in ctl {
-                    w.u_min = w.u_min.min(p.x);
-                    w.u_max = w.u_max.max(p.x);
-                    w.v_min = w.v_min.min(p.y);
-                    w.v_max = w.v_max.max(p.y);
-                }
-                w
+                    }
+                })
             }
             // A straight line is a harmonic image with no
             // trigonometric part, and its box is its endpoint hull.
@@ -1873,23 +1865,13 @@ impl<T: SpanLocate> Pcurve<T> {
                 offset,
                 image,
             } => {
-                // `cos t` and `sin t` over the span (the harmonic box of
-                // `(cos t, sin t)`), and `f` over the span at the two
-                // ends of `cos t`'s range: `ρ = R + r·cos t`, and `f` is
-                // monotone in `ρ`. Each read through the precise radicand
-                // (`spiric_f_range` at `b = r·c`), as the period's own.
-                let trig = harmonic_span_box(
-                    Point2::origin(),
-                    Vec2::new(T::one(), T::zero()),
-                    Vec2::new(T::zero(), T::one()),
-                    Vec2::new(T::zero(), T::zero()),
-                    t0,
-                    t1,
-                );
-                let at = |c: T| geom::spiric_f_range(*major, *minor * c, *offset).1;
-                let (fa, fb) = (at(trig.u_min), at(trig.u_max));
+                // `f` and `sin t` over the span, read as the carrier's
+                // cover reads its window (`geom::spiric_window`, the one
+                // home of the spiric's window reading).
+                let geom::SpiricWindow { f: (fa, fb), sin } =
+                    geom::spiric_window(*major, *minor, *offset, (t0, t1));
                 let (f_min, f_max) = (fa.min(fb), fa.max(fb));
-                let (s_min, s_max) = (trig.v_min, trig.v_max);
+                let (s_min, s_max) = sin;
                 match image {
                     SpiricImage::Cap { p0, pm, pa } => {
                         let span = |k: T, a: T| {

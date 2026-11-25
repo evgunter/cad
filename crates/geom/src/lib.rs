@@ -190,9 +190,9 @@ pub use curves::{
     NurbsCurve3, OnCarrier, PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, ParamSide, PeriodicError,
     PeriodicNurbs3, PeriodicViewError, PieceRead, PieceStep, PieceWalkRefusal, Projection2,
     Projection3, ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime,
-    compose_chain, conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
-    spiric_period, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
-    spiric_window_rate_bounds,
+    SpiricWindow, compose_chain, conic_period, ellipse_level_clearance, spiric_curvature_sup,
+    spiric_f_range, spiric_period, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds,
+    spiric_regime, spiric_window, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
