@@ -682,26 +682,15 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 /// by `drift` over the unit run its edge covers.
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
-    geom_brep::curve_face::line_quadric::line_wall_roots(
-        geom::Line {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
-        },
-        geom::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: geom::stated_direction(z),
-        },
-        1.0,
-        1.0,
-        band(),
-        geom_brep::curve_face::line_quadric::About::Start,
-    )
-    .map(|_| ())
-    .map_err(|fault| {
-        BooleanError::of_line_quadric_refusal(
-            geom_brep::curve_face::line_quadric::LineQuadricRefusal::Wall(fault),
-        )
-    })
+    let wall = geom::Surface::Cylinder {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), z, Vec3::new(1.0, 0.0, 0.0)),
+        radius: 1.0,
+    };
+    let line = geom::Curve3::Line(geom::Line {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
+    });
+    crate::boolean::reduce::crossing_mapped(&line, (0.0, 1.0), &wall, band()).map(|_| ())
 }
 
 fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {

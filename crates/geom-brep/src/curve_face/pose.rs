@@ -234,15 +234,15 @@ impl PoseRefusal {
         matches!(self, Self::InBand { diag, .. } if diag.margin.rejected_sign() == Some(Sign::Zero))
     }
 
-    /// **What a zero-band refusal is, in the root doors' shape** (their
-    /// wrappers): a span no point of which reads off the surface
+    /// **What a zero-band refusal is, in the root doors' shape** (the
+    /// sweep's one map from `CrossWhy`, and the door rows' test readers): a span no point of which reads off the surface
     /// ([`PoseRung::NotLies`]) is [`crate::roots::Unsettled::Degenerate`],
     /// its residual read zero along it with nothing deciding it lies; any
     /// other rung's zero reading is a graze the class cannot call,
     /// [`crate::roots::Unsettled::Tangency`]. `None` for a refusal that
     /// is not a zero-band one.
     #[must_use]
-    pub(super) fn unsettled(&self) -> Option<crate::roots::Unsettled> {
+    pub fn unsettled(&self) -> Option<crate::roots::Unsettled> {
         match self {
             Self::InBand {
                 rung: PoseRung::NotLies,
@@ -319,6 +319,122 @@ pub fn pose<T: Decide>(
         window: window.unwrap_or_else(|| super::ascending(span.params())),
         why,
     })
+}
+
+// ------------------------------------------------------------- the cull
+
+/// **`Apart`'s first stage on the conic arms: the ball cull**
+/// (`curve_face_pose_clearance`). `true` where the span is decided
+/// apart from `surface` past the band; `false` hands on to the arm's
+/// rungs, in band and short of clear alike, never refusing alone.
+///
+/// The span lies in the ball about its middle point `m` whose radius `ℓ`
+/// is the span's metered reach ([`geom_core::bisect::reach`]), capped at
+/// the conic's diameter (any two of its points lie within twice its
+/// larger semi-axis). Each kind has a signed function `g`, 1-Lipschitz
+/// in space up to the stated constant `L`, whose sign is the residual's
+/// ([`crate::implicit_residual`]), so over the ball `g` keeps the sign of
+/// `g(m)` wherever `|g(m)| > L·ℓ`, and the span meets no point of the
+/// surface. The decision reads `|g(m)| − L·ℓ`, in metres:
+///
+/// - **sphere**: `|p − S| − R`, the distance to the centre less a
+///   constant: 1-Lipschitz, and the residual `(|p − S|² − R²)/2R` is it
+///   times the positive `(|p − S| + R)/2R`.
+/// - **cylinder**: `ρ − R`, `ρ` the distance to the axis line: 1-Lipschitz
+///   as a distance to a set, `n` unit by type (`UnitVec3`), and the
+///   residual `(ρ² − R²)/2R` is it times a positive factor.
+/// - **cone**: `ρ cos α − |h| sin α`, the residual itself
+///   ([`crate::cone_elevation`] on the double cone): the smaller of the
+///   two forms `ρ cos α ∓ h sin α`, each with gradient
+///   `cos α ∇ρ ∓ sin α ∇h`, `∇ρ ⊥ ∇h` unit off the axis, so of norm
+///   `L = √(sin²α + cos²α)` at the stored angle's computed pair; a
+///   minimum of `L`-Lipschitz forms is `L`-Lipschitz, both nappes and the
+///   axis included (`ρ` and `|h|` are 1-Lipschitz there too).
+/// - **torus**: `√((ρ − R)² + h²) − r`, the distance to the spine circle
+///   less the tube radius: 1-Lipschitz as a distance to a set, and the
+///   residual `((ρ − R)² + h² − r²)/2r` is it times the positive
+///   `(√(·) + r)/2r`. Nothing reads `R > r`, so a spindle (`r ≥ R`,
+///   whose zero set is the same `√(·) = r`) is culled the same way.
+///
+/// **Re-posed** (standing claim 1): `m` is the conic's running point at
+/// the span's middle ([`Conic::running_point`]), never its centre, and
+/// every quantity is carried from `m − origin`, the surface's stored
+/// origin taken exact, as running [`Rounded`] values, with no `c₀ ± A`
+/// extremes and no charge: a far-centred pair keeps the digits of its
+/// gap that the stored data has, and the reading's own rounding is the
+/// spread the band reads (`spread_readings`), so a gap inside it hands
+/// on.
+fn culled<T: Decide>(
+    span: &Span<'_, T>,
+    conic: &dyn Conic<T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    use geom_core::running::{cross, dot, exact_vec};
+    let (t0, t1) = span.params();
+    let speed = geom::carrier_speed::speed_range(span.carrier()).1;
+    let (a, b) = conic.semi_axes();
+    let diameter = T::from_f64(2.0) * a.abs().max(b.abs());
+    let reach = geom_core::bisect::reach(speed, (t0, t1)).min(diameter);
+    let m = conic.running_point(geom::mid_param(t0, t1));
+    let from = |origin: Point3<T>| {
+        let o = exact_vec(geom_core::Vec3::new(origin.x, origin.y, origin.z));
+        [m[0] - o[0], m[1] - o[1], m[2] - o[2]]
+    };
+    let length = |v: [Rounded<T>; 3]| v[0].hypot(v[1]).hypot(v[2]);
+    // `m`'s height along the unit axis `n` and its distance from the axis
+    // line, `|e × n|`: no `e − (e·n)n`, which cancels far along the axis.
+    let split = |origin: Point3<T>, n: geom_core::UnitVec3<T>| {
+        let e = from(origin);
+        let n = exact_vec(n.get());
+        (dot(e, n), length(cross(e, n)))
+    };
+    let magnitude = |v: Rounded<T>| Rounded::select_le_zero(v.value, -v, v);
+    let exact = Rounded::exact;
+    let one = exact(T::one());
+    let (g, lipschitz) = match *surface {
+        geom::Surface::Sphere { frame, radius, .. } => {
+            (length(from(frame.origin())) - exact(radius), one)
+        }
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            let (_, rho) = split(frame.origin(), frame.axis_unit());
+            (rho - exact(radius), one)
+        }
+        geom::Surface::Cone {
+            frame, half_angle, ..
+        } => {
+            let (h, rho) = split(frame.origin(), frame.axis_unit());
+            let (sin, cos) = half_angle.sin_cos();
+            (
+                rho * exact(cos) - magnitude(h) * exact(sin),
+                exact(sin).hypot(exact(cos)),
+            )
+        }
+        geom::Surface::Torus {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | geom::Surface::Spindle {
+            frame,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (h, rho) = split(frame.origin(), frame.axis_unit());
+            (
+                (rho - exact(major_radius)).hypot(h) - exact(minor_radius),
+                one,
+            )
+        }
+        _ => return false,
+    };
+    let margin = magnitude(g) - exact(reach) * lipschitz;
+    matches!(
+        crate::roots::spread_readings("curve_face_pose_clearance", margin.value, margin.error, band),
+        Ok((below, _)) if below.sign == Sign::Positive
+    )
 }
 
 // ------------------------------------------------------------- shared
@@ -1555,6 +1671,9 @@ fn conic_quadric<T: Decide>(
     use super::conic_quadric as door;
     let carrier = span.carrier();
     let conic = carrier.conic().ok_or(PoseRefusal::Fault(door::DESYNC))?;
+    if culled(span, conic, surface, band) {
+        return Ok(Pose::Apart);
+    }
     match (carrier, surface) {
         (
             &geom::Curve3::Circle(circle),
@@ -1976,9 +2095,15 @@ fn conic_torus<T: Decide>(
             "the conic × torus arm was handed a surface that is not a torus",
         ));
     };
+    let conic = span.carrier().conic().ok_or(PoseRefusal::Fault(
+        "the conic × torus arm was handed a carrier that is not a conic",
+    ))?;
+    if culled(span, conic, surface, band) {
+        return Ok(Pose::Apart);
+    }
     let (t_center, t_axis) = (frame.origin(), frame.axis_unit());
-    // The doors read only a ring, asked of the convention before any
-    // pose: their harmonics take the witness, whose floor on `|F|` per
+    // The doors read only a ring, asked of the convention past the cull,
+    // before any other pose: their harmonics take the witness, whose floor on `|F|` per
     // metre and whose meridian bound lean on `R − r > 0`.
     let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
         .map_err(PoseRefusal::Torus)?;

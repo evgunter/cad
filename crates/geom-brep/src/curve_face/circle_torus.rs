@@ -147,11 +147,15 @@ use geom::Conic;
 use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::{CircleRoots, DoorRefusal};
+use super::circle_roots::CircleRoots;
+#[cfg(test)]
+use super::circle_roots::DoorRefusal;
 use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
+#[cfg(test)]
+use crate::roots::{OnCarrier, Roots};
+use crate::roots::{RootRefusal, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
@@ -168,8 +172,8 @@ const DESYNC: &str = "the circle × torus root door was handed a carrier that is
 
 /// **The certified crossings of the `carrier` circle with the `torus`**,
 /// reported within `π` of the midpoint of `[t0, t1]`, in the root doors'
-/// shape: the sweep's reading until it reads [`super::cross()`]. A wrapper:
-/// the pose ([`super::pose()`]), then the method ([`torus_method`]), mapped
+/// shape: the door rows' reading, a test reader since the sweep reads
+/// [`super::cross()`]: the pose ([`super::pose()`]), then the method ([`torus_method`]), mapped
 /// back. `Lies` (a rim of a coaxial torus, a meridian) is
 /// [`CircleRoots::On`], `Apart` [`CircleRoots::Miss`], a pose rung read in
 /// the zero band where it needed a definite reading
@@ -181,6 +185,7 @@ const DESYNC: &str = "the circle × torus root door was handed a carrier that is
 /// [`DoorRefusal::Torus`] for a torus outside the ring convention, asked
 /// before any pose; [`DoorRefusal::Escalated`] for a pose rung or a
 /// method sign in band.
+#[cfg(test)]
 pub fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -197,7 +202,8 @@ pub fn circle_torus_roots<T: Decide>(
     torus_wrapper(carrier, (t0, t1), torus, band)
 }
 
-/// [`circle_torus_roots`]' and `ellipse_torus_roots`' one wrapper.
+/// [`circle_torus_roots`]' and `ellipse_torus_roots`' one test reader.
+#[cfg(test)]
 pub(super) fn torus_wrapper<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),

@@ -41,10 +41,12 @@
 
 use geom_core::{Band, Decide};
 
+#[cfg(test)]
 use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision_past,
 };
+#[cfg(test)]
 use crate::roots::Unsettled;
 use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
@@ -52,7 +54,8 @@ const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 
 /// The certified crossings of the `carrier` ellipse with the `surface`
 /// torus, reported within `π` of the midpoint of `[t0, t1]` (module
-/// docs).
+/// docs): the door rows' reading, a test reader since the sweep reads
+/// [`super::cross()`].
 ///
 /// # Errors
 ///
@@ -62,6 +65,7 @@ const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 /// [`DoorRefusal::Torus`] for a torus outside the ring convention. The
 /// subdivision's sign in band is [`DoorRefusal::Escalated`], its
 /// fault is the kernel's, and its limit is the inner [`Unsettled`].
+#[cfg(test)]
 pub fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,

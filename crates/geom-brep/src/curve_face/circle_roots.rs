@@ -4,8 +4,8 @@
 //! residual's harmonics from the geometry, names its rows, and answers
 //! [`CircleRoots`]; the first harmonic's root finding lives here, and a
 //! degree-two or higher residual's in [`crate::half_angle`], read past
-//! what it refuses, and the wrappers read a method's answer in the door's
-//! vocabulary ([`door_shape`]). Every door has one shape: `(carrier, t0, t1, surface,
+//! what it refuses, and the door rows' test readers read a method's
+//! answer in the door's vocabulary (`door_shape`). Every door has one shape: `(carrier, t0, t1, surface,
 //! band)`. A torus door refuses in [`DoorRefusal`]: a wrong kind is
 //! [`DoorRefusal::Invariant`], and an in-band classifying sign is
 //! [`DoorRefusal::Escalated`]. The conic × quadric door refuses in its
@@ -71,7 +71,9 @@
 //! miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 
 use crate::half_angle::MAX_DEGREE;
-use crate::roots::{OnCarrier, Roots, Unsettled};
+#[cfg(test)]
+use crate::roots::Unsettled;
+use crate::roots::{OnCarrier, Roots};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
@@ -140,6 +142,7 @@ pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 ///
 /// [`DoorRefusal::Escalated`] for a sign in the band's gap, and
 /// [`DoorRefusal::Invariant`] for a fault or a count past the degree.
+#[cfg(test)]
 pub(super) fn door_shape<T: Decide, X>(
     span: &crate::curve_pair::Span<'_, T>,
     walked: &super::cross::Walked<T>,
