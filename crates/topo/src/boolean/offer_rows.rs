@@ -2721,6 +2721,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
+    (
+        "ops/interior_cuts.rs",
+        "loop_cut_in",
+        "BooleanDecision::Sphere",
+        1,
+    ),
+    (
+        "ops/interior_cuts.rs",
+        "loop_cut_in",
+        "SphereQuestion::CutIn",
+        1,
+    ),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     (
         "ops.rs",

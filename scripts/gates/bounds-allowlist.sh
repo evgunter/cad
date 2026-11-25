@@ -552,7 +552,10 @@ BOUNDS_ALLOWLIST=(
   # `Bounds` their calls do not compile. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound, and `section_report` runs at `f64` only.
-  'crates/topo/src/boolean/ops.rs 26 2026-07-29 (M5 PR 8), the driver amendment'
+  # `section_extent_pass` left the seam: it reads the verdicts
+  # `no_crossings_pass` hands it, no body and no box, so it carries no
+  # bound. 26 − 1 = 25.
+  'crates/topo/src/boolean/ops.rs 25 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,

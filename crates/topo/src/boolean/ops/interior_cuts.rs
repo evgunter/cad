@@ -10,10 +10,8 @@
 //! place: the sphere face is cut along a meridian of its own chart the
 //! loop crosses ([`super::SphereCutIn`], [`super::apply_cut_ins`]), and
 //! the pipeline re-enters once. The re-entered crossing layer meets the
-//! loop where it crosses the cut, and the output stage glues the cut
-//! away with the two pieces it divided. Where it leaves one, the op
-//! refuses rather than answer a face that is not maximal
-//! ([`super::reenter_recut`]).
+//! loop where it crosses the cut ([`super::Pass::CutIn`]), and the
+//! output stage closes the cut ([`super::super::slit`], closing a cut).
 //!
 //! Against a plane or a sphere the loop is the carriers' one circle.
 //! Against a torus or a cylinder it is the march's one loop, and the cut
@@ -65,8 +63,8 @@ pub(super) fn cut_ins<T: Decide + AtRestPolicy>(
             Err(SectionRefusal::Loop) => {}
             Err(_) => return Ok(None),
         }
-        let sa = a.proven_face(p.a_face).surface();
-        let sb = b.proven_face(p.b_face).surface();
+        let sa = a.proven_face(p.a_face).expect_described();
+        let sb = b.proven_face(p.b_face).expect_described();
         let mut any = false;
         for (operand, face, x, y) in [
             (Operand::A, p.a_face, sa, sb),
