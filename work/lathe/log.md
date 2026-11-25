@@ -91,3 +91,4 @@ Signed: (CARVE orchestrator)
     - one home for "two ends on one stored point";
     - a debug check on `Span::joined`;
     - `span.rs`'s premise restated with the ε.
+- 2026-11-25 — **Merged PR 7478 (the skin cuts an arc wall at each sub-arc joint) to main** at 66e8a6a1a0, the program's first P0 landed. On the merge head, main was merged in twice more: SCALAR's at-T build, TESSLANE and the metric split, handled by the skin lane; then a slow-set-only conflict, handled by me. Its one red is inherited: the cylinder-prism corner at ε 1e-12, TESSLIE's open main-red row. The 156 loft, sweep and tube slow rows were run locally on the merge head: 156/156. Main's clippy red in `geom-brep/tests/cone_torus_pose.rs` (since PR 7395) is fixed with it.
