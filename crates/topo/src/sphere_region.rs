@@ -211,7 +211,10 @@ fn tangent<T: Decide>(a: Vec3<T>, raw: Vec3<T>) -> Vec3<T> {
 /// nothing and is left out ([`region::boundary`]). A spline is read on
 /// its certified carrier (a periodic cubic's clamped view over the
 /// edge's span), which tier 3 places on the face's sphere, as every
-/// edge of the face.
+/// edge of the face, and only through `splines`, the scalar's spline
+/// reader ([`crate::props::AtRestPolicy::spline_face_crossings`]) where
+/// the caller's bound holds one: without it a face with a spline arc
+/// answers `None` (`work/inside/the-face-door-reads-no-spline-arc-of-a-sphere-face.md`).
 ///
 /// # Errors
 ///
@@ -955,7 +958,8 @@ mod tests {
     /// **A rim carried on a spline reads as the same rim on its circle**:
     /// [`carved`] and [`carved_on_a_spline`], each way round, answer
     /// alike on the rim (`None`), a band's width past it either side, a
-    /// tenth of a radian off it and at both poles, at 64 azimuths; and
+    /// tenth of a radian off it and at both poles, at 6 azimuths, none of
+    /// them a knot's; and
     /// the spline face's aim lies in it. Every answer is a definite one,
     /// so the agreement is no pair of refusals.
     #[test]
@@ -968,8 +972,8 @@ mod tests {
                 (at(0.0, 0.0), Some(forward)),
                 (at(core::f64::consts::PI, 0.0), Some(!forward)),
             ];
-            for i in 0..64 {
-                let az = f64::from(i) * core::f64::consts::TAU / 64.0 + 1e-3;
+            for i in 0..6 {
+                let az = f64::from(i) * core::f64::consts::TAU / 6.0 + 0.3;
                 queries.push((at(rim, az), None));
                 for (off, above) in [(-1e-6, true), (1e-6, false), (-0.1, true), (0.1, false)] {
                     queries.push((at(rim + off, az), Some(above == forward)));

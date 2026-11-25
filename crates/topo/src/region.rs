@@ -357,7 +357,7 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
             .iter()
             .all(|w| matches!(w.why, CrossWhy::Pose(PoseRefusal::Enclosed))) =>
         {
-            return spline_landings(door, edge, &curve, &on_leg, band);
+            return spline_landings(door, edge, &curve, on_leg, band);
         }
         Err(MeetRefusal::Windows {
             read,

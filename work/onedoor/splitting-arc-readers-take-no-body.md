@@ -14,3 +14,15 @@ Found by `crossing-doors-leave-topo-for-geom-brep`'s shape sweep (2026-11-03): f
 - `crates/topo/src/splitting/order.rs`: `exact_band`, `in_plane_frame`, `lex_cmp`, `sort_indices_by_point`, `sort_along_line`, `sort_along`; its one engine type is `SplitPlane` (an origin and a unit normal).
 
 Each is a reading of carriers or points, so arm 1 sends it to `geom-brep`; `ConicRows`/`ArcRows` in `splitting/containment.rs` would be checked by the same test when they go.
+
+## 2026-11-25: the region skeleton reads the pieced arcs too (INSIDE)
+
+`inside/sphere-chord-region` moved the torus door's oval boundary
+reading into the region skeleton as `region::pieced_edge_hit`
+(`crates/topo/src/region.rs`), which the sphere door now also reads a
+spline arc through (`splitting::spline_arc::SplineArc`,
+`sphere_region::SphereFaceRegion`'s `on_edge`). `engine-leaves`'
+`names-splitting` pins moved with it: `torus_region.rs` 18 → 8,
+`region.rs` 16 → 31 and `sphere_region.rs` 4 → 11, the two rises
+citing this row. Moving the arc readers out of `splitting` takes
+`region.rs`'s and `sphere_region.rs`'s sites with them.
