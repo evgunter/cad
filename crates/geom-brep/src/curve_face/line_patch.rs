@@ -338,7 +338,17 @@ impl<T: Decide> Walk<T> {
     /// `reach` asks the span's ends as well: a cell wholly behind the
     /// start or past the end is clear of the span, though the line may
     /// cross it.
-    fn verdict(&self, cell: &Cell<T>, reach: bool, pending: &mut Option<Indeterminate>) -> Verdict {
+    ///
+    /// `known` is the incidence of a cell already shown one-to-one that
+    /// holds this one, which is one-to-one with it: its cone test is not
+    /// read again.
+    fn verdict(
+        &self,
+        cell: &Cell<T>,
+        reach: bool,
+        known: Option<Sign>,
+        pending: &mut Option<Indeterminate>,
+    ) -> Verdict {
         if !cell.net.iter().all(|(h, _)| h[3].structure_positive()) {
             return Verdict::Unhulled;
         }
@@ -378,7 +388,7 @@ impl<T: Decide> Walk<T> {
             })
         };
         let undecided = |near: Verdict| if within() { Verdict::Within } else { near };
-        let Some(incidence) = self.one_to_one(cell) else {
+        let Some(incidence) = known.or_else(|| self.one_to_one(cell)) else {
             return undecided(Verdict::Open);
         };
         match boundary_parity(self, cell) {
@@ -463,7 +473,7 @@ impl<T: Decide> Walk<T> {
             return Grown::Open;
         }
         let grown = top.restricted(self.pu, self.pv, rect);
-        match self.verdict(&grown, true, pending) {
+        match self.verdict(&grown, true, None, pending) {
             Verdict::One(incidence) => Grown::One(grown, incidence),
             Verdict::Clear => Grown::Clear,
             Verdict::Unhulled => Grown::Unhulled,
@@ -474,7 +484,7 @@ impl<T: Decide> Walk<T> {
     /// Whether `cell` is shown to hold no crossing: decided clear, or
     /// one-to-one with a boundary that does not wind round the line.
     fn holds_none(&self, cell: &Cell<T>, pending: &mut Option<Indeterminate>) -> bool {
-        matches!(self.verdict(cell, false, pending), Verdict::Clear)
+        matches!(self.verdict(cell, false, None, pending), Verdict::Clear)
     }
 
     /// The along-line coefficients' least and greatest.
@@ -516,6 +526,7 @@ impl<T: Decide> Walk<T> {
     fn narrowed(
         &self,
         mut cell: Cell<T>,
+        incidence: Sign,
         pending: &mut Option<Indeterminate>,
     ) -> Result<Cell<T>, Cell<T>> {
         loop {
@@ -531,7 +542,7 @@ impl<T: Decide> Walk<T> {
             // band of the cut leaves both undecided, and the cell is cut
             // elsewhere: the other way, then off the halving's grid.
             let held = |c: &Cell<T>, pending: &mut Option<Indeterminate>| match self
-                .verdict(c, false, pending)
+                .verdict(c, false, Some(incidence), pending)
             {
                 Verdict::One(_) => Some(true),
                 Verdict::Clear => Some(false),
@@ -721,7 +732,7 @@ pub fn read_measured<T: Decide>(
             continue;
         }
         let mut pending = None;
-        let (cell, incidence) = match walk.verdict(&cell, true, &mut pending) {
+        let (cell, incidence) = match walk.verdict(&cell, true, None, &mut pending) {
             Verdict::Clear => continue,
             Verdict::Unhulled => return Err(unhulled()),
             Verdict::One(incidence) => (cell, incidence),
@@ -754,7 +765,7 @@ pub fn read_measured<T: Decide>(
             continue;
         }
         claims.push(cell.rect);
-        let Ok(narrow) = walk.narrowed(cell.clone(), &mut pending) else {
+        let Ok(narrow) = walk.narrowed(cell.clone(), incidence, &mut pending) else {
             unread.push(stretch(&walk, &cell, pending, Unsettled::Tangency));
             continue;
         };

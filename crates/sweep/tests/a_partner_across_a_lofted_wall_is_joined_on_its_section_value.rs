@@ -3,12 +3,12 @@
 //! one meets it in an arc from the wall's rim to its rim, or from side to
 //! side, which the join reads as the carried component the section value
 //! lists, its chords cut from the reading's own certified carrier on
-//! both operands. Each run passes the join's lanes and stops past the
-//! join, at the inside/outside test no spline face can be crossed by, or
-//! at the at-rest certificate of the chord the join mints: a plane's arc
-//! across a curved wall stops at the plane × spline lane's own image.
-//! Neither is the join's. Two arcs of one pair a rung apart pass the
-//! carry and the join too. A brick wholly inside
+//! both operands. Each run passes the join's lanes and the inside/outside
+//! test, which crosses the spline walls (`geom_brep::curve_face::line_patch`),
+//! and builds, or stops past both: at the result's own checks, or at the
+//! at-rest certificate of the chord the join mints (a plane's arc across a
+//! curved wall stops at the plane × spline lane's own image). Two arcs of
+//! one pair a rung apart pass the carry and the join too. A brick wholly inside
 //! a wall's face meets it in a closed loop, a ring of the wall the join
 //! walls off as an island; a slab round the prism meets its walls in a
 //! closed loop on each of its own big faces, a ring of a plane.
@@ -33,10 +33,10 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
     }
 }
 
-/// Whether the run passed the join's lanes and stopped where a ball
-/// across a spline wall does: at the inside/outside test, which no
-/// spline face can be crossed by, or, at `ε = 1e-12`, at the chord's
-/// certificate, the lane's image of the arc missing its foot path.
+/// Whether the run passed the join's lanes and the inside/outside test
+/// and stopped past both: at the result's checks, or, at `ε = 1e-12`, at
+/// the chord's certificate, the lane's image of the arc missing its foot
+/// path.
 fn stops_past_the_join(refusal: &BooleanError, t: Tol) -> bool {
     match chord_certificate(refusal) {
         Some(
@@ -50,16 +50,33 @@ fn stops_past_the_join(refusal: &BooleanError, t: Tol) -> bool {
             },
         ) => t.eps() == 1e-12,
         Some(_) => false,
-        None => {
-            t.eps() != 1e-12
-                && matches!(
-                    refusal,
-                    BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                        kind: geom::SurfaceKind::Nurbs,
-                        ..
-                    })
-                )
+        None => !matches!(
+            refusal,
+            BooleanError::Join(_) | BooleanError::Containment(_)
+        ),
+    }
+}
+
+/// **The run builds a valid body, or stops past the join and the
+/// inside/outside test** ([`stops_past_the_join`]).
+fn builds_or_stops_past_the_join(
+    what: &str,
+    run: Result<topo::BooleanResult<f64>, BooleanError>,
+    t: Tol,
+) {
+    match run {
+        Ok(built) => {
+            let body = &built
+                .body()
+                .expect("a union or a difference here is never empty")
+                .body;
+            assert_eq!(topo::validate_geometric(body, t), Ok(()), "{what}: tier 3");
         }
+        Err(refusal) => assert!(
+            stops_past_the_join(&refusal, t),
+            "{what}: the join and the inside/outside test pass, the run stopping past \
+             both: {refusal:?}"
+        ),
     }
 }
 
@@ -67,10 +84,11 @@ fn stops_past_the_join(refusal: &BooleanError, t: Tol) -> bool {
 /// the wall in an arc from the wall's bottom rim back to it, which the
 /// join carries; the chord it mints on the wall and the ball is an
 /// intersection of a sphere and a spline, which the at-rest certificate
-/// holds through its curved-partner lane. The join completes, and the
-/// union stops past it at the inside/outside test, which cannot cross a
-/// spline face
-/// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
+/// holds through its curved-partner lane. The join completes, the
+/// inside/outside test crosses the wall, and at the witness ε the union
+/// stops at the result's edge-in-face check, which reads the chord on the
+/// wall's carrier no further
+/// (`work/sectarms/the-join-reads-a-spline-implicit-section.md`).
 ///
 /// At `ε = 1e-12` the chord stops at its certificate instead: the lane's
 /// image of the arc on the wall misses its foot path by more than that ε
@@ -93,14 +111,7 @@ fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
             ball_poled_z(0.25, Vec3::new(c[0], c[1], c[2]), t),
             t,
         );
-        let refusal =
-            topo::union(&prism, &ball, t).expect_err("no ray crosses the prism's spline walls");
-        let read = stops_past_the_join(&refusal, t);
-        assert!(
-            read,
-            "{what}: the chord certifies at rest and the join completes, the inside/outside \
-             test refusing the wall (at ε = 1e-12, the chord's image misses): {refusal:?}"
-        );
+        builds_or_stops_past_the_join(what, topo::union(&prism, &ball, t), t);
     }
 }
 
@@ -108,9 +119,9 @@ fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
 /// the join**: on the prism whose sections stand `0.2` apart, the ball
 /// of radius `0.21` about `(0.3, 0.95, 0.2)` cuts a wall in two rim arcs
 /// about a rung apart. What the row holds is where each run stops, in
-/// union, subtract and swapped union: past the carry and past the join,
-/// as one arc's does, at the inside/outside test, or at `ε = 1e-12` at
-/// the chord's certificate (`stops_past_the_join`). That each arc's
+/// union, subtract and swapped union: past the carry, the join and the
+/// inside/outside test, built, or stopped at the result's checks or at
+/// `ε = 1e-12` at the chord's certificate (`builds_or_stops_past_the_join`). That each arc's
 /// sites are read in its own cells is `geom-brep`'s to show
 /// (`pair_section::spline_implicit::cells::rows`); a run that read a
 /// site on both arcs would abort in the join, before either stop.
@@ -137,22 +148,65 @@ fn a_ball_across_two_close_arcs_of_a_lofted_wall_passes_the_carry_and_the_join()
         ("prism ∖ ball", topo::subtract(&prism, &ball, t)),
         ("ball ∪ prism", topo::union(&ball, &prism, t)),
     ] {
-        let refusal = run.expect_err("no ray crosses the prism's spline walls");
-        assert!(
-            stops_past_the_join(&refusal, t),
-            "{what}: both arcs are carried and the join completes, the run stopping past it: \
-             {refusal:?}"
-        );
+        builds_or_stops_past_the_join(what, run, t);
     }
+}
+
+/// **Every operation of `a` and `b` builds a valid body, and their
+/// volumes agree**: the union and the common part together are the two
+/// operands, each difference its operand less the common part.
+fn every_op_builds_and_its_volumes_agree(
+    what: &str,
+    a: &topo::AtRestBody<f64>,
+    b: &topo::AtRestBody<f64>,
+    t: Tol,
+) {
+    let volume = |body: &topo::AtRestBody<f64>| {
+        topo::mass_properties(body, t, topo::test_support::pinned_resolution(t))
+            .expect("the body measures")
+            .met()
+            .expect("the measure settles")
+            .volume
+    };
+    let built = |run: Result<topo::BooleanResult<f64>, BooleanError>, op: &str| {
+        let run = run.unwrap_or_else(|e| panic!("{what}: {op} builds: {e:?}"));
+        let body = run
+            .body()
+            .unwrap_or_else(|| panic!("{what}: {op} is not empty"))
+            .body
+            .clone();
+        assert_eq!(
+            topo::validate_geometric(&body, t),
+            Ok(()),
+            "{what}: {op}: tier 3"
+        );
+        volume(&body)
+    };
+    let (va, vb) = (volume(a), volume(b));
+    let joined = built(topo::union(a, b, t), "a ∪ b");
+    let swapped = built(topo::union(b, a, t), "b ∪ a");
+    let common = built(topo::intersect(a, b, t), "a ∩ b");
+    let less = built(topo::subtract(a, b, t), "a ∖ b");
+    let other = built(topo::subtract(b, a, t), "b ∖ a");
+    let near = |x: f64, y: f64| (x - y).abs() < 1e-9;
+    assert!(
+        common > 0.0
+            && near(joined, swapped)
+            && near(joined + common, va + vb)
+            && near(less, va - common)
+            && near(other, vb - common),
+        "{what}: ∪ {joined} and {swapped}, ∩ {common}, ∖ {less} and {other} against {va} and {vb}"
+    );
 }
 
 /// **A brick across the prism's wall**: the brick's planes meet the wall
 /// in arcs the join carries, each plane's chord an arc of the same
 /// carrier as the wall's. Across the flat wall at its rim the guard reads
 /// each of the wall's pairs off its listing and clears it, the join
-/// completes, and the union stops past it at the inside/outside test,
-/// which cannot cross a spline face; a brick wholly inside the prism
-/// stops there too, but with no pair crossing the wall. Across the
+/// completes, the inside/outside test crosses the wall, and every
+/// operation builds a valid body whose volumes agree: the union and the
+/// common part together are the two operands, the differences each
+/// operand less the common part. Across the
 /// flared wall the plane × spline certificate refuses the chord, its own
 /// image missing it (at `ε = 1e-6`, its hull value escalating first).
 ///
@@ -183,18 +237,7 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
         !cleared.is_empty(),
         "the flat wall: the brick crosses it, and the guard clears its pairs: {report:?}"
     );
-    let refusal = topo::union(&prism, &flat, t).expect_err("the result's containment refuses");
-    assert!(
-        matches!(
-            refusal,
-            BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
-        "the flat wall: the join completes, and the inside/outside test cannot cross the \
-         wall: {refusal:?}"
-    );
+    every_op_builds_and_its_volumes_agree("the flat wall's brick", &prism, &flat, t);
     let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
     let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline lane refuses");
     // At `ε = 1e-6` the lane's hull value escalates before its image is
@@ -214,24 +257,13 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
     );
 }
 
-/// Whether the run stopped past the join, at the inside/outside test
-/// that cannot cross a spline face
-/// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
-fn stops_at_containment(refusal: &BooleanError) -> bool {
-    matches!(
-        refusal,
-        BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-            kind: geom::SurfaceKind::Nurbs,
-            ..
-        })
-    )
-}
-
 /// **A brick wholly inside the flat wall's face closes a ring on the
 /// wall**: its four planes meet the wall in a closed loop of four
 /// carried arcs, and the chord that closes the loop walls an island off
 /// the wall, wound by paths along the wall's own iso curves. Every
-/// operation passes the join and stops at the inside/outside test.
+/// operation passes the join and the inside/outside test; at the witness
+/// ε the result's volume reads no ring on a curved face
+/// (`VolumeUncomputable { source: RingOnCurvedFace }`).
 ///
 /// Red against: a ring lane with no winding on a spline wall, where each
 /// run refused `CurvedBooleanUnsupported` naming the wall. Which way
@@ -260,20 +292,15 @@ fn a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall() {
         ("brick ∪ prism", topo::union(&brick, &prism, t)),
         ("brick ∖ prism", topo::subtract(&brick, &prism, t)),
     ] {
-        let refusal = run.expect_err("no ray crosses the prism's spline walls");
-        assert!(
-            stops_at_containment(&refusal),
-            "{what}: the island closes on the wall and the join completes, the inside/outside \
-             test refusing the wall: {refusal:?}"
-        );
+        builds_or_stops_past_the_join(what, run, t);
     }
 }
 
 /// **A fork with two prongs inside the flat wall's face closes two
 /// rings on the wall**: when the first island is walled off, the other
 /// prong's pierce rings are bystanders on the wall, each placed out of
-/// the island by a path on the wall. The union passes the join and stops
-/// at the inside/outside test.
+/// the island by a path on the wall. The union passes the join and the
+/// inside/outside test.
 ///
 /// Red against: a re-homing with no reading on a spline wall, where the
 /// first island's chord refused `RingIslandUnread` naming the wall.
@@ -301,13 +328,7 @@ fn a_fork_inside_a_lofted_walls_face_closes_two_rings_on_the_wall() {
         &joined(&brick((-0.6, -0.3), (0.75, 1.5)), &bridge),
         &brick((0.3, 0.6), (0.75, 1.5)),
     );
-    let refusal =
-        topo::union(&prism, &fork, t).expect_err("no ray crosses the prism's spline walls");
-    assert!(
-        stops_at_containment(&refusal),
-        "both islands close on the wall and the join completes, the inside/outside test \
-         refusing the wall: {refusal:?}"
-    );
+    builds_or_stops_past_the_join("prism ∪ fork", topo::union(&prism, &fork, t), t);
 }
 
 /// **A fork with one prong inside the flat wall's face and one across
@@ -371,8 +392,8 @@ fn a_fork_inside_and_across_the_rim_of_a_lofted_wall_refuses_its_re_homing_by_na
 /// walls in a closed loop of four carried arcs on its top and on its
 /// bottom. Each loop is a ring of a planar face, whose island is wound
 /// on the face's own plane by the arcs' own areas, the closing chord's
-/// with them. Every operation, in either order, passes the join and
-/// stops at the inside/outside test.
+/// with them. Every operation, in either order, passes the join and the
+/// inside/outside test, and builds: the volumes agree.
 ///
 /// Red against: a ring lane that closes a carried chord on a curved face
 /// alone, where `prism ∪ slab` and `slab ∖ prism` refused
@@ -387,18 +408,5 @@ fn a_slab_round_the_prism_closes_a_ring_on_each_of_its_big_faces() {
         topo::test_support::brick_with_fresh_keys::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.75, 1.25), t),
         t,
     );
-    for (what, run) in [
-        ("prism ∪ slab", topo::union(&prism, &slab, t)),
-        ("prism ∖ slab", topo::subtract(&prism, &slab, t)),
-        ("prism ∩ slab", topo::intersect(&prism, &slab, t)),
-        ("slab ∪ prism", topo::union(&slab, &prism, t)),
-        ("slab ∖ prism", topo::subtract(&slab, &prism, t)),
-    ] {
-        let refusal = run.expect_err("no ray crosses the prism's spline walls");
-        assert!(
-            stops_at_containment(&refusal),
-            "{what}: the islands close on the slab's planes and the join completes, the \
-             inside/outside test refusing the wall: {refusal:?}"
-        );
-    }
+    every_op_builds_and_its_volumes_agree("the slab", &prism, &slab, t);
 }

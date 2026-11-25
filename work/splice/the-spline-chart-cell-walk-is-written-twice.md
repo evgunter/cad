@@ -57,3 +57,17 @@ both.
 2026-11-14 (`tesslane/spline-ring-door`): topo's cells (`bezier_cells`, `Patch`, `refined`, `blend`, `point_rounding`) and the trim's `Piece` now live at the crate root, `topo/src/spline_trim.rs`, beside the trim that meters by them; the boolean's carrier walk reads them from there. Their one home in geom-brep is still this row's.
 
 **Note from `a-place-is-an-f64-argument-answered-on-the-value-channel` (PR 7250).** The two `refined` copies answer an inserted knot the held runs do not hold differently: `spline_trim`'s enters it as a computed value (`T::from_computed(v)`), `spline_incidence`'s as NaN, the poison. Both are right for their callers: `spline_incidence` inserts only the chart's own breakpoints, so an unheld knot there is a defect and poisons the row; `spline_trim`'s is also called by `bezier_pieces`, which inserts a pcurve image's span ends `a`, `b`, places the image is cut at. One home has to keep that difference as a parameter (held breakpoints only, or breakpoints and cut points). Both walks now run only at a scalar that carries no tangent (`Decide<Value = T>`), with their places handed to `eval_at`.
+
+## A third reader takes geom-brep's cut, not a third copy (2026-11-25, `inside/ray-spline-face-arm`)
+
+The line × spline patch arm (`geom-brep/src/curve_face/line_patch.rs`,
+point containment's ray test) cuts its chart through
+`spline_incidence`'s cut, now factored out of `Net::of` as `Cut::of`
+(any `T: Decide`, held about a centre the caller names, the `f64`
+rounding bound carried only where asked) and `Cell::split_at` /
+`Cell::restricted` (a cut at a literal fraction or a place, the place
+stepped in `split_at`, listed as a place step). The arm reads the cells'
+nets and carries no floor or charge. `topo/src/spline_trim.rs`'s
+`bezier_cells` / `Patch` are still the second copy: the trim's placement
+meters by them on the chart's value view. The one home this row asks for
+is still owed; the arm is one more reader of geom-brep's copy.

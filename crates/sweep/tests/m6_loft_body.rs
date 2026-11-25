@@ -174,16 +174,17 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     );
 }
 
-/// **The cut-loft row (M6-3 §7, the PR 10 §5 contract verbatim):** a
-/// boolean against the loft body refuses TYPED, naming its true
-/// missing layer — never a silent skip and never a wrong body. The join
-/// reads the cutter's planes against the loft's spline walls on their
-/// section value, so the layer it stops at is the inside/outside test,
-/// which cannot cross a spline face.
+/// **The cut-loft row (M6-3 §7):** a boolean against the loft body
+/// builds, never a silent skip and never a wrong body. The join reads the
+/// cutter's planes against the loft's spline walls on their section
+/// value, and the inside/outside test crosses the walls
+/// (`geom_brep::curve_face::line_patch`): the cut validates, and its
+/// volume is the loft's less the part the cutter takes.
 #[test]
-fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
+fn the_cut_loft_builds_and_takes_the_cutters_part() {
+    let t = Tol::witness();
     let (sections, places) = shape_iii_sections();
-    let loft = loft_body::<f64>(&sections, &places, 2, Tol::witness())
+    let loft = loft_body::<f64>(&sections, &places, 2, t)
         .expect("loft builds")
         .body;
     let cutter = {
@@ -196,7 +197,7 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
             Point2::new(0.0, 2.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(geom_core::Tol::witness())
+            .validate(t)
             .unwrap();
         sweep::extrude(
             &vp,
@@ -204,35 +205,36 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
                 depth: 3.0,
                 side: ExtrudeSide::Along,
             },
-            Tol::witness(),
+            t,
         )
         .unwrap()
         .body
     };
-    let loft = finished("the loft", loft, Tol::witness());
-    let cutter = finished("the cutter", cutter, Tol::witness());
-    let out = topo::subtract(&loft, &cutter, Tol::witness());
-    let err = match out {
-        Err(e) => e,
-        Ok(_) => panic!("the cut-loft boolean cannot succeed before the spline containment layer"),
+    let loft = finished("the loft", loft, t);
+    let cutter = finished("the cutter", cutter, t);
+    let volume = |b: &topo::AtRestBody<f64>| {
+        topo::mass_properties(b, t, topo::test_support::pinned_resolution(t))
+            .expect("the body measures")
+            .met()
+            .expect("the measure settles")
+            .volume
     };
+    let built = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>, what: &str| {
+        let r = r.unwrap_or_else(|e| panic!("{what} builds: {e:?}"));
+        let b = r
+            .body()
+            .unwrap_or_else(|| panic!("{what} is not empty"))
+            .body
+            .clone();
+        assert_eq!(topo::validate_geometric(&b, t), Ok(()), "{what}: tier 3");
+        volume(&b)
+    };
+    let cut = built(topo::subtract(&loft, &cutter, t), "loft ∖ cutter");
+    let taken = built(topo::intersect(&loft, &cutter, t), "loft ∩ cutter");
+    let whole = volume(&loft);
     assert!(
-        matches!(
-            err,
-            topo::BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
-        "the inside/outside test refuses at a spline face: {err:?}"
-    );
-    let text = err.render(geom_brep::recourse::Reading::Build);
-    println!("cut-loft refusal: {text}");
-    assert!(
-        text.contains("spline (NURBS) face")
-            && text.contains("Recourse: build the solid so no spline (NURBS) face bounds it"),
-        "the refusal names the face kind with no crossing layer and ends on its \
-         recourse: {text}"
+        (cut + taken - whole).abs() < 1e-9 && taken > 0.0 && cut > 0.0,
+        "the cut and the part it takes make the loft: {cut} + {taken} against {whole}"
     );
 }
 
