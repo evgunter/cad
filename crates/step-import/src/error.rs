@@ -983,6 +983,41 @@ mod nested_at_the_door {
         );
     }
 
+    /// RE-REVIEW PROBE (PR 7497): the deleted row's second margin
+    /// (`OffMargin::Past`, within ε_in) through `TierInvalid`, the
+    /// ending's position, and the words it refused.
+    #[test]
+    fn r2_probe_the_past_margin_through_tier_invalid() {
+        for margin in [
+            None,
+            Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(5e-7))),
+        ] {
+            let text = StepImportError::TierInvalid {
+                solid: None,
+                errors: vec![topo::ValidationError::Pcurve {
+                    finding: topo::PcurveMintError::Certify {
+                        half_edge: topo::HalfEdgeKey::default(),
+                        error: geom_brep::PcurveCertifyError::Incidence(
+                            geom_brep::IncidenceRefusal::off_chart(
+                                geom::SurfaceKind::Cone,
+                                geom::CurveKind::Circle,
+                                "the circle dips below the apex",
+                                margin,
+                            ),
+                        ),
+                    },
+                }],
+                file: FileCoincidence::new(1e-6),
+            }
+            .render();
+            println!("[probe] {margin:?}: {text}");
+            assert!(text.contains(DAMAGED_FILE_ENDING), "{margin:?}: ends: {text}");
+            for word in ["ε_in", "declared", "kernel defect"] {
+                assert!(!text.contains(word), "{margin:?}: {word}: {text}");
+            }
+        }
+    }
+
     /// **A pcurve finding at the at-rest gate is the file's** (D4 ¶1
     /// (iv)): a row is derived from the file's own curves and surfaces,
     /// so at the import door its refusal names the file — a definite

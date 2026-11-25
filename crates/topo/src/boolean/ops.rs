@@ -8133,6 +8133,10 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 }
 
 #[cfg(test)]
+#[path = "ops_review_r2.rs"]
+mod review_r2;
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
