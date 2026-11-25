@@ -300,3 +300,9 @@
   - MAJOR: `disc_loop` reads its side on m² against a band in metres, and its two `Zero` defaults disagree. A 1e-3 rim at ε=1e-6 picks the wrong circle, and only the `ResultInvalid` backstop stops it.
   - MINORs: the `ArcOnFace` margin is the first sample's residual, not a bound; the "division everywhere" claim is false for ringed faces; the `PartsTouch` sentence contradicts itself (without the gap a body that fails t3′ ships).
   - Fix pass sent with small-scale pins and full default-profile evidence. The row's note is corrected.
+
+- 2026-11-25 The P0 fix for main red from PR 7745 (lane branch `heldrecords/removed-members-red`, a4c33327) fixes the three reds:
+  - glued structure is OneCell on any image, piece or minted;
+  - ContactContradicted counts as touched in a removed-member read only.
+  The full-default per-test diff (8533 vs 8549 tests) found a fork: with section edges named, `a_plane_face_holding_the_pierce_over_a_cylinder…` refuses JoinDesync (a minted vertex meets a minted section edge at a point); with no section, `three_solids_on_one_line::a_contact_line_beside_a_face_holding_it…` refuses Stale.
+  Ruled (C): an undecidable minted point meeting is set aside only where the record also lands on a non-minted pair. That is never consumption, and t3′ on the result stays the backstop. Pinned both ways with a mutant. (A), the door deciding vertex-on-edge meetings, is filed P2.
