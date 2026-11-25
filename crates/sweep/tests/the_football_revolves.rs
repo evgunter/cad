@@ -811,31 +811,44 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
 /// reads the outcome, not the mechanism, so it goes red if any build
 /// returns the open mesh as `Ok`
 /// (`work/tesslane/a-thin-lemons-one-band-meshes-no-triangle-along-its-wrap-edge-and-trips-the-chord-census.md`).
-/// The two coarser lemons mesh.
+/// The two coarser lemons mesh. Where the thinnest lemon's profile is
+/// already refused typed (in band for straightness at a coarse ε), it
+/// never reaches the mesher.
 #[test]
 fn a_thin_lemon_never_meshes_as_ok() {
     let tol = Tol::witness();
     for (big, meshes) in [(-0.999, true), (-0.9999, true), (-0.99999, false)] {
-        let built = revolve(
-            &validated(vec![football(big, 1.0)]),
-            y_axis(),
-            Revolution::Full,
-            tol,
-        )
-        .unwrap_or_else(|e| panic!("R {big}: {e}"));
-        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            mesh::tessellate(&built.body, 1e-2, tol).is_ok()
+        let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![football(big, 1.0)])
+            .validate(tol);
+        // At a coarse ε the thinnest lemon's sagitta (~1e-5) is in band for
+        // straightness, and the profile door refuses it typed.
+        let profile = match profile {
+            Ok(p) => p,
+            Err(profile::ProfileError::Escalated { .. }) if !meshes => continue,
+            Err(e) => panic!("R {big}: the profile refused: {e:?}"),
+        };
+        let built = revolve(&profile, y_axis(), Revolution::Full, tol)
+            .unwrap_or_else(|e| panic!("R {big}: {e}"));
+        let mut ok = None;
+        let panicked = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(|| {
+            ok = Some(mesh::tessellate(&built.body, 1e-2, tol).is_ok());
         }));
         if meshes {
             assert!(
-                matches!(got, Ok(true)),
-                "R {big}: the lemon meshes, got {got:?}"
+                panicked.is_none() && ok == Some(true),
+                "R {big}: the lemon meshes, got {ok:?}, panic {panicked:?}"
             );
         } else {
-            assert!(
-                !matches!(got, Ok(true)),
-                "R {big}: the band narrower than δ comes back as an Ok mesh"
-            );
+            // Typed refusal, or the chord census's own stop (issue 897);
+            // any other panic is red.
+            match (ok, panicked.as_deref()) {
+                (Some(false), None) => {}
+                (_, Some(message)) if message.contains("face triangles, not two per chord") => {}
+                (ok, panicked) => panic!(
+                    "R {big}: the band narrower than δ is neither refused nor stopped by the \
+                     chord census: ok {ok:?}, panic {panicked:?}"
+                ),
+            }
         }
     }
 }

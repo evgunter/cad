@@ -626,60 +626,51 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// is not meshed here.
 #[test]
 fn a_section_passing_near_a_pole_or_through_it_builds() {
-    let c = Vec3::new(2.0, 2.0, 0.5);
-    let pair = |d: f64| {
-        let s = 0.7 + d;
-        let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
-        (ball(1.0, c), ball(1.0, c + lean))
-    };
-    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
-    for d in [0.0, 1e-5, 1e-4, 3e-4] {
-        let (a, b) = pair(d);
-        let out = run(BooleanOp::Union, &a, &b);
-        // At δ 1e-4 the radical circle encloses the pole: on the one band
-        // it is one closed edge whose image sweeps exactly one turn, read
-        // `1.25e-12` short, which is in band at ε 1e-12 only
-        // (`work/lathe/a-section-circle-enclosing-a-one-band-spheres-pole-reads-its-one-turn-sweep-in-band.md`).
-        if d == 1e-4 && Tol::witness().eps() == 1e-12 {
-            assert!(
-                matches!(
-                    &out,
-                    Err(topo::BooleanError::Pcurves {
-                        source: topo::PcurveMintError::Certify {
-                            error: geom_brep::PcurveCertifyError::Escalated {
-                                check: geom_brep::PcurveCheck::AzimuthPeriod,
+    // Pinned red at ε 1e-12: at δ 1e-4 the radical circle encloses the
+    // pole, and on the one band it is one closed edge whose image sweeps
+    // exactly one turn, read `1.25e-12` short, in band at ε 1e-12 only
+    // (`work/lathe/a-section-circle-enclosing-a-one-band-spheres-pole-reads-its-one-turn-sweep-in-band.md`).
+    // δ 1e-4 runs last, so every other δ still runs at that ε.
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the section enclosing the pole at δ 1e-4",
+        &["δ 0.0001: the section refused", "AzimuthPeriod"],
+        || {
+            let c = Vec3::new(2.0, 2.0, 0.5);
+            let pair = |d: f64| {
+                let s = 0.7 + d;
+                let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+                (ball(1.0, c), ball(1.0, c + lean))
+            };
+            let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+            for d in [0.0, 1e-5, 3e-4, 1e-4] {
+                let (a, b) = pair(d);
+                let out = run(BooleanOp::Union, &a, &b)
+                    .unwrap_or_else(|e| panic!("δ {d}: the section refused: {e:?}"));
+                let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
+                if d == 0.0 {
+                    assert_body(&format!("δ {d}"), body, expected);
+                } else {
+                    assert_solid(&format!("δ {d}"), body, expected);
+                }
+                if d > 0.0 && d < 2e-4 {
+                    let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+                    assert!(
+                        matches!(
+                            &drawn,
+                            Err(mesh::TessellateError::SphereTrimShape {
+                                cause: mesh::types::SphereTrimCause::ChordBudget,
                                 ..
-                            },
-                            ..
-                        },
-                    })
-                ),
-                "δ {d}: the one-turn sweep reads in band at ε 1e-12, got {out:?}"
-            );
-            continue;
-        }
-        let out = out.unwrap_or_else(|e| panic!("δ {d}: the section refused: {e:?}"));
-        let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
-        if d == 0.0 {
-            assert_body(&format!("δ {d}"), body, expected);
-        } else {
-            assert_solid(&format!("δ {d}"), body, expected);
-        }
-        if d > 0.0 && d < 2e-4 {
-            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
-            assert!(
-                matches!(
-                    &drawn,
-                    Err(mesh::TessellateError::SphereTrimShape {
-                        cause: mesh::types::SphereTrimCause::ChordBudget,
-                        ..
-                    })
-                ),
-                "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
-                drawn.map(|m| m.positions.len())
-            );
-        }
-    }
+                            })
+                        ),
+                        "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
+                        drawn.map(|m| m.positions.len())
+                    );
+                }
+            }
+        },
+    );
 }
 
 /// **The nearest of those sections builds on its own.** The section
