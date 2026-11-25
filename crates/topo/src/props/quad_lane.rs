@@ -2091,18 +2091,16 @@ mod tests {
             );
         }
 
+        /// A cone as its apex, axis and half-angle.
+        type Cone = (Point3<f64>, geom_core::UnitVec3<f64>, f64);
+
         /// The cone `x² + y² = z²` (apex at the origin, `α = π/4`) and a
         /// cap on it: the parabola the plane `z = x + 2` cuts, `P(t) =
         /// ((t² − 4)/4, t, (t² + 4)/4)` over `t ∈ [0, 2]` as a polynomial
         /// quadratic with middle control point `mid`, the rim `z = 2` from
         /// `(0, 2, 2)` to `(−2, 0, 2)`, and the generator back to
         /// `(−1, 0, 1)`.
-        fn parabola_cap(
-            mid: Point3<f64>,
-        ) -> (
-            (Point3<f64>, geom_core::UnitVec3<f64>, f64),
-            Vec<LoopEdge<f64>>,
-        ) {
+        fn parabola_cap(mid: Point3<f64>) -> (Cone, Vec<LoopEdge<f64>>) {
             use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
             let frame = geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
             let cone = (frame.origin(), frame.axis_unit(), FRAC_PI_4);
