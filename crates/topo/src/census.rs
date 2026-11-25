@@ -5164,16 +5164,25 @@ fn meetings<T: Decide>(
         }
     };
     // The segment's ends and a stored boundary curve's, where they sit on
-    // one stored point, are that point ([`curved::joined`]).
+    // one stored point, are that point ([`curved::joined`]). A boundary
+    // with no stored curve is the chord between its loop ends, so its
+    // span already starts on its stored point and ends on the other to
+    // the chord's rounding, with no carrier's band between them; a
+    // straight edge sharing an end with it returned above
+    // ([`shares_an_end`]). A segment no body holds has no point keys.
     let segment = CarrierSpan::new(&along, (T::zero(), e.len));
     let (segment, boundary) = match stored {
-        Some(_) => curved::joined(
-            (
-                segment,
-                [(e.points[0], e.p0), (e.points[1], e.p1)].map(|(k, p)| k.map(|k| (k, p))),
-            ),
-            (boundary, curved::stored_ends(body, side.key)),
-        ),
+        Some(_) => {
+            let ends = match e.points {
+                [Some(k0), Some(k1)] => Some([(k0, e.p0), (k1, e.p1)]),
+                _ => None,
+            };
+            curved::joined(
+                (segment, ends),
+                (boundary, Some(curved::stored_ends(body, side.key))),
+                band,
+            )
+        }
         None => (segment, boundary),
     };
     let met = meet(&segment, &boundary, band).map_err(|r| {
@@ -5195,6 +5204,20 @@ fn meetings<T: Decide>(
         .collect())
 }
 
+/// **Whether two ends are one stored point**: both read from a point
+/// key, the same one, so one point by topology (`[verdicts.closeness]`)
+/// and read without a coordinate. The census's one test of it:
+/// [`shares_an_end`], the curved readers' joint ([`curved::joined`]),
+/// and [`one_point`]'s first arm. Only `one_point` goes on to read two
+/// distinct stored vertices by value (`pm_census_vv_gap`), since the
+/// line census orders ends along an axis and must place two in band of
+/// each other somewhere; a joint takes topology alone, as an end on
+/// another edge's interior on its own key is a meeting to report, not
+/// one point.
+pub(super) fn on_one_point_key(x: Option<PointKey>, y: Option<PointKey>) -> bool {
+    x.is_some() && x == y
+}
+
 /// Whether edge `g` has an end on one of `e`'s ends' points.
 fn shares_an_end<T: Real>(body: &Body<T>, e: &EdgeGeo<T>, g: EdgeKey) -> bool {
     let point = |v: VertexKey| body.vertices.get(v).map(|d| d.point);
@@ -5203,7 +5226,7 @@ fn shares_an_end<T: Real>(body: &Body<T>, e: &EdgeGeo<T>, g: EdgeKey) -> bool {
         ends.iter().any(|&w| {
             [e.v0, e.v1]
                 .iter()
-                .any(|&v| v == w || point(v).is_some_and(|p| point(w) == Some(p)))
+                .any(|&v| v == w || on_one_point_key(point(v), point(w)))
         })
     })
 }
@@ -6126,7 +6149,7 @@ fn one_point<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    if x.key.is_some() && x.key == y.key {
+    if on_one_point_key(x.key, y.key) {
         return Some(true);
     }
     let (Some(p), Some(q)) = (x.stored, y.stored) else {
@@ -12696,16 +12719,9 @@ fn arc_interiors_meet<T: Decide>(
     };
     let mut cuts_a: Vec<Vec<T>> = sa.iter().map(|(_, s)| ends(s)).collect();
     let mut cuts_b: Vec<Vec<T>> = sb.iter().map(|(_, s)| ends(s)).collect();
-    let stored = |spans: &[(EdgeKey, curved::EdgeSpan<T>)]| -> Vec<_> {
-        spans
-            .iter()
-            .map(|&(e, _)| curved::stored_ends(body, e))
-            .collect()
-    };
-    let (ends_a, ends_b) = (stored(&sa), stored(&sb));
     for (i, (_, x)) in sa.iter().enumerate() {
         for (j, (_, y)) in sb.iter().enumerate() {
-            let (x, y) = curved::joined((x.span(), ends_a[i]), (y.span(), ends_b[j]));
+            let (x, y) = x.joined_with(y, band);
             match meet(&x, &y, band) {
                 Ok(met) => {
                     for m in &met.points {
@@ -12737,8 +12753,11 @@ fn arc_interiors_meet<T: Decide>(
                 note(InteriorsUnread::Unbuilt)?;
                 continue;
             };
+            // A vertex this edge ends on is its end, read on the stored
+            // point and not on the carrier's end a band's zero from it.
+            let key = body.vertices.get(v).map(|d| d.point);
             for ((_, s), cut) in spans.iter().zip(cuts.iter_mut()) {
-                let span = s.span();
+                let span = s.span_on(key, band);
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
@@ -16152,9 +16171,23 @@ mod tests {
     /// chord `9e-9` long across the line meets it, so its length
     /// escalates, carrying what the meeting read; the same chord a unit
     /// off the line meets nothing, and pushes nothing.
+    /// [`edge_crossings`] of `e` against `side`, a boundary edge of
+    /// `face` read as a chord: its stored curve where it has one, else
+    /// the segment between its ends.
+    pub(super) fn chord_crossings(
+        body: &Body<f64>,
+        e: &EdgeGeo<f64>,
+        face: FaceKey,
+        side: BoundarySide<f64>,
+    ) -> (Option<Vec<(f64, CutAt)>>, Vec<ValidationError>) {
+        use crate::splitting::containment::LoopEdge;
+        let mut errors = Vec::new();
+        let cuts = edge_crossings(body, e, face, &LoopEdge::Chord, side, band(), &mut errors);
+        (cuts, errors)
+    }
+
     #[test]
     fn an_undecided_chord_cuts_where_a_chord_would() {
-        use crate::splitting::containment::LoopEdge;
         let body = cube_at(Vec3::new(0.0, 0.0, 0.0), Tol::witness());
         let geo = snapshot(&body);
         let top = geo
@@ -16172,17 +16205,7 @@ mod tests {
                     Point3::new(x, y + 4.5e-9, 1.0),
                 ),
             };
-            let mut errors = Vec::new();
-            let cuts = edge_crossings(
-                &body,
-                &e,
-                top.key,
-                &LoopEdge::Chord,
-                side,
-                band(),
-                &mut errors,
-            );
-            (cuts, errors)
+            chord_crossings(&body, &e, top.key, side)
         };
         let (cuts, errors) = crossings(0.5, 0.5);
         assert!(cuts.is_none(), "across the line: {cuts:?}");
@@ -22586,6 +22609,113 @@ mod arc_interiors {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **Two pieces whose arcs end on one stored point**: the quarter of
+    /// the unit circle about the frame's centre from `u`, and the quarter
+    /// of the unit circle `(1 + 1.8ε)·u − v` from it that ends at its top,
+    /// `(1 + 1.8ε)·u`, each piece its own lamina; the two seed vertices
+    /// then share one point key, stored at `(1 + 1.5ε)·u`. The first arc's
+    /// carrier end lies `1.5ε` from that point and the second's `0.3ε`, so
+    /// the two carriers' ends lie `1.8ε` apart, in the band of each other.
+    /// Returns the body, its two faces, the shared point key and point,
+    /// and the first piece's arc.
+    fn joined_pieces() -> (Body<f64>, [FaceKey; 2], PointKey, Point3<f64>, EdgeKey) {
+        let (c, _, u, v) = frame();
+        let eps = Tol::witness().eps();
+        let mut body = Body::<f64>::new();
+        let fa = add_piece(&mut body, c, 1.0, (0.0, 0.5 * PI));
+        let fb = add_piece(
+            &mut body,
+            c + u * (1.0 + 1.8 * eps) - v,
+            1.0,
+            (0.5 * PI, PI),
+        );
+        let seed = |body: &Body<f64>, at: Point3<f64>| {
+            let found: Vec<_> = body
+                .vertex_points()
+                .filter(|&(_, p)| (p - at).norm() < 1e-3 * eps)
+                .map(|(k, _)| k)
+                .collect();
+            assert_eq!(found.len(), 1, "one seed vertex at {at:?}");
+            found[0]
+        };
+        let va = seed(&body, c + u);
+        let vb = seed(&body, c + u * (1.0 + 1.8 * eps));
+        let key = body.vertices[va].point;
+        let at = c + u * (1.0 + 1.5 * eps);
+        body.points[key] = at;
+        body.vertices[vb].point = key;
+        let arc = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let (s, t) = body.edge_vertices(e).unwrap();
+                let curved = body
+                    .get_curve_geom(body.get_edge(e).unwrap().curve)
+                    .and_then(CurveGeom::certified)
+                    .is_some_and(|c| c.carrier().is_curved());
+                curved && (s == va || t == va)
+            })
+            .expect("the first piece's arc");
+        (body, [fa, fb], key, at, arc)
+    }
+
+    /// **Faces whose arcs end on one stored point read that point as
+    /// their joint** ([`joined_pieces`]): they abut there, so both
+    /// orders read apart. Red where the face–face reading meets the two
+    /// arcs from their carriers' own ends, `1.8ε` apart (its
+    /// `joined_with`), or reads the other face's vertex against an arc's
+    /// carrier end, `1.5ε` from it (its `span_on`): each escalates.
+    #[test]
+    fn faces_whose_arcs_end_on_on_one_point_key_abut_there() {
+        let (body, [fa, fb], ..) = joined_pieces();
+        let geo = snapshot(&body);
+        assert_eq!(
+            [
+                arc_interiors_meet(&body, &geo, fa, fb, Facing::Same, band()),
+                arc_interiors_meet(&body, &geo, fb, fa, Facing::Same, band()),
+            ],
+            [Ok(false); 2]
+        );
+    }
+
+    /// **A straight edge from a stored point an arc ends on crosses
+    /// nothing there** ([`edge_crossings`]): a segment from the joint of
+    /// [`joined_pieces`] along `u`, away from both pieces, against the
+    /// first piece's arc. The arc's carrier crosses the segment's line at
+    /// its own end, `1.5ε` behind the segment's start. Red where the
+    /// crossing cuts read the segment against the arc's carrier end
+    /// (`meetings`' join), which escalates.
+    #[test]
+    fn a_segment_from_an_arcs_stored_end_crosses_nothing_there() {
+        let (mut body, [fa, _], key, at, arc) = joined_pieces();
+        let (_, _, u, _) = frame();
+        let far = at + u;
+        let far_key = body.points.insert(far);
+        let (v0, _) = body.edge_vertices(arc).unwrap();
+        let e = EdgeGeo {
+            key: EdgeKey::default(),
+            v0,
+            v1: VertexKey::default(),
+            p0: at,
+            p1: far,
+            points: [Some(key), Some(far_key)],
+            dir: u,
+            len: 1.0,
+            f_plus: FaceKey::default(),
+            f_minus: FaceKey::default(),
+        };
+        let (s, t) = body.edge_vertices(arc).unwrap();
+        let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let side = BoundarySide {
+            r#loop: LoopKey::default(),
+            key: arc,
+            ends: (point(s), point(t)),
+        };
+        let (cuts, errors) = super::tests::chord_crossings(&body, &e, fa, side);
+        assert!(errors.is_empty(), "no reading escalates: {errors:?}");
+        assert_eq!(cuts.map(|c| c.len()), Some(0), "no crossing is cut");
     }
 
     /// The upper half of the circle of radius `r` about the frame's

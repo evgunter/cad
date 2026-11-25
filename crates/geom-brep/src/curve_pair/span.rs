@@ -56,7 +56,10 @@
 //! the chords alone: at an end where one decides zero, and otherwise past
 //! the span by the chord to the held end, which stands as above, on the
 //! foot being nearest (a line's segment, a circle's arc) or on the piece
-//! walk over the span.
+//! walk over the span. A joined end ([`Span::joined`]) is a vertex within
+//! the band's zero `ε` of the carrier's end, so a chord to it past the
+//! band (`Kε`) puts the point past `(K − 1)ε` from the carrier's end too:
+//! still past the zero, since `K > 2`.
 //!
 //! A span whose ends are no vertex — a closed edge whose start is not a
 //! vertex of its own, [`Span::endless`] — has no end to be near: every
@@ -66,7 +69,11 @@
 //! off the span by the carrier ([`Reading::Off`], [`OffBy::Carrier`]) wherever its foot sits, so its place
 //! is not read. No end can be within the band of a point the whole
 //! carrier is past the band from: the chord to an end is at least the
-//! distance to the carrier. That holds exactly, and certified at an
+//! distance to the carrier, less the end's own distance off it, which is
+//! zero for the carrier's own end and at most the band's zero `ε` for a
+//! joined one ([`Span::joined`]). A point more than `Kε` off the carrier
+//! is then more than `(K − 1)ε` from any end, past the zero since `K > 2`.
+//! That holds exactly, and certified at an
 //! enclosing scalar; at a point scalar it holds where rounding stays
 //! inside the band's gap, which is the session's admissible box (D4 ¶4)
 //! and not beyond it (a circle of radius 1e8 read at ε = 1e-9 can read
@@ -384,14 +391,25 @@ impl<'a, T: Decide> Span<'a, T> {
 
     /// **The same span with `which` end's point named `point`**: the
     /// stored point of the vertex the caller's topology ends it at. Two
-    /// spans joined at one vertex, each so named there, meet there
-    /// because their ends are one point, whatever their carriers'
-    /// rounding or the band left between them: a vertex fusion decided
-    /// Zero can leave each carrier's own end up to the band off the
-    /// vertex, so two such ends, read by their chord, can lie in the band
-    /// of each other.
+    /// spans so named at one vertex meet there because their ends are one
+    /// point (C5's premise, `crates/geom-brep/README.md`): each carrier's
+    /// own end lies within `band`'s zero of a vertex its endpoint
+    /// certificate reads Zero, so two carriers' ends there can lie up to
+    /// twice that apart, in the band of each other. The span itself
+    /// reads no topology; the caller holds it.
+    ///
+    /// In debug builds, panics where `point` is not within `band` of the
+    /// carrier's own `which` end: a caller naming the ends in the wrong
+    /// order, or a point that is no vertex of the edge.
     #[must_use]
-    pub fn joined(self, which: SpanEnd, point: Point3<T>) -> Self {
+    pub fn joined(self, which: SpanEnd, point: Point3<T>, band: Band) -> Self {
+        debug_assert!(
+            (point - self.end(which).1)
+                .norm()
+                .point_value()
+                .is_none_or(|off| off <= band.escalate()),
+            "{which:?} end named off its carrier's end"
+        );
         let ends = match which {
             SpanEnd::Start => (point, self.ends.1),
             SpanEnd::Stop => (self.ends.0, point),
