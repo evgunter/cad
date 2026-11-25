@@ -663,7 +663,9 @@ fn near_end<T: Decide>(
                     window,
                     MeetFault::Unsettled(Unsettled::Tangency),
                 )),
-                Err(diag) => Ok(Meeting::Stretch(window, MeetFault::Escalated(diag))),
+                // A stretch is no band's reach about one root: its meeting
+                // may lie anywhere on it, a meeting in band.
+                Err(diag) => Ok(Meeting::Stretch(window, MeetFault::Touch(diag))),
             }
         }
     }
