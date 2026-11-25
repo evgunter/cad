@@ -812,6 +812,10 @@ impl<T: Real> RemovedIn<'_, T> {
 ///   its geometry (the touch went with what the op moved; a moved piece
 ///   of a division consumes nothing);
 /// - its two vertices became one vertex (D1's strict record-drop rule);
+/// - (not a consumption, a landing set aside) for an op that cannot
+///   back a minted meeting, a meeting at a point of two cells it minted
+///   that is not two vertices, where the record also lands on a pair it
+///   did not mint; as its only landing it stays, and the op refuses it;
 /// - for an op that glues cells ([`crate::Lineage::glued`]), every pair
 ///   of its images is structure, or an image of one record cell is
 ///   itself an image of the other (the record's edge, now the section
@@ -888,6 +892,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
             && fates
                 .iter()
                 .all(|f| matches!(f, crate::Fate::Kept { .. } | crate::Fate::Substituted(_)));
+        let first = out.len();
         let mut landed = false;
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
@@ -957,6 +962,25 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                         pair,
                         minted: (a_point || b_point) && a_minted && b_minted,
                     });
+                }
+            }
+        }
+        // A minted point meeting the op cannot back and that no door
+        // decides (not two vertices: a cut's split vertex on a section
+        // edge) is set aside where the record also lands on a pair it did
+        // not mint: the record is carried by that landing, and the meeting
+        // is nothing recorded and nothing consumed. Where it is the
+        // record's only landing it stays, and refuses.
+        if lineage.meeting() == crate::lineage::MintedBacking::Refused
+            && out[first..].iter().any(|l: &Landing| !l.minted)
+        {
+            let mut i = first;
+            while i < out.len() {
+                let vertices = matches!(out[i].at, [Cell::Vertex(_), Cell::Vertex(_)]);
+                if out[i].minted && !vertices {
+                    out.remove(i);
+                } else {
+                    i += 1;
                 }
             }
         }

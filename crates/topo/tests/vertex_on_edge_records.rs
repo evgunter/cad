@@ -1031,3 +1031,109 @@ fn an_edge_on_face_bound_at_the_faces_vertex_is_bounded_by_its_record() {
         "both bounds recorded: the seat certifies"
     );
 }
+
+/// A division of a hand lineage into `pieces` and the cells `minted`
+/// between them, nothing removed.
+fn divided(pieces: Vec<Cell>, minted: Vec<Cell>) -> topo::Fate {
+    topo::Fate::Divided(topo::Division {
+        pieces,
+        minted,
+        removed: vec![],
+    })
+}
+
+/// **A minted point meeting no door decides is set aside only beside
+/// another landing.** `edge_touch`'s corner (0.5, 0, 0) lies in the
+/// interior of `a`'s bottom-front edge. A bookkeeping vertex–vertex
+/// record (the two far corners) through hand lineages that mint the
+/// corner in one record cell and the edge in the other: the two meet at
+/// a point, and the op (no one cut) cannot back the meeting, nor is it two
+/// vertices a door could decide. As the record's only landing it refuses
+/// `MintedMeeting`. With the pieces `a`'s corner (1, 0, 0) and `c`'s
+/// top-front edge, which meet and neither of which the op minted, the
+/// record lands there and the minted meeting is set aside: one record,
+/// on the pieces. Red where the meeting is set aside alone (the first
+/// is then dropped silently), and where it is never set aside.
+#[test]
+fn a_minted_point_meeting_is_set_aside_only_beside_a_landing() {
+    let body = edge_touch();
+    let far_c = Cell::Vertex(vertex_at(&body, [1.5, -1.0, -1.0]));
+    let far_a = Cell::Vertex(vertex_at(&body, [0.0, 1.0, 1.0]));
+    let corner = Cell::Vertex(vertex_at(&body, [0.5, 0.0, 0.0]));
+    let a_corner = Cell::Vertex(vertex_at(&body, [1.0, 0.0, 0.0]));
+    let a_edge = Cell::Edge(edge_between(&body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+    let c_edge = Cell::Edge(edge_between(&body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]));
+    let one = common::records(&body, [(far_c, far_a)]);
+    let carry = |x: Vec<Cell>, y: Vec<Cell>| {
+        let lineage = topo::Lineage::new()
+            .with(far_c, divided(x, vec![corner]))
+            .and_then(|l| l.with(far_a, divided(y, vec![a_edge])))
+            .unwrap();
+        one.carried_through(
+            0,
+            &lineage,
+            &body,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
+    };
+    assert!(
+        matches!(
+            carry(vec![far_c], vec![far_a]),
+            Err(topo::CarryRefusal::MintedMeeting { record: 0, .. })
+        ),
+        "the meeting alone refuses"
+    );
+    let carried = carry(vec![a_corner], vec![c_edge]).expect("the record lands on its pieces");
+    assert_eq!(
+        carried.cell_pairs().collect::<Vec<_>>(),
+        [(a_corner, c_edge)],
+        "the record lands on the pieces, the meeting set aside"
+    );
+}
+
+/// **A kept pair the census reads as contradicted is unread.** Two
+/// bricks in one arena, one inside the other's footprint, their bottoms
+/// on one plane with one sense, and a face–face record of the two
+/// bottoms through a hand lineage that divides the first into itself:
+/// the census finds the touch but contradicts the record's class, and
+/// the carry refuses `Unread` rather than land or consume. Only a
+/// removed member's reading takes a contradicted touch as found. Red
+/// where that reading leaks to kept pairs.
+#[test]
+fn a_kept_pair_read_as_contradicted_is_unread() {
+    let tol = Tol::witness();
+    let mut body: Body<f64> = common::brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
+    let inner: Body<f64> = common::brick((0.5, 1.5), (0.5, 1.5), (0.0, 0.5), tol);
+    topo::graft_disjoint_all_keyed(&mut body, &inner).unwrap();
+    let bottoms: Vec<Cell> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| {
+            matches!(
+                body.face_surface(f),
+                Ok(topo::Surface::Plane { frame, .. })
+                    if frame.axis().z == -1.0 && frame.origin().z == 0.0
+            )
+        })
+        .map(Cell::Face)
+        .collect();
+    let [x, y] = bottoms[..] else {
+        panic!("two bottoms: {bottoms:?}")
+    };
+    let one = common::records(&body, [(x, y)]);
+    let lineage = topo::Lineage::new()
+        .with(x, divided(vec![x], vec![]))
+        .unwrap();
+    let got = one.carried_through(
+        0,
+        &lineage,
+        &body,
+        geom_core::Band::linear(tol).unwrap(),
+        Some(topo::RegionLane::certified()),
+    );
+    assert!(
+        matches!(got, Err(topo::CarryRefusal::Unread { record: 0, .. })),
+        "the contradicted kept pair is unread: {got:?}"
+    );
+}
