@@ -3149,6 +3149,14 @@ fn require_cone_holes<T: Decide>(
 /// them, a whole number of turns, against half a turn, metered at the
 /// vertex's radius). A vertex on the apex has no azimuth, and a loop
 /// that passes the apex twice is pinched there.
+///
+/// The vertices read are those of the face's surface boundary: a vertex
+/// the loop leaves along an edge it also walks back
+/// ([`crate::chart_image::walked_both_ways`], a seam or wrap edge the
+/// face lies on both sides of) is a passage across that cut, not a
+/// visit of the boundary. A hole whose corner lies on the seam is
+/// passed twice there, once on each side of the cut, and bounds one
+/// region.
 fn require_cone_loop_vertices_distinct<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -3164,7 +3172,10 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             if i == 0 && j == n - 1 {
                 continue;
             }
-            let ((p, a), (q, b)) = (w.vertices[i], w.vertices[j]);
+            let ((p, a, on_i), (q, b, on_j)) = (w.vertices[i], w.vertices[j]);
+            if !(on_i && on_j) {
+                continue;
+            }
             if classify_as(
                 "props_cone_loop_vertex",
                 Margin::of((p - q).norm()),
@@ -3249,8 +3260,10 @@ struct ConeWinding<T: Real> {
     /// Whether an edge end lies on the apex.
     through_apex: bool,
     /// Each edge's traversal start, with the azimuth the loop has
-    /// turned from its first vertex to it — `None` on the apex.
-    vertices: Vec<(Point3<T>, Option<T>)>,
+    /// turned from its first vertex to it — `None` on the apex — and
+    /// whether the edge leaving it is on the face's surface boundary
+    /// (not walked both ways, [`crate::chart_image::walked_both_ways`]).
+    vertices: Vec<(Point3<T>, Option<T>, bool)>,
     /// The loop on the cone's chart, for the closure decision
     /// ([`closure::closed_loop_turns`]): each edge's turn about the axis
     /// and the angle by which it misses its end, metered at its nearest
@@ -3464,6 +3477,7 @@ fn cone_loop_winding<T: Decide>(
         .iter()
         .position(|&(_, ((_, start_apex), _))| start_apex)
         .unwrap_or(0);
+    let both_ways = crate::chart_image::walked_both_ways(edges);
     let mut total = T::zero();
     let mut vertices = Vec::with_capacity(edges.len());
     for k in (0..edges.len()).map(|i| (first + i) % edges.len()) {
@@ -3472,6 +3486,7 @@ fn cone_loop_winding<T: Decide>(
         vertices.push((
             e.traversal_ends().0,
             if start_apex { None } else { Some(total) },
+            !both_ways[k],
         ));
         total = total + step;
         let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
