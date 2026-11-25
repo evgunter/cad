@@ -97,8 +97,9 @@ fn a_flipped_sphere_face_is_named_by_its_regions_side() {
 /// Every sphere face flipped: each claims its complement, which holds
 /// the pole the face does not reach, off any vertex of it, so each face
 /// is named twice: by the region's side and by that pole. (The cover
-/// census is not read here: a flipped face's lift no longer closes at
-/// its wrap tip, and check 6 exempts a refused derivation.)
+/// census leaves this region unread: `seam_region` reads no region whose
+/// faces walk a wrap edge out and back; see
+/// `the_cover_census_reads_a_seam_region_holding_a_wrap_tip`.)
 #[test]
 fn the_side_cut_ball_flipped_whole_names_each_face_by_its_side_and_its_pole() {
     let tol = Tol::witness();
@@ -131,4 +132,40 @@ fn the_side_cut_ball_flipped_whole_names_each_face_by_its_side_and_its_pole() {
             );
         }
     }
+}
+
+/// **The cover census reads a seam region holding a wrap tip.** Every
+/// sphere face flipped claims its complement, so the region is claimed
+/// once per face, and check 6's census should say so
+/// (`SeamRegionOvercovered`). Pinned red at every ε: `seam_region`
+/// leaves a region whose faces walk a minted wrap edge out and back
+/// unread, so the census names nothing
+/// (`work/measuredoor/a-seam-region-holding-a-minted-wrap-tip-leaves-the-cover-census-unread.md`).
+#[test]
+fn the_cover_census_reads_a_seam_region_holding_a_wrap_tip() {
+    let tol = Tol::witness();
+    test_utils::pinned_red::row(
+        tol.eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the flipped side-cut ball's cover census",
+        &["side_cut_equator_split.step: the census reads no over-cover"],
+        || {
+            for (name, faces) in FILES {
+                let body = import(name);
+                let sphere = sphere_faces(&body);
+                let flipped = sphere.iter().fold(body.clone(), |b, &k| {
+                    b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                        .unwrap()
+                });
+                let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
+                assert!(
+                    errs.iter().any(|e| matches!(
+                        e,
+                        topo::ValidationError::SeamRegionOvercovered { times, .. } if *times == faces
+                    )),
+                    "{name}: the census reads no over-cover: {errs:?}"
+                );
+            }
+        },
+    );
 }

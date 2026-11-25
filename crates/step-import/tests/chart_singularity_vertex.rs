@@ -238,3 +238,40 @@ fn a_seam_at_the_pole_of_an_inverted_face_refuses_typed() {
         other => panic!("the inverted seamed cap: {other:?}"),
     }
 }
+
+/// **Where a spur lies round the axis is not read off a frame field.**
+/// The spurred cap with its sphere's `u_ref` turned to `−x`, away from
+/// the spur: the wrap edge still runs to the spur's tip, the cap's
+/// point nearest the pole, and the cap settles as with the spur on
+/// `u_ref`'s meridian.
+#[test]
+fn a_spur_off_the_u_ref_meridian_imports_as_one_on_it() {
+    let tol = Tol::witness();
+    let r = 0.010_f64;
+    let want = cap(r, r * (1.0 - 0.5_f64.sin()));
+    let text = fixture("rim-only-cap/spur.step");
+    let frame = "#35 = DIRECTION('',(1.,0.,0.));";
+    assert!(text.contains(frame), "the sphere's u_ref");
+    for (what, text) in [
+        ("as written", text.clone()),
+        ("u_ref turned", text.replace(frame, "#35 = DIRECTION('',(-1.,0.,0.));")),
+    ] {
+        let Ok(StepImport::Solid { body, .. }) = import_step(&text, &ImportOptions::default(), tol)
+        else {
+            panic!("{what}: the spurred cap imports");
+        };
+        let b = &*body;
+        assert_eq!(
+            (b.faces().count(), b.edges().count(), b.vertex_points().count()),
+            (2, 2, 2),
+            "{what}: the census"
+        );
+        let volume = topo::test_support::pinned_volume(
+            "the spurred cap",
+            &topo::test_support::finished("the spurred cap", b.clone(), tol),
+            tol,
+        )
+        .volume;
+        assert!((volume - want).abs() <= 1e-9 * want, "{what}: volume {volume} vs {want}");
+    }
+}

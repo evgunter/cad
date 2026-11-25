@@ -4,8 +4,10 @@
 //! export states that edge as one `EDGE_CURVE` the face's loop cites
 //! both ways. Import adopts it as stated: the body that comes back has
 //! the built body's census and volume, passes tier 3, meshes, and
-//! re-exports to a file that re-imports to the same census and the same
-//! text.
+//! re-exports to a file that re-imports to the same census and volume
+//! and, on a coordinate axis, the same text. (A ball turned off the
+//! coordinate axes re-exports a rounding off its wrap meridian every hop:
+//! `work/importgate/a-pole-to-pole-wrap-meridian-is-rebuilt-a-rounding-off-on-every-reimport.md`.)
 //!
 //! The same holds for the files that state a singularity some other
 //! way and are re-minted into that form: Open CASCADE's whole sphere
@@ -193,15 +195,19 @@ fn a_revolved_cone_under_a_hemisphere_imports_as_built() {
 /// The files that state a pole or an apex otherwise settle in the same
 /// form: Open CASCADE's whole sphere (an edge-free face, re-minted to a
 /// ball's one wrap edge), its full cone and its cap (a seam ending at
-/// the apex or the pole, adopted as written).
+/// the apex or the pole, adopted as written). Each measures its closed
+/// form.
 #[test]
 fn a_foreign_pole_or_apex_settles_as_a_wrap_tip() {
     let tol = Tol::witness();
-    for (path, census) in [
-        ("freecad/sphere.step", (1, 1, 2)),
-        ("freecad/cone_apex.step", (2, 2, 2)),
-        ("rim-only-cap/seamed.step", (2, 2, 2)),
-        ("occ/cap.step", (2, 2, 2)),
+    // The Open CASCADE caps: R = 10 mm, the rim at latitude 0.5 rad.
+    let (r, h) = (0.010_f64, 0.010 * (1.0 - 0.5_f64.sin()));
+    let rim_cap = PI * h * h * (3.0 * r - h) / 3.0;
+    for (path, census, closed_form) in [
+        ("freecad/sphere.step", (1, 1, 2), 4.0 * PI / 3.0 * 1e-9),
+        ("freecad/cone_apex.step", (2, 2, 2), PI / 3.0 * 1e-9),
+        ("rim-only-cap/seamed.step", (2, 2, 2), rim_cap),
+        ("occ/cap.step", (2, 2, 2), rim_cap),
     ] {
         let text = std::fs::read_to_string(format!(
             "{}/tests/fixtures/{path}",
@@ -220,6 +226,11 @@ fn a_foreign_pole_or_apex_settles_as_a_wrap_tip() {
             ),
             census,
             "{path}: the census"
+        );
+        let (v, pad) = volume(&back, tol);
+        assert!(
+            (v - closed_form).abs() <= pad + 1e-9 * closed_form,
+            "{path}: volume {v} ± {pad} against the closed form {closed_form}"
         );
         settles(path, &back, true, tol);
     }
