@@ -2038,3 +2038,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - D: no copies for a spiric period.
     - E: the row over-claims.
   - A final pass was sent to the U4a session. Merge follows a light check of its new rows.
+- 2026-11-25 10:30 — **U4a final pass at `d3bdcf3641`: accepted by the orchestrator.**
+  - The new rows red their mutants.
+  - The two walk-`Kε` survivors are argued equivalent; the orchestrator asked for one precision fix (the torus residual moves at `g/r` per metre).
+  - Spans of any length are copied by the carrier's period, spiric included.
+  - NOTE-C is argued: it needs geometry outside the 1 km box.
+  - The PR conflicts with main, so the lane is merging main and taking hosted CI. Merge follows a green run.
