@@ -578,11 +578,10 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// certified crossing against the surface in front, and that crossing
 /// contains the probe ray's crossings of the triangles the chord point
 /// lies on (the vertex fan near an end), so where the face in front IS
-/// one of those triangles the edge overlaps it by construction — for a
-/// moved or posed copy too, whose faces are certified on the probe ray
-/// carried into its frame: the chord's crossing is grown by what that
-/// carry's rounding can move a crossing of its own triangles
-/// (`crate::pickindex::own_crossing`). A depth buffer holds no interval to order, which is why this lane
+/// one of those triangles the edge overlaps it by construction — a
+/// moved or posed copy's too, whose chord is read on the same ray
+/// carried into its frame as its faces are (`crate::pickindex::own_crossing`).
+/// A depth buffer holds no interval to order, which is why this lane
 /// needs a lift and that one does not.
 ///
 /// **A quad, unlike a line, reaches ONTO the facets its edge

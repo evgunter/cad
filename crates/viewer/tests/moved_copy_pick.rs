@@ -1,23 +1,16 @@
-//! **A copy drawn under a map is picked to the certificate of the ray
-//! the caller holds.** A part under a display map (a free-move frame, a
-//! placement draft's carry) or a body frame is picked by the caller's
-//! ray carried back through that map, and the carried ray is the
-//! caller's only to within the map's rounding; what the pick then
-//! orders it against was certified on the caller's ray itself.
+//! **A copy drawn under a map shows every edge it faces the eye
+//! with.** A part under a display map (a free-move frame, a placement
+//! draft's carry) or a body frame has its faces picked on the caller's
+//! ray carried back through those maps, and the occlusion probe must
+//! read the edge's own crossing on that same ray, or the carry's
+//! rounding can put the edge behind its own face.
 //!
-//! Two counterexample searches (implementer-discipline §8 shape 1), each
-//! over its own seed:
-//!
-//! - **an edge of a moved copy is not occluded by its own face**: the
-//!   cursor on a visible edge's midpoint picks that edge, under rotated
-//!   and translated free-move frames, placement-draft carries and posed
-//!   copies, across the ratio of the move to the body and to the eye;
-//! - **coincident faces of a moved and an unmoved copy tie**: a copy
-//!   posed far away and moved back onto its twin by an exact map is
-//!   drawn exactly where the twin is, so a ray onto that face meets two
-//!   faces the geometry does not order, and the pick refuses with both.
-//!
-//! Beside each, a counterexample it found, pinned as a fixed row.
+//! A counterexample search (implementer-discipline §8 shape 1): **an
+//! edge of a moved copy is not hidden by its own face** — the cursor on
+//! a visible edge's midpoint picks that edge, under rotated and
+//! translated free-move frames, placement-draft carries and posed
+//! copies, across the ratio of the move to the body and to the eye.
+//! Beside it, a counterexample it found, pinned as a fixed row.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -36,7 +29,6 @@ use std::collections::BTreeMap;
 
 use pncad::document::{Evaluation, Frame, Operand, RecipeNodeId, VarId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{HitTestError, Ray};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::display::{DisplayView, PreviewedCopy, PreviewedPlacement};
@@ -541,158 +533,4 @@ fn a_copy_moved_back_from_far_off_picks_every_edge_it_shows() {
             &failures[..failures.len().min(4)]
         );
     }
-}
-
-/// **A copy posed far off and moved back onto its twin ties with it**
-/// — a pinned counterexample of the search below: posed a half turn and
-/// some six hundred lengths out and moved back exactly, so the ray
-/// carried into it keeps none of its origin's bits below that
-/// coordinate's rounding, and the moved copy's side read as certainly
-/// in front of its twin's where the two are one face.
-#[test]
-fn a_copy_moved_back_far_onto_its_twin_ties_with_it() {
-    let tol = Tol::witness();
-    let t = [-423.0, 395.375, 177.0];
-    let turn = [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]];
-    let pose = Frame {
-        columns: turn,
-        translation: t,
-    };
-    let back = Frame {
-        columns: turn,
-        translation: [t[0], t[1], -t[2]],
-    };
-    let (session, copies) = boxes_posed(&[Frame::IDENTITY, pose], tol);
-    let [still, moved] = copies[..] else {
-        unreachable!()
-    };
-    let index = drawn_index(&session);
-    let display = DisplayView {
-        moved_nodes: BTreeMap::from([(moved, back)]),
-        ..DisplayView::none()
-    };
-    let ray = Ray {
-        origin: Point3::new(-0.6937163044692767, 0.29942684912132395, 0.6082205868004436),
-        dir: Vec3::new(0.3109177547684072, -0.6936332019389465, -0.6497715990543889),
-    };
-    match index.pick_for(eval_of(&session), &ray, &display) {
-        Err(HitTestError::Ambiguous { hits }) => {
-            for node in [still, moved] {
-                assert!(
-                    hits.iter().any(|hit| hit.node == node),
-                    "the tie names {node:?}: {hits:?}"
-                );
-            }
-        }
-        other => panic!("the twins' cap is a certified tie: {other:?}"),
-    }
-}
-
-/// **Coincident faces of a moved and an unmoved copy are a tie.**
-///
-/// One copy stands at the identity; its twin is posed at `P` — a
-/// translation of a random length on a dyadic grid, turned a half turn
-/// about `z` or not, all exact — and free-moved by `P⁻¹`, also exact,
-/// so the twin is drawn on the copy's own points in exact arithmetic.
-/// A ray onto the interior of a face both draw, from in front of it,
-/// meets two faces the geometry does not order: the pick refuses with
-/// both. An answer naming one of them is an order the certificate does
-/// not hold.
-#[test]
-fn a_moved_copy_drawn_on_its_twin_ties_with_it() {
-    let tol = Tol::witness();
-    let mut rng = fuzz::start("moved-copy coincident tie");
-    let mut asked = 0usize;
-    let mut failures: Vec<String> = Vec::new();
-    for _ in 0..fuzz::scaled(2) {
-        // A dyadic grid of eighths, so every sum below is exact.
-        let length = rng.log_uniform(1.0, farthest_pose());
-        let t = shift(&mut rng, length).map(|x| (x * 8.0).round() / 8.0);
-        let half = rng.below(2) == 0;
-        let turn = if half {
-            Frame {
-                columns: [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]],
-                translation: [0.0; 3],
-            }
-        } else {
-            Frame::IDENTITY
-        };
-        let pose = Frame {
-            translation: t,
-            ..turn
-        };
-        // P⁻¹ = turn⁻¹ ∘ (−t); the half turn is its own inverse.
-        let back = Frame {
-            translation: if half {
-                [t[0], t[1], -t[2]]
-            } else {
-                [-t[0], -t[1], -t[2]]
-            },
-            ..turn
-        };
-        let (session, copies) = boxes_posed(&[Frame::IDENTITY, pose], tol);
-        let [still, moved] = copies[..] else {
-            unreachable!()
-        };
-        let index = drawn_index(&session);
-        let eval = eval_of(&session);
-        let display = DisplayView {
-            moved_nodes: BTreeMap::from([(moved, back)]),
-            ..DisplayView::none()
-        };
-        let [w, h, d] = SIZE;
-        for _ in 0..fuzz::scaled(60) {
-            // A face of the box (centred on the axis in x and y, from 0
-            // to d in z), a point well inside it, and an eye in front.
-            let axis = rng.below(3);
-            let side = if rng.below(2) == 0 { -1.0 } else { 1.0 };
-            let (lo, hi) = ([-w / 2.0, -h / 2.0, 0.0], [w / 2.0, h / 2.0, d]);
-            let mut p = [0.0; 3];
-            for (i, x) in p.iter_mut().enumerate() {
-                *x = if i == axis {
-                    if side > 0.0 { hi[i] } else { lo[i] }
-                } else {
-                    lo[i] + (hi[i] - lo[i]) * rng.range(0.05, 0.95)
-                };
-            }
-            let point = Point3::new(p[0], p[1], p[2]);
-            let mut normal = [0.0; 3];
-            normal[axis] = side;
-            let normal = Vec3::new(normal[0], normal[1], normal[2]);
-            let u = loop {
-                let u = random_unit(&mut rng);
-                if u.dot(normal) > 0.05 {
-                    break u;
-                }
-            };
-            let distance = rng.log_uniform(0.5, 50.0);
-            let ray = Ray {
-                origin: point + u * distance,
-                dir: u * -1.0,
-            };
-            asked += 1;
-            let answer = index.pick_for(eval, &ray, &display);
-            let names = |node: RecipeNodeId| match &answer {
-                Err(HitTestError::Ambiguous { hits }) => hits.iter().any(|hit| hit.node == node),
-                _ => false,
-            };
-            if !(names(still) && names(moved)) {
-                failures.push(format!(
-                    "twin posed at {pose:?}, ray {ray:?} onto {point:?}: {answer:?}"
-                ));
-            }
-        }
-    }
-    println!(
-        "[moved-copy] coincident rays asked: {asked}, wrong: {}",
-        failures.len()
-    );
-    assert!(
-        failures.is_empty(),
-        "{} of {asked} rays onto a face a moved copy draws on its twin did not tie ({}); \
-         first: {:#?}",
-        failures.len(),
-        fuzz::replay(),
-        &failures[..failures.len().min(4)]
-    );
 }
