@@ -630,6 +630,74 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube(
     }
 }
 
+/// **A general row whose image leaves the wall's knot rectangle between
+/// two nodes is not certified**: the dipping arc of the row above, its
+/// image the mint's own (`FittedLane::general_image`), certified alone
+/// through `PcurveCache::certify_general` as an edge that owes no limb
+/// 3 would be. Past the rim the composite reads the wall's polynomial
+/// extension, on which the carrier still lies, so the hull bound alone
+/// holds the carrier `d` off the wall. Check 4 holds the image to the
+/// rectangle: a dip of `ε/2` certifies with its reach in the envelope,
+/// one of `3ε` escalates or refuses, and from `30ε` up it refuses. An arc a
+/// micrometre inside the rim certifies with no reach added.
+///
+/// Red against: a check 4 that does not hold the image to the knot
+/// rectangle (every dip certifies, up to `1e-5` m at ε = 1e-9), and
+/// one that reads the control hull alone (the arc inside the rim
+/// refuses: its lowest control `v` is `−2.2e-5`).
+#[test]
+fn a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified() {
+    use crate::pcurve_cache::{PcurveCertifyError as E, PcurveCheck};
+    let eps = band().zero();
+    let rho = 0.3_f64;
+    let wall = Surface::Nurbs(std::sync::Arc::new(flat()));
+    let at = 100.5 / 256.0;
+    let span = (-at, 1.0 - at);
+    let row = |d: f64| {
+        let carrier = Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(pt(0.0, 1.0, rho - d), Vec3::unit_y(), -Vec3::unit_z()),
+            rho,
+        ));
+        let lane = crate::FittedLane::<f64>::certified();
+        let image = lane
+            .general_image(&carrier, span, chart(&wall), band())
+            .expect("the mint's image");
+        crate::PcurveCache::certify_general(
+            std::sync::Arc::new(image),
+            span.0,
+            span.1,
+            &carrier,
+            &wall,
+            band(),
+            Some(lane),
+        )
+    };
+    let inside = row(-1e-6).expect("an arc a micrometre inside the rim certifies");
+    let half = row(0.5 * eps).expect("a dip of half the band certifies");
+    assert!(
+        half.certificate().envelope >= 0.5 * eps,
+        "a dip of half the band is in the envelope: {:?} against {:?}",
+        half.certificate(),
+        inside.certificate()
+    );
+    for k in [3.0, 30.0, 400.0] {
+        let d = k * eps;
+        let read = row(d);
+        let refused = matches!(read, Err(E::FittedCertificate { .. } | E::Incidence(..)));
+        let escalated = matches!(
+            read,
+            Err(E::Escalated {
+                check: PcurveCheck::Envelope,
+                ..
+            })
+        );
+        assert!(
+            refused || (k < 10.0 && escalated),
+            "a row whose image dips {k} ε = {d:e} m past the rim is not certified: {read:?}"
+        );
+    }
+}
+
 /// **The lane's door takes a sphere, a cylinder or a torus, and the
 /// resolver sends a cone beside a spline nowhere**: a plane has its own
 /// lane, and a cone has no form the chart tube reads

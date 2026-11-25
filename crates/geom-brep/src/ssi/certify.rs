@@ -696,8 +696,9 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         Subdivided::Value { at: tb, .. } if carrier_on_surface(tb) => &CHART_IMAGE_HULL,
         _ => &CHART_HULL,
     };
-    let sup = hull_limb(arm, stopped, band, at)?;
-    Ok((worst, sup))
+    let sup: T = hull_limb(arm, stopped, band, at)?;
+    let reach = chart_domain_limb(pcurve, (t0, t1), surface, arm, band, at)?;
+    Ok((worst, sup + reach))
 }
 
 /// The breaks a chart round cuts `carrier` at besides its own `cuts`,
@@ -1195,6 +1196,122 @@ pub(crate) fn hull_limb<T: Decide>(
         at,
     )?;
     Ok(sup)
+}
+
+/// **Limb 2's hold of the image to its chart's knot rectangle**: how far
+/// `image` leaves the rectangle over `span`, in metres, decided at
+/// `ssi_chart_domain` and refused under `arm`'s bound limb; zero where it
+/// stays inside, and nothing decided. Off the rectangle the composite
+/// reads the boundary cell's polynomial extension
+/// (`geom_core::spline::compose::tensor`, "Domain posture"), which is no
+/// point of the chart, so the hull bound says nothing there: a carrier
+/// past the wall's rim between two of the image's nodes, and on the
+/// extension, would clear it. The escape is metered at the chart's sup
+/// arms, so it bounds how far the extension's point is from the chart's
+/// own, and an escape inside the band is the reach the caller adds to the
+/// hull bound, as the iso lanes' `pcurve_iso_domain` adds theirs.
+///
+/// # Errors
+///
+/// [`SsiError::CertificateLimb`] for an escape past the band, its
+/// escalation for one in it, and [`SsiError::UnsupportedCertificate`]
+/// for an image whose enclosures refuse.
+pub(crate) fn chart_domain_limb<T: Decide + Bounds + CertifiedEnclosure>(
+    image: &NurbsCurve2<T>,
+    span: (f64, f64),
+    chart: &NurbsSurface<T>,
+    arm: &HullArm,
+    band: Band,
+    at: &mut Refused,
+) -> Result<T, SsiError> {
+    let (u, v) = (
+        chart.knots_u_f64_interim().domain(),
+        chart.knots_v_f64_interim().domain(),
+    );
+    let (over_u, over_v) =
+        image_escape(image, span, u, v).ok_or(SsiError::UnsupportedCertificate {
+            what: "the image's coordinates have no certified enclosure over the edge's \
+                   interval, so nothing holds it to its chart's knot rectangle",
+        })?;
+    if over_u == 0.0 && over_v == 0.0 {
+        return Ok(T::zero());
+    }
+    let (arm_u, arm_v) = chart.stretch_sup();
+    let reach = arm_u.to_meters(T::from_f64(over_u)) + arm_v.to_meters(T::from_f64(over_v));
+    let decided = decide_reported("ssi_chart_domain", Margin::of(reach), band);
+    limb_verdict(
+        arm.sup_limb,
+        decided,
+        || RefusedResidual::Over(reach.hi()),
+        at,
+    )?;
+    Ok(reach)
+}
+
+/// The halvings [`image_escape`] cuts a piece by while its enclosure
+/// leaves the rectangle.
+const ESCAPE_ROUNDS: usize = 16;
+
+/// **Certified upper bounds of a 2-D image's escape past the rectangle
+/// `u × v`** over the pieces of its Bernstein form that meet `span`:
+/// each piece's coordinate enclosure
+/// ([`geom_core::spline::compose::CurveCertData::coordinate_spans`]),
+/// a piece cut in half while it leaves the rectangle, for
+/// [`ESCAPE_ROUNDS`] rounds. The control hull alone over-states an
+/// escape by the curve's sag, which halving shrinks quadratically.
+/// `None` where an enclosure refuses.
+fn image_escape<T: Decide + Bounds + CertifiedEnclosure>(
+    image: &NurbsCurve2<T>,
+    (lo, hi): (f64, f64),
+    u: (f64, f64),
+    v: (f64, f64),
+) -> Option<(f64, f64)> {
+    use geom_core::Interval;
+    use geom_core::spline::compose::CurveCertData;
+    let coords = image.certified_coords();
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let past = |(d0, d1): (f64, f64), x: Interval| {
+        let below = geom_core::Bounds::hi(at(d0) - at(geom_core::Bounds::lo(x)));
+        let above = geom_core::Bounds::hi(at(geom_core::Bounds::hi(x)) - at(d1));
+        below.max(above).max(0.0)
+    };
+    let mut cuts = vec![lo, hi];
+    let mut over = (0.0_f64, 0.0_f64);
+    for round in 0..=ESCAPE_ROUNDS {
+        let data = CurveCertData::new(
+            image.knots_f64_interim(),
+            image.weights_f64_interim(),
+            &coords,
+        )
+        .ok()?
+        .with_breaks(&cuts);
+        let (breaks, us) = data.coordinate_spans(0);
+        let (_, vs) = data.coordinate_spans(1);
+        over = (0.0, 0.0);
+        let mut halves = Vec::new();
+        for ((ends, eu), ev) in breaks.windows(2).zip(&us).zip(&vs) {
+            let (a, b) = (ends[0], ends[1]);
+            if b <= lo || hi <= a {
+                continue;
+            }
+            if !(eu.is_certified() && ev.is_certified()) {
+                return None;
+            }
+            let (pu, pv) = (past(u, *eu), past(v, *ev));
+            if pu.is_nan() || pv.is_nan() {
+                return None;
+            }
+            over = (over.0.max(pu), over.1.max(pv));
+            if pu > 0.0 || pv > 0.0 {
+                halves.push(a + (b - a) / 2.0);
+            }
+        }
+        if halves.is_empty() || round == ESCAPE_ROUNDS {
+            break;
+        }
+        cuts.extend(halves);
+    }
+    Some(over)
 }
 
 /// The uniform breaks limb 2's composite is cut at: the carrier

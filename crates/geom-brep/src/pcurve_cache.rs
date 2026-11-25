@@ -4936,6 +4936,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // A spline chart is its own operand; an analytic one enters as the
     // bilinear patch of the class its route decided.
     let (scoords, held);
+    // A spline chart, whose knot rectangle the image is held to below.
+    let mut rectangle = None;
     let schart = match chart {
         FittedChart::Spline(surface) => {
             let chart = match surface {
@@ -4951,6 +4953,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                 ),
             };
             scoords = chart.certified_coords();
+            rectangle = Some(chart);
             (
                 chart.knots_u_f64_interim(),
                 chart.knots_v_f64_interim(),
@@ -5008,8 +5011,25 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         band,
     );
     let stopped = stopped.map_err(ssi_refusal)?;
-    hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
+    let hull = hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)?;
+    // The hull bound holds on the chart's knot rectangle only.
+    match rectangle {
+        Some(chart) => {
+            let reach = crate::ssi::certify::chart_domain_limb(
+                image,
+                (lo, hi),
+                chart,
+                &CHART_HULL,
+                band,
+                &mut Refused::default(),
+            )
+            .map_err(ssi_refusal)?;
+            Ok(hull + reach)
+        }
+        None => Ok(hull),
+    }
 }
+
 
 /// The hull limb's refusal, reduced to the parts this module's closed
 /// enum carries: the limb, the reason, the offending margin, and the
@@ -12604,24 +12624,18 @@ impl From<PcurveCertifyError> for Underived {
 }
 
 /// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
-/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where both
-/// are enclosures holding zero and their sup is decided `Zero` at
-/// `pcurve_cylinder_chart_axial` — the cone arm's
-/// `pcurve_cone_chart_axial` read on the cylinder. Otherwise as given.
+/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where their
+/// sup is decided `Zero` at `pcurve_cylinder_chart_axial` — the cone
+/// arm's `pcurve_cone_chart_axial` read on the cylinder, at every
+/// scalar. Otherwise as given.
 ///
-/// An interval scalar encloses a rim's terms, dot products of its frame
-/// with the axis, as intervals about zero that an exact test does not
-/// read as zero. At `f64` a value holds zero only when it is zero, so
-/// nothing there is decided or moved. The dropped drift is within the
-/// band, and the certificate's envelope bounds what it moves.
+/// The terms are dot products of the carrier's frame with the axis, so
+/// on a frame turned off the axes a rim's are a rounding off zero: a
+/// point at `f64`, an enclosure at `Interval`. The dropped drift is
+/// within the band, and the certificate's envelope bounds what it
+/// moves.
 fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
-    let holds_zero = |x: T| {
-        x.structure_bracket()
-            .is_some_and(|(lo, hi)| lo <= 0.0 && 0.0 <= hi)
-    };
-    if (geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b))
-        || !(holds_zero(a) && holds_zero(b))
-    {
+    if geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b) {
         return (a, b);
     }
     match decide(
@@ -17951,37 +17965,47 @@ mod cylinder_rim_rows {
         (x.lo(), x.hi())
     }
 
-    /// **A rim's axial terms are zero only where both hold zero and their
-    /// sup is decided `Zero`** ([`cylinder_rim_axial`]). Red if the
-    /// decision is lax (an amplitude past the band zeroed), if `b`'s
-    /// holding-zero gate is dropped (an in-band `b` beside an exact
-    /// zero `a` zeroed, which at `f64` moves a pcurve), or if the rim is
-    /// not decided (an enclosure of zero kept).
+    /// **A rim's axial terms are zero exactly where their sup is decided
+    /// `Zero`, at every scalar** ([`cylinder_rim_axial`]). Red if the
+    /// decision is lax (an amplitude past the band zeroed), if the rim
+    /// is not decided at `Interval` (an enclosure of zero kept), or if
+    /// it is not decided at `f64` (a rounding off zero kept: the
+    /// section circle of a fillet strip on an outline turned off the
+    /// axes, `−6.9e−18`).
     #[test]
-    fn a_rims_axial_terms_are_zeroed_only_where_both_hold_zero_within_the_band() {
+    fn a_rims_axial_terms_are_zeroed_where_their_sup_is_decided_zero_at_every_scalar() {
         let rounding = iv(-1e-17, 1e-17);
         let zero = iv(0.0, 0.0);
         let (a, b) = cylinder_rim_axial(rounding, zero, band());
         assert_eq!(
             (bits(a), bits(b)),
             ((0.0, 0.0), (0.0, 0.0)),
-            "a rim's rounding"
+            "a rim's rounding at Interval"
+        );
+        let off = iv(1e-17, 2e-17);
+        let (a, b) = cylinder_rim_axial(rounding, off, band());
+        assert_eq!(
+            (bits(a), bits(b)),
+            ((0.0, 0.0), (0.0, 0.0)),
+            "an enclosure off zero, within the band"
         );
         let wide = iv(-1e-3, 1e-3);
         let (a, _) = cylinder_rim_axial(wide, zero, band());
         assert_eq!(bits(a), bits(wide), "an amplitude past the band is kept");
-        let off = iv(1e-17, 2e-17);
-        let (_, b) = cylinder_rim_axial(rounding, off, band());
-        assert_eq!(bits(b), bits(off), "a term that excludes zero is kept");
         assert_eq!(
-            cylinder_rim_axial(0.0_f64, 1e-17, band()),
-            (0.0, 1e-17),
-            "at f64 a nonzero term is kept, however small"
+            cylinder_rim_axial(-6.938893903907228e-18_f64, 0.0, band()),
+            (0.0, 0.0),
+            "a rim's rounding at f64"
         );
         assert_eq!(
-            cylinder_rim_axial(1e-17_f64, 0.0, band()),
-            (1e-17, 0.0),
-            "at f64 a nonzero term is kept, however small"
+            cylinder_rim_axial(0.0_f64, 1e-17, band()),
+            (0.0, 0.0),
+            "a rim's rounding at f64, in the sin term"
+        );
+        assert_eq!(
+            cylinder_rim_axial(1e-3_f64, 0.0, band()),
+            (1e-3, 0.0),
+            "at f64 an amplitude past the band is kept"
         );
     }
 }
