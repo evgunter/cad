@@ -7089,10 +7089,11 @@ mod depth_rows {
     /// - the outer wall built about an axis 0.5 off: parted read through
     ///   the shift that carries it onto the inner's axis, and not through
     ///   the opposite one, which a map read backwards would align;
-    /// - the inner wall built about an axis 0.5 off the other way and
-    ///   read through a quarter turn about `z`, the outer through a
-    ///   shift: the two motions put the walls on one axis only composed
-    ///   in that order (`a⁻¹ ∘ b`, not `b ∘ a⁻¹`), and they are parted;
+    /// - the inner wall built about an axis 0.5 off the other way, its
+    ///   seam a quarter turn back, and read through a quarter turn about
+    ///   `z`, the outer through a shift: the two motions put the walls
+    ///   over each other on one axis only composed in that order
+    ///   (`a⁻¹ ∘ b`, not `b ∘ a⁻¹`), and they are parted;
     /// - the inner read through a skew turn and shift, against the outer
     ///   built where that motion puts it: parted, as in place.
     ///
@@ -7107,14 +7108,16 @@ mod depth_rows {
         fn read<T: Decide + CertifiedBounds + crate::props::AtRestPolicy>() {
             let lane = core::any::type_name::<T>();
             let at = T::from_f64;
-            let wall = |radius: f64, origin: Point3<f64>| {
+            let sheet = |frame: CylFrame| {
                 let mut body = Body::<T>::new();
-                let frame = CylFrame {
-                    origin,
-                    ..CylFrame::canonical(radius)
-                };
                 let f = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
                 (body, f)
+            };
+            let wall = |radius: f64, origin: Point3<f64>| {
+                sheet(CylFrame {
+                    origin,
+                    ..CylFrame::canonical(radius)
+                })
             };
             let shift = |x: f64, y: f64| {
                 RigidMotion::translation(Vec3::new(at(x), at(y), at(0.0))).expect("a finite shift")
@@ -7153,7 +7156,13 @@ mod depth_rows {
             let origin = Point3::origin();
             let (inner, outer) = (wall(1.0, origin), wall(1.001, origin));
             let outer_off = wall(1.001, Point3::new(0.5, 0.0, 0.0));
-            let inner_off = wall(1.0, Point3::new(0.0, -0.5, 0.0));
+            // Its seam a quarter turn back, so the quarter turn brings its
+            // azimuths over the outer's and the two overlap on one axis.
+            let inner_off = sheet(CylFrame {
+                origin: Point3::new(0.0, -0.5, 0.0),
+                u_ref: -Vec3::unit_y(),
+                ..CylFrame::canonical(1.0)
+            });
             let quarter =
                 RigidMotion::turned(Point3::origin(), UnitVec3::exact_z(), Turns::quarters(1));
             let axis = |x: f64, y: f64, z: f64| Vec3::new(at(x), at(y), at(z));
@@ -7177,17 +7186,12 @@ mod depth_rows {
                     .unwrap(),
                 )
                 .unwrap();
-            let outer_moved = {
-                let mut body = Body::<T>::new();
-                let frame = CylFrame {
-                    origin: skew64.transform_point(origin),
-                    axis: skew64.transform_vec(Vec3::unit_z()),
-                    radius: 1.001,
-                    u_ref: skew64.transform_vec(Vec3::unit_x()),
-                };
-                let f = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), Tol::witness());
-                (body, f)
-            };
+            let outer_moved = sheet(CylFrame {
+                origin: skew64.transform_point(origin),
+                axis: skew64.transform_vec(Vec3::unit_z()),
+                radius: 1.001,
+                u_ref: skew64.transform_vec(Vec3::unit_x()),
+            });
             for (what, a, ma, b, mb, want) in [
                 ("in one frame", &inner, None, &outer, None, true),
                 (
