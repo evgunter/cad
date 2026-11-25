@@ -1,0 +1,13 @@
+diff --git a/crates/topo/src/boolean/reduce.rs b/crates/topo/src/boolean/reduce.rs
+index 4d7f1513..f3a405cb 100644
+--- a/crates/topo/src/boolean/reduce.rs
++++ b/crates/topo/src/boolean/reduce.rs
+@@ -2587,7 +2587,7 @@ fn junction_reach_held<T: Decide>(spread: T, bend_rim: T, reach: T) -> bool {
+     let proven =
+         |name, m: T| geom_core::k_stats::prove(name, Margin::sign_of(m)) == Ok(Sign::Positive);
+     proven("junction_end_reach", reach * half - spread)
+-        && proven("junction_end_chord", half - bend_rim * spread)
++
+ }
+ 
+ /// The rest of `[t0, t1]` past the window at `end`, which ends at `at`.

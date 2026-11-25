@@ -1,0 +1,29 @@
+diff --git a/crates/geom-brep/src/curve_face/end_root.rs b/crates/geom-brep/src/curve_face/end_root.rs
+index 667d6b4f..afa6003a 100644
+--- a/crates/geom-brep/src/curve_face/end_root.rs
++++ b/crates/geom-brep/src/curve_face/end_root.rs
+@@ -387,6 +387,7 @@ pub fn end_window<T: Decide>(
+             n: &n,
+             charge: &charge,
+             p,
++            m,
+         }
+         .window(carrier, surface, &local, band);
+         match read {
+@@ -412,6 +413,7 @@ struct Pivot<'a, T> {
+     n: &'a [T],
+     charge: &'a [T],
+     p: usize,
++    m: usize,
+ }
+ 
+ impl<T: Decide> Pivot<'_, T> {
+@@ -425,7 +427,7 @@ impl<T: Decide> Pivot<'_, T> {
+         band: Band,
+     ) -> Result<(T, bool, T), EndRootRefusal> {
+         let (n, p) = (self.n, self.p);
+-        let lead = n[p].abs() * T::from_f64(0.5);
++        let lead = n[self.m].abs() * T::from_f64(0.5);
+         // The window: the terms past `p` at most half the `p`-th.
+         let mut s_w = local.run;
+         let mut unhalved = true;

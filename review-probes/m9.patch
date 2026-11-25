@@ -1,0 +1,15 @@
+diff --git a/crates/topo/src/boolean/reduce.rs b/crates/topo/src/boolean/reduce.rs
+index 4d7f1513..9e06c690 100644
+--- a/crates/topo/src/boolean/reduce.rs
++++ b/crates/topo/src/boolean/reduce.rs
+@@ -2536,9 +2536,7 @@ fn junction_end_window<T: Decide>(
+     let departure = along.dot(conormal.normalize());
+     let bend_rim = T::one() / q.rim.radius;
+     let reach = geom_brep::curve_face::end_root::one_sheet_radius(q.surface, q.p, window.spread);
+-    if !junction_reach_held(window.spread, bend_rim, reach) {
+-        return Err(no_window);
+-    }
++    let _ = reach;
+     match junction_side(departure, (bend_e, bend_rim), window.spread, band) {
+         Ok(Sign::Positive) => Ok(Some(window)),
+         Ok(Sign::Zero | Sign::Negative) => Err(no_window),

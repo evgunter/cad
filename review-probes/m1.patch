@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_face/end_root.rs b/crates/geom-brep/src/curve_face/end_root.rs
+index 667d6b4f..55a3cc56 100644
+--- a/crates/geom-brep/src/curve_face/end_root.rs
++++ b/crates/geom-brep/src/curve_face/end_root.rs
+@@ -379,7 +379,7 @@ pub fn end_window<T: Decide>(
+     // verdict on it is read. The order's own pivot goes first; where none
+     // holds, its refusal is the door's.
+     let mut first = None;
+-    for p in m..n.len() {
++    for p in m..=m {
+         if p > m {
+             charge.push(n[p - 1].abs() + zero * g / pow(run, p - 1));
+         }

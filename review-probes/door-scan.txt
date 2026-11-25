@@ -1,0 +1,114 @@
+SCAN eps 1e-6 d/eps 5.000e-2 sep2/eps 3.333e-2 ok ord 4 whole true spread 1.1112e-1 near 7.7460e-4 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e-2 sep2/eps 5.928e-2 ok ord 4 whole true spread 1.1112e-1 near 1.0329e-3 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 1.581e-1 sep2/eps 1.054e-1 ok ord 4 whole true spread 1.1112e-1 near 1.3774e-3 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 2.812e-1 sep2/eps 1.874e-1 ok ord 4 whole true spread 1.1112e-1 near 1.8369e-3 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 5.000e-1 sep2/eps 3.333e-1 ok ord 4 whole true spread 1.1112e-1 near 2.4495e-3 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e-1 sep2/eps 5.928e-1 ok ord 4 whole true spread 1.1112e-1 near 3.2664e-3 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 1.581e0 sep2/eps 1.054e0 Order(Indeterminate { margin: MarginDiag(Value(-1.0540931088483715e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-6 d/eps 2.812e0 sep2/eps 1.874e0 Order(Indeterminate { margin: MarginDiag(Value(-1.8744728410502262e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-6 d/eps 5.000e0 sep2/eps 3.333e0 Order(Indeterminate { margin: MarginDiag(Value(-3.3333388891667027e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-6 d/eps 8.891e0 sep2/eps 5.928e0 Order(Indeterminate { margin: MarginDiag(Value(-5.927615601814234e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-6 d/eps 1.581e1 sep2/eps 1.054e1 ok ord 2 whole true spread 1.1199e-1 near 1.3774e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 2.812e1 sep2/eps 1.874e1 ok ord 2 whole true spread 1.1267e-1 near 1.8369e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 5.000e1 sep2/eps 3.333e1 ok ord 2 whole true spread 1.1389e-1 near 2.4495e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e1 sep2/eps 5.928e1 ok ord 2 whole true spread 1.1609e-1 near 3.2664e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 1.581e2 sep2/eps 1.054e2 ok ord 2 whole true spread 1.2008e-1 near 4.3559e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 2.812e2 sep2/eps 1.875e2 ok ord 2 whole true spread 1.2738e-1 near 5.8087e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 5.000e2 sep2/eps 3.334e2 ok ord 2 whole true spread 1.4077e-1 near 7.7460e-2 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e2 sep2/eps 5.929e2 ok ord 2 whole true spread 1.6469e-1 near 1.0329e-1 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 1.581e3 sep2/eps 1.055e3 ok ord 2 whole true spread 2.0441e-1 near 1.3774e-1 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 2.812e3 sep2/eps 1.876e3 ok ord 2 whole true spread 2.6430e-1 near 1.8369e-1 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 5.000e3 sep2/eps 3.339e3 ok ord 2 whole true spread 3.4847e-1 near 2.4495e-1 holds true far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e3 sep2/eps 5.945e3 ok ord 2 whole false spread 3.7021e-2 near 3.2664e-1 holds false far 1.2500e-1
+SCAN eps 1e-6 d/eps 1.581e4 sep2/eps 1.060e4 ok ord 2 whole false spread 2.7666e-2 near 4.3558e-1 holds false far 2.5000e-1
+SCAN eps 1e-6 d/eps 2.812e4 sep2/eps 1.892e4 ok ord 2 whole false spread 2.0669e-2 near 5.8083e-1 holds false far 2.5000e-1
+SCAN eps 1e-6 d/eps 5.000e4 sep2/eps 3.388e4 ok ord 2 whole false spread 1.5425e-2 near 7.7444e-1 holds false far 5.0000e-1
+SCAN eps 1e-6 d/eps 8.891e4 sep2/eps 6.100e4 ok ord 2 whole false spread 1.1484e-2 near 1.0323e0 holds false far 5.0000e-1
+SCAN eps 1e-6 d/eps 1.581e5 sep2/eps 1.108e5 ok ord 2 whole false spread 8.5158e-3 near 1.3746e0 holds false far 5.0000e-1
+SCAN eps 1e-6 d/eps 2.812e5 sep2/eps 2.038e5 ok ord 2 whole false spread 6.2745e-3 near 1.8248e0 holds false far 1.0000e0
+SCAN eps 1e-6 d/eps 5.000e5 sep2/eps 3.804e5 ok ord 2 whole false spread 4.5911e-3 near 2.3986e0 holds false far 1.0000e0
+SCAN eps 1e-6 d/eps 8.891e5 sep2/eps 6.985e5 ok ord 2 whole true spread 3.3871e-3 near 3.0526e0 holds false far 2.0000e0
+SCAN eps 1e-6 d/eps 1.581e6 sep2/eps 9.999e5 ok ord 2 whole true spread 2.8305e-3 near 3.4640e0 holds false far 2.0000e0
+SCAN eps 1e-6 d/eps 2.812e6 sep2/eps 2.421e5 ok ord 2 whole false spread 5.7567e-3 near 1.9716e0 holds false far 1.0000e0
+SCAN eps 1e-6 d/eps 5.000e6 sep2/eps 4.844e5 ok ord 2 whole true spread 4.0679e-3 near NaN holds false far 2.0000e0
+SCAN eps 1e-6 d/eps 8.891e6 sep2/eps 4.081e5 ok ord 2 whole false spread 4.4322e-3 near 2.4701e0 holds false far 1.0000e0
+SCAN eps 1e-6 d/eps 1.581e7 sep2/eps 6.654e4 ok ord 2 whole false spread 1.0995e-2 near NaN holds false far 5.0000e-1
+SCAN eps 1e-6 d/eps 2.812e7 sep2/eps 1.102e5 ok ord 2 whole false spread 8.5398e-3 near 1.3709e0 holds false far 5.0000e-1
+SCAN eps 1e-6 d/eps 5.000e7 sep2/eps 1.608e5 ok ord 2 whole false spread 7.0648e-3 near NaN holds false far 1.0000e0
+SCAN eps 1e-6 d/eps 8.891e7 sep2/eps 7.436e5 ok ord 2 whole true spread 3.2828e-3 near 3.1236e0 holds false far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e-2 sep2/eps 3.333e-2 ok ord 4 whole true spread 1.9528e-2 near 2.4495e-5 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e-2 sep2/eps 5.928e-2 ok ord 4 whole true spread 1.9528e-2 near 3.2664e-5 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e-1 sep2/eps 1.054e-1 ok ord 4 whole true spread 1.9528e-2 near 4.3559e-5 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e-1 sep2/eps 1.874e-1 ok ord 4 whole true spread 1.9528e-2 near 5.8087e-5 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e-1 sep2/eps 3.333e-1 ok ord 4 whole true spread 1.9528e-2 near 7.7460e-5 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e-1 sep2/eps 5.928e-1 ok ord 4 whole true spread 1.9528e-2 near 1.0329e-4 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e0 sep2/eps 1.054e0 Order(Indeterminate { margin: MarginDiag(Value(-1.05409251753145e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-9 d/eps 2.812e0 sep2/eps 1.874e0 Order(Indeterminate { margin: MarginDiag(Value(-1.8744709505866116e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-9 d/eps 5.000e0 sep2/eps 3.333e0 Order(Indeterminate { margin: MarginDiag(Value(-3.3333332199441607e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-9 d/eps 8.891e0 sep2/eps 5.928e0 Order(Indeterminate { margin: MarginDiag(Value(-5.927597788220337e-9, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-9 d/eps 1.581e1 sep2/eps 1.054e1 ok ord 2 whole true spread 1.9533e-2 near 4.3559e-4 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e1 sep2/eps 1.874e1 ok ord 2 whole true spread 1.9537e-2 near 5.8087e-4 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e1 sep2/eps 3.333e1 ok ord 2 whole true spread 1.9543e-2 near 7.7460e-4 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e1 sep2/eps 5.928e1 ok ord 2 whole true spread 1.9555e-2 near 1.0329e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e2 sep2/eps 1.054e2 ok ord 2 whole true spread 1.9577e-2 near 1.3774e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e2 sep2/eps 1.874e2 ok ord 2 whole true spread 1.9615e-2 near 1.8369e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e2 sep2/eps 3.333e2 ok ord 2 whole true spread 1.9683e-2 near 2.4495e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e2 sep2/eps 5.928e2 ok ord 2 whole true spread 1.9804e-2 near 3.2664e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e3 sep2/eps 1.054e3 ok ord 2 whole true spread 2.0021e-2 near 4.3559e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e3 sep2/eps 1.874e3 ok ord 2 whole true spread 2.0412e-2 near 5.8087e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e3 sep2/eps 3.333e3 ok ord 2 whole true spread 2.1123e-2 near 7.7460e-3 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e3 sep2/eps 5.928e3 ok ord 2 whole true spread 2.2427e-2 near 1.0329e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e4 sep2/eps 1.054e4 ok ord 2 whole true spread 2.4822e-2 near 1.3774e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e4 sep2/eps 1.874e4 ok ord 2 whole true spread 2.9108e-2 near 1.8369e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 5.000e4 sep2/eps 3.333e4 ok ord 2 whole true spread 3.6219e-2 near 2.4495e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 8.891e4 sep2/eps 5.928e4 ok ord 2 whole true spread 4.6914e-2 near 3.2664e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 1.581e5 sep2/eps 1.054e5 ok ord 2 whole true spread 6.1915e-2 near 4.3559e-2 holds true far 2.0000e0
+SCAN eps 1e-9 d/eps 2.812e5 sep2/eps 1.875e5 ok ord 2 whole false spread 6.5433e-3 near 5.8087e-2 holds false far 3.1250e-2
+SCAN eps 1e-9 d/eps 5.000e5 sep2/eps 3.334e5 ok ord 2 whole false spread 4.9046e-3 near 7.7460e-2 holds false far 3.1250e-2
+SCAN eps 1e-9 d/eps 8.891e5 sep2/eps 5.929e5 ok ord 2 whole false spread 3.6765e-3 near 1.0329e-1 holds false far 6.2500e-2
+SCAN eps 1e-9 d/eps 1.581e6 sep2/eps 1.055e6 ok ord 2 whole false spread 2.7561e-3 near 1.3774e-1 holds false far 6.2500e-2
+SCAN eps 1e-9 d/eps 2.812e6 sep2/eps 1.876e6 ok ord 2 whole false spread 2.0660e-3 near 1.8369e-1 holds false far 1.2500e-1
+SCAN eps 1e-9 d/eps 5.000e6 sep2/eps 3.339e6 ok ord 2 whole false spread 1.5485e-3 near 2.4495e-1 holds false far 1.2500e-1
+SCAN eps 1e-9 d/eps 8.891e6 sep2/eps 5.945e6 ok ord 2 whole false spread 1.1604e-3 near 3.2664e-1 holds false far 1.2500e-1
+SCAN eps 1e-9 d/eps 1.581e7 sep2/eps 1.060e7 ok ord 2 whole false spread 8.6908e-4 near 4.3558e-1 holds false far 2.5000e-1
+SCAN eps 1e-9 d/eps 2.812e7 sep2/eps 1.892e7 ok ord 2 whole false spread 6.5037e-4 near 5.8083e-1 holds false far 2.5000e-1
+SCAN eps 1e-9 d/eps 5.000e7 sep2/eps 3.388e7 ok ord 2 whole false spread 4.8596e-4 near 7.7444e-1 holds false far 5.0000e-1
+SCAN eps 1e-9 d/eps 8.891e7 sep2/eps 6.100e7 ok ord 2 whole false spread 3.6217e-4 near 1.0323e0 holds false far 5.0000e-1
+SCAN eps 1e-12 d/eps 5.000e-2 sep2/eps 3.316e-2 ok ord 4 whole true spread 3.4656e-3 near 7.7460e-7 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e-2 sep2/eps 5.921e-2 ok ord 4 whole true spread 3.4656e-3 near 1.0329e-6 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e-1 sep2/eps 1.054e-1 ok ord 4 whole true spread 3.4656e-3 near 1.3774e-6 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e-1 sep2/eps 1.871e-1 ok ord 4 whole true spread 3.4656e-3 near 1.8369e-6 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e-1 sep2/eps 3.332e-1 ok ord 4 whole true spread 3.4656e-3 near 2.4495e-6 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e-1 sep2/eps 5.929e-1 ok ord 4 whole true spread 3.4656e-3 near 3.2664e-6 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e0 sep2/eps 1.054e0 Order(Indeterminate { margin: MarginDiag(Value(-1.0539717247113707e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-12 d/eps 2.812e0 sep2/eps 1.875e0 Order(Indeterminate { margin: MarginDiag(Value(-1.8746485845154882e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-12 d/eps 5.000e0 sep2/eps 3.333e0 Order(Indeterminate { margin: MarginDiag(Value(-3.3332349226490476e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-12 d/eps 8.891e0 sep2/eps 5.928e0 Order(Indeterminate { margin: MarginDiag(Value(-5.927505400114048e-12, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-12, escalate: 1e-11 }, predicate: Some("curve_face_end_root_order") })
+SCAN eps 1e-12 d/eps 1.581e1 sep2/eps 1.054e1 ok ord 2 whole true spread 3.4656e-3 near 1.3774e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e1 sep2/eps 1.874e1 ok ord 2 whole true spread 3.4657e-3 near 1.8369e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e1 sep2/eps 3.333e1 ok ord 2 whole true spread 3.4657e-3 near 2.4495e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e1 sep2/eps 5.928e1 ok ord 2 whole true spread 3.4658e-3 near 3.2664e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e2 sep2/eps 1.054e2 ok ord 2 whole true spread 3.4659e-3 near 4.3559e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e2 sep2/eps 1.874e2 ok ord 2 whole true spread 3.4661e-3 near 5.8087e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e2 sep2/eps 3.333e2 ok ord 2 whole true spread 3.4665e-3 near 7.7460e-5 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e2 sep2/eps 5.928e2 ok ord 2 whole true spread 3.4671e-3 near 1.0329e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e3 sep2/eps 1.054e3 ok ord 2 whole true spread 3.4683e-3 near 1.3774e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e3 sep2/eps 1.874e3 ok ord 2 whole true spread 3.4705e-3 near 1.8369e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e3 sep2/eps 3.333e3 ok ord 2 whole true spread 3.4743e-3 near 2.4495e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e3 sep2/eps 5.928e3 ok ord 2 whole true spread 3.4810e-3 near 3.2664e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e4 sep2/eps 1.054e4 ok ord 2 whole true spread 3.4931e-3 near 4.3559e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e4 sep2/eps 1.874e4 ok ord 2 whole true spread 3.5146e-3 near 5.8087e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e4 sep2/eps 3.333e4 ok ord 2 whole true spread 3.5533e-3 near 7.7460e-4 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e4 sep2/eps 5.928e4 ok ord 2 whole true spread 3.6229e-3 near 1.0329e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e5 sep2/eps 1.054e5 ok ord 2 whole true spread 3.7493e-3 near 1.3774e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e5 sep2/eps 1.874e5 ok ord 2 whole true spread 3.9813e-3 near 1.8369e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e5 sep2/eps 3.333e5 ok ord 2 whole true spread 4.4077e-3 near 2.4495e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e5 sep2/eps 5.928e5 ok ord 2 whole true spread 5.1710e-3 near 3.2664e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 1.581e6 sep2/eps 1.054e6 ok ord 2 whole true spread 6.4369e-3 near 4.3559e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 2.812e6 sep2/eps 1.874e6 ok ord 2 whole true spread 8.3403e-3 near 5.8087e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 5.000e6 sep2/eps 3.333e6 ok ord 2 whole true spread 1.1009e-2 near 7.7460e-3 holds true far 2.0000e0
+SCAN eps 1e-12 d/eps 8.891e6 sep2/eps 5.928e6 ok ord 2 whole false spread 1.1621e-3 near 1.0329e-2 holds false far 3.9062e-3
+SCAN eps 1e-12 d/eps 1.581e7 sep2/eps 1.054e7 ok ord 2 whole false spread 8.7136e-4 near 1.3774e-2 holds false far 7.8125e-3
+SCAN eps 1e-12 d/eps 2.812e7 sep2/eps 1.874e7 ok ord 2 whole false spread 6.5339e-4 near 1.8369e-2 holds false far 7.8125e-3
+SCAN eps 1e-12 d/eps 5.000e7 sep2/eps 3.333e7 ok ord 2 whole false spread 4.8995e-4 near 2.4495e-2 holds false far 1.5625e-2
+SCAN eps 1e-12 d/eps 8.891e7 sep2/eps 5.928e7 ok ord 2 whole false spread 3.6740e-4 near 3.2664e-2 holds false far 1.5625e-2

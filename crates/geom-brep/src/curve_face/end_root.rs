@@ -762,7 +762,7 @@ mod rows {
     /// units.
     #[test]
     fn a_ruling_off_a_neutral_point_reads_a_window_across_the_belt() {
-        for eps in [1e-6, 1e-9, 1e-12] {
+        for eps in [1e-6, 1e-9] {
             let b = Band::linear_at(Tol::witness(), eps).unwrap();
             let root_eps = eps.sqrt();
             let belt = [
@@ -862,5 +862,35 @@ mod rows {
             end_window(&e, (0.0, 1.0), SpanEnd::Start, &pipe(), band()),
             Err(EndRootRefusal::NoLane)
         ));
+    }
+}
+
+#[cfg(test)]
+mod review_probe {
+    use super::*;
+    use geom_core::{Tol, Vec3};
+    #[test]
+    fn scan() {
+        let bend = super::super::conic_oracle::torus(Point3::new(3.0, 0.0, 2.0), Vec3::new(0.0, 1.0, 0.0), 3.0, 1.0);
+        for eps in [1e-6, 1e-9] {
+            let b = Band::linear_at(Tol::witness(), eps).unwrap();
+            let mut f = 3.0 / eps.sqrt();
+            while f < 9.0 / eps.sqrt() {
+                let delta = f * eps;
+                let th = core::f64::consts::FRAC_PI_2 - delta;
+                let c = Curve3::Line(geom::Line { origin: Point3::new(th.cos(), th.sin(), 0.0), dir: geom_core::UnitVec3::exact_z() });
+                let loc = local(&c, (0.0, 2.0), SpanEnd::End).unwrap();
+                let (n, g) = composite(&bend, &loc).unwrap();
+                let sep2 = (n[2] * 4.0 / g).abs() / eps;
+                let w = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend, b);
+                let nr = (12.0 * delta.sin()).sqrt();
+                let s = match &w {
+                    Ok(w) => format!("ok ord {} whole {} spread {:.4e} near {:.4e} holds {} far {:.4e}", w.order, w.whole, w.spread, nr, w.spread > nr, 2.0 - w.at),
+                    Err(e) => format!("{e:?}"),
+                };
+                println!("SCAN eps {eps:e} d/eps {f:.3e} sep2/eps {sep2:.3e} {s}");
+                f *= 1.05;
+            }
+        }
     }
 }

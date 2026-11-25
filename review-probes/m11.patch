@@ -1,0 +1,13 @@
+diff --git a/crates/topo/src/boolean/reduce.rs b/crates/topo/src/boolean/reduce.rs
+index 4d7f1513..38ba6cdd 100644
+--- a/crates/topo/src/boolean/reduce.rs
++++ b/crates/topo/src/boolean/reduce.rs
+@@ -2561,7 +2561,7 @@ fn junction_side<T: Decide>(
+ ) -> Result<Sign, geom_core::Indeterminate> {
+     let half = T::from_f64(0.5);
+     let sixth = T::from_f64(1.0 / 6.0);
+-    let third = T::from_f64(1.0 / 3.0);
++    let third = T::from_f64(1.0 / 6.0);
+     let lead = departure * spread * (T::one() - (bend_e * spread).powi(2) * sixth);
+     let chord = (T::one() + (bend_rim * spread).powi(2) * third).powi(2);
+     let bent = (bend_e + bend_rim * chord) * spread.powi(2) * half;

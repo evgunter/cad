@@ -1,0 +1,14 @@
+      1  @ a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body
+     46 PROBE pivot m=2 p=4 whole=true @ an_edge_ending_near_a_neutral_point_stops_where_its_distance_says
+     32 PROBE pivot m=2 p=4 whole=true @ an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction
+     47 PROBE side-read order=2 @ a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body
+     16 PROBE side-read order=2 @ a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_layer
+      7 PROBE side-read order=2 @ a_rod_and_its_elbow_glue_one_junction
+     48 PROBE side-read order=2 @ an_edge_ending_near_a_neutral_point_stops_where_its_distance_says
+     64 PROBE side-read order=2 @ an_elbow_bent_away_from_its_pipe_glues_a_junction_on_both_rims
+     24 PROBE side-read order=2 @ an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions
+     48 PROBE side-read order=2 @ an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction
+     32 PROBE side-read order=2 @ an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction
+     96 PROBE side-read order=2 @ an_elbow_whose_neutral_points_sit_in_the_end_gaps_unions
+      1 PROBE side-read order=2PROBE side-read order=2 @ a_rod_and_its_elbow_glue_one_junction
+     24 PROBE side-read order=4 @ an_edge_ending_near_a_neutral_point_stops_where_its_distance_says

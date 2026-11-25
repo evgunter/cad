@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_face/end_root.rs b/crates/geom-brep/src/curve_face/end_root.rs
+index 667d6b4f..9447ce7d 100644
+--- a/crates/geom-brep/src/curve_face/end_root.rs
++++ b/crates/geom-brep/src/curve_face/end_root.rs
+@@ -381,7 +381,7 @@ pub fn end_window<T: Decide>(
+     let mut first = None;
+     for p in m..n.len() {
+         if p > m {
+-            charge.push(n[p - 1].abs() + zero * g / pow(run, p - 1));
++            charge.push(n[p - 1].abs());
+         }
+         let read = Pivot {
+             n: &n,
