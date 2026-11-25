@@ -3219,6 +3219,24 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_holds_where_two_arcs_of_it
 /// the sweep calls.
 #[test]
 fn a_folded_oblique_cut_reads_violated_off_its_corners() {
+    // Pinned red at 1e-12: the f64 body spends its budget where the
+    // Interval body reads the fold
+    // (`work/germ/main-red-the-folded-oblique-cut-spends-its-f64-budget-at-1e-12-since-the-posed-belly.md`).
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &[1e-12],
+        "the folded oblique cut",
+        &[
+            "the folded cut: the Interval body reads the f64 body's verdict class",
+            "left: \"Violated\"",
+            "right: \"Budget\"",
+        ],
+        a_folded_oblique_cut_reads_violated_off_its_corners_row,
+    );
+}
+
+/// The row [`a_folded_oblique_cut_reads_violated_off_its_corners`] runs, under its pin.
+fn a_folded_oblique_cut_reads_violated_off_its_corners_row() {
     fn folded_at<T: Scalar>() -> Body<T> {
         use geom_core::{Affine3, Vec3};
         let cut = oblique_cut::<T>();

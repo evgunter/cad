@@ -25,6 +25,7 @@ crates/geom-brep/src/pair_section/ruling.rs	1	owed(bounds-re-enter-t-through-fro
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(constants-spelled-through-from-computed)	coverage	<fn>	coverage: exact f64 rulings lifted to concrete Interval, a constant embed spelled as computed
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	hi	Cell::new: a cell end read at T (Ruling::reads)
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	lo	Cell::new: a cell end read at T (Ruling::reads)
+crates/geom-brep/src/pair_section/spline_implicit/cells.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	new	<fn>	Reader::new: an f64 carrier lifted to Interval to read a tube bound, as pad_and_reach lifts it
 crates/geom-brep/src/pair_section/winds.rs	1	owed(constants-spelled-through-from-computed)	lift	v	lift: exact f64 values lifted to concrete Interval, a constant embed spelled as computed
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	abs_z(z).0	axial_floor: a hull bound as a T operand
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	over_at	at	over_at: a hull height squared at T

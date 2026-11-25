@@ -217,7 +217,7 @@ pub use implicit::{
     conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
     implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
     implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
+    min_radius_of_curvature, min_radius_of_curvature_toward, one_sheet_radius, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
@@ -257,9 +257,9 @@ pub use pair_section::{
     ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
     CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
     KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PlaneTorusMeridian, PlaneTorusPose,
-    PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement, Ring,
-    SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    NodeLine, NodeSet, PadBox, PadsStop, PairPose, PairSection, PairSide, PlaneTorusMeridian,
+    PlaneTorusPose, PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement,
+    Ring, SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
     SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
     SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
     TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
