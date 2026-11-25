@@ -5360,6 +5360,12 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
         U::Resolvent | U::CountDisagrees { .. } => "the count of its crossings did not certify",
         U::AtApex => "it meets the face within the tolerance of a cone's apex",
         U::Degenerate => "it runs along a ruling of the face",
+        U::Reach => {
+            "it crosses the face at so shallow an angle, or the face is so large beside the \
+             tolerance, that where the crossing lies along the edge is known only to a \
+             stretch with no bound, or one that reaches a boundary of the face: move the \
+             edge off that boundary, or steepen the crossing"
+        }
     }
 }
 

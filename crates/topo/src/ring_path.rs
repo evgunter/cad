@@ -2301,7 +2301,8 @@ fn refused(why: geom_brep::curve_face::CrossWhy) -> Refused {
                 | Unsettled::Resolvent
                 | Unsettled::CountDisagrees { .. }
                 | Unsettled::AtApex
-                | Unsettled::Crease,
+                | Unsettled::Crease
+                | Unsettled::Reach,
             )
             | MeetFault::Unsupported { .. } => Refused::Unread,
             MeetFault::Desync | MeetFault::Contradiction { .. } | MeetFault::Unwalked(_) => {

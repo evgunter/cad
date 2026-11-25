@@ -485,7 +485,13 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
                 (CrossWhy::Pose(PoseRefusal::Enclosed), geom::Curve3::Nurbs(net)) => {
                     let door = geom_brep::curve_face::Door::SplineComposite;
                     match T::spline_face_crossings(net, params, surface, band) {
-                        Some(Ok(roots)) => Ok(Some((roots, false))),
+                        // The split's interiority reads each parameter
+                        // inside or refuses, so it decides nothing by
+                        // which one was stored.
+                        Some(Ok(found)) => Ok(Some((
+                            found.into_iter().map(|c| c.into_parts().0).collect(),
+                            false,
+                        ))),
                         Some(Err(refusal)) => Err(CrossWhy::Method {
                             door,
                             fault: composite_fault(refusal),

@@ -171,7 +171,13 @@ pub enum Unsettled {
     Degenerate,
     /// A meeting within the band of a crease of a spline carrier, where
     /// it has no tangent to read a crossing by.
-    Crease,
+    Crease,    /// A crossing with no closed form whose place along its carrier is
+    /// not bounded to the band: its check bounded no reach
+    /// ([`geom_core::solved::Unadmitted::Unbounded`]), or a reading that
+    /// would place it on a boundary does not hold at every candidate
+    /// within its reach. A near-tangency, or a carrier far larger than
+    /// the band resolves.
+    Reach,
 }
 
 impl Unsettled {
@@ -189,6 +195,9 @@ impl Unsettled {
             Self::AtApex => "a root at a cone's apex",
             Self::Degenerate => "a residual whose leading term vanishes",
             Self::Crease => "a meeting at a spline's crease",
+            Self::Reach => {
+                "a crossing too shallow, or on too large a carrier, to place along its edge within the band"
+            }
         }
     }
 
@@ -220,6 +229,7 @@ impl Unsettled {
             | Self::Meter { .. }
             | Self::Exhausted
             | Self::Floor
+            | Self::Reach
             | Self::Resolvent
             | Self::CountDisagrees { .. } => Ok(Refusal::Unsettled),
         }
@@ -292,8 +302,8 @@ pub fn touch_or_tangency<R: From<Unsettled>>(
 
 /// **A stored root the solved-value door refused**, told as the walk's
 /// refusal: a residual read definitely off is [`Unsettled::Meter`] under
-/// the door's row, and one in the band's escalation the caller's
-/// `escalated`. The one spelling of that mapping for the curve × face
+/// the door's row, one in the band's escalation the caller's
+/// `escalated`, and a check that bounded no reach [`Unsettled::Reach`]. The one spelling of that mapping for the curve × face
 /// arms ([`crate::curve_face::composite`],
 /// [`crate::curve_face::spline_face`]).
 pub fn unadmitted<R: From<Unsettled>>(
@@ -302,6 +312,7 @@ pub fn unadmitted<R: From<Unsettled>>(
 ) -> R {
     match refused {
         geom_core::solved::Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
+        geom_core::solved::Unadmitted::Unbounded { .. } => Unsettled::Reach.into(),
         geom_core::solved::Unadmitted::Undecided(diag) => escalated(diag),
     }
 }

@@ -89,7 +89,7 @@ use geom::{Curve3, NurbsSurface};
 use geom_core::bisect::{Budget, PIECE_BUDGET, Step, bisect_within};
 use geom_core::interval::dot;
 use geom_core::k_stats::decide;
-use geom_core::solved::decide_admit;
+use geom_core::solved::{Checked, Reach, decide_admit, decide_reaching};
 use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
@@ -117,8 +117,9 @@ pub enum SplineFaceRefusal {
     /// box within its floor reach of a crease among its block's sides, as
     /// a meeting within the band of a crease leaves one),
     /// [`Unsettled::Tangency`] (two meetings decided at one point),
-    /// [`Unsettled::Meter`] (a meeting does not resolve onto the chart, or
-    /// inside the span, to the band) or [`Unsettled::Exhausted`].
+    /// [`Unsettled::Meter`] (a meeting does not resolve onto the chart to
+    /// the band), [`Unsettled::Reach`] (the span's speed bounds no reach
+    /// for it) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The arm could not read the pair: the carrier is a spiric, or a
     /// scalar, a knot or a speed of the carrier or the chart did not
@@ -142,6 +143,10 @@ pub struct ChartMeeting<T: Real> {
     /// The parameter on the span, admitted by its point reading on the
     /// chart ([`geom_core::solved::decide_admit`]).
     pub t: T,
+    /// What that check bounded: along, the span's length over the box
+    /// the walk proved the meeting the one solution of, which every
+    /// parameter the meeting could be stored at lies in.
+    pub reach: Reach,
     /// The chart point, `(u, v)`: the place the meeting was read at, an
     /// `f64` beside the stored `t` (`geom-core` README, DL5.2: a place
     /// is never a `T`).
@@ -786,6 +791,8 @@ impl Found {
 pub struct Isolated {
     /// The span, its ends' enclosures' outer ends.
     span: (f64, f64),
+    /// An upper bound on the carrier's speed wherever the walk read it.
+    speed: f64,
     /// Each meeting's narrowed box, `(t, u, v)`, ascending in `t`.
     roots: Vec<[(f64, f64); 3]>,
 }
@@ -1047,6 +1054,7 @@ pub fn isolate<T: CertifiedBounds>(
     found.sort_by(|p, q| p.root.0[0].0.total_cmp(&q.root.0[0].0));
     Ok(Isolated {
         span: (a, b),
+        speed: pair.speeds[0],
         roots: found.iter().map(|f| f.root.0).collect(),
     })
 }
@@ -1131,6 +1139,14 @@ fn held(found: &[Found], ends: &[Cell], x: Cell) -> bool {
 /// parameter whose point reads ON the chart, with the chart point it was
 /// found at, not an enclosure of the true meeting.
 ///
+/// The stored parameter is the middle of the meeting's box, one of the
+/// parameters the box holds, so each placing is decided for all of them
+/// ([`geom_core::solved::decide_reaching`]): the span's length over the
+/// box is the meeting's reach, and a meeting is apart from an end, or
+/// from the meeting before it, only where the nearest point of its reach
+/// is, and at an end only where the farthest is. A box that holds an end
+/// of the span is therefore never apart from it.
+///
 /// # Errors
 ///
 /// [`SplineFaceRefusal`], as its variants say.
@@ -1141,8 +1157,9 @@ pub fn settle<T: geom_core::Certifies>(
     band: Band,
 ) -> Result<Vec<ChartMeeting<T>>, SplineFaceRefusal> {
     let (a, b) = isolated.span;
-    let gap_as = |row, p: Point3<T>, q: Point3<T>| {
-        decide(row, Margin::of((p - q).norm()), band).map_err(SplineFaceRefusal::Escalated)
+    let gap_as = |row, p: Point3<T>, q: Point3<T>, reach: f64| {
+        decide_reaching(row, Margin::of((p - q).norm()), reach, band)
+            .map_err(SplineFaceRefusal::Escalated)
     };
     let ends = [a, b].map(|t| carrier.eval_at(t));
     let mut out: Vec<ChartMeeting<T>> = Vec::with_capacity(isolated.roots.len());
@@ -1153,38 +1170,40 @@ pub fn settle<T: geom_core::Certifies>(
         }
         let [tm, um, vm] = root.mid();
         let foot = chart.eval_at(um, vm);
+        let along = (exact(isolated.speed) * (exact(root.0[0].1) - exact(root.0[0].0))).hi();
         // Definitely off at the located meeting: the enclosure's point
-        // is not resolved to the band. The check bounds the distance
-        // between the carrier's point and the chart's at the box's middle,
-        // in metres; the readers below decide where that point stands
-        // along the span, against the box the walk proved and charged.
+        // is not resolved to the band.
         let (t, point) = decide_admit("spline_face_root_on", tm, band, |t| {
             let point = carrier.eval(t);
-            (Margin::of((point - foot).norm()), point)
+            Checked {
+                residual: Margin::of((point - foot).norm()),
+                reach: along,
+                witness: point,
+            }
         })
         .map_err(|refused| unadmitted(refused, SplineFaceRefusal::Escalated))?;
+        let (t, reach) = t.into_parts();
+        let along = reach.along();
         let mut at_end = false;
         for end in ends {
-            at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
+            at_end |= gap_as("spline_face_root_at_end", point, end, along)? == Sign::Zero;
         }
         if at_end {
             continue;
         }
-        // An enclosure reaching past an end its point is definitely
-        // apart from is not resolved to the band.
-        if !(a < root.0[0].0 && root.0[0].1 < b) {
-            return Err(Unsettled::Meter {
-                row: "spline_face_root_at_end",
-            }
-            .into());
-        }
         if let Some(before) = out.last()
-            && gap_as("spline_face_roots_apart", point, before.point)? == Sign::Zero
+            && gap_as(
+                "spline_face_roots_apart",
+                point,
+                before.point,
+                along + before.reach.along(),
+            )? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }
         out.push(ChartMeeting {
             t,
+            reach,
             uv: (um, vm),
             point,
         });

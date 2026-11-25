@@ -47,7 +47,13 @@ fn cubic(z: [f64; 4]) -> NurbsCurve3<f64> {
 
 fn read(net: &NurbsCurve3<f64>, surface: &Surface<f64>) -> Result<Vec<f64>, CompositeRefusal> {
     let (lo, hi) = net.domain();
-    crossings(net, (lo, hi), surface, band(), Interval::from_certified)
+    crossings(net, (lo, hi), surface, band(), Interval::from_certified).map(parameters)
+}
+
+/// The crossings' parameters, their reaches dropped: for a row that
+/// reads where the crossings are and decides nothing by them.
+fn parameters<T>(found: Vec<geom_core::solved::Admitted<T, geom_core::solved::Reach>>) -> Vec<T> {
+    found.into_iter().map(|c| c.into_parts().0).collect()
 }
 
 /// Each crossing reads ON the surface, and the residual changes sign
@@ -268,6 +274,7 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
     let lane = crate::NurbsLane::<f64>::certified();
     let roots = lane
         .surface_crossings(&net, (0.0, 1.0), &ball, band())
+        .map(parameters)
         .unwrap();
     assert_eq!(roots.len(), 1, "{roots:?}");
     assert!((net.eval(roots[0]).x - 0.5).abs() < 1e-9, "{roots:?}");
@@ -491,9 +498,10 @@ fn settled(net: &NurbsCurve3<Interval>, candidate: f64) -> Result<Vec<Interval>,
         (Interval::zero(), Interval::one()),
         band(),
         &[],
-        vec![super::Meeting::Crossing(candidate)],
+        vec![super::Meeting::Crossing(candidate, 0.0)],
         &off,
     )
+    .map(parameters)
 }
 
 /// The door admits a crossing whose point reads on for the whole
@@ -533,46 +541,56 @@ fn a_stored_crossing_is_admitted_by_its_check_at_interval() {
     );
 }
 
-/// **The check bounds the crossing across the plane; its readers decide
-/// along the carrier.** This row states the finding of
-/// `work/scalar/a-crossing-parameters-check-bounds-across-the-face-and-its-readers-decide-along-the-edge`
-/// as it stands, and goes red when that item changes what `settle` does
-/// with it. On the shallow line `z = 10⁻³·(t − t*)`, `t* = 1 − 2·10⁻⁷`,
-/// three candidates each read on the plane within the band's zero, and
-/// `settle` answers each differently by where its point stands against
-/// the span's end: reported, escalated, dropped as the end's.
+/// **Admissible candidates of one shallow crossing settle one way, or
+/// refuse.** On the shallow line `z = 10⁻³·(t − t*)` every parameter
+/// within `zero / 10⁻³` of `t*` reads on the plane within the band's
+/// zero. Handed to `settle` with the length of that stretch as their
+/// reach, three of them, which read reported, escalated and dropped where
+/// `t* = 1 − 2·10⁻⁷` and each was placed on its own point, all refuse at
+/// the end's row: the end lies inside the stretch. With `t*` at the
+/// span's middle all three are reported. Placed with no reach, they
+/// answer three ways again, which is what the reach is carried for.
 #[test]
-fn admissible_candidates_of_one_shallow_crossing_settle_three_ways() {
+fn admissible_candidates_of_one_shallow_crossing_settle_one_way_or_refuse() {
     use geom_core::Margin;
-    let root = 1.0 - 2e-7;
-    let z = |t: f64| 1e-3 * (t - root);
-    let net = cubic([z(0.0), z(1.0 / 3.0), z(2.0 / 3.0), z(1.0)]);
-    let plane = ground();
-    let off = |p: Point3<f64>| Margin::of(crate::implicit_residual(&plane, p));
-    let at = |candidate: f64| {
+    let stretch = 2.0 * ZERO / 1e-3;
+    let settled = |root: f64, candidate: f64, reach: f64| {
+        let z = |t: f64| 1e-3 * (t - root);
         assert!(z(candidate).abs() <= ZERO, "{candidate} reads on the plane");
+        let net = cubic([z(0.0), z(1.0 / 3.0), z(2.0 / 3.0), z(1.0)]);
+        let plane = ground();
+        let off = |p: Point3<f64>| Margin::of(crate::implicit_residual(&plane, p));
         super::settle(
             &net,
             (0.0, 1.0),
             band(),
             &[],
-            vec![super::Meeting::Crossing(candidate)],
+            vec![super::Meeting::Crossing(candidate, reach)],
             &off,
         )
+        .map(parameters)
     };
-    let reported = at(root);
+    let root = 1.0 - 2e-7;
+    let candidates = [root, 1.0 - 5e-9, 1.0 - 5e-10];
+    for candidate in candidates {
+        let refused = settled(root, candidate, stretch);
+        assert!(
+            matches!(refused, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_at_end")),
+            "the end lies within the reach of {candidate}: {refused:?}"
+        );
+    }
+    for offset in [0.0, 5e-7, -9e-7] {
+        let reported = settled(0.5, 0.5 + offset, stretch);
+        assert!(
+            matches!(reported.as_deref(), Ok([t]) if *t == 0.5 + offset),
+            "no end within the reach of the candidate {offset} from the middle: {reported:?}"
+        );
+    }
+    let [reported, escalated, dropped] = candidates.map(|c| settled(root, c, 0.0));
     assert!(
-        matches!(reported.as_deref(), Ok([t]) if *t == root),
-        "a candidate past the escalation from the end is reported: {reported:?}"
-    );
-    let escalated = at(1.0 - 5e-9);
-    assert!(
-        matches!(escalated, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_at_end")),
-        "a candidate in the end's escalation refuses there: {escalated:?}"
-    );
-    let dropped = at(1.0 - 5e-10);
-    assert!(
-        matches!(dropped.as_deref(), Ok([])),
-        "a candidate within the end's zero is the end's: {dropped:?}"
+        matches!(reported.as_deref(), Ok([t]) if *t == root)
+            && matches!(escalated, Err(CompositeRefusal::Escalated(_)))
+            && matches!(dropped.as_deref(), Ok([])),
+        "placed with no reach, each candidate answers for itself: {reported:?} {escalated:?} {dropped:?}"
     );
 }

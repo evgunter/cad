@@ -2821,7 +2821,10 @@ pub struct NurbsLane<T: geom_core::Certifies> {
         (T, T),
         &Surface<T>,
         Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
+    ) -> Result<
+        crate::curve_face::composite::Crossings<T>,
+        crate::curve_face::composite::CompositeRefusal,
+    >,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2883,7 +2886,10 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+    ) -> Result<
+        crate::curve_face::composite::Crossings<T>,
+        crate::curve_face::composite::CompositeRefusal,
+    > {
         crate::curve_face::composite::crossings(
             net,
             params,
@@ -3049,9 +3055,9 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
     }
 
     /// **A spline span against an analytic face's carrier**: the
-    /// crossings strictly inside `params`, ascending, by the curve × face
-    /// table's ring-composite arm
-    /// ([`crate::curve_face::composite::crossings`]).
+    /// crossings strictly inside `params`, ascending, each with its reach
+    /// ([`geom_core::solved::Reach`]), by the curve × face table's
+    /// ring-composite arm ([`crate::curve_face::composite::crossings`]).
     ///
     /// # Errors
     ///
@@ -3063,7 +3069,10 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+    ) -> Result<
+        crate::curve_face::composite::Crossings<T>,
+        crate::curve_face::composite::CompositeRefusal,
+    > {
         (self.composite)(net, params, surface, band)
     }
 
