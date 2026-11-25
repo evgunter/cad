@@ -312,3 +312,13 @@
 - 2026-11-25 PR 7783's fix pass is done (head 21f1f66afa). `disc_loop` now reads a signed length; `Zero` → `DiscSide`; there is new `ClosedDisc` vocabulary. Margins are bounded by Λ₂ on sphere and cylinder; a cone refuses `CarrierUnread`. The full default per-test diff shows built → refused empty. The small sphere rim at ε=1e-6, ρ ≤ 1e-3, now picks the right circle but refuses at the result gate's sphere props lane; that is filed on nearpoint. Rows filed: a-conic-on-a-cone-reads-no-bounded-margin, a-closed-rider-in-a-face-with-rings-keeps-its-zero-area-ring, the-split-leaves-curved-pieces-touching-along-a-curve-with-no-guard-the-census-reads. A delta re-read has been sent to the reviewer.
 
 - 2026-11-25 PR 7783 delta re-read: MERGEABLE. M1 and m1–m3 are closed. Λ₂ = 1.98885 was checked as the 5-node equispaced trig Lebesgue constant. The small-sphere `ResultInvalid` was judged an acceptable typed limit, since before this PR it was a `CurvedFace` refusal; the nearpoint row should note that the class reads as a door defect. Merged into `heldrecords/split-on` (d5a5787a1a). Its gate reds are all inherited from the stack. It reaches main with PR 7481 once PR 7124 lands. The tube witnesses get pinned when the stack takes main. The division row closes on PR 7481's merge.
+
+- 2026-11-25 **PR 7799 review: NOT MERGEABLE, 2 MAJOR.**
+  - **M1, fix (2) is unsound:** `confirm_patch` reports `ContactContradicted` at Door 1 (carrier and sense) before region overlap is read. So a same-sense removed member touching nothing consumed a record, a silent drop where 7745's head refused `Unread`.
+  - **M2, (C) changes the ratified clause** ("decides every such meeting at its door"), so it is Ev's call.
+  - **Ruled:**
+    - Drop (2). A sound removed-member read must actually find the touch, pinned in `ci`.
+    - Take (C) out. The pierce row stays red (loud `JoinDesync`, already red on main since 7745), listed on the P0 row.
+    - Keep (1), with a piece-incidence pin.
+  - Fix pass sent. The (C)/(A) fork goes to two Opus designers: A session_018u3gVHEtKTbcP5hj8j7VvE, B session_018u3gVGSw5Y3NcYbqNE1X1B (brief fork-minted-meeting.md), then an `[ev]` PR.
+  - I chose this over reverting PR 7745: fixing forward leaves at most one loud slow-set red, against reopening 7745's silent-drop hole.
