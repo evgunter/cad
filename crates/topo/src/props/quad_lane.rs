@@ -918,7 +918,11 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             frame, half_angle, ..
         } => {
             let edges: Vec<&[LoopEdge<T>]> = loops.iter().map(|(e, _)| e.as_slice()).collect();
-            geom_brep::props::require_cone_cap(surface, &edges, band)?;
+            geom_brep::props::require_cone_cap(
+                (frame.origin(), frame.axis_unit(), *half_angle),
+                &edges,
+                band,
+            )?;
             let (apex, axis) = (frame.origin(), frame.axis());
             let loops: Vec<Vec<LoopEdge<Interval>>> = loops
                 .iter()
@@ -2093,12 +2097,15 @@ mod tests {
         /// quadratic with middle control point `mid`, the rim `z = 2` from
         /// `(0, 2, 2)` to `(−2, 0, 2)`, and the generator back to
         /// `(−1, 0, 1)`.
-        fn parabola_cap(mid: Point3<f64>) -> (geom::Surface<f64>, Vec<LoopEdge<f64>>) {
+        fn parabola_cap(
+            mid: Point3<f64>,
+        ) -> (
+            (Point3<f64>, geom_core::UnitVec3<f64>, f64),
+            Vec<LoopEdge<f64>>,
+        ) {
             use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
-            let cone = geom::Surface::Cone {
-                frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
-                half_angle: FRAC_PI_4,
-            };
+            let frame = geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+            let cone = (frame.origin(), frame.axis_unit(), FRAC_PI_4);
             let (a, b, c) = (
                 Point3::new(-1.0, 0.0, 1.0),
                 Point3::new(0.0, 2.0, 2.0),
@@ -2141,7 +2148,7 @@ mod tests {
         fn a_cone_cap_a_polynomial_spline_bounds_holds_its_closed_form() {
             let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
             let (cone, edges) = parabola_cap(Point3::new(-1.0, 1.0, 1.0));
-            geom_brep::props::require_cone_cap(&cone, &[edges.as_slice()], band)
+            geom_brep::props::require_cone_cap(cone, &[edges.as_slice()], band)
                 .expect("the cap lies on one nappe");
             let lift = |e: &LoopEdge<f64>| {
                 LoopEdge::hand_built(
@@ -2175,14 +2182,15 @@ mod tests {
 
         /// **A cone cap whose spline's hull crosses the apex refuses**:
         /// [`parabola_cap`] with the parabola's middle control point moved
-        /// onto the other nappe (`z < 0`) is no longer held on one nappe
-        /// by its hull, and the gate refuses it before the quadrature.
+        /// to `z = −3`, where the curve itself dips to `z = −7/9` at
+        /// `s = 4/9`, is no longer held on one nappe by its cover, and the
+        /// gate refuses it before the quadrature.
         #[test]
         fn a_cone_cap_whose_spline_hull_crosses_the_apex_refuses() {
             let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
-            let (cone, edges) = parabola_cap(Point3::new(-1.0, 1.0, -1.0));
+            let (cone, edges) = parabola_cap(Point3::new(-1.0, 1.0, -3.0));
             assert_eq!(
-                geom_brep::props::require_cone_cap(&cone, &[edges.as_slice()], band),
+                geom_brep::props::require_cone_cap(cone, &[edges.as_slice()], band),
                 Err(geom_brep::props::PropsError::NappeSpanning)
             );
         }

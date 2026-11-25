@@ -2639,7 +2639,8 @@ fn cone_nappe<T: Decide>(ends: &[T], band: Band) -> Result<T, PropsError> {
 
 /// **The gates a cone cap passes before the cap quadrature reads it**
 /// (`topo`'s curved-rim lane, for a cone face a spiric or a spline
-/// bounds), the closed form's (`cone_loops`) where they apply to the
+/// bounds), on the cone of `apex`, `axis` and `half_angle`, the closed
+/// form's (`cone_loops`) where they apply to the
 /// carrier:
 /// a line, a circle or an ellipse lies on the cone (`require_on_cone`)
 /// with its conic span decided (`require_cone_conic_spans`), and every
@@ -2652,22 +2653,12 @@ fn cone_nappe<T: Decide>(ends: &[T], band: Band) -> Result<T, PropsError> {
 /// # Errors
 ///
 /// [`PropsError::NappeSpanning`], [`PropsError::DegenerateFace`],
-/// `require_on_cone`'s and `require_cone_conic_spans`'s refusals;
-/// [`PropsError::Defect`] on a surface that is not a cone.
+/// `require_on_cone`'s and `require_cone_conic_spans`'s refusals.
 pub fn require_cone_cap<T: Decide>(
-    cone: &Surface<T>,
+    (apex, axis, half_angle): (Point3<T>, UnitVec3<T>, T),
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<(), PropsError> {
-    let Surface::Cone {
-        frame, half_angle, ..
-    } = *cone
-    else {
-        return Err(PropsError::Defect {
-            what: "the cone cap gate read a surface that is not a cone",
-        });
-    };
-    let (apex, axis) = (frame.origin(), frame.axis_unit());
     let (sin_a, cos_a) = half_angle.sin_cos();
     let at_apex = (apex - Point3::origin()).dot(axis.get());
     let mut ends = Vec::new();
