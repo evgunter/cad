@@ -334,7 +334,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
     /// it minted on a record's two cells meet where the record puts them.
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
-        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        use crate::lineage::{Descent, Division, Fate, roots};
         let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
             .into_iter()
             .flatten()
@@ -398,7 +398,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Edge).collect(),
                     minted,
-                    remainder: Remainder::Exhaustive,
+                    removed: Vec::new(),
                 }),
             );
         }
@@ -432,7 +432,7 @@ impl<T: crate::props::AtRestPolicy> SplitResult<T> {
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Face).collect(),
                     minted,
-                    remainder: Remainder::Exhaustive,
+                    removed: Vec::new(),
                 }),
             );
         }
