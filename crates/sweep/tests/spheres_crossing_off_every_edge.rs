@@ -283,12 +283,16 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
             assert!(
                 matches!(
                     &out,
-                    Err(BooleanError::Pcurves { source })
-                        if crate::common::frame_cost::pcurve_escalates(
-                            source,
-                            "pcurve_envelope",
-                            PLAIN_ENVELOPE,
-                        )
+                    Err(BooleanError::ResultInvalid { findings })
+                        if findings.as_slice().iter().any(|f| matches!(
+                            f,
+                            topo::ValidationError::Pcurve { finding }
+                                if crate::common::frame_cost::pcurve_escalates(
+                                    finding,
+                                    "pcurve_envelope",
+                                    PLAIN_ENVELOPE,
+                                )
+                        ))
                 ),
                 "Interval {op}: pinned to escalate the cut's pcurve envelope in {PLAIN_ENVELOPE:?} \
                  at ε 1e-12 ({PLAIN_ENVELOPE_ROW}): {:?}",

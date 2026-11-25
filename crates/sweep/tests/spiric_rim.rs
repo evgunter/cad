@@ -1043,8 +1043,10 @@ mod interval_rows {
                 );
                 return;
             }
-            Err(e) => panic!("the vessel's rims mint at the certified scalar: {e:?}"),
+            Err(e) => panic!("the vessel's corners solve at the certified scalar: {e:?}"),
         }
+        let cavity = topo::test_support::completed(cavity, tol)
+            .unwrap_or_else(|e| panic!("the vessel's rims mint at the certified scalar: {e:?}"));
         let f64_body = vessel_at(&|x| x);
         let mut f64_cavity = f64_body.clone();
         topo::offset_charts_together(

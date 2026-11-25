@@ -1843,9 +1843,9 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
         let spec = edge_spec(&p.body, e, kind);
         p.body.set_edge_curve(e, spec, tol).unwrap();
     }
-    // The assembly's closing mint: its two cylinder walls store their
-    // rows at rest (C4).
-    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
+    // The assembly's rows completed, as its finish would: its two
+    // cylinder walls store their rows at rest (C4).
+    crate::pcurves::complete_pcurves(&mut p.body, tol).unwrap();
     p
 }
 

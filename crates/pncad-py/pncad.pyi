@@ -603,7 +603,7 @@ class StepImportError(PncadError):
     `unbanded_uncertainty`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `not_yet_supported`, `build_escalated`,
-    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `wall_column_structure`, `recognition_ambiguous`,
     `join`, `singularity_undecided`, `singularity_side_undecided`,
     `singularity_meet_unread`, `interpretation`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:

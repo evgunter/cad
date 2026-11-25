@@ -4207,7 +4207,7 @@ pub(crate) mod sphere_rect_rows {
     /// The unit ball cut by the rim `z = h0` into a north cap and a
     /// south remainder, the north cap carrying a strut meridian at
     /// azimuth 0 from the rim up to `z = hc`, each face on `senses`'
-    /// side. `(body, north, south)`, or the closing mint's refusal.
+    /// side. `(body, north, south)`, or the mint's refusal.
     fn strut_cap_ball(
         h0: f64,
         hc: f64,

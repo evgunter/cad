@@ -99,7 +99,7 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     assert_eq!(same, 8);
     let (_, vmoved) = bitwise_solid(&pair, &work, vs);
     assert!(vmoved > 0, "the vessel did not move");
-    assert_eq!(topo::validate_geometric(&work, tol()), Ok(()));
+    assert_eq!(topo::test_support::validate_completed(&work, tol()), Ok(()));
 
     // The box's charts only, through the planar door — the vessel's
     // curved faces are OUT of scope and must not trip `TogetherNonPlanar`.
@@ -114,7 +114,7 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     r.expect("the box's charts move through the planar door while the vessel stands by");
     let (same, moved) = bitwise_solid(&pair, &work, vs);
     assert_eq!(moved, 0, "the vessel moved: same={same}");
-    assert_eq!(topo::validate_geometric(&work, tol()), Ok(()));
+    assert_eq!(topo::test_support::validate_completed(&work, tol()), Ok(()));
 }
 
 #[test]
@@ -1264,13 +1264,13 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
     .concat();
     let before = volume(&two);
     topo::replace_faces_offset(&mut two, &both, -0.1, tol()).expect("both solids' wearers");
-    assert_eq!(topo::validate_geometric(&two, tol()), Ok(()));
+    assert_eq!(topo::test_support::validate_completed(&two, tol()), Ok(()));
     assert_volume(&two, before - 2.0 * 2.5 * 0.1, "two solids, both tops");
 
     let (mut pair, down, up, top, _) = opposed_pair();
     let before = volume(&pair);
     topo::replace_faces_offset(&mut pair, &[top], -0.1, tol()).expect("the lower's top alone");
-    assert_eq!(topo::validate_geometric(&pair, tol()), Ok(()));
+    assert_eq!(topo::test_support::validate_completed(&pair, tol()), Ok(()));
     assert_volume(&pair, before - 0.1, "opposed pair: the lower shrinks only");
     use topo::SolidContainment::{In, Out};
     assert_eq!(

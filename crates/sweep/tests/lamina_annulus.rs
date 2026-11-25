@@ -1001,7 +1001,11 @@ fn shell_and_offset_of_unslit_annuli_match_closed_forms() {
         let v0 = volume(&b);
         topo::replace_face_offset(&mut b, f[0], d, tol())
             .unwrap_or_else(|e| panic!("{what}: {e:?}"));
-        assert_eq!(validate_geometric(&b, tol()), Ok(()), "{what}");
+        assert_eq!(
+            topo::test_support::validate_completed(&b, tol()),
+            Ok(()),
+            "{what}"
+        );
         let got = volume(&b) - v0;
         assert!(
             (got.abs() - dv.abs()).abs() < 1e-9,
