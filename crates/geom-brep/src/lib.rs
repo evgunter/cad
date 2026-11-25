@@ -217,7 +217,7 @@ pub use implicit::{
     conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
     implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
     implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
+    min_radius_of_curvature, min_radius_of_curvature_toward, one_sheet_radius, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,

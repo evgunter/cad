@@ -230,7 +230,11 @@ limbs 1–3) is bounded on the certification trait and takes its lane as a
 plain argument. The scalar's policy names what its edges carry: a
 certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
-scalar can call a certifying function. A dual body carries no
+scalar can call a certifying function. A pcurve door is two functions
+in the same way: deriving the image (its class, its coefficients) is
+construction, and the four checks, the envelope, the certificate object
+and the incidence read that ends a door's refusal are certification
+(geom-core DL5.3). A dual body carries no
 certificate: what a dual measures is read against the input-identical
 `f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full, and a
 certificate is read wherever its support is bit-identical. An edge with an operand outside the
@@ -1482,9 +1486,11 @@ combination coefficients the knot algebra derives from them. Values are
 held in the scalar, each entered where it is made as what it is: a
 constant of the construction's form (π as `T::pi()`, never as the
 arithmetic that computes it) or of an imported file through `from_f64`;
-a numerical routine's output (a fit's knots, weights and poles) once, at
-the fit, through `Real::from_computed`; a value the model determines
-computed in the scalar. At an enclosure scalar a carrier stands for the
+a value the model determines (a skin through its sections among them)
+computed in the scalar; a fit that proposes one description of
+something already described (an edge's image in a spline wall's chart)
+`f64` until the certificate that checks it admits it, once, through the
+door of `crates/geom-core/README.md` DL5.2. At an enclosure scalar a carrier stands for the
 family of its members, so its knot positions and weights may be
 enclosures as its poles are. Structure is decided once for every member:
 at a point scalar it is read off the values; at an enclosure scalar it

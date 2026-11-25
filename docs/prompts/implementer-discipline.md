@@ -39,8 +39,9 @@ wasm32. The `change filter` job's log prints what this run selected, and
   implementer that notices one reports it to its orchestrator rather than
   fixing it; the orchestrator assigns the fix.
 - **A fast-set test costs under 0.25 s.** Its cost is its time run alone on
-  the gate's build: the gate re-runs alone any test its full parallel pass
-  reads over a bar, and that reading is the one that counts. A test you add or
+  the gate's build, scaled to the median hosted runner by a reference
+  workload timed beside it: the gate re-runs alone any test its full parallel
+  pass reads near a bar, and that scaled reading is the one that counts. A test you add or
   edit that costs 0.25 s or more goes in `.config/nextest.toml`'s `ci` filter
   in that PR. A slow-set test runs on that PR, on any PR that edits its file,
   and every night after. The gate also fails any fast-set test that costs 1 s
