@@ -304,7 +304,9 @@ const CUBE_ON_THE_NARROWING_WALL: f64 = 0.029_738_0;
 /// their overlap, it passes tier 3, and `point_in_solid` agrees with
 /// both operands' closed-form membership over a grid. The tilted rod
 /// across the narrowing wall, a cone × oblique cylinder pair the join
-/// reads on its carried section, holds the same truth.
+/// reads on its carried section, holds the same truth, its membership
+/// read wherever `point_in_solid` reads the trimmed cone face
+/// ([`membership_off_the_cone_face`]).
 #[test]
 fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     let tol = Tol::witness();
@@ -472,15 +474,56 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
         );
     }
     for (op_label, got, op, x, y, v) in ops {
-        solid_truth::assert_is(
-            &format!("the tilted rod across the narrowing wall, {op_label}"),
-            &got,
-            Want::Body(v, 1e-5),
-            &|q| op.depth(x, y, q),
-            &[],
-            &points,
-        );
+        let label = format!("the tilted rod across the narrowing wall, {op_label}");
+        let truth = |q| op.depth(x, y, q);
+        solid_truth::assert_is(&label, &got, Want::Body(v, 1e-5), &truth, &[], &[]);
+        let Ok(topo::BooleanResult::Body(bb)) = &got else {
+            unreachable!("assert_is held a body")
+        };
+        let read = membership_off_the_cone_face(&label, &bb.body, &truth, &points);
+        eprintln!("{label}: membership {read:?} (agreed, PartialConeFace)");
     }
+}
+
+/// [`solid_truth::assert_is`]'s membership check, less the points
+/// `point_in_solid` refuses `PartialConeFace` at: a cone face bounded by
+/// the marched section's spline edge has no region reading
+/// (`work/inside/point-in-solid-refuses-a-cone-face-a-spline-bounds.md`).
+/// Every point it answers agrees with `truth`, and at least one is
+/// answered. Returns the points agreed and refused.
+fn membership_off_the_cone_face(
+    label: &str,
+    body: &Body<f64>,
+    truth: &dyn Fn(Point3<f64>) -> f64,
+    points: &[Point3<f64>],
+) -> (usize, usize) {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (mut agreed, mut refused) = (0, 0);
+    for &q in points {
+        let d = truth(q);
+        if d.abs() <= solid_truth::MARGIN {
+            continue;
+        }
+        match topo::point_in_solid(body, q, band, tol) {
+            Ok(got) => {
+                let ok = match got {
+                    topo::SolidContainment::In => d > 0.0,
+                    topo::SolidContainment::Out => d < 0.0,
+                    topo::SolidContainment::OnBoundary => false,
+                };
+                assert!(
+                    ok,
+                    "{label}: at {q:?} (depth {d:e}) point_in_solid says {got:?}"
+                );
+                agreed += 1;
+            }
+            Err(topo::PointInSolidError::PartialConeFace { .. }) => refused += 1,
+            Err(e) => panic!("{label}: point_in_solid at {q:?} refused {e:?}"),
+        }
+    }
+    assert!(agreed > 0, "{label}: no point answered ({refused} refused)");
+    (agreed, refused)
 }
 
 /// The overlap of the tilted rod (`r = 0.12`, `h = 0.5`, its axis `y`
