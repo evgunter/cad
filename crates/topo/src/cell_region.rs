@@ -23,9 +23,11 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::contain::curved_face_placement`] on a curved carrier),
-//!    says which; a station the curved door reads off its own carrier
-//!    is the kernel's defect, and panics.
+//!    [`crate::contain::curved_face_placement_reading`] on a curved
+//!    carrier, handed the scalar's spline reader, so a sphere's or a
+//!    torus's region reads a boundary arc on a spline), says which; a
+//!    station the curved door reads off its own carrier is the kernel's
+//!    defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -45,9 +47,10 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
+use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement_reading};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
+use crate::region::SplineCrossings;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
 use crate::validate::decide;
 
@@ -134,23 +137,24 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
     let station = surface.eval_at(mu, mv);
-    let reach = (surface.eval(span(u), span(v)) - station).norm();
-    let clear_as = |row: &'static str, distance: Interval| {
-        matches!(
-            decide(row, Margin::of(distance - reach), band),
-            Ok(Sign::Positive)
-        )
-    };
+    let ball = Ball::holding(station, surface.rect_enclosure(u, v));
+    let clear_as = |row: &'static str, distance: Interval| ball.clear_as(row, distance, band);
     if !(clear_of_singular(surface, station, &clear_as)
         && clear_of_boundary_as(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
     let at = stored.eval_at(mu, mv);
-    match place(body, face, stored, at, band) {
+    match place(
+        body,
+        face,
+        stored,
+        at,
+        band,
+        crate::props::certified_spline_face_crossings::<T>,
+    ) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
         Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) | None => {
@@ -161,7 +165,9 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::contain::curved_face_placement`] on a curved carrier. `None`
+/// [`crate::contain::curved_face_placement_reading`] on a curved carrier,
+/// with the certifying scalar's spline reader
+/// ([`crate::props::certified_spline_face_crossings`]). `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
@@ -182,7 +188,14 @@ pub fn station_region<T: Decide + CertifiedBounds>(
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface().ok()?;
     let station = surface.eval_at(u, v);
-    place(body, face, surface, station, band)
+    place(
+        body,
+        face,
+        surface,
+        station,
+        band,
+        crate::props::certified_spline_face_crossings::<T>,
+    )
 }
 
 fn place<T: Decide>(
@@ -191,6 +204,7 @@ fn place<T: Decide>(
     surface: &Surface<T>,
     station: Point3<T>,
     band: Band,
+    splines: SplineCrossings<T>,
 ) -> Option<FaceContainment> {
     crate::held::Held::constructed(station, "a station of the face's own stored chart")
         .check(surface, band);
@@ -199,7 +213,7 @@ fn place<T: Decide>(
             let normal = frame.axis();
             contfp(body, face, normal, station, band).ok()
         }
-        _ => match curved_face_placement(body, face, station, band).ok()? {
+        _ => match curved_face_placement_reading(body, face, station, band, Some(splines)).ok()? {
             CurvedPlacement::Trim(at) => at,
             // A spline chart's station is read by the spline region's own
             // search (hull cells and feet), and `Held::check` does not

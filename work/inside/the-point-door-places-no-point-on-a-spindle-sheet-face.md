@@ -2,11 +2,14 @@
 id: the-point-door-places-no-point-on-a-spindle-sheet-face
 kind: issue
 title: The curved point door places no point inside a spindle sheet face, so a crossing through a sheet is confirmed only where its stations land on the face's boundary
-status: open
+status: closed
 opened: 2026-11-25
 priority: P1
 cost: M
 refs: [a-spindle-sheet-or-an-approximated-face-has-no-window-in-the-injectivity-engine]
+closed: 2026-11-25
+pr: 7790
+branch: inside/spindle-sheet-placement
 ---
 
 

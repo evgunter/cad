@@ -1647,7 +1647,17 @@ pub(crate) mod tests {
         us: (f64, f64),
         vs: (f64, f64),
     ) -> (Body<f64>, FaceKey) {
-        torus_wall_sensed(false, periods, center, axis, u_ref, major, minor, us, vs)
+        torus_wall_sensed(
+            (false, false),
+            periods,
+            center,
+            axis,
+            u_ref,
+            major,
+            minor,
+            us,
+            vs,
+        )
     }
 
     /// [`torus_wall`]'s loop under the chart's own normal (`sense: true`),
@@ -1663,17 +1673,68 @@ pub(crate) mod tests {
         us: (f64, f64),
         vs: (f64, f64),
     ) -> (Body<f64>, FaceKey) {
-        torus_wall_sensed(true, 0.0, center, axis, u_ref, major, minor, us, vs)
+        torus_wall_sensed(
+            (true, false),
+            0.0,
+            center,
+            axis,
+            u_ref,
+            major,
+            minor,
+            us,
+            vs,
+        )
     }
 
-    /// The wall, its face carrying `sense`. The `mef` leaves the face a
+    /// [`torus_wall`]'s patch on the spindle sheet of `major < minor`:
+    /// the same two families of edges, the carrier a sheet.
+    #[allow(clippy::too_many_arguments)] // `torus_wall`'s
+    pub(crate) fn sheet_wall(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        us: (f64, f64),
+        vs: (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        torus_wall_sensed(
+            (false, true),
+            0.0,
+            center,
+            axis,
+            u_ref,
+            major,
+            minor,
+            us,
+            vs,
+        )
+    }
+
+    /// [`sheet_wall`]'s loop under the chart's own normal: the face is
+    /// the rest of the sheet, the sheet with a rectangular hole.
+    #[allow(clippy::too_many_arguments)] // `torus_wall`'s
+    pub(crate) fn sheet_wall_clockwise(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        u_ref: Vec3<f64>,
+        major: f64,
+        minor: f64,
+        us: (f64, f64),
+        vs: (f64, f64),
+    ) -> (Body<f64>, FaceKey) {
+        torus_wall_sensed((true, true), 0.0, center, axis, u_ref, major, minor, us, vs)
+    }
+
+    /// The wall, its face carrying `sense`, on a spindle sheet where
+    /// `sheet`. The `mef` leaves the face a
     /// loop that runs clockwise in the chart `(u, v)`, whose normal is the
     /// torus's outward one; under `sense: false` the face's outward normal
     /// points into the tube, the loop runs counterclockwise under it, and
     /// the face is the patch.
     #[allow(clippy::too_many_arguments)] // `torus_wall`'s, the offset and the sense
     fn torus_wall_sensed(
-        sense: bool,
+        (sense, sheet): (bool, bool),
         periods: f64,
         center: Point3<f64>,
         axis: Vec3<f64>,
@@ -1693,10 +1754,19 @@ pub(crate) mod tests {
         // orphan geometry, which `mvfs`'s tier-1 postcondition
         // rejects.
         let seed = body.mvfs(on(u0, v0), true).unwrap();
-        let torus = body.add_surface(Surface::Torus {
-            frame: geom::Frame::new(center, axis, u_ref),
-            major_radius: major,
-            minor_radius: minor,
+        let frame = geom::Frame::new(center, axis, u_ref);
+        let torus = body.add_surface(if sheet {
+            Surface::Spindle {
+                frame,
+                major_radius: major,
+                minor_radius: minor,
+            }
+        } else {
+            Surface::Torus {
+                frame,
+                major_radius: major,
+                minor_radius: minor,
+            }
         });
         // A PARALLEL at `v`: the torus cut by the plane ⊥ the axis
         // there. Ascending in `u` when `up`, descending otherwise.
@@ -2256,20 +2326,32 @@ pub(crate) mod tests {
     }
 
     /// **The certificate slack, and the bound it holds under.** The
-    /// slack is `2·envelope/(R − r)` in `u` and `2·envelope/r` in `v`,
-    /// and it is claimed only while the envelope stays inside the
-    /// tube's own scale — an envelope past `r/2` or `(R − r)/2` gets
-    /// NO window.
+    /// slack is the chord bound, `π·envelope/(R − r)` in `u` and
+    /// `π·envelope/r` in `v`, and an envelope past `r/2` or `(R − r)/2`
+    /// gets NO window. At the guard's edge the slack still holds the
+    /// angle a chord of `2·envelope` spans, `2·asin(envelope/ρ)`, which
+    /// the arc-length slack `2·envelope/ρ` falls short of by 4.7%.
     ///
     /// The guard is unobservable on any minted fixture (an exact
     /// harmonic image certifies at ~1e-16 m), so the row plants the
     /// large envelope directly on the function that owns it.
     #[test]
     fn a_torus_windows_slack_is_guarded_by_the_bound_it_rests_on() {
+        use core::f64::consts::PI;
         let (major, minor) = (2.0, 0.5);
         let (su, sv) = torus_window_slack(1e-9, major, minor).expect("a certified envelope");
-        assert!((su - 2.0 * 1e-9 / (major - minor)).abs() < 1e-24, "{su:?}");
-        assert!((sv - 2.0 * 1e-9 / minor).abs() < 1e-24, "{sv:?}");
+        assert!((su - PI * 1e-9 / (major - minor)).abs() < 1e-24, "{su:?}");
+        assert!((sv - PI * 1e-9 / minor).abs() < 1e-24, "{sv:?}");
+        // At the guard's edge on both channels at once (`R − r = r`).
+        let edge = 0.25 * (1.0 - 1e-12);
+        let (su, sv) = torus_window_slack(edge, 1.0, 0.5).expect("inside both guards");
+        for (what, slack, rho) in [("u", su, 0.5), ("v", sv, 0.5)] {
+            let spanned = 2.0 * (edge / rho).asin();
+            assert!(
+                slack >= spanned,
+                "the {what} slack {slack} holds the chord's angle {spanned}"
+            );
+        }
         // Past the tube bound `r/2`, and past the ring bound
         // `(R − r)/2`, in turn — each alone must refuse.
         assert!(torus_window_slack(minor * 0.5 + 1e-9, major, minor).is_none());

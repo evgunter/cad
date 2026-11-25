@@ -2,11 +2,13 @@
 id: a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine
 kind: issue
 title: The injectivity engine opens no window on a trimmed free-form face, so a finished body holding a NURBS or approximated face cut off its iso boundary refuses Unsupported at the at-rest gate
-status: dispatched
+status: closed
 opened: 2026-11-25
 priority: P0
 cost: H
 branch: embedwalk/trimmed-freeform-window
+pr: 7787
+closed: 2026-11-25
 ---
 
 
@@ -43,3 +45,33 @@ A window on a trimmed free-form face: the knot domain as a superset
 on the spline chart (`spline_region`'s placement, which containment
 already reads for `Nurbs` and `Approx`), as every analytic carrier's
 window is read.
+
+## Evidence: the window (lane `embedwalk-trimmed`, 2026-11-25)
+
+Branch `embedwalk/trimmed-freeform-window`. A NURBS face that is not its
+whole patch takes its knot domain as a `Region::Trimmed` window; its
+self-pairs stay on the walk (the monotone arm reads chart rectangles, a
+superset of the face's part), and a cell's ball reads the carrier's
+narrowing `rect_enclosure`, so a spline cell's region decides.
+
+Measured on `embed/gate-measure` with the window patched in and the
+approximated-face window on, over `sweep` and `step-import`: the fast
+set's gate asks name no free-form window test; the slow set's do in
+five rows, and each moves from `Unsupported` to
+`Uncertified { arm: Departure }` at an edge its trimmed spline face
+shares. Their remainders are filed:
+`work/embed/a-spline-chart-image-bounding-a-trimmed-spline-face-is-presented-by-no-departure-arm.md`
+(the fitted cap cut by a plane, and three step-import rows) and
+`work/embed/a-trimmed-spline-walls-seam-side-misses-its-edge-by-the-rim-rows-rounding-at-their-corner.md`
+(the vase's moved cap).
+
+## Closed
+
+2026-11-25 by PR 7787: every free-form face (an approximated one read as
+its fit) is windowed on its knot domain, `Whole` where its isos bound
+the patch and `Trimmed` otherwise, its cells read by the spline point
+door; its self-pair is walked. The reproducers now refuse at the
+injectivity arm, filed on EMBED:
+`a-spline-chart-image-bounding-a-trimmed-spline-face-is-presented-by-no-departure-arm`
+and
+`a-trimmed-spline-walls-seam-side-misses-its-edge-by-the-rim-rows-rounding-at-their-corner`.
