@@ -2,10 +2,13 @@
 id: tangent-lever-row-escalates-containment-at-eps-1e-6
 kind: issue
 title: sweep rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts escalates Containment on bool_contact_vertex at eps 1e-6 (main red)
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: E
+closed: 2026-11-25
+pr: 7748
+branch: inside/contain-small-rows
 ---
 
 

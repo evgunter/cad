@@ -2,11 +2,14 @@
 id: contain-error-drops-the-loop-its-carrier-named
 kind: issue
 title: ContainError's From<PointInLoopError> discards the loop key two of its arms were given, so a refusal that names its mechanism cannot name its subject
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2420]
 priority: P1
 cost: E
+closed: 2026-11-25
+pr: 7748
+branch: inside/contain-small-rows
 ---
 
 
