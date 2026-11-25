@@ -2352,7 +2352,7 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
 /// **The most points one flattened arc is allowed**, which is a cap
 /// an ordinary arc reaches: a full circle needs `π·√(r / 2δ)` points
 /// to sag less than `δ`, so at the δ a session opens on
-/// ([`crate::scene::INITIAL_DELTA`]) every circle wider than about
+/// ([`crate::scene::INITIAL_DELTA`]) every circle of radius past about
 /// 21 m is drawn at the cap, and sags more than `δ`.
 ///
 /// **What it substitutes, and why that is the lesser failure.** A
@@ -2360,13 +2360,21 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
 /// fraction of its own radius, whatever δ asked for. The other
 /// failure is a count that grows as `√r` with nothing bounding it,
 /// paid every frame the committed profiles are drawn and again by the
-/// pick index built from them, which no triangle budget prices. The
-/// cap is sized so the sag it permits is under a pixel on an 8K
-/// window at the closest the camera dollies to a scene containing the
-/// circle, at the target's depth;
+/// pick index built from them, which no triangle budget prices.
+///
+/// **The nominal case, and the two it does not cover.** The cap is
+/// sized so the sag it permits is under a pixel on an 8K window at the
+/// closest the camera dollies to a scene framed around the circle, at
+/// the target's depth;
 /// `a_capped_arc_sags_under_a_pixel_at_the_closest_seat` measures that
 /// against the camera's own band and field of view, so a change to
-/// either that spends the margin reds there.
+/// either that spends the margin reds there. It does not hold when the
+/// camera's scene radius was fitted before the arc was drawn (a fit is
+/// owed only to the first body and to Zoom to fit, so a circle sketched
+/// far larger than a framed body is seen from a band sized for the
+/// body), nor for points of the arc nearer the eye than the target,
+/// which are magnified toward the near plane. Both are
+/// `work/vgeom/a-capped-arc-sags-past-a-pixel-from-a-stale-fit.md`.
 const MAX_ARC_POINTS: usize = 1024;
 
 /// **Whether a flattened point is a place**: both coordinates finite.
@@ -2479,10 +2487,10 @@ fn flatten(
 /// other direction and reached the cap, and its points are `±inf` or
 /// `NaN` however many of them are drawn.
 ///
-/// [`MAX_ARC_POINTS`] is still the answer for a genuinely coarse
-/// request, and `1` for a genuinely flat one; `None` is neither, which
-/// is the whole point of it being a third answer rather than one of
-/// those two.
+/// [`MAX_ARC_POINTS`] is still the answer for a request finer than the
+/// cap can honour, and `1` for one coarse enough that the chord is the
+/// arc; `None` is neither, which is the whole point of it being a third
+/// answer rather than one of those two.
 fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
     if !(radius.is_finite() && theta.is_finite() && chord.is_finite()) {
         return None;

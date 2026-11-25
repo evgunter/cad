@@ -1163,7 +1163,8 @@ impl FittedDelta {
     /// worse than no default at all.
     ///
     /// **Both δ are rendered, not formatted**, in `unit` — the working
-    /// notation's length unit ([`DisplayTolerance::render_in`]). A
+    /// notation's length unit ([`DisplayTolerance::render_in`]) — and
+    /// so is the cost, as a computed scalar ([`crate::readout::bare`]). A
     /// sentence whose whole job is to name the two δ in play is the
     /// last place a number may read as one δ cannot be. What that costs
     /// is that the sentence is as wide as the δ are awkward, which is
@@ -1175,7 +1176,8 @@ impl FittedDelta {
         let asked = self.requested.render_in(unit);
         let symbol = unit.symbol();
         let cost = if requested.is_finite() {
-            format!("about {requested:.0} triangles")
+            let told = crate::readout::bare(requested, pncad::quantity::UnitQuantity::Scalar);
+            format!("about {told} triangles")
         } else {
             "more triangles than a number can say".to_owned()
         };
@@ -1229,8 +1231,9 @@ pub enum ProbeStop {
 /// A ladder that starts at the request — try δ, halve until it fits —
 /// pays for the tessellation it then throws away, and the one it
 /// throws away is the expensive one. So this ladder runs the other
-/// way: it starts at the body's own extent, where nothing subdivides,
-/// and each rung is a δ the rung above it has already PRICED at
+/// way: it starts at the body's own extent, where nothing subdivides
+/// (or, when the scale probe's points span no finite box, at
+/// [`SCALE_PROBE_DELTA`] itself, where its count was read), and each rung is a δ the rung above it has already PRICED at
 /// `TRIANGLE_BUDGET / PROBE_FACTOR` triangles. It descends only while
 /// a finer rung would buy a materially better reading of `C`, and it
 /// stops at [`PROBE_FACTOR`] × the request, which is the rung that
@@ -1733,6 +1736,18 @@ mod tests {
             fine.requested_cost.is_some_and(|cost| cost > largest_count),
             "a request at 1e-20 m costs about 1e23 triangles: {:?}",
             fine.requested_cost
+        );
+        let said = fine
+            .wording(pncad::quantity::MM)
+            .expect("the budget moved δ");
+        let longest_digits = said
+            .split(|c: char| !c.is_ascii_digit())
+            .map(str::len)
+            .max()
+            .unwrap_or(0);
+        assert!(
+            longest_digits <= 8,
+            "a cost of about 1e23 is told, not printed as its binary expansion: {said}"
         );
         let finest =
             fit_from_probes(delta(f64::MIN_POSITIVE), curved(1.0e3, 10)).expect("the body fits");
