@@ -2,7 +2,7 @@
 id: the-pcurve-door-is-two-functions-and-a-dual-holds-no-proposal
 kind: unit
 title: The pcurve door is two functions (derive, certify); a dual derives determined images, holds no certificate and no proposal, and never reaches the incidence read
-status: dispatched
+status: spec
 opened: 2026-11-25
 priority: P1
 cost: H
@@ -37,3 +37,5 @@ Whether the dual corpus (`editor-core` `m10_di_dual_corpus`, `loft_prism` at `Du
 ## Dispatch, 2026-11-25
 
 Letter **H**; tier **DUAL**: a door every pcurve row is built and certified through is split, a set of types loses its values at one scalar, and a run-time route four crates read is retired. Branch `scalar/the-pcurve-door-is-two-functions`, lane `scalar-certifies`.
+
+**Held, 2026-11-25:** not dispatched. Ev asked in chat, as the implementer draw was taken, that nothing new be kicked off. The branch exists with no work on it; the letter, tier and draw stand for when it goes.
