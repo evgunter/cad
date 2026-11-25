@@ -1711,14 +1711,18 @@ pub enum ValidationError {
     /// in volume (executed truth table, M6-6 substrate — washer walls,
     /// cone laterals, torus bands all certified green before this arm),
     /// and on a sphere face bounded by circles the closed form's flux
-    /// refuses the same face (`PropsError::SenseContradicted`). A sphere
-    /// face trimmed by a chord measures through the rotational lane, which
-    /// reads the bit with no cross-check (a loop on a sphere bounds a face
-    /// on each side): under a flipped bit it certifies the complement,
-    /// and this arm exempts it (below); the flipped face then meets its
-    /// neighbours along a wedge of no angle, which check 4 refuses
-    /// ([`Self::LaminaWedge`]; `sweep/tests/verbs_cylsph_opening.rs`,
-    /// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
+    /// refuses the same face (`PropsError::SenseContradicted`). A
+    /// cylinder or sphere face trimmed by a curve no closed form parses
+    /// (a section of two surfaces) is read through the rotational lane's
+    /// Green form instead (`geom_brep::props::quad::rotational_material_sign`):
+    /// a cylinder wall's side off its signed chart area, a sphere face's
+    /// off the poles it holds as wrap tips, the datum of its side. The
+    /// lane's measurement of such a sphere face reads the bit with no
+    /// cross-check (a loop on a sphere bounds a face on each side), so
+    /// under a flipped bit it certifies the complement, and at every edge
+    /// the flipped face is a different legal wedge: this reading is what
+    /// refuses it (`sweep/tests/verbs_cylsph_opening.rs`,
+    /// `a_flipped_curved_face_of_the_transversal_union_is_refused`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -1752,7 +1756,16 @@ pub enum ValidationError {
     ///   pole that is not its vertex, so its loop says nothing about
     ///   the bit; the chart-singularity arm refuses the face
     ///   ([`Self::ChartSingularityNotAVertex`]);
-    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    /// * a sphere face whose trims no closed form parses and which holds
+    ///   no pole as a wrap tip off its loops: no datum says its side, and
+    ///   where its bit is flipped it describes the complement, which
+    ///   holds a pole that is no vertex of it or bounds another valid
+    ///   body (check 7 reads an inside-out one);
+    /// * a face the rotational lane does not read either (a torus face
+    ///   no closed form parses, a refusal or an escalation of the lane),
+    ///   and NURBS. A cylinder or sphere face whose trims no closed form
+    ///   parses (a section curve, an ellipse) is otherwise read through
+    ///   the lane.
     ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
@@ -6316,14 +6329,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     or NURBS edge, where a ring crossing its outer loop at a point no
 ///     vertex carries is not seen;
 ///   - the curved arm's documented residuals: the rimless sphere band;
-///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
-///     boundary parse refuses typed and is therefore exempt here. Such
-///     a body's flips are refused by other arms: a lone flip by the
-///     material wedge (`LaminaWedge`, two walls on one cylinder) or by
-///     check 7 and the pinch corners (a wall that is one face), and the
-///     whole-body inversion by check 6's planar arm at the planar faces
-///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
-///     cylinder and the tilted-split washer).
+///     NURBS faces; a torus face no closed form parses; a cylinder or
+///     sphere face whose trims no closed form parses where the
+///     rotational lane refuses or escalates its side too (elsewhere the
+///     lane reads it: `step-export`'s `m6_6_sense_gate` rows on the
+///     tilted-section cylinder and the tilted-split washer).
 /// - **A chart singularity the reading cannot place** (check 6's
 ///   chart-singularity arm, exempt where
 ///   `geom_brep::chart_singularity::place_on_boundary` answers neither a
@@ -8319,18 +8329,17 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,
-    // degenerate/out-of-inventory boundary, conic-trimmed faces the
-    // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
-    // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The conic-trim exemption is a RECORDED residual of
-    // this arm, not a covered class: an ellipse-trimmed wall has a
-    // winding-derived (bit-free) quadrature flux AND an exempt parse.
-    // Its flips are refused one layer away — a lone flip by the
-    // material wedge (`LaminaWedge`) or check 7 and the pinch corners,
-    // the whole-body inversion by the planar arm above at the planar
-    // faces (`step-export`'s `m6_6_sense_gate` rows); the arm itself
-    // reads it when the ellipse-rim material-side encoding lands. A
-    // one-loop sphere
+    // degenerate/out-of-inventory boundary, an uncertifiable loop) is
+    // EXEMPT here — corrupt structure is tier 1/2's job, an
+    // uncomputable volume is check 7's. A cylinder or sphere face whose
+    // trims no closed form parses (a section curve, an ellipse) is read
+    // instead through the rotational quadrature lane's Green form
+    // (`quad_lane::material_sign`): its signed chart area on the
+    // cylinder, and on the sphere that area with the poles its wrap tips
+    // hold; it is exempt only where the lane refuses or escalates too,
+    // and on a torus, which the lane does not read for a side
+    // (`step-export`'s `m6_6_sense_gate` rows pin the ellipse-trimmed
+    // walls). A one-loop sphere
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges
@@ -8416,12 +8425,35 @@ pub(crate) fn tier3_local_checks_marked<
             continue; // derivation exempt (posture above)
         };
         let held: Vec<geom_core::Point3<T>> = held.into_iter().flatten().collect();
-        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
+        // The loops that bound area on the chart, read by the closed
+        // form and by the lane alike.
+        let flat: Vec<crate::props::FlatLoop<T>> = images
             .iter()
-            .map(|(edges, _)| edges.as_slice())
-            .filter(|edges| geom_brep::chart_image::bounds_area(edges))
+            .filter(|(edges, _)| geom_brep::chart_image::bounds_area(edges))
+            .cloned()
             .collect();
+        let loops: Vec<&[geom_brep::props::LoopEdge<T>]> =
+            flat.iter().map(|(edges, _)| edges.as_slice()).collect();
         let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
+        // A cylinder or sphere face whose trims no closed form reads is
+        // read through the rotational lane, over the same chart images
+        // and wrap tips (`quad_lane::material_sign`). A sphere face none
+        // of whose loops bounds area is the whole surface, signed by its
+        // sense (DESIGN `[topology.tiers]`): there is nothing to read
+        // against the bit. A refusal or escalation of the lane leaves
+        // the face exempt, as a closed form's does (the posture above;
+        // registered in `scripts/gates/escalation-discards.counts`).
+        let lane_side = || {
+            if flat.is_empty() && matches!(surface, Surface::Sphere { .. }) {
+                return None;
+            }
+            let lane = <T as crate::props::AtRestPolicy>::quad_lane()?;
+            match crate::props::QuadLaneOf::material_sign(lane, body, surface, &flat, &held, band) {
+                Ok(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                Ok(geom_brep::props::MaterialSign::Unencoded) => None,
+                Err(_) => None,
+            }
+        };
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
             flattened.insert(face_key, full);
         }
@@ -8443,27 +8475,33 @@ pub(crate) fn tier3_local_checks_marked<
                 else {
                     continue; // derivation exempt (posture above)
                 };
-                let region = region.side(band);
-                if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
+                let region = match region.side(band) {
+                    Some(geom_brep::props::MaterialSign::Encoded(side)) => Some(side),
+                    _ => lane_side(),
+                };
+                if let Some(side) = region
                     && (side == Sign::Positive) != face.sense
                 {
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
             }
-            // A REFUSED derivation is exempt here, never a
-            // disagreement (the posture above, and the contract on
-            // `boundary_material_sign` itself). It is not a discard:
-            // every cause reachable on this arm is a premise the flux
-            // lane runs before it integrates, or a face of no area or
-            // a side read in the band, so a face that refuses here for
-            // a cause the volume needs refuses there and check 7
-            // reports it cause-carrying as
-            // `VolumeUncomputable { source }`. Pushing anything here
-            // would DESTROY that report rather than add to it, check 7
-            // being gated on `errors.is_empty()` — the recorded
-            // exception is the conic-trimmed wall named above, whose
-            // quadrature flux is winding-derived and answers.
-            Err(_) => {}
+            // A REFUSED closed form is read through the rotational lane
+            // instead, whose reading, where it gives one, is held
+            // against the bit as the closed form's is. Where the lane
+            // refuses too the face is exempt, never a disagreement (the
+            // posture above, and the contract on `boundary_material_sign`
+            // itself): a face that refuses here for a cause the volume
+            // needs refuses there, and check 7 reports it cause-carrying
+            // as `VolumeUncomputable { source }`, a report an error
+            // pushed here would pre-empt, check 7 being gated on
+            // `errors.is_empty()`.
+            Err(_) => {
+                if let Some(side) = lane_side()
+                    && (side == Sign::Positive) != face.sense
+                {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
         }
     }
 

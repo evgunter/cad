@@ -1651,6 +1651,79 @@ fn chart_term_at(term: &ChartTermQ, schedules: &[Schedule], round: usize) -> (In
 // The lane
 // ---------------------------------------------------------------------
 
+/// Each edge's entry on the chart ([`edge_entry`]), loop by loop: what
+/// the lane and the side reader both start from.
+fn face_entries(face: &RotationalFaceQ) -> Result<Vec<Vec<EdgeEntry>>, PropsError> {
+    face.loops
+        .iter()
+        .map(|edges| edges.iter().map(|e| edge_entry(e, face.chart)).collect())
+        .collect()
+}
+
+/// The cylinder's connectors, `[−∮F du, −∮G du]` closing each loop's
+/// image chain at `anchor`'s level ([`connector_terms`]).
+fn cylinder_connectors(
+    face: &RotationalFaceQ,
+    chain: (&[Vec<EdgeEntry>], &[Vec<[f64; 2]>]),
+    band: Band,
+    radius: Interval,
+    anchor: f64,
+) -> Vec<[Interval; 2]> {
+    connector_terms(
+        face,
+        chain,
+        band,
+        |_, _, v| cylinder_forms(radius, v, anchor),
+        [radius, Interval::one()],
+    )
+}
+
+/// The sphere's connectors, `[−∮G du]` closing each loop's image chain
+/// ([`connector_terms`]).
+fn sphere_connectors(
+    face: &RotationalFaceQ,
+    chain: (&[Vec<EdgeEntry>], &[Vec<[f64; 2]>]),
+    band: Band,
+    radius: Interval,
+) -> Vec<[Interval; 1]> {
+    connector_terms(
+        face,
+        chain,
+        band,
+        |_, _, v| [sphere_g(radius, v)],
+        [Interval::one()],
+    )
+}
+
+/// Each loop's Green terms at `round`, its connectors the fold's start
+/// and `term` each edge's (with the width a later round removes, added
+/// to `removable`): the one home of the chart's `−∮ G du` per loop that
+/// the lane ([`rotational_cut_face_rounds`]) and the side reader
+/// ([`rotational_material_sign`]) both sum.
+fn loop_terms<const K: usize>(
+    face: &RotationalFaceQ,
+    entries: &[Vec<EdgeEntry>],
+    connectors: &[[Interval; K]],
+    removable: &mut f64,
+    term: impl Fn(&EdgeTermQ, &EdgeEntry) -> ([Interval; K], f64),
+) -> Vec<[Interval; K]> {
+    face.loops
+        .iter()
+        .zip(entries)
+        .zip(connectors)
+        .map(|((edges, entries), &connectors)| {
+            edges
+                .iter()
+                .zip(entries)
+                .fold(connectors, |acc, (e, entry)| {
+                    let (terms, rem) = term(e, entry);
+                    *removable += rem;
+                    std::array::from_fn(|k| acc[k] + terms[k])
+                })
+        })
+        .collect()
+}
+
 /// The flux and area enclosures of a face on a chart of revolution with
 /// a curved trim (module docs: the Green form, the edge terms, the
 /// rules, the honesty pads), over every loop of the face, the outer
@@ -1695,11 +1768,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             return Err(unsupported());
         }
     }
-    let entries: Vec<Vec<EdgeEntry>> = face
-        .loops
-        .iter()
-        .map(|edges| edges.iter().map(|e| edge_entry(e, chart)).collect())
-        .collect::<Result<_, _>>()?;
+    let entries = face_entries(face)?;
     let (turns, counts) = loop_windings::<T>(face, &entries, band)?;
     let term_pad = chart_term_pad(face, &entries, band);
     if !term_pad.is_finite() {
@@ -1713,25 +1782,13 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             Reading::Cylinder {
                 radius,
                 anchor,
-                connectors: connector_terms(
-                    face,
-                    (&entries, &counts),
-                    band,
-                    |_, _, v| cylinder_forms(radius, v, anchor),
-                    [radius, Interval::one()],
-                ),
+                connectors: cylinder_connectors(face, (&entries, &counts), band, radius, anchor),
             }
         }
         RotationalChartQ::Sphere { radius, outward } => Reading::Sphere {
             radius,
             outward,
-            connectors: connector_terms(
-                face,
-                (&entries, &counts),
-                band,
-                |_, _, v| [sphere_g(radius, v)],
-                [Interval::one()],
-            ),
+            connectors: sphere_connectors(face, (&entries, &counts), band, radius),
         },
         RotationalChartQ::Torus {
             major,
@@ -1782,23 +1839,10 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                 anchor,
                 connectors,
             } => {
-                let per_loop: Vec<[Interval; 2]> = face
-                    .loops
-                    .iter()
-                    .zip(&entries)
-                    .zip(connectors)
-                    .map(|((edges, entries), &connectors)| {
-                        edges
-                            .iter()
-                            .zip(entries)
-                            .fold(connectors, |acc, (e, entry)| {
-                                let (terms, rem) =
-                                    cylinder_edge_terms(e, entry, *radius, *anchor, round);
-                                removable += rem;
-                                [acc[0] + terms[0], acc[1] + terms[1]]
-                            })
-                    })
-                    .collect();
+                let per_loop =
+                    loop_terms(face, &entries, connectors, &mut removable, |e, entry| {
+                        cylinder_edge_terms(e, entry, *radius, *anchor, round)
+                    });
                 let flux = per_loop.iter().fold(term, |f, l| f + l[0]);
                 let signed = per_loop.iter().fold(Interval::zero(), |a, l| a + l[1]);
                 let areas: Vec<Interval> = per_loop.iter().map(|l| l[1]).collect();
@@ -1809,21 +1853,13 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                 outward,
                 connectors,
             } => {
-                let areas: Vec<Interval> = face
-                    .loops
-                    .iter()
-                    .zip(&entries)
-                    .zip(connectors)
-                    .map(|((edges, entries), &[connectors])| {
-                        edges
-                            .iter()
-                            .zip(entries)
-                            .fold(connectors, |acc, (e, entry)| {
-                                let (g, rem) = sphere_edge_area(e, entry, *radius, round);
-                                removable += rem;
-                                acc + g
-                            })
+                let areas: Vec<Interval> =
+                    loop_terms(face, &entries, connectors, &mut removable, |e, entry| {
+                        let (g, rem) = sphere_edge_area(e, entry, *radius, round);
+                        ([g], rem)
                     })
+                    .into_iter()
+                    .map(|[g]| g)
                     .collect();
                 let area = sphere_face_area(*radius, *outward, &areas, &turns);
                 let signed = if *outward { area } else { -area };
@@ -1900,6 +1936,156 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             return Ok(out);
         }
         round += 1;
+    }
+}
+
+/// **The side a face's loops encode on the cylinder or the sphere, read
+/// through this lane's Green form** ([`rotational_cut_face_rounds`]'s
+/// chain and terms), with no sense bit: the boundary's own encoding of
+/// what `Face::sense` also says, for a face whose trims no closed form
+/// reads (`crate::props::boundary_material_sign_holding`'s refusal).
+/// `Encoded(Positive)` says the face is the region left of its loops
+/// under the chart's outward normal, as a `sense: true` face claims.
+///
+/// - **Cylinder**: the sign of the face's signed chart area
+///   `A₀ = −Σ_loops ∮ G du` (module docs), whose traversal carries the
+///   side, metered as its mean width (`props_chart_area_side`).
+/// - **Sphere**: a loop bounds a region on each side, and the datum is
+///   the poles the face holds. Every pole in a face's closure is a vertex
+///   of it (DESIGN `[topology.tiers]`), so a face none of whose loops
+///   passes a pole holds exactly the poles at its wrap tips, `poles`
+///   (`[north, south]` along the chart axis; `None` where a loop passes
+///   one, which is not read). Its area is then `s·A₀ + 2πr²·q` (module
+///   docs) for its side `s` and `q` those poles' count, in `(0, 4πr²]`:
+///   holding neither pole the side is `A₀`'s sign, holding both the
+///   opposite sign (`A₀` is less the complement's area), each metered as
+///   that region's mean width (`props_chart_area_side`); holding one, the
+///   loops wind the azimuth `s` times about the north pole held, or `−s`
+///   times about the south. A count that fits no side is `Unencoded`.
+///
+/// Rounds refine while a decision straddles its band and the lane can
+/// narrow it ([`super::run::refinable`]).
+///
+/// # Errors
+///
+/// The lane's own refusals ([`rotational_cut_face_rounds`]'s, before its
+/// rounds); [`PropsError::QuadratureUnsupported`] on the torus, whose
+/// loops this reader does not read; an escalated decision the lane
+/// could not narrow.
+pub fn rotational_material_sign<T: Decide>(
+    face: &RotationalFaceQ,
+    poles: Option<[bool; 2]>,
+    band: Band,
+) -> Result<crate::props::MaterialSign, PropsError> {
+    use crate::props::MaterialSign;
+    use crate::props::curved::mean_width_side;
+    use geom_core::Sign;
+    let chart = face.chart;
+    let (radius, sphere) = match chart {
+        RotationalChartQ::Cylinder { radius } => (radius, false),
+        RotationalChartQ::Sphere { radius, .. } => (radius, true),
+        RotationalChartQ::Torus { .. } => {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a torus face's side read by the rotational lane — its loops wind \
+                       a chart closed in both channels",
+            });
+        }
+    };
+    let held = match (sphere, poles) {
+        (false, _) => [false; 2],
+        (true, None) => return Ok(MaterialSign::Unencoded),
+        (true, Some(poles)) => poles,
+    };
+    if face.loops.is_empty() {
+        // No loop bounds area on the chart: the sphere's whole surface
+        // (DESIGN `[topology.tiers]`: signed by the face's sense, which
+        // the caller holds; this reader has no boundary to read), or a
+        // cylinder face bounding nothing.
+        return if sphere {
+            Ok(MaterialSign::Unencoded)
+        } else {
+            Err(PropsError::DegenerateFace)
+        };
+    }
+    // Every edge's entry before any side is read: the windings below
+    // need them all, and a pole count that settles the side early still
+    // reads them (the cost item, `work/lathe/`).
+    let entries = face_entries(face)?;
+    let (turns, counts) = loop_windings::<T>(face, &entries, band)?;
+    // The poles' count: holding one, the azimuth turns say the side.
+    // Reachable only by a face whose bit this reading agrees with: a
+    // flipped one-pole face's chart image does not close, and tier 3
+    // refuses it first (`Pcurve { LoopNotClosed }`), so this arm's one
+    // failure mode is a false refusal, which
+    // `swap_rows::sphere::the_poles_a_face_holds_say_which_side_of_its_loops_it_lies_on`
+    // guards.
+    let winds: i64 = turns.iter().map(|&[w, _]| w).sum();
+    match held {
+        [true, false] | [false, true] => {
+            let about_north = if held[0] { winds } else { -winds };
+            return Ok(match about_north {
+                1 => MaterialSign::Encoded(Sign::Positive),
+                -1 => MaterialSign::Encoded(Sign::Negative),
+                _ => MaterialSign::Unencoded,
+            });
+        }
+        _ if winds != 0 => return Ok(MaterialSign::Unencoded),
+        _ => {}
+    }
+    let both = held == [true, true];
+    let total = entries
+        .iter()
+        .fold(Interval::zero(), |l, e| l + loop_length(e));
+    let anchor = if sphere {
+        0.0
+    } else {
+        level_anchor(&face.loops)?
+    };
+    let connectors: Vec<[Interval; 2]> = if sphere {
+        sphere_connectors(face, (&entries, &counts), band, radius)
+            .into_iter()
+            .map(|[g]| [Interval::zero(), g])
+            .collect()
+    } else {
+        cylinder_connectors(face, (&entries, &counts), band, radius, anchor)
+    };
+    let cost = |round: usize| face_cost(face, &entries, &[], round);
+    let mut run = Run::enter(RoundWindow::SCHEDULE, &cost);
+    let mut round = run.first();
+    loop {
+        let mut removable = 0.0_f64;
+        // `A₀`, each loop's `−∮ G du` at this round, connectors included.
+        let whole = loop_terms(face, &entries, &connectors, &mut removable, |e, entry| {
+            if sphere {
+                let (g, rem) = sphere_edge_area(e, entry, radius, round);
+                ([Interval::zero(), g], rem)
+            } else {
+                cylinder_edge_terms(e, entry, radius, anchor, round)
+            }
+        })
+        .iter()
+        .fold(Interval::zero(), |a, l| a + l[1]);
+        let stop = run.stop(
+            round,
+            FaceCutBounds {
+                flux: whole,
+                area: whole.abs_enclosure(),
+            },
+            removable,
+        );
+        let reading = match mean_width_side("props_chart_area_side", (whole, total), band) {
+            Ok(Sign::Zero) => Err(PropsError::DegenerateFace),
+            Ok(side) => Ok(MaterialSign::Encoded(if both { side.flip() } else { side })),
+            Err(e) => Err(e),
+        };
+        match reading {
+            Err(PropsError::Escalated { cause, .. })
+                if stop == super::run::LaneStop::Refinable && super::run::refinable(&cause) =>
+            {
+                round += 1;
+            }
+            reading => return reading,
+        }
     }
 }
 

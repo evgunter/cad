@@ -769,7 +769,20 @@ BOUNDS_ALLOWLIST=(
   # `Interval::from_certified`. They are reached only from `nurbs_face`,
   # under `QuadLane::certified`'s first field, so they are the same
   # plumbing at the same door and are never formed at a dual.
-  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
+  # 18 -> 20 (LATHE, the flipped sphere face): `rotational_face`
+  # (`Decide + CertifiedBounds`) is `cut_face_lane`'s rotational arm
+  # moved out whole, the one place the face is assembled from its loops
+  # (assembled once per reader: check 6's side and check 7's volume
+  # each call it, the cost filed at
+  # work/lathe/tier3-lane-side-reading-costs-a-second-per-transversal-body.md);
+  # `material_sign` (`Decide + CertifiedBounds`) hands
+  # that face to `geom_brep::props::quad::rotational_material_sign`, the
+  # side check 6 reads where no closed form reads a face's trims. Both
+  # lift the face's loops through `Interval::from_certified` and are
+  # reached only under `QuadLane::certified`'s fields (`cut_face_rounds`
+  # and `material_sign`), so they are the same plumbing at the same
+  # door and are never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 20 M5 PR 11, the certified-quadrature plumbing'
   # The clearance engine's door, under the same seam and for the same
   # reason as `QuadLane::certified` (its own ledger paragraph in
   # `real.rs`, after the M5 PR 11 entry): it reads a `Body<T>` at any

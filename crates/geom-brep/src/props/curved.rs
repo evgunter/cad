@@ -1904,7 +1904,7 @@ fn require_holes_against<T: Decide>(
 
 /// The sign of a region's mean width `2·A/P` under `name`: its signed
 /// `area` (m²) over its boundary `length`.
-fn mean_width_side<T: Decide>(
+pub(super) fn mean_width_side<T: Decide>(
     name: &'static str,
     (area, length): (T, T),
     band: Band,

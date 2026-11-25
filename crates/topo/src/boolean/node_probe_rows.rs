@@ -189,7 +189,9 @@ fn bicylinder(flip: bool) -> Body<f64> {
 
 /// **The bicylinder passes the at-rest gate**, V2 E4 F4, its volume
 /// the closed form `16r³/3`. Minted the other way round it is the same
-/// complex inside out, which the gate refuses as such.
+/// complex inside out, which the gate refuses at each of its four lunes:
+/// each one's loops, read through the rotational lane, say the material
+/// is on the side its bit does not.
 #[test]
 fn the_bicylinder_built_by_hand_is_a_finished_body() {
     let tol = Tol::witness();
@@ -204,15 +206,16 @@ fn the_bicylinder_built_by_hand_is_a_finished_body() {
     );
     let c = crate::readback::euler_counts(&done);
     assert_eq!((c.v, c.e, c.f), (2, 4, 4));
-    assert!(
-        matches!(
-            crate::finish(bicylinder(false), tol)
-                .as_ref()
-                .map_err(|e| &e[..]),
-            Err([crate::ValidationError::NegativeVolume { .. }])
-        ),
-        "inside out, the gate refuses the volume's sign"
-    );
+    let errs = crate::finish(bicylinder(false), tol).expect_err("inside out");
+    let inverted: std::collections::BTreeSet<_> = errs
+        .iter()
+        .map(|e| match e {
+            crate::ValidationError::CurvedSenseInverted { face } => Ok(*face),
+            other => Err(format!("{other:?}")),
+        })
+        .collect::<Result<_, _>>()
+        .unwrap_or_else(|e| panic!("inside out, every refusal names a lune: {e}"));
+    assert_eq!(inverted.len(), 4, "inside out, each lune refused: {errs:?}");
 }
 
 /// **The top piece of `A ∖ B`**: `A`'s rod above `z = |y|` up to its
