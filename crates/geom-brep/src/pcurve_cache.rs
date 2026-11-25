@@ -2133,7 +2133,8 @@ pub enum EnvelopeTerm {
     Line,
     /// The motion a class admitted by its own decision: a cylinder
     /// meridian's radial pair `σ(a_r, b_r)` (its radial amplitude
-    /// decided Zero), and a still class's whole pair `σ(a, b)`, axial
+    /// decided Zero), a cylinder rim's axial pair (decided Zero and
+    /// written zero), and a still class's whole pair `σ(a, b)`, axial
     /// part included (its winding decided Zero).
     Drift,
     /// The stored image's first channel against the placed one check 4
@@ -6635,6 +6636,10 @@ enum Derivation {
     /// takes the general lane.
     CylinderMoving {
         sense: Turning,
+        /// The axial `cos t` and `sin t` terms were decided a rim's and
+        /// written zero ([`cylinder_rim_axial`]): what they held is the
+        /// envelope's `Drift`.
+        rim: bool,
     },
     CylinderMeridian,
     /// `anchored`: the nappe was read off the anchor's height, not the
@@ -7301,8 +7306,11 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             match derivation {
-                Derivation::CylinderMoving { sense } => {
+                Derivation::CylinderMoving { sense, rim } => {
                     terms.add(Centre, w_r.norm());
+                    if rim {
+                        terms.add(Drift, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
+                    }
                     class_circle(
                         terms,
                         sense.winding(),
@@ -11746,7 +11754,7 @@ fn derive_class_zero<T: Decide>(
                         |m| angle_rate::<T>(beta) * m,
                         band,
                     )?;
-                    let (a, b) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
+                    let (a, b, rim) = cylinder_rim_axial(form.a.dot(axis), form.b.dot(axis), band);
                     Ok((
                         Pcurve::Harmonic {
                             u: Channel::Angle {
@@ -11760,7 +11768,7 @@ fn derive_class_zero<T: Decide>(
                                 l: form.l.dot(axis),
                             },
                         },
-                        Derivation::CylinderMoving { sense },
+                        Derivation::CylinderMoving { sense, rim },
                     ))
                 }
             }
@@ -12624,27 +12632,28 @@ impl From<PcurveCertifyError> for Underived {
 }
 
 /// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
-/// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where their
-/// sup is decided `Zero` at `pcurve_cylinder_chart_axial` — the cone
-/// arm's `pcurve_cone_chart_axial` read on the cylinder, at every
-/// scalar. Otherwise as given.
+/// chart**, `(a, b)`, and whether they were dropped: zero for a rim, its
+/// plane ⊥ the axis, where their sup is decided `Zero` at
+/// `pcurve_cylinder_chart_axial` — the cone arm's
+/// `pcurve_cone_chart_axial` read on the cylinder, at every scalar.
+/// Otherwise as given.
 ///
 /// The terms are dot products of the carrier's frame with the axis, so
 /// on a frame turned off the axes a rim's are a rounding off zero: a
 /// point at `f64`, an enclosure at `Interval`. The dropped drift is
-/// within the band, and the certificate's envelope bounds what it
-/// moves.
-fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
+/// within the band, and check 4 charges it to the envelope's `Drift`
+/// ([`Derivation::CylinderMoving`]'s `rim`).
+fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T, bool) {
     if geom_core::is_exact_zero(a) && geom_core::is_exact_zero(b) {
-        return (a, b);
+        return (a, b, false);
     }
     match decide(
         "pcurve_cylinder_chart_axial",
         Margin::of(harmonic_sup_scalar(a, b)),
         band,
     ) {
-        Ok(Sign::Zero) => (T::zero(), T::zero()),
-        _ => (a, b),
+        Ok(Sign::Zero) => (T::zero(), T::zero(), true),
+        _ => (a, b, false),
     }
 }
 
@@ -17976,35 +17985,37 @@ mod cylinder_rim_rows {
     fn a_rims_axial_terms_are_zeroed_where_their_sup_is_decided_zero_at_every_scalar() {
         let rounding = iv(-1e-17, 1e-17);
         let zero = iv(0.0, 0.0);
-        let (a, b) = cylinder_rim_axial(rounding, zero, band());
+        let (a, b, dropped) = cylinder_rim_axial(rounding, zero, band());
+        assert!(dropped, "a rim's rounding at Interval is dropped");
         assert_eq!(
             (bits(a), bits(b)),
             ((0.0, 0.0), (0.0, 0.0)),
             "a rim's rounding at Interval"
         );
         let off = iv(1e-17, 2e-17);
-        let (a, b) = cylinder_rim_axial(rounding, off, band());
+        let (a, b, _) = cylinder_rim_axial(rounding, off, band());
         assert_eq!(
             (bits(a), bits(b)),
             ((0.0, 0.0), (0.0, 0.0)),
             "an enclosure off zero, within the band"
         );
         let wide = iv(-1e-3, 1e-3);
-        let (a, _) = cylinder_rim_axial(wide, zero, band());
+        let (a, _, dropped) = cylinder_rim_axial(wide, zero, band());
+        assert!(!dropped, "an amplitude past the band is not dropped");
         assert_eq!(bits(a), bits(wide), "an amplitude past the band is kept");
         assert_eq!(
             cylinder_rim_axial(-6.938893903907228e-18_f64, 0.0, band()),
-            (0.0, 0.0),
+            (0.0, 0.0, true),
             "a rim's rounding at f64"
         );
         assert_eq!(
             cylinder_rim_axial(0.0_f64, 1e-17, band()),
-            (0.0, 0.0),
+            (0.0, 0.0, true),
             "a rim's rounding at f64, in the sin term"
         );
         assert_eq!(
             cylinder_rim_axial(1e-3_f64, 0.0, band()),
-            (1e-3, 0.0),
+            (1e-3, 0.0, false),
             "at f64 an amplitude past the band is kept"
         );
     }

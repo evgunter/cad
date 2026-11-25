@@ -61,7 +61,7 @@ inside the rim its lowest control `v` is already −2.2e-5.
 - A witness-selected `Intersection` edge on a residual × NURBS pair is
   refused all the same: limb 3's tube is cut to the knot rectangle and
   refuses `TubeNotOneArc { Count { solutions: 4 } }`
-  (`spline_implicit::rest_rows::an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube`,
+  (`spline_implicit::rest_rows::an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_at_limb_2`,
   PR 6879). So the edge certificate of that class is not what is open.
 - What is open is every reader of the row alone: an edge that owes no
   limb 3 (a structural selector, an `OnPair`, a `Chart` locus; README C2),

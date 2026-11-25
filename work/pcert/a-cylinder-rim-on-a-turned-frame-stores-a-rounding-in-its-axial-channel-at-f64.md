@@ -129,7 +129,12 @@ the same cause; not traced. The row pins it at that exit.
 `pcurve_cylinder_chart_axial` at every scalar, as the cone arm decides
 `pcurve_cone_chart_axial`: a sup decided `Zero` writes both terms zero,
 a point rounding off zero at `f64` included. Only two exact zeros skip
-the decision. The traced plate drawn turned 30° and the uneven plate
+the decision. What a dropped pair held is now charged to check 4's
+`Drift` term (`Derivation::CylinderMoving`'s `rim`): the re-derivation
+drops the same terms, so no fidelity term saw it, and
+`envelope_lemma_fuzz`'s pinned sweep found the envelope under the
+sampled sup on an in-band tilted rim (1.24e-10 against 3.64e-10) until
+it was charged. The traced plate drawn turned 30° and the uneven plate
 mirrored across a generic plane (the second sighting) both read
 `Embedded` now; their pins in `self_intersection_proves_injectivity`
 are flipped to it, and the unit row
