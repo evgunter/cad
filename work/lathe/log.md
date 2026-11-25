@@ -134,3 +134,11 @@ Signed: (CARVE orchestrator)
   - the cost item to gain its ε scaling (0.25 s / 1.4 s / 8 s per validation at 1e-6 / 1e-9 / 1e-12) and its measured split (edge entries 55%, face assembly 27%).
   It lands on the stack on the orchestrator's read.
 - 2026-11-25 — **Merged PR 7736 (tier 3 reads a flipped curved face's side through the rotational lane) into the one-band stack** at a8a9d3a9b6. On the fix pass: A₀ now has one home; the whole-surface sphere face gets its arm; doc rot is cleared; and the lane's escalation discard is kept, because pushing it would pre-empt check 7's report, and registered as an uncounted entry with its disposition. Every consumer unit is now in the stack. **PR 7414 final re-review, R1: APPROVE-WITH-FIXES**, with no head-only red across the ci profile, ε matrix, gates, clippy or doc-gate. Owed: re-state the PR body from a run at the head, and put the near-pole pin on `pinned_red::row`. R2 is pending.
+- 2026-11-25 — **PR 7414 final re-review, R2: APPROVE-WITH-FIXES. Both reviewers now approve the one band.** R2 confirmed:
+  - M1 closed: native ball, cone and capsule export → import → re-export;
+  - 12,268 ci rows green; clippy, gates and doc-gate clean.
+  Owed, accounting only:
+  - cite the head-only `germ_sphere_torus_placements` donut row in a LATHE row;
+  - refresh the PR body;
+  - make the thin-lemon row match its panic message.
+  Before the landing, the lane merges main into the stack (it predates 173+ main commits, 7478 among them). It also answers for `a-sphere-cut-in-refuses-a-seam-lying-in-its-meridian-plane`, a P1 gating row that no stacked PR names. Then the orchestrator writes the state-sync and merges to main.
