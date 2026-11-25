@@ -27,14 +27,45 @@ face contact (`topo/src/boolean/vtxfac.rs`). The fix pass turned the ball
 (`ball_poled_z`, poles at `(0.9, 0.6, ±0.4)`, off `K`), and the refusal
 did not move. So it is not that vertex.
 
-**Where it likely is (not located).** Each fixture has an edge of the
-partner crossing `K`'s face: the ball's seam meridian runs through the
-section loop's interior, and the second cone's seam generators run from
-its apex, inside `K`, out through `K`'s side. Review r2 named the lanes an
-edge piercing a curved face reaches ahead of the section pass:
-`topo/src/boolean/reduce.rs` `spline_interior`'s `unbuilt`, and
-`vtxfac.rs` `unglued_flat_sector`. The first discriminator is a fixture
-with no partner edge crossing the cone: a ball turned so its seam
-meridian stays clear of `K`.
+**Where it is.** The join, not the sweep: `join.rs` `choose_roles`, the
+ring lane's `RingClosure::Chord` arm. In both fixtures the section loop
+lies in `K`'s face clear of `K`'s seams, so on `K` it is a ring a carried
+chord closes, and that arm named the carried ring's faces by kind
+(cylinder, sphere, torus, spline wall) and refused any other quadric
+`CurvedBooleanUnsupported` naming the face: the cone, the one quadric
+missing. It fires in both orders because the ring is on `K` whichever
+operand it is. Behind it `chord_join.rs` `run_loop_arcs` read a carried
+spline run edge on a cone as unread (`RingIslandUnread`), on the stated
+ground that the section table carries no cone pair, which PR 7457 made
+false.
 
-Likely shared with U3 (`the-join-reads-the-cone-pairs-on-the-value.md`).
+**The fix.** A carried ring on a cone is read as on a cylinder: the ring
+path's pieces on a cone (`ring_path` `Quadric::ruled_paths`) are its
+parallels and rulings, off its apex, which lie on it, so a crossing of a
+certified spline arc on the surface is a meeting in space (`SplineArc`'s
+argument). `choose_roles` takes every carrier the paths read, and
+`run_loop_arcs` reads a spline run edge by `SplineArc::of_edge` on every
+carrier. A face no path reads (a spline whose iso curves are not read)
+still refuses `CurvedBooleanUnsupported` there.
+
+**Behind it, the at-rest volume.** With the ring read, every run
+built and every result failed its finish `ResultInvalid`
+(`VolumeUncomputable`, `Unimplemented`): the cone's closed-form flux
+(`geom_brep::props` `require_on_cone`, `cone_edge_length`) reads lines
+and conics alone, and a polynomial spline rim on a cone did not take
+the quadrature (`topo::props` `takes_quadrature`). It now does: the
+cone cap lane (`quad_lane` `rim_face`, `spiric::cone_cap_rounds`)
+already read a rational rim on a cone, and reads a polynomial one's
+vector area exactly (`cap_about`'s `loop_vector_area`).
+
+**Seam with U3** (`the-join-reads-the-cone-pairs-on-the-value.md`): the
+cause is the join's ring lane, not `rides_carried`, which already carries
+`ConeSphere` and `ConeCone`. The change is the two arms above; U3's
+`rides_carried`, node and `coverage` work is untouched.
+
+## Closed (2026-11-24, PR 7733)
+
+Every run of both fixtures, in both orders, builds a body valid at
+tier 3 whose volumes close (`|A ∪ B| + |A ∩ B| = |A| + |B|`,
+`|A ∖ B| = |A| − |A ∩ B|`); the row pins `built` for all six runs of
+each.

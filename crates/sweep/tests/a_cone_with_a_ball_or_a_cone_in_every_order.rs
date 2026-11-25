@@ -15,10 +15,10 @@
 //!
 //! Each run's outcome is pinned at the default ε, `built` or the refusal
 //! whole (its operand, face and kind), so the row goes red the day either
-//! changes; the nightly reads the same pins at 1e-6 and 1e-12. Today every run of both refuses
-//! `CurvedBooleanUnsupported` at the cone's face, the ball's poles off it
-//! (`work/sectcone/a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face.md`); where an order's three runs all
-//! build, the volumes close as the operations must:
+//! changes; the nightly reads the same pins at 1e-6 and 1e-12. Every run
+//! of both builds, the section loop a ring on `K`'s face that the
+//! carried chords close, each body valid at tier 3; where an order's
+//! three runs all build, the volumes close as the operations must:
 //! `|A ∪ B| + |A ∩ B| = |A| + |B|` and `|A ∖ B| = |A| − |A ∩ B|`, within
 //! the measured pads. A desync or a broken invariant is red whatever the
 //! pin says.
@@ -68,17 +68,9 @@ fn crossing_cone(tol: Tol) -> AtRestBody<f64> {
     cone(to * turn, tol)
 }
 
-/// Each run's refusal today, ∪, ∩, ∖ with the cone first, then with the
-/// other first: the cone's face, the boolean's operand `A` or `B` by the
-/// order asked.
-const PINNED: [&str; 6] = [
-    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
-    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
-    "CurvedBooleanUnsupported { operand: A, face: FaceKey(1v1), kind: Cone }",
-    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
-    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
-    "CurvedBooleanUnsupported { operand: B, face: FaceKey(1v1), kind: Cone }",
-];
+/// Each run's outcome, ∪, ∩, ∖ with the cone first, then with the other
+/// first.
+const PINNED: [&str; 6] = ["built"; 6];
 
 fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
     let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
@@ -88,8 +80,9 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
 }
 
 /// A run's outcome: its measured volume and pad (zero for an empty
-/// result) and `built`, or the refusal whole (its operand, face and kind). A desync or a broken
-/// invariant is a defect, and red.
+/// result) and `built`, the body valid at tier 3, or the refusal whole
+/// (its operand, face and kind). A desync, a broken invariant or an
+/// invalid body is a defect, and red.
 fn outcome(
     label: &str,
     got: Result<topo::BooleanResult<f64>, topo::BooleanError>,
@@ -97,7 +90,11 @@ fn outcome(
 ) -> (Option<(f64, f64)>, String) {
     match got {
         Ok(got) => (
-            Some(got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))),
+            Some(got.body().map_or((0.0, 0.0), |b| {
+                topo::validate_geometric(&b.body, tol)
+                    .unwrap_or_else(|e| panic!("{label}: the built body is invalid: {e:?}"));
+                volume(&b.body, tol)
+            })),
             "built".to_owned(),
         ),
         Err(
@@ -105,13 +102,6 @@ fn outcome(
             | topo::BooleanError::ClassificationInvariant { .. }),
         ) => panic!("{label}: a defect: {e:?}"),
         Err(e) => {
-            if let topo::BooleanError::CurvedBooleanUnsupported { kind, .. } = &e {
-                assert_eq!(
-                    *kind,
-                    geom::SurfaceKind::Cone,
-                    "{label}: refused at the cone face"
-                );
-            }
             let shown = format!("{e:?}");
             println!("{label}: refused: {shown}");
             (None, shown)

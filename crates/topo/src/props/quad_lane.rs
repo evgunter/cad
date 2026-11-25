@@ -542,8 +542,9 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         };
         return nurbs_face(body, payload, outer, hes, band, window, centre, accept);
     }
-    // The structural curved-rim arm: a plane or a cone comes here only
-    // when a spiric or a rational spline rim is on its boundary. A torus
+    // The structural curved-rim arm: a plane comes here only when a
+    // spiric or a rational spline rim is on its boundary, a cone when a
+    // spiric or any spline is ([`super::takes_quadrature`]). A torus
     // wall a spiric bounds is the rotational lane's, below.
     if matches!(surface, Surface::Plane { .. } | Surface::Cone { .. }) {
         return rim_face(surface, loops, band, window, centre, accept);
@@ -875,8 +876,9 @@ fn spiric_wall_edge(
     })
 }
 
-/// **The curved-rim face lane**: a plane or a cone cap with a
-/// `Curve3::Spiric` or a rational spline rim on its boundary, read at the
+/// **The curved-rim face lane**: a plane cap with a `Curve3::Spiric` or
+/// a rational spline rim on its boundary, or a cone cap with a spiric or
+/// any spline rim, read at the
 /// interval scalar and handed to
 /// [`spiric::rim_face_rounds`] (its module docs carry the formulation,
 /// [`geom_brep::props::rational_rim`]'s a rational rim's). Reached only

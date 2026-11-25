@@ -5137,10 +5137,12 @@ pub(crate) fn seam_region<T: Decide>(
 }
 
 /// **Whether a face's flux is read by the certified quadrature** rather
-/// than a closed form: a plane or a cone bounded by a spiric or a
-/// rational spline rim on any loop (the boundary's vector area its
-/// closed form reads is an elliptic integral, or a rational one:
-/// [`curved_rim`]), a curved face other than a cone trimmed by an
+/// than a closed form: a plane bounded by a spiric or a rational spline
+/// rim on any loop (the boundary's vector area its closed form reads is
+/// an elliptic integral, or a rational one: [`curved_rim`]), a cone
+/// bounded by a spiric or any spline (its closed form's iso parse reads
+/// lines and conics alone, and the cap lane reads a polynomial spline's
+/// vector area exactly), a curved face other than a cone trimmed by an
 /// ellipse, a spiric or a spline, and a described spline face whatever
 /// bounds it. Structural, on the surface and carrier kinds,
 /// never a runtime fallback: [`face_flux_about`] dispatches on it and
@@ -5151,7 +5153,10 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 ) -> bool {
     let carriers = || carriers.clone();
     match surface {
-        Surface::Plane { .. } | Surface::Cone { .. } => carriers().any(curved_rim),
+        Surface::Plane { .. } => carriers().any(curved_rim),
+        Surface::Cone { .. } => {
+            carriers().any(|c| matches!(c, geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_)))
+        }
         _ => {
             surface.spline_chart().is_some()
                 || (!matches!(surface, Surface::Cone { .. }) && carriers().any(trims))
