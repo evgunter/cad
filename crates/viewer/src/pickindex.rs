@@ -69,6 +69,8 @@
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
 
+use pncad::document::say;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::resolve::RimNameFault;
@@ -192,6 +194,9 @@ crate::vocab::vocabulary! {
         /// Faces only: the edge test is not run, so the answer is the
         /// ray path's face or nothing.
         FacesOnly,
+        /// Faces and datums' squares: what a seat reading a plane picks
+        /// with — a face's, or a datum's through its role.
+        FacesAndDatums,
         /// Edges only: the edge test runs, and a cursor that no edge wins
         /// answers NOTHING rather than the face the ray met.
         EdgesOnly,
@@ -221,6 +226,10 @@ crate::vocab::vocabulary! {
         Vertex,
         /// A committed profile, by its outline.
         Profile,
+        /// A datum, by its drawn square (D10 `[placement.datums]`): a
+        /// mate's far side of any kind but a direction, and a mirror's or
+        /// a split's plane, read it through a role of its frame.
+        Datum,
     }
 
     /// Every kind.
@@ -250,15 +259,17 @@ impl PickKinds {
     pub fn admits(self, kind: PickedKind) -> bool {
         use PickedKind as K;
         match (self, kind) {
-            (Self::Any, K::Face | K::Edge | K::Profile)
-            | (Self::FacesAndEdges, K::Face | K::Edge)
+            (Self::Any, K::Face | K::Edge | K::Profile | K::Datum)
+            | (Self::FacesAndEdges, K::Face | K::Edge | K::Datum)
             | (Self::FacesOnly, K::Face)
+            | (Self::FacesAndDatums, K::Face | K::Datum)
             | (Self::EdgesOnly, K::Edge)
-            | (Self::WithVertices, K::Face | K::Edge | K::Vertex) => true,
+            | (Self::WithVertices, K::Face | K::Edge | K::Vertex | K::Datum) => true,
             (Self::Any, K::Vertex)
             | (Self::FacesAndEdges, K::Vertex | K::Profile)
-            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
-            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile)
+            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile | K::Datum)
+            | (Self::FacesAndDatums, K::Edge | K::Vertex | K::Profile)
+            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile | K::Datum)
             | (Self::WithVertices, K::Profile) => false,
         }
     }
@@ -271,6 +282,7 @@ impl PickKinds {
         match self {
             Self::Any | Self::FacesAndEdges | Self::WithVertices => "nothing",
             Self::FacesOnly => "no face",
+            Self::FacesAndDatums => "no face or datum",
             Self::EdgesOnly => "no edge",
         }
     }
@@ -451,13 +463,13 @@ pub enum PickIndexError {
 }
 
 impl Say for IdMapError {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { key } => write!(
+            Self::Duplicate { key } => say!(
                 f,
-                "patch {} of {} was offered twice; an id assignment is a bijection",
-                key.patch,
-                Said(&DrawnBody::new(key.node, key.body), by)
+                format_args!("patch {} of ", key.patch),
+                Said(&DrawnBody::new(key.node, key.body), by),
+                " was offered twice; an id assignment is a bijection"
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
@@ -470,7 +482,7 @@ impl Say for IdMapError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdMapError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -481,13 +493,13 @@ impl Say for PickIndexError {
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The layout arm is this layer's own
     /// finding and says so itself.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Ids(error) => error.say(f, by),
-            Self::DrawnTwice { node, body } => write!(
+            Self::DrawnTwice { node, body } => say!(
                 f,
-                "{} is drawn by two parts; one drawn body is one part",
-                Said(&DrawnBody::new(*node, *body), by)
+                Said(&DrawnBody::new(*node, *body), by),
+                " is drawn by two parts; one drawn body is one part"
             ),
             Self::Names(error) => error.say(f, by),
         }
@@ -497,7 +509,7 @@ impl Say for PickIndexError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -532,11 +544,11 @@ impl UndrawnBody {
 impl Say for UndrawnBody {
     /// The node is this layer's contribution; why is the payload's to
     /// say.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} is not drawn: {}",
             by.node_as(self.node, "node"),
+            " is not drawn: ",
             Said(&self.error, by.about(self.node))
         )
     }
@@ -545,7 +557,7 @@ impl Say for UndrawnBody {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -1109,6 +1121,11 @@ impl Rims {
     }
 }
 
+/// **One outline the picture draws**: its node, whether it is a datum's
+/// square, and its loops in world coordinates, where the display view
+/// draws them.
+type DrawnOutline<'a> = (RecipeNodeId, bool, Cow<'a, [Vec<Point3<f64>>]>);
+
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
 /// [`crate::sketch::PreviewLoop::drawn_on`] places it, at the picture's
@@ -1122,6 +1139,15 @@ impl Rims {
 struct Outline {
     node: RecipeNodeId,
     loops: Vec<Vec<Point3<f64>>>,
+    /// Whether the outline is a datum's square ([`PickedKind::Datum`])
+    /// rather than a profile's.
+    datum: bool,
+    /// The space whose picture it is drawn in
+    /// ([`crate::sketch::CommittedProfile::space`]).
+    space: Option<VarId>,
+    /// The copy carrying it there
+    /// ([`crate::sketch::CommittedProfile::copy`]).
+    copy: Option<RecipeNodeId>,
 }
 
 impl Outline {
@@ -1134,6 +1160,9 @@ impl Outline {
         Self {
             node: profile.node,
             loops,
+            datum: profile.datum,
+            space: profile.space,
+            copy: profile.copy,
         }
     }
 }
@@ -1146,6 +1175,8 @@ struct Lines<'a> {
     front: &'a [PickHit],
     edges: bool,
     outlines: bool,
+    /// Whether datums' squares are in the contest.
+    datums: bool,
 }
 
 /// A chord point and its pixel, or `None` where it has no pixel.
@@ -1164,6 +1195,7 @@ enum Line {
 enum Near {
     Edge(EdgePick),
     Profile(RecipeNodeId),
+    Datum(RecipeNodeId),
 }
 
 /// **What a picture IS**: the landed generation an index describes,
@@ -1728,11 +1760,14 @@ impl PickIndex {
     /// caller's display view happened to split the scene into rather
     /// than on the geometry.
     ///
-    /// The parameters stay comparable because the display layer
-    /// admits only rigid probe frames (lengths preserved, so `t` in
-    /// units of `|dir|` means the same world distance in every group);
-    /// a moved body's hit crosses back with its point converted
-    /// and its interval carried, which is
+    /// **Every group's parameters are the caller's ray's.** A moved
+    /// body is picked by that ray carried through its map's inverse,
+    /// and an affine map carries a ray's parameter with it (the carried
+    /// ray at `t` is the caller's at `t`, mapped), so its span needs no
+    /// conversion, rigid map or not, and its point is read off the
+    /// caller's ray at `t`, as `pick_face` reads every hit's. The
+    /// certificate is the carried ray's, which is the caller's to
+    /// within the map's rounding:
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
     /// # Errors
@@ -1760,14 +1795,14 @@ impl PickIndex {
         // frame is the kernel's door's to read ([`pick_face`] reads the
         // ray into each target's frame), so copies in one space are one
         // batch the kernel orders.
-        let mut mapped: Vec<(Affine3<f64>, &NodePick)> = Vec::new();
+        let mut mapped: Vec<&NodePick> = Vec::new();
         for part in self.parts.iter().filter(visible) {
             match display_mapped(display, part) {
                 None => {
                     let space = self.spaces.get(&part.node()).copied();
                     unmoved.entry(space).or_default().push(part.target());
                 }
-                Some(map) => mapped.push((map, part)),
+                Some(_) => mapped.push(part),
             }
         }
         // Every group's whole answer, in group order: the unmoved
@@ -1778,21 +1813,12 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (map, part) in mapped {
+        for part in mapped {
             let targets = [part.target()];
-            let inverse = map.inverse();
-            let local = Ray {
-                origin: inverse.transform_point(ray.origin),
-                dir: inverse.transform_vec(ray.dir),
-            };
+            let local = drawn_ray(display, part, ray);
             for hit in group_answer(pick_face(eval, &targets, &local))? {
-                // The hit's point is display-local; the answer the
-                // caller compares against the picture is world. The
-                // interval rides across unconverted, which is the
-                // rigid-frame argument above and
-                // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
                 candidates.push(PickHit {
-                    point: map.transform_point(hit.point),
+                    point: ray.origin + ray.dir * hit.t,
                     ..hit
                 });
             }
@@ -1976,6 +2002,23 @@ impl PickIndex {
         error
     }
 
+    /// **A naming-emission bug, planted**: the drawn patch `id` refuses
+    /// its name with the naming layer's own refusal, as
+    /// [`PickIndex::unname_edge`] plants one on an edge.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)] // A fixture's failure mechanism (workspace lint note).
+    pub(crate) fn unname_patch(&mut self, id: u32) {
+        let PatchId { node, body, patch } = self.ids.key_of(id).expect("a drawn patch");
+        let error = UnnamedEntity {
+            node,
+            entity: editor_core::EntityRef {
+                body,
+                key: editor_core::EntityKey::Face(pncad::topo::FaceKey::default()),
+            },
+        };
+        self.patches.unname(node, body, patch, error);
+    }
+
     /// The drawn edges an edge selection denotes: the edges of its own
     /// (node, body) whose name is its name.
     ///
@@ -2137,11 +2180,12 @@ impl PickIndex {
             front: &front,
             edges: true,
             outlines: false,
+            datums: false,
         };
         Ok(
             match self.near(eval, camera, viewport, cursor, display, edges)? {
                 Some(Near::Edge(edge)) => Some(edge),
-                Some(Near::Profile(_)) | None => None,
+                Some(Near::Profile(_) | Near::Datum(_)) | None => None,
             },
         )
     }
@@ -2299,8 +2343,9 @@ impl PickIndex {
             front: &front,
             edges: kinds.admits(PickedKind::Edge),
             outlines: kinds.admits(PickedKind::Profile),
+            datums: kinds.admits(PickedKind::Datum),
         };
-        if front.is_empty() && !lines.outlines {
+        if front.is_empty() && !lines.outlines && !lines.datums {
             return Ok(None);
         }
         match self.near(eval, camera, viewport, cursor, display, lines)? {
@@ -2314,6 +2359,7 @@ impl PickIndex {
                 return Ok(Some(Hovered::Edge(edge.selection())));
             }
             Some(Near::Profile(node)) => return Ok(Some(Hovered::Profile(node))),
+            Some(Near::Datum(node)) => return Ok(Some(Hovered::Datum(node))),
             None => {}
         }
         if front.is_empty() {
@@ -2395,7 +2441,11 @@ impl PickIndex {
             };
             let Some(pixel) = camera
                 .project(place(position), aspect)
-                .map_err(PickError::Camera)?
+                .map_err(|error| PickError::Projection {
+                    node: edge.node,
+                    body: Some(edge.body),
+                    error,
+                })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
             else {
                 continue;
@@ -2453,10 +2503,12 @@ impl PickIndex {
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        let project = |world: Point3<f64>| -> Result<Projected, PickError> {
+        let project = |world: Point3<f64>,
+                       (node, body): (RecipeNodeId, Option<u32>)|
+         -> Result<Projected, PickError> {
             Ok(camera
                 .project(world, aspect)
-                .map_err(PickError::Camera)?
+                .map_err(|error| PickError::Projection { node, body, error })?
                 .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
                 .map(|pixel| (world, pixel)))
         };
@@ -2472,13 +2524,17 @@ impl PickIndex {
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
-        if lines.outlines {
-            for (rank, (_, loops)) in outlines.iter().enumerate() {
+        if lines.outlines || lines.datums {
+            for (rank, (node, datum, loops)) in outlines.iter().enumerate() {
+                let (node, datum) = (*node, *datum);
+                if !(if datum { lines.datums } else { lines.outlines }) {
+                    continue;
+                }
                 let mut best: Option<Candidate> = None;
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points
                         .iter()
-                        .map(|&world| project(world))
+                        .map(|&world| project(world, (node, None)))
                         .collect::<Result<Vec<_>, _>>()?;
                     // The loop's position rides as the candidate's
                     // `boundary`, the tie-break's coordinate.
@@ -2523,7 +2579,7 @@ impl PickIndex {
                     .points
                     .iter()
                     .map(|&index| match mesh.positions.get(index as usize) {
-                        Some(&position) => project(place(position)),
+                        Some(&position) => project(place(position), (node, Some(body))),
                         None => Ok(None),
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -2558,9 +2614,13 @@ impl PickIndex {
             // the line behind a face and the line in front of it are
             // both near the same cursor exactly when a body is seen
             // through its own silhouette.
+            let (node, body) = match line {
+                Line::Edge(rank) => (bodies[rank].node(), Some(bodies[rank].body())),
+                Line::Outline(rank) => (outlines[rank].0, None),
+            };
             let ray = camera
                 .ray_through(candidate.pixel, viewport)
-                .map_err(PickError::Camera)?;
+                .map_err(|error| PickError::Projection { node, body, error })?;
             let [a, b] = candidate.ends;
             let (s, point) = ray_segment_closest(&ray, a, b);
             // A body edge's own crossing is widened by its incident
@@ -2577,12 +2637,8 @@ impl PickIndex {
                 continue;
             };
             // Each front span is one face's: the hull of that face's
-            // tied crossings, as the door answers it. A moved copy's
-            // are its LOCAL ray's parameters, carried across
-            // unconverted, while `own` is the world ray's: comparable
-            // because the display admits only rigid probe frames,
-            // which is
-            // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+            // tied crossings, as the door answers it, a moved copy's
+            // included (`PickIndex::pick_for`).
             let mut spans: Vec<TSpan> = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
@@ -2595,7 +2651,10 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(outlines[rank].0),
+                Line::Outline(rank) => match &outlines[rank] {
+                    (node, true, _) => Near::Datum(*node),
+                    (node, false, _) => Near::Profile(*node),
+                },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2623,49 +2682,74 @@ impl PickIndex {
         Ok(None)
     }
 
-    /// **A committed profile's drawn outline**: one world polyline per
-    /// loop ([`crate::sketch::PreviewLoop::drawn_on`]); empty for a
-    /// node this index draws no outline of.
-    pub fn profile_outline(&self, node: RecipeNodeId) -> &[Vec<Point3<f64>>] {
-        self.outlines
-            .iter()
-            .find(|outline| outline.node == node)
-            .map_or(&[], |outline| outline.loops.as_slice())
-    }
-
     /// **The outline the picture draws of profile `node`**: the edit
     /// preview's where `display` says the node is drawn by one
     /// ([`DisplayView::previewed_profile`]), else its committed
-    /// outline ([`PickIndex::profile_outline`]). What the pick measures
-    /// a cursor against and what the profile marks light.
+    /// outline as `display` shows it ([`DisplayView::outline`]: none
+    /// where it is hidden, under its space's frame where that is
+    /// moved). What the pick measures a cursor against and what the
+    /// profile marks light.
     pub fn drawn_outline<'a>(
         &'a self,
         node: RecipeNodeId,
         display: &'a DisplayView,
-    ) -> &'a [Vec<Point3<f64>>] {
-        match &display.previewed_profile {
-            Some(previewed) if previewed.node == node => &previewed.outline,
-            _ => self.profile_outline(node),
-        }
+    ) -> Cow<'a, [Vec<Point3<f64>>]> {
+        self.drawings_of(node, display)
+            .into_iter()
+            .next()
+            .unwrap_or(Cow::Borrowed(&[][..]))
+    }
+
+    /// **Every drawing of `node`'s outline the pick measures**, one per
+    /// place the picture draws it (a profile shown through two copies is
+    /// drawn at both), as `display` shows each; [`PickIndex::drawn_outline`]
+    /// is the first.
+    pub fn drawings_of<'a>(
+        &'a self,
+        node: RecipeNodeId,
+        display: &'a DisplayView,
+    ) -> Vec<Cow<'a, [Vec<Point3<f64>>]>> {
+        self.drawn_outlines(display)
+            .into_iter()
+            .filter(|(drawn, _, _)| *drawn == node)
+            .map(|(_, _, loops)| loops)
+            .collect()
     }
 
     /// **Every profile outline the picture draws**, by node
     /// ([`PickIndex::drawn_outline`]): the committed ones in document
     /// order, the previewed node's in its committed one's place, or
     /// last where the index holds no committed outline of it.
-    fn drawn_outlines<'a>(
-        &'a self,
-        display: &'a DisplayView,
-    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
-        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+    fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
+        // Each committed outline is its own drawing: a profile or datum
+        // shown through two copies is drawn, and picked, at both.
+        // The edit preview is drawn by the preview lane, as it stands.
+        let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .filter_map(|outline| {
+                let loops = match &display.previewed_profile {
+                    Some(previewed) if previewed.node == outline.node => {
+                        Cow::Borrowed(previewed.outline.as_slice())
+                    }
+                    _ => display.outline(
+                        outline.node,
+                        outline.space,
+                        outline.copy,
+                        &outline.loops,
+                    )?,
+                };
+                Some((outline.node, outline.datum, loops))
+            })
             .collect();
         if let Some(previewed) = &display.previewed_profile
-            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+            && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, previewed.outline.as_slice()));
+            drawn.push((
+                previewed.node,
+                false,
+                Cow::Borrowed(previewed.outline.as_slice()),
+            ));
         }
         drawn
     }
@@ -2825,8 +2909,17 @@ fn group_answer(
 /// the span of the chord point `a + (b − a)·s`
 /// ([`ray_segment_point`]) and the certified spans of every crossing
 /// `ray` makes with the triangles that point may lie on
-/// ([`ray_triangle`]), placed through the same [`placement`] the
-/// chord's points were.
+/// ([`ray_triangle`]).
+///
+/// **Read in the part's own frame** (`[placement.frame]`): on the ray
+/// the part's faces in front were certified on ([`faces_ray`]), against
+/// the mesh's own corners. A face in
+/// front that IS one of the chord's triangles is then the same
+/// crossing, bit for bit, so an edge is never hidden by its own face;
+/// read in the world instead, a crossing placed through the maps and
+/// one carried back through them differ by the carry's rounding, which
+/// a posed or moved copy's certificate does not hold. The parameter is
+/// the caller's: an affine map carries it.
 ///
 /// **Which triangles.** A point inside the chord lies on the chord's
 /// own triangles
@@ -2853,9 +2946,8 @@ fn own_crossing(
     s: f64,
     display: &DisplayView,
 ) -> Option<TSpan> {
-    let own = ray_segment_point(ray, candidate.ends, s)?;
     let mesh = part.mesh();
-    let Some(&[from, to]) = mesh
+    let ends = mesh
         .boundaries
         .get(candidate.boundary)
         .and_then(|boundary| {
@@ -2863,9 +2955,19 @@ fn own_crossing(
                 .points
                 .get(candidate.segment..candidate.segment + 2)
         })
-    else {
-        return Some(own);
+        .and_then(|pair| {
+            let at = |index: u32| mesh.positions.get(index as usize).copied();
+            Some((pair[0], pair[1], [at(pair[0])?, at(pair[1])?]))
+        });
+    let Some((from, to, ends)) = ends else {
+        // [`best_segment`] offers only a segment whose two chord points
+        // both projected, and the walk projects a point only off its
+        // own boundary's index into the mesh's positions.
+        unreachable!("a candidate's chord is two points of its own boundary");
     };
+    let ray = &faces_ray(display, part, ray);
+    let own = ray_segment_point(ray, ends, s)?;
+    let corner = |index: u32| mesh.positions.get(index as usize).copied();
     let at_start = candidate.along == 0.0 || s == 0.0;
     let at_end = candidate.along == 1.0 || s == 1.0;
     let chords = part.chords();
@@ -2878,8 +2980,6 @@ fn own_crossing(
     } else {
         vec![chords.on_chord([from, to])]
     };
-    let place = placement(display, part);
-    let corner = |index: u32| mesh.positions.get(index as usize).copied().map(&place);
     Some(
         triangles
             .into_iter()
@@ -3014,6 +3114,29 @@ pub(crate) fn witness_leg(
             .display_map(node)
             .map_or(in_space, |map| map.transform_point(in_space))
     })
+}
+
+/// **The ray `part` is picked by**: `ray` carried back through the
+/// display map its node is drawn under ([`display_mapped`]), or `ray`
+/// itself. An affine map carries a ray's parameter with it, so a
+/// crossing at `t` on this ray is at `t` on `ray`.
+fn drawn_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    display_mapped(display, part).map_or(*ray, |map| {
+        let inverse = map.inverse();
+        Ray {
+            origin: inverse.transform_point(ray.origin),
+            dir: inverse.transform_vec(ray.dir),
+        }
+    })
+}
+
+/// **The ray `part`'s faces are certified on**: the ray it is picked by
+/// ([`drawn_ray`], what [`PickIndex::pick_for`] hands the kernel) read
+/// into its body's frame as the kernel reads it
+/// ([`PickTarget::ray_in_frame`]) — so a crossing of its mesh read here
+/// is the kernel's own, bit for bit.
+fn faces_ray(display: &DisplayView, part: &NodePick, ray: &Ray) -> Ray {
+    part.target().ray_in_frame(&drawn_ray(display, part, ray))
 }
 
 /// **The display map a part's node is drawn under**, if the display
@@ -3196,24 +3319,22 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let segment = pncad::geom::Line {
-        origin: a,
-        dir: b - a,
-    };
+    let (segment, length) = pncad::geom::Line::chord(a, b);
     let pair = segment.closest_params(&pncad::geom::Line {
         origin: ray.origin,
-        dir: ray.dir,
+        dir: pncad::geom_core::UnitVec3::squared(ray.dir),
     });
     // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
     // the ray's direction (or of no length, NaN) answers its own start,
     // since any end will do.
+    // The segment's own fraction: the chord's parameter is in metres.
     let t_segment = if pair.sin2 > PARALLEL_REL {
-        pair.s
+        pair.s / length
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, segment.at(t_segment))
+    (t_segment, segment.at(t_segment * length))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).
@@ -3221,6 +3342,21 @@ fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point
 pub enum PickError {
     /// The cursor could not be un-projected.
     Camera(CameraError),
+    /// A drawn point the cursor is measured against (a line's chord
+    /// point, an edge's end) has no pixel the camera can compute
+    /// ([`Camera::project`]'s refusal), or its pixel names no ray to
+    /// probe it with, so what it belongs to cannot be measured. The
+    /// whole pick refuses: a pixel made up for it would decide the
+    /// contest.
+    Projection {
+        /// The node whose drawing holds the point.
+        node: RecipeNodeId,
+        /// The body of `node` whose edge holds it; `None` for a
+        /// profile's or datum's drawn outline.
+        body: Option<u32>,
+        /// The camera's refusal.
+        error: CameraError,
+    },
     /// The hit test refused.
     HitTest(HitTestError),
     /// The picked edge has no name here — [`EdgeNameFault`], per arm:
@@ -3244,12 +3380,23 @@ pub enum VertexNameFault {
     Unnamed(UnnamedEntity),
 }
 
-impl core::fmt::Display for VertexNameFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl pncad::document::Say for VertexNameFault {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Lookup(error) => write!(f, "{error}"),
-            Self::Unnamed(error) => write!(f, "{error}"),
+            Self::Unnamed(error) => pncad::document::say!(f, Said(error, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for VertexNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 
@@ -3281,12 +3428,12 @@ pub enum PatchNameFault {
 impl Say for PatchNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
             Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
             Self::Unnamed { id, error } => {
-                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+                say!(f, format_args!("id {id}, a drawn patch: "), Said(error, by))
             }
         }
     }
@@ -3295,7 +3442,7 @@ impl Say for PatchNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PatchNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3334,25 +3481,29 @@ pub enum EdgeNameFault {
 impl Say for EdgeNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NotDrawn { node, body } => write!(
+            Self::NotDrawn { node, body } => say!(
                 f,
-                "this picture draws no {}, so it draws none of its edges",
-                Said(&DrawnBody::new(*node, *body), by)
+                "this picture draws no ",
+                Said(&DrawnBody::new(*node, *body), by),
+                ", so it draws none of its edges"
             ),
             Self::OutOfRange {
                 node,
                 body,
                 boundary,
                 drawn,
-            } => write!(
+            } => say!(
                 f,
-                "edge {boundary} of {}: that body draws {drawn} edges, so this address was not \
-                 one this index handed out",
-                Said(&DrawnBody::new(*node, *body), by)
+                format_args!("edge {boundary} of "),
+                Said(&DrawnBody::new(*node, *body), by),
+                format_args!(
+                    ": that body draws {drawn} edges, so this address was not \
+                 one this index handed out"
+                )
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {}", Said(error, by)),
+            Self::Unnamed(error) => say!(f, "a drawn edge has no name: ", Said(error, by)),
         }
     }
 }
@@ -3360,7 +3511,7 @@ impl Say for EdgeNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3401,7 +3552,7 @@ pub struct EdgeNamesRefused {
 
 impl Say for EdgeNamesRefused {
     /// The refusal itself is [`EdgeNameFault::Unnamed`]'s sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3409,11 +3560,14 @@ impl Say for EdgeNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} edges it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} edges it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(&EdgeNameFault::Unnamed(*first), by.about(*node))
         )
     }
@@ -3422,7 +3576,7 @@ impl Say for EdgeNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3448,7 +3602,7 @@ pub struct VertexNamesRefused {
 
 impl Say for VertexNamesRefused {
     /// The refusal itself is the naming layer's sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3456,11 +3610,14 @@ impl Say for VertexNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} vertices it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} vertices it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(first, by.about(*node))
         )
     }
@@ -3469,7 +3626,7 @@ impl Say for VertexNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for VertexNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3481,14 +3638,27 @@ impl Say for PickError {
     /// else's refusal. Every arm forwards its payload's own sentence —
     /// [`CameraError`], `editor-core`'s `HitTestError`, and
     /// [`EdgeNameFault`] each name their own failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {}", Said(error, by)),
-            Self::EdgeName(fault) => {
-                write!(f, "the picked edge has no name: {}", Said(fault, by))
+            Self::Projection { node, body, error } => {
+                match body {
+                    Some(body) => say!(
+                        f,
+                        "a drawn point on an edge of ",
+                        Said(&DrawnBody::new(*node, *body), by)
+                    )?,
+                    None => say!(f, "a drawn point on the outline of ", by.node(*node))?,
+                }
+                write!(f, " has no pixel: {error}")
             }
-            Self::VertexName(fault) => write!(f, "the picked vertex has no name: {fault}"),
+            Self::HitTest(error) => say!(f, "the hit test refused: ", Said(error, by)),
+            Self::EdgeName(fault) => {
+                say!(f, "the picked edge has no name: ", Said(fault, by))
+            }
+            Self::VertexName(fault) => {
+                say!(f, "the picked vertex has no name: ", Said(fault, by))
+            }
         }
     }
 }
@@ -3496,7 +3666,7 @@ impl Say for PickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3547,7 +3717,7 @@ mod tests {
                 copy.to_string(),
                 format!(
                     "node 000000000007 is not drawn: {}",
-                    Said(&error, Speaker::TAG.about(node))
+                    Said(&error, Speaker::TAG.about(node)).sentence()
                 ),
                 "the copy's sentence for {error:?}"
             );
@@ -3601,11 +3771,14 @@ mod tests {
                     },
                     Speaker::of(&doc).within(&eval)
                 )
+                .sentence()
             ),
             "the copy, by name, in the build's own words"
         );
         assert!(
-            badge.label().contains(&doc.spoken(copy).to_string()),
+            badge
+                .label()
+                .contains(&crate::tree::spelled(&doc.spoken(copy))),
             "the label names the copy: {}",
             badge.label()
         );
@@ -3776,8 +3949,8 @@ mod tests {
     /// cursor that is not a number never arrives, because every door
     /// seeds on a ray through it and `Camera::ray_through` refuses one
     /// first; and a mesh position that is a `NaN` never arrives
-    /// either, because `Camera::project` answers `None` for it and the
-    /// walk drops a chord point with no pixel. Neither is what
+    /// either, because `Camera::project` refuses it and the walk
+    /// forwards the refusal. Neither is what
     /// produces the distance this row is about.
     ///
     /// Both halves, because neither says anything alone: the poisoned

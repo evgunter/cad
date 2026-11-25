@@ -28,7 +28,9 @@
 //!   `rounded_prism` + `washer` (Cylinder — the washer is two full
 //!   cylinder walls closed by planar annuli, not a torus), `ball` +
 //!   `sphere_wedge` (Sphere), `cone` + `cone_wedge` (Cone), `donut`
-//!   (Torus).
+//!   (Torus), and the filleted holes' bands (thin torus strips with one
+//!   slit whose chord points fall between the rows,
+//!   `the_one_slit_band.rs`) at the δ their rows read.
 //! - poles and apexes: `ball`'s two poles, `cone`'s apex,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` — the
 //!   witnesses whose meridian sides cross the singularity.
@@ -44,9 +46,17 @@
 //!   by an oblique plane — the cut rim is an ellipse, whose stored image
 //!   is no iso line of the chart, so the route sends the wall through
 //!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
+//!   `notched_wall` and `holed_wall` (`common::rowless::walls`: a pipe
+//!   notched across its seam, and one with a bar through it) are walls
+//!   bounded by rims and rulings, with a ring on the second; the lane lays
+//!   no rows on a cylinder, so these and the tilted halves are its
+//!   boundary-point triangulations, and their digests at the three ε are
+//!   that triangulation's bytes, which no ε moves.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
-//!   hull-derived certificate and its cert-driven refinement. A
+//!   hull-derived certificate and its cert-driven refinement;
+//!   `pinned_wedge` and `corner_pinned_through_three`, walls with a
+//!   collapsed side, which the lane walks through its vertex. A
 //!   `Surface::Approx` face shares the `Nurbs` dispatch arm and the
 //!   same lane, on its fit, so these rows cover its code path; what no
 //!   fixture in this crate carries is a body that reaches it through
@@ -182,6 +192,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
         ("washer", washer(), [0.05, 0.15]),
         ("tilted_above", tilted_halves().0, [0.1, 0.01]),
         ("tilted_below", tilted_halves().1, [0.1, 0.01]),
+        (
+            "notched_wall",
+            rowless_wall("a notch across the seam"),
+            [0.1, 0.01],
+        ),
+        ("holed_wall", rowless_wall("a bar through"), [0.1, 0.01]),
         ("keyway", witness_bodies::keyway().0, [0.05, 0.15]),
         ("slit", witness_bodies::slit().0, [0.05, 0.15]),
         (
@@ -220,12 +236,37 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             [0.05, 0.15],
         ),
         ("loft_prism", nurbs_bodies::loft_prism(), [6e-3, 2e-2]),
+        ("pinned_wedge", nurbs_bodies::pinned_wedge(), [1e-2, 3e-2]),
+        (
+            "corner_pinned_through_three",
+            nurbs_bodies::corner_pinned_through_three(),
+            [1e-2, 3e-2],
+        ),
         (
             "swept_elbow",
             sweep::test_support::swept_elbow(Tol::witness()),
             [3e-3, 1e-2],
         ),
+        (
+            "filleted_hole_three_arcs",
+            filleted_plate(0.3, 1e-3, 3),
+            [1e-3, 3e-4],
+        ),
+        (
+            "filleted_hole_five_arcs",
+            filleted_plate(0.3, 5e-3, 5),
+            [3e-3, 1e-3],
+        ),
     ]
+}
+
+/// One of `common::rowless::walls`, by name.
+fn rowless_wall(what: &str) -> Body<f64> {
+    rowless::walls()
+        .into_iter()
+        .find(|(w, _)| *w == what)
+        .unwrap()
+        .1
 }
 
 /// The oblique cut of a cylinder, whose two halves carry an elliptical
@@ -284,6 +325,39 @@ pub(crate) mod nurbs_bodies {
     pub(crate) fn loft_prism() -> Body<f64> {
         sweep::test_support::loft_prism(Tol::witness())
     }
+
+    /// A two-section loft of `sweep::test_support::pinned_square` placed
+    /// by `ms`, at `v_degree`: `sweep`'s `pinned_corners_build` bodies.
+    fn pinned(ms: &[geom_core::Affine3<f64>], v_degree: usize) -> Body<f64> {
+        use sweep::test_support::{pinned_square, rigid_places};
+        let tol = Tol::witness();
+        sweep::loft_body::<f64>(
+            &vec![pinned_square(); ms.len()],
+            &rigid_places(ms, tol),
+            v_degree,
+            tol,
+        )
+        .expect("the pinned loft builds")
+        .body
+        .into_body()
+    }
+
+    /// The square turned half a radian about its edge x = −1: a hinge,
+    /// its two triangle walls each with a collapsed side.
+    pub(crate) fn pinned_wedge() -> Body<f64> {
+        let hinge = sweep::test_support::turn_about([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5);
+        pinned(&[geom_core::Affine3::identity(), hinge], 1)
+    }
+
+    /// The square's corner (−1, −1) pinned through three sections at
+    /// v-degree 2: one wall over the three, collapsed at the corner.
+    pub(crate) fn corner_pinned_through_three() -> Body<f64> {
+        let corner = |a| sweep::test_support::turn_about([-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], a);
+        pinned(
+            &[geom_core::Affine3::identity(), corner(0.3), corner(0.6)],
+            2,
+        )
+    }
 }
 
 /// The committed digest of each corpus body at each of its two δ, in
@@ -304,20 +378,25 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("ball", [0x60cf_9cee_b0c8_d8c8, 0x5059_5c4f_3eaf_df7b]),
     (
         "sphere_wedge",
-        [0xc0e4_3c76_081e_10f3, 0x70f4_2f79_af65_0fee],
+        [0xc0e4_3c76_081e_10f3, 0xd0e1_7c1a_5ff9_9fee],
     ),
     ("cone", [0x02da_2b2a_7dcc_89d2, 0x1309_6cd8_f2fa_66cc]),
     ("cone_wedge", [0x71ec_6787_8f4c_ac2d, 0x71ec_6787_8f4c_ac2d]),
-    ("donut", [0x1081_4893_347b_bbdd, 0x7628_fd94_3b85_d278]),
+    ("donut", [0xacba_ea8e_c424_d559, 0x0a73_f71a_a4fa_1618]),
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
-        [0xaaf9_faf2_d0ec_0e1d, 0xba02_b78e_8918_a902],
+        [0x6466_4bd0_261a_bdbe, 0xcad3_6378_e4a6_6b22],
     ),
     (
         "tilted_below",
-        [0x9406_eeca_b61e_b3d7, 0xadd5_1c61_1c66_25d6],
+        [0x9236_cb96_aa8e_253d, 0x6846_9195_68cc_ec82],
     ),
+    (
+        "notched_wall",
+        [0x6988_b803_171a_6101, 0x00da_6b92_e639_8a64],
+    ),
+    ("holed_wall", [0xc6e1_d324_8da0_118f, 0xcbed_4748_98f9_7e0e]),
     ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (
@@ -350,8 +429,24 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     ("loft_prism", [0xd3ce_dece_149d_e356, 0x6d45_152a_ef26_f951]),
     (
+        "pinned_wedge",
+        [0x12ff_02e0_5d1f_4e27, 0xb6d0_baab_eae4_fad2],
+    ),
+    (
+        "corner_pinned_through_three",
+        [0x9789_7a1f_84e0_bbe9, 0x656e_bbf8_8ac8_da74],
+    ),
+    (
         "swept_elbow",
         [0xca97_2f70_8e56_d5a9, 0xe8f8_263b_c340_6dd9],
+    ),
+    (
+        "filleted_hole_three_arcs",
+        [0x4093_41dc_b499_5952, 0x72f0_8b60_2ed6_4ac5],
+    ),
+    (
+        "filleted_hole_five_arcs",
+        [0x3fa0_ec1e_8060_4c49, 0xf006_75e0_3bb3_dc82],
     ),
 ];
 

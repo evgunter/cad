@@ -710,9 +710,12 @@ fn a_feature_on_an_unpressed_fillet_offers_bracket() {
         [viewer::frame::PlacementOffer {
             said: format!(
                 "bracket (2 copies) copies {}, which this body is built on",
-                by.read(b)
+                pncad::document::sentence!(by.read(b))
             ),
-            label: format!("Re-point bracket onto {}", by.node(g)),
+            label: format!(
+                "Re-point bracket onto {}",
+                pncad::document::sentence!(by.node(g))
+            ),
             op: SessionOp::RepointPlacements {
                 source: bracket,
                 onto: g.into(),
@@ -768,7 +771,7 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         SessionOp::AddBoolean {
             spec: viewer::session::BooleanSpec::Subtract {
                 from: body.into(),
-                tool: tool.into(),
+                tool: vec![tool.into()],
             },
         },
     );
@@ -806,8 +809,8 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         tool_row.said,
         format!(
             "the copy {} copies {}, which this body is built on",
-            by.node(tool_copy),
-            by.read(t)
+            pncad::document::sentence!(by.node(tool_copy)),
+            pncad::document::sentence!(by.read(t))
         ),
         "the tool's row names its copy and the body it copies"
     );
@@ -991,8 +994,6 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
             })
             .expect("a wall")
     };
-    let point =
-        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
     landed(
         session,
         SessionOp::DrawOnFace {
@@ -1005,13 +1006,7 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
                 node: on,
                 body: 0,
             }],
-            chains: vec![
-                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
-                    .line_to(point(0.002, -0.002))
-                    .line_to(point(0.002, 0.002))
-                    .line_to(point(-0.002, 0.002))
-                    .line_to(pncad::document::ProgramTarget::Start),
-            ],
+            chains: vec![common::rectangle_chain([-0.002, -0.002], 0.004, 0.004)],
         },
     )
 }
@@ -1258,4 +1253,116 @@ fn a_mirror_whose_plane_is_on_a_copy_is_not_on_that_copy() {
         [SessionOp::Select(viewer::session::Selection::Node(other))],
         "one row, its button X"
     );
+}
+
+/// **A placement's source row links the body behind it through the named
+/// source, and the body's read-by rows are its placements** — the two
+/// copies the fixture made, which is also what the tree badge counts.
+///
+/// *Breaks if* the source seat drops the variable's link or its body's,
+/// a reader at the source seat goes missing from the body's Properties,
+/// or the badge counts other than the copies made.
+#[test]
+fn a_source_links_its_variable_and_body_and_the_body_lists_its_placements() {
+    use pncad::document::OperandSlot;
+    use viewer::relations::{Seat, relations};
+    use viewer::session::Selection;
+    let tol = Tol::witness();
+    let (session, body, first, second) = placed_twice(tol);
+    let doc = session.committed_doc();
+    let files = session.part_files();
+    let index = doc.read_index();
+    let source = doc
+        .copied_read(second)
+        .expect("the placement reads a source");
+    let reads = relations(doc, &index, second, files).reads;
+    let row = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Source))
+        .expect("the placement's source seat is a row");
+    let selects: Vec<_> = row.entries.iter().map(|e| e.selects()).collect();
+    assert_eq!(
+        selects,
+        [Some(Selection::Node(body))],
+        "the body behind the source: {row:?}"
+    );
+    // The entry is a mention of the body in this document, and its
+    // selection is read off that mention (#7375's fold of `Related`).
+    let mentions: Vec<_> = row.entries[0]
+        .said()
+        .mentions()
+        .map(|m| (m.node().map(pncad::document::SpokenNode::id), m.document()))
+        .collect();
+    assert_eq!(mentions, [(Some(body), Some(doc.id()))], "{row:?}");
+    let space = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Space))
+        .expect("the placement's target space is a row");
+    assert_eq!(
+        space
+            .entries
+            .iter()
+            .map(|e| e.selects())
+            .collect::<Vec<_>>(),
+        [Some(Selection::Node(body))],
+        "placed where it stands, into the body's own space, whose definer it links: {space:?}"
+    );
+    let through = row.through.as_ref().expect("read through the named source");
+    assert_eq!(through.selects(), Some(Selection::Variable(source)));
+    assert_eq!(
+        through.said().to_string(),
+        "bracket",
+        "the variable by its name"
+    );
+
+    let read_by = relations(doc, &index, body, files).read_by;
+    let placements: Vec<_> = read_by
+        .iter()
+        .filter(|row| row.seat == Seat::Operand(OperandSlot::Source))
+        .flat_map(|row| row.entries.iter().map(|e| e.selects()))
+        .collect();
+    assert_eq!(
+        placements,
+        [Some(Selection::Node(first)), Some(Selection::Node(second))],
+        "the body lists both copies made: {read_by:?}"
+    );
+    assert_eq!(
+        common::row_of(&session.tree_rows(), body).placements,
+        [first, second],
+        "the badge counts the two copies made"
+    );
+}
+
+/// **A read whose node is gone says so in words**: the bracket's profile
+/// deleted, the body's profile row reads as a deleted node and links
+/// nothing, rather than spelling the variable's id.
+///
+/// *Breaks if* a stranded read is drawn as a raw id or as a link.
+#[test]
+fn a_read_of_a_deleted_node_says_so_in_words() {
+    use pncad::document::OperandSlot;
+    use viewer::relations::{DELETED, Seat, relations};
+    let tol = Tol::witness();
+    let (session, body) = bracket("offer-stranded-read", tol);
+    let [profile] = session.committed_doc().upstream(body)[..] else {
+        panic!("the box reads one profile")
+    };
+    // The document's own delete, which strands its readers rather than
+    // cascading as the session's does.
+    let doc = pncad::document::apply(
+        session.committed_doc(),
+        &DocEdit::DeleteNode { id: profile },
+        tol,
+    )
+    .expect("a delete refuses nothing")
+    .doc;
+    assert!(doc.node(body).is_some(), "the body stays, stranded");
+    let reads = relations(&doc, &doc.read_index(), body, session.part_files()).reads;
+    let row = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Profile))
+        .expect("the profile seat is a row");
+    assert_eq!(row.entries.len(), 1, "{row:?}");
+    assert_eq!(row.entries[0].said().to_string(), DELETED, "{row:?}");
+    assert_eq!(row.entries[0].selects(), None, "{row:?}");
 }

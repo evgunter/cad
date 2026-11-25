@@ -170,40 +170,47 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
 const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 
 /// **The property, over one δ the door accepts**: the render reads back
-/// through the millimetre conversion the δ field commits with, and
-/// lands on a δ the door accepts within the render's own stated
-/// accuracy.
+/// through the millimetre unit's text door
+/// (`quantity::UnitDef::canonical`) as a δ the door accepts, within the
+/// render's own stated accuracy.
+///
+/// Read in metres, where the told rule's grid is: a told length is
+/// never finer than the spacing of the canonical floats at its value,
+/// so at a subnormal δ one float of metres is the whole of it (a
+/// thousand of the millimetre float's gaps), and at the coarsest δ the
+/// render is a number of millimetres no float holds, which the text door
+/// reads all the same.
 ///
 /// **The character bound is asserted separately**
 /// ([`fits_and_reads_back_as_a_delta`]), because it is not part of the
 /// property.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
+    let (read, text) = reads_back_near(d);
+    assert!(
+        DisplayTolerance::new(read).is_ok(),
+        "δ {:e} m renders as {text} mm, which is not a δ this door accepts",
+        d.get()
+    );
+}
+
+/// [`reads_back_as_a_delta`]'s nearness half alone: the render read back
+/// through the text door, in metres, and the render itself.
+fn reads_back_near(d: DisplayTolerance) -> (f64, String) {
     let text = d.render_in(MM);
-    // The millimetre value is formed here by a DIFFERENT operation from
-    // the render's, so the check does not agree with it by
-    // construction: the render divides by the `mm` row's factor
-    // (`props::written`), and this multiplies by a thousand. The two
-    // roundings part by at most two ulps (the factor's own rounding and
-    // each operation's), so the bound below carries a float of slack.
-    // A render in any other unit misses by a factor.
-    let mm = d.get() * 1.0e3;
-    let read: f64 = text.parse().unwrap_or_else(|error| {
-        panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
-    });
+    let delta = d.get();
+    let read = pncad::quantity::Decimal::parse(&text)
+        .map(|number| MM.def().canonical(&number))
+        .unwrap_or_else(|| panic!("δ {delta:e} m renders as {text} mm, which is not a number"));
+    // Four figures, and half of a tenth of ε (1e-10 m) where that is
+    // finer; never finer than half the decade step above the floats'
+    // gap at δ, and a float of slack for the text door's rounding.
+    let gap = delta.next_up() - delta;
+    let grid = ((0.5e-10_f64).min(delta * 5.0e-4) * (1.0 + 1.0e-9)).max(5.0 * gap);
     assert!(
-        DisplayTolerance::new(read * 1.0e-3).is_ok(),
-        "δ {mm} mm renders as {text}, which is not a δ this door accepts"
+        (read - delta).abs() <= grid + gap,
+        "δ {delta:e} m renders as {text} mm, further from it than the render's own grid"
     );
-    // Four figures, and half of a tenth of ε (1e-7 mm) where that is
-    // finer; one float of slack for the divide that made `mm`.
-    // Past about half a kilometre a decimal step is the floats' own
-    // gap, so the grid is no finer than that.
-    let gap = mm.next_up() - mm;
-    let grid = ((0.5e-7_f64).min(mm * 5.0e-4) * (1.0 + 1.0e-9)).max(5.0 * gap);
-    assert!(
-        (read - mm).abs() <= grid + gap,
-        "δ {mm} mm renders as {text}, further from it than the render's own grid"
-    );
+    (read, text)
 }
 
 /// [`reads_back_as_a_delta`], and inside the character bound — which is
@@ -281,9 +288,19 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
     // is, and — one `f64` below the band — the last δ four figures
     // still carry, which is nine characters again.
     const BAND_LOW: f64 = 1.7975e305;
-    for end in [BAND_LOW, COARSEST_DELTA] {
-        reads_back_as_a_delta(delta(end));
-    }
+    reads_back_as_a_delta(delta(BAND_LOW));
+    // The coarsest δ is told on the nearest grid point, and that is one
+    // float above it, a δ the door refuses: a told δ rounds to nearest
+    // rather than to the side a δ can be
+    // (`work/vgeom/a-told-delta-at-the-top-of-the-type-reads-back-as-one-the-door-refuses.md`).
+    // The δ field's own text is exact and is not this render
+    // (`DisplayTolerance::field_text_in`).
+    let (read, _) = reads_back_near(delta(COARSEST_DELTA));
+    assert!(
+        DisplayTolerance::new(read).is_err(),
+        "the coarsest δ's render reads back as a δ the door accepts: the row \
+         above is closed and this case rejoins the band"
+    );
     fits_and_reads_back_as_a_delta(delta(f64::from_bits(BAND_LOW.to_bits() - 1)));
     // And PAST the bound, where the door's own answer decides: a δ it
     // accepts owes this property like any other, and a δ it refuses is
@@ -423,7 +440,7 @@ struct Answer {
     document: &'static str,
     requested: f64,
     delta: f64,
-    requested_cost: Option<usize>,
+    requested_cost: Option<f64>,
     largest_probe: usize,
     probe_triangles: usize,
     stop: ProbeStop,
@@ -615,8 +632,8 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 4520,
-        probe_triangles: 7816,
+        largest_probe: 656,
+        probe_triangles: 712,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -624,8 +641,8 @@ const ANSWERS: &[Answer] = &[
         requested: 5e-6,
         delta: 5e-6,
         requested_cost: None,
-        largest_probe: 81208,
-        probe_triangles: 84504,
+        largest_probe: 2912,
+        probe_triangles: 3624,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -839,7 +856,7 @@ const ANSWERS: &[Answer] = &[
         document: "die_composed_tour",
         requested: 5e-6,
         delta: 1.1248938565032009e-5,
-        requested_cost: Some(2249787),
+        requested_cost: Some(2249787.0),
         largest_probe: 113006,
         probe_triangles: 161590,
         stop: ProbeStop::Converged,
@@ -893,7 +910,7 @@ const ANSWERS: &[Answer] = &[
         document: "tube_ring",
         requested: 5e-6,
         delta: 3.2195327962043786e-5,
-        requested_cost: Some(6439065),
+        requested_cost: Some(6439065.592408757),
         largest_probe: 122840,
         probe_triangles: 127448,
         stop: ProbeStop::Converged,
@@ -911,7 +928,7 @@ const ANSWERS: &[Answer] = &[
         document: "tube_arc",
         requested: 5e-6,
         delta: 5.1423363626906294e-6,
-        requested_cost: Some(1028467),
+        requested_cost: Some(1028467.2725381259),
         largest_probe: 121948,
         probe_triangles: 127196,
         stop: ProbeStop::Converged,
@@ -929,7 +946,7 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_elbow",
         requested: 5e-6,
         delta: 1.4101095536214232e-5,
-        requested_cost: Some(2820219),
+        requested_cost: Some(2820219.107242846),
         largest_probe: 118284,
         probe_triangles: 123772,
         stop: ProbeStop::Converged,
@@ -947,7 +964,7 @@ const ANSWERS: &[Answer] = &[
         document: "hollow_tube_ring",
         requested: 5e-6,
         delta: 5.856286274679293e-5,
-        requested_cost: Some(11712572),
+        requested_cost: Some(11712572.549358586),
         largest_probe: 115860,
         probe_triangles: 120436,
         stop: ProbeStop::Converged,
@@ -1055,7 +1072,7 @@ const ANSWERS: &[Answer] = &[
         document: "gallery_ring",
         requested: 5e-6,
         delta: 8.236822876478181e-6,
-        requested_cost: Some(1647364),
+        requested_cost: Some(1647364.575295636),
         largest_probe: 122340,
         probe_triangles: 126488,
         stop: ProbeStop::Converged,

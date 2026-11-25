@@ -89,7 +89,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let downstream = insert(
         &mut doc,
         Box::new(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![cut.into(), outer.into()]),
+            members: editor_core::Bodies::spelled(vec![cut.into(), outer.into()]),
         }),
     );
     (doc, cut, downstream)
@@ -337,7 +337,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             },
             edge: None,
         },
-        K::Transform(topo::transform::TransformError::NurbsPlaceholder),
+        K::Transform(topo::transform::TransformError::Corrupt { found: "" }),
         K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(
             geom_core::BandError::Empty {
                 zero: 1.0,

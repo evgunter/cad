@@ -85,7 +85,7 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, linked, proven};
+use crate::live::{Proven, proven};
 use crate::sector_face::{ConeApex, SectorFaceError};
 use crate::sector_shape::SlitTips;
 use crate::star::{Datum, Star, StarFace, StarFault};
@@ -308,8 +308,8 @@ pub(super) fn pair_sectors<T: Decide>(
     sites: [(&Body<T>, VertexKey, &SlitTips); 2],
     band: Band,
 ) -> Result<[Vec<BoolSector<T>>; 2], BooleanError> {
-    let [a, b] = [Operand::A, Operand::B].map(|operand| {
-        let (body, vertex, tips) = sites[operand as usize];
+    let [a, b] = Operand::BOTH.map(|operand| {
+        let (body, vertex, tips) = sites[operand.index()];
         Star::walk(body, vertex, tips, band)
             .map_err(|fault| star_fault(fault, operand, vertex, band))
     });
@@ -388,6 +388,10 @@ impl SectorFaceError {
     /// walk could not resolve.
     pub(crate) fn boolean_refusal(self, operand: Operand, band: Band) -> BooleanError {
         match self {
+            Self::Pending { face } => unreachable!(
+                "{face:?} is pending in a boolean operand: operands are finished bodies, and \
+                 tier 3 refuses a pending face at rest"
+            ),
             Self::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,
@@ -966,6 +970,156 @@ pub(super) fn tangent_lump<T: Decide>(
     }
 }
 
+/// **A declared-`Junction` sector's lump**: which side of the other
+/// operand's material the sector's face lies on, at a site on the rim the
+/// junction was certified over (`super::Junction`).
+///
+/// **Out, by the certificate, at every site on the rim.** The door glued
+/// the pair a junction only where its two faces both end on the rim, the
+/// outward normals aligned at every station round it (the routing's π
+/// wedge), the faces leaving it on opposite sides wherever they meet,
+/// abutting points included (`rim_wedge::departures`), and each
+/// operand's own edges on the rim convex creases all along them
+/// (`rim_wedge::rim_edges_convex`). So in the plane normal to the rim at
+/// the site, the sector's face leaves along the reverse of the other
+/// face's direction, and the other operand's material there lies in the
+/// wedge between the other face and its neighbour across the convex
+/// edge, below π: the reverse direction is outside it, and so is every
+/// direction of the sector's interior, which lies on the face's side of
+/// the shared tangent plane's rim line. Nothing of the carriers' bend is
+/// read: a junction claims no touch along the rim, so no second-order
+/// descent applies (`tangent_lump` reads one only along a line).
+///
+/// **The certificate covers a rim edge's interior and a vertex where the
+/// other operand's rim face and its neighbour across the rim are all
+/// that meet** (R2's vertex case). At a vertex of the other operand on
+/// the rim where a third face of its meets (a partial revolve's cut
+/// plane, a corner), its material there is a cone, not the dihedral
+/// wedge the convex rim edges close below π, and nothing the junction
+/// read bounds that cone away from the sector's face. Such a site is
+/// refused typed ([`BooleanError::CurvedBooleanUnsupported`] on the
+/// sector's face), as is a site the reader cannot place on the rim (one
+/// off it, or a junction whose record carries no circle): each is outside
+/// what the certificate states. A placement in band, of the site on the
+/// rim or of the other operand's vertex at it, is the rim's coincidence.
+///
+/// **Not yet answered**: no row reaches a sector site on a junction's rim
+/// (the three mutants of the readers' Junction arms survive every elbow,
+/// junction and tube-chain row), so a site the certificate covers is
+/// refused typed too, as above, until one does.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn junction_lump<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    (other, other_face): (&Body<T>, FaceKey),
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let unplaced = || BooleanError::CurvedBooleanUnsupported {
+        operand: on_side,
+        face: sector_face,
+        kind: sector_kind,
+    };
+    let in_band = |diag| BooleanError::coincidence(Coincide::Rim, read, diag);
+    let rim = rim.ok_or_else(unplaced)?;
+    if !crate::rim_wedge::on_rim(rim, p, band).map_err(in_band)? {
+        return Err(unplaced());
+    }
+    // The other operand's vertex at the site, if it has one: the faces
+    // meeting there must be its rim face and the one across the rim.
+    for (vertex, _) in other.vertices() {
+        let mut faces = other.faces_of_vertex_linked(vertex);
+        if !faces.contains(&other_face) {
+            continue;
+        }
+        let at = other.resolve_vertex_point(vertex, crate::live::Proven);
+        let off =
+            crate::validate::decide("junction_site_vertex", Margin::of((at - p).norm()), band)
+                .map_err(in_band)?;
+        if off != Sign::Zero {
+            continue;
+        }
+        faces.sort_unstable();
+        faces.dedup();
+        if faces.len() > 2 {
+            return Err(unplaced());
+        }
+    }
+    // The certificate above states `Out`, but no geometry any row builds
+    // reaches a sector site on a junction's rim, so no row would see this
+    // arm answer wrongly; it refuses until one does
+    // (`work/heldrecords/the-junction-sector-arms-are-reached-by-no-row.md`).
+    Err(unplaced())
+}
+
+/// **A declared-`Junction` sector bound's side** at a v-v site on the
+/// rim, refused with [`junction_lump`] until a row reaches it; on the
+/// certificate it states: `On` for a bound
+/// that IS the glued rim's edge (its edge a circle the rim's identity
+/// ladder decides the rim, [`crate::rim_wedge::circle_is_rim`]), the edge
+/// both sectors share; `Out` for every bound that leaves the rim, every
+/// direction of the sector off the rim lying on the face's side of it,
+/// outside the other operand's material. A bound that is NOT the rim's
+/// edge yet whose direction is decided along the rim's tangent (a face
+/// edge leaving the vertex tangent to the rim and curving off it, R1's
+/// case) is neither: its first-order direction rides the rim while its
+/// edge does not, so which side it leaves to is a second-order question
+/// the junction never read. It is refused typed
+/// ([`BooleanError::CurvedBooleanUnsupported`] on the sector's face). The
+/// bound's sine against the rim's tangent is decided at the bound's own
+/// reach, the first-order code's lever, under `junction_bound_rides_rim`;
+/// in band it, or the edge's identity, is the rim's coincidence.
+///
+/// # Errors
+///
+/// As [`junction_lump`]; the tangent bound that is not the rim's edge;
+/// either reading in band.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn junction_bound_side<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    (d, support): (Vec3<T>, crate::bound_side::BoundSupport<T>),
+    other: (&Body<T>, FaceKey),
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let out = junction_lump(rim, p, other, on_side, sector_face, sector_kind, read, band)?;
+    // Placed on the rim, so the rim is there.
+    let Some(rim) = rim else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a junction site placed on no rim",
+        });
+    };
+    let in_band = |diag| BooleanError::coincidence(Coincide::Rim, read, diag);
+    if let Some(circle) = support.circle()
+        && crate::rim_wedge::circle_is_rim(circle, rim, band).map_err(in_band)?
+    {
+        return Ok(SideCode::On);
+    }
+    let tangent = rim.axis.get().cross(p - rim.center).normalize();
+    let sine = d.normalize().cross(tangent).norm();
+    match crate::validate::decide(
+        "junction_bound_rides_rim",
+        Margin::levered(sine, support.lever()),
+        band,
+    )
+    .map_err(in_band)?
+    {
+        Sign::Zero => Err(BooleanError::CurvedBooleanUnsupported {
+            operand: on_side,
+            face: sector_face,
+            kind: sector_kind,
+        }),
+        Sign::Positive | Sign::Negative => Ok(out),
+    }
+}
+
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —
@@ -1390,7 +1544,7 @@ struct Along {
 /// the site into the face along the germ, and the sweep would split it
 /// where it crossed out. Called by every site kind, before that site's
 /// surgery moves the orbit the bounds are read from.
-pub(super) fn germ_locus<T: Decide>(
+pub(super) fn germ_locus<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
@@ -1507,7 +1661,7 @@ fn germ_curve<T: Decide>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    body.edge_curve_linked(edge, proven(&body.edges, edge, EntityId::Edge))
+    body.proven_edge(edge)
         .certified()
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a germ edge is null scaffolding",
@@ -1674,7 +1828,7 @@ impl ClosedReach {
 /// inside and the reading leaves the edge's carrier unread against some
 /// face's surface ([`super::slit::Placed::Unread`]); the reading's
 /// own escalations, and a trim the walk cannot read.
-fn closed_reach<T: Decide>(
+fn closed_reach<T: crate::props::AtRestPolicy>(
     side: GermSide<'_, T>,
     e: Along,
     (body, faces): (&Body<T>, &[FaceKey]),
@@ -1961,14 +2115,8 @@ pub(super) fn faces_at<T: Decide>(
     for v in crate::chord_join::null_site(body, &[vertex])? {
         for he in body.vertex_orbit_linked(v) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let data = linked(
-                &body.edges,
-                edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            if body.edge_curve_linked(edge, data).null_scaffold().is_some() {
+            let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+            if data.curve().null_scaffold().is_some() {
                 continue;
             }
             let f = body.face_of_linked(he);
@@ -3010,13 +3158,13 @@ mod tests {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 1.0, 0.0);
         let h = core::f64::consts::FRAC_PI_4;
-        let apex = ConeApex {
-            apex: o,
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            half_angle: h,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        };
+        let apex = ConeApex::stated(
+            o,
+            geom_core::UnitVec3::exact_y(),
+            h,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        );
         let start = Vec3::new(h.sin(), -h.cos(), 0.0);
         for turn in [0.25, 0.45, 0.75] {
             let azimuth = turn * core::f64::consts::TAU;
@@ -3042,7 +3190,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis().get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(
@@ -4988,6 +5136,16 @@ mod tests {
     fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
         let alpha = 0.5_f64;
         let (mut body, face) = crate::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        // The lamina's other face is left pending by the fixture, which no
+        // boolean operand holds: a spline patch stands in, whose sectors
+        // the walk refuses and this row skips.
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-2.0, -2.0, 0.0),
+                Point3::new(2.0, 2.0, 1.0),
+            ),
+        );
         let vertices: Vec<VertexKey> = body.vertices.keys().collect();
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
@@ -5068,7 +5226,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
+            matches!(got, Ok((f, StarFace::Apex(at))) if f == face && at.apex().equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

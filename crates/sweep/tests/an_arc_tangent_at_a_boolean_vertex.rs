@@ -467,7 +467,7 @@ pub(crate) fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<
 /// and at a slab CORNER (`y ∈ [0, 6]`), and with the slab beside it
 /// (`x ∈ [0, 2]`). Measured at 5ca970782b, `edge` refuses
 /// `Join(UnpairedLooseEnds { count: 2 })`, the first-order signature
-/// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`);
+/// (`work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`);
 /// descending in `side_code` too moves it to `ClassificationInvariant`.
 /// `corner` and `beside-corner` refuse `CurvedPierceUnsupported`; `beside`
 /// answers. It asserts nothing. Run:

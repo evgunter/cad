@@ -283,7 +283,7 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
             .clone();
         let sphere_faces = cut
             .faces()
-            .filter(|(fk, _)| matches!(cut.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+            .filter(|(fk, _)| matches!(cut.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
             .count();
         assert_eq!(sphere_faces, 1, "{pose}: sphere faces left");
         assert_lattice(

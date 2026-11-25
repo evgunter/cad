@@ -237,7 +237,7 @@ fn hit_test_value(
 ) -> Py<PyAny> {
     // The lookup's refusal names a node and a body, never a name.
     let err = s::HitTestError::from(unnamed);
-    hit_test_err(py, &err, pncad::document::spoken_by(&err, doc))
+    hit_test_err(py, &err, pncad::document::spoken_by(&err, doc).to_string())
         .value(py)
         .clone()
         .into_any()
@@ -450,9 +450,12 @@ impl PickHit {
     /// parameter when that crossing is a point of the closed triangle
     /// — and the interval is always centred on the point the kernel
     /// answers, which is always on the triangle. The parameter is the
-    /// caller's own ray's: a hit carried across a transform converts
-    /// all three or none, which is the viewer's own row
-    /// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`)
+    /// caller's own ray's, and an affine map carries a ray's parameter
+    /// with it: a hit found on a ray mapped into another frame is at
+    /// the same `t`, `t_lo` and `t_hi` on the ray it came from. What a
+    /// map does not carry is the certificate, which is the mapped
+    /// ray's as rounded: the viewer's own row
+    /// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`),
     /// where a display frame moves an instance.
     #[getter]
     fn t_lo(&self) -> f64 {
@@ -711,7 +714,7 @@ pub(crate) fn pick_face(
         Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
         Err(err) => {
             let said = err.spoken(evaluation.doc(), &evaluation.inner);
-            Err(hit_test_err(py, &err, said))
+            Err(hit_test_err(py, &err, said.to_string()))
         }
     }
 }

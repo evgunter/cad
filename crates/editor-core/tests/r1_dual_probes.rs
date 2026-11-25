@@ -136,7 +136,7 @@ where
     for (_k, p) in body.points() {
         d.p3(*p);
     }
-    for (_k, s) in body.surfaces() {
+    for (_k, s) in body.described_surfaces() {
         for u in UV {
             for v in UV {
                 d.p3(s.eval(T::from_f64(u), T::from_f64(v)));
@@ -219,6 +219,7 @@ where
                         }
                     }
                     ValuePayload::Family => d.u64(19),
+                    ValuePayload::Datum(_) => d.u64(20),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
@@ -479,7 +480,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     });
     let placed = r.against(slab, boss, &editor_core::Frame::IDENTITY);
     let fused = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![slab.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![slab.into(), placed.into()]),
     });
     let tool = fixture::plane_on_frame(
         &r.doc,

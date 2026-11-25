@@ -41,7 +41,7 @@ impl ViewerBehavior<'_> {
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
     /// the slot row's field over the argument as the draft holds it,
     /// and for a kept step the slot row's own doors beside it — the
-    /// unit, the range probe, the name — so the node has no second set
+    /// unit, `range?`, the name — so the node has no second set
     /// of rows for its arguments. An argument an expression drives is
     /// held as that expression, its number the reading, locked; text
     /// typed into any field is an expression the draft holds.
@@ -105,6 +105,16 @@ impl ViewerBehavior<'_> {
             self.ops.push(op);
         }
         self.notices.append(&mut news.notices);
+        let edited = news.edited.map(|step| crate::marks::EditedStep {
+            profile: node,
+            step,
+        });
+        *self.step_edited = edited;
+        // The note the last focus built found, said only while the step
+        // it was found for is the one held now.
+        if let Some(note) = self.step_note.and_then(|note| note.for_held(edited)) {
+            crate::widgets::message_toned(ui, note.to_string(), &theme, frame::Tone::Advisory);
+        }
         match news.standing {
             Some((slot, text)) => {
                 self.drafts.expr_target = Some((node, slot));
@@ -116,8 +126,12 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        if let Some(name) = frame::creation_offer(news.refused.as_ref()) {
-            self.drafts.offer_variable(name);
+        // A refusal's lead is taken as it is heard.
+        for heard in news.refused.iter().flat_map(|refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused)).heard
+        }) {
+            self.drafts
+                .take_heard(heard, self.tools, self.session.committed_doc());
         }
         true
     }
@@ -243,13 +257,13 @@ fn held_field(
             // this same rule (`guard_driven`), in the same words.
             HeldAct::Begin => {
                 if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
-                    notices.push(frame::refusal_message(&refusal));
+                    notices.push(frame::refusal_message_untargeted(&refusal));
                 }
             }
             HeldAct::Hold(value) => *held = value,
             HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
                 Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
-                Err(error) => notices.push(frame::refusal_message(
+                Err(error) => notices.push(frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             },
@@ -368,10 +382,14 @@ pub(crate) struct FieldNews {
     /// to the draft.
     pub(crate) standing: Option<(SlotId, String)>,
     /// The refusal of text typed this frame, for the offer the slot
-    /// door's refusal makes ([`frame::creation_offer`]).
+    /// door's refusal makes ([`crate::recourse::Heard::CreateVariable`]).
     pub(crate) refused: Option<crate::session::Refusal>,
     /// What the fields said this frame.
     pub(crate) notices: Vec<frame::Message>,
+    /// The step being edited ([`step_rows_ui`]'s `held` row), where the
+    /// draft keeps it as a committed step ([`ProfileEdit::ids`]): the
+    /// step whose walls the picture lights.
+    pub(crate) edited: Option<StepId>,
 }
 
 /// **The edit door's body, over its draft**: one step list
@@ -429,7 +447,10 @@ pub(crate) fn edit_door_ui(
                 .push(frame::tool_news(&FormKind::EditProfile.refuses(&fault))),
         }
     }
-    ui.label(format!("profile {}", landed.spoken(node)));
+    ui.label(format!(
+        "profile {}",
+        crate::tree::spelled(&landed.spoken(node))
+    ));
     let loops = edit.loops().len();
     let views = edit.steps(landed, tol);
     let mut rows = Vec::new();
@@ -517,8 +538,12 @@ pub(crate) fn edit_door_ui(
             })
             .collect();
         let shown = list.clone();
-        if let Some(row) = step_rows_ui(ui, &salt, tol, &mut args, &mut list) {
+        let mut held = None;
+        if let Some(row) = step_rows_ui(ui, &salt, tol, &mut args, &mut list, &mut held) {
             rows.push((index, row));
+        }
+        if let Some(row) = held {
+            news.edited = edit.ids().get(index).and_then(|ids| *ids.get(row)?);
         }
         typed.extend(
             args.typed
@@ -568,7 +593,10 @@ pub(crate) fn edit_door_ui(
             }
             (Err(refusal), _) => {
                 news.standing = None;
-                news.notices.push(frame::refusal_message(&refusal));
+                news.notices.push(frame::refusal_message(
+                    &refusal,
+                    pncad::document::Speaker::of(session.committed_doc()),
+                ));
             }
         }
     }
@@ -847,6 +875,9 @@ pub(crate) enum StepRow {
 /// Rows shown as written ([`StepRow::Written`]) keep their row's
 /// controls. The tip after one is the evaluation's, so a row past one
 /// has no tip state and admits every verb ([`sketch::admits_at`]).
+///
+/// `held` is set to the row whose widgets hold the keyboard focus or
+/// the drag, the doors under it included: the step being edited.
 #[must_use = "a row edit the caller drops is a click that did nothing"]
 pub(crate) fn step_rows_ui(
     ui: &mut egui::Ui,
@@ -854,6 +885,7 @@ pub(crate) fn step_rows_ui(
     tol: Tol,
     args: &mut dyn ArgDoors,
     steps: &mut [StepRow],
+    held: &mut Option<usize>,
 ) -> Option<RowEdit> {
     // The row edits are COLLECTED during the loop and answered after
     // it: a list cannot be reordered or shortened while it is being
@@ -885,6 +917,19 @@ pub(crate) fn step_rows_ui(
         })
         .collect();
     let last = steps.len().saturating_sub(1);
+    // The held widget, and whether it has been drawn yet this pass:
+    // the row it is first drawn in is the one it sits in.
+    let holding = ui
+        .ctx()
+        .memory(egui::Memory::focused)
+        .or_else(|| ui.ctx().dragged_id());
+    let drawn = |ui: &egui::Ui| {
+        holding.is_some_and(|id| {
+            ui.ctx()
+                .viewport(|vp| vp.this_pass.widgets.get(id).is_some())
+        })
+    };
+    let mut was_drawn = drawn(ui);
     for (index, &state) in states.iter().enumerate() {
         let row_salt = format!("{salt}_step_{index}");
         ui.horizontal(|ui| {
@@ -951,6 +996,11 @@ pub(crate) fn step_rows_ui(
             path_step_fields(ui, &row_salt, (&mut *args, index), state, step);
         });
         args.under(ui, index);
+        let now = drawn(ui);
+        if now && !was_drawn {
+            *held = Some(index);
+        }
+        was_drawn = now;
     }
     let whole = ui
         .horizontal(|ui| {
@@ -1036,6 +1086,43 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
+    /// **The row a held field sits in is the step being edited**: a
+    /// click into the third row's field holds that row, and a frame with
+    /// nothing held holds none.
+    #[test]
+    fn the_row_holding_the_keyboard_is_the_held_step() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+
+        let mut rows: Vec<super::StepRow> = [
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::LineTo(Target::Point(Point2::new(0.0311, 0.0))),
+            Step::LineTo(Target::Point(Point2::new(0.0311, 0.0577))),
+            Step::LineTo(Target::Start),
+        ]
+        .into_iter()
+        .map(super::StepRow::Step)
+        .collect();
+        let mut held = Vec::new();
+        let painted = crate::pane::headless::painted_after_clicking("0.0577", |ui| {
+            let mut row = None;
+            let _ = super::step_rows_ui(
+                ui,
+                "held",
+                pncad::geom_core::Tol::witness(),
+                &mut crate::widgets::WrittenIn(crate::props::Notation::CANONICAL),
+                &mut rows,
+                &mut row,
+            );
+            held.push(row);
+        });
+        assert_eq!(
+            held,
+            vec![None, None, Some(2)],
+            "laid out, clicked, then held: {painted}"
+        );
+    }
+
     /// [`super::step_rows_ui`] over steps at plain numbers, its fields
     /// written back in place.
     fn path_steps_ui(
@@ -1047,7 +1134,7 @@ mod tests {
     ) -> Option<crate::drafts::RowEdit> {
         let mut rows: Vec<super::StepRow> =
             steps.iter().copied().map(super::StepRow::Step).collect();
-        let edit = super::step_rows_ui(ui, salt, tol, args, &mut rows);
+        let edit = super::step_rows_ui(ui, salt, tol, args, &mut rows, &mut None);
         for (step, row) in steps.iter_mut().zip(rows) {
             if let super::StepRow::Step(drawn) = row {
                 *step = drawn;
@@ -1069,9 +1156,7 @@ mod tests {
         painted_while_hovering_opened,
     };
     use crate::props::Notation;
-    use crate::sketch::{
-        self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview,
-    };
+    use crate::sketch::{self, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview};
     use crate::test_support::{self, inserted, line_to, try_inserted, two_legs};
     use crate::theme::Theme;
 
@@ -1500,6 +1585,7 @@ mod tests {
                 continue;
             };
             let steps = [legs.clone(), way_in].concat();
+            let steps_len = steps.len();
             let unclosable = PreviewError::Transition {
                 loop_: 0,
                 step: steps.len(),
@@ -1514,13 +1600,21 @@ mod tests {
                 prefix.loops[0].points, open.loops[0].points,
                 "{state:?}: the legs, and only those"
             );
-            assert_eq!(
-                prefix.loops[0].end,
-                LoopEnd::Unfinished(Some(Cut {
-                    refusal: unclosable.clone(),
-                    closes: false,
-                })),
-                "{state:?}"
+            let LoopEnd::Unfinished(Some(cut)) = &prefix.loops[0].end else {
+                panic!("{state:?}: cut at its tip: {:?}", prefix.loops[0].end)
+            };
+            assert!(!cut.closes, "{state:?}");
+            // The refusal is the end-of-program transition at the tip,
+            // field by field (a `PreviewError` has no equality: it can
+            // keep a sentence).
+            assert!(
+                matches!(
+                    cut.refusal,
+                    PreviewError::Transition { loop_: 0, step, state: at, verb: None }
+                        if step == steps_len && at == state
+                ),
+                "{state:?}: {:?}",
+                cut.refusal
             );
             let (painted, voices) = drawn(&preview);
             assert_eq!(
@@ -1795,6 +1889,62 @@ mod tests {
         (painted, formed)
     }
 
+    /// **The step the door hands up is the committed step its held row
+    /// was loaded as**: a click into step 2's field names step 2's
+    /// minted id, which is what the picture lights the walls of.
+    #[test]
+    fn a_held_field_names_its_committed_step() {
+        let tol = Tol::witness();
+        let loop_ = sketch::path_program(
+            &[
+                Step::At(Point2::new(0.0, 0.0)),
+                Step::LineTo(Target::Point(Point2::new(0.0311, 0.0))),
+                Step::LineTo(Target::Point(Point2::new(0.0311, 0.0577))),
+                Step::LineTo(Target::Start),
+            ],
+            Notation::CANONICAL,
+            &|_, _| None,
+        )
+        .expect("the triangle lowers");
+        let (doc, profile) = inserted(
+            &Doc::empty_derived("held-step", tol),
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+            tol,
+        );
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        let ids = program.ids.clone();
+        let session = crate::session::DocSession::inline(doc, tol);
+        let mut drafts = Drafts::default();
+        let mut edited = Vec::new();
+        let painted = crate::pane::headless::painted_after_clicking("0.0577", |ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("the editor holds the profile");
+            let mut news = super::FieldNews::default();
+            let _ = super::edit_door_ui(
+                ui,
+                &session,
+                (Theme::DEFAULT, Notation::CANONICAL),
+                edit,
+                None,
+                None,
+                &mut news,
+            );
+            edited.push(news.edited);
+        });
+        assert_eq!(
+            edited,
+            vec![None, None, Some(ids[0][2])],
+            "laid out, clicked, then step 2 held: {painted}"
+        );
+    }
+
     /// **A committed profile reshaped in the panel lands as one edit,
     /// one undo, and its names follow.** The door's `+` on the first
     /// row inserts a leg and the new corner is typed into it, and the
@@ -2014,10 +2164,10 @@ mod tests {
         );
         // Each field is the run painted next after its label.
         for field in [
-            ["x ", "0.0020"],
-            ["y ", "-0.0010"],
-            ["width ", "0.0300"],
-            ["height ", "0.0100"],
+            ["x ", "0.002"],
+            ["y ", "-0.001"],
+            ["width ", "0.03"],
+            ["height ", "0.01"],
         ] {
             assert!(
                 painted.windows(2).any(|pair| pair == field),
@@ -2187,8 +2337,11 @@ mod tests {
             .spoken_name(&wall)
             .steps_respoken(session.committed_doc());
         assert!(
-            name.to_string().contains("the profile step "),
-            "a removed step is said by its tag: {name}"
+            (pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence())
+                .to_string()
+                .contains("the profile step "),
+            "a removed step is said by its tag: {name}",
+            name = pncad::document::Said(&name, pncad::document::Speaker::TAG).sentence()
         );
         let Some(Node::Shell { open: face, .. }) = before.node(carrier) else {
             panic!("the carrier is a shell")
@@ -2898,12 +3051,12 @@ mod tests {
 
     /// **The doors beside a held field judge what they act on**: the
     /// committed slot. The draft holds a formula over a committed
-    /// literal; the range probe beside it acts on the committed slot,
-    /// which the session probes, so the row it is judged on is the
-    /// committed literal's — offered, not refused as driven.
+    /// literal; the `range?` beside it acts on the committed slot,
+    /// so the row it is judged on is the committed literal's — offered,
+    /// not refused.
     #[test]
     fn the_doors_beside_a_held_formula_judge_the_committed_slot() {
-        use crate::session::{BoundsTarget, SessionOp};
+        use crate::session::{RangeTarget, SessionOp};
         use pncad::document::StepArg;
 
         let (mut session, profile) = square_session();
@@ -2940,16 +3093,15 @@ mod tests {
             !row.driver.is_driven(),
             "the doors read the committed literal, not the held formula: {row:?}"
         );
+        let target = RangeTarget::Slot {
+            node: profile,
+            slot: row.slot,
+        };
         assert!(
-            crate::app::ViewerBehavior::probe_refusal(profile, row, Notation::CANONICAL).is_none(),
-            "so the probe is offered"
+            session.range_refusal(&target).is_none(),
+            "so `range?` is offered"
         );
-        let out = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Slot {
-                node: profile,
-                slot: row.slot,
-            },
-        });
+        let out = session.perform(SessionOp::ProveRange { target });
         assert!(
             out.refusal.is_none(),
             "and the session takes it: {:?}",

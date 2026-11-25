@@ -74,7 +74,7 @@ fn sphere_door_classifies_the_ball_interior_exterior_and_boundary() {
     let body = ball();
     assert_all_tiers(&body);
     // Nothing but sphere faces — every row below is the new arm.
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.described_surfaces().count(), 1);
     let b = band();
 
     // Interior: the centre.
@@ -224,13 +224,13 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
     // The sphere CHART is untouched — no negative radius anywhere near
     // this, which is exactly what the parity finding demanded.
-    for (k, s) in body.surfaces() {
+    for (k, s) in body.described_surfaces() {
         assert_eq!(
             format!("{s:?}"),
             format!("{:?}", rev.get_surface(k).unwrap()),
             "revert must not perturb a sphere chart"
         );
-        let Some(geom::Surface::Sphere { radius, .. }) = rev.get_surface(k) else {
+        let Ok(geom::Surface::Sphere { radius, .. }) = rev.get_surface(k) else {
             panic!("still a sphere");
         };
         assert!(*radius > 0.0, "the radius > 0 convention survives revert");
@@ -483,7 +483,11 @@ fn two_ball_body_classifies_each_shell_independently() {
         panic!("two disjoint balls union to a real body");
     };
     let body = bb.body;
-    assert_eq!(body.surfaces().count(), 2, "one sphere key per ball");
+    assert_eq!(
+        body.described_surfaces().count(),
+        2,
+        "one sphere key per ball"
+    );
     let bd = band();
     // Inside ball A, inside ball B, and in the gap between them.
     assert_eq!(

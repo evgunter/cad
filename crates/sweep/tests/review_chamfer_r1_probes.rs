@@ -87,7 +87,7 @@ fn assert_every_face_outward(body: &Body<f64>) {
     );
     for (fk, _) in body.faces() {
         let f = body.get_face(fk).expect("a face");
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(fk) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -120,13 +120,13 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
     assert_eq!(got, census, "census");
     let counts = euler_counts(body);
     assert_eq!(
-        (counts.r, counts.s, counts.genus()),
+        (counts.r, counts.s, counts.h()),
         (0, 1, Ok(0)),
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );
     for (k, _) in body.faces() {
         assert!(
-            matches!(body.face_surface(k), Some(Surface::Plane { .. })),
+            matches!(body.face_surface(k), Ok(Surface::Plane { .. })),
             "face {k:?} is not a plane"
         );
     }

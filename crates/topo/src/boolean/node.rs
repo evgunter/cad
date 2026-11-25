@@ -196,7 +196,7 @@ pub(super) fn bisectors<T: crate::props::AtRestPolicy>(
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
 ) -> Result<Option<[Bisector<T>; 2]>, BooleanError> {
-    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face(f).surface());
+    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face(f).expect_described());
     if !is_wall(x, wall) || !is_wall(y, face) {
         return Ok(None);
     }
@@ -346,7 +346,7 @@ pub(super) fn bisector_datum<T: Decide>(
             what: "an equal cylinder pair's pierced face is no cylinder",
         });
     };
-    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis());
+    let (origin, axis) = (carrier_frame.origin(), carrier_frame.axis_unit());
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
     let (radial_hat, _) = radial.direction_and_length();
@@ -400,10 +400,7 @@ mod tests {
         p: Point3<f64>,
     ) -> Result<Option<Vec3<f64>>, crate::boolean::BooleanError> {
         let (planes, walls) = pair();
-        let pierced = match piercing {
-            Operand::A => &walls[1],
-            Operand::B => &walls[0],
-        };
+        let pierced = &walls[piercing.other().index()];
         let &geom::Surface::Cylinder { frame, .. } = pierced else {
             unreachable!()
         };

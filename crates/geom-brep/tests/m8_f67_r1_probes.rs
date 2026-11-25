@@ -38,7 +38,7 @@ use geom_brep::{
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec3};
 use slotmap::SlotMap;
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER
@@ -243,7 +243,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         spec,
         start,
         end,
-        |k| arena.get(k).cloned(),
+        |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
@@ -287,9 +287,9 @@ fn quarter_cylinder_wall() -> Surface<f64> {
 #[test]
 fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
     let iso = Pcurve::IsoLine {
-        p0: Point2::new(0.0, 0.0),
-        pl: Vec2::new(0.0, 1.0),
-        ends: None,
+        line: geom_brep::ChartLine::column(0.0),
+        at0: 0.0,
+        rate: 1.0,
     };
     let got = PcurveCache::certify(
         iso,
@@ -317,9 +317,9 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
 #[test]
 fn iso_lane_backwards_span_stays_interval_not_forward() {
     let iso = Pcurve::IsoLine {
-        p0: Point2::new(0.0, 0.0),
-        pl: Vec2::new(0.0, 1.0),
-        ends: None,
+        line: geom_brep::ChartLine::column(0.0),
+        at0: 0.0,
+        rate: 1.0,
     };
     let got = PcurveCache::certify(
         iso,
@@ -420,9 +420,9 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
     };
     let margins = |domain: f64| {
         let iso = Pcurve::IsoLine {
-            p0: Point2::new(Probe(0.0), Probe(0.0)),
-            pl: Vec2::new(Probe(0.0), Probe(1.0)),
-            ends: None,
+            line: geom_brep::ChartLine::column(Probe(0.0)),
+            at0: Probe(0.0),
+            rate: Probe(1.0),
         };
         k_stats::start_recording();
         // The certification may fail past check 2 (the carrier is not

@@ -175,7 +175,10 @@
 
 use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
-use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
+use super::circle_roots::{CircleRoots, DoorRefusal};
+use super::cross::Walked;
+use crate::curve_pair::MeetFault;
+use crate::half_angle::half_angle_roots_past;
 use crate::half_angle::{DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame};
 use crate::roots::{OnCarrier, Roots, Unsettled};
 use geom_core::k_stats::decide;
@@ -273,7 +276,7 @@ pub fn conic_quadric_roots<T: Decide>(
         return Err(ConicQuadricRefusal::Invariant(DESYNC));
     }
     let span = crate::curve_pair::Span::new(carrier, (t0, t1));
-    let pose = match super::pose::pose(&span, surface, band) {
+    let pose = match super::pose::pose(&span, surface, band).map_err(|u| u.why) {
         Ok(pose) => pose,
         Err(refusal) if let Some(why) = refusal.unsettled() => return Ok(Err(why)),
         // The apex, or its spread, in band is refused typed, never
@@ -300,89 +303,120 @@ pub fn conic_quadric_roots<T: Decide>(
         DoorRefusal::Escalated(diag) => arm(diag),
         DoorRefusal::Invariant(what) => ConicQuadricRefusal::Invariant(what),
     };
+    let shaped = |walked: Result<super::cross::Walked<T>, &'static str>| {
+        walked
+            .map_err(DoorRefusal::Invariant)
+            .and_then(|walked| super::circle_roots::door_shape(&span, &walked, band))
+            .map_err(refused)
+    };
     Ok(match pose {
         Pose::Lies => Ok(CircleRoots::On(OnCarrier)),
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
-        Pose::Through(apex) => through_the_apex(&span, surface, apex, band).map(|found| {
-            let mut all = vec![apex.at, apex.at];
-            if let CircleRoots::Certified(found) = found {
-                all.extend_from_slice(found.roots());
-            }
-            CircleRoots::of(&all).unwrap_or_else(|| unreachable!("at most four roots"))
-        }),
-        Pose::Isolated(form) => {
-            conic_quadric_method(&span, surface, form.0, band).map_err(refused)?
+        Pose::Through(apex) => {
+            shaped(through_the_apex(&span, surface, apex, band))?.map(|found| {
+                let mut all = vec![apex.at, apex.at];
+                if let CircleRoots::Certified(found) = found {
+                    all.extend_from_slice(found.roots());
+                }
+                // The apex's double root and the deflated form's at most
+                // two: four, inside the eight a `CircleRoots` holds.
+                CircleRoots::of(&all).unwrap_or_else(|| unreachable!("at most four roots"))
+            })
         }
+        Pose::Isolated(form) => shaped(conic_quadric_method(&span, surface, form.0, band))?,
     })
 }
 
 /// **The conic × quadric door's method**: the roots of an isolated
 /// conic from what its pose computed. On the first-harmonic lane the
-/// core's root slack and placement ([`super::circle_roots::harmonic_roots_as`]);
-/// on the ladder lane the subdivision ([`door_half_angle_roots`]). On a
-/// cone every root's distance from the apex is decided after
-/// ([`off_the_apex`]).
+/// core's root slack and placement ([`super::circle_roots::harmonic_roots_as`]),
+/// a slack the meter refuses a window over each root ± that slack widened
+/// by `Kε`; on the ladder lane the subdivision read past its refusals
+/// ([`crate::half_angle::half_angle_roots_past`]). On a cone every root's
+/// distance from the apex is decided after ([`off_the_apex`]): a root at
+/// the apex refuses the whole span.
 ///
 /// # Errors
 ///
-/// A root core's escalation; [`DoorRefusal::Invariant`] for a form of
-/// another arm or a surface of another kind.
+/// A kernel fault's readings: a form of another arm, a carrier or a
+/// surface of another kind, a walk's fault.
 pub(super) fn conic_quadric_method<T: Decide>(
     span: &crate::curve_pair::Span<'_, T>,
     surface: &geom::Surface<T>,
     form: super::pose::Formed<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Walked<T>, &'static str> {
     use super::pose::Formed;
     let carrier = span.carrier();
     let (t0, t1) = span.params();
-    let conic = carrier.conic().ok_or(DoorRefusal::Invariant(DESYNC))?;
-    let found = match form {
-        Formed::FirstHarmonic(h) => door_refusal(super::circle_roots::harmonic_roots_as(
+    let conic = carrier.conic().ok_or(DESYNC)?;
+    let walked = match form {
+        Formed::FirstHarmonic(h) => match super::circle_roots::harmonic_roots_as(
             &h,
             conic.speed_hi(),
             (t0, t1),
             "conic_quadric_first_root_slack",
             band,
-        ))?
-        .map(Roots::widen),
+        ) {
+            Ok(found) => Walked::found(match found {
+                Roots::Certified(found) => found.roots().to_vec(),
+                Roots::Miss | Roots::On(_) => Vec::new(),
+            }),
+            Err(refused) => {
+                let slack = refused.slack;
+                let fault = MeetFault::Unsettled(Unsettled::Meter { row: refused.row });
+                Walked {
+                    roots: Vec::new(),
+                    windows: refused
+                        .roots
+                        .iter()
+                        .map(|&t| ((t - slack, t + slack), fault))
+                        .collect(),
+                }
+            }
+        },
         Formed::Ladder => match *surface {
             geom::Surface::Cone {
                 frame, half_angle, ..
             } => {
-                let (apex, axis) = (frame.origin(), frame.axis());
+                let (apex, axis) = (frame.origin(), frame.axis_unit());
                 cone_ladder(&conic, (apex, axis, half_angle), (t0, t1), surface, band)?
             }
             _ => {
-                let QuadricLadder { h, quadric, frame } = quadric_ladder(&conic, surface, (t0, t1))
-                    .ok_or(DoorRefusal::Invariant(DESYNC))?;
-                door_half_angle_roots(
-                    &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-                    |theta| crate::implicit_residual(surface, conic.point_at(theta)),
-                    frame,
-                    &LADDER_ROWS,
-                    &RootSlack {
-                        row: LADDER_ROOT_SLACK,
-                        residual: &|theta| crate::conic_quadric_residual(&conic, quadric, theta),
-                        f_per_metre_hi: T::one(),
-                    },
-                    band,
+                let QuadricLadder { h, quadric, frame } =
+                    quadric_ladder(&conic, surface, (t0, t1)).ok_or(DESYNC)?;
+                Walked::of_walk(
+                    (t0, t1),
+                    half_angle_roots_past(
+                        &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
+                        |theta| crate::implicit_residual(surface, conic.point_at(theta)),
+                        frame,
+                        &LADDER_ROWS,
+                        &RootSlack {
+                            row: LADDER_ROOT_SLACK,
+                            residual: &|theta| {
+                                crate::conic_quadric_residual(&conic, quadric, theta)
+                            },
+                            f_per_metre_hi: T::one(),
+                        },
+                        band,
+                    ),
                 )?
             }
         },
-        _ => {
-            return Err(DoorRefusal::Invariant(
-                "the conic × quadric method was handed a form of another arm",
-            ));
-        }
+        _ => return Err("the conic × quadric method was handed a form of another arm"),
     };
     Ok(match *surface {
         geom::Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            found.and_then(|roots| off_the_apex(&conic, apex, roots, band))
+            let roots = CircleRoots::of(&walked.roots)
+                .ok_or("a conic read more roots against a cone than its degree allows")?;
+            match off_the_apex(&conic, frame.origin(), roots, band) {
+                Ok(_) => walked,
+                Err(why) => Walked::whole((t0, t1), MeetFault::Unsettled(why)),
+            }
         }
-        _ => found,
+        _ => walked,
     })
 }
 
@@ -392,7 +426,7 @@ pub(super) fn conic_quadric_method<T: Decide>(
 /// which carries the harmonics' noise.
 pub(super) struct QuadricLadder<'a, T: Decide> {
     pub(super) h: crate::ConicHarmonics<T>,
-    quadric: (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
+    quadric: (geom_core::Point3<T>, Option<geom_core::UnitVec3<T>>, T),
     pub(super) frame: HalfAngleFrame<'a, T>,
 }
 
@@ -412,7 +446,7 @@ pub(super) fn quadric_ladder<T: Decide>(
             )
         }
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             (
                 crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
                 (origin, Some(axis), radius),
@@ -467,7 +501,7 @@ const CONE_APEX: &str = "conic_quadric_cone_apex";
 /// "Against a cone").
 pub(super) fn cone_harmonics<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
 ) -> crate::ConicHarmonics<T> {
     crate::conic_cone_harmonics(
         conic,
@@ -490,11 +524,11 @@ pub(super) fn cone_noise<T: Decide>(h: &crate::ConicHarmonics<T>) -> T {
 /// residual.
 fn cone_ladder<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Walked<T>, &'static str> {
     let h = cone_harmonics(conic, (apex, axis, half_angle));
     let noise = cone_noise(&h);
     let placed = |theta: T| {
@@ -508,17 +542,20 @@ fn cone_ladder<T: Decide>(
             theta,
         )
     };
-    door_half_angle_roots(
-        &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-        |theta| crate::implicit_residual(surface, conic.point_at(theta)),
-        ladder_frame(conic, (t0, t1), noise, h.floor),
-        &LADDER_ROWS,
-        &RootSlack {
-            row: CONE_ROOT_SLACK,
-            residual: &placed,
-            f_per_metre_hi: T::one(),
-        },
-        band,
+    Walked::of_walk(
+        (t0, t1),
+        half_angle_roots_past(
+            &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
+            |theta| crate::implicit_residual(surface, conic.point_at(theta)),
+            ladder_frame(conic, (t0, t1), noise, h.floor),
+            &LADDER_ROWS,
+            &RootSlack {
+                row: CONE_ROOT_SLACK,
+                residual: &placed,
+                f_per_metre_hi: T::one(),
+            },
+            band,
+        ),
     )
 }
 
@@ -549,9 +586,13 @@ fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, (T, T
 /// geometry, `δ²/per` and `2δ·speed/per` at the point's distance `δ`
 /// from the apex, its own rounding carried, not off the rounded
 /// coefficients, whose noise a square root would amplify past any band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn apex_spread<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, _, _): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, _, _): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
     h: &crate::ConicHarmonics<T>,
     theta_a: T,
 ) -> T {
@@ -575,25 +616,50 @@ pub(super) fn apex_spread<T: Decide>(
 /// is the pose's datum, not among them. It reads the whole turn, not the
 /// caller's arc: a refusal stands even where the arc holds neither the
 /// apex nor the root it could not read.
+///
+/// # Errors
+///
+/// A surface that is not a cone, or a carrier that is not a conic: a
+/// kernel fault.
 pub(super) fn through_the_apex<T: Decide>(
     span: &crate::curve_pair::Span<'_, T>,
     surface: &geom::Surface<T>,
     apex: super::pose::Singular<T>,
     band: Band,
-) -> Result<CircleRoots<T>, Unsettled> {
+) -> Result<Walked<T>, &'static str> {
     let geom::Surface::Cone {
         frame, half_angle, ..
     } = *surface
     else {
-        unreachable!("only a cone's apex is a singular point the pose reads");
+        return Err("a singular point of a surface that is not a cone");
     };
-    let axis = frame.axis();
-    let conic = span
-        .carrier()
-        .conic()
-        .unwrap_or_else(|| unreachable!("the conic arm reads conics"));
-    let conic = &conic;
-    let (t0, t1) = span.params();
+    let conic = span.carrier().conic().ok_or(DESYNC)?;
+    Ok(
+        match deflated_roots(
+            &conic,
+            (frame.axis_unit(), half_angle),
+            span.params(),
+            apex,
+            band,
+        ) {
+            Ok(found) => Walked::found(match found {
+                Roots::Certified(found) => found.roots().to_vec(),
+                Roots::Miss | Roots::On(_) => Vec::new(),
+            }),
+            Err(why) => Walked::whole(span.params(), MeetFault::Unsettled(why)),
+        },
+    )
+}
+
+/// [`through_the_apex`]'s reading of the deflated form's roots on
+/// `conic` against the cone `(axis, half_angle)` about `apex`.
+fn deflated_roots<T: Decide>(
+    conic: &dyn geom::Conic<T>,
+    (axis, half_angle): (geom_core::UnitVec3<T>, T),
+    (t0, t1): (T, T),
+    apex: super::pose::Singular<T>,
+    band: Band,
+) -> Result<CircleRoots<T>, Unsettled> {
     let h = cone_harmonics(conic, (apex.point, axis, half_angle));
     let noise = cone_noise(&h);
     let two = T::from_f64(2.0);
@@ -801,7 +867,10 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
         );
-        let line = geom::Curve3::Line(geom::Line { origin: o, dir: x });
+        let line = geom::Curve3::Line(geom::Line {
+            origin: o,
+            dir: geom_core::UnitVec3::checked(x),
+        });
         let circle = geom::Curve3::circle(o, z, 1.0, x);
         let ellipse =
             geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));

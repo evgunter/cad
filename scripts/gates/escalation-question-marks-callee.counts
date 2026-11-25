@@ -19,10 +19,6 @@
 # editor-core trace: resolve_chain's steps, each read from the pen the
 # step before left: NOT A SEARCH.
 crates/editor-core/src/trace.rs 4
-# curve_face pose: line_cone_read's apex end (1): WHICH, the end the apex
-# is decided at is the root whose spread is read next, so an end in band
-# ahead of it refuses (the `place_off` ruling; the site says so).
-crates/geom-brep/src/curve_face/pose.rs 1
 # props curved: pole_turning (1) sums every arc's turning: NOT A SEARCH.
 # (sphere_region_material_sign and pole_side climb their arcs; pose's
 # one_line reads one identity.)
@@ -87,17 +83,19 @@ crates/topo/src/boolean/reduce.rs 5
 # pieces can answer different kinds (QML T4; the site says so); reach's
 # four reads, every arc's: NOT A SEARCH.
 crates/topo/src/rim_wedge.rs 6
-# section_cert ruling: roots walks sorted roots to the first past the
-# window: NOT A SEARCH.
-crates/topo/src/boolean/section_cert/ruling.rs 1
 # sectors: closed_reach (2), which face holds the reach: WHICH.
 # (crescent climbs its bound pairs, rays_within its sectors.)
 crates/topo/src/boolean/sectors.rs 2
-# slit: slot_from_far_end, which slot: WHICH.
-crates/topo/src/boolean/slit.rs 1
+# slit: slot_from_far_end, which slot: WHICH; close_cuts' part_cut (1),
+# every piece of a cut is closed, so a refusal on one is the op's: NOT A
+# SEARCH.
+crates/topo/src/boolean/slit.rs 2
+# pcurves: completion's fill walk derives every rowless half's image of
+# the loop it walks, each one the loop's closure needs: NOT A SEARCH.
+crates/topo/src/pcurves/complete.rs 1
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves/site.rs 1
-# containment: place_off (WHICH, ruled). conic_crossings reads its roots
+# containment: place_off (WHICH, ruled). arc_crossings reads its roots
 # through the co-surface arm once, outside its loop; inside it, a root in
 # band of an arc's end returns its `Undecided` refusal, a `return Err` this
 # matcher does not read: NOT A SEARCH, a crossing count that needs every

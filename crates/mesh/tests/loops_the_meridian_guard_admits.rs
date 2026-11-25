@@ -129,7 +129,7 @@ fn cap_with_a_spur(tip: f64) -> Body<f64> {
     let foot = rim.eval(0.0);
     let (cap, _) = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .unwrap();
     let outer = body.get_face(cap).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {

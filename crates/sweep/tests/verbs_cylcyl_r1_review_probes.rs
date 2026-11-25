@@ -66,36 +66,16 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// pose's own `Cylinder`s carried as its bodies are.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
-    // Pinned red off the witness band. At 1e-6 the perpendicular pair's
-    // union holds its closed form in an enclosure wider than the row's
-    // ceiling
+    // Pinned red at 1e-6: the perpendicular pair's union holds its closed
+    // form in an enclosure wider than the row's ceiling
     // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
-    // At 1e-12 the tall thin pair's union refuses its section, a fitted
-    // carrier's limb 2 read in band, where the row wants it built
-    // (`work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`).
-    let eps = Tol::witness().eps();
-    let (stops_at, says): (&[f64], &[&str]) = if test_utils::kernel_limit::at_row(eps, &[1e-12]) {
-        (
-            &[1e-12],
-            &[
-                "tall thin through short fat/union: refused GermSectionUnbuilt, not a frontier refusal",
-                "whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is undecided",
-                "lies inside the ambiguity band (1e-12, 1e-11)",
-            ],
-        )
-    } else {
-        (
-            &[1e-6],
-            &[
-                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534547 pad=6.7e-6 want=81.651534544",
-            ],
-        )
-    };
     test_utils::pinned_red::row(
-        eps,
-        stops_at,
+        Tol::witness().eps(),
+        &[1e-6],
         "the crossing poses",
-        says,
+        &[
+            "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534548 pad=2.1e-6 want=81.651534544",
+        ],
         every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row,
     );
 }
@@ -194,6 +174,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row() {
         "perpendicular unequal radii",
         "skew axes, crossing walls",
         "parallel axes, shallow overlap",
+        "tall thin through short fat",
     ];
     for (name, a, b, truth) in &poses {
         let (a, b) = (
@@ -344,7 +325,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(walls.len(), 2);
@@ -387,12 +368,7 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     };
     let walls: Vec<topo::FaceKey> = below
         .faces()
-        .filter(|(fk, _)| {
-            matches!(
-                below.face_surface(*fk),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(below.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert!(!walls.is_empty());
@@ -482,7 +458,7 @@ fn a_revolved_wall_places_an_on_wall_point_in_one_face() {
     let body = revolved_cyl(1.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
@@ -548,7 +524,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
         .find(|(fk, _)| {
             matches!(
                 plate.face_surface(*fk),
-                Some(geom::Surface::Cylinder { frame, radius, .. })
+                Ok(geom::Surface::Cylinder { frame, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
                         && (frame.origin().x - 6.0).abs() < 1e-9
                         && (frame.origin().y - 6.0).abs() < 1e-9
@@ -565,7 +541,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
                 pocket.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified),
                 Some(c) if matches!(c.carrier(),
                     geom::Curve3::Line(geom::Line { origin, dir })
-                        if (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9)
+                        if (origin.y - 10.0).abs() < 1e-9 && dir.get().y.abs() < 1e-9)
             )
         })
         .map(|(k, _)| k)

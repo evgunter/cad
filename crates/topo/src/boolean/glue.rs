@@ -31,7 +31,7 @@ use geom_core::{Band, Bounds, Decide};
 use super::section_table::SectionTable;
 use super::{
     BooleanError, DeclarationRead, Glue, GluedPair, Operand, PairUnread, TangencyFailure,
-    carrier_pair_decided, glued_tangency,
+    carrier_pair_decided, verify_distinct,
 };
 use crate::body::Body;
 use crate::boxes;
@@ -170,9 +170,8 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
                 found.push(None);
             }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
-            | Err(PairUnread::OutsideInventory) => found.push(
-                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency)),
-            ),
+            | Err(PairUnread::OutsideInventory) => found
+                .push(distinct(a, fa, b, fb, band)?.map(|glue| GluedPair::distinct(fa, fb, glue))),
             // In band, or unread: left to the stage that meets the pair
             // (module doc).
             Ok(Err(_)) | Err(PairUnread::Extent(_)) => {}
@@ -242,19 +241,25 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **What the witness lane certifies of `fa` and `fb` tangent** along a
-/// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
-/// a plane and a cylinder, two cylinders, or two faces ending on one
-/// circle. Along a rim the routing must also read the junction the two
-/// faces make as one the zip builds, the smooth seam.
+/// **What the glue door glues of `fa` and `fb` on distinct carriers**
+/// ([`verify_distinct`]), asked only of a pair it has a locus for: a
+/// plane and a cylinder or two cylinders, tangent along a line the
+/// witness lane certifies through both faces' interiors (`Tangent`), or
+/// two faces that both end on one circle. The second is a `Junction`
+/// where the routing reads the π seam with the faces leaving on opposite
+/// sides and each operand's own rim edge is convex: the rim's identity
+/// and its wedge, the smooth seam the zip builds, with no touch claimed
+/// along it. A rim that is not one is read as before: the table along
+/// its turn, and the routing after a touch, a π seam whose operands'
+/// edges are not both convex gluing as `Tangent`.
 ///
 /// A verdict that the pair is not tangent, a pair outside the lane and a
-/// junction the routing places outside what the zip builds are no
-/// tangency (`None`). A refusal no
-/// reading of the pair settles (an in-band margin, an undecidable rim
-/// identity, an unreadable face) is the operation's: a pair the lane has
-/// a locus for never reaches a later stage unglued on a reading the
-/// door could not take (C8).
+/// junction the routing places outside what the zip builds are no glue
+/// (`None`). A refusal no reading of the pair settles (an in-band
+/// margin, an undecidable rim identity, a rim that is not one wedge, an
+/// unreadable face) is the operation's: a pair the lane has a locus for
+/// never reaches a later stage unglued on a reading the door could not
+/// take (C8).
 ///
 /// # Errors
 ///
@@ -263,14 +268,14 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
 /// # Panics
 ///
 /// Where `fa` or `fb`, faces the glue door enumerated, does not resolve.
-fn tangency<T: Decide>(
+fn distinct<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<super::Tangency<T>>, BooleanError> {
-    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+) -> Result<Option<super::DistinctGlue<T>>, BooleanError> {
+    let kind = |body: &Body<T>, f| body.proven_face(f).expect_described().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
         && !crate::rim_wedge::rim_exists(a, fa, b, fb, band)
@@ -278,8 +283,8 @@ fn tangency<T: Decide>(
     {
         return Ok(None);
     }
-    match glued_tangency(a, fa, b, fb, read, band) {
-        Ok(tangency) => Ok(Some(tangency)),
+    match verify_distinct(a, fa, b, fb, read, band) {
+        Ok(glue) => Ok(Some(glue)),
         Err(TangencyFailure::Refused(e)) => Err(e),
         Err(
             TangencyFailure::NotTangent | TangencyFailure::Unsupported | TangencyFailure::Unrouted,
@@ -316,7 +321,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.face_views()
-            .filter(|face| keep(face.surface()))
+            .filter(|face| face.surface().is_ok_and(&keep))
             .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };
@@ -402,7 +407,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
         let face = body.proven_face(f);
-        (face.record().surface, face.surface().clone())
+        (face.record().surface, face.expect_described().clone())
     };
     // A face that is a side of a pair read here: one whose kind pairs
     // with some kind on the other operand in a section the value builds
@@ -410,7 +415,7 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
     let kinds = |body: &Body<T>| {
         let mut kinds: Vec<geom::SurfaceKind> = Vec::new();
         for f in body.face_views() {
-            let kind = f.surface().kind();
+            let kind = f.expect_described().kind();
             if !kinds.contains(&kind) {
                 kinds.push(kind);
             }
@@ -496,8 +501,9 @@ pub(crate) fn section_door<T: crate::props::AtRestPolicy + Bounds>(
         };
         if recorded {
             for (decided, margin) in section.coincidences() {
-                let (relation, site) = coincidence_site(decided);
-                rows.push(row((fa, fb), relation, site, margin));
+                if let Some((relation, site)) = coincidence_site(decided) {
+                    rows.push(row((fa, fb), relation, site, margin));
+                }
             }
         }
     }
@@ -561,22 +567,25 @@ fn face_read(kind: geom::SurfaceKind, partner: &[geom::SurfaceKind]) -> bool {
 }
 
 /// **The record a coincidence the section value decided is kept as**:
-/// the relation it decides and its own site.
-fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::DecisionSite) {
+/// the relation it decides and its own site. A cone's apex on its
+/// partner keeps none: it is a point of the section, a node or a touch,
+/// not a relation of the two carriers, and no carried component ends
+/// there (`NoCarrier::ConeNode`, `NoCarrier::ApexTouch`), so the join
+/// refuses the pair where the faces meet.
+fn coincidence_site(
+    decided: geom_brep::Coincident,
+) -> Option<(crate::Relation, crate::DecisionSite)> {
     use crate::{DecisionSite as Site, Relation};
     use geom_brep::Coincident as C;
-    match decided {
+    Some(match decided {
         C::CylinderSphere => (Relation::OnCarrier, Site::CoaxialSphere),
         C::SphereTorus => (Relation::OnCarrier, Site::SphereOnTorusAxis),
         C::CylinderTorus => (Relation::Coaxial, Site::CoaxialCylinderTorus),
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
-        C::ConeApex => unreachable!(
-            "a cone's apex on its partner is decided on a cone pair's section, which the \
-             glue door never reads: `pair_section::serves` admits no cone"
-        ),
-    }
+        C::ConeApex => return None,
+    })
 }
 
 /// **The face-pair rows whose faces meet**: each row deciding faces
@@ -635,7 +644,8 @@ fn face_closures<T: geom_core::Real>(
         .map(|view| {
             let mut cells = vec![Cell::Face(view.key())];
             for member in view.boundary() {
-                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+                    let ek = edge.key();
                     cells.push(Cell::Edge(ek));
                 }
                 cells.push(Cell::Vertex(member.vertex()));
@@ -652,9 +662,10 @@ mod face_read_rows {
     /// **A face is read wherever a pair it forms is built**: a torus, a
     /// cylinder or a sphere against a body of spline walls (with planar
     /// caps or with cone faces) is read through the march door, as a
-    /// plane is; against cones and planes alone a torus forms no pair the
-    /// value builds. Red where the filter reads only classified pairs and
-    /// excepts planes alone.
+    /// plane is; against planes alone a torus forms the plane × torus
+    /// pair, and against a cone the cone × torus pair; a cone against
+    /// planes forms none. Red where the filter reads only classified
+    /// pairs and excepts planes alone.
     #[test]
     fn a_face_is_read_wherever_a_pair_it_forms_is_built() {
         for kind in [Torus, Cylinder, Sphere, Plane] {
@@ -665,7 +676,10 @@ mod face_read_rows {
                 );
             }
         }
-        assert!(!super::face_read(Torus, &[Cone, Plane]));
+        assert!(super::face_read(Torus, &[Plane]));
+        assert!(!super::face_read(Cone, &[Plane]));
+        assert!(super::face_read(Torus, &[Cone, Plane]));
+        assert!(super::face_read(Cone, &[Torus]));
         assert!(!super::face_read(Nurbs, &[Nurbs, Cone]));
     }
 }

@@ -630,7 +630,7 @@ fn profile_cap(body: &Body<f64>) -> geom_brep::SurfaceKey {
     body.faces()
         .map(|(_, f)| f.surface)
         .find(|&k| {
-            matches!(body.get_surface(k), Some(Surface::Plane { frame, .. })
+            matches!(body.get_surface(k), Ok(Surface::Plane { frame, .. })
                 if frame.axis().z.abs() > 0.5)
         })
         .expect("the quarter revolve has a cap in the profile plane")
@@ -659,7 +659,7 @@ fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
         let len = p.distance(end);
         EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(profile_cap(&body)),
-            carrier: Curve3::line(p, (end - p) * (1.0 / len)),
+            carrier: Curve3::line(p, geom::stated_direction((end - p) * (1.0 / len))),
             param_start: 0.0,
             param_end: len,
         }
@@ -674,10 +674,7 @@ fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
 /// torus wall, declared (a scaffold) and derived (a chart image of the
 /// profile cap it lies on), definitely off the wall:
 ///
-/// - at the build door (`topo::mint_pcurves_of`), the kernel's defect, as
-///   in the mint's refusal wrapped by hand in `sweep::ExtrudeError::Pcurve`,
-///   the variant a sweep builder returns it in (its Display carries the
-///   mint's text; this is not a refusal of an extrude);
+/// - at the build door (`topo::mint_pcurves_of`), the kernel's defect;
 /// - at rest (tier 3's finding), the stored culprit's;
 /// - declared and derived alike, word for word.
 ///
@@ -695,17 +692,10 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
         let built = minted.render(geom_brep::recourse::Reading::Build);
-        let wrapped =
-            sweep::ExtrudeError::Pcurve(minted.clone()).render(geom_brep::recourse::Reading::Build);
         let at_rest = topo::ValidationError::Pcurve { finding: minted }
             .render(geom_brep::recourse::Reading::AtRest);
         for (door, text, culprit) in [
             ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
-            (
-                "ExtrudeError::Pcurve wrapping",
-                &wrapped,
-                geom_core::KERNEL_DEFECT_ENDING,
-            ),
             ("rest", &at_rest, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         ] {
             assert!(
@@ -717,7 +707,7 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
                 "declared {declared} at {door}: {text}"
             );
         }
-        texts.push([built, wrapped, at_rest].map(|t| unquoted(&t)));
+        texts.push([built, at_rest].map(|t| unquoted(&t)));
     }
     assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
 }

@@ -125,8 +125,9 @@ mod tests {
                 at_rest: 18,
                 product: None,
                 why: concat!(
-                    "FOUR placements, because the teapot is four solids and the operand ",
-                    "gate has no arm for either join. EIGHTEEN at-rest findings, all ",
+                    "FOUR placements, because the teapot is four solids: the handle's ",
+                    "join builds and does not mesh, and the spout's refuses. EIGHTEEN ",
+                    "at-rest findings, all ",
                     "loud and none refusing: ONE interference, the handle's torus ",
                     "standing in the vessel's sphere, unlocalised because the shell ",
                     "classifier cannot read the cut sphere face's outline; SEVENTEEN ",

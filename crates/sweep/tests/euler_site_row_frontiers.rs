@@ -108,9 +108,9 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
 /// cone's axis is outside the cone chart's closed-form classes (rims
 /// and rulings): the op, mid-surgery, returns `Ok` with no row on the
 /// wall. A circle whose plane is not ⊥ the axis is no plane section of
-/// a right circular cone, so the strut does not lie on its face; left
-/// at rest without a closing mint, the wall reads loud at tier 3, which
-/// re-derives a rowless face and reports why it stores nothing, and the
+/// a right circular cone, so the strut does not lie on its face; read
+/// at rest before the finish completes it, the wall reads loud at tier
+/// 3, which re-derives a rowless face and reports why it stores nothing, and the
 /// minting pass, re-run, refuses it the same way. The strut and the
 /// wall are both the kernel's, so the build door ends the miss as the
 /// kernel's defect and tier 3 as the stored culprit's, though the strut
@@ -485,11 +485,11 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
             let mut fresh = body.clone();
             fresh.detach_pcurve(h);
             let derived = topo::pcurve_of(&fresh, h, band());
-            let Ok(Pcurve::IsoLine { pl, .. }) = derived else {
+            let Ok(Pcurve::IsoLine { line, rate, .. }) = derived else {
                 panic!("{edge:?}: the member's wall image is an iso line: {derived:?}")
             };
-            let column = pl.x == 0.0 && pl.y != 0.0;
-            let row = pl.y == 0.0 && pl.x != 0.0;
+            let column = line.axis == geom_brep::ChartAxis::U && rate != 0.0;
+            let row = line.axis == geom_brep::ChartAxis::V && rate != 0.0;
             assert!(
                 if seam { column } else { row },
                 "{edge:?}: a {} takes its {}: {derived:?}",
@@ -555,7 +555,7 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
         let Curve3::Line(geom::Line { origin, dir }) = spec.carrier else {
             unreachable!("line_between builds a line")
         };
-        spec.carrier = Curve3::line(origin - dir, dir);
+        spec.carrier = Curve3::line(origin - dir.get(), dir);
         spec.param_start += 1.0;
         spec.param_end += 1.0;
         let before = wall_images(&body);

@@ -15,6 +15,7 @@
 //! ([`line_cone_roots`]).
 
 use super::circle_roots::{CircleRoots, DoorRefusal};
+use crate::curve_pair::MeetFault;
 use crate::quartic::{QuarticRoots, depressed_quartic_roots, quadratic_roots};
 use crate::roots::{RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
@@ -97,7 +98,7 @@ pub fn line_quadric_roots<T: Decide>(
     }
     let carrier = geom::Curve3::Line(line);
     let span = crate::curve_pair::Span::new(&carrier, (t0, t1));
-    let pose = match super::pose::pose(&span, surface, band) {
+    let pose = match super::pose::pose(&span, surface, band).map_err(|u| u.why) {
         Ok(pose) => pose,
         Err(refusal) if let Some(why) = refusal.unsettled() => return Ok(Some(Err(why))),
         // An apex spread the band cannot call is the apex's, refused
@@ -127,62 +128,52 @@ pub fn line_quadric_roots<T: Decide>(
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
         Pose::Through(apex) => Ok(Roots::<T, 2>::all([apex.at, apex.at]).widen()),
-        Pose::Isolated(form) => match line_method(line, (t0, t1), surface, form.0, band) {
-            Ok(roots) => Ok(roots),
-            Err(LineMethodRefusal::Unsettled(why)) => Err(why),
-            Err(LineMethodRefusal::Escalated(diag)) => {
-                return Err(arm(diag, PoseRung::Discriminant));
+        Pose::Isolated(form) => {
+            let read = line_method(line, (t0, t1), surface, form.0, band)
+                .and_then(|walked| {
+                    match super::circle_roots::door_shape::<_, core::convert::Infallible>(
+                        &span, &walked, band,
+                    ) {
+                        Ok(found) => Ok(Ok(found)),
+                        Err(DoorRefusal::Escalated(diag)) => Ok(Err(diag)),
+                        Err(DoorRefusal::Invariant(what)) => Err(what),
+                        Err(DoorRefusal::Torus(never)) => match never {},
+                    }
+                })
+                .map_err(|what| LineQuadricRefusal::Torus(DoorRefusal::Invariant(what)))?;
+            match read {
+                Ok(found) => found,
+                Err(diag) => return Err(arm(diag, PoseRung::Discriminant)),
             }
-            Err(LineMethodRefusal::Invariant(what)) => {
-                return Err(LineQuadricRefusal::Torus(DoorRefusal::Invariant(what)));
-            }
-        },
-    }))
-}
-
-/// Why a line arm's method refused ([`line_method`]).
-#[derive(Clone, Copy, Debug)]
-pub(super) enum LineMethodRefusal {
-    /// A classifying sign of the method in the band's gap.
-    Escalated(Indeterminate),
-    /// A count the method cannot certify.
-    Unsettled(Unsettled),
-    /// A kernel fault.
-    Invariant(&'static str),
-}
-
-impl From<LineMethodRefusal> for crate::curve_pair::MeetFault {
-    fn from(refusal: LineMethodRefusal) -> Self {
-        match refusal {
-            LineMethodRefusal::Escalated(diag) => Self::Escalated(diag),
-            LineMethodRefusal::Unsettled(why) => Self::Unsettled(why),
-            LineMethodRefusal::Invariant(readings) => Self::Contradiction { readings },
         }
-    }
+    }))
 }
 
 /// **The line arm's method**: the roots of an [`super::pose::Pose::Isolated`]
 /// line, from what its pose computed. A wall's or a sphere's two roots
-/// are the pose's own; a cone's are its quadratic's, each metered
-/// ([`line_cone_roots`]); a torus's are its quartic ladder's
-/// ([`line_torus_roots`]).
+/// are the pose's own; a cone's are its quadratic's, each metered, a root
+/// whose slack the meter refuses a window over the root ± its slack
+/// widened by `Kε` ([`cone_roots_read`]); a torus's are its quartic
+/// ladder's ([`line_torus_roots`]), whose refusals are the whole span's.
 ///
 /// # Errors
 ///
-/// [`LineMethodRefusal`].
+/// A kernel fault's readings.
 pub(super) fn line_method<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     form: super::pose::Formed<T>,
     band: Band,
-) -> Result<CircleRoots<T>, LineMethodRefusal> {
+) -> Result<super::cross::Walked<T>, &'static str> {
+    use super::cross::Walked;
     use super::pose::Formed;
     match (form, surface.clone()) {
-        (Formed::LineQuadratic { roots }, _) => Ok(Roots::<T, 2>::all(roots).widen()),
-        (Formed::LineCone { parallel: true }, _) => {
-            Err(LineMethodRefusal::Unsettled(Unsettled::Degenerate))
-        }
+        (Formed::LineQuadratic { roots }, _) => Ok(Walked::found(roots.to_vec())),
+        (Formed::LineCone { parallel: true }, _) => Ok(Walked::whole(
+            (t0, t1),
+            MeetFault::Unsettled(Unsettled::Degenerate),
+        )),
         (
             Formed::LineCone { parallel: false },
             geom::Surface::Cone {
@@ -191,21 +182,25 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
-            cone_roots(
-                line,
-                (
-                    geom::Line {
-                        origin: apex,
-                        dir: axis,
-                    },
-                    half_angle,
-                ),
-                (t0, t1),
-                band,
-            )
-            .map(|placed| Roots::<T, 2>::all(placed.map(|(t, _)| t)).widen())
-            .map_err(LineMethodRefusal::Unsettled)
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis_unit());
+            let cone = geom::Line {
+                origin: apex,
+                dir: axis,
+            };
+            let mut walked = Walked::found(Vec::new());
+            for (t, slack, held) in cone_roots_read(line, (cone, half_angle), (t0, t1), band) {
+                if held {
+                    walked.roots.push(t);
+                } else {
+                    walked.windows.push((
+                        (t - slack, t + slack),
+                        MeetFault::Unsettled(Unsettled::Meter {
+                            row: "line_quadric_cone_root_slack",
+                        }),
+                    ));
+                }
+            }
+            Ok(walked)
         }
         (
             Formed::LineTorus,
@@ -216,8 +211,8 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
-            match line_torus_roots(
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis_unit());
+            let found = line_torus_roots(
                 line,
                 geom::Line {
                     origin: center,
@@ -226,20 +221,10 @@ pub(super) fn line_method<T: Decide>(
                 major_radius,
                 minor_radius,
                 band,
-            ) {
-                Ok(found) => Ok(found.widen()),
-                Err(RootRefusal::Unsettled(why)) => Err(LineMethodRefusal::Unsettled(why)),
-                Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
-                    Err(LineMethodRefusal::Escalated(diag))
-                }
-                Err(RootRefusal::Fault(fault)) => {
-                    Err(LineMethodRefusal::Invariant(fault.readings()))
-                }
-            }
+            );
+            Walked::of_core((t0, t1), found.map(|f| -> CircleRoots<T> { f.widen() }))
         }
-        _ => Err(LineMethodRefusal::Invariant(
-            "the line arm's method was handed a form of another arm",
-        )),
+        _ => Err("the line arm's method was handed a form of another arm"),
     }
 }
 
@@ -326,21 +311,20 @@ pub fn line_wall_roots<T: Decide>(
     band: Band,
     about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
-    use super::pose::{LineQuadric, PoseRefusal, PoseRung};
+    use super::pose::LineQuadric;
     match super::pose::line_wall_read(line, (wall, radius), (T::zero(), span), about, band) {
         Ok(LineQuadric::Parallel { .. }) => Ok(WallRoots::AxisParallel),
         Ok(LineQuadric::Apart) => Ok(WallRoots::Miss),
         Ok(LineQuadric::Graze { .. }) => Ok(WallRoots::Tangent),
         Ok(LineQuadric::Two(roots, slack)) => Ok(WallRoots::Two(roots, slack)),
-        Err(PoseRefusal::InBand { rung, diag }) => Err(WallRootFault {
-            rung: if rung == PoseRung::AxisParallel {
-                WallRung::AxisParallel
-            } else {
-                WallRung::Discriminant
-            },
+        Ok(LineQuadric::Undecided { diag, .. }) => Err(WallRootFault {
+            rung: WallRung::Discriminant,
             diag,
         }),
-        Err(other) => unreachable!("the wall's rungs refuse only in band: {other:?}"),
+        Err(diag) => Err(WallRootFault {
+            rung: WallRung::AxisParallel,
+            diag,
+        }),
     }
 }
 
@@ -357,7 +341,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     let geom::Line { origin, dir: axis } = wall;
     let w0 = q - origin;
     let w0p = wall.offset(q);
-    let dp = d - axis * d.dot(axis);
+    let dp = d.get() - axis.get() * d.get().dot(axis.get());
     let a2 = dp.norm_squared();
     let shift = match about {
         About::Start => T::zero(),
@@ -367,7 +351,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     };
     let w = w0p + dp * shift;
     Centred::new(
-        (w0, d, shift, w),
+        (w0, d.get(), shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
     )
@@ -383,15 +367,15 @@ pub(super) fn sphere_quadratic<T: Decide>(
 ) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let w0 = q - center;
-    let a2 = d.norm_squared();
+    let a2 = d.get().norm_squared();
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / a2,
+        About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
     };
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        (w0, d.get(), shift, w),
+        [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)],
         radius,
     )
 }
@@ -558,15 +542,15 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     } = cone;
     let w0 = q - apex;
     let shift = line.param_within(apex, run);
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     let cos2 = half_angle.cos().powi(2);
-    let (da, wa) = (d.dot(axis), w.dot(axis));
+    let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
     let coeffs = [
-        da.powi(2) - d.norm_squared() * cos2,
-        da * wa - w.dot(d) * cos2,
+        da.powi(2) - d.get().norm_squared() * cos2,
+        da * wa - w.dot(d.get()) * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero())
+    Centred::new((w0, d.get(), shift, w), coeffs, T::zero())
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -594,13 +578,12 @@ pub fn line_sphere_roots<T: Decide>(
     band: Band,
     about: About,
 ) -> Result<WallRoots<T>, geom_core::Indeterminate> {
-    use super::pose::{LineQuadric, PoseRefusal};
+    use super::pose::LineQuadric;
     match super::pose::line_sphere_read(line, (center, radius), about, band) {
-        Ok(LineQuadric::Apart | LineQuadric::Parallel { .. }) => Ok(WallRoots::Miss),
-        Ok(LineQuadric::Graze { .. }) => Ok(WallRoots::Tangent),
-        Ok(LineQuadric::Two(roots, slack)) => Ok(WallRoots::Two(roots, slack)),
-        Err(PoseRefusal::InBand { diag, .. }) => Err(diag),
-        Err(other) => unreachable!("the sphere's rung refuses only in band: {other:?}"),
+        LineQuadric::Apart | LineQuadric::Parallel { .. } => Ok(WallRoots::Miss),
+        LineQuadric::Graze { .. } => Ok(WallRoots::Tangent),
+        LineQuadric::Two(roots, slack) => Ok(WallRoots::Two(roots, slack)),
+        LineQuadric::Undecided { diag, .. } => Err(diag),
     }
 }
 
@@ -670,33 +653,78 @@ pub fn line_torus_roots<T: Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<QuarticRoots<T>, RootRefusal> {
-    let geom::Line { origin: q, dir: d } = line;
-    let geom::Line {
-        origin: center,
-        dir: axis,
-    } = torus;
-    let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
-    let w0 = q - center;
-    let e = d.dot(axis);
-    let b = w0.dot(d);
-    // The component of `q − c` perpendicular to the ray: its norm is the
-    // line's distance from the centre and its axial part is the height
-    // at the line's closest approach.
-    let perp = w0 - d * b;
-    let m = perp.norm_squared();
-    let n = perp.dot(axis);
-    let rr = major_radius.powi(2);
-    let big_m = m + rr - minor_radius.powi(2);
-    let p = two * big_m - four * rr * (T::one() - e.powi(2));
-    let q_hat = T::from_f64(8.0) * rr * e * n;
-    let s = big_m.powi(2) - four * rr * (m - n.powi(2));
+    let LineTorusQuartic { p, q_hat, s, shift } =
+        LineTorusQuartic::of(line, torus, major_radius, minor_radius);
     match depressed_quartic_roots(p, q_hat, s, ext, &crate::rows::LINE_TORUS, band)? {
         // Undo the depression: `t = y − b`.
-        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - shift))),
         Roots::Miss => Ok(Roots::Miss),
     }
+}
+
+/// **The depressed quartic [`line_torus_roots`] solves**: its
+/// coefficients `p`, `q̂`, `s` (that function's docs) and the shift
+/// `b = (q − c)·d` it was depressed by (`t = y − b`).
+#[derive(Clone, Copy, Debug)]
+pub struct LineTorusQuartic<T> {
+    /// The `y²` coefficient.
+    pub p: T,
+    /// The `y` coefficient.
+    pub q_hat: T,
+    /// The constant term.
+    pub s: T,
+    /// The depression's shift.
+    pub shift: T,
+}
+
+impl<T: Decide> LineTorusQuartic<T> {
+    /// The line's quartic against the torus `(center, axis, R, r)`: the
+    /// one formation, which [`line_torus_roots`] solves and
+    /// [`line_torus_quartic`] hands a pin.
+    pub(crate) fn of(
+        line: geom::Line<T>,
+        torus: geom::Line<T>,
+        major_radius: T,
+        minor_radius: T,
+    ) -> Self {
+        let geom::Line { origin: q, dir: d } = line;
+        let geom::Line {
+            origin: center,
+            dir: axis,
+        } = torus;
+        let two = T::from_f64(2.0);
+        let four = T::from_f64(4.0);
+        let w0 = q - center;
+        let e = d.get().dot(axis.get());
+        let shift = w0.dot(d.get());
+        // The component of `q − c` perpendicular to the ray: its norm is
+        // the line's distance from the centre and its axial part is the
+        // height at the line's closest approach.
+        let perp = w0 - d.get() * shift;
+        let m = perp.norm_squared();
+        let n = perp.dot(axis.get());
+        let rr = major_radius.powi(2);
+        let big_m = m + rr - minor_radius.powi(2);
+        Self {
+            p: two * big_m - four * rr * (T::one() - e.powi(2)),
+            q_hat: T::from_f64(8.0) * rr * e * n,
+            s: big_m.powi(2) - four * rr * (m - n.powi(2)),
+            shift,
+        }
+    }
+}
+
+/// [`LineTorusQuartic::of`], for a pin outside this crate.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn line_torus_quartic<T: Decide>(
+    line: geom::Line<T>,
+    torus: geom::Line<T>,
+    major_radius: T,
+    minor_radius: T,
+) -> LineTorusQuartic<T> {
+    LineTorusQuartic::of(line, torus, major_radius, minor_radius)
 }
 
 /// **How far along a line its roots against a cone lie from its point
@@ -818,6 +846,20 @@ pub fn line_cone_roots<T: Decide>(
         // A ruling, or a line parallel to one: the quadratic degenerates.
         Ok(ConeRead::Lies | ConeRead::Parallel) => Ok(Err(Unsettled::Degenerate)),
         Ok(ConeRead::Through { at, .. }) => Ok(Ok(ConeRoots::Apex(at))),
+        // The apex or its spread in band: refused as the rung refused it.
+        Ok(ConeRead::ApexUndecided {
+            why:
+                PoseRefusal::InBand {
+                    rung: PoseRung::ApexSpread,
+                    ..
+                },
+            ..
+        }) => Ok(Err(Unsettled::AtApex)),
+        Ok(ConeRead::ApexUndecided {
+            why: PoseRefusal::InBand { diag, .. },
+            ..
+        }) => Err(diag),
+        Ok(ConeRead::ApexUndecided { .. }) => Ok(Err(Unsettled::AtApex)),
         Ok(ConeRead::Apart) => Ok(Ok(ConeRoots::Miss)),
         Ok(ConeRead::Graze { .. }) => Ok(Err(Unsettled::Tangency)),
         Ok(ConeRead::Two) => Ok(match cone_roots(line, (cone, half_angle), (t0, t1), band) {
@@ -845,8 +887,9 @@ pub fn line_cone_roots<T: Decide>(
 /// **The line × cone method**: a crossing line's two roots, from the
 /// quadratic about its closest approach to the apex held to the run,
 /// each metered (`line_quadric_cone_root_slack`): its slack along the
-/// line ([`Centred::roots`]' bound read at that root, at the line's
-/// speed), less the root's distance outside the run, must be definitely
+/// line ([`Centred::roots`]' bound read at that root, in metres, the
+/// line's parameter being arc length), less the root's distance outside
+/// the run, must be definitely
 /// inside the band. A root inside the run is placed within the band; one
 /// outside it is placed no nearer the run than the band, which is all a
 /// reader of the run reads of it.
@@ -856,33 +899,46 @@ pub fn line_cone_roots<T: Decide>(
 /// [`Unsettled::Meter`] for a slack not definitely inside the band.
 fn cone_roots<T: Decide>(
     line: geom::Line<T>,
+    cone: (geom::Line<T>, T),
+    run: (T, T),
+    band: Band,
+) -> Result<[(T, T); 2], Unsettled> {
+    let read = cone_roots_read(line, cone, run, band);
+    if read.iter().all(|&(_, _, held)| held) {
+        Ok(read.map(|(t, slack, _)| (t, slack)))
+    } else {
+        Err(Unsettled::Meter {
+            row: "line_quadric_cone_root_slack",
+        })
+    }
+}
+
+/// [`cone_roots`]' reading: each root, its slack in the line's
+/// parameter, and whether that slack, less the root's distance outside
+/// the run, reads definitely inside the band.
+fn cone_roots_read<T: Decide>(
+    line: geom::Line<T>,
     (cone, half_angle): (geom::Line<T>, T),
     (t0, t1): (T, T),
     band: Band,
-) -> Result<[(T, T); 2], Unsettled> {
-    let (lo, hi) = (t0.min(t1), t0.max(t1));
+) -> [(T, T, bool); 2] {
+    let (lo, hi) = super::ascending((t0, t1));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let disc = centred.disc();
     let (roots, _) = centred.roots(disc);
-    let speed = line.dir.norm();
-    let mut placed = [(T::zero(), T::zero()); 2];
-    for (t, at) in roots.into_iter().zip(&mut placed) {
+    roots.map(|t| {
         let slack = centred.slack_at(t - centred.shift, disc);
-        let outside = speed * (lo - t).max(t - hi).max(T::zero());
-        match decide(
-            "line_quadric_cone_root_slack",
-            Margin::of(speed * slack - outside),
-            band,
-        ) {
-            Ok(Sign::Zero | Sign::Negative) => *at = (t, slack),
-            Ok(Sign::Positive) | Err(_) => {
-                return Err(Unsettled::Meter {
-                    row: "line_quadric_cone_root_slack",
-                });
-            }
-        }
-    }
-    Ok(placed)
+        let outside = (lo - t).max(t - hi).max(T::zero());
+        let held = matches!(
+            decide(
+                "line_quadric_cone_root_slack",
+                Margin::of(slack - outside),
+                band
+            ),
+            Ok(Sign::Zero | Sign::Negative)
+        );
+        (t, slack, held)
+    })
 }
 
 #[cfg(test)]
@@ -904,10 +960,13 @@ mod wall_root_rows {
     fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         line_wall_roots(
-            geom::Line { origin: q, dir: d },
+            geom::Line {
+                origin: q,
+                dir: geom::stated_direction(d),
+            },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: z,
+                dir: geom::stated_direction(z),
             },
             r,
             span,
@@ -973,11 +1032,11 @@ mod wall_root_rows {
                 let got = line_wall_roots(
                     geom::Line {
                         origin: Point3::new(qx, qy, 0.0),
-                        dir: d,
+                        dir: geom::stated_direction(d),
                     },
                     geom::Line {
                         origin: Point3::new(0.0, 0.0, 0.0),
-                        dir: z,
+                        dir: geom::stated_direction(z),
                     },
                     r,
                     span,
@@ -1016,8 +1075,14 @@ mod wall_root_rows {
             let o = Point3::new(0.0, 0.0, 0.0);
             let read = |about| {
                 line_wall_roots(
-                    geom::Line { origin: q, dir: d },
-                    geom::Line { origin: o, dir: z },
+                    geom::Line {
+                        origin: q,
+                        dir: geom::stated_direction(d),
+                    },
+                    geom::Line {
+                        origin: o,
+                        dir: geom::stated_direction(z),
+                    },
                     r,
                     4.0 * big,
                     band(),
@@ -1056,7 +1121,7 @@ mod wall_root_rows {
         let got = line_sphere_roots(
             geom::Line {
                 origin: Point3::new(x0, -big, 0.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             Point3::new(0.0, 0.0, 0.0),
             r,
@@ -1077,11 +1142,11 @@ mod wall_root_rows {
         let cone = line_cone_quadratic(
             geom::Line {
                 origin: Point3::new(0.6, -big, 1.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
             (0.0, 2.0 * big),
@@ -1146,12 +1211,12 @@ mod line_cone_rows {
         let found = line_cone_roots(
             geom::Line {
                 origin: Point3::from_array(origin),
-                dir: Vec3::from_array(dir),
+                dir: geom::stated_direction(Vec3::from_array(dir)),
             },
             (
                 geom::Line {
                     origin: tip,
-                    dir: Vec3::new(0.0, 0.0, 1.0),
+                    dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                 },
                 core::f64::consts::FRAC_PI_4,
             ),
@@ -1167,6 +1232,14 @@ mod line_cone_rows {
         span: (f64, f64),
     ) -> Result<CircleRoots<f64>, Unsettled> {
         door(origin, dir, span).unwrap()
+    }
+
+    /// **A stated segment `origin + dir·t` over `span`, on its unit
+    /// direction**: the same points, its span in metres, and the
+    /// direction's length, the factor a root's metres are read back by.
+    fn unit_segment(dir: [f64; 3], span: (f64, f64)) -> ([f64; 3], (f64, f64), f64) {
+        let len = Vec3::from_array(dir).norm();
+        (dir.map(|x| x / len), (span.0 * len, span.1 * len), len)
     }
 
     /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
@@ -1268,14 +1341,14 @@ mod line_cone_rows {
         let cone = (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
         );
         for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
             let line = geom::Line {
                 origin: Point3::new(1.0, 0.0, 1.0) + n * off,
-                dir,
+                dir: geom::stated_direction(dir),
             };
             let near = line.param(cone.0.origin);
             let got = line_cone_roots(line, cone, (near - 1.0, near + 1.0), band);
@@ -1295,7 +1368,7 @@ mod line_cone_rows {
     fn bits_line(q: [u64; 3], d: [u64; 3]) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::from_array(q.map(f64::from_bits)),
-            dir: Vec3::from_array(d.map(f64::from_bits)),
+            dir: geom::stated_direction(Vec3::from_array(d.map(f64::from_bits))),
         }
     }
 
@@ -1304,7 +1377,7 @@ mod line_cone_rows {
         (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             alpha,
         )
@@ -1438,16 +1511,18 @@ mod line_cone_rows {
             // is a small multiple of `δ`: in the band.
             ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], (0.0, 2.0));
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|t| (t - 1.0).abs() < 1e-6),
+                found.roots().len() == 2 && found.roots().iter().all(|t| (t - len).abs() < 1e-6),
                 "{label}: a double root at the apex, got {found:?}"
             );
         }
-        let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
+        let (dir, span, _) = unit_segment([1.0, 0.0, -0.3], (0.0, 0.5));
+        let short = roots([-1.0, 0.0, 0.3], dir, span);
         assert!(
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
@@ -1470,7 +1545,8 @@ mod line_cone_rows {
                 [1.0, 0.0, 1.05],
             ),
         ] {
-            let got = roots(origin, dir, (0.0, 2.0));
+            let (dir, span, _) = unit_segment(dir, (0.0, 2.0));
+            let got = roots(origin, dir, span);
             assert!(
                 matches!(got, Err(Unsettled::AtApex)),
                 "through the apex, {label}: got {got:?}"
@@ -1497,32 +1573,32 @@ mod line_cone_rows {
                 1.0,
             ),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], span);
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], span);
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end),
+                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end * len),
                 "{label}: a double root at the end, got {found:?}"
             );
         }
-        let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.0], (0.0, 1.0));
+        let ruling = roots([-1.0, 0.0, -1.0], dir, span);
         assert!(
             matches!(ruling, Err(Unsettled::Degenerate)),
             "a ruling ending at the apex, got {ruling:?}"
         );
-        let steep = roots(
-            [-1.0, 0.5 * b.zero(), -1.001],
-            [1.0, 0.0, 1.001],
-            (0.0, 1.0),
-        );
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.001], (0.0, 1.0));
+        let steep = roots([-1.0, 0.5 * b.zero(), -1.001], dir, span);
         assert!(
             matches!(steep, Err(Unsettled::AtApex)),
             "a line beside a generator ending in band of the apex, got {steep:?}"
         );
         // Its spread in the band's gap (about `2.3e-9` at the witness
         // band): the apex's, refused typed, never escalated.
-        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], [1.0, 0.0, 1.05], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.05], (0.0, 1.0));
+        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], dir, span);
         assert!(
             matches!(gap, Err(Unsettled::AtApex)),
             "a spread in the escalation band, got {gap:?}"
@@ -1587,11 +1663,14 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(
-                            geom::Line { origin, dir: axis },
+                            geom::Line {
+                                origin,
+                                dir: geom::stated_direction(axis),
+                            },
                             (
                                 geom::Line {
                                     origin: apex,
-                                    dir: axis,
+                                    dir: geom::stated_direction(axis),
                                 },
                                 alpha,
                             ),
@@ -1676,7 +1755,7 @@ pub mod fixtures {
     pub fn oblique_through_the_tube(rr: f64, rm: f64) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm),
-            dir: Vec3::new(-0.8, -0.33, 0.31).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(-0.8, -0.33, 0.31)),
         }
     }
 }

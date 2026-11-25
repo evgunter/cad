@@ -65,8 +65,8 @@ pub enum PairUnread {
     /// there is no description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
-    /// key does not resolve, its box has no claim to make (a NURBS
-    /// placeholder, a boundary edge with no sound box), or the ball
+    /// key does not resolve, its box has no claim to make (a pending
+    /// face, a net that is not finite, a boundary edge with no sound box), or the ball
     /// around it does not read.
     Extent(PairSide),
 }
@@ -835,7 +835,7 @@ mod lever_rows {
         else {
             panic!("two cylinder walls read as cylinders")
         };
-        let levered = a1.cross(a2).norm() * arm;
+        let levered = a1.get().cross(a2.get()).norm() * arm;
         assert!(
             band().zero() < levered && levered < band().escalate(),
             "the tilt at the arm is in band: {levered:e}"
@@ -915,7 +915,7 @@ mod lever_rows {
         };
         assert_eq!(
             data.tilt.value(),
-            a1.cross(a2).norm() * arm,
+            a1.get().cross(a2.get()).norm() * arm,
             "the tilt at the arm"
         );
         assert_eq!(data.radius.value(), r1 - r2, "the radii's difference");
@@ -1118,7 +1118,7 @@ mod lever_rows {
         let (a, fa) = sphere_zone_sheet(u, h, tol);
         let (mut b, fb) = sphere_zone_sheet(u, h, tol);
         let key = b.get_face(fb).unwrap().surface;
-        b.surfaces[key] = geom::Surface::Sphere {
+        *b.surface_mut(key).unwrap() = geom::Surface::Sphere {
             frame: geom::Frame::new(
                 Point3::new(0.9 * e, 0.0, 0.0),
                 Vec3::unit_z(),

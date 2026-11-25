@@ -488,6 +488,12 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// carries no certificate (DL3).
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = crate::real::Uncertified;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
@@ -549,6 +555,38 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// `(τ, 0)`.
     fn tau() -> Self {
         Self::constant(T::tau())
+    }
+
+    /// The value `T`'s ([`Real::difference_dot`]); the derivative the
+    /// plain formula's chain rule.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Self {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            deriv: plain.deriv,
+        }
+    }
+
+    /// The value `T`'s ([`Real::harmonic_belly`]); the derivative the
+    /// plain formula's chain rule.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            deriv: plain.deriv,
+        }
+    }
+
+    /// The value `T`'s ([`Real::quartic_sign_algebra`]); the derivative
+    /// the plain formulas' chain rule.
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        let plain = crate::real::plain_quartic_sign_algebra(p, q_hat, s);
+        let value = T::quartic_sign_algebra(p.value, q_hat.value, s.value);
+        [0, 1].map(|i| Self {
+            value: value[i],
+            deriv: plain[i].deriv,
+        })
     }
 
     /// `(√a, a' / (r + r))` where `r = √a` — the value-channel root is
@@ -899,6 +937,11 @@ where
 {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         self.value.sign_within(band)
+    }
+
+    /// The value channel's: the sign is decided on it.
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        self.value.enclosure_probe()
     }
 }
 

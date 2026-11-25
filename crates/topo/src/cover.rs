@@ -18,17 +18,27 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
-use crate::live::{BoundaryMember, FaceView, linked, proven};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{BoundaryMember, EdgeView, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
 /// refusal (a plane, a cylinder and a cone are unbounded whole; a net
-/// can carry poison), and each boundary entity whose refusal left the
-/// boundary unread where the arm reads it.
+/// can carry poison) or the face's having no surface yet, and each
+/// boundary entity whose refusal left the boundary unread where the arm
+/// reads it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FaceUncovered {
-    carrier: Uncovered,
+    carrier: CarrierUnread,
     boundary: Vec<BoundaryUnknown>,
+}
+
+/// Why a face's carrier read no cover.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CarrierUnread {
+    /// The face's surface slot is pending ([`crate::SurfaceMiss::Pending`]).
+    Pending,
+    /// The carrier's own refusal.
+    Uncovered(Uncovered),
 }
 
 /// **A boundary entity a face reading could not cover**.
@@ -41,10 +51,20 @@ pub enum BoundaryUnknown {
 }
 
 impl FaceUncovered {
-    /// The carrier's own refusal.
+    /// The carrier's own refusal; `None` for a face whose surface is
+    /// still pending ([`Self::is_pending`]), which has no carrier.
     #[must_use]
-    pub fn carrier(&self) -> &Uncovered {
-        &self.carrier
+    pub fn carrier(&self) -> Option<&Uncovered> {
+        match &self.carrier {
+            CarrierUnread::Uncovered(why) => Some(why),
+            CarrierUnread::Pending => None,
+        }
+    }
+
+    /// Whether the face has no surface yet.
+    #[must_use]
+    pub fn is_pending(&self) -> bool {
+        self.carrier == CarrierUnread::Pending
     }
 
     /// Each boundary entity that left the boundary unread, in boundary
@@ -58,7 +78,15 @@ impl FaceUncovered {
     /// boundary.
     pub fn of_carrier(carrier: Uncovered) -> Self {
         Self {
-            carrier,
+            carrier: CarrierUnread::Uncovered(carrier),
+            boundary: Vec::new(),
+        }
+    }
+
+    /// The refusal of a face whose surface is still pending.
+    pub fn pending() -> Self {
+        Self {
+            carrier: CarrierUnread::Pending,
             boundary: Vec::new(),
         }
     }
@@ -66,7 +94,10 @@ impl FaceUncovered {
 
 impl core::fmt::Display for FaceUncovered {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "the face's carrier has {}", self.carrier)?;
+        match &self.carrier {
+            CarrierUnread::Uncovered(why) => write!(f, "the face's carrier has {why}")?,
+            CarrierUnread::Pending => write!(f, "{}", geom_brep::PENDING_SURFACE)?,
+        }
         for unknown in &self.boundary {
             match unknown {
                 BoundaryUnknown::Edge(ek, why) => write!(f, " and its edge {ek:?}: {why}")?,
@@ -159,10 +190,10 @@ pub fn face_nearest<T: Decide>(
 ) -> T {
     let near = cover.distance_range(site).0;
     let f = body.proven_face(face);
-    let Surface::Plane { frame, .. } = *f.surface() else {
+    let Ok(&Surface::Plane { frame, .. }) = f.surface() else {
         return near;
     };
-    let (origin, normal) = (frame.origin(), frame.axis());
+    let (origin, normal) = (frame.origin(), frame.axis_unit());
     let least = match *site {
         geom::cover::Site::Point(q) => geom::Line {
             origin,
@@ -170,7 +201,7 @@ pub fn face_nearest<T: Decide>(
         }
         .square_foot(q),
         geom::cover::Site::Line(geom::Line { origin: o, dir }) => {
-            o + dir * ((origin - o).dot(normal) / dir.dot(normal))
+            o + dir.get() * ((origin - o).dot(normal.get()) / dir.get().dot(normal.get()))
         }
     };
     let finite = [least.x, least.y, least.z]
@@ -312,11 +343,13 @@ fn face_cover_in<T: Decide>(
     aim: Option<UnitVec3<T>>,
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
-    let surface = f.surface();
+    let Ok(surface) = f.surface() else {
+        return Err(FaceUncovered::pending());
+    };
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    // A face with no outline bounds no region: no hull of its boundary
+    // holds it, and its carrier's cover is the one that does.
+    let bounded = f.area_loops().is_ok();
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
             carrier
@@ -368,9 +401,7 @@ fn face_cover_in<T: Decide>(
                     .ok_or(())
             });
             let rect = ring
-                .and_then(|()| {
-                    torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
-                })
+                .and_then(|()| bounded_torus_window(body, face))
                 .and_then(|(u, v)| Cover::patch(frame, (*major_radius, *minor_radius), Some(u), v));
             and_proven(carrier, rect)
         }
@@ -396,6 +427,44 @@ pub(crate) fn face_reach_from<T: Decide>(
 ) -> Result<geom_core::Lever<T>, FaceUncovered> {
     let cover = face_cover(body, face, band)?;
     Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
+}
+
+/// **How far `face`'s boundary reaches from `pivot`, from below**: the
+/// farthest of its edges' reaches ([`edge_reach_bounds`], each read from
+/// below), every one a distance to a point of the face, so the fold is
+/// never past the face's own reach from `pivot`.
+///
+/// # Errors
+///
+/// [`BoundaryReachUnread`]: a face that does not resolve, a lone-vertex
+/// loop, null scaffolding on the boundary, or a boundary with no edge.
+pub(crate) fn boundary_reach_below<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    pivot: Point3<T>,
+) -> Result<geom_core::Lever<T>, BoundaryReachUnread> {
+    let view = body.face(face).ok_or(BoundaryReachUnread::StaleFace)?;
+    let mut reaches = view.boundary().map(|member| match member {
+        BoundaryMember::Isolated { .. } => Err(BoundaryReachUnread::LoneVertex),
+        BoundaryMember::Edge { edge, .. } => edge_reach_bounds(body, edge, pivot)
+            .map(geom_brep::LeverBounds::below)
+            .ok_or(BoundaryReachUnread::Uncertified),
+    });
+    let first = reaches.next().ok_or(BoundaryReachUnread::NoEdge)??;
+    reaches.try_fold(first, |far, reach| Ok(far.max(reach?)))
+}
+
+/// Why [`boundary_reach_below`] read no reach.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BoundaryReachUnread {
+    /// The face does not resolve.
+    StaleFace,
+    /// A loop of the face is a lone vertex.
+    LoneVertex,
+    /// A boundary edge is null scaffolding, with no certified curve.
+    Uncertified,
+    /// The face's boundary holds no edge.
+    NoEdge,
 }
 
 /// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`
@@ -518,6 +587,29 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     })
 }
 
+/// **How far apart two points of `face` stand at least**: the largest
+/// of its boundary edges' own extents from below
+/// ([`geom_brep::edge_extent_inf`], each edge a part of the face), the
+/// lever of a reading consumed over the face that claims a definite
+/// sign. `None` for a face with no certified boundary edge, whose
+/// points this reads none of.
+pub(crate) fn face_extent_below<T: SpanLocate>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<geom_core::Lever<T>> {
+    body.face(face)?
+        .boundary()
+        .filter_map(|member| match member {
+            BoundaryMember::Edge { edge, .. } => edge.certified(),
+            BoundaryMember::Isolated { .. } => None,
+        })
+        .map(|curve| {
+            let (t0, t1) = curve.params();
+            geom_brep::edge_extent_inf(curve.carrier(), t0, t1)
+        })
+        .reduce(geom_core::Lever::max)
+}
+
 /// **The boundary's cover**: each boundary edge's cover
 /// ([`edge_cover_linked`]), hulled with each isolated vertex and each
 /// placeholder's one point (a null edge whose two ends are one point,
@@ -541,12 +633,14 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
             }
             // A placeholder is a zero-length copy of its one point
             // (`crate::null::is_placeholder`), which its neighbours hold.
-            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+            BoundaryMember::Edge { edge, .. } if crate::null::is_placeholder(body, edge.key()) => {
                 Cover::points(vec![body.member_point(&member)])
-                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(edge.key(), EdgeUncovered::Ends)])
             }
-            BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
-                .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
+            BoundaryMember::Edge { edge, .. } => {
+                let ek = edge.key();
+                edge_cover_linked(body, edge).map_err(|why| vec![BoundaryUnknown::Edge(ek, why)])
+            }
         };
         acc = Some(match (acc, one) {
             (None, one) => one,
@@ -623,7 +717,7 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// the side the face's outer loop encodes agrees with its `sense`
 /// (`boundary_material_sign_holding`, the reading tier 3's curved
 /// sense check runs). That side is read with the tips the loop's chart
-/// image drops ([`crate::props::chart_image_with_tips`]), which the face
+/// image drops ([`crate::props::image_with_tips`]), which the face
 /// holds. A one-loop face lies on the side of its loop that holds its
 /// own tips at chart poles and no other pole. A wrap-tip cap's image is
 /// its rim alone, which bounds a cap on either side, and the pole at its
@@ -641,7 +735,7 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// axis, reads its latitude zone.
 ///
 /// `face` resolved to `f` in the caller, so its outer loop and that
-/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// loop's members are links ([`FaceView::area_loops`]), and a
 /// record the flattening of that loop names is one too: a flattening
 /// that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
@@ -658,18 +752,14 @@ fn sphere_window<T: Decide>(
     let Surface::Sphere { frame, radius } = surface else {
         unreachable!("a sphere's window is read of a sphere")
     };
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
     if !radius.structure_positive() {
         return None;
     }
-    let (outer, outer_loop) = f.outer();
-    if matches!(
-        body.loop_members_linked(outer, outer_loop).as_slice(),
-        [BoundaryMember::Isolated { .. }]
-    ) {
+    let Ok(area) = f.area_loops() else {
         return None;
-    }
-    let ((outer, _), held) = match crate::props::chart_image_with_tips(body, outer) {
+    };
+    let ((outer, _), held) = match crate::props::image_with_tips(body, &area.outer().cycle()) {
         Ok(((outer, _), _)) if outer.is_empty() => return None,
         Ok(image) => image,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
@@ -696,7 +786,7 @@ fn sphere_window<T: Decide>(
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),
         };
-        let unit = UnitVec3::new(axis, SPHERE_AXIS, band).map_err(|_| ())?;
+        let unit = UnitVec3::new(axis.get(), SPHERE_AXIS, band).map_err(|_| ())?;
         Ok((trim, unit))
     })?;
     let pole = |sign: T| (sign * *radius, T::zero());
@@ -743,11 +833,11 @@ fn torn_outer_loop<T: Decide>(
     f: FaceView<'_, T>,
     refusal: impl core::fmt::Debug,
 ) -> ! {
-    f.surface();
+    f.slot();
     let (outer, outer_loop) = f.outer();
     for member in body.loop_members_linked(outer, outer_loop) {
-        if let BoundaryMember::Edge { he, half, ek, edge } = member {
-            body.edge_curve_linked(ek, edge);
+        if let BoundaryMember::Edge { he, half, edge, .. } = member {
+            edge.curve();
             body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
             body.proven_half_edge_end(he);
         }
@@ -789,18 +879,27 @@ pub(crate) struct WindowLoop<'a, T: Real> {
 /// pcurves — one fold of its loops' lift, for every lane.**
 ///
 /// The caller hands over its own arena traversal as loops of
-/// [`WindowStep`]s and nothing else: the face cover's torus arm and the
-/// construction rows both enter here.
+/// [`WindowStep`]s and nothing else. The face cover's torus arm and the
+/// embedding walk's torus and sheet windows enter through
+/// [`bounded_torus_window`] and [`bounded_sheet_latitude`]; the
+/// construction rows enter here directly.
 ///
 /// # Why the window is a superset of the face's chart region
 ///
-/// The face's region is the planar region its loops' chart images
-/// bound, in the lift the pcurve mint certified closed, and a region
-/// lies inside the bounding rectangle of its own boundary.
+/// Where the face is the region its loops' chart images bound, in the
+/// lift the pcurve mint certified closed, it lies inside the bounding
+/// rectangle of its own boundary.
 ///
 /// **That argument needs the boundary to SAY which side is material,
-/// and two guards are what make it hold:
+/// and three guards are what make it hold:
 ///
+/// - **The face must be its loop's bounded side.** One loop that closes
+///   in the chart is the boundary of two regions of the tube, the one it
+///   bounds in the chart and its complement, and the hull holds only the
+///   first. The two doors read the loop's signed chart area against the
+///   face's sense ([`bounded_side_loops`]) and give the complement no
+///   window. Folding loops without that reading, as a construction row
+///   does, is sound only on a face known to be the bounded side.
 /// - **A face with a RING gets no window.** Two loops can be pinned on
 ///   different branches, and their hull is then a rectangle neither
 ///   bounds.
@@ -827,21 +926,22 @@ pub(crate) struct WindowLoop<'a, T: Real> {
 ///
 /// A cache certifies `sup |S(P(t)) − C(t)| ≤ envelope` in METRES
 /// ([`geom_brep::PcurveCertificate::envelope`]), so the carrier can
-/// sit up to `envelope` off the chart image's surface points. Pulling
-/// that back through the chart costs the inverse's Lipschitz
-/// constants: one radian of `u` moves a surface point by at least
-/// `R − r` (the tube's nearest approach to the axis) and one radian of
-/// `v` by exactly `r`.
+/// sit up to `envelope` off the chart image's surface points. The
+/// boundary point `C(t)` pulls back through its nearest point `q` of
+/// the surface, no farther from it than `S(P(t))` is, so `q` and
+/// `S(P(t))` are two surface points at most `2·envelope` apart.
 ///
-/// **The factor of two is not "one for each end"**: the slack widens
-/// both ends already. It is the price of the segment between
-/// `S(P(t))` and `C(t)` LEAVING the surface: the chart inverse is
-/// Lipschitz on the surface, and a point `envelope` off it is pulled
-/// back only after being projected there, which can cost as much
-/// again. That argument holds while the displacement stays inside the
-/// tube's own scale — `envelope ≤ (R − r)/2` and `envelope ≤ r/2` —
-/// so [`torus_window_slack`] GUARDS both, and a cache whose envelope
-/// exceeds either gets no window at all.
+/// Two surface points are at least their CHORD apart in each channel:
+/// `2r·sin(δv/2)` on the meridian circle, and `2(R − r)·sin(δu/2)` about
+/// the axis, `R − r` the tube's nearest approach to it (`δ ≤ π`, each
+/// angle taken modulo a turn). A chord is at least `(2/π)` of its arc,
+/// so `δv ≤ π·envelope/r` and `δu ≤ π·envelope/(R − r)` ([`chord_slack`]),
+/// at any envelope. The arc length alone, `r·δ`, would claim `2·envelope/r`,
+/// which is short of the chord's `2·asin(envelope/r)`.
+///
+/// [`torus_window_slack`] still refuses an envelope past `(R − r)/2` or
+/// `r/2`: a window that loose is no narrower than the tube's own scale,
+/// and it keeps the ring guard (`R − r` positive).
 pub(crate) struct TorusChartWindow<T: Real> {
     u: Option<(T, T)>,
     v: Option<(T, T)>,
@@ -872,8 +972,7 @@ pub(crate) fn torus_window_slack<T: Real>(envelope: T, major: T, minor: T) -> Op
     if exceeded(tube) || exceeded(ring) {
         return None;
     }
-    let two = T::from_f64(2.0);
-    Some((two * envelope / ring, two * envelope / tube))
+    Some((chord_slack(envelope, ring), chord_slack(envelope, tube)))
 }
 
 /// A value that is not a bounded number for every value it stands for
@@ -943,6 +1042,21 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         self.ok = false;
     }
 
+    /// **The `v` window alone on a spindle sheet**, widened by its
+    /// slack: the type docs' superset argument on the sheet's meridian
+    /// arc `v ↦ (R + r·cos v, r·sin v)`. `u` is not read: a turn of `u`
+    /// moves an apex by nothing, so no slack bounds it there. The slack
+    /// is the type docs' chord bound on the meridian circle, `π·envelope/r`
+    /// modulo a turn; where the widened window lies strictly inside
+    /// `(−π, π)`, as the caller decides, no representative but the near
+    /// one is a sheet parameter, so the window holds the face's `v`.
+    pub(crate) fn finish_latitude(self, minor: T) -> Option<(T, T)> {
+        if !self.ok {
+            return None;
+        }
+        widened(self.v?, chord_slack(self.envelope, minor))
+    }
+
     /// The window, widened by the certificate slack — see the type
     /// docs. `None` whenever any guard fired, and the arm then keeps
     /// the whole tube: no window widens, never narrows.
@@ -950,14 +1064,24 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         if !self.ok {
             return None;
         }
-        let (u, v) = (self.u?, self.v?);
         let (su, sv) = torus_window_slack(self.envelope, major, minor)?;
-        let (u, v) = ((u.0 - su, u.1 + su), (v.0 - sv, v.1 + sv));
-        if [u.0, u.1, v.0, v.1].into_iter().any(not_finite) {
-            return None;
-        }
+        let (u, v) = (widened(self.u?, su)?, widened(self.v?, sv)?);
         Some((ParamWindow::new(u.0, u.1), ParamWindow::new(v.0, v.1)))
     }
+}
+
+/// `(lo, hi)` widened by `slack` on each end, `None` where an end is not
+/// a bounded number.
+fn widened<T: Real>((lo, hi): (T, T), slack: T) -> Option<(T, T)> {
+    let w = (lo - slack, hi + slack);
+    (!(not_finite(w.0) || not_finite(w.1))).then_some(w)
+}
+
+/// **The chord slack**: how far in angle a point of a circle of radius
+/// `radius` can move while staying within `2·envelope` of where it was
+/// — `π·envelope/radius` (the type docs, "the slack").
+fn chord_slack<T: Real>(envelope: T, radius: T) -> T {
+    T::from_f64(core::f64::consts::PI) * envelope / radius
 }
 
 /// **The face's loops, as [`WindowLoop`]s**, read a loop at a time
@@ -985,7 +1109,7 @@ pub(crate) fn face_window_steps<T: Decide>(
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
                 .filter_map(|member| match member {
-                    BoundaryMember::Edge { he, edge, .. } => Some((he, edge)),
+                    BoundaryMember::Edge { he, edge, .. } => Some((he, edge.record())),
                     BoundaryMember::Isolated { .. } => None,
                 })
                 .collect();
@@ -1026,16 +1150,97 @@ pub(crate) fn face_window_steps<T: Decide>(
         .collect()
 }
 
-/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
-/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
-/// no branch. A loop that yields NO half-edge (a lone
-/// vertex) abandons the window: it carries no chart image, so the walk
-/// cannot see what bounds the face's chart region.
-pub(crate) fn torus_chart_window<T: SpanLocate>(
-    loops: &[WindowLoop<'_, T>],
-    major: T,
-    minor: T,
+/// **A face's window loops, where the face is the side of its one loop
+/// that the loop bounds in the chart** — the requirement the window's
+/// superset argument names ([`TorusChartWindow`]). A loop that closes in
+/// the chart also bounds its complement, and the hull of its images
+/// holds only the bounded side. Material lies to the left of the loop
+/// seen from the face's normal, so the face is the bounded side exactly
+/// where the loop's signed chart area has the sign of its sense
+/// (positive with the chart normal, negative against it).
+///
+/// The area is the shoelace of the polygon the images' ends make, taken
+/// in the loop's order and round. It is the region's own area where
+/// every image is a straight chart segment (an iso line, an iso rim, or
+/// a harmonic image with no cosine or sine term) and every gap between
+/// one image's end and the next one's start is straight too: a joint,
+/// where the gap is nothing, and the run a sheet face's lift makes along
+/// an apex's latitude between two meridians, which no row stores. Its
+/// sign is decided band-free ([`SpanLocate::structure_positive`]): at an
+/// enclosure scalar over the whole enclosure of the polygon's area, at a
+/// point scalar on the area of the polygon its ends round to.
+///
+/// `None` for a face with a ring, a loop that does not close, an image
+/// that is not straight, an area whose sign is not decided, and a face
+/// on the complement's side: each leaves the window the whole tube or
+/// sheet, which only costs cells.
+fn bounded_side_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<WindowLoop<'_, T>>> {
+    let loops = face_window_steps(body, face);
+    let [only] = loops.as_slice() else {
+        return None;
+    };
+    if !only.closes {
+        return None;
+    }
+    let zero = |x: T| x.structure_bracket() == Some((0.0, 0.0));
+    let mut ends = Vec::with_capacity(2 * only.steps.len());
+    for step in &only.steps {
+        let (cache, image, forward) = step.as_ref()?;
+        let straight = image.iso_line_form().is_some()
+            || image.iso_arc_segment().is_some()
+            || image
+                .harmonic_form()
+                .is_some_and(|(_, a, b, _)| zero(a.x) && zero(a.y) && zero(b.x) && zero(b.y));
+        if !straight {
+            return None;
+        }
+        let (t0, t1) = cache.params();
+        let (a, b) = (image.eval(t0), image.eval(t1));
+        ends.extend(if *forward { [a, b] } else { [b, a] });
+    }
+    let twice = ends
+        .iter()
+        .zip(ends.iter().cycle().skip(1))
+        .fold(T::zero(), |acc, (p, q)| acc + (p.x * q.y - q.x * p.y));
+    let along_sense = if body.proven_face(face).sense() {
+        twice
+    } else {
+        T::zero() - twice
+    };
+    along_sense.structure_positive().then_some(loops)
+}
+
+/// **A torus face's chart window** ([`torus_chart_window`]), read only
+/// where the face is its loop's bounded side ([`bounded_side_loops`]).
+/// `None` for a face off a torus and for every face that guard refuses.
+pub(crate) fn bounded_torus_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
 ) -> Option<TorusWindowPair<T>> {
+    let Ok(&Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    }) = body.proven_face(face).surface()
+    else {
+        return None;
+    };
+    torus_chart_window(&bounded_side_loops(body, face)?, major_radius, minor_radius)
+}
+
+/// **A spindle sheet face's `v` window**, folded over its loops as
+/// [`torus_chart_window`] folds a torus face's
+/// ([`TorusChartWindow::finish_latitude`]), and read only where the face
+/// is its loop's bounded side ([`bounded_side_loops`]). `None` for a face
+/// off a sheet and for every face that guard refuses.
+pub(crate) fn bounded_sheet_latitude<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(T, T)> {
+    let Ok(&Surface::Spindle { minor_radius, .. }) = body.proven_face(face).surface() else {
+        return None;
+    };
+    fold_window(&bounded_side_loops(body, face)?).finish_latitude(minor_radius)
+}
+
+fn fold_window<T: SpanLocate>(loops: &[WindowLoop<'_, T>]) -> TorusChartWindow<T> {
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
@@ -1048,7 +1253,20 @@ pub(crate) fn torus_chart_window<T: SpanLocate>(
             acc.close_loop(lp.closes);
         }
     }
-    acc.finish(major, minor)
+    acc
+}
+
+/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
+/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
+/// no branch. A loop that yields NO half-edge (a lone
+/// vertex) abandons the window: it carries no chart image, so the walk
+/// cannot see what bounds the face's chart region.
+pub(crate) fn torus_chart_window<T: SpanLocate>(
+    loops: &[WindowLoop<'_, T>],
+    major: T,
+    minor: T,
+) -> Option<TorusWindowPair<T>> {
+    fold_window(loops).finish(major, minor)
 }
 
 /// **Topo's reading of the region an edge can occupy** (DESIGN
@@ -1115,19 +1333,18 @@ pub(crate) fn arc_cover<T: SpanLocate>(
         .map_err(EdgeUncovered::Carrier)
 }
 
-/// **How far `edge` reaches from `pivot`, bounded from both sides**
+/// **How far `e` reaches from `pivot`, bounded from both sides**
 /// ([`geom_brep::edge_reach_bounds`]), its bound from above the far
 /// distance of the edge's cover ([`edge_cover_linked`]) from `pivot`,
 /// poison where the edge has no cover, which the reading levered at it
 /// escalates. `None` for null scaffolding.
 pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     body: &Body<T>,
-    edge: EdgeKey,
-    e: &Edge,
+    e: EdgeView<'_, T>,
     pivot: Point3<T>,
 ) -> Option<geom_brep::LeverBounds<T>> {
-    let curve = body.edge_curve_linked(edge, e).certified()?;
-    let cover = edge_cover_linked(body, edge, e).ok();
+    let curve = e.certified()?;
+    let cover = edge_cover_linked(body, e).ok();
     Some(reach_bounds_in(
         curve.carrier(),
         curve.params(),
@@ -1138,7 +1355,8 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
 /// sides**: the piece of `carrier` over `span` from a point inside the
-/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge to one of its vertices (`overlap`'s half-turns, `fate`'s
+/// straight corners), its region the
 /// edge cover's construction over the piece ([`edge_cover_over`]), read
 /// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(
@@ -1175,7 +1393,7 @@ fn reach_bounds_in<T: SpanLocate>(
 /// record on the way to its ends does not resolve (D2 row 4): a torn
 /// curve is not an uncertified one.
 pub fn edge_cover<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<Cover<T>, EdgeUncovered> {
-    edge_cover_linked(body, edge, proven(&body.edges, edge, EntityId::Edge))
+    edge_cover_linked(body, body.proven_edge(edge))
 }
 
 impl<T: SpanLocate> Body<T> {
@@ -1213,21 +1431,21 @@ impl<T: Decide> Body<T> {
     }
 }
 
-/// [`edge_cover`] past its edge's lookup: `e` is `edge`'s record.
+/// [`edge_cover`] for an edge already resolved, `e`.
 ///
 /// # Errors
 ///
 /// As [`edge_cover_of`].
 pub(crate) fn edge_cover_linked<T: SpanLocate>(
     body: &Body<T>,
-    edge: EdgeKey,
-    e: &Edge,
+    e: EdgeView<'_, T>,
 ) -> Result<Cover<T>, EdgeUncovered> {
+    let (edge, record) = (e.key(), e.record());
     let ends = (
-        edge_end_point(body, edge, e.he_plus, "he_plus"),
-        edge_end_point(body, edge, e.he_minus, "he_minus"),
+        edge_end_point(body, edge, record.he_plus, "he_plus"),
+        edge_end_point(body, edge, record.he_minus, "he_minus"),
     );
-    edge_cover_of(body.edge_curve_linked(edge, e).certified(), ends)
+    edge_cover_of(e.certified(), ends)
 }
 
 /// **Why an edge has no cover** ([`edge_cover_of`]). A reader states its

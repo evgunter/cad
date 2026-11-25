@@ -208,7 +208,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
                 },
                 Point3::origin(),
                 1.0,
-                Vec3::unit_z(),
+                geom_core::UnitVec3::exact_z(),
             ),
             band(),
         )
@@ -233,7 +233,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
 fn the_sphere_region_panics_on_a_torn_curve() {
     use crate::sphere_region::sphere_face_region;
     let (mut body, face) = cyl_sheet();
-    let ask = |b: &Body<f64>| sphere_face_region(b, face).map(|r| r.is_some());
+    let ask = |b: &Body<f64>| sphere_face_region(b, face, None).map(|r| r.is_some());
     assert!(ask(&body).is_ok(), "the sound sheet answers");
     let he = outer_members(&body, face)[0];
     let named = drop_curve(&mut body, he);
@@ -291,7 +291,7 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
     let rims = WrapRims {
         axis: geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         },
     };
     assert!(
@@ -317,7 +317,7 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
     let rims = WrapRims {
         axis: geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         },
     };
     assert!(

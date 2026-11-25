@@ -161,6 +161,13 @@ pub enum ReadbackError {
     /// certified carrier — a transient state tier 2 refuses at rest,
     /// surfaced rather than guessed around.
     NoCarrier,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]) — a
+    /// transient state tier 3 refuses at rest, surfaced rather than
+    /// guessed around.
+    PendingSurface {
+        /// The pending face.
+        face: FaceKey,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -188,47 +195,23 @@ impl core::fmt::Display for ReadbackError {
                  certified carrier — a transient state tier 2 refuses at rest; \
                  let the body reach rest before reading it back",
             ),
+            Self::PendingSurface { face } => write!(
+                f,
+                "{} has no surface yet — a transient state tier 3 refuses at \
+                 rest; let the body reach rest before reading it back",
+                EntityId::Face(*face)
+            ),
         }
     }
 }
 
 impl std::error::Error for ReadbackError {}
 
-/// **Why the walk to an edge's certified carrier came back empty** —
-/// [`edge_carrier_ref`]'s refusal, with one arm per thing that can be
-/// absent rather than one per door that asked.
-///
-/// A stale edge key is the caller's; scaffolding that certifies no
-/// carrier at all is a fact about the edge, and the enum keeps the two
-/// apart because a reader that renames these (see
-/// [`crate::query::rim_of`]) renames them differently. The curve key a
-/// live edge names always resolves (D2 row 4: a miss panics naming the
-/// edge). [`ReadbackError`] is the read-back door's own spelling of
-/// the same two, reached through the `From` below.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CarrierAbsence {
-    /// The edge the caller passed does not resolve.
-    Dangling(EdgeKey),
-    /// The curve entry resolves and certifies nothing — M3 null-edge
-    /// scaffolding, which has no carrier to read.
-    NoCarrier,
-}
-
-impl From<CarrierAbsence> for ReadbackError {
-    fn from(absence: CarrierAbsence) -> Self {
-        match absence {
-            CarrierAbsence::Dangling(edge) => Self::Dangling {
-                what: EntityId::Edge(edge),
-            },
-            CarrierAbsence::NoCarrier => Self::NoCarrier,
-        }
-    }
-}
-
 /// **A face's carrier surface, as the read-back doors refuse it**:
-/// [`Body::face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
-/// [`ReadbackError::Dangling`], with the surface's key and the face's
-/// orientation sense read off the record beside it.
+/// [`Body::face`]'s [`crate::live::FaceView::surface`], a stale face key
+/// spelled [`ReadbackError::Dangling`] and a pending face
+/// [`ReadbackError::PendingSurface`], with the surface's key and the
+/// face's orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -236,7 +219,10 @@ pub(crate) fn carrier_surface<T: Real>(
     let f = body.face(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    Ok((f.record().surface, f.surface(), f.sense()))
+    let surface = f
+        .surface()
+        .map_err(|crate::Pending| ReadbackError::PendingSurface { face })?;
+    Ok((f.record().surface, surface, f.sense()))
 }
 
 /// **A face's carrier frame** — the stored plane/axis data of the
@@ -255,6 +241,7 @@ pub(crate) fn carrier_surface<T: Real>(
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 ///
 /// ```
@@ -266,11 +253,11 @@ pub(crate) fn carrier_surface<T: Real>(
 /// let mut body = Body::<f64>::new();
 /// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 ///
-/// // A seed face carries the "no description yet" placeholder, which
-/// // fixes no frame — and the door says so rather than inventing one.
+/// // A seed face has no surface yet, so it fixes no frame — and the
+/// // door says so rather than inventing one.
 /// assert!(matches!(
 ///     face_pose(&body, seed.face),
-///     Err(ReadbackError::NoCanonicalFrame { .. })
+///     Err(ReadbackError::PendingSurface { .. })
 /// ));
 ///
 /// // Attach a real plane, and the door hands back what was attached.
@@ -385,7 +372,8 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key.
+/// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet.
 pub fn face_stored_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -411,9 +399,10 @@ pub fn face_stored_surface<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key — the
-/// only refusal: every carrier, NURBS and approximating included,
-/// has a kind.
+/// [`ReadbackError::Dangling`] for a stale face key, and
+/// [`ReadbackError::PendingSurface`] for a face whose surface is still
+/// pending: every carrier, NURBS and approximating included, has a
+/// kind, and a pending face has no carrier.
 ///
 /// ```
 /// use geom::SurfaceKind;
@@ -482,33 +471,19 @@ pub fn vertex_point<T: Real>(
     Ok(body.point_of(vertex, v))
 }
 
-/// **The walk to an edge's certified carrier** — edge, then its
-/// curve-arena entry, then the carrier the entry certifies — with the
-/// refusal left as the absence itself, for callers whose own error
-/// vocabulary names these two misses differently.
-///
-/// What it guarantees is exactly this and no more: every reader of an
-/// edge's carrier in this crate can make ONE walk, so WHICH lookup
-/// came back empty is decided in one place rather than once per
-/// reader. [`edge_carrier_kind`] and [`edge_pose`] read through it,
-/// and so does [`crate::query::rim_of`], which renames the misses in
-/// [`crate::query::RimError`]'s vocabulary.
-///
-/// # Errors
-///
-/// The [`CarrierAbsence`] naming whichever came back empty: the edge,
-/// or its curve entry's certified carrier.
-///
-/// # Panics
-///
-/// Where the live edge's curve key does not resolve (D2 row 4).
-pub fn edge_carrier_ref<T: Real>(
+/// **An edge's certified carrier, as the read-back doors refuse it**:
+/// [`Body::edge`]'s [`crate::live::EdgeView::certified`], its two
+/// refusals (a stale edge key, null scaffolding) spelled
+/// [`ReadbackError::Dangling`] and [`ReadbackError::NoCarrier`]. The
+/// edge twin of [`carrier_surface`].
+pub(crate) fn carrier_curve<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
-) -> Result<&Curve3<T>, CarrierAbsence> {
-    let e = body.get_edge(edge).ok_or(CarrierAbsence::Dangling(edge))?;
-    let geom = body.edge_curve_linked(edge, e);
-    Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
+) -> Result<&Curve3<T>, ReadbackError> {
+    let e = body.edge(edge).ok_or(ReadbackError::Dangling {
+        what: EntityId::Edge(edge),
+    })?;
+    Ok(e.certified().ok_or(ReadbackError::NoCarrier)?.carrier())
 }
 
 /// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
@@ -518,7 +493,7 @@ pub fn edge_carrier_ref<T: Real>(
 /// than a verdict (rule 1) for the same reason: the answer is which
 /// closed variant the stored carrier is, with no number consulted on
 /// the way. "Is this edge straight" is the carrier's own reading,
-/// `!edge_carrier_ref(..)?.is_curved()` ([`Curve3::as_line`]). The
+/// [`Curve3::is_curved`] on the carrier [`Body::edge`]'s view reaches. The
 /// total flattening
 /// [`crate::query::edge_carrier_kind`] reads through this door and
 /// answers `None` where it refuses typed, for the reason
@@ -530,10 +505,14 @@ pub fn edge_carrier_ref<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale edge or curve key, and
+/// [`ReadbackError::Dangling`] for a stale edge key, and
 /// [`ReadbackError::NoCarrier`] for M3 null-edge scaffolding — the
 /// only refusals: every certified carrier, NURBS included, has a
 /// kind, so [`ReadbackError::NoCanonicalFrame`] is not one of them.
+///
+/// # Panics
+///
+/// Where the live edge's curve key does not resolve (D2 row 4).
 ///
 /// ```
 /// use geom_core::{Point3, Tol};
@@ -558,7 +537,7 @@ pub fn edge_carrier_kind<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<CurveKind, ReadbackError> {
-    Ok(edge_carrier_ref(body, edge)?.kind())
+    Ok(carrier_curve(body, edge)?.kind())
 }
 
 /// **An edge's carrier frame** — the certified carrier's own stored
@@ -584,14 +563,22 @@ pub fn edge_carrier_kind<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale edge or curve key;
+/// [`ReadbackError::Dangling`] for a stale edge key;
 /// [`ReadbackError::NoCarrier`] for null-edge scaffolding;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
+///
+/// # Panics
+///
+/// Where the live edge's curve key does not resolve (D2 row 4).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
-    match edge_carrier_ref(body, edge)? {
+    match carrier_curve(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {
             origin: *origin,
-            axis: *dir,
+            axis: dir.get(),
             u_ref: None,
             sense: true,
         }),
@@ -771,7 +758,7 @@ fn side_of<T: Real>(
 /// A count is stored data counted (rule 1: nothing here is decided),
 /// and the identity is exact integer arithmetic on the counts (rule
 /// 2: no measurement, so no pad). The one thing the census can SAY
-/// beyond its numbers is [`EulerCounts::genus`], and it says it typed.
+/// beyond its numbers is [`EulerCounts::h`], and it says it typed.
 ///
 /// - `v`, `e`, `f`: the vertex, edge and face arenas' lengths.
 /// - `r`: the ring count — every face's ring loops, summed. A face's
@@ -800,25 +787,24 @@ pub struct EulerCounts {
 }
 
 impl EulerCounts {
-    /// **The genus** `h` the identity assigns to the census:
-    /// `h = s − (v − e + f − r) / 2`, the number of handles summed over
-    /// the body's shells.
+    /// **The operator coordinate** `h = s − (v − e + f − r) / 2` the
+    /// identity assigns to the census — the `h` the Euler operators
+    /// move.
     ///
-    /// This is the whole-body reading — one number for the body, not
-    /// one per shell or per connected component. A shell whose faces
-    /// have fallen into several components (the state between a plug
-    /// promotion and the shell partition that follows it) still
-    /// contributes one `s`, so the per-body `h` can come back NEGATIVE
-    /// there; that is the identity's honest arithmetic on that census,
-    /// not a refusal, and the door reports it as such. Ask the
-    /// validator's component pass for the per-component statement.
+    /// Wherever every shell is one connected piece, which tier 2
+    /// guarantees, `h` is the body's genus: the handles summed over its
+    /// shells. Otherwise it need not be: a shell whose faces have fallen into
+    /// several components (after `mfkrh` on a detached ring, before the
+    /// shell partition that follows it) still contributes one `s`, so
+    /// `h` can come back NEGATIVE there. That is the identity's honest
+    /// arithmetic on that census, not a refusal.
     ///
     /// # Errors
     ///
     /// [`EulerParityError`] when `v − e + f − r` is odd. The identity's
     /// left side is even on EVERY body it applies to — every operator
     /// moves it by an even amount — so an odd census is not a body with
-    /// a surprising genus, it is a store that is not a B-rep: an entity
+    /// a surprising `h`, it is a store that is not a B-rep: an entity
     /// minted or killed outside the operators. Halving it would turn
     /// that into a plausible number, so the check comes before the
     /// divide and the refusal carries the census that failed it.
@@ -838,16 +824,16 @@ impl EulerCounts {
     /// // One vertex, one face, one shell: v − e + f − r = 2 = 2(1 − 0).
     /// let counts = euler_counts(&body);
     /// assert_eq!((counts.v, counts.e, counts.f, counts.r, counts.s), (1, 0, 1, 0, 1));
-    /// assert_eq!(counts.genus(), Ok(0));
+    /// assert_eq!(counts.h(), Ok(0));
     ///
     /// // A second seed is a second shell, and the identity's `s` counts
-    /// // shells: both seeds together are still genus 0.
+    /// // shells: both seeds together are still h = 0.
     /// body.mvfs(Point3::new(1.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
     /// let counts = euler_counts(&body);
     /// assert_eq!(counts.s, 2);
-    /// assert_eq!(counts.genus(), Ok(0));
+    /// assert_eq!(counts.h(), Ok(0));
     /// ```
-    pub fn genus(self) -> Result<i64, EulerParityError> {
+    pub fn h(self) -> Result<i64, EulerParityError> {
         let chi = self.v - self.e + self.f - self.r;
         if chi.rem_euclid(2) != 0 {
             return Err(EulerParityError { counts: self });
@@ -856,8 +842,8 @@ impl EulerCounts {
     }
 }
 
-/// Typed refusal of [`EulerCounts::genus`]: the census does not satisfy
-/// the Euler–Poincaré identity's parity, so no genus follows from it.
+/// Typed refusal of [`EulerCounts::h`]: the census does not satisfy
+/// the Euler–Poincaré identity's parity, so no `h` follows from it.
 ///
 /// Its own type rather than a [`ReadbackError`] arm: every
 /// `ReadbackError` arm is a refusal about one entity, from a door that
@@ -883,7 +869,7 @@ impl core::fmt::Display for EulerParityError {
             "read-back: the census v={v} e={e} f={faces} r={r} s={s} has odd \
              v − e + f − r = {}, which no Euler–Poincaré body has — the store is \
              torn (an entity was minted or killed outside the operators), so no \
-             genus follows from it",
+             h follows from it",
             v - e + faces - r
         )
     }
@@ -896,7 +882,7 @@ impl std::error::Error for EulerParityError {}
 ///
 /// Infallible: an arena always has a length, and a ring count is a
 /// length summed. What the census then says about itself is
-/// [`EulerCounts::genus`], which is where the identity's one refusal
+/// [`EulerCounts::h`], which is where the identity's one refusal
 /// lives.
 ///
 /// ```
@@ -930,8 +916,8 @@ mod tests {
     use geom_core::{Point3, Tol};
 
     use super::{
-        CarrierAbsence, EulerCounts, EulerParityError, ReadbackError, edge_carrier_kind,
-        edge_carrier_ref, edge_pose, edge_sides, euler_counts,
+        EulerCounts, EulerParityError, ReadbackError, edge_carrier_kind, edge_pose, edge_sides,
+        euler_counts,
     };
     use crate::body::Body;
     use crate::entity::{EntityId, GeomRef, Vertex};
@@ -955,7 +941,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(0));
+        assert_eq!(counts.h(), Ok(0));
     }
 
     #[test]
@@ -974,7 +960,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(1));
+        assert_eq!(counts.h(), Ok(1));
     }
 
     /// The shell term, through the public operators: a planted ring
@@ -1027,7 +1013,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(euler_counts(&body).genus(), Ok(0));
+        assert_eq!(euler_counts(&body).h(), Ok(0));
 
         body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1042,11 +1028,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(
-            before.genus(),
-            Ok(-1),
-            "the whole-body reading goes negative"
-        );
+        assert_eq!(before.h(), Ok(-1), "the whole-body reading goes negative");
 
         let shells = body.movefac(seed.shell).unwrap();
         assert_eq!(shells.len(), 2, "the partition minted a second shell");
@@ -1058,7 +1040,7 @@ mod tests {
             "movefac moves no v/e/f/r"
         );
         assert_eq!(after.s, 2, "the door's s is the SHELL count");
-        assert_eq!(after.genus(), Ok(0));
+        assert_eq!(after.h(), Ok(0));
         assert_eq!(validate(&body), Ok(()));
     }
 
@@ -1082,7 +1064,7 @@ mod tests {
         let after = euler_counts(&body);
         assert_eq!(after, before);
         assert_eq!(after.r, 2);
-        assert_eq!(after.genus(), Ok(1));
+        assert_eq!(after.h(), Ok(1));
     }
 
     /// The genus-2 body: `v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2)`.
@@ -1100,11 +1082,11 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(2));
+        assert_eq!(counts.h(), Ok(2));
     }
 
     /// Red-first: a vertex minted outside the operators tears the
-    /// store's parity, and the genus refuses typed with the census that
+    /// store's parity, and `h` refuses typed with the census that
     /// failed rather than halving an odd number into a plausible one.
     #[test]
     fn torn_store_refuses_typed() {
@@ -1119,7 +1101,7 @@ mod tests {
         );
         let counts = euler_counts(&body);
         assert_eq!(counts.v, 9);
-        let refusal = counts.genus().expect_err("9 − 12 + 6 − 0 = 3 is odd");
+        let refusal = counts.h().expect_err("9 − 12 + 6 − 0 = 3 is odd");
         assert_eq!(refusal, EulerParityError { counts });
         let text = refusal.to_string();
         assert!(text.contains("v=9 e=12 f=6 r=0 s=1"), "{text}");
@@ -1149,8 +1131,8 @@ mod tests {
             ("edge_pose", &|b| {
                 let _ = edge_pose(b, edge);
             }),
-            ("edge_carrier_ref", &|b| {
-                let _ = edge_carrier_ref(b, edge);
+            ("Body::edge", &|b| {
+                let _ = b.edge(edge).map(crate::live::EdgeView::certified);
             }),
             ("query::edge_carrier_kind", &|b| {
                 let _ = crate::query::edge_carrier_kind(b, edge);
@@ -1169,9 +1151,8 @@ mod tests {
             );
         }
         let stale = crate::entity::EdgeKey::default();
-        assert_eq!(
-            edge_carrier_ref(&body, stale).err(),
-            Some(CarrierAbsence::Dangling(stale)),
+        assert!(
+            body.edge(stale).is_none(),
             "the caller's stale edge stays typed"
         );
         assert_eq!(

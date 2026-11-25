@@ -2,7 +2,9 @@
 //! that say where their key came from: the [`KeySource`] doors, and
 //! [`FaceView`], a face resolved once by where its key came from, which
 //! every walk from a face (its surface, its loops, its boundary members
-//! and its edges) reads.
+//! and its edges) reads, and [`EdgeView`], its edge twin, which every
+//! kernel read of an edge's curve goes through (the raw exceptions are
+//! named under *The curve of an edge*).
 //!
 //! [`Body::link_half_edges`] splices by writing `next`/`prev`, and under
 //! the D2 addendum a failed lookup there is a kernel bug announced with
@@ -70,15 +72,61 @@
 //! [`crate::entity::Face::loop_keys`]), read raw only by a reader that
 //! reports a miss itself, which reads [`Body::unchecked_face_boundary`]
 //! for the loops.
+//!
+//! # A loop that is not a cycle
+//!
+//! What such a loop means is a property of the loop and of the question
+//! asked, stated here once; no reader re-decides it.
+//!
+//! - **A torn loop** (a walk that does not close, a key that misses) is a
+//!   broken link, not a boundary: every shape of a [`FaceView`] panics
+//!   naming it, and a reader that reports a miss itself (the validator,
+//!   the census, lineage) reads [`Body::unchecked_face_boundary`] and
+//!   reports it.
+//! - **A lone-vertex ring** is a point on the face's boundary that bounds
+//!   no area.
+//! - **A lone-vertex outer loop** (an mvfs skeleton) is a face with no
+//!   outline: every question about the face's region refuses it, once,
+//!   as [`NoOutline`], with [`LONE_LOOP_REFUSAL`]'s standing.
+//!
+//! Each question has its facet. Which half-edges, edges, rows or corners
+//! a loop holds: none ([`BoundaryMember::half_edge`],
+//! [`FaceView::cycles`], [`FaceView::cycle_loops`]). Which points bound
+//! the face: a lone loop's vertex among them ([`BoundaryMember::vertex`],
+//! [`Body::member_point`]). What region the face bounds:
+//! [`FaceView::area_loops`]. A reader of one loop takes a [`CycleLoop`],
+//! which only this module builds, so it holds no lone arm and no torn
+//! arm.
+//!
+//! # The curve of an edge
+//!
+//! An edge's record links its curve, and every kernel read of it goes
+//! through [`EdgeView`], built by the same four sources:
+//! [`Body::proven_edge`], [`Body::linked_edge`] (a key a record holds, on
+//! a body tier 1 vouches for), [`Body::edge`] (a key a caller passed, or
+//! one whose reader refuses its own miss on a body tier 1 has not
+//! vouched for; `None` where stale) and [`Body::edge_views`]. The curve
+//! hop is a link, so it panics on a torn body (D2 row 4); null
+//! scaffolding is the one absence [`EdgeView::certified`] answers. The
+//! curve arena is read raw only by a reader that refuses or reports its
+//! own miss on a body tier 1 has not vouched for (the validator's
+//! `certified_carrier`, its tier-2 and tier-3 reads and `wraps`, the
+//! census's tangent read, the raw mass-properties door's
+//! `props::run_edges`, mesh's one `walk::edge_curve`), beside
+//! [`Body::get_curve_geom`], the public curve-keyed read, and
+//! `transform`'s arena remap, which rewrites curve keys rather than
+//! reading an edge's; this module's
+//! `production_reads_an_edges_curve_only_through_the_view` lists them.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, LoopRole, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
-use crate::geometry::PointKey;
+use crate::geometry::{Pending, PointKey, SurfaceMiss, SurfaceSlot};
 use crate::null::CurveGeom;
 use geom::Surface;
+use geom_brep::EdgeCurve;
 use geom_core::{Point3, Real};
 use slotmap::SecondaryMap;
 
@@ -274,6 +322,25 @@ pub(crate) fn dangling_link(
     )
 }
 
+/// The miss of a surface a certified record names (an edge's
+/// description, a chart image): certification refuses a pending key, so
+/// either miss is a torn body (D2 row 4), and the panic names which.
+#[track_caller]
+pub(crate) fn described_link(
+    holder: impl core::fmt::Display,
+    link: &str,
+    key: crate::geometry::SurfaceKey,
+    miss: SurfaceMiss,
+) -> ! {
+    match miss {
+        SurfaceMiss::Stale => dangling_link(holder, link, GeomRef::Surface(key)),
+        SurfaceMiss::Pending => unreachable!(
+            "{holder}'s {link} names {key:?}, which is pending: certification refuses a \
+             pending key"
+        ),
+    }
+}
+
 /// [`Link`]: `holder`'s field `link`.
 pub(crate) const fn link(holder: EntityId, link: &'static str) -> Link {
     Link { holder, link }
@@ -368,8 +435,6 @@ pub(crate) fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entit
 /// (the face itself across a seam inside it).
 #[derive(Clone, Copy)]
 pub(crate) struct FaceEdge {
-    // Read by the probes' frames, which orient the edge by it.
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     pub(crate) half: HalfEdgeKey,
     pub(crate) edge: EdgeKey,
     pub(crate) ends: [VertexKey; 2],
@@ -381,13 +446,12 @@ pub(crate) struct FaceEdge {
 pub(crate) enum BoundaryMember<'a, T: Real> {
     /// An isolated-vertex loop's `vertex`, at `point`.
     Isolated { vertex: VertexKey, point: Point3<T> },
-    /// A loop cycle member `he`, whose record is `half`, and its edge
-    /// `ek`, whose record is `edge`.
+    /// A loop cycle member `he`, whose record is `half`, and its edge,
+    /// resolved as `edge`, a link `he`'s record holds.
     Edge {
         he: HalfEdgeKey,
         half: &'a HalfEdge,
-        ek: EdgeKey,
-        edge: &'a Edge,
+        edge: EdgeView<'a, T>,
     },
 }
 
@@ -398,9 +462,250 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
 /// [`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)
 /// does at rest. The one home of the standing:
 /// [`TouchUnread::LoneLoop`](crate::TouchUnread::LoneLoop),
-/// [`PointInLoopError::LoneLoop`](crate::PointInLoopError::LoneLoop) and
-/// the boolean's `ContainError::EmptyLoop` answer it.
+/// [`PointInLoopError::LoneLoop`](crate::PointInLoopError::LoneLoop),
+/// [`ChartRegionError::NoOutline`](crate::ChartRegionError::NoOutline)
+/// and the boolean's `ContainError::EmptyLoop` answer it.
 pub(crate) const LONE_LOOP_REFUSAL: geom_brep::ladder::Refusal = geom_brep::ladder::Refusal::Limit;
+
+/// **A loop of a face that is a cycle**, resolved and checked once: the
+/// handle every per-loop reader of a region takes (a loop's edges, its
+/// carriers, its corners, its pcurve rows). Only this module builds one,
+/// and only once its walk is proven ([`prove_cycle`]): the claims walk
+/// closes, every member's half-edge, edge, start vertex and point
+/// resolve, and the face the loop names lists it. The body is borrowed
+/// for the handle's life, so the proof holds while it does, and a reader
+/// holding one has no lone-vertex arm and no torn arm to write. The
+/// doors are [`FaceView::area_loops`] (a face's loops that bound area),
+/// [`FaceView::cycle_loops`] (a face's cycle loops) and
+/// [`Body::cycle_loop`] (a loop key a caller passed).
+#[derive(Clone, Copy)]
+pub struct CycleLoop<'a, T: Real> {
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+}
+
+impl<'a, T: Real> CycleLoop<'a, T> {
+    /// The loop's key.
+    pub fn key(self) -> LoopKey {
+        self.key
+    }
+
+    /// The body the loop was resolved in.
+    pub(crate) fn body(self) -> &'a Body<T> {
+        self.body
+    }
+
+    /// The face the loop bounds, a link its record holds.
+    pub(crate) fn face(self) -> FaceKey {
+        self.record.face
+    }
+
+    /// The loop's first half-edge, where its walks start.
+    pub(crate) fn first(self) -> HalfEdgeKey {
+        self.first
+    }
+
+    /// The loop's half-edges in `next` order: the walk the handle proved.
+    pub(crate) fn cycle(self) -> Vec<HalfEdgeKey> {
+        self.body
+            .loop_walk_of(self.first, self.key)
+            .closed_in(self.key, self.first)
+    }
+
+    /// The loop's members in `next` order, each an edge
+    /// ([`EdgeMember`]): the walk the handle proved, every record on it
+    /// resolving.
+    pub(crate) fn edges(self) -> Vec<EdgeMember<'a, T>> {
+        let body = self.body;
+        self.cycle()
+            .into_iter()
+            .map(|he| {
+                let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+                let edge = body.linked_edge(half.edge, EntityId::HalfEdge(he), "edge");
+                let point = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+                EdgeMember {
+                    he,
+                    half,
+                    edge,
+                    point,
+                }
+            })
+            .collect()
+    }
+}
+
+/// One member of a [`CycleLoop`] ([`CycleLoop::edges`]): a half-edge
+/// `he` (its record `half`), its edge resolved as `edge`, and the point
+/// it starts at.
+#[derive(Clone, Copy)]
+pub(crate) struct EdgeMember<'a, T: Real> {
+    pub(crate) he: HalfEdgeKey,
+    pub(crate) half: &'a HalfEdge,
+    pub(crate) edge: EdgeView<'a, T>,
+    pub(crate) point: Point3<T>,
+}
+
+/// **The proof a [`CycleLoop`] carries**, the one walk that decides
+/// whether a cycle loop walks: `lk` (its record `record`, first
+/// half-edge `first`) is built only where the claims walk from `first`
+/// closes ([`Body::loop_walk_of`]), each member's half-edge, edge, start
+/// vertex and point resolve, and the face the loop names lists it.
+/// `None` is a torn loop.
+fn prove_cycle<'a, T: Real>(
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+) -> Option<CycleLoop<'a, T>> {
+    let crate::body::Walk::Closed(members) = body.loop_walk_of(first, key) else {
+        return None;
+    };
+    let resolves = members.iter().all(|&he| {
+        body.half_edges.get(he).is_some_and(|half| {
+            body.edges.contains_key(half.edge)
+                && body
+                    .vertices
+                    .get(half.start)
+                    .is_some_and(|v| body.points.contains_key(v.point))
+        })
+    });
+    let listed = body
+        .faces
+        .get(record.face)
+        .is_some_and(|f| f.holds_loop(key));
+    (resolves && listed).then_some(CycleLoop {
+        body,
+        key,
+        record,
+        first,
+    })
+}
+
+/// [`prove_cycle`] for a loop a face record links: a torn one panics
+/// naming it (D2 row 4).
+#[track_caller]
+fn proven_cycle<'a, T: Real>(
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+) -> CycleLoop<'a, T> {
+    prove_cycle(body, key, record, first).unwrap_or_else(|| body.torn_loop(key))
+}
+
+impl<T: Real> Body<T> {
+    /// **A loop met torn where every hop is a link**: panics naming the
+    /// hop that broke. The linked walk ([`Body::loop_members_linked`])
+    /// names a hop that does not resolve or leaves the loop, and each
+    /// member's point ([`Body::member_point`]) a vertex or point that does
+    /// not; what both pass is a face that does not list the loop.
+    #[track_caller]
+    pub(crate) fn torn_loop(&self, key: LoopKey) -> ! {
+        let record = linked(
+            &self.loops,
+            key,
+            EntityId::Loop,
+            EntityId::Loop(key),
+            "itself",
+        );
+        for member in self.loop_members_linked(key, record) {
+            let _ = self.member_point(&member);
+        }
+        unreachable!(
+            "loop {key:?} names face {:?}, which does not list it: {NAMES_ONLY_LIVE}; {}",
+            record.face, OPERATORS_KEEP_LINKS
+        )
+    }
+}
+
+/// **The region a face bounds, read from its loops**
+/// ([`FaceView::area_loops`]): its outer cycle, its ring cycles, and the
+/// vertices of its lone-vertex rings, which bound no area and are points
+/// of the face's boundary.
+pub struct AreaLoops<'a, T: Real> {
+    outer: CycleLoop<'a, T>,
+    rings: Vec<(usize, CycleLoop<'a, T>)>,
+    lone: Vec<LoneRing<T>>,
+}
+
+/// A lone-vertex ring of a face ([`AreaLoops::lone_rings`]): a point on
+/// the face's boundary that bounds no area.
+#[derive(Clone, Copy, Debug)]
+pub struct LoneRing<T: Real> {
+    /// The ring.
+    pub r#loop: LoopKey,
+    /// Its vertex.
+    pub vertex: VertexKey,
+    /// The vertex's point.
+    pub point: Point3<T>,
+}
+
+impl<'a, T: Real> AreaLoops<'a, T> {
+    /// The outer cycle.
+    pub fn outer(&self) -> CycleLoop<'a, T> {
+        self.outer
+    }
+
+    /// The ring cycles, each with its index in [`Face::rings`].
+    pub fn rings(&self) -> impl Iterator<Item = (usize, CycleLoop<'a, T>)> + '_ {
+        self.rings.iter().copied()
+    }
+
+    /// Every cycle bounding the region, the outer first, each with its
+    /// role.
+    pub fn cycles(&self) -> impl Iterator<Item = (CycleLoop<'a, T>, LoopRole)> + '_ {
+        core::iter::once((self.outer, LoopRole::Outer))
+            .chain(self.rings().map(|(i, ring)| (ring, LoopRole::Ring(i))))
+    }
+
+    /// Each lone-vertex ring: a point on the face's boundary that
+    /// bounds no area.
+    pub fn lone_rings(&self) -> &[LoneRing<T>] {
+        &self.lone
+    }
+}
+
+/// **A face whose outer loop is a lone vertex** (an mvfs skeleton): a
+/// face with no outline, so no region to ask a question of. Every area
+/// question refuses it here, once, with [`LONE_LOOP_REFUSAL`]'s
+/// standing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NoOutline {
+    /// The face.
+    pub face: FaceKey,
+    /// Its outer loop.
+    pub r#loop: LoopKey,
+    /// The loop's lone vertex.
+    pub vertex: VertexKey,
+}
+
+/// What [`Body::cycle_loop`] found for a loop key that is no cycle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoCycle {
+    /// The key does not resolve: the caller's to refuse.
+    Stale,
+    /// The loop is a lone vertex: it bounds no area.
+    Lone(VertexKey),
+    /// The loop is a cycle that does not walk: its claims walk does not
+    /// close, a record on it does not resolve, or its face does not list
+    /// it. A broken link, which a body every door keeps valid never
+    /// holds.
+    Torn,
+}
+
+/// What [`FaceView::area_loops_unchecked`] found where a face bounds no
+/// region it can read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AreaMiss {
+    /// The face has no outline.
+    NoOutline(NoOutline),
+    /// A loop of the face does not resolve or does not walk
+    /// ([`NoCycle::Torn`]), or a lone loop's vertex or point does not
+    /// resolve.
+    Torn(LoopKey),
+}
 
 /// One loop of a face as [`Body::unchecked_face_boundary`] reads it: a
 /// mirror of [`LoopBoundary`], whose discards `loop-boundary-discards.sh`
@@ -470,6 +775,11 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.key
     }
 
+    /// The body the face was resolved in.
+    pub(crate) fn body(self) -> &'a Body<T> {
+        self.body
+    }
+
     /// The face's record.
     pub(crate) fn record(self) -> &'a Face {
         self.record
@@ -481,15 +791,45 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.record.sense
     }
 
-    /// The surface the face is a region of, a link its record holds.
+    /// The face's surface slot, described or pending, a link its record
+    /// holds.
     #[track_caller]
-    pub fn surface(self) -> &'a Surface<T> {
+    pub fn slot(self) -> &'a SurfaceSlot<T> {
         let surface = self.record.surface;
-        self.body.get_surface(surface).unwrap_or_else(|| {
+        self.body.surface_slot(surface).unwrap_or_else(|| {
             dangling_link(
                 EntityId::Face(self.key),
                 "surface",
                 GeomRef::Surface(surface),
+            )
+        })
+    }
+
+    /// The surface the face is a region of, a link its record holds;
+    /// [`Pending`] while the face has none yet.
+    ///
+    /// # Errors
+    ///
+    /// [`Pending`] for a pending slot.
+    #[track_caller]
+    pub fn surface(self) -> Result<&'a Surface<T>, Pending> {
+        self.slot().described().map_err(|_| Pending)
+    }
+
+    /// The surface of a face a finished body holds: tier 3 refuses a
+    /// pending slot at rest, so a reader that takes only bodies past it
+    /// never meets one, and meeting one is a kernel bug (D2 row 4).
+    ///
+    /// # Panics
+    ///
+    /// On a pending slot.
+    #[track_caller]
+    pub(crate) fn expect_described(self) -> &'a Surface<T> {
+        self.surface().unwrap_or_else(|_| {
+            unreachable!(
+                "{} is pending at a reader of finished bodies: tier 3 refuses a pending \
+                 surface slot at rest",
+                EntityId::Face(self.key)
             )
         })
     }
@@ -531,6 +871,107 @@ impl<'a, T: Real> FaceView<'a, T> {
             return None;
         };
         Some(self.body.loop_walk_of(first, lk).closed_in(lk, first))
+    }
+
+    /// **Each loop of the face that is a cycle**, with its role, in
+    /// [`FaceView::loops`]' order: the reading of a question asked of
+    /// one loop's half-edges at a time (its rows, its winding), to which
+    /// a lone-vertex loop, outer or ring, answers nothing
+    /// ([`BoundaryMember::half_edge`]'s disposition). A question about
+    /// the region reads [`FaceView::area_loops`].
+    ///
+    /// # Panics
+    ///
+    /// Where a loop does not resolve or a cycle does not walk
+    /// ([`prove_cycle`]): a torn link (D2 row 4).
+    #[track_caller]
+    pub fn cycle_loops(self) -> impl Iterator<Item = (CycleLoop<'a, T>, LoopRole)> + 'a {
+        let body = self.body;
+        self.loops().filter_map(move |(key, record, role)| {
+            let LoopBoundary::Cycle { first } = record.boundary else {
+                return None;
+            };
+            Some((proven_cycle(body, key, record, first), role))
+        })
+    }
+
+    /// **The region the face bounds**, the one reading of what a loop
+    /// that is not a cycle means to an area question: the outer cycle and
+    /// each ring cycle ([`CycleLoop`]); a lone-vertex ring bounds no area
+    /// and is yielded as a boundary point ([`AreaLoops::lone_rings`]); a
+    /// lone-vertex outer loop is a face with no outline, [`NoOutline`].
+    ///
+    /// # Errors
+    ///
+    /// [`NoOutline`] where the outer loop is a lone vertex.
+    ///
+    /// # Panics
+    ///
+    /// Where a loop does not resolve or walk ([`AreaMiss::Torn`]): every
+    /// hop is a link (D2 row 4).
+    #[track_caller]
+    pub fn area_loops(self) -> Result<AreaLoops<'a, T>, NoOutline> {
+        match self.area_loops_unchecked() {
+            Ok(area) => Ok(area),
+            Err(AreaMiss::NoOutline(no)) => Err(no),
+            Err(AreaMiss::Torn(lk)) => {
+                // A loop the face lists that does not resolve panics
+                // naming the face's field that holds it.
+                let _ = self.loops().count();
+                self.body.torn_loop(lk)
+            }
+        }
+    }
+
+    /// [`FaceView::area_loops`] for a reader that reports a miss itself
+    /// (the raw measuring door over a body no validator certified): the
+    /// same reading, with a loop that does not resolve or walk answered
+    /// [`AreaMiss::Torn`] rather than met as a broken link. One walk
+    /// decides it, [`prove_cycle`]'s.
+    ///
+    /// # Errors
+    ///
+    /// [`AreaMiss`].
+    pub(crate) fn area_loops_unchecked(self) -> Result<AreaLoops<'a, T>, AreaMiss> {
+        let body = self.body;
+        let mut outer = None;
+        let mut rings = Vec::new();
+        let mut lone = Vec::new();
+        for (role, lk) in self.record.loop_roles() {
+            let l = body.loops.get(lk).ok_or(AreaMiss::Torn(lk))?;
+            match (l.boundary, role) {
+                (LoopBoundary::Cycle { first }, _) => {
+                    let cycle = prove_cycle(body, lk, l, first).ok_or(AreaMiss::Torn(lk))?;
+                    match role {
+                        LoopRole::Outer => outer = Some(cycle),
+                        LoopRole::Ring(i) => rings.push((i, cycle)),
+                    }
+                }
+                (LoopBoundary::Empty { vertex }, LoopRole::Outer) => {
+                    return Err(AreaMiss::NoOutline(NoOutline {
+                        face: self.key,
+                        r#loop: lk,
+                        vertex,
+                    }));
+                }
+                (LoopBoundary::Empty { vertex }, LoopRole::Ring(_)) => {
+                    let point = body
+                        .vertices
+                        .get(vertex)
+                        .and_then(|v| body.points.get(v.point))
+                        .ok_or(AreaMiss::Torn(lk))?;
+                    lone.push(LoneRing {
+                        r#loop: lk,
+                        vertex,
+                        point: *point,
+                    });
+                }
+            }
+        }
+        let Some(outer) = outer else {
+            unreachable!("a face's loops start with its outer loop")
+        };
+        Ok(AreaLoops { outer, rings, lone })
     }
 
     /// [`FaceView::boundary`] a loop at a time: each loop's key, its
@@ -593,10 +1034,11 @@ impl<'a, T: Real> FaceView<'a, T> {
         let body = self.body;
         self.boundary()
             .filter_map(|member| {
-                let BoundaryMember::Edge { he, half, ek, edge } = member else {
+                let BoundaryMember::Edge { he, half, edge } = member else {
                     return None;
                 };
-                let (mate, across) = body.face_across_linked(he, ek, edge);
+                let ek = edge.key();
+                let (mate, across) = body.face_across_linked(he, ek, edge.record());
                 Some(FaceEdge {
                     half: he,
                     edge: ek,
@@ -612,6 +1054,119 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// once).
     pub(crate) fn edge_set(self) -> std::collections::BTreeSet<EdgeKey> {
         self.edges().into_iter().map(|e| e.edge).collect()
+    }
+}
+
+/// **An edge resolved once, by where its key came from**, and its curve
+/// read from here: its record, its curve-arena entry, and the certified
+/// carrier that entry holds.
+///
+/// The source decides how the edge's own miss reads, once, at the door
+/// that builds the view: [`Body::proven_edge`] for a key the kernel
+/// enumerated, minted or resolved, [`Body::linked_edge`] for one a
+/// record holds, [`Body::edge`] for one a caller passed (whose miss is
+/// the caller's to refuse), and [`Body::edge_views`] for every edge. The
+/// curve is a link the edge's record holds, so [`EdgeView::curve`] and
+/// [`EdgeView::certified`] panic on a torn body naming the edge (D2 row
+/// 4); the one absence left is null scaffolding, which certifies no
+/// carrier.
+///
+/// The fields are private to this module, so a view exists only where a
+/// door resolved its edge. A reader that reports a miss itself (the
+/// validator) reads the record's raw curve key instead.
+#[derive(Clone, Copy)]
+pub struct EdgeView<'a, T: Real> {
+    body: &'a Body<T>,
+    key: EdgeKey,
+    record: &'a Edge,
+}
+
+impl<'a, T: Real> EdgeView<'a, T> {
+    /// The edge's key.
+    pub fn key(self) -> EdgeKey {
+        self.key
+    }
+
+    /// The edge's record.
+    pub(crate) fn record(self) -> &'a Edge {
+        self.record
+    }
+
+    /// The edge's curve-arena entry, a link its record holds: a certified
+    /// carrier, or null-edge scaffolding.
+    #[track_caller]
+    pub fn curve(self) -> &'a CurveGeom<T> {
+        let curve = self.record.curve;
+        self.body.get_curve_geom(curve).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(self.key), "curve", GeomRef::Curve(curve))
+        })
+    }
+
+    /// The edge's certified carrier and interval; `None` for null
+    /// scaffolding, which has no carrier by type.
+    #[track_caller]
+    pub fn certified(self) -> Option<&'a EdgeCurve<T>> {
+        self.curve().certified()
+    }
+}
+
+impl<T: Real> Body<T> {
+    /// **`edge`, a key the kernel enumerated, minted, resolved or read out
+    /// of its own records** ([`proven`]): a miss is a kernel bug, and
+    /// panics naming the key. A key a record holds is better resolved
+    /// through [`Body::linked_edge`], whose panic names the record.
+    #[track_caller]
+    pub(crate) fn proven_edge(&self, edge: EdgeKey) -> EdgeView<'_, T> {
+        EdgeView {
+            body: self,
+            key: edge,
+            record: proven(&self.edges, edge, EntityId::Edge),
+        }
+    }
+
+    /// **`edge`, a key `holder`'s field `field` holds**: a miss is a
+    /// kernel bug ([`NAMES_ONLY_LIVE`]), and panics naming the record and
+    /// its field.
+    #[track_caller]
+    pub(crate) fn linked_edge(
+        &self,
+        edge: EdgeKey,
+        holder: EntityId,
+        field: &'static str,
+    ) -> EdgeView<'_, T> {
+        EdgeView {
+            body: self,
+            key: edge,
+            record: linked(&self.edges, edge, EntityId::Edge, holder, field),
+        }
+    }
+
+    /// **`edge`, a key a caller passed, or one whose reader refuses its
+    /// own miss on a body tier 1 has not vouched for** (the census, the
+    /// validator): `None` where it does not resolve, which is the
+    /// caller's to refuse in its own terms; a foreign key is not caught.
+    /// A key a record holds on a body tier 1 vouches for is a link
+    /// ([`Body::linked_edge`]).
+    ///
+    /// The public door to an edge's curve: read it off the returned
+    /// [`EdgeView`], whose curve link panics on a torn body (D2 row 4).
+    #[must_use]
+    pub fn edge(&self, edge: EdgeKey) -> Option<EdgeView<'_, T>> {
+        let record = self.edges.get(edge)?;
+        Some(EdgeView {
+            body: self,
+            key: edge,
+            record,
+        })
+    }
+
+    /// **Every edge of the body**, in arena order.
+    pub fn edge_views(&self) -> impl Iterator<Item = EdgeView<'_, T>> {
+        self.edges.iter().map(move |(key, record)| EdgeView {
+            body: self,
+            key,
+            record,
+        })
     }
 }
 
@@ -716,6 +1271,25 @@ impl<T: Real> Body<T> {
         })
     }
 
+    /// **Loop `lk`, a key a caller passed, as a cycle**: the door for a
+    /// per-loop reader handed a bare key ([`crate::point_in_loop`]).
+    /// [`NoCycle::Stale`] where it does not resolve, [`NoCycle::Lone`]
+    /// where it is a lone vertex, [`NoCycle::Torn`] where it does not walk
+    /// ([`prove_cycle`]); a foreign key is not caught.
+    ///
+    /// # Errors
+    ///
+    /// [`NoCycle`].
+    pub fn cycle_loop(&self, lk: LoopKey) -> Result<CycleLoop<'_, T>, NoCycle> {
+        let record = self.loops.get(lk).ok_or(NoCycle::Stale)?;
+        match record.boundary {
+            LoopBoundary::Cycle { first } => {
+                prove_cycle(self, lk, record, first).ok_or(NoCycle::Torn)
+            }
+            LoopBoundary::Empty { vertex } => Err(NoCycle::Lone(vertex)),
+        }
+    }
+
     /// **Every face of the body**, in arena order.
     pub fn face_views(&self) -> impl Iterator<Item = FaceView<'_, T>> {
         self.faces.iter().map(move |(key, record)| FaceView {
@@ -751,24 +1325,17 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// **Each vertex on the face's boundary, lone ones included**, as
-    /// [`Body::unchecked_face_boundary`] reads it: a lone loop's vertex,
-    /// and each cycle member's start that resolves. A loop the body
-    /// cannot read contributes none, and is the caller's to notice
-    /// through the boundary walk itself.
+    /// **Each vertex on the face's boundary, lone ones included**: each
+    /// loop's [`Body::loop_vertices`], in [`Face::loop_keys`]' order. A
+    /// loop the body cannot read contributes none, and is the caller's to
+    /// notice through the boundary walk itself
+    /// ([`Body::unchecked_face_boundary`]).
     pub(crate) fn unchecked_face_vertices<'a>(
         &'a self,
         face: &'a Face,
     ) -> impl Iterator<Item = VertexKey> + 'a {
-        self.unchecked_face_boundary(face)
-            .filter_map(Result::ok)
-            .flat_map(move |read| match read {
-                UncheckedLoop::Lone(vertex) => vec![vertex],
-                UncheckedLoop::Cycle(cycle) => cycle
-                    .into_iter()
-                    .filter_map(|he| self.half_edges.get(he).map(|h| h.start))
-                    .collect(),
-            })
+        face.loop_keys()
+            .flat_map(move |lk| self.loop_vertices(lk).unwrap_or_default())
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
@@ -788,14 +1355,6 @@ impl<T: Real> Body<T> {
                     .answer_geometry(self.points.get(v.point), GeomRef::Point(v.point))
             },
         )
-    }
-
-    /// `edge`'s curve-arena entry, a link its record holds.
-    #[track_caller]
-    pub(crate) fn edge_curve_linked(&self, edge: EdgeKey, data: &Edge) -> &CurveGeom<T> {
-        self.get_curve_geom(data.curve).unwrap_or_else(|| {
-            dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(data.curve))
-        })
     }
 
     /// The mate of `he`, a half of edge `ek` (its record `data`), and the
@@ -840,15 +1399,8 @@ impl<T: Real> Body<T> {
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
-                    let ek = half.edge;
-                    let edge = linked(
-                        &self.edges,
-                        ek,
-                        EntityId::Edge,
-                        EntityId::HalfEdge(he),
-                        "edge",
-                    );
-                    BoundaryMember::Edge { he, half, ek, edge }
+                    let edge = self.linked_edge(half.edge, EntityId::HalfEdge(he), "edge");
+                    BoundaryMember::Edge { he, half, edge }
                 })
                 .collect(),
         }
@@ -977,6 +1529,11 @@ impl<T: Real> Body<T> {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+#[path = "area_loops_rows.rs"]
+mod area_loops_rows;
 
 #[cfg(test)]
 // Test-support code: panicking is a test's failure mechanism (L5).
@@ -1532,7 +2089,8 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                     let hes: Vec<HalfEdgeKey> = members
                         .iter()
                         .map(|m| match *m {
-                            BoundaryMember::Edge { he, half, ek, .. } => {
+                            BoundaryMember::Edge { edge, he, half, .. } => {
+                                let ek = edge.key();
                                 assert_eq!(half.edge, ek, "{he:?}: its own edge");
                                 he
                             }
@@ -1698,47 +2256,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
-    /// **A face's raw loop keys are read only where a miss is reported**:
-    /// [`crate::entity::Face::loop_keys`] and `loop_roles` hand back keys
-    /// unresolved, so a walk that resolves each one itself (`get_loop(lk)?`)
-    /// would answer a torn link however it pleased. Outside the home they
-    /// are read only by the files below, each of which reports or hands
-    /// on a miss itself.
-    #[test]
-    fn loop_keys_is_read_only_where_a_miss_is_reported() {
-        const READERS: &[(&str, &str)] = &[
-            ("entity.rs", "the order's home"),
-            ("live.rs", "the walks' home"),
-            ("validate.rs", "the validator reports every miss"),
-            (
-                "census.rs",
-                "the tier-3 census hands an unwalkable loop back",
-            ),
-            (
-                "props.rs",
-                "each loop goes to a loop door that refuses Corrupt",
-            ),
-            (
-                "euler.rs",
-                "find_half_edge is total by its contract; site_face reads keys only",
-            ),
-            ("fixtures.rs", "the torn-body fixtures report a dead loop"),
-            (
-                "splitting/section_cones.rs",
-                "each loop goes to `loop_points::loop_corners`, whose miss is a desync",
-            ),
-            (
-                "review_m0_pr7.rs",
-                "a census of a body the validator has not certified",
-            ),
-        ];
-        let strays = read_outside(&["loop_keys(", "loop_roles("], READERS);
-        assert!(
-            strays.is_empty(),
-            "a face's loops resolved outside the home: {strays:#?}"
-        );
-    }
-
     /// **The explicitly unchecked walk of a face's boundary is read only
     /// where a miss is reported**: [`Body::unchecked_face_boundary`] and
     /// its projections answer a torn loop `Err(loop)` rather than naming
@@ -1777,7 +2294,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
 
     /// **No code in this crate reads a face's surface through the public
     /// door** ([`Body::face_surface`]): inside the crate a face is read
-    /// through a resolved [`FaceView`], so the door's `Option` is never
+    /// through a resolved [`FaceView`], so the door's `Result` is never
     /// a second spelling of [`Body::face`]'s.
     #[test]
     fn the_public_surface_door_is_read_only_outside_the_crate() {
@@ -1895,6 +2412,123 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             &mut body,
             &[&linked, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
             |b| b.linked_face(face, EntityId::Loop(outer), "face").key(),
+        );
+    }
+
+    /// **Production code reads the curve arena only through
+    /// [`super::EdgeView`], or at one of the readers named here**, each a
+    /// reader that refuses or reports its own miss on a body tier 1 has
+    /// not vouched for, or the doors themselves. Swept over every crate
+    /// that reads an edge's curve, test-only code (a test-only `cfg` on an
+    /// item or on a file module) left out. A raw read anywhere else is a
+    /// sixth hand-written ladder; a listed reader that no longer reads
+    /// raw is a stale entry.
+    #[test]
+    fn production_reads_an_edges_curve_only_through_the_view() {
+        use crate::policy_lane::origin_census::production;
+        /// `(file under crates/, fn)`: the raw curve-arena readers.
+        const RAW: [(&str, &str); 11] = [
+            ("topo/src/body.rs", "get_curve_geom"),
+            ("topo/src/live.rs", "curve"),
+            ("topo/src/transform.rs", "map_isometry"),
+            ("topo/src/validate.rs", "certified_carrier"),
+            ("topo/src/validate.rs", "closed_by_tier"),
+            ("topo/src/validate.rs", "wraps"),
+            ("topo/src/validate.rs", "tier3_local_checks_marked"),
+            ("topo/src/census/curved.rs", "read"),
+            ("topo/src/props.rs", "run_edges"),
+            ("topo/src/euler_kill.rs", "kev_merge_moves"),
+            ("mesh/src/walk.rs", "edge_curve"),
+        ];
+        const NEEDLES: [&str; 3] = ["get_curve_geom(", ".curves.get(", ".curves["];
+        let crates = src_root().join("../..");
+        let read = |f: &std::path::Path| std::fs::read_to_string(f).expect("a readable source");
+        let mut seen = std::collections::BTreeSet::new();
+        let mut violations = Vec::new();
+        let mut gated_any = false;
+        for krate in ["topo", "mesh", "step-export", "editor-core", "sweep"] {
+            let files = test_utils::source::rust_sources(&crates.join(krate).join("src"));
+            let mut gated = std::collections::BTreeSet::new();
+            for file in &files {
+                let dir = match file.file_stem().and_then(|s| s.to_str()) {
+                    Some("lib" | "mod") => {
+                        file.parent().expect("a file has a directory").to_owned()
+                    }
+                    Some(stem) => file.with_file_name(stem),
+                    None => continue,
+                };
+                let beside = file.parent().expect("a file has a directory");
+                for name in production(&read(file)).1 {
+                    gated.insert(dir.join(format!("{name}.rs")));
+                    gated.insert(dir.join(&name));
+                }
+                // A test-only `#[path = "..."]` module: its file sits beside
+                // its parent, under whatever name the attribute gives.
+                let text = read(file);
+                let lines: Vec<&str> = text.lines().collect();
+                for (i, l) in lines.iter().enumerate() {
+                    let Some(rest) = l.trim().strip_prefix("#[path = \"") else {
+                        continue;
+                    };
+                    let test_only = lines[i.saturating_sub(3)..i]
+                        .iter()
+                        .any(|a| a.trim() == "#[cfg(test)]");
+                    if let (true, Some(target)) = (test_only, rest.strip_suffix("\"]")) {
+                        gated.insert(beside.join(target));
+                    }
+                }
+            }
+            gated_any |= !gated.is_empty();
+            for file in &files {
+                if gated.iter().any(|g| file.starts_with(g)) {
+                    continue;
+                }
+                let code = production(&read(file)).0;
+                let fns = test_utils::source::fn_items(&code).expect("every fn body closes");
+                let shown = file
+                    .strip_prefix(&crates)
+                    .unwrap_or(file)
+                    .display()
+                    .to_string();
+                for needle in NEEDLES {
+                    for (at, _) in code.match_indices(needle) {
+                        if code[..at].trim_end().ends_with("fn") {
+                            continue;
+                        }
+                        let within = fns
+                            .iter()
+                            .filter(|(_, body)| body.contains(&at))
+                            .min_by_key(|(_, body)| body.len())
+                            .map_or("", |(name, _)| name.as_str());
+                        if RAW.contains(&(shown.as_str(), within)) {
+                            seen.insert((shown.clone(), within.to_owned()));
+                        } else {
+                            violations.push(format!(
+                                "{shown}:{} (`{within}`) reads the curve arena raw (`{needle}`)",
+                                test_utils::source::line(&code, at)
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            gated_any,
+            "the walk read no test-only module, so it cannot tell one"
+        );
+        for (file, within) in RAW {
+            if !seen.contains(&(file.to_owned(), within.to_owned())) {
+                violations.push(format!(
+                    "{file} `{within}` is listed and reads no curve raw"
+                ));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "an edge's curve is read through `EdgeView` (`Body::edge`, `proven_edge`, \
+             `linked_edge`, `edge_views`); a raw read is listed here only for a reader that \
+             reports its own miss:\n{}",
+            violations.join("\n")
         );
     }
 }

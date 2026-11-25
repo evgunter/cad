@@ -153,7 +153,7 @@ pub fn hollow_capped_vessel() -> (Body<f64>, Vec<topo::FaceKey>, f64) {
         .faces()
         .filter(|(fk, _)| {
             matches!(hollow.face_surface(*fk),
-                Some(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
+                Ok(geom::Surface::Sphere { radius, .. }) if (*radius - (rho - 0.2)).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

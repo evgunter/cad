@@ -18,7 +18,6 @@ use topo::construction::Construct;
 
 use std::sync::Arc;
 
-use editor_core::mate::SurfaceKind;
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault, MateRef,
     Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
@@ -290,27 +289,19 @@ fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
     );
 }
 
-/// **A body with a face whose reach cannot be bounded refuses typed,
-/// naming the face and its kind.** No document door builds such a
-/// face — every face a validated body can hold has a cover — so the
-/// arm is pinned at the unit level on a hand-built body: the Euler
-/// `mvfs` seed, whose one face stands on the all-poison NURBS
-/// placeholder, which has no cover.
+/// **A body with a face that has no surface yet refuses typed, naming
+/// the face.** No document door builds such a face — tier 3 refuses a
+/// pending face at rest — so the arm is pinned at the unit level on a
+/// hand-built body: the Euler `mvfs` seed, whose one face is pending.
 #[test]
-fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
+fn a4_a_pending_face_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
         .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
     let refusal =
-        editor_core::mate::body_reach(&body, band()).expect_err("the placeholder has no bound");
-    assert_eq!(
-        refusal,
-        ReachRefusal::FaceUnbounded {
-            face: made.face,
-            kind: SurfaceKind::Nurbs,
-        }
-    );
+        editor_core::mate::body_reach(&body, band()).expect_err("a pending face has no bound");
+    assert_eq!(refusal, ReachRefusal::FacePending { face: made.face });
     // The same answer through the door the solve reads.
     assert_eq!(
         editor_core::mate::part_reach(&body, band()).err(),
@@ -540,7 +531,7 @@ fn a6_no_edit_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: editor_core::Bodies::Spelled(vec![
+                    members: editor_core::Bodies::spelled(vec![
                         fixture::copy(b, body),
                         fixture::copy(c, body),
                     ]),
@@ -782,7 +773,8 @@ fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
     let (mut best, mut circles) = (0.0_f64, 0usize);
     for (fk, _) in body.faces() {
         for (lk, _, _) in body.face(fk).expect("a live face").loops() {
-            let (edges, _) = topo::props::loop_edges(body, lk).expect("the loop walks");
+            let (edges, _) = topo::props::loop_edges(body.cycle_loop(lk).expect("a cycle loop"))
+                .expect("the loop walks");
             for e in &edges {
                 match &e.carrier {
                     geom::Curve3::Line(_) => {
@@ -902,8 +894,8 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
     let rest_on = |to| Mate {
-        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
-        to: fixture::flip(to),
+        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))).into(),
+        to: fixture::flip(to).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     // A floor's top, and a second turned `0.25` about the world's `x`.

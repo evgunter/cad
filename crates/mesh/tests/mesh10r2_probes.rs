@@ -162,7 +162,9 @@ fn m10r2_split_lineage_after_graft() {
     let mesh_held = mesh::tessellate(&held, 0.1, tol).map(|m| m.positions.len());
     println!("M10R2 graft into BALL: mesh = {mesh_held:?}");
     for (fk, f) in held.faces() {
-        let Ok((outer, _)) = topo::props::loop_edges(&held, f.outer) else {
+        let Ok((outer, _)) =
+            topo::props::loop_edges(held.cycle_loop(f.outer).expect("a cycle loop"))
+        else {
             continue;
         };
         let ids: Vec<_> = outer

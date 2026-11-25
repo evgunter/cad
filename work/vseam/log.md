@@ -501,3 +501,69 @@ row's last section says what moved.
     - `document-seam-no-in-session-change-detection` (P1, design) goes to two Opus designers first.
     - `the-profile-editor-picks-an-earlier-piece-...` waits on SELFREF's units, and the two parked rows wait on FACELOOP and REPEAT, so none of those is dispatchable here.
   - **Not built in the retirement:** the GUI prefill of slides and spin from the clicked corner (Ev on 7073: "may"), and whether plain New profile takes a picked face. Both are filed as their own row and kept out of the retirement. (VSEAM)
+- 2026-11-22 — **The two retirement PRs.** Python is PR 7465, viewer phase 1 is PR 7466.
+  - **Review tier.** The viewer unit's review went from STYLE to FULL at dispatch, because the PR rewrote or deleted many test rows and the risk was that pins weakened silently.
+  - **The 7466 review.** APPROVE-WITH-FIXES, no MAJOR. Mutants turned every ported row red. The fix pass took M1 (the `gestures_on` sweep lost its on-face checks beyond the one the rule retires) and M2 (`mixed_chain`'s mirror swap lost the minted-first tie-break at depth and its profile loop's subject), plus the four duplicate boss helpers, the rectangle chain copy, and four prose rows (one of them in DESIGN's companion table). Argued down: the hand-indexed gesture table (Q7).
+  - **Filed elsewhere:**
+    - `chrome/a-profiles-placement-reading-lost-the-sketch-it-was-written-for` (P3);
+    - evidence on `pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement` (still red: 147850 against 147856, at base and head);
+    - notes on the doors, formwords and vgeom logs about rows citing `SketchOnFace`.
+  - **Friction found: disk.** Each lane's target is 11–12 GB, so this container fits about three at once. The viewer lane filled the disk mid-run. The fix was to delete finished lanes' targets before a reviewer builds and to have reviewers build with `CARGO_INCREMENTAL=0`. Running reviewers in their own cloud sessions is the alternative. (VSEAM)
+- 2026-11-22 — **PR 7465 review: APPROVE-WITH-FIXES, no MAJOR.** The binding was confirmed faithful, with mutants killed for each argument except slide order and `resolver=`.
+  - **Fix pass took:** m1 (an asymmetric slides row); m2 (pin `resolver=`); m3 (document the slide axes); N1 (renumbering at the first and a middle position); N5 (the bottom-cap pocket subtracted); S4, S5 and S7 (messages and a docstring); and two stale citations on BIND rows.
+  - **Argued down:** S3 (correct today); S8 (a deliberate oracle).
+  - **Filed:**
+    - `pydoor/a-profile-on-a-frame-takes-three-outline-vocabularies` (P3);
+    - `doctail/orient-none-falls-back-to-the-identity-when-the-face-does-not-read` (P3);
+    - `doctail/an-empty-outline-on-a-face-refuses-with-a-recourse-about-mating-a-part` (P3, and worth checking against the GUI's empty on-face profile).
+  - **Friction:** 7465's first CI job sat queued for a runner for 45 minutes. (VSEAM)
+- 2026-11-22 — **`document-seam-no-in-session-change-detection` weighed and put to Ev** (fork-log row 301; `[ev]` PR on `vseam/ev-what-the-store-owes-a-pin`). Two Opus designers, four rounds.
+  - Both first reports rejected the framing: IDENTITY DI2 (Ev, in chat, 2026-09-04, commit 08777903615) already ruled the meaning, and its door was "`Reevaluate` re-mounts the store".
+  - Round 1 was a crossover on the meaning: does an updated part fail its instance, or stay drawn with a standing beside it?
+  - Round 2 asked the question underneath, what the store owes a pin (AQ1). Both took retention, and the interim crossed again.
+  - In round 3 both adopted the save rule, which dissolves §2.
+  - Round 4 was on the kernel `holds` check. I stated wrongly that no pncad caller primes a prior: pncad-py's `evaluate(prior=)` does. The designer corrected it, and the other moved on that fact.
+  - **Converged:**
+    - AQ1: a folder keeps every pinned version until an explicit prune;
+    - the kernel reuses a carried part only while the given store holds its pin, transitively;
+    - the session holds one read with a transitive standing, the offer reads the standing, and there is a Re-read parts door.
+  - **Order (mine, a sequencing call):** retention, then the kernel check, then the session side, so no interim meaning ships.
+  - The ratified-text edits are on the PR. §3 is filed as `the-part-chooser-calls-every-document-a-part`.
+  - Off-question findings ride with the build; they are listed on the row. (VSEAM)
+- 2026-11-23 — **Ev on PR 7462.**
+  - Ev first asked: "i think the plan was to build a full version control thing; how does this relate to that?" I answered on the PR: the only written plan is GUI-6, a per-document history store. The kept pinned versions are content-addressed objects, so under a VCS that keeps every saved state they are its object store plus one gc rule (pins are roots). I asked whether the VCS is per folder or per document, and whether AQ1 should be built now or wait.
+  - Ev's answer: "(a) i don't think it was entirely planned out, just that it should allow arbitrary non-destructive undo (b) hm, maybe open a new program for it where it just has an extra hard P0 like 'figure out how to do this and then do it' (and you can just hand it off / not build this now)".
+  - **Done on that PR:**
+    - its edits to DESIGN, ASSEMBLY and IDENTITY are reverted, since nothing was ruled;
+    - **VERSIONS** is opened (`work/versions/`, `ready`, no orchestrator) with one P0 X row, `the-store-keeps-every-version-and-history-undoes-without-destroying` (30 points, design), carrying the designers' converged recommendation as evidence;
+    - `document-seam-no-in-session-change-detection` moved there by `git mv`, parked on that row.
+  - The §3 split (`the-part-chooser-calls-every-document-a-part`) stays here. Fork-log row 301 records Ev's decision. (VSEAM)
+- 2026-11-23 — **Ev on CI, in chat:** "if you have any PRs which only touch docs, comments, or work items, then (if applicable) just run the work lint locally and don't wait for ci. also, as always, you can do whatever tests you want to feel comfortable with merging something locally and skip ci". Applied from here on: PR 7462's state commits merged on local `work.py lint`, and PR 7466 merges on a local battery instead of its queued run.
+- 2026-11-23 — **The retirement closes** (PR 7466, which carries PR 7465). It closes:
+  - `on-the-picked-face-draws-the-profile-there`;
+  - `doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`;
+  - the parent issue `on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox`, Ev's 2026-11-02 report.
+
+  `SessionOp::SketchOnFace`, `Doc.sketch_on_face`, pncad's re-exports and editor-core's fused act are gone. A sketch on a face is a profile drawn on the face's chart, and the extrude and the combine are their own acts.
+  - **A semantic conflict with main was caught at the merge.** `7661fad` (2026-11-22) added `intent_s6_e_traced_on_a_face::a_boss_traced_across_two_cylinders_coaxial_only_at_zero_tilt_is_not_proved`, a new caller of `editor_core::sketch_on_face`. The textual merge was clean, and only a grep of the merged tree found it. It is ported to `draw_on_face` plus an extrude of 2.0, the same place the fused act put the upright cylinder.
+  - **Class finding:** a deletion PR that waits in a queue can be met by a new caller on main, and a text merge cannot see it. The deletion's own sweep has to be re-run on the merged tree (discipline §5: "a sweep is accurate as of your merge base"). (VSEAM)
+- 2026-11-23 — **Merged PR 7466** (carrying 7465), on a local battery per Ev's CI ruling, run on the tree merged with main.
+  - **Results:** clippy clean on four crates; editor-core intent rows 35/35; pncad 84/84; Python 971 with one census failure, fixed; viewer 1670/1674.
+  - **The viewer's four reds are not ours.** Three need a GPU adapter, and `review_pick_r2` is inherited from main (PCERT's row).
+  - **The battery caught a bad merge.** One of the branch's merges had dropped main's `B-READS` census family and its two `NOT_BOUND` rows. They are restored from main, and a diff against the merge base showed nothing else lost.
+  - **Class finding:** a long-queued branch merges main several times, and each merge can lose main's lines. The census caught this one only because it is a test.
+  - The queued hosted run was cancelled. The P1 slate closed this sitting:
+    - the fused sketch-on-face act, three rows;
+    - `document-seam-no-in-session-change-detection`, handed to VERSIONS on Ev's ruling.
+- 2026-11-23 — **Track handed back (`ready`).**
+  - **What remains is not dispatchable by this sitting:**
+    - P1 `the-profile-editor-picks-an-earlier-piece-as-a-points-or-directors-value` waits on SELFREF's two units;
+    - the two parked P1s wait on FACELOOP and REPEAT;
+    - the P2–P4 tail is a successor's.
+  - **Drive-by:** `SessionOp::Save`'s doc cited "issue #1387". It now cites the row it moved to (`work/versions/document-seam-no-in-session-change-detection.md`).
+  - **Friction this sitting:**
+    - disk fits about three 11–12 GB targets;
+    - hosted runners queued 79+ runs, and a run waited about 1.5–2 h;
+    - two merges with main were wrong in ways a text merge cannot show: a new caller of a deleted function, and dropped census rows.
+
+  Lanes and targets are cleaned. (VSEAM)

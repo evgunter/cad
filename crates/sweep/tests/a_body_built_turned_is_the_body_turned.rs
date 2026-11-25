@@ -20,8 +20,9 @@
 //!   its axis, whose one-corner loops are charted by
 //!   `section_loops::chord_u_ref`'s fallback;
 //! - the union of two balls offset along the sketch normal, whose
-//!   sphere groups the boolean re-charts about their centre line with
-//!   seams turned to the pair's own (`boolean/ops.rs`, `pair_seam`).
+//!   sphere faces the boolean cuts along a meridian of each one's own
+//!   chart through the pair's section circle (`boolean/ops.rs`,
+//!   `apply_cut_ins`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -180,12 +181,14 @@ const BALL_PAIRS: [(&str, Ball, Ball); 3] = [
 /// Every surface carrier, rendered by `{:?}` (shortest round-trip, so
 /// equal text is equal bits, signed zeros included), in arena order.
 fn surfaces(body: &Body<f64>) -> Vec<String> {
-    body.surfaces().map(|(_, s)| format!("{s:?}")).collect()
+    body.described_surfaces()
+        .map(|(_, s)| format!("{s:?}"))
+        .collect()
 }
 
 /// Each plane carrier's `(origin, normal, u_ref)`, in arena order.
 fn plane_frames(body: &Body<f64>) -> Vec<[[f64; 3]; 3]> {
-    body.surfaces()
+    body.described_surfaces()
         .filter_map(|(_, s)| match s {
             Surface::Plane { frame } => {
                 let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());

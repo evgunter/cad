@@ -24,7 +24,7 @@ other curved supports) is registered in `docs/KERNEL-VERBS.md`; the canal blend 
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`, `slab_walls`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`), `crates/sweep/src/skin.rs` (`body_walls`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -262,16 +262,34 @@ and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop of k ≥ 2 pieces (a circle split at authored
 stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
-one wall whose strut is its wrap edge (D1), in every verb: extrude's
-cylinder wraps `u` across it, a partial revolve's torus wraps `v`, a
-loft's spline wall wraps `u`, and a full revolve's torus is one face
-closed both ways, its meridian and its latitude circle each a wrap edge.
+one wall whose strut is its wrap edge (D1) in extrude and revolve:
+extrude's cylinder wraps `u` across it, a partial revolve's torus wraps
+`v`, and a full revolve's torus is one face closed both ways, its
+meridian and its latitude circle each a wrap edge. A loft cuts it at its
+sub-arc joints, below.
 A station inside a run has no entity in the body: a cap carries the run as
 one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges),
 and a partial revolve's run of on-axis segments is one axis edge. It
 stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.
+The skin writes an arc wider than the sub-arc ceiling (about 95.6°) as
+rational-quadratic sub-arcs joined at a double knot, and the compatible
+net carries every section's joints in every row, so a segment's skinned
+surface is C⁰ in `u` at the union of its sections' joints. The loft cuts
+the wall at each, one wall per sub-arc, with a seam at each joint
+(DESIGN [topology], quoted below). The seam's wedge is whatever the
+walls make there, read by `topo::edge_wedge` like any edge's, not
+assumed. It is 180° where every section's joint there is a joint of
+arcs of one sweep, so of one weight (as a sweep's rigidly moved section
+is), or at v-degree 1, and not in general: where the sections' arcs
+differ, a joint each holds at the same `u` still parts the two walls'
+normals at v-degree 2 or more. A lofted circle
+is four walls, and a one-segment loop's full turn is four walls with no
+wrap edge. Each section's segment is cut where its own curve reaches
+the joint, so a section whose arc has fewer sub-arcs, or a line, is cut
+there too, and its rim pieces lie on its own carrier. The cut follows
+the sub-arc ceiling: the face count of a lofted arc wall moves with it.
 At v-degree 1 through three sections or more it builds one wall per
 segment per slab (the stretch between two consecutive sections): the
 skinned net's control rows are its sections, so slab `s`'s wall is rows
@@ -283,11 +301,9 @@ cuts its author wrote: the kernel adds none, except where a face or edge
 carrier is not C¹ by its knot structure").
 Each interior section is a ring of edges on the placed sketch segments,
 the same carriers as the cap rims, described in the row of the slab wall
-below; each strut is one straight boundary column per slab. An arc
-whose row the other sections' sub-arc joints refine has no arc-rim image
-there, and the loft refuses it (`LoftError::SectionRim`, recourse
-v-degree 2;
-`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+below; each strut is one straight boundary column per slab. A rim on a
+row the other sections' joints refine is one rational-quadratic span at
+end weights that are not one value, which the arc rim's image states.
 Slab walls lie on distinct spline surfaces, which no merge glues (a spline pair is
 outside the carrier ladder's inventory), so a translated polygon's slab
 walls stay distinct though coplanar. At v-degree 2 or more one wall

@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec3};
 
 use super::{Pcurve, PcurveCache, PcurveCertifyError};
 use crate::{
@@ -119,7 +119,7 @@ fn ruling<T: Decide>(place: Place) -> Curve3<T> {
     let (c, r) = (T::from_f64, place.radius());
     Curve3::line(
         Point3::new(c(r * RULING.cos()), c(r * RULING.sin()), c(0.0)),
-        Vec3::new(c(0.0), c(0.0), c(1.0)),
+        geom_core::UnitVec3::exact_z(),
     )
 }
 
@@ -127,9 +127,9 @@ fn ruling<T: Decide>(place: Place) -> Curve3<T> {
 fn column<T: Decide>() -> Pcurve<T> {
     let c = T::from_f64;
     Pcurve::IsoLine {
-        p0: Point2::new(c(0.5), c(0.0)),
-        pl: Vec2::new(c(0.0), c(1.0)),
-        ends: None,
+        line: crate::ChartLine::column(c(0.5)),
+        at0: c(0.0),
+        rate: c(1.0),
     }
 }
 
@@ -221,7 +221,7 @@ macro_rules! edge_at {
                 spec,
                 start,
                 end,
-                |k| table.get(k).cloned(),
+                |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
                 band(),
                 NurbsLane::certified(),
@@ -506,7 +506,12 @@ fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
         ),
         radius: 1.0,
     };
-    let line = |r: f64| Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let line = |r: f64| {
+        Curve3::line(
+            Point3::new(r, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        )
+    };
     let general = |r| {
         PcurveCache::certify_general(
             column_curve::<f64>(),

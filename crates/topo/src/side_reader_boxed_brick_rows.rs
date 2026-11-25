@@ -49,7 +49,7 @@ fn brick_at(top: Boxed, right: Boxed, inside_out: bool, tol: Tol) -> Body<Boxed>
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = *twin.proven_face(face).surface()
+        } = *twin.proven_face(face).expect_described()
         else {
             panic!("a brick's face is planar");
         };
@@ -400,6 +400,224 @@ fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
     }
 }
 
+/// [`brick_at`] upright over `[0, 1] × [0, 1] × [0, top]`, every edge's
+/// line stated as a sweep door states it: from the edge's own start
+/// along the unit brick's exact direction, as long as the edge is
+/// (`top` for an upright edge). [`brick_at`]'s own lines are minted from
+/// their two ends (`EdgeCurveSpec::line_between`), so a moving edge's
+/// direction there is as wide as its chord. This restates how a door
+/// states a line; nothing keeps it in step with the doors, and the
+/// door-built rows are `sweep`'s `an_aimed_ray_over_boxed_door_bodies`.
+fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
+    let mut body = brick_at(top, Boxed::from_f64(1.0), false, tol);
+    let twin = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let mut stated = std::collections::BTreeSet::new();
+    for (face, _) in twin.faces() {
+        for e in twin.proven_face(face).edges() {
+            let plus = twin
+                .edges
+                .get(e.edge)
+                .and_then(|edge| edge.claim(e.half))
+                .expect("the twin's half claims its edge")
+                .plus;
+            if !plus || !stated.insert(e.edge) {
+                continue;
+            }
+            let at = |b: &Body<f64>, v| {
+                *b.get_point(b.get_vertex(v).expect("a vertex").point)
+                    .expect("a point")
+            };
+            let dir = at(&twin, e.ends[1]) - at(&twin, e.ends[0]);
+            let ends = e.ends.map(|v| {
+                *body
+                    .get_point(body.get_vertex(v).expect("the twin's keys").point)
+                    .expect("a point")
+            });
+            let mut spec = geom_brep::EdgeCurveSpec::line_between(ends[0], ends[1]);
+            spec.carrier = geom::Curve3::line(
+                ends[0],
+                // An axis direction of the unit brick: unit, exactly.
+                geom_core::UnitVec3::checked(dir.map(Boxed::from_f64)),
+            );
+            spec.param_end = if dir.z == 0.0 {
+                Boxed::from_f64(1.0)
+            } else {
+                top
+            };
+            body.set_edge_curve(e.edge, spec, tol)
+                .expect("the edge takes its line");
+        }
+    }
+    body
+}
+
+/// Runs `read` on [`lined_brick`] with its top cap over `1 ± half`.
+fn over_lined<R>(half: f64, read: impl FnOnce(&Body<Boxed>, Band) -> R) -> R {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    geom_core::sym::with_session(budget, || {
+        let top = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("lined_brick_top")),
+            Interval::from_bounds(1.0 - half, 1.0 + half),
+            1.0 - half,
+            1.0 + half,
+        );
+        read(&lined_brick(top, tol), band)
+    })
+    .0
+}
+
+/// The brick's top cap: the face whose stated normal runs up `z`, its
+/// `z` read as a number by `low` (the value at `f64`, an enclosure's
+/// lower end over a box).
+fn top_cap<T: Decide>(body: &Body<T>, low: impl Fn(T) -> f64) -> (FaceKey, Vec3<T>) {
+    body.faces()
+        .find_map(|(face, _)| {
+            let normal = crate::face_normal::face_plane(body, face)?.normal;
+            (low(normal.z) > 0.5).then_some((face, normal))
+        })
+        .expect("a brick has a top cap")
+}
+
+/// The upright `f64` brick whose top cap stands at `top`.
+fn member(top: f64) -> Body<f64> {
+    brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, top), Tol::witness())
+}
+
+/// Whether the enclosure of `x` holds `value` and is no wider than
+/// `width`, as the reason it does not.
+fn held(x: Boxed, value: f64, width: f64) -> Result<(), String> {
+    let (lo, hi) = (geom_core::Bounds::lo(x), geom_core::Bounds::hi(x));
+    if lo <= value && value <= hi && hi - lo <= width {
+        Ok(())
+    } else {
+        Err(format!(
+            "[{lo}, {hi}] (width {:e}) against the member's {value} and a width of {width:e}",
+            hi - lo
+        ))
+    }
+}
+
+/// The half-widths the moving cap's readings are held at: a twentieth,
+/// a quarter and nine twentieths of the brick's height.
+const HALVES: [f64; 3] = [0.05, 0.25, 0.45];
+
+/// **The turn of a moving cap's loop about a point of it is `2π` over
+/// the box, and about a point beside it `0`, each as narrow as at a
+/// member** (`solid_contain::loop_turn`). The cap's four vertices and
+/// the point each carry the cap's boxed height, and the turn holds none
+/// of it: every member's is `±2π` or `0` to rounding. Held within
+/// `1e-9` of the members' value at each of [`HALVES`].
+///
+/// **Red where the turn is read on all three components**
+/// (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
+/// `u·w` then sums the height's width squared, and at a quarter of the
+/// height the turn about the inside point encloses `[−0.6, 13]`.
+#[test]
+fn a_moving_caps_turn_is_as_narrow_as_a_members() {
+    use crate::solid_contain::planar_turn;
+    let tau = core::f64::consts::TAU;
+    for (what, x, turns) in [("inside", 0.37, 1.0), ("beside", 1.5, 0.0)] {
+        for top in [0.55, 1.0, 1.45] {
+            let body = member(top);
+            let (face, normal) = top_cap(&body, |z| z);
+            let turn = planar_turn(&body, face, normal, Point3::new(x, 0.41, top))
+                .expect("a brick's cap is four lines");
+            assert!(
+                (turn - turns * tau).abs() < 1e-12,
+                "{what}, the member at {top}: its turn is {turn}"
+            );
+        }
+        for half in HALVES {
+            let turn = over_lined(half, |body, _| {
+                let (face, normal) = top_cap(body, geom_core::Bounds::lo);
+                let height = crate::face_normal::face_plane(body, face)
+                    .expect("a cap is planar")
+                    .origin
+                    .z;
+                let p = Point3::new(Boxed::from_f64(x), Boxed::from_f64(0.41), height);
+                planar_turn(body, face, normal, p).expect("a brick's cap is four lines")
+            });
+            if let Err(why) = held(turn, turns * tau, 1e-9) {
+                panic!("{what}, top 1 ± {half}: the cap's turn is {why}");
+            }
+        }
+    }
+}
+
+/// **A moving cap's aim is stepped in by its members' step**
+/// (`side_reader::loop_aim`): across the cap it stands where every
+/// member's does, to `1e-12`, and along the normal it is as wide as the
+/// box. The step is half the least clearance of the cap's other edges,
+/// `0.19` at every height, read between points that each carry the
+/// cap's height.
+///
+/// **Red where the step reads `solid_contain::edge_clearance` with no
+/// normal** (`None` for `Some(normal)` in `loop_aim`): a clearance then
+/// carries the height's width along the normal, and at a twentieth of
+/// the height the aim's `x` is `[0.191, 0.216]`.
+#[test]
+fn a_moving_caps_aim_is_stepped_by_its_members_step() {
+    let at = |top: f64| {
+        let body = member(top);
+        let (face, normal) = top_cap(&body, |z| z);
+        loop_aim(&body, face, normal).expect("a brick's cap aims")
+    };
+    let (low, high) = (at(0.55), at(1.45));
+    assert!(
+        (low.x - high.x).abs() < 1e-15 && (low.y - high.y).abs() < 1e-15,
+        "the members' aims stand at one place across the cap: {low:?}, {high:?}"
+    );
+    for half in HALVES {
+        let aim = over_lined(half, |body, _| {
+            let (face, normal) = top_cap(body, geom_core::Bounds::lo);
+            loop_aim(body, face, normal).expect("a brick's cap aims")
+        });
+        for (axis, got, want, width) in [
+            ("x", aim.x, low.x, 1e-12),
+            ("y", aim.y, low.y, 1e-12),
+            ("z", aim.z, 1.0, 2.0 * half + 1e-12),
+        ] {
+            if let Err(why) = held(got, want, width) {
+                panic!("top 1 ± {half}: the aim's {axis} is {why}");
+            }
+        }
+    }
+}
+
+/// **A brick whose lines are stated as a door states them reads its
+/// side by its caps' rays over a box half its height wide**
+/// ([`lined_brick`]): both caps' aims read `Out` at `1 ± 0.25`, the
+/// walls' are set aside, and no aim reads `In`.
+///
+/// **Red where the loops' turn is read on all three components**
+/// (`u.dot(w)` for the second reading of `solid_contain::planar_cross_dot`):
+/// neither cap's ray reads.
+///
+/// A wall's ray is not asked for: its aim hangs a fixed step under its
+/// moving top edge
+/// (`work/boxfinish/a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide.md`).
+#[test]
+fn a_lined_boxed_brick_reads_by_its_caps_own_rays() {
+    let own = over_lined(0.25, each_aim_report);
+    assert_eq!(own.len(), 6, "a brick offers six aims");
+    for read in &own {
+        assert!(!read.contains("Side(In)"), "a wrong side: {read}");
+    }
+    let out = own
+        .iter()
+        .filter(|read| read.ends_with(": Ok(Side(Out))"))
+        .count();
+    assert_eq!(
+        out, 2,
+        "top 1 ± 0.25: both caps' rays read, the walls' do not: {own:#?}"
+    );
+}
+
 /// **A brick over a box a twentieth of its height wide reads its side
 /// by every face's own ray, and an inside-out one reads `In` by a ray
 /// through it.** Upright, each of the six aims reads `Out`. An
@@ -410,6 +628,12 @@ fn a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it() {
 /// the ray's origin (the second ray then reads nothing), and against a
 /// reading that takes the side from anything but the count (the upright
 /// brick's same two rays read `Out`).
+///
+/// The box is no wider because this brick's lines are minted from their
+/// two ends (`EdgeCurveSpec::line_between`): a top edge's direction is
+/// as wide as its chord, and past `± 0.04` a wall's ray is set aside on
+/// its own top edge. [`a_lined_boxed_brick_reads_by_its_caps_own_rays`]
+/// reads a brick whose lines are stated as a door states them.
 #[test]
 fn a_boxed_brick_reads_the_side_its_members_have() {
     let top = (0.975, 1.025);
@@ -494,3 +718,7 @@ fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
         tally(&all)
     );
 }
+
+#[cfg(test)]
+#[path = "side_reader_tilted_cap_rows.rs"]
+mod tilted_cap_rows;

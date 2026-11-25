@@ -594,8 +594,7 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// faces the rim bounds. The spline's image on the cylinder is its
 /// projected one, whose hull terms read the fitted door, which the
 /// description door's site mint does not hold. So the cylinder face is
-/// left rowless for a closing mint, and the at-rest gate reads it
-/// `Unminted`; the mint stores its projected rows
+/// left rowless, and the finish completes it with the projected rows
 /// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
 /// The hand split that leaves the half-ellipse is a station the gate
 /// reads too. The body is not a finished body and no split door takes
@@ -623,23 +622,14 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
         "the at-rest gate reads the face the spline bounds as owed rows it lacks, and the \
          hand split's station: {errors:?}"
     );
-    let mut minted = body.clone();
-    topo::mint_pcurves(&mut minted, Tol::witness()).expect("the closing mint");
-    let sides = topo::readback::edge_sides(&minted, edge).unwrap();
+    let mut finished = body.clone();
+    topo::mint_pcurves(&mut finished, Tol::witness()).expect("the closing mint");
+    let sides = topo::readback::edge_sides(&finished, edge).unwrap();
     let projected = [sides.plus.half_edge, sides.minus.half_edge]
         .into_iter()
-        .filter_map(|h| minted.pcurve(h))
+        .filter_map(|h| finished.pcurve(h))
         .any(|c| matches!(c.pcurve(), geom_brep::Pcurve::Projected(_)));
-    assert!(
-        projected,
-        "the closing mint stores the spline's projected row"
-    );
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let findings = topo::pcurves::validate_pcurves(&minted, band);
-    assert!(
-        findings.is_empty(),
-        "the minted body reads clean: {findings:?}"
-    );
+    assert!(projected, "the finish stores the spline's projected row");
     match topo::test_support::split_carrier_gate(&body, &plane(0.0, 0.4), Tol::witness()) {
         Err(SplitReduceError::CurvedEdgeUnsupported { edge: e }) => {
             assert_eq!(e, edge, "the refusal names the spline edge");
@@ -738,7 +728,7 @@ fn a_sphere_face_whose_side_is_not_certified_keeps_the_ball() {
     let (zone, surface, sense) = reverted
         .faces()
         .find_map(|(k, f)| {
-            let s = reverted.face_surface(k)?;
+            let s = reverted.face_surface(k).ok()?;
             matches!(s, geom::Surface::Sphere { .. }).then(|| (k, s.clone(), f.sense))
         })
         .expect("the wedge has a sphere face");

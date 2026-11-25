@@ -162,8 +162,8 @@ pub fn sheet_apexes<T: Real>(
     } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
-        (Singularity::SheetApexUp, center + axis * height),
-        (Singularity::SheetApexDown, center - axis * height),
+        (Singularity::SheetApexUp, center + axis.get() * height),
+        (Singularity::SheetApexDown, center - axis.get() * height),
     ]
 }
 
@@ -176,8 +176,8 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
         dir: axis,
     } = axis;
     [
-        (Singularity::North, center + axis * radius),
-        (Singularity::South, center - axis * radius),
+        (Singularity::North, center + axis.get() * radius),
+        (Singularity::South, center - axis.get() * radius),
     ]
 }
 
@@ -1289,7 +1289,7 @@ impl<T: Decide> EdgeShape<T> {
                 height: None,
             },
             Curve3::Circle(circle) => {
-                let n = circle.frame().axis();
+                let n = circle.axis();
                 let radius = circle.radius();
                 Self {
                     speed,
@@ -1619,11 +1619,10 @@ pub fn spline_collapsed_row<T: Real>(
     net: &geom::NurbsSurface<T>,
     side: crate::ssi::ChartSide,
 ) -> Option<Vec<usize>> {
-    // A net that is not `Described` — the placeholder, or a poisoned
-    // net — describes no surface, so it has no side to read: its rows are
-    // one stored point because they are poison, not because a side
-    // collapses. Every side reader asks here.
-    if !matches!(net.net_state(), geom::NetState::Described) {
+    // A net that is not finite describes no surface, so it has no side
+    // to read: its rows are one stored point because they are poison,
+    // not because a side collapses. Every side reader asks here.
+    if !net.is_finite() {
         return None;
     }
     let row = side_row(net, side);

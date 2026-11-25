@@ -193,7 +193,7 @@ fn a_value_cannot_stand_in_for_a_standoff() {
     rested(&mut session, &mut tools, VarKind::Plane);
     let doc = session.committed_doc();
     assert!(
-        !slides(&the_mate(doc, copy).to),
+        !slides(&the_mate(doc, copy).to.read),
         "the picks write the face's plane, unslid"
     );
     near(
@@ -284,7 +284,7 @@ fn a_block_placed_off_a_face_follows_the_face() {
     let role = viewer::matetool::offset_role(VarKind::Plane).expect("a plane takes an offset");
     assert_eq!(
         offset.to,
-        viewer::matetool::offset_side(rest.to.clone(), role, common::len(GAP)),
+        viewer::matetool::offset_side(rest.to.read.clone(), role, common::len(GAP)).into(),
         "the far side is the rest's, slid"
     );
     assert_eq!(offset.on, rest.on, "the near side is untouched");
@@ -354,7 +354,7 @@ fn a_block_placed_off_a_face_follows_the_face() {
             "{what}: the editor follows"
         );
         assert_eq!(
-            slides(&the_mate(session.committed_doc(), copy).to),
+            slides(&the_mate(session.committed_doc(), copy).to.read),
             offset.is_some(),
             "{what}: the bundle's far side"
         );
@@ -377,7 +377,7 @@ fn a_block_placed_off_a_face_follows_the_face() {
     near(at(&session, copy)[2], BASE[2], "an offset of zero rests");
     assert_eq!(
         the_mate(session.committed_doc(), copy).to,
-        viewer::matetool::offset_side(rest.to, role, zero),
+        viewer::matetool::offset_side(rest.to.read, role, zero).into(),
         "a written zero keeps its slide"
     );
 }
@@ -678,7 +678,7 @@ fn foreign_rest(label: &str, d: f64) -> (DocSession, Tools, RecipeNodeId, Mate<F
     let (mut session, mut tools, _, copy) = scene(label);
     rested(&mut session, &mut tools, VarKind::Plane);
     let rest = the_mate(session.committed_doc(), copy);
-    let seat = rest.to.clone();
+    let seat = rest.to.read.clone();
     let to = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(seat.clone()),
         along: RoleRead::through(seat, PoseRole::Normal),
@@ -686,7 +686,7 @@ fn foreign_rest(label: &str, d: f64) -> (DocSession, Tools, RecipeNodeId, Mate<F
     }));
     let foreign_mate = Mate {
         on: rest.on.clone(),
-        to,
+        to: to.into(),
         orient: rest.orient,
     };
     editor(&mut tools).strike(0, true);
@@ -753,7 +753,7 @@ fn review_a_foreign_slide_survives_the_editors_other_gestures() {
     editor(&mut tools).set_sense(0, false);
     commit(&mut session, &mut tools, "flush");
     assert!(
-        slides(&the_mate(session.committed_doc(), copy).to),
+        slides(&the_mate(session.committed_doc(), copy).to.read),
         "flush keeps the slide"
     );
     near(
@@ -868,7 +868,7 @@ fn a_zero_offset_is_shown_as_written_and_no_offset_as_empty() {
     stood_off(&mut session, &mut tools, by, "gap at zero");
     near(at(&session, copy)[2], BASE[2], "gap at zero rests");
     assert!(
-        slides(&the_mate(session.committed_doc(), copy).to),
+        slides(&the_mate(session.committed_doc(), copy).to.read),
         "a formula reading zero keeps its slide"
     );
     assert_eq!(
@@ -878,7 +878,7 @@ fn a_zero_offset_is_shown_as_written_and_no_offset_as_empty() {
     );
     stood_off(&mut session, &mut tools, None, "cleared");
     assert!(
-        !slides(&the_mate(session.committed_doc(), copy).to),
+        !slides(&the_mate(session.committed_doc(), copy).to.read),
         "cleared, no slide"
     );
     assert_eq!(shown(&mut tools, &session), "", "cleared: an empty field");

@@ -106,15 +106,6 @@ pub enum HeldRefusal {
         /// The accumulation face.
         face: FaceKey,
     },
-    /// A lost region of a face of a sphere shell a re-chart turned
-    /// before the boolean ran: the turn moved the face over the input
-    /// shell's faces, so which of them the region held is not read
-    /// (`BooleanNaming::recharted`). The turned face, at its operand's
-    /// place.
-    Recharted {
-        /// The turned face.
-        face: MemberFace,
-    },
 }
 
 impl PartialEq for HeldRefusal {
@@ -142,8 +133,7 @@ impl PartialEq for HeldRefusal {
                 },
             ) => f == g && kind(r) == kind(s),
             (Self::UncutRemainder { face: f }, Self::UncutRemainder { face: g }) => f == g,
-            (Self::Recharted { face: f }, Self::Recharted { face: g })
-            | (Self::NotUnder { member_face: f }, Self::NotUnder { member_face: g })
+            (Self::NotUnder { member_face: f }, Self::NotUnder { member_face: g })
             | (Self::CarrierUnread { member_face: f }, Self::CarrierUnread { member_face: g }) => {
                 f == g
             }
@@ -255,8 +245,7 @@ impl Holdings {
     }
 
     /// The pair door's reading ([`Self::of_records`]) of records a test
-    /// built by hand over `body` and `operands`, A's then B's, with no
-    /// clone a re-chart turned.
+    /// built by hand over `body` and `operands`, A's then B's.
     #[cfg(any(test, feature = "test-support"))]
     #[must_use]
     pub fn read_records<T: Decide>(
@@ -266,7 +255,7 @@ impl Holdings {
         operands: [&Body<T>; 2],
         band: Band,
     ) -> Self {
-        Self::of_records(op, naming, body, (operands, [None, None]), band)
+        Self::of_records(op, naming, body, operands, band)
     }
 
     pub(crate) fn from_parts(
@@ -303,24 +292,15 @@ impl Holdings {
         op: BooleanOp,
         naming: &BooleanNaming,
         body: &Body<T>,
-        (operands, clones): ([&Body<T>; 2], [Option<&Body<T>>; 2]),
+        operands: [&Body<T>; 2],
         band: Band,
     ) -> Self {
-        // A subtract's result holds B's faces turned: a finished face is
-        // read against a face of B the other way round.
-        let turned = |place: usize| place == 1 && op == BooleanOp::Subtract;
+        // A face of an operand the result holds turned is read the other
+        // way round ([`BooleanOp::holds_turned`]).
+        let turned = |place: usize| op.holds_turned(Operand::BOTH[place]);
         let descent = FaceDescent::of(naming);
-        let place = |operand: Operand| usize::from(operand == Operand::B);
-        let root = |operand: Operand, f: FaceKey| (place(operand), descent.clone_face(operand, f));
-        // The operand faces a root is: itself, or, for a face of a sphere
-        // shell a re-chart turned, the faces of the input shell it was
-        // turned over (`BooleanNaming::recharted`), any of which its
-        // region may meet.
-        let input = |(p, r): MemberFace| -> Vec<MemberFace> {
-            naming.recharted[p]
-                .input_faces(super::Cell::Face(r))
-                .map_or_else(|| vec![(p, r)], |fs| fs.iter().map(|&f| (p, f)).collect())
-        };
+        let root =
+            |operand: Operand, f: FaceKey| (operand.index(), descent.clone_source(operand, f).root);
         let merged = descent.merged();
         // Every face of the result before the merge, with the operand face
         // it is a piece of.
@@ -329,8 +309,10 @@ impl Holdings {
         let mut pieces: BTreeMap<MemberFace, usize> = BTreeMap::new();
         for (f, _) in body.faces() {
             for g in constituents(f) {
-                let (operand, r) = descent.result_face(g);
-                *pieces.entry((place(operand), r)).or_default() += 1;
+                let source = descent.source(g);
+                *pieces
+                    .entry((source.operand.index(), source.root))
+                    .or_default() += 1;
             }
         }
         // Kept operand face → the dropped operand faces some piece of it
@@ -365,20 +347,11 @@ impl Holdings {
                 // the face must meet `f`'s region.
                 let mut through: BTreeMap<MemberFace, bool> = BTreeMap::new();
                 for g in constituents(f) {
-                    let (operand, r) = descent.result_face(g);
-                    let kept = (place(operand), r);
-                    match input(kept)[..] {
-                        [one] => {
-                            set.insert(one);
-                        }
-                        ref several => maybe.extend(several.iter().copied()),
-                    }
+                    let source = descent.source(g);
+                    let kept = (source.operand.index(), source.root);
+                    set.insert(kept);
                     for &m in held_through.get(&kept).into_iter().flatten() {
-                        let whole = pieces[&kept] == 1;
-                        for i in input(m) {
-                            let must = whole && input(m).len() == 1;
-                            *through.entry(i).or_default() |= must;
-                        }
+                        *through.entry(m).or_default() |= pieces[&kept] == 1;
                     }
                 }
                 maybe.extend(through.keys().copied());
@@ -416,35 +389,9 @@ impl Holdings {
             })
             .collect();
         // What the region `face` of `operand`'s clone lost held: its
-        // operand face, or where a re-chart turned that face, those of
-        // the input shell's faces its region meets, read in the clone the
-        // operation kept (its own sense, as the operand's).
-        let lost_region = |operand: Operand, face: FaceKey| {
-            let r = root(operand, face);
-            let several = match input(r)[..] {
-                [one] => return Held::Faces(BTreeSet::from([one])),
-                ref several => several.to_vec(),
-            };
-            let Some(clone) = clones[r.0].filter(|c| c.get_face(face).is_some()) else {
-                return Held::Refused(HeldRefusal::Recharted { face: r });
-            };
-            let mut set = BTreeSet::new();
-            for m in several {
-                match overlap_as((clone, face), ((operands[m.0], m.1), false), band) {
-                    Ok(true) => {
-                        set.insert(m);
-                    }
-                    Ok(false) => {}
-                    Err(refusal) => {
-                        return Held::Refused(HeldRefusal::Overlap {
-                            member_face: m,
-                            refusal,
-                        });
-                    }
-                }
-            }
-            Held::Faces(set)
-        };
+        // operand face.
+        let lost_region =
+            |operand: Operand, face: FaceKey| Held::Faces(BTreeSet::from([root(operand, face)]));
         let lost = naming
             .discards
             .iter()

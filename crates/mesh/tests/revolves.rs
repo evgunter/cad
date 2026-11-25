@@ -225,12 +225,7 @@ fn a_polar_cap_sizes_its_azimuth_at_its_widest_latitude() {
         let tris: usize = mesh
             .patches
             .iter()
-            .filter(|p| {
-                matches!(
-                    body.face_surface(p.face),
-                    Some(geom::Surface::Sphere { .. })
-                )
-            })
+            .filter(|p| matches!(body.face_surface(p.face), Ok(geom::Surface::Sphere { .. })))
             .map(|p| p.triangles.len())
             .sum();
         assert_eq!(tris, pinned, "the cap's sphere patch at δ {delta}");

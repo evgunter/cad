@@ -115,7 +115,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
 
 fn is_cylinder(body: &Body<f64>, face: topo::FaceKey) -> bool {
     body.face_surface(face)
-        .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+        .is_ok_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
 }
 
 /// The merge records of a boolean result: each is a curved run's
@@ -172,7 +172,7 @@ fn shared_edges(
 /// `body`'s faces carried by a surface of `kind`.
 fn faces_of_kind(body: &Body<f64>, kind: SurfaceKind) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(f, _)| body.face_surface(*f).map(geom::Surface::kind) == Some(kind))
+        .filter(|(f, _)| body.face_surface(*f).is_ok_and(|s| s.kind() == kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -398,7 +398,7 @@ fn d_prism_with_split_keys() -> (
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 origin.y.abs() < 1e-12 && normal.y < -0.5
             }
@@ -534,14 +534,14 @@ fn a_surface_with_no_live_face_glues_nothing() {
         .unwrap();
     }
     assert!(
-        body.get_surface(pk).is_some(),
+        body.get_surface(pk).is_ok(),
         "{pk:?} stays live with zero faces (held by an edge description) — if the \
          orphan rule changed, re-pin this row on another construction"
     );
     assert!(faces_on(&body, pk, pk).is_empty());
     assert_eq!(validate_closed(&body), Ok(()));
-    // At rest: the re-charted walls store their rows again, so the
-    // door's closing mint has nothing to change.
+    // At rest: the re-charted walls store their rows again, minted
+    // here so the door reads a body whose rows are current.
     topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let want = body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert!(
@@ -604,7 +604,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Ok(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");
@@ -645,14 +645,18 @@ fn halved(
     let tol = Tol::witness();
     let [wall] = body
         .faces()
-        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(|s| s.kind() == kind))
         .map(|(k, _)| k)
         .collect::<Vec<_>>()[..]
     else {
         panic!("{kind:?}: one wall");
     };
     let key = body.get_face(wall).unwrap().surface;
-    let (_, hes) = topo::props::loop_edges(&body, body.get_face(wall).unwrap().outer).unwrap();
+    let (_, hes) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(wall).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
     let edge_of = |h| body.get_half_edge(h).unwrap().edge;
     let seam = hes
         .iter()
@@ -682,7 +686,11 @@ fn halved(
             body.split_edge(rim, 0.5 * (t0 + t1), tol).unwrap().vertex
         })
         .collect();
-    let (_, hes) = topo::props::loop_edges(&body, body.get_face(wall).unwrap().outer).unwrap();
+    let (_, hes) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(wall).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
     let from = |v| {
         *hes.iter()
             .find(|&&h| body.get_half_edge(h).unwrap().start == v)
@@ -769,7 +777,13 @@ fn sphere_torus_and_cone_pairs_record_their_period_closure() {
             (Point2::new(0.0, 1.0), 0.0),
         ]),
         SurfaceKind::Cone,
-        |a, b| (geom::Curve3::line(a, b - a), 0.0, 1.0),
+        |a, b| {
+            (
+                geom::Curve3::line(a, geom_core::UnitVec3::squared(b - a)),
+                0.0,
+                (b - a).norm(),
+            )
+        },
     );
     for (label, mut body, kind) in [
         ("ball", ball, SurfaceKind::Sphere),

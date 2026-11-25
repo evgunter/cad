@@ -68,10 +68,13 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             u: channel(u),
             v: channel(v),
         },
-        &Pcurve::IsoLine { p0, pl, ends } => Pcurve::IsoLine {
-            p0: p2(p0),
-            pl: v2(pl),
-            ends: ends.map(|e| e.map(p2)),
+        &Pcurve::IsoLine { line, at0, rate } => Pcurve::IsoLine {
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            at0: c(at0),
+            rate: c(rate),
         },
         Pcurve::General(net) => Pcurve::General(Arc::new(net.map_scalar(c))),
         &Pcurve::Spiric {
@@ -113,15 +116,20 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             sense: c(f.sense),
         }),
         Pcurve::IsoArc {
-            p0,
-            pd,
+            line,
+            g0,
+            gd,
             t0,
             angle,
             breaks,
             ends,
         } => Pcurve::IsoArc {
-            p0: p2(*p0),
-            pd: v2(*pd),
+            line: crate::ChartLine {
+                axis: line.axis,
+                value: c(line.value),
+            },
+            g0: c(*g0),
+            gd: c(*gd),
             t0: c(*t0),
             angle: c(*angle),
             breaks: breaks.clone(),
@@ -165,7 +173,7 @@ macro_rules! door_at {
                     },
                     start,
                     end,
-                    |k| table.get(k).cloned(),
+                    |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(<$t as Real>::one()),
                     band(),
                     NurbsLane::certified(),
@@ -228,7 +236,7 @@ fn harmonic_witness(b: f64) -> (Surface<f64>, Pcurve<f64>, Curve3<f64>, (f64, f6
         Vec2::new(0.0, b),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     (plane(), image, carrier, (0.0, 8.0 * PI))
 }
 
@@ -323,7 +331,7 @@ fn a_bound_past_the_band_with_no_miss_located_is_the_lever() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     for door in DOORS {
         let got = (door.certify)(&plane(), &image, &carrier, (-0.05, 0.05));
         assert_eq!(ended(&got), Ended::Unsettled, "at {}: {got:?}", door.name);
@@ -473,8 +481,15 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             let at = o + u_ref * g.range(-5.0, 5.0) + v_ref * g.range(-5.0, 5.0);
             match g.below(3) {
                 0 => {
-                    let dir = perpendicular(g, axis) * g.range(0.3, 3.0);
-                    (surface, Curve3::line(at, dir), length(g))
+                    // The drawn speed scales the span: the same segment
+                    // on its unit direction, its span in metres.
+                    let (dir, speed) = (perpendicular(g, axis), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => {
                     let r = g.range(0.1, 5.0);
@@ -505,8 +520,13 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             match g.below(3) {
                 0 => {
                     let at = o + radial(g.range(-4.0, 4.0)) * r + axis * h;
-                    let dir = axis * (sign(g) * g.range(0.3, 3.0));
-                    (surface, Curve3::line(at, dir), length(g))
+                    let (dir, speed) = (axis * sign(g), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => (surface, circle(g, o + axis * h, axis, r), turn(g)),
                 _ => {
@@ -544,8 +564,11 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
                 let (sigma, speed) = (sign(g), g.range(0.3, 3.0));
                 let away = sigma * slant > 0.0;
                 let reach = if away { 10.0 } else { slant.abs() - 0.2 } / speed;
-                let line = Curve3::line(o + generator * slant, generator * (sigma * speed));
-                (surface, line, (0.0, g.range(0.1, 1.0) * reach))
+                let line = Curve3::line(
+                    o + generator * slant,
+                    geom_core::UnitVec3::squared(generator * sigma),
+                );
+                (surface, line, (0.0, g.range(0.1, 1.0) * reach * speed))
             } else {
                 let c = o + axis * (slant * alpha.cos());
                 (
@@ -730,7 +753,10 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
+            Curve3::Line(l) => Curve3::line(
+                self.point(l.origin),
+                geom::stated_direction(self.vector(l.dir.get())),
+            ),
             Curve3::Circle(k) => Curve3::circle(
                 self.point(k.frame().origin()),
                 -self.vector(k.frame().axis()),
@@ -1153,6 +1179,9 @@ fn a_spiric_or_focal_section_on_its_carrier_certifies() {
 fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
     let mut g = fuzz::start("curve_in_uv_on_its_carrier");
     let mut read = 0usize;
+    // How many of the lines read were also stated as an iso line (a row
+    // or a column of their chart), and how many were slanted in it.
+    let (mut as_iso, mut slanted) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(2) {
         for kind in &KINDS[1..] {
             let (surface, carrier, span) = drawn(&mut g, *kind);
@@ -1165,7 +1194,14 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             if [pa.x, pa.y, pb.x, pb.y].iter().any(|&x| x != 0.0) {
                 continue;
             }
-            let iso = Pcurve::IsoLine { p0, pl, ends: None };
+            // The line as an iso image where it is a row or a column of
+            // its chart (a ruling, a meridian); a line slanted in its
+            // chart is the curve in UV alone.
+            let iso = Pcurve::iso_line_for_tests([p0.x, p0.y], [pl.x, pl.y]);
+            match iso {
+                Some(_) => as_iso += 1,
+                None => slanted += 1,
+            }
             let mut breaks: Vec<f64> = (0..g.below(5))
                 .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
                 .collect();
@@ -1183,7 +1219,11 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             let general = Pcurve::General(Arc::new(
                 NurbsCurve2::new(kv.clone(), control, vec![1.0; count]).unwrap(),
             ));
-            for (what, image) in [("iso line", iso), ("curve in UV", general.clone())] {
+            let stated = iso
+                .map(|iso| ("iso line", iso))
+                .into_iter()
+                .chain([("curve in UV", general.clone())]);
+            for (what, image) in stated {
                 certifies_everywhere(
                     &format!("{kind:?} {what}"),
                     &surface,
@@ -1223,7 +1263,13 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             }
         }
     }
-    println!("read {read} curves in UV");
+    println!("read {read} images: {as_iso} lines stated as an iso line too, {slanted} slanted");
+    assert_eq!(
+        (read > 0, as_iso > 0 || read == 0),
+        (true, true),
+        "the row read {read} images, {as_iso} of them as an iso line ({})",
+        fuzz::replay()
+    );
 }
 
 /// `sup |C(t) − S(P(t))|` over the span, read densely: `4096` even points,
@@ -1523,6 +1569,168 @@ fn a_focal_section_whose_beta_is_not_below_one_ends_as_its_defect() {
     assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
 }
 
+/// **A focal section's `|β|` below one by any room is cut-free**: the
+/// true-anomaly map's `atan2` argument keeps `1 − |β|` from the origin,
+/// so the structure check reads that room's sign alone. A cone's section
+/// stated with `|β|` at `1 − 2⁻⁴⁰`, a room far under the band at any
+/// arm, passes it; at `1` it does not. No section in the box has such a
+/// `β` (it needs an eccentricity within about `2·10⁻¹⁶` of one), so a
+/// stated one is the image's defect, and the map, evaluated cut-free,
+/// names it: at every door the image misses its carrier
+/// ([`CertifyError::StatedImageMissed`]) and ends as the kernel
+/// defect.
+#[test]
+fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
+    let mut g = fuzz::start("focal_beta_any_room");
+    let mut seen = 0;
+    for _ in 0..40 {
+        let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) else {
+            continue;
+        };
+        let span = (0.2, 2.0);
+        let Ok(Pcurve::FocalSection(f)) =
+            chart_pcurve_over(&ellipse, span.0, span.1, &cone, band())
+        else {
+            continue;
+        };
+        let beta_refused = |beta: f64| {
+            let image = Pcurve::FocalSection(FocalImage {
+                beta: beta * f.beta.signum(),
+                ..f
+            });
+            matches!(
+                super::focal_section_identity(&image, span, &cone, None, band()),
+                Err(super::PcurveCertifyError::ImageMismatch { why, .. }) if why.contains("|β|")
+            )
+        };
+        assert!(
+            !beta_refused(1.0 - 2f64.powi(-40)),
+            "a room of 2⁻⁴⁰ is cut-free ({})",
+            fuzz::replay()
+        );
+        assert!(beta_refused(1.0), "no room is refused ({})", fuzz::replay());
+        let image = Pcurve::FocalSection(FocalImage {
+            beta: (1.0 - 2f64.powi(-40)) * f.beta.signum(),
+            ..f
+        });
+        for door in DOORS {
+            let got = (door.certify)(&cone, &image, &ellipse, span);
+            assert!(
+                matches!(got, Err(CertifyError::StatedImageMissed { .. })),
+                "{}: the cut-free map misses its carrier ({}): {got:?}",
+                door.name,
+                fuzz::replay()
+            );
+            assert_eq!(
+                got.as_ref()
+                    .err()
+                    .and_then(|e| e.ending(ReadAt::Run(Reading::Build)))
+                    .as_deref(),
+                Some(KERNEL_DEFECT_ENDING),
+                "{}: a stated β in the band is the kernel's defect ({})",
+                door.name,
+                fuzz::replay()
+            );
+        }
+        seen += 1;
+        if seen == 3 {
+            break;
+        }
+    }
+    assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
+}
+
+/// **A genuine needle section of a cone passes with its own `β`.** The
+/// focal image's `1 − |β|` is about the section's projected axis ratio, so
+/// a section thin enough for that room to come near the band has its plane
+/// within the band of a generator's tilt, and the section's classifier
+/// (`intersect::plane_cone_section`) reads every such plane as an open
+/// conic: no ellipse that thin is minted, and a stated `β` closer to one
+/// is never a section's own (the row above). This one, a plane `10⁻³` off
+/// the apex and tilted a thousand of the band's zero short of the
+/// generator, a needle out along it, mints its own focal image with
+/// `1 − |β|` (`2.3·10⁻³` at ε `10⁻⁹`) past a hundred escalations, and its
+/// structure passes at both scalars.
+#[test]
+fn a_needle_cone_section_passes_with_its_own_beta() {
+    let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+    let apex = Point3::new(0.0, 0.0, 0.0);
+    let half_angle = 0.5;
+    let cone = Surface::Cone {
+        frame: geom::Frame::new(apex, axis, u_ref),
+        half_angle,
+    };
+    let tilt = (1.0 - 1e3 * band().zero()) * (core::f64::consts::FRAC_PI_2 - half_angle);
+    let normal = (axis * tilt.cos() + axis.cross(u_ref) * tilt.sin()).normalize();
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(apex + axis * 1e-3, normal, u_ref.cross(normal).normalize()),
+    };
+    let reach = crate::Reach::fixture(apex, 4.0);
+    let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(needle)) =
+        crate::intersect::plane_cone_section(&plane, &cone, &reach, band())
+    else {
+        panic!("the needle plane cuts the cone in an ellipse")
+    };
+    let span = (0.2, 2.0);
+    let image = chart_pcurve_over(&needle, span.0, span.1, &cone, band());
+    let Ok(Pcurve::FocalSection(f)) = image else {
+        panic!("the needle images as a focal section: {image:?}")
+    };
+    let room = 1.0 - f.beta.abs();
+    assert!(
+        room > 1e2 * band().escalate() && room < 0.1,
+        "the needle's own β keeps its room a hundred bands clear: {room:e}"
+    );
+    let iv = Interval::from_f64;
+    let at_interval = Pcurve::FocalSection(FocalImage {
+        u0: iv(f.u0),
+        t0: iv(f.t0),
+        v0: iv(f.v0),
+        va: iv(f.va),
+        vb: iv(f.vb),
+        vl: iv(f.vl),
+        beta: iv(f.beta),
+        sense: iv(f.sense),
+    });
+    let image = Pcurve::FocalSection(f);
+    assert!(
+        super::focal_section_identity(&image, span, &cone, None, band()).is_ok()
+            && super::focal_section_identity(
+                &at_interval,
+                (Interval::from_f64(span.0), Interval::from_f64(span.1)),
+                &cone.map_scalar(Interval::from_f64),
+                None,
+                band(),
+            )
+            .is_ok(),
+        "the needle's structure passes at both scalars"
+    );
+}
+
+/// **A spiric oval on its own torus is served over any span.** The mint's
+/// incidence test reads the oval's whole turn on the torus before the
+/// chart's axis is read, so the axis is the carrier's and the cosine is
+/// `±1`: an orientation, read by its sign, whatever the span. Levered at
+/// the span's own extent, an arc under the band read that cosine in band
+/// and refused the oval as off a "perpendicular" torus. Six ovals, each
+/// over spans from a million of the band's zero down to a tenth of it.
+#[test]
+fn a_spiric_on_its_own_torus_is_served_over_any_span() {
+    let mut g = fuzz::start("spiric_own_torus_any_span");
+    for _ in 0..6 {
+        let (oval, charts) = spiric(&mut g);
+        let t0 = g.range(-3.0, 3.0);
+        for span in [1e6, 1e4, 1e2, 30.0, 10.0, 3.0, 1.0, 0.1].map(|k| k * band().zero()) {
+            let got = chart_pcurve_over(&oval, t0, t0 + span, &charts[0], band());
+            assert!(
+                matches!(got, Ok(Pcurve::Spiric { .. })),
+                "a span of {span:e} on the oval's own torus is imaged ({}): {got:?}",
+                fuzz::replay()
+            );
+        }
+    }
+}
+
 /// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the
 /// height `z`.
 fn rim_image(phase: f64, winding: i32, z: f64) -> Pcurve<f64> {
@@ -1668,8 +1876,9 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
     let (oval, [_, _, oval_plane]) = spiric(&mut fuzz::Rng::from_seed(7));
     let spiric_cap = chart_pcurve_over(&oval, 0.3, 2.2, &oval_plane, band()).unwrap();
     let iso_arc = Pcurve::IsoArc {
-        p0: Point2::new(0.0, 0.0),
-        pd: Vec2::new(1.0, 0.0),
+        line: crate::ChartLine::row(0.0),
+        g0: 0.0,
+        gd: 1.0,
         t0: 0.0,
         angle: PI,
         breaks: KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -1709,7 +1918,7 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
             "an iso arc on a plane",
             plane(),
             iso_arc,
-            Curve3::line(Point3::origin(), Vec3::unit_x()),
+            Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
         ),
     ];
     let mut g = fuzz::Rng::from_seed(11);
@@ -2018,7 +2227,7 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 1e-4),
     );
-    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     assert!(check("a slope off", &plane(), &slope, &line, (2.0, 10.0)));
     assert!(check(
         "a height off",

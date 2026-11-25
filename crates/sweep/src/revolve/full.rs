@@ -38,7 +38,6 @@
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
-use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
 use topo::construction::Construct;
@@ -215,7 +214,8 @@ struct Stretch {
 
 /// The stretches between a loop's axis runs (k ≥ 2), sorted by what
 /// they close: the one joining the axially extreme run ends (the filled
-/// profile's wire), and each gap's, lowest gap first.
+/// profile's wire), and each gap's, lowest along the authored axis
+/// first.
 ///
 /// The swept traversal runs every axis run along `+d̂` (it is the
 /// clockwise traversal of a region at `r ≥ 0`, so its material lies to
@@ -273,7 +273,12 @@ fn gap_stretches<T: Decide>(
     let Some(f) = filled else {
         unreachable!("no stretch of a closed loop descends, though its axis runs ascend")
     };
-    let pockets = (1..k).map(|g| stretches[(f + g) % k]).collect();
+    // Ranked along the AUTHORED axis: a reflected frame's `+d̂` runs
+    // against it ([`AxisFrame::reflected`]).
+    let mut pockets: Vec<Stretch> = (1..k).map(|g| stretches[(f + g) % k]).collect();
+    if frame.reflected {
+        pockets.reverse();
+    }
     Ok((stretches[f], pockets))
 }
 
@@ -430,12 +435,9 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
         seed.vertex,
         segs,
         &qs,
-        // A placeholder has no chart normal to state a side against;
+        // A pending face has no chart normal to state a side against;
         // the bit is provisional, and the disc is killed by the zip.
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
+        FaceSurface::Pending { sense: true },
         tol,
     )?;
     let hes = lamina.hes;
@@ -636,10 +638,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
         theta,
         Sign::Positive,
         // A transient disc, killed by the closure, like the lamina's.
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
+        FaceSurface::Pending { sense: true },
         tol,
     )?;
     body.kfmrh(turn.near_face, seed.face)?;

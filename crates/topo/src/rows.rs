@@ -5,8 +5,7 @@
 //! doors, this one holds topo's: the ray walk's ([`ParityRows`],
 //! [`SegmentRows`]), the pieced arc's ([`ArcRows`]), a loop boundary's
 //! ([`BoundaryRows`]), the wedge reading's ([`WedgeNames`]), the point-in-
-//! solid ray's ([`RayRows`]) and the section ruling chart's
-//! ([`ChartRows`]). A bundle's rows key its reader's `k_stats` stream and
+//! solid ray's ([`RayRows`]). A bundle's rows key its reader's `k_stats` stream and
 //! its ledger row, so two readers sharing a name would merge their
 //! samples. Hence:
 //!
@@ -101,7 +100,6 @@ impl RoleNames {
         [self.high, self.low]
     }
 }
-use geom_brep::rows::SubdivisionRows;
 
 /// The four K rows one consumer meters its walk through. Distinct
 /// names per consumer are the point: see the module docs.
@@ -468,55 +466,6 @@ impl BoundaryRows {
     }
 }
 
-/// The predicate rows one chart is read under.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ChartRows {
-    /// A fold: `E`'s roots, their order, and the arcs between them.
-    fold: &'static str,
-    /// A line parallel to the partner's asymptotic directions: `p₂`'s
-    /// roots, and `p₁`'s sign at them.
-    asymptote: &'static str,
-    /// A refusal the representation, not the band, makes: the reading's
-    /// resolution is not inside the band's zero, or the reading answers
-    /// with its rounding uncharged (module docs).
-    precision: &'static str,
-    /// The subdivision's own rows.
-    walk: SubdivisionRows,
-}
-
-impl ChartRows {
-    /// The `fold` row.
-    #[must_use]
-    pub(crate) const fn fold(&self) -> &'static str {
-        self.fold
-    }
-
-    /// The `asymptote` row.
-    #[must_use]
-    pub(crate) const fn asymptote(&self) -> &'static str {
-        self.asymptote
-    }
-
-    /// The `precision` row.
-    #[must_use]
-    pub(crate) const fn precision(&self) -> &'static str {
-        self.precision
-    }
-
-    /// The `walk` rows.
-    #[must_use]
-    pub(crate) const fn walk(&self) -> &SubdivisionRows {
-        &self.walk
-    }
-
-    /// Every row the bundle names, for the roster (its `walk` is
-    /// geom-brep's, registered there).
-    #[must_use]
-    pub(crate) const fn names(&self) -> [&'static str; 3] {
-        [self.fold, self.asymptote, self.precision]
-    }
-}
-
 geom_core::row_registry! {
     /// **Every registered bundle's rows**, one entry per const below,
     /// derived from the consts given here, so none can be left out of it.
@@ -622,6 +571,22 @@ geom_core::row_registry! {
     pub(crate) const SPHERE_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_sphere_region_arc_span", "bool_sphere_region_arc_straddle");
 
+    /// A sphere region's spline edge (`sphere_region`).
+    pub(crate) const SPHERE_REGION_SPLINE: ArcRows = ArcRows {
+        end: "bool_sphere_region_spline_end",
+        clear: "bool_sphere_region_spline_clear",
+        on: "bool_sphere_region_spline_on",
+        leaf: "bool_sphere_region_spline_leaf",
+    };
+
+    /// A torus region's spline edge (`torus_region`).
+    pub(crate) const TORUS_REGION_SPLINE: ArcRows = ArcRows {
+        end: "bool_torus_region_spline_end",
+        clear: "bool_torus_region_spline_clear",
+        on: "bool_torus_region_spline_on",
+        leaf: "bool_torus_region_spline_leaf",
+    };
+
     /// A ruled region's conic edge (`ruled_region`).
     pub(crate) const RULED_REGION_CONIC: ConicRows =
         ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
@@ -706,32 +671,6 @@ geom_core::row_registry! {
         reaches: "side_at_infinity_met_edge_reaches",
     };
 
-    // ------------------------------------------------- section ruling charts
-
-    /// The cone × cylinder ruling chart (`boolean::section_cert`).
-    pub(crate) const SECTION_CONE_CYLINDER: ChartRows = ChartRows {
-        fold: "section_cone_cylinder_fold",
-        asymptote: "section_cone_cylinder_asymptote",
-        precision: "section_cone_cylinder_precision",
-        walk: geom_brep::rows::SECTION_RULING_WALK,
-    };
-
-    /// The cylinder × cone ruling chart (`boolean::section_cert`).
-    pub(crate) const SECTION_CYLINDER_CONE: ChartRows = ChartRows {
-        fold: "section_cylinder_cone_fold",
-        asymptote: "section_cylinder_cone_asymptote",
-        precision: "section_cylinder_cone_precision",
-        walk: geom_brep::rows::SECTION_RULING_WALK,
-    };
-
-    /// The cone pair's ruling chart (`boolean::section_cert`).
-    pub(crate) const SECTION_CONE_PAIR: ChartRows = ChartRows {
-        fold: "section_cone_pair_fold",
-        asymptote: "section_cone_pair_asymptote",
-        precision: "section_cone_pair_precision",
-        walk: geom_brep::rows::SECTION_RULING_WALK,
-    };
-
     // ------------------------------------------------- role reads
 
     /// Check 7's names (`validate`): the bracket's high end under
@@ -790,14 +729,6 @@ geom_core::row_registry! {
         clear: "fuzz_spiric_clear",
         on: "fuzz_spiric_on",
         leaf: "fuzz_spiric_leaf",
-    };
-
-    /// The ruling chart's own rows (`boolean::section_cert::ruling`'s tests).
-    pub(crate) const TEST_RULING: ChartRows = ChartRows {
-        fold: "test_ruling_fold",
-        asymptote: "test_ruling_asymptote",
-        precision: "test_ruling_precision",
-        walk: geom_brep::rows::SECTION_RULING_WALK,
     };
 }
 

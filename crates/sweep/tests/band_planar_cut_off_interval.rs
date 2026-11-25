@@ -391,10 +391,10 @@ fn foot_lines<T: Bounds + Decide>(body: &Body<T>) -> Vec<(EdgeKey, Vec3<T>, Vec3
                 return None;
             };
             [edge.he_plus, edge.he_minus].into_iter().find_map(|he| {
-                match body.face_surface(body.face_of_half_edge(he)?)? {
+                match body.face_surface(body.face_of_half_edge(he)?).ok()? {
                     geom::Surface::Cylinder { frame, .. } => {
                         let axis = frame.axis();
-                        Some((e, line.dir, axis))
+                        Some((e, line.dir.get(), axis))
                     }
                     _ => None,
                 }
@@ -468,7 +468,7 @@ fn a_sheared_fillets_foot_lines_certify_with_headroom() {
                 for he in [edge.he_plus, edge.he_minus] {
                     let on_band = body
                         .face_of_half_edge(he)
-                        .and_then(|f| body.face_surface(f))
+                        .and_then(|f| body.face_surface(f).ok())
                         .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }));
                     if !on_band {
                         continue;

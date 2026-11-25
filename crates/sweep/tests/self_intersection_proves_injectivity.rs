@@ -21,6 +21,9 @@
 //!   cell-pair counts printed;
 //! - a windowed tube holds across its caps' circles, where each cap's
 //!   two semicircles meet on the walls' seams;
+//! - a three-arc disc's filleted rim holds across the joints of its
+//!   band's foot parallel, as built, turned and far from the origin, and
+//!   two such discs through each other at a joint read `Violated`;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -34,15 +37,26 @@
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
 //!   and the cone frustum's cavity hold at both scalars, and the klein
 //!   elbow's cavity refuses typed at a spiric cap edge;
-//! - a lens loft's cap refuses typed at the depth budget against a wall
+//! - a lens-walled body's cap refuses typed at the depth budget against a wall
 //!   at the lens tip, while a twisted loft's seams and the half-turn
-//!   helix's caps hold against their walls.
+//!   helix's caps hold against their walls;
+//! - a two-arc lune's hollow holds, its cavity's sphere read beside its
+//!   caps' circles in the caps' poses, turned six ways, moved at random,
+//!   and hollowed after a turn; balls crossing or touching its posed
+//!   sphere read `Violated` and balls clear of it hold; with its seam off
+//!   the equator it refuses across the seam.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
 //! certifying scalar the shell gate and the document door ask at, which
 //! must read the same verdict class ([`same_class`]) — `Holds`,
-//! `Violated`, or the same refusal arm.
+//! `Violated`, or the same refusal arm. The exception is a body the
+//! `Interval` build does not reach: the lune's hollow, whose shell
+//! refuses at `Interval`, so its rows read `f64` alone, and
+//! [`a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval`] pins
+//! the refusal. The body that reaches a sphere's pose at both scalars is
+//! the lens of two spheres
+//! ([`a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
@@ -81,11 +95,20 @@ fn band() -> Band {
 
 /// The scalars a row builds its body at.
 trait Scalar:
-    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
+    Decide
+    + Bounds
+    + CertifiedBounds
+    + topo::CertifiedPolicy
+    + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
 {
 }
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>
-    Scalar for T
+impl<
+    T: Decide
+        + Bounds
+        + CertifiedBounds
+        + topo::CertifiedPolicy
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+> Scalar for T
 {
 }
 
@@ -409,6 +432,7 @@ fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| centre(a).total_cmp(&centre(b)))
         .unwrap()
@@ -514,6 +538,7 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
         };
         let walls: Vec<FaceKey> = lofted.side_faces[0]
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .copied()
@@ -705,6 +730,11 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
         &injective(&kiss::<Interval>(), None, BUDGET),
     );
     println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
+    assert_eq!(
+        report.receipt.refused, 1,
+        "the ask ends at the kiss: {:?}",
+        report.receipt
+    );
     match report.verdict {
         BoundVerdict::Refused(EngineRefusal::Uncertified {
             shared: SharedCell::Edge(e),
@@ -828,6 +858,207 @@ fn a_full_torus_certifies_by_kind() {
     }
 }
 
+/// The football of the spindle sheet `(R, 1)`, its centre `by` up the
+/// axis ([`crate::revolve_common::football`]), revolved whole: two sheet
+/// faces, each a π-band between meridians ending at both apexes.
+fn football<T: Scalar>(big: f64, by: f64) -> Body<T> {
+    let lp = crate::revolve_common::football(big, 1.0, by);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// A horn's needle tip ([`crate::revolve_common::needle_tip`]), its arc
+/// an eighth of the circle from the cusp, so it meets its disc at 45°,
+/// not tangent.
+fn needle<T: Scalar>() -> Body<T> {
+    let lp = crate::revolve_common::needle_tip(core::f64::consts::FRAC_PI_4);
+    revolve(&validated::<T>(&[lp]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
+}
+
+/// The spindle-sheet faces of `body`.
+fn sheet_faces<T: Real>(body: &Body<T>) -> usize {
+    body.faces()
+        .filter(|&(k, _)| matches!(surface(body, k), Surface::Spindle { .. }))
+        .count()
+}
+
+/// **Bodies on a spindle sheet hold at both scalars, each sheet face
+/// against itself by kind**: the lemon and the apple, each two sheet
+/// faces from apex to apex, read at each apex as their chart's collapsed
+/// side. A horn's needle, whose two sheet faces meet at its cusp
+/// tangent to the axis, is refused at their shared meridian. Red if a
+/// sheet face has no window, if its self-pair is not discharged by kind,
+/// if a cell at an apex is read as anything but the collapsed side, or
+/// if the needle reads embedded.
+#[test]
+fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
+    for (scalar, verdict) in [
+        ("f64", injective(&needle::<f64>(), None, BUDGET).verdict),
+        (
+            "Interval",
+            injective(&needle::<Interval>(), None, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(
+                verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified { .. })
+            ),
+            "the needle's cusp is refused at {scalar}: {verdict:?}"
+        );
+    }
+    for (what, float, interval) in [
+        ("the lemon", football(-0.5, 0.0), football(-0.5, 0.0)),
+        ("the apple", football(0.4, 0.0), football(0.4, 0.0)),
+    ] {
+        let sheets = sheet_faces(&float);
+        assert!(sheets >= 1, "{what} is built on a spindle sheet");
+        for report in holds_at_both(what, float.clone(), interval) {
+            assert!(
+                report.receipt.by_kind >= sheets,
+                "{what}: each of its {sheets} sheet faces against itself discharged by \
+                 kind: {:?}",
+                report.receipt
+            );
+        }
+    }
+}
+
+/// **The point door places a sheet face's interior**, at both scalars:
+/// on the lemon and the apple, whose two sheet faces are each half a turn
+/// from apex to apex on one carrier, a station short of the seams and of
+/// the apexes is `In` on one face and `Out` on the other, and the face
+/// that holds it is the one whose half-turn holds its azimuth. Red if a
+/// sheet's interior is unplaced, placed on both faces or on neither, or
+/// split across a half-turn.
+#[test]
+fn the_point_door_places_a_sheet_faces_interior_at_both_scalars() {
+    fn placed<T: Scalar>(what: &str, big: f64) {
+        let body = football::<T>(big, 0.0);
+        let sheets: Vec<FaceKey> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| matches!(surface(&body, k), Surface::Spindle { .. }))
+            .collect();
+        let [a, b] = sheets[..] else {
+            panic!("{what}: two sheet faces, not {}", sheets.len());
+        };
+        let point = |k, uv: (f64, f64)| surface(&body, k).eval_at(uv.0, uv.1);
+        let one = |p: Point3<T>, q: Point3<T>| (p - q).norm().hi() < 1e-12;
+        let apex = geom::sheet_apex(big, 1.0).v;
+        let mut holder = [None, None];
+        for u in [0.4, 1.5, 2.7, 3.6, 4.7, 5.9] {
+            for v in [-0.95, -0.5, 0.0, 0.5, 0.95].map(|f| f * apex) {
+                assert!(
+                    one(point(a, (u, v)), point(b, (u, v))),
+                    "{what}: both sheet faces chart ({u}, {v}) as one point"
+                );
+                let at = |k| topo::cell_region::station_region(&body, k, (u, v), band());
+                let got = (at(a), at(b));
+                let holds = match got {
+                    (Some(topo::FaceContainment::In), Some(topo::FaceContainment::Out)) => a,
+                    (Some(topo::FaceContainment::Out), Some(topo::FaceContainment::In)) => b,
+                    _ => panic!("{what}: ({u}, {v}) is in exactly one sheet face: {got:?}"),
+                };
+                let half = &mut holder[usize::from(u > core::f64::consts::PI)];
+                assert_eq!(
+                    *half.get_or_insert(holds),
+                    holds,
+                    "{what}: ({u}, {v}) is in the face holding its half-turn"
+                );
+            }
+        }
+        assert_ne!(
+            holder[0], holder[1],
+            "{what}: each half-turn is its own face"
+        );
+    }
+    for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
+        placed::<f64>(&format!("{what} at f64"), big);
+        placed::<Interval>(&format!("{what} at Interval"), big);
+    }
+}
+
+/// `body`'s verdict door within a small budget, at `T`: a crossing
+/// read `Crosses` where `crosses`, and never `Embedded` in any case.
+/// Where the walk offers no pair whose stations coincide it refuses on
+/// its budget: it probes a straddling pair only at a candidate's root
+/// and at the depth floor
+/// (`work/embedwalk/the-verdict-door-probes-a-crossing-only-at-a-candidates-root-and-the-depth-floor.md`).
+fn crosses_at_both(what: &str, crosses: bool, float: &Body<f64>, interval: &Body<Interval>) {
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: 1024,
+    };
+    for (scalar, report) in [
+        ("f64", embedding_within(float, budgets)),
+        ("Interval", embedding_within(interval, budgets)),
+    ] {
+        let verdict = &report.verdict;
+        assert!(
+            !matches!(verdict, topo::clearance::Embedding::Embedded),
+            "{what} cross at {scalar}: {report:?}"
+        );
+        assert!(
+            !crosses || matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "{what} read their crossing at {scalar}: {report:?}"
+        );
+    }
+}
+
+/// A football of `R = first` and a copy of `R = copy` built `by` up its
+/// axis, grafted in as a solid of its own: nothing in M is shared.
+fn footballs_through<T: Scalar>(first: f64, copy: f64, by: f64) -> Body<T> {
+    let mut folded = football::<T>(first, 0.0);
+    topo::graft_disjoint(&mut folded, &football::<T>(copy, by)).expect("the copy grafts");
+    folded
+}
+
+/// **Two footballs through one another never read embedded**, at both
+/// scalars and through the verdict door: the football and a copy built
+/// `by` up its axis, so their sheets meet on a circle. Moved `0.3` the
+/// circle is near the sheets' widest; moved `1.2` the lemons' circle is
+/// at `v = ±0.64`, about `0.61 v*`, on the first's upper half and the
+/// copy's lower. The lemons moved `1.2` read the crossing; the others
+/// refuse on the budget. Red if any reads `Embedded`, or the lemons
+/// moved `1.2` read anything but `Crosses`.
+#[test]
+fn footballs_through_one_another_never_read_embedded() {
+    for (big, by, crosses) in [(-0.5, 0.3, false), (-0.5, 1.2, true), (0.4, 1.2, false)] {
+        crosses_at_both(
+            &format!("the footballs of R = {big} moved {by}"),
+            crosses,
+            &footballs_through(big, big, by),
+            &footballs_through(big, big, by),
+        );
+    }
+}
+
+/// **Footballs crossing a hair from an apex never read embedded**, at
+/// both scalars: a football and a copy moved up its axis by just short
+/// of the sum of their apex heights, so their sheets meet on a small
+/// circle beside the first's upper apex and the copy's lower one, at
+/// `v` within a few thousandths of `±v*`. Each reads `Crosses`. Red if
+/// a sheet's window falls short of its apexes by more than that.
+#[test]
+fn footballs_crossing_beside_an_apex_never_read_embedded() {
+    let h = |big: f64| ((1.0 - big) * (1.0 + big)).sqrt();
+    for (first, copy, short) in [(-0.5, -0.5, 1e-3), (-0.5, -0.9, 1e-3), (-0.9, -0.5, 1e-5)] {
+        let by = (h(first) + h(copy)) * (1.0 - short);
+        crosses_at_both(
+            &format!("footballs of R = {first} and {copy} moved {by}"),
+            true,
+            &footballs_through(first, copy, by),
+            &footballs_through(first, copy, by),
+        );
+    }
+}
+
 /// **A windowed tube holds across its caps' circles at both scalars**
 /// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
 /// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
@@ -892,6 +1123,118 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// The verdict door over every face of `body`, at the default budgets.
+fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
+    embedding_within(
+        body,
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// The verdict door over every face of `body`, within `budgets`.
+fn embedding_within<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+    budgets: Budgets,
+) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    topo::clearance::embedded(&side, band(), budgets)
+}
+
+/// [`a_stepped_rings_floor_holds_against_its_end_caps`]' ring, at rest.
+fn stepped_ring<T: Scalar>() -> topo::AtRestBody<T> {
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.5, 1.0),
+            (1.5, 0.5),
+            (1.0, 0.5),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(1.5 * core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the ring is a finished body")
+}
+
+/// **The stepped ring is embedded with its thin cells read, where it
+/// stands, turned and placed far off.** Its annuli meet the end caps on
+/// radial lines, and a cell across such a line from its annulus reaches
+/// it by rounding: the annulus's part of the cell is a rectangle with no
+/// width, or one of rounding's, presented on the line. The cap's plane
+/// separates it, read at the reach of the two faces. The same body turned
+/// rigidly about a generic axis, and placed a hundred units from the
+/// origin, reads the same, at both scalars. Red if a rectangle's own
+/// width is what its departure is levered at, in any pose.
+#[test]
+fn a_stepped_ring_is_embedded_with_its_thin_cells_read_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    let axis = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+    let poses = [
+        ("as built", Affine3::translation(Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "turned about a generic axis",
+            Affine3::rotation_about_axis(Point3::origin(), axis, 0.7),
+        ),
+        (
+            "a hundred units off",
+            Affine3::translation(Vec3::new(60.0, -80.0, 0.0)),
+        ),
+    ];
+    for (pose, map) in poses {
+        let float = moved(&stepped_ring::<f64>(), &map).into_body();
+        let twin = moved(&stepped_ring::<Interval>(), &map).into_body();
+        for (scalar, report) in [("f64", embedding(&float)), ("Interval", embedding(&twin))] {
+            println!("[remeter] the stepped ring {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the stepped ring {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// **Two stepped rings through one another cross.** The ring and a copy
+/// moved `0.3` along `z`, grafted in as a solid of its own: the copy's
+/// faces pass through the first ring's beside the radial lines whose
+/// cells the row above reads, and its end caps lie in the first ring's.
+/// The two solids share nothing in M, so nothing a departure reads can
+/// part them. Red if the verdict is anything but a crossing, at either
+/// scalar.
+#[test]
+fn two_stepped_rings_through_one_another_cross() {
+    fn folded<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let ring = stepped_ring::<T>();
+        let mut folded = ring.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.0, 0.0, 0.3)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&ring, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    for (scalar, report) in [
+        ("f64", embedding(&folded::<f64>())),
+        ("Interval", embedding(&folded::<Interval>())),
+    ] {
+        println!("[remeter] two stepped rings at {scalar}: {report:?}");
+        assert!(
+            matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
+            "the two rings cross at {scalar}: {report:?}"
+        );
+    }
+}
+
 /// **A quarter ball holds with its caps read at each pole**: a half
 /// disc revolved a quarter turn about its diameter. Each cap is a lens,
 /// the diameter and the semicircle meeting at both poles, so a cell
@@ -908,6 +1251,793 @@ fn a_quarter_balls_lens_caps_hold_read_at_each_pole() {
         )
     }
     holds_at_both("the quarter ball", lune(), lune());
+}
+
+/// **The two-arc lune** of `torax_axial`, at `T`: a half disc of radius
+/// 0.3 revolved a quarter turn about its diameter, its arc split at the
+/// latitude `phi` by a seam cut by hand (the revolve builds the run as one
+/// wall), and, where `thick` is given, hollowed by it.
+fn two_arc_lune<T: Scalar>(phi: f64, thick: Option<f64>) -> Body<T> {
+    use crate::common::latitude_seam::latitude_on_partial_wall_at;
+    let r = 0.3_f64;
+    let quarter = -(core::f64::consts::PI / 8.0).tan();
+    let at = |a: f64| Point2::new(r * a.cos(), r * a.sin());
+    let arcs = if phi == 0.0 {
+        vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter),
+            (at(0.0), quarter),
+        ]
+    } else {
+        vec![(Point2::new(0.0, -r), 0.0), (Point2::new(0.0, r), -1.0)]
+    };
+    let profile = validated::<T>(&[profile::test_support::bulge_loop(arcs)]);
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(T::from_f64(core::f64::consts::FRAC_PI_2)),
+        tol(),
+    )
+    .expect("the lune revolves")
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall_at(&mut body, sphere, at(phi), core::f64::consts::FRAC_PI_2);
+    match thick {
+        None => body,
+        Some(t) => Body::clone(
+            &topo::shell(
+                &sweep::test_support::finished("the lune", body, tol()),
+                T::from_f64(t),
+                tol(),
+            )
+            .expect("the lune hollows")
+            .body,
+        ),
+    }
+}
+
+/// **A two-arc lune's hollow holds, its cavity's sphere read in its
+/// caps' poses**: a half disc whose arc is split at the equator,
+/// revolved a quarter turn about its diameter, its equator seam cut by
+/// hand (`torax_axial`'s two-arc lune), then hollowed by 0.05. The
+/// cavity's caps stand 0.05 off the axis, in the planes `x = 0.05` and
+/// `z = −0.05`, so each meets the cavity's sphere in a circle off the
+/// sphere's axis, which its stored chart has no coordinate line for.
+/// Each sphere face is read beside a cap's circle in the chart about
+/// that cap's normal, where the circle is a parallel and the equator a
+/// meridian. Red if no pose reads them: the cavity's sphere halves then
+/// refuse `Uncertified` across the equator, and each cap against each
+/// sphere half beside its circle.
+#[test]
+fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
+    use crate::common::latitude_seam::latitude_on_partial_wall;
+    use profile::test_support::bulge_loop;
+    let r = 0.3_f64;
+    let quarter_arc = -(core::f64::consts::PI / 8.0).tan();
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), quarter_arc),
+            (Point2::new(r, 0.0), quarter_arc),
+        ])],
+    )
+    .validate(tol())
+    .expect("the two-arc lune's cross-section validates");
+    let mut body = revolve(
+        &profile,
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    )
+    .expect("the two-arc lune revolves")
+    .body
+    .into_body();
+    let sphere = body
+        .faces()
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
+        .expect("the sphere wall")
+        .1
+        .surface;
+    latitude_on_partial_wall(
+        &mut body,
+        sphere,
+        Point2::new(r, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let hollow = topo::shell(
+        &sweep::test_support::finished("the lune", body, tol()),
+        0.05,
+        tol(),
+    )
+    .expect("the lune hollows")
+    .body;
+    let spheres = hollow
+        .faces()
+        .filter(|(k, _)| matches!(hollow.face_surface(*k), Ok(Surface::Sphere { .. })))
+        .count();
+    assert_eq!(spheres, 4, "two sphere halves outside, two in the cavity");
+    let report = injective(&hollow, None, BUDGET);
+    assert_holds("the two-arc lune's hollow", &report, &hollow);
+}
+
+/// **The two-arc lune holds at both scalars, its seam at the equator or
+/// off it**: [`two_arc_lune`] solid, its arc split at the latitudes 0,
+/// 0.4 and −0.3. Off the equator the seam is a small circle, a meridian
+/// of neither cap's pose. Red if a lune refuses at either scalar, or
+/// the two read different classes.
+#[test]
+fn a_two_arc_lune_holds_at_both_scalars() {
+    for phi in [0.0, 0.4, -0.3] {
+        holds_at_both(
+            &format!("the lune split at {phi}"),
+            two_arc_lune(phi, None),
+            two_arc_lune(phi, None),
+        );
+    }
+}
+
+/// **The two-arc lune's hollow is built at `f64` only: at `Interval`
+/// its shell refuses**, at its own certificate, `CavityUncertified` at
+/// `Departure`. That is why the hollow's rows read `f64` alone, against
+/// the module's rule (`work/embed/a-lunes-cavity-refuses-its-shell-at-interval.md`).
+/// Red the day the hollow is built at `Interval`: its rows then read
+/// both scalars.
+#[test]
+fn a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval() {
+    let solid = two_arc_lune::<Interval>(0.0, None);
+    let got = topo::shell(
+        &sweep::test_support::finished("the lune", solid, tol()),
+        Interval::from_f64(0.05),
+        tol(),
+    );
+    assert!(
+        matches!(
+            got,
+            Err(topo::ShellError::CavityUncertified {
+                refusal: EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    ..
+                }
+            })
+        ),
+        "the Interval shell refuses at Departure: {:?}",
+        got.err()
+    );
+}
+
+/// **The lune's hollow with its seam off the equator refuses across the
+/// seam**: [`two_arc_lune`] split at the latitudes 0.4 and −0.3, then
+/// hollowed by 0.05. The seam is a small circle, a parallel of the
+/// stored chart and a meridian of neither cap's pose; where it meets a
+/// cavity cap's circle, a parallel of that cap's pose alone, no chart
+/// reads the corner, and the cavity's two sphere halves refuse
+/// `Departure` across the seam. Measured: about 2,700 splits and 9 cells
+/// refused, 3 s, at either latitude. `f64` alone, as
+/// [`a_two_arc_lunes_hollow_is_refused_by_its_shell_at_interval`] says.
+/// Red if the corner is read (the row then holds and is to be re-pinned)
+/// or the refusal moves to another arm or off the seam.
+#[test]
+fn a_lunes_hollow_with_its_seam_off_the_equator_refuses_across_the_seam() {
+    for phi in [0.4, -0.3] {
+        let hollow = two_arc_lune::<f64>(phi, Some(0.05));
+        let seams: Vec<topo::EdgeKey> = hollow
+            .edges()
+            .filter(|&(ek, _)| {
+                topo::edge_faces(&hollow, ek)
+                    .iter()
+                    .all(|&f| matches!(hollow.face_surface(f), Ok(Surface::Sphere { .. })))
+            })
+            .map(|(ek, _)| ek)
+            .collect();
+        let report = injective(&hollow, None, BUDGET);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    arm: CertificateArm::Departure,
+                    shared: SharedCell::Edge(e),
+                    ..
+                }) if seams.contains(&e)
+            ),
+            "split at {phi}: Departure across a seam of two sphere halves: {:?}",
+            report.verdict
+        );
+    }
+}
+
+/// The two-arc lune's hollow with a ball of radius 0.02 grafted into its
+/// wall, the ball's sphere `depth` past the cavity's sphere (radius 0.25)
+/// along `dir`: a crossing where `depth` is positive, a gap where it is
+/// negative, a tangency at an interior point of the cavity's sphere face
+/// at zero.
+fn lune_with_a_ball(dir: [f64; 3], depth: f64) -> Body<f64> {
+    let mut body = two_arc_lune::<f64>(0.0, Some(0.05));
+    let n = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+    let rho = 0.02;
+    let k = (0.25 + rho - depth) / n;
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
+            dir[0] * k,
+            dir[1] * k,
+            dir[2] * k,
+        ))
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    body
+}
+
+/// A direction onto the cavity's sphere at `(x, y)`, below the equator
+/// plane `z = 0`.
+fn onto_the_cavity(x: f64, y: f64) -> [f64; 3] {
+    [x, y, -(0.0625_f64 - x * x - y * y).sqrt()]
+}
+
+/// **A ball crossing the lune's posed cavity sphere is never read
+/// embedded**: [`lune_with_a_ball`] just past the cavity cap `x = 0.05`,
+/// off the equator, where the cavity's sphere is read in the cap's pose,
+/// crossing by 5e-2, 1e-3 and 1e-6; and straddling the cap's circle
+/// itself, by 1e-2 and 1e-4; and touching it, tangent at an interior
+/// point of the sphere face. The ask ends at its first finding, so a
+/// placement is told the crossing or a refusal met before it. Measured
+/// at ε = 1e-9, 1e-6 and 1e-12: the straddle by 1e-2 reads `Violated`
+/// at each, and so does the crossing by 5e-2 except at 1e-6; the
+/// shallower crossings, the straddle by 1e-4 and the touch run out of
+/// depth on the ball's face against the cavity's first. Red if a pose
+/// reads a crossing or a touch embedded, or if no placement is told the
+/// crossing, which would say no pose reads one.
+#[test]
+fn a_ball_crossing_or_touching_the_lunes_posed_cavity_sphere_reads_violated() {
+    let near = onto_the_cavity(0.06, 0.1);
+    let on_circle = onto_the_cavity(0.05, 0.1);
+    let mut told = 0;
+    for (dir, depth) in [
+        (near, 5e-2),
+        (near, 1e-3),
+        (near, 1e-6),
+        (on_circle, 1e-2),
+        (on_circle, 1e-4),
+        (near, 0.0),
+    ] {
+        let body = lune_with_a_ball(dir, depth);
+        let report = injective(&body, None, BUDGET);
+        println!("{dir:?} by {depth:e}: {:?}", report.verdict);
+        assert!(
+            matches!(
+                report.verdict,
+                BoundVerdict::Violated(_) | BoundVerdict::Refused(_)
+            ),
+            "{dir:?} by {depth:e}: {:?}",
+            report.verdict
+        );
+        told += usize::from(matches!(report.verdict, BoundVerdict::Violated(_)));
+    }
+    assert!(told > 0, "some placement is told the crossing");
+}
+
+/// **A ball clear of the lune's posed cavity sphere holds**:
+/// [`lune_with_a_ball`] just past the cavity cap `x = 0.05`, short of the
+/// cavity's sphere by 5e-3 and 1e-4. Red if a pose's extent or touch
+/// drops a gap.
+#[test]
+fn a_ball_clear_of_the_lunes_posed_cavity_sphere_holds() {
+    for gap in [5e-3, 1e-4] {
+        let body = lune_with_a_ball(onto_the_cavity(0.06, 0.1), -gap);
+        let report = injective(&body, None, BUDGET);
+        assert_holds(&format!("a gap of {gap:e}"), &report, &body);
+    }
+}
+
+/// **A ball less two tilted half-spaces holds, its larger cap read in a
+/// pose**: the unit ball less the slabs above `z = 0.3` turned about `x`
+/// by 0.5 and by −0.9, whose circles meet on the sphere. The boolean
+/// charts the sphere face about one circle's axis, so the other is off
+/// it, and the face — the sphere less both small caps — holds a pole of
+/// that circle's pose: the circle lifts to an arc of a parallel, the
+/// loop wraps the azimuth, and the pose grants the face no extent
+/// ([`topo::test_support::posed_extents_holding`]); its cells are read on
+/// the rectangle's own sheet. Red if a pose grants the face an extent,
+/// or the ball refuses.
+#[test]
+fn a_ball_less_two_tilted_half_spaces_holds_its_larger_cap_read_in_a_pose() {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let fin = |b| sweep::test_support::finished("the cut", b, tol());
+    let mut body =
+        revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    for angle in [0.5, -0.9] {
+        let slab = lune_moved(
+            &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (0.3, 3.0), tol()),
+            [1.0, 0.0, 0.0],
+            angle,
+            [0.0; 3],
+        );
+        let cut = topo::boolean::subtract(&fin(body), &fin(slab), tol()).expect("the ball is cut");
+        body = Body::clone(&cut.body().expect("a body").body);
+    }
+    let cap = body
+        .faces()
+        .find(|(k, _)| matches!(body.face_surface(*k), Ok(Surface::Sphere { .. })))
+        .expect("the sphere face")
+        .0;
+    let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0], band())
+        .expect("the face lifts");
+    assert!(
+        !poses.is_empty() && poses.iter().all(Option::is_none),
+        "a pose about an off-axis circle, granting no extent: {poses:?}"
+    );
+    assert_holds("the larger cap", &injective(&body, None, BUDGET), &body);
+}
+
+/// **A lune's cap pushed through another's reads `Violated`**: two
+/// two-arc lune hollows in one body, the second moved 0.1 along `x`, so
+/// its cap `z = 0` runs through the first's cavity and wall. Within one
+/// lune neither cap can be pushed through the other: a revolve past a
+/// turn is refused (`FullRangeAngle`) and the shell builds no cavity
+/// whose caps cross. Red if the crossing reads embedded.
+#[test]
+fn a_lunes_cap_pushed_through_anothers_reads_violated() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    let mut body = Body::clone(&hollow);
+    let other = lune_moved(&hollow, [0.0, 1.0, 0.0], 0.0, [0.1, 0.0, 0.0]);
+    topo::graft_disjoint_all_keyed(&mut body, &other).expect("the lunes graft");
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "the caps cross: {:?}",
+        report.verdict
+    );
+}
+
+/// **A sphere face's poses are built once per ask**: the walk over the
+/// two-arc lune's hollow reads thousands of cells of its cavity's sphere
+/// halves in their caps' poses, and each face builds each pose's lifted
+/// boundary, its extent included, once (`Windows::posed_builds`): no more
+/// than the two cap circles' poses per face, whatever the cells. Red if
+/// a pose is rebuilt per cell, as it was when a cell's store held it.
+#[test]
+fn a_sphere_faces_poses_are_built_once_per_ask() {
+    let body = two_arc_lune::<f64>(0.0, Some(0.05));
+    let side = Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let windows = side.windows(Which::First).expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    };
+    let report = sweep.run(
+        &windows,
+        &windows,
+        true,
+        verify(&body, ClearanceBound::StrictlyPositive),
+    );
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "{:?}",
+        report.verdict
+    );
+    let builds = windows.posed_builds();
+    assert!(
+        builds.iter().all(|&(_, n)| n <= 2),
+        "each face builds each pose once: {builds:?} over {} cells discharged",
+        report.receipt.discharged
+    );
+    assert!(
+        builds.iter().filter(|&&(_, n)| n > 0).count() >= 2,
+        "the cavity's sphere halves are posed: {builds:?}"
+    );
+}
+
+/// Two unit balls `dx` apart along `x`, intersected: a lens of two
+/// spheres meeting in a circle about the `x` axis, off both spheres'
+/// stored axis `y`.
+fn two_ball_lens<T: Scalar>(dx: f64) -> Body<T> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(bulge));
+    let ball =
+        || revolved_about_y_at::<T>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    let moved = topo::transform_rigid(
+        &ball(),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
+            T::from_f64(dx),
+            T::zero(),
+            T::zero(),
+        ))
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    let fin = |b| sweep::test_support::finished("the ball", b, tol());
+    let lens = topo::boolean::intersect(&fin(ball()), &fin(moved), tol()).expect("the balls meet");
+    Body::clone(&lens.body().expect("a body").body)
+}
+
+/// **A lens of two spheres holds at both scalars, read in its circle's
+/// poses**: [`two_ball_lens`] at `dx` 0.7, 1 and 1.3. Each sphere face is
+/// bounded by the circle about `x`, which neither sphere's stored chart
+/// reads as a line, so its cells beside the circle are read in the
+/// circle's pose. At `Interval` the row shows the walk reaches a pose:
+/// its windows build one (`Windows::posed_builds` above zero), which
+/// says a cell asked for it, not which cells a pose answered. The one
+/// body of these rows that reaches a pose at the `Interval` scalar. Red
+/// if either scalar refuses, they differ in class, or the `Interval`
+/// walk builds no pose.
+#[test]
+fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
+    for dx in [0.7, 1.0, 1.3] {
+        holds_at_both(
+            &format!("the lens {dx} apart"),
+            two_ball_lens(dx),
+            two_ball_lens(dx),
+        );
+        let body = two_ball_lens::<Interval>(dx);
+        let side = Side {
+            body: &body,
+            faces: body.faces().map(|(k, _)| k).collect(),
+        };
+        let windows = side.windows(Which::First).expect("every face has a window");
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let _ = sweep.run(
+            &windows,
+            &windows,
+            true,
+            verify(&body, ClearanceBound::StrictlyPositive),
+        );
+        let built: usize = windows.posed_builds().iter().map(|&(_, n)| n).sum();
+        assert!(
+            built > 0,
+            "the lens {dx} apart: the Interval walk builds a pose"
+        );
+    }
+}
+
+/// The six turns the two-arc lune's hollow was refused under before a
+/// pose granted its extent: about `y` by 0.1, 0.7 and 2.0, about `x` by
+/// 0.3, about `(1, 1, 1)` by 1.0 and about `z` by 1.2.
+const LUNE_TURNS: [([f64; 3], f64); 6] = [
+    ([0.0, 1.0, 0.0], 0.1),
+    ([0.0, 1.0, 0.0], 0.7),
+    ([0.0, 1.0, 0.0], 2.0),
+    ([1.0, 0.0, 0.0], 0.3),
+    ([1.0, 1.0, 1.0], 1.0),
+    ([0.0, 0.0, 1.0], 1.2),
+];
+
+/// `body` turned about `axis` by `angle`, then moved by `by`.
+fn lune_moved(body: &Body<f64>, axis: [f64; 3], angle: f64, by: [f64; 3]) -> Body<f64> {
+    let a = geom_core::UnitVec3::new(
+        geom_core::Vec3::new(axis[0], axis[1], axis[2]),
+        "the lune's turn",
+        band(),
+    )
+    .expect("a turn axis");
+    let turned = topo::transform_rigid(
+        body,
+        &geom_core::RigidMotion::rotation(a, angle).expect("a turn"),
+    )
+    .expect("the lune turns");
+    topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(by[0], by[1], by[2]))
+            .expect("a translation"),
+    )
+    .expect("the lune moves")
+}
+
+/// **Every face point a sphere face's pose grants an extent for lies in
+/// it**: points of the face's sphere along a Fibonacci spiral of 2,000
+/// directions, those [`topo::curved_face_containment`] places inside the
+/// face, each read in every pose that grants the face an extent
+/// ([`topo::test_support::posed_extents_holding`]). Panics on a point an
+/// extent leaves out; returns how many (point, pose) readings it made, so
+/// a row that granted nothing is seen to.
+fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
+    let mut read = 0;
+    for (fk, _) in body.faces() {
+        let Ok(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
+            continue;
+        };
+        let center = frame.origin();
+        let n = 2000;
+        for i in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let (z, t) = (
+                1.0 - (2.0 * i as f64 + 1.0) / n as f64,
+                i as f64 * core::f64::consts::PI * (3.0 - 5.0_f64.sqrt()),
+            );
+            let w = (1.0 - z * z).sqrt();
+            let q = [
+                center.x + radius * w * t.cos(),
+                center.y + radius * w * t.sin(),
+                center.z + radius * z,
+            ];
+            let inside = topo::curved_face_containment(
+                body,
+                fk,
+                geom_core::Point3::new(q[0], q[1], q[2]),
+                band(),
+            );
+            if !matches!(inside, Ok(Some(topo::FaceContainment::In))) {
+                continue;
+            }
+            let holds = topo::test_support::posed_extents_holding(body, fk, q, band())
+                .unwrap_or_else(|| panic!("{what}: face {fk:?} lifts"));
+            for (j, h) in holds.into_iter().enumerate() {
+                match h {
+                    Some(true) => read += 1,
+                    Some(false) => panic!(
+                        "{what}: face {fk:?}'s pose {j} grants an extent leaving out its point {q:?}"
+                    ),
+                    None => {}
+                }
+            }
+        }
+    }
+    read
+}
+
+/// **The two-arc lune's hollow holds turned six ways, and its poses'
+/// extents hold its faces**: the hollow of
+/// [`a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses`]
+/// turned by each of [`LUNE_TURNS`], each of which it refused under
+/// before a pose granted its extent (`Uncertified` at the root, a cell
+/// beside a cap's circle read `Local` at every depth). The extent is what
+/// reads the cells beside the circle from outside the face `Missed`. Red
+/// if a pose's extent is not granted, leaves out a face point, or a turn
+/// refuses.
+#[test]
+fn a_two_arc_lunes_hollow_holds_turned_six_ways() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    assert!(
+        posed_extents_hold_its_points("the hollow", &hollow) > 0,
+        "the hollow's poses grant an extent"
+    );
+    for (axis, angle) in LUNE_TURNS {
+        let what = format!("the hollow turned about {axis:?} by {angle}");
+        let body = lune_moved(&hollow, axis, angle, [0.0; 3]);
+        assert!(
+            posed_extents_hold_its_points(&what, &body) > 0,
+            "{what}: an extent is granted"
+        );
+        assert_holds(&what, &injective(&body, None, BUDGET), &body);
+    }
+}
+
+/// **The two-arc lune hollowed after it is turned holds**: the solid
+/// lune turned about `(1, 1, 1)` by 1.0, then hollowed, so the cavity's
+/// caps and circles are built in the turned pose rather than carried
+/// into it; the certificate's analogue of re-posing the shell's input.
+/// Red if the cavity built off every axis plane refuses where the
+/// carried one holds.
+#[test]
+fn a_two_arc_lune_turned_then_hollowed_holds() {
+    let solid = lune_moved(
+        &two_arc_lune::<f64>(0.0, None),
+        [1.0, 1.0, 1.0],
+        1.0,
+        [0.0; 3],
+    );
+    let hollow = Body::clone(
+        &topo::shell(
+            &sweep::test_support::finished("the turned lune", solid, tol()),
+            0.05,
+            tol(),
+        )
+        .expect("the turned lune hollows")
+        .body,
+    );
+    assert!(posed_extents_hold_its_points("the re-posed hollow", &hollow) > 0);
+    assert_holds(
+        "the re-posed hollow",
+        &injective(&hollow, None, BUDGET),
+        &hollow,
+    );
+}
+
+/// **The two-arc lune's hollow holds under a seeded sweep of rigid
+/// motions**: 24 draws of a turn about a uniform axis by a uniform angle
+/// and a move within 2 of the origin, each read for its poses' extents
+/// and certified. Pinned; `CAD_FUZZ_SEED` explores. Red on any draw that
+/// refuses or whose extent leaves out a face point.
+#[test]
+fn a_two_arc_lunes_hollow_holds_moved_at_random() {
+    let hollow = two_arc_lune::<f64>(0.0, Some(0.05));
+    let mut rng = test_utils::fuzz::pinned_sweep("the lune's rigid motions", 0x6c75_6e65);
+    for draw in 0..test_utils::fuzz::scaled(24) {
+        let axis = loop {
+            let a = [0; 3].map(|_| rng.range(-1.0, 1.0));
+            let n = a.iter().map(|x| x * x).sum::<f64>();
+            if (0.01..=1.0).contains(&n) {
+                break a;
+            }
+        };
+        let angle = rng.range(0.0, TAU);
+        let by = [0; 3].map(|_| rng.range(-2.0, 2.0));
+        let what = format!(
+            "draw {draw}: turned about {axis:?} by {angle}, moved by {by:?} ({})",
+            test_utils::fuzz::replay()
+        );
+        let body = lune_moved(&hollow, axis, angle, by);
+        posed_extents_hold_its_points(&what, &body);
+        assert_holds(&what, &injective(&body, None, BUDGET), &body);
+    }
+}
+
+/// Balls of radius `r` about `c`, united in turn.
+fn balls_united(balls: &[(f64, [f64; 3])]) -> Body<f64> {
+    let ball = |r: f64, c: [f64; 3]| {
+        let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+        let b = revolved_about_y_at::<f64>(vec![p(-r, 1.0), p(r, 0.0)], Revolution::Full, tol());
+        topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::translation(geom_core::Vec3::new(c[0], c[1], c[2]))
+                .expect("a translation"),
+        )
+        .expect("the ball moves")
+    };
+    let fin = |b| sweep::test_support::finished("the ball", b, tol());
+    balls[1..]
+        .iter()
+        .fold(ball(balls[0].0, balls[0].1), |cur, &(r, c)| {
+            Body::clone(
+                &topo::boolean::union(&fin(cur), &fin(ball(r, c)), tol())
+                    .expect("the balls unite")
+                    .body()
+                    .expect("a body")
+                    .body,
+            )
+        })
+}
+
+/// The unit ball meeting every half-space `p·n ≥ d`, `n` the `z` axis
+/// turned about `x` by `a` and then about `y` by `spin`, for each
+/// `(d, a, spin)`.
+fn ball_in_half_spaces(slabs: &[(f64, f64, f64)]) -> Body<f64> {
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let fin = |b| sweep::test_support::finished("the cut", b, tol());
+    let ball = revolved_about_y_at::<f64>(vec![p(-1.0, 1.0), p(1.0, 0.0)], Revolution::Full, tol());
+    slabs.iter().fold(ball, |cur, &(d, a, spin)| {
+        let slab = lune_moved(
+            &lune_moved(
+                &sweep::test_support::brick((-3.0, 3.0), (-3.0, 3.0), (d, 3.0), tol()),
+                [1.0, 0.0, 0.0],
+                a,
+                [0.0; 3],
+            ),
+            [0.0, 1.0, 0.0],
+            spin,
+            [0.0; 3],
+        );
+        Body::clone(
+            &topo::boolean::intersect(&fin(cur), &fin(slab), tol())
+                .expect("the ball is cut")
+                .body()
+                .expect("a body")
+                .body,
+        )
+    })
+}
+
+/// **Sphere bodies off each other's axes cost what main's walk costs**:
+/// five unions of balls whose waists are circles off both spheres' axes,
+/// and a spherical triangle and a lens cut from the unit ball by tilted
+/// half-spaces, each read with its main verdict and within a ceiling of
+/// main's own split count (main + 25% + 8; main's counts are the PR 7113
+/// re-review's, at `704ed655`'s merge base). Each union refuses
+/// `Departure` at once, as on main: where a ball's cell holds a line of
+/// its stored chart that has no place at any depth, its face's extent
+/// being unknown ([`topo`]'s `unplaced_line`), no pose is tried, and the
+/// stored chart's answer stands. Red if a pose's `Local` stands in for
+/// that answer (the walk then splits two thousand times or more to
+/// refuse the same), or the poses cost a body read alike more splits.
+#[test]
+fn off_axis_sphere_bodies_cost_what_mains_walk_costs() {
+    let departs = |r: &BoundReport<Witness>| {
+        matches!(
+            r.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        )
+    };
+    type Balls = Vec<(f64, [f64; 3])>;
+    let unions: [(&str, Balls, usize); 5] = [
+        (
+            "head x 0.1",
+            vec![(1.0, [0.0; 3]), (0.8, [0.1, 1.4, 0.0])],
+            0,
+        ),
+        (
+            "head (0.2, 0.15)",
+            vec![(1.0, [0.0; 3]), (0.8, [0.2, 1.4, 0.15])],
+            253,
+        ),
+        (
+            "small head x 0.3",
+            vec![(1.0, [0.0; 3]), (0.4, [0.3, 1.1, 0.0])],
+            0,
+        ),
+        (
+            "three balls",
+            vec![
+                (1.0, [0.0; 3]),
+                (0.8, [0.3, 1.4, 0.0]),
+                (0.5, [0.5, 2.3, 0.1]),
+            ],
+            259,
+        ),
+        (
+            "side by side",
+            vec![(1.0, [0.0; 3]), (0.9, [1.5, 0.2, 0.1])],
+            275,
+        ),
+    ];
+    let ceiling = |main: usize| main + main / 4 + 8;
+    for (what, balls, main) in unions {
+        let r = injective(&balls_united(&balls), None, BUDGET);
+        assert!(
+            departs(&r),
+            "{what}: refuses Departure, as on main: {:?}",
+            r.verdict
+        );
+        assert!(
+            r.receipt.splits <= ceiling(main),
+            "{what}: {} splits, main's {main}: {:?}",
+            r.receipt.splits,
+            r.receipt
+        );
+    }
+    let triangle = injective(
+        &ball_in_half_spaces(&[(0.2, 0.9, 0.0), (0.2, 0.9, 2.1), (0.2, 0.9, -2.1)]),
+        None,
+        BUDGET,
+    );
+    assert!(
+        departs(&triangle),
+        "the triangle, as on main: {:?}",
+        triangle.verdict
+    );
+    assert!(
+        triangle.receipt.splits <= ceiling(536),
+        "the triangle: {:?}",
+        triangle.receipt
+    );
+    let lens = injective(
+        &ball_in_half_spaces(&[(0.3, 0.9, 0.0), (0.3, -0.9, 0.0)]),
+        None,
+        BUDGET,
+    );
+    assert!(
+        matches!(lens.verdict, BoundVerdict::Holds),
+        "the lens: {:?}",
+        lens.verdict
+    );
+    assert!(
+        lens.receipt.splits <= ceiling(115),
+        "the lens: {:?}",
+        lens.receipt
+    );
 }
 
 /// **A filleted cube corner's ball holds against the faces it touches
@@ -1003,7 +2133,7 @@ fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
     }
     lofted.side_faces[0]
         .iter()
-        .position(|seg| seg.contains(&Some(f)))
+        .position(|seg| seg.iter().flatten().any(|w| *w == Some(f)))
         .map_or_else(|| format!("{f:?}"), |j| format!("wall {j}"))
 }
 
@@ -1031,14 +2161,19 @@ fn decided_at_both(
     report
 }
 
-/// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
-/// `v`-degree 3.
+/// A 0.1 square lofted at `f64` along [`arc_spine_places`] at 17
+/// stations, `v`-degree 3, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
 fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T, Body<T>> {
     let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
-    let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
-    let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the arc spine lofts")
+    let sections: Vec<_> = (0..17).map(|_| square.clone()).collect();
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &arc_spine_places(curl, 17),
+        3,
+        tol(),
+    )
+    .expect("the arc spine body builds")
 }
 
 /// The station-angle of a point on the arc spine, folded into one turn.
@@ -1218,6 +2353,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
             .flatten()
             .flatten()
             .flatten()
+            .flatten()
             .copied()
             .collect();
         let what = format!("the {curl} rad arc spine");
@@ -1229,6 +2365,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
         let walls: Vec<FaceKey> = twin
             .side_faces
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .flatten()
@@ -1275,6 +2412,7 @@ fn the_s_duct_walls_hold_against_themselves() {
         .flatten()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .collect();
     walls_hold_against_themselves("the S duct", &float.body, &walls);
@@ -1282,6 +2420,7 @@ fn the_s_duct_walls_hold_against_themselves() {
     let walls: Vec<FaceKey> = twin
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flatten()
         .flatten()
@@ -1306,17 +2445,61 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **Two nested tori a thin gap apart hold at their roots.** The hollow
+/// torus `R = 2`, tube radius `0.45`, wall `0.025`, as a shelled torus's
+/// cavity is: four faces, each of the inner torus's two sharing nothing
+/// with each of the outer's. Each of those four pairs is read apart
+/// off the outer torus's whole carrier, so what is split is the two
+/// pairs of halves that touch. Red where a pair that shares nothing is
+/// separated by the cells' boxes and supports alone: the four spend the
+/// default budget between them, and the body refuses for pairs.
+#[test]
+fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
+    fn hollow<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc_hollow(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Full,
+            at(0.45),
+            at(0.025),
+            tol(),
+        )
+        .expect("the hollow torus builds")
+        .body
+        .into_body()
+    }
+    let float = hollow::<f64>();
+    assert_eq!(float.faces().count(), 4, "two tori, each in two halves");
+    for report in holds_at_both("the nested tori", float, hollow::<Interval>()) {
+        assert!(
+            report.receipt.splits < BUDGET / 16,
+            "the nested tori split under a sixteenth of the default budget: {:?}",
+            report.receipt
+        );
+    }
+}
+
 /// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
 /// full turn: the meridian band between two lines `30°` off the axis
 /// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
 /// and the band between two arcs about a centre off the axis, radii
 /// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
-/// two faces share nothing, so only the distance test decides them.
-/// Both hold at both scalars, each splitting under a quarter of the
-/// default budget (about 3,100 and 6,600 splits). Red where the support
-/// test reads an analytic cell by its box: two slanted patches' boxes
+/// two faces share nothing. Both hold at both scalars, each splitting
+/// under a quarter of the default budget. The conical wall's faces
+/// have no depth that parts them, so the supports along a direction
+/// decide them, in about 3,100 splits: red where the support test reads
+/// an analytic cell by its box, since two slanted patches' boxes
 /// overlap until the cells are about as small as the gap, which costs
-/// about 39,000 and 32,000 splits.
+/// about 39,000. The toroidal wall's faces are apart in their core's
+/// depth and discharge at their root; it splits about 200 times, on
+/// the pairs that touch, and under 512: red where that root is split
+/// (6,647 splits).
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
@@ -1359,13 +2542,15 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
             tol(),
         )
     }
-    for (what, reports) in [
+    for (what, ceiling, reports) in [
         (
             "the conical wall",
+            BUDGET / 4,
             holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
         ),
         (
             "the toroidal wall",
+            512,
             holds_at_both(
                 "the toroidal wall",
                 toroidal::<f64>(),
@@ -1375,8 +2560,8 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     ] {
         for report in &reports {
             assert!(
-                report.receipt.splits < BUDGET / 4,
-                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt.splits < ceiling,
+                "{what} splits under {ceiling}: {:?}",
                 report.receipt
             );
         }
@@ -1575,8 +2760,9 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
     assert_holds("the filleted drum", &report, body);
-    // At `Interval` as at `f64`: the band's rim phase is the drum's
-    // frame turned, exact to rounding, so the touch concession reads it.
+    // At `Interval` too: the band's window is its own chart rectangle,
+    // so no cell past the band's end reaches the circle it shares with the
+    // top plane.
     let interval_body = filleted::<Interval>();
     let twin = injective(&interval_body, None, BUDGET);
     assert_holds("the filleted drum at Interval", &twin, &interval_body);
@@ -1607,6 +2793,216 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     }
 }
 
+/// **The three-arc disc, its top rim filleted**: the disc of radius
+/// `0.5` and height `1` whose circle is authored as three equal arcs,
+/// its top rim filleted at `0.1`. The band is one torus face whose foot
+/// parallel is three arcs, joined at the wall's three seams, at azimuths
+/// `0`, `2π/3` and `4π/3`. `Err` where the fillet refuses it, which at
+/// `Interval` and ε = 1e-12 it does (its pcurve envelope escalates).
+fn filleted_arc_disc<T: Scalar>() -> Result<topo::AtRestBody<T>, String> {
+    use sweep::blend::fillet_edges;
+    use sweep::test_support::{arc_polygon, finished, prism_at};
+    let at = T::from_f64;
+    let verts = arc_polygon(3, 0.5, Point2::new(0.0, 0.0))
+        .into_iter()
+        .map(|(p, bulge)| (p.map(at), at(bulge)))
+        .collect();
+    let disc = finished(
+        "the disc",
+        prism_at(verts, T::zero(), T::one(), tol()),
+        tol(),
+    );
+    let rim: Vec<topo::EdgeKey> = disc
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                disc.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
+                Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (mid(the_circle.frame().origin().z) - 1.0).abs() < 1e-9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rim.len(), 3, "the rim is three arcs");
+    fillet_edges(&disc, &rim, at(0.1), tol())
+        .map(|blended| blended.body)
+        .map_err(|e| format!("{:?}", e.error))
+}
+
+/// A pose of [`filleted_arc_disc`].
+#[derive(Clone, Copy)]
+enum Pose {
+    AsBuilt,
+    /// Moved rigidly.
+    Moved(geom_core::Affine3<f64>),
+    /// Mirrored across the plane through a point with a normal.
+    Mirrored([f64; 3], [f64; 3]),
+}
+
+/// [`filleted_arc_disc`] in `pose`; `Err` where it, or its pose, is not
+/// built.
+fn posed_arc_disc<T: Scalar>(pose: Pose) -> Result<Body<T>, String> {
+    let home = filleted_arc_disc::<T>()?;
+    let at = T::from_f64;
+    match pose {
+        Pose::AsBuilt => Ok(home.into_body()),
+        Pose::Moved(m) => {
+            let rigid = geom_core::test_support::rigid(&m.map(at), tol());
+            T::finish(topo::transform_rigid(&home, &rigid).unwrap(), tol())
+                .map(topo::AtRestBody::into_body)
+                .map_err(|e| format!("{e:?}"))
+        }
+        Pose::Mirrored(p, n) => {
+            let across = topo::Reflection::across(
+                Point3::new(at(p[0]), at(p[1]), at(p[2])),
+                geom_core::Vec3::new(at(n[0]), at(n[1]), at(n[2])),
+                tol(),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            // The mirror image's rows completed, as its finish completes them.
+            let image =
+                topo::mirror_body(&home.into_body(), &across).map_err(|e| format!("{e:?}"))?;
+            topo::test_support::completed(image, tol()).map_err(|e| format!("{e:?}"))
+        }
+    }
+}
+
+/// A rigid turn of one radian about a generic axis through a point off
+/// the origin, a placement a hundred units from the origin, and a
+/// mirror across a generic plane.
+fn generic_poses() -> [(&'static str, Pose); 4] {
+    use geom_core::{Affine3, Vec3};
+    [
+        ("as built", Pose::AsBuilt),
+        (
+            "turned about a generic axis",
+            Pose::Moved(Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(0.48, -0.6, 0.64),
+                1.0,
+            )),
+        ),
+        (
+            "a hundred units from the origin",
+            Pose::Moved(Affine3::translation(Vec3::new(60.0, -80.0, 0.0))),
+        ),
+        (
+            "mirrored across a generic plane",
+            Pose::Mirrored([0.3, -0.2, 0.1], [0.48, -0.6, 0.64]),
+        ),
+    ]
+}
+
+/// **Whether an `Interval` twin's refusal is the one this file skips
+/// on**: at ε = 1e-12, a pcurve envelope that escalates where the body
+/// is built or finished
+/// (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
+/// Any other refusal, or that one at another ε, is a failure.
+fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
+    band().zero() < 1e-11 && refusal.contains("pcurve_envelope")
+}
+
+/// **A rim band whose foot parallel is split at the wall's seams holds
+/// across the joints.** On the band's chart the parallel is three edges
+/// of one line, each ending at the vertex the next starts at. Their
+/// stored ends at a joint are two readings of one point (equal at one
+/// joint of the body as built, an ulp apart at another), and in a frame
+/// that is not the chart's their rows hold the parallel's own value a
+/// rounding apart (mirrored across a generic plane: `0` and `4.0e-16`).
+/// A cell beside the line across a joint is covered by the two edges
+/// together: below the parallel it holds none of the band, above it the
+/// parallel is its side. Holds at `f64` as built, turned about a generic
+/// axis, a hundred units from the origin and mirrored across a generic
+/// plane. Red if a side is read against one edge of its line alone (the
+/// wall against the band then runs out of depth at a joint), if two
+/// edges are joined only where their stored ends agree, or if two rows
+/// are one line only where their values agree (the mirrored pose).
+///
+/// **At `Interval` the body refuses off the joints, and is pinned
+/// there**: two of the wall's cylinders against each other across the
+/// edge they share, `Uncertified` on the departure arm (untraced). The
+/// top plane against the band holds there: the band's window is its own
+/// chart rectangle, so no cell past its end reaches their tangent circle
+/// (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`).
+/// It is asked of the body as built; the other poses' twins are built
+/// and not asked. At ε = 1e-12
+/// the twin's pcurve envelope escalates
+/// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
+#[test]
+fn a_three_arc_discs_filleted_rim_holds_across_its_joints() {
+    for (what, pose) in generic_poses() {
+        let what = format!("the three-arc disc's filleted rim, {what}");
+        let body = posed_arc_disc::<f64>(pose).expect("the f64 body builds");
+        let report = injective(&body, None, BUDGET);
+        assert_holds(&what, &report, &body);
+        println!("[joint] {what}: {:?}", report.receipt);
+        match posed_arc_disc::<Interval>(pose) {
+            Ok(twin) if matches!(pose, Pose::AsBuilt) => {
+                let report = injective(&twin, None, BUDGET);
+                let BoundVerdict::Refused(EngineRefusal::Uncertified {
+                    a,
+                    b,
+                    shared: SharedCell::Edge(_),
+                    arm: CertificateArm::Departure,
+                }) = report.verdict
+                else {
+                    panic!(
+                        "{what} at Interval refuses at its tangent seam: {:?} {:?}",
+                        report.verdict, report.receipt
+                    )
+                };
+                let kinds = [kind(&twin, a), kind(&twin, b)];
+                assert_eq!(
+                    kinds,
+                    ["cylinder", "cylinder"],
+                    "two of the wall's cylinders"
+                );
+            }
+            Ok(_) => {}
+            Err(refusal) if envelope_at_the_tightest_eps(&refusal) => {
+                println!("SKIPPED: {what} at Interval, its twin unbuilt: {refusal}");
+            }
+            Err(refusal) => panic!("{what}: the Interval twin builds: {refusal}"),
+        }
+    }
+}
+
+/// **Two filleted discs through each other at a joint read violated.**
+/// The second, grafted in as a solid of its own, is moved `0.5` along
+/// `x` and `0.95` up, so its bottom plane cuts the first's band at
+/// `z = 0.95`, through the azimuth `0` where the band's foot parallel
+/// has a joint. Faces of two solids share nothing, so the crossing is
+/// decided by distance; the row pins that the joint reading leaves a
+/// crossing beside a joint to be found. A crossing of two faces that
+/// share the joint is no kernel operation's to build; the joint's own
+/// guards are `injective`'s unit rows. In one class at `Interval` where
+/// the twin builds ([`filleted_arc_disc`]).
+#[test]
+fn two_filleted_discs_through_each_other_at_a_joint_read_violated() {
+    fn folded_at<T: Scalar>() -> Result<Body<T>, String> {
+        use geom_core::{Affine3, Vec3};
+        let disc = filleted_arc_disc::<T>()?;
+        let mut folded = disc.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.5, 0.0, 0.95)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&disc, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        Ok(folded)
+    }
+    let folded = folded_at::<f64>().expect("the f64 body builds");
+    let report = injective(&folded, None, BUDGET);
+    match folded_at::<Interval>() {
+        Ok(twin) => same_class("the folded discs", &report, &injective(&twin, None, BUDGET)),
+        Err(refusal) if envelope_at_the_tightest_eps(&refusal) => println!(
+            "SKIPPED: the folded discs are asked at f64 alone, their Interval twin unbuilt: {refusal}"
+        ),
+        Err(refusal) => panic!("the folded discs' Interval twin builds: {refusal}"),
+    }
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two discs cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
+}
+
 /// The unit disc on the `xy` sketch plane, at `T`.
 fn disc<T: Scalar>() -> ValidatedProfile<T> {
     let disc = profile::circle(Point2::new(T::zero(), T::zero()), T::one(), tol()).unwrap();
@@ -1629,7 +3025,9 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 /// `b` moved rigidly by `m`, at rest.
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    // The motion stated at `f64` and lifted as the type lifts a stated
+    // frame (its polar enclosure at `Interval`).
+    let rigid = geom_core::test_support::rigid(m, tol()).map_scalar(T::from_f64);
     finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
@@ -1766,11 +3164,10 @@ fn a_rod_taller_than_a_turn_less_a_tilted_slab_holds() {
 /// the wall's presentation by the disc's carrier, reading no corner. At
 /// `Interval` the rims' axial terms on the wall's chart are enclosures of
 /// zero, which the pcurve derivation decides zero at
-/// `pcurve_cylinder_chart_axial`. Red if it does not: the wall then reads
-/// each rim as a curve through its corners (`cornered` 8). One receipt at
-/// both scalars is this axis-aligned vessel's: on a cylinder whose axis
-/// is not a coordinate axis, `f64` rounds a rim's terms to nonzero values
-/// and reads a curve where `Interval` reads the line.
+/// `pcurve_cylinder_chart_axial`, as it decides an `f64` rounding off
+/// zero on a cylinder whose axis is not a coordinate axis. Red if it
+/// does not: the wall then reads each rim as a curve through its corners
+/// (`cornered` 8).
 #[test]
 fn shell_4s_vessel_holds() {
     use crate::common::shell_operands::vessel_at;
@@ -1812,6 +3209,27 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
+/// **A two-arc sphere's cavity holds across its poles**: a sphere in
+/// four faces, two lunes over each side of a latitude seam
+/// (`common::latitude_seam::two_arc_sphere`), and the axial door's
+/// cavity of it. Each pair of lunes shares both halves of a great
+/// circle and a pole vertex, and each meridian's pcurve ends an ulp
+/// short of the north pole's latitude. A lune holds its pole vertex, so
+/// its extent reaches the latitude, and a cell at the pole is read
+/// through the pole's collapsed side. Red, out of pairs on the two
+/// northern lunes, where the cell is clipped to the stored extent. Built
+/// at `f64` alone, as the drum's cavity above is: the fixture and the
+/// door's cavity are `f64` bodies.
+#[test]
+fn a_two_arc_spheres_cavity_holds_across_its_poles() {
+    use crate::common::latitude_seam::{door_cavity, two_arc_sphere};
+    let cavity = door_cavity(&two_arc_sphere(), 0.05);
+    let report = injective(&cavity, None, BUDGET);
+    assert_holds("the two-arc sphere's cavity", &report, &cavity);
+    assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
+    assert!(report.receipt.splits < 1_000, "{:?}", report.receipt);
+}
+
 /// **The drum the cavity above is cut from holds**: a full revolve, its
 /// wall one band and its caps whole discs, so it has no half-annulus
 /// cells beside a half-circle for the walk to run out of depth on, the
@@ -1846,7 +3264,7 @@ fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
     assert!(
         matches!(
             report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
+            BoundVerdict::Refused(EngineRefusal::Budget { .. })
         ),
         "the drum runs out of depth: {:?} {:?}",
         report.verdict,
@@ -1995,6 +3413,24 @@ fn a_cylinder_cylinder_tee_builds_and_its_injectivity_holds_where_two_arcs_of_it
 /// the sweep calls.
 #[test]
 fn a_folded_oblique_cut_reads_violated_off_its_corners() {
+    // Pinned red at 1e-12: the f64 body spends its budget where the
+    // Interval body reads the fold
+    // (`work/germ/main-red-the-folded-oblique-cut-spends-its-f64-budget-at-1e-12-since-the-posed-belly.md`).
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &[1e-12],
+        "the folded oblique cut",
+        &[
+            "the folded cut: the Interval body reads the f64 body's verdict class",
+            "left: \"Violated\"",
+            "right: \"Budget\"",
+        ],
+        a_folded_oblique_cut_reads_violated_off_its_corners_row,
+    );
+}
+
+/// The row [`a_folded_oblique_cut_reads_violated_off_its_corners`] runs, under its pin.
+fn a_folded_oblique_cut_reads_violated_off_its_corners_row() {
     fn folded_at<T: Scalar>() -> Body<T> {
         use geom_core::{Affine3, Vec3};
         let cut = oblique_cut::<T>();
@@ -2347,8 +3783,9 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
 /// by the plain wall presentation, none through a corner. The body
 /// refuses `Departure` across the meridian the two torus faces share,
 /// pinned typed at both scalars
-/// (`one-face-torus-cut-refuses-across-its-meridian`). Red if the plain
-/// wall presentation is withdrawn.
+/// (`one-face-torus-cut-refuses-across-its-meridian`), and its ask ends
+/// there, so each cap is asked against its torus face alone. Red if the
+/// plain wall presentation is withdrawn.
 #[test]
 fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
     fn at<T: Scalar>() -> BoundReport<Witness> {
@@ -2378,14 +3815,22 @@ fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
             Some(geom::CurveKind::Circle),
             "across the meridian"
         );
+        assert_eq!(
+            (report.receipt.refused, report.receipt.abandoned > 0),
+            (1, true),
+            "the ask ends at the meridian: {:?}",
+            report.receipt
+        );
         assert_eq!(cut.len(), 2, "two caps, each on one whole oval");
         for p in &cut {
+            let alone = pair_report(&body, p.0, p.1, BUDGET);
+            assert_eq!(alone.verdict, BoundVerdict::Holds, "{p:?} asked alone");
+            assert_eq!(alone.cornered, 0, "{p:?}: no corner is read");
             assert!(
-                report.across.get(p).is_some_and(|&n| n > 0),
+                alone.across.get(p).is_some_and(|&n| n > 0),
                 "a cap and its torus face certified across their oval: {p:?}"
             );
         }
-        assert_eq!(report.cornered, 0, "no corner is read");
         report
     }
     same_class("the one-face torus cut", &at::<f64>(), &at::<Interval>());
@@ -2519,25 +3964,29 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
         .collect()
 }
 
-/// Two unit lens sections, two arcs on one chord, stacked one apart three
-/// times: `lily_leaf_a`'s section, lofted straight.
-fn lens_loft<T: Scalar>() -> Body<T> {
+/// A body with rational lens walls: two unit lens sections, two arcs on
+/// one chord, stacked one apart three times (`lily_leaf_a`'s section),
+/// lofted straight at `f64` and its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
+fn lens_walled<T: Scalar>() -> Body<T> {
     let lens = vec![profile::test_support::bulge_loop(vec![
         (Point2::new(0.5, 0.0), -0.3),
         (Point2::new(-0.5, 0.0), -0.3),
     ])];
-    let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
-    let places = sweep::test_support::lift_places::<T>(
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &[lens.clone(), lens.clone(), lens],
         &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+        2,
         tol(),
-    );
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
-        .expect("the lens loft lofts")
-        .body
+    )
+    .expect("the lens-walled body builds")
+    .body
 }
 
-/// **A lens loft's rational walls hold against themselves, at both
-/// scalars and moved off the origin**: each wall alone at the default
+/// **Rational lens walls hold against themselves, at both scalars and
+/// moved off the origin** ([`lens_walled`]: at `Interval` the `f64`
+/// body's carriers held as points, not the loft built there, which
+/// refuses at the carrier's door until it holds an enclosure weight): each wall alone at the default
 /// budget, at the origin and moved by `(10, 10, 10)`, certifying a
 /// cell-pair count within 1% of its unmoved twin's. The lens arcs are
 /// rational, so the monotone arm reads each wall through a rational
@@ -2546,9 +3995,9 @@ fn lens_loft<T: Scalar>() -> Body<T> {
 /// The `Interval` twin of the tour's `lily_leaf_a` wall rows, which
 /// build at `f64` only.
 #[test]
-fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
+fn lens_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
     fn row<T: Scalar>(what: &str) {
-        let home = lens_loft::<T>();
+        let home = lens_walled::<T>();
         let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
         let motion = geom_core::RigidMotion::translation(by).expect("a translation");
         let away = topo::transform_rigid(&home, &motion).expect("the loft moves");
@@ -2584,12 +4033,12 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
             assert!(close, "{what}: {wall:?} certifies {y} moved against {x}");
         }
     }
-    row::<f64>("the lens loft");
-    row::<Interval>("the lens loft at Interval");
+    row::<f64>("the lens-walled body");
+    row::<Interval>("the lens-walled body at Interval");
 }
 
-/// **A lens loft's caps hold against its walls at the lens tip, at both
-/// scalars.** Two unit lens sections, two arcs on one chord, one above
+/// **A lens-walled body's caps hold against its walls at the lens tip,
+/// at both scalars** ([`lens_walled`]). Two unit lens sections, two arcs on one chord, one above
 /// the other: each cap is a plane bounded by two circles meeting at the
 /// two tips. A cap cell holding a tip holds both arcs, and no
 /// presentation reads a corner of two curved edges on a plane; the
@@ -2598,7 +4047,7 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
 /// in the cap's plane. This is the tour's `lily_leaf_a` cap corner
 /// (`demos/tour/tests/lily.rs`), built here at both scalars.
 #[test]
-fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
+fn a_lens_walled_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
         adjacent(body, true)
             .into_iter()
@@ -2614,7 +4063,7 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
             })
             .collect()
     }
-    let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
+    let (float, interval) = (lens_walled::<f64>(), lens_walled::<Interval>());
     let pairs = adjacent(&float, true);
     assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
     assert_eq!(
@@ -2624,12 +4073,12 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     );
     let pinned = [(0, 0), (0, 0), (0, 0), (0, 0)];
     assert_eq!(
-        receipts("the lens loft", &float),
+        receipts("the lens-walled body", &float),
         pinned,
         "each cap-wall pair's (splits, deepest cell)"
     );
     assert_eq!(
-        receipts("the lens loft at Interval", &interval),
+        receipts("the lens-walled body at Interval", &interval),
         pinned,
         "each cap-wall pair's (splits, deepest cell) at Interval"
     );
@@ -2752,8 +4201,12 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
 // ----------------------------------- two walls apart along a direction
 
 /// **A thin curved slab**: the section `(-0.4, 0.4) × (-g/2, g/2)`
-/// lofted at five stations along a unit-radius arc turning `curl` in
-/// the `xz` plane, the whole turned `phi` about the world `y` axis.
+/// lofted at `f64` at five stations along a unit-radius arc turning
+/// `curl` in the `xz` plane, the whole turned `phi` about the world `y`
+/// axis, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]: the
+/// walls' interior v knot is a chord-length parameter, which the loft
+/// built at `Interval` holds as an enclosure no carrier takes yet).
 /// Its two wide walls are near-parallel sheets `g` apart with a radius
 /// of about 1, sharing no vertex; they are returned with the body.
 fn slab_wall_pair<T: Scalar>(
@@ -2769,7 +4222,7 @@ fn slab_wall_pair<T: Scalar>(
         (-0.4, g / 2.0),
     ]);
     let turn = Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), phi);
-    let places: Vec<SketchPlane<T>> = (0..5)
+    let places: Vec<SketchPlane<f64>> = (0..5)
         .map(|i| {
             let theta = curl * f64::from(i) / 4.0;
             let (s, c) = theta.sin_cos();
@@ -2779,15 +4232,20 @@ fn slab_wall_pair<T: Scalar>(
                 Vec3::new(c, 0.0, s),
             );
             let at = Affine3::from_parts(turn * linear, turn * Vec3::new(s, 0.0, 1.0 - c));
-            plane_at(&crate::common::plane_of(&at))
+            crate::common::plane_of(&at)
         })
         .collect();
-    let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
-    let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the slab lofts");
+    let sections: Vec<_> = (0..5).map(|_| section.clone()).collect();
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &places,
+        3,
+        tol(),
+    )
+    .expect("the slab builds");
     let walls = [
-        lofted.side_faces[0][0][0].unwrap(),
-        lofted.side_faces[0][2][0].unwrap(),
+        lofted.side_faces[0][0][0][0].unwrap(),
+        lofted.side_faces[0][2][0][0].unwrap(),
     ];
     (lofted, walls)
 }

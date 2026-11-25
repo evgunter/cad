@@ -48,8 +48,8 @@ nothing is rebuilt, and export composes the frame into the world. A resolved doc
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
 instantiates at most once (`PartStore`), before its mate solve and node
 map read it (`Reached`); a part the prior evaluation carried under the
-same pin is reused rather than evaluated again, and a faulted one is
-asked again. A reference already on the descent chain is a
+same pin is reused rather than evaluated again, where the run reads its
+prior at all (`PriorRefusal`), and a faulted one is asked again. A reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part, and that
 fusing is an explicit boolean, is DESIGN `[assemblies.document]`.
 
@@ -86,6 +86,8 @@ The doors that refuse:
 - the pick index's three doors, `NodePick::patch_names`,
   `NodePick::boundary_names` and `pick_face`
   (`HitTestError::EvaluationOfAnotherDocument`), below;
+- `range::admit` (`RangeRefusal::EvaluationOfAnotherDocument`), for the
+  caller's own build it reads standings from;
 - `stackup::sensitivities` and `stackup::stackup`
   (`BindingViolation::EvaluationOfAnotherDocument`), for the handed
   build of record, which DUAL-DESIGN DL3 binds by revision as well.
@@ -98,7 +100,8 @@ The doors that refuse:
 The memo reads the stamp too, and since `evaluate` returns no `Result`
 it refuses by dropping: a prior of another document is dropped whole
 before the schedule is built, the run records the drop as
-`Evaluation::prior_refused`, and everything is recomputed.
+`Evaluation::prior_refused` (`PriorRefusal::Document`), and everything
+is recomputed.
 
 **The pick doors** pair a value of a document with an evaluation: a
 `NodePick` is built from one evaluation and handed a second at each name
@@ -249,7 +252,7 @@ source's geometry before calling the constructor: it reads `n` off the
 evaluated copy and writes the slides `mate::slides_left_along` leaves
 (and beside a slide along a read direction with no mate, the target
 axes `mate::slides_across` leaves, `Placed::unmated_across`)
-(`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
+(`Recording::constrain` and `remove_mate`,
 the viewer's mate tool and snap). The raw edit doors stay structural,
 so where the slides they fill do not span the solve refuses
 `SlidesDoNotSpan`, naming the slides to write. A copy pinned in the world at a pose is that
@@ -636,7 +639,7 @@ solids (a census escalation, a pair it had no lane for, a stale record of a
 vertex or an edge) is inside no one arrival, and is kept: one the census
 re-finds inside an instance's copy is reported as the host's beside the
 part's carried row, until the finding names its pair and the discard
-places it (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+places it (`work/censusread/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's spaces other than its
 world, and the rows
 of a part read one member at a time rather than whole

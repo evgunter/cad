@@ -34,7 +34,7 @@ const APEX: V = V(Point3::new(0.0, 0.0, 0.0), 0);
 fn line(from: V, to: V) -> LoopEdge<f64> {
     let dir = to.0 - from.0;
     LoopEdge::hand_built(
-        Curve3::line(from.0, dir.normalize()),
+        Curve3::line(from.0, geom_core::UnitVec3::squared(dir)),
         0.0,
         dir.norm(),
         true,
@@ -89,7 +89,15 @@ fn measured(edges: &[LoopEdge<f64>]) -> Result<f64, PropsError> {
         frame: geom::Frame::new(apex, axis, Vec3::unit_x()),
         half_angle: 30f64.to_radians(),
     };
-    cone_face_closed_form(&cone, apex, axis, 30f64.to_radians(), &[edges], band()).map(|c| c.area)
+    cone_face_closed_form(
+        &cone,
+        apex,
+        geom_core::UnitVec3::squared(axis),
+        30f64.to_radians(),
+        &[edges],
+        band(),
+    )
+    .map(|c| c.area)
 }
 
 fn refused(what: &'static str) -> Result<f64, PropsError> {

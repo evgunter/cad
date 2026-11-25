@@ -87,7 +87,7 @@ pub fn assert_no_cut_trace(label: &str, r: &BooleanResult<f64>, operands: [&Body
             );
             continue;
         }
-        let Some(&geom::Surface::Sphere { frame, radius }) = body.face_surface(f1) else {
+        let Ok(&geom::Surface::Sphere { frame, radius }) = body.face_surface(f1) else {
             continue;
         };
         let (c, axis, seam) = (frame.origin(), frame.axis(), frame.u_ref());

@@ -118,7 +118,7 @@ pub(crate) fn interface_record(body: &Body<f64>) -> topo::Cited<topo::Contact> {
     let mut faces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
+            Ok(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -195,7 +195,7 @@ fn plane_on_cylinder_tangency_mints_the_ruling_and_refuses_apart_or_crossing() {
         "{origin:?}"
     );
     assert!(
-        dir.y.abs() < 1e-12 && dir.z.abs() < 1e-12,
+        dir.get().y.abs() < 1e-12 && dir.get().z.abs() < 1e-12,
         "the ruling is axial: {dir:?}"
     );
     // Apart and crossing refuse with the honest side named.
@@ -243,7 +243,10 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
         ..
     } = tangent_locus(&cyl_r(0.0, 1.0), &cyl_r(2.0, 1.0), metre_patch(), band()).unwrap();
     assert!((origin.y - 1.0).abs() < 1e-12, "{origin:?}");
-    assert!(dir.y.abs() < 1e-12 && dir.z.abs() < 1e-12, "{dir:?}");
+    assert!(
+        dir.get().y.abs() < 1e-12 && dir.get().z.abs() < 1e-12,
+        "{dir:?}"
+    );
     // Internal: r 1 inside r 3, axes 2 apart — generator at y = -1
     // (the small cylinder touches the big one on its far side).
     let TangentLocus::Line {
@@ -317,7 +320,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut ifaces: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
+            Ok(Surface::Plane { frame, .. }) if (frame.origin().z - 1.0).abs() < 1e-9 => Some(k),
             _ => None,
         })
         .collect();
@@ -344,7 +347,7 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let mut outers: Vec<_> = body
         .faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. })
+            Ok(Surface::Plane { frame, .. })
                 if frame.origin().z.abs() < 1e-9 || (frame.origin().z - 2.0).abs() < 1e-9 =>
             {
                 Some(k)

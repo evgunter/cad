@@ -378,13 +378,4 @@ mod interval_probes {
         assert_eq!(a.x.deriv.hi().to_bits(), b.x.deriv.hi().to_bits());
         assert_eq!(a.z.value.hi().to_bits(), b.z.value.hi().to_bits());
     }
-
-    /// The surface placeholder lifts to the placeholder at the INTERVAL
-    /// scalar too — the lane's row only covers the dual lane.
-    #[test]
-    fn n1r1_placeholder_lifts_to_placeholder_at_interval() {
-        let sph: Surface<f64> = Surface::nurbs_placeholder();
-        let sphi: Surface<Interval> = sph.map_scalar(Interval::from_f64);
-        assert!(matches!(&sphi, Surface::Nurbs(n) if n.is_placeholder()));
-    }
 }

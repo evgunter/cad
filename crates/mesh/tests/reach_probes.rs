@@ -730,7 +730,7 @@ fn nappes(body: &Body<f64>) -> Vec<f64> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     body.faces()
         .filter_map(|(fk, face)| {
-            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk)? else {
+            let geom::Surface::Cone { frame, .. } = *body.face_surface(fk).ok()? else {
                 return None;
             };
             let (apex, axis) = (frame.origin(), frame.axis());
@@ -1295,7 +1295,9 @@ fn a_notched_sphere_face_meshes_on_the_sphere_row() {
                     && surface.kind() == SurfaceKind::Sphere
                     && geom_brep::props::require_iso_rectangle(
                         surface,
-                        &topo::props::loop_edges(&cut, f.outer).expect("a loop").0,
+                        &topo::props::loop_edges(cut.cycle_loop(f.outer).expect("a cycle loop"))
+                            .expect("a loop")
+                            .0,
                         band,
                     ) == Err(geom_brep::props::PropsError::NotIsoRectangle {
                         what: "props_rim_level",
@@ -1564,13 +1566,15 @@ fn a_cone_wall_holding_a_ring_meshes_on_the_cone_row() {
 
 // ------------------------------------------------------- creased lofts
 
-/// **A line rim on a creased loft wall meshes at some δ and refuses at
-/// its neighbours.** Degree-1 lofts of a square whose `+x` side bulges
-/// by the listed amounts, one section a metre (`sweep`'s
-/// `degree1_loft_slabs`). The refusal is `trim_polygon`'s crease check;
-/// the loft with no bulge-0 section meshes at every δ.
+/// **A line rim on a loft wall cut at its sub-arc joints meshes at
+/// every δ.** Degree-1 lofts of a square whose `+x` side bulges by the
+/// listed amounts, one section a metre (`sweep`'s `degree1_loft_slabs`).
+/// The loft cuts the side's wall at every section's sub-arc joint, and
+/// each section's line at the same joint, so no line rim crosses a
+/// crease and `trim_polygon`'s crease check is never reached
+/// (`work/tesslane/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`).
 #[test]
-fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
+fn a_line_rim_on_a_loft_wall_cut_at_its_joints_meshes_at_every_delta() {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let section = |b: f64| -> Section {
         vec![bulge_loop(
@@ -1583,12 +1587,12 @@ fn a_line_rim_on_a_creased_loft_wall_meshes_or_refuses_with_delta() {
         )]
     };
     let deltas = [5e-3, 2e-3, 1e-3, 5e-4];
-    let (ok, no) = (Got::Meshed, Got::Crease);
+    let ok = Got::Meshed;
     let cases: [(&[f64], [&Got; 4]); 4] = [
-        (&[0.0, 1.0, 0.0], [&ok, &ok, &no, &no]),
-        (&[1.0, 0.2, 1.0], [&ok, &ok, &ok, &ok]),
-        (&[1.0, 0.2, 0.0, 0.7, 1.0], [&no, &no, &ok, &ok]),
-        (&[0.0, 1.0, 0.3, 0.0], [&no, &ok, &no, &no]),
+        (&[0.0, 1.0, 0.0], [&ok; 4]),
+        (&[1.0, 0.2, 1.0], [&ok; 4]),
+        (&[1.0, 0.2, 0.0, 0.7, 1.0], [&ok; 4]),
+        (&[0.0, 1.0, 0.3, 0.0], [&ok; 4]),
     ];
     for (bulges, want) in cases {
         let sections: Vec<Section> = bulges.iter().map(|&b| section(b)).collect();
@@ -2220,6 +2224,25 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// freely at a coarse δ. With the cylinder arm reading the ear alone each
 /// cell here meshed with an edge of four triangles; the shared-side cure
 /// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
+///
+/// **What this row holds, and what it does not.** Each cylinder face is
+/// held to `n − 2 + 2h + 2p` triangles (`common::rowless::Count`), `p`
+/// read off the patch. The equality is true of any triangulation of the
+/// face's points, whatever inserted them — rows laid again pass it too —
+/// so it holds that the patch is a triangulation of its points, and
+/// neither that the face lays no row nor what the cure costs. "No rows"
+/// is held by the rowless rows (`rowless_cylinders`): `p = 0` on the
+/// walls, `p = 4` on the two-hole cells.
+///
+/// **What the cure costs here: measured, pinned by nothing.** On these
+/// faces nearly every triangle of the first triangulation holds a side
+/// the face across can make, and the cure puts a point inside each.
+/// Measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then 4,
+/// 86 triangles; `n = 60` at δ 0.1, 58 then 4, 182; `n = 130` at δ 0.02,
+/// 128 then 10 then 2, 408; up to 2.2 times what the face took when it
+/// laid rows, whose nodes kept most of its triangles off the arcs. The
+/// cure itself retires with PR 7573's unit; the rule that decides such a
+/// side is `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]
 fn crossing_rods_keep_no_side_a_neighbour_can_make() {
     for (r, r2, theta, op, deltas) in [
@@ -2246,11 +2269,22 @@ fn crossing_rods_keep_no_side_a_neighbour_can_make() {
             Ok(Some(body)) => {
                 let body = &body.body;
                 assert_eq!(got(body, 0.1), Got::Meshed, "{what}, δ = 0.1");
-                for &delta in deltas.iter().filter(|&&d| d != 0.1) {
+                for &delta in deltas {
                     let mesh = mesh::tessellate(body, delta, tol())
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: meshes, got {e:?}"));
                     mesh::validate::check_mesh(&mesh)
                         .unwrap_or_else(|e| panic!("{what}, δ = {delta:e}: {e:?}"));
+                    for patch in &mesh.patches {
+                        if kind_of(body, patch.face) != SurfaceKind::Cylinder {
+                            continue;
+                        }
+                        let c = crate::common::rowless::count(body, &mesh, patch.face);
+                        assert_eq!(
+                            c.triangles,
+                            c.euler(),
+                            "{what}, δ = {delta:e}: {c:?} is no triangulation of its points"
+                        );
+                    }
                 }
             }
             // Off the default ε the boolean may not build the pair.

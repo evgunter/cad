@@ -41,6 +41,7 @@
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
 use geom_brep::SurfaceSide;
+use geom_core::UnitVec3;
 use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
@@ -547,10 +548,14 @@ pub(crate) struct MixedVertex {
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
 /// re-derived orientation (S10 category A). Unwrapped here because
 /// both consumers read it as geometry (a dot, a mean).
-pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
-    let f = body.get_face(face)?;
+pub(super) fn outward<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+) -> Result<Vec3<T>, topo::SurfaceMiss> {
+    let f = body.get_face(face).ok_or(topo::SurfaceMiss::Stale)?;
     let s = body.face_surface(face)?;
-    Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
+    Ok(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The sample parameters of an edge, and its carrier
@@ -650,12 +655,13 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Some(s) = body.face_surface(face) else {
-        return Err(unresolved(
-            EntityId::Face(face),
+    let s = body.face_surface(face).map_err(|miss| {
+        super::surgery::surface_missed(
+            face,
             "a link's support face, for the curvature headroom predicate",
-        ));
-    };
+            miss,
+        )
+    })?;
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, ball_side(convexity, f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
     // infinity.
@@ -1105,8 +1111,15 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();
-    let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
+    let surface = |face: FaceKey| {
+        body.face_surface(face).cloned().map_err(|miss| match miss {
+            topo::SurfaceMiss::Stale => broken(),
+            topo::SurfaceMiss::Pending => {
+                super::surgery::surface_missed(face, "a link's support face", miss)
+            }
+        })
+    };
+    let (sa, sb) = (surface(face_a)?, surface(face_b)?);
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // It is the edge's wedge read whole, as tier 3 reads it: every
@@ -1160,7 +1173,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         // (`arms::Branch`). The link records the end's reading as its
         // convexity margin: that is the decision its convexity came
         // from.
-        geom_brep::WedgeVerdict::End { end, margin } => {
+        geom_brep::WedgeVerdict::End { end, margin, .. } => {
             let convexity = match end {
                 geom_brep::WedgeEnd::Cusp => Convexity::Convex,
                 geom_brep::WedgeEnd::Slit => Convexity::Concave,
@@ -1380,7 +1393,7 @@ fn classify_arm<T: Decide + Bounds>(
         return match (sa.kind(), sb.kind(), carrier.as_circle()) {
             (Plane, Plane, _) => Ok((
                 BlendArm::PlanePlaneStrip,
-                chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
+                chamfer_strip(p, UnitVec3::squared(tau), n_a, n_b, radius),
                 None,
             )),
             // A circle where a cylinder meets a plane: the frustum, once
@@ -1421,7 +1434,7 @@ fn classify_arm<T: Decide + Bounds>(
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
-            plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convexity),
+            plane_plane_blend(p, UnitVec3::squared(tau), n_a, n_b, radius, convexity),
             None,
         )),
         (
@@ -1503,6 +1516,10 @@ fn classify_arm<T: Decide + Bounds>(
 /// consumed to a point and negative one consumed past the axis, and
 /// both refuse typed.
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn frustum_arm<T: Real>(
     (sa, sb): (&Surface<T>, &Surface<T>),
     (n_a, n_b): (Vec3<T>, Vec3<T>),
@@ -1622,6 +1639,10 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// refuse at the curved-pierce door; a block ∪ cylinder at the join
 /// lane), which is the boolean's ground, not this fold's.
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
     sb: &Surface<T>,
@@ -1672,7 +1693,7 @@ fn curved_arm<T: Decide + Bounds>(
                 return Err(unsupported(ARM_ROSTER));
             }
             let sheet = Ruling {
-                tau: dir.normalize(),
+                tau: UnitVec3::squared(dir.get()),
                 rim: p,
                 lever: extent.length(),
             };
@@ -2656,8 +2677,8 @@ fn turn_at<T: Decide + Bounds>(
         TurnVerdict::Overrun { far } => {
             // The far band's cut-off at the near band's face of `third`.
             let near = others[1 - far];
-            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
-                unresolved(EntityId::Face(near), "an overrun's end face's stored plane")
+            let normal = outward(body, near, point_at(body, vertex)?).map_err(|miss| {
+                super::surgery::surface_missed(near, "an overrun's end face's stored plane", miss)
             })?;
             let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
             (
@@ -2785,18 +2806,19 @@ pub(crate) fn turn_reading<T: Decide>(
             )
         })?;
     let p = point_at(body, vertex)?;
-    // Each edge's unit direction out of the vertex.
+    // Each edge's unit direction out of the vertex: its chord, squared.
     let out = |e: EdgeKey| {
         let far = body
             .edge_vertices(e)
             .map(|(start, end)| if start == vertex { end } else { start });
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
-            .map(|q| (*q - p).normalize())
+            .map(|q| UnitVec3::squared(*q - p))
             .ok_or_else(|| unresolved(EntityId::Edge(e), "a turning edge's far end"))
     };
-    let along = out(third)?;
-    let dirs = [out(l1.edge)?, out(l2.edge)?];
+    let along_unit = out(third)?;
+    let along = along_unit.get();
+    let dirs = [out(l1.edge)?.get(), out(l2.edge)?.get()];
     let other = |l: &Link<T>| {
         if l.face_a == shared {
             l.face_b
@@ -2820,15 +2842,15 @@ pub(crate) fn turn_reading<T: Decide>(
                 t,
                 geom::Line {
                     origin: p,
-                    dir: along,
+                    dir: along_unit,
                 },
-                t.dir.cross(along),
+                t.dir.get().cross(along),
             )
         })
     };
     let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
     let (t1, t2) = (trimline(l1, shared)?, trimline(l2, shared)?);
-    let crossing = line_meet(t1, t2, t1.dir.cross(t2.dir));
+    let crossing = line_meet(t1, t2, t1.dir.get().cross(t2.dir.get()));
     // The plane the mitre lies in, for the far band `k`: a chamfer's
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
@@ -2852,8 +2874,8 @@ pub(crate) fn turn_reading<T: Decide>(
                 ..
             },
         ) => {
-            let (c1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis());
-            let (c2, a2) = (cylinder_frame.origin(), cylinder_frame.axis());
+            let (c1, a1) = (cylinder_frame_2.origin(), cylinder_frame_2.axis_unit());
+            let (c2, a2) = (cylinder_frame.origin(), cylinder_frame.axis_unit());
             Ok((
                 line_meet(
                     geom::Line {
@@ -2864,7 +2886,7 @@ pub(crate) fn turn_reading<T: Decide>(
                         origin: c2,
                         dir: a2,
                     },
-                    a1.cross(a2),
+                    a1.get().cross(a2.get()),
                 ),
                 dirs[0] - dirs[1],
             ))
@@ -2881,7 +2903,7 @@ pub(crate) fn turn_reading<T: Decide>(
         let j = 1 - k;
         let t = trimline(links[j], others[j])?;
         let (at, n) = mitre_plane(k)?;
-        Ok(t.origin + t.dir * ((at - t.origin).dot(n) / t.dir.dot(n)))
+        Ok(t.origin + t.dir.get() * ((at - t.origin).dot(n) / t.dir.get().dot(n)))
     };
     let ends = [end(0)?, end(1)?];
     Ok(TurnReading {
@@ -3103,10 +3125,13 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane {
+        let cap_surface = body
+            .face_surface(cap)
+            .map_err(|miss| super::surgery::surface_missed(cap, "a ruled link's end face", miss))?;
+        let Surface::Plane {
             frame: carrier_frame,
             ..
-        }) = body.face_surface(cap)
+        } = cap_surface
         else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
@@ -3125,10 +3150,11 @@ fn corner_at<T: Decide + Bounds>(
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
-                *slot = outward(body, f, p).ok_or_else(|| {
-                    unresolved(
-                        EntityId::Face(f),
+                *slot = outward(body, f, p).map_err(|miss| {
+                    super::surgery::surface_missed(
+                        f,
                         "a ruled cap's face or its stored surface, for its outward normal",
+                        miss,
                     )
                 })?;
             }
@@ -3198,7 +3224,10 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
+        let end_surface = body
+            .face_surface(end)
+            .map_err(|miss| super::surgery::surface_missed(end, "a chain end's end face", miss))?;
+        let Surface::Plane { frame, .. } = end_surface else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
         let normal = frame.axis();
@@ -3248,10 +3277,11 @@ fn corner_at<T: Decide + Bounds>(
         ));
     }
     for (i, f) in faces.iter().enumerate() {
-        normals[i] = outward(body, *f, p).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(*f),
+        normals[i] = outward(body, *f, p).map_err(|miss| {
+            super::surgery::surface_missed(
+                *f,
                 "a corner's support face or its stored surface, for its outward normal",
+                miss,
             )
         })?;
     }
@@ -3401,7 +3431,14 @@ fn mixed_corner_square<T: Decide + Bounds>(
             "a plane–plane link's trimline is not a line",
         ));
     };
-    match cap_transverse(vertex, normals[slot], spine.dir, radius, odd.arm_len, band)? {
+    match cap_transverse(
+        vertex,
+        normals[slot],
+        spine.dir.get(),
+        radius,
+        odd.arm_len,
+        band,
+    )? {
         EndSection::Circle => Ok(faces[slot]),
         _ => Err(BlendError::ObliqueMixedCorner {
             vertex,

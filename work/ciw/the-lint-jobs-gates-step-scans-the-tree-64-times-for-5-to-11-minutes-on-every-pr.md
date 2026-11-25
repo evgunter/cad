@@ -2,10 +2,11 @@
 id: the-lint-jobs-gates-step-scans-the-tree-64-times-for-5-to-11-minutes-on-every-pr
 kind: issue
 title: The lint job's gates step runs 64 single-threaded scans of the tree, 5 to 11 minutes on every PR, a docs-only one included
-status: open
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -78,3 +79,18 @@ that reads prose or tracker files still has to run on a docs-only
 diff). The bar is `memories/orchestration-model.md`'s: CI takes 15
 minutes at most and typically under 10.
 (BOXFINISH orchestrator)
+
+## Closed
+
+PR 7439 (`ciw/gates-step-latency`). The gates step on a hosted runner went
+from 5:22–10:54 (median 6:54) to 1:06 (run 45069292031, lint job, step
+21:44:41→21:45:47, `payload-rung-sweep.py` included); locally 790 → 152
+CPU-seconds. `run-gates.sh` reads the tree once into a view cache
+(`lib.sh`, "THE VIEW CACHE") that every gate's reader serves from,
+`view-cache-agrees.sh` holds it to the reader on every run, the mount
+resolver answers a file's declarations in one pass, the Python gates
+share one jumping lexer (`scripts/gates/rust_strip.py`), and the slowest
+gates' own costs were cut. Verdicts unchanged: plain output byte-identical
+on a clean and on a planted-red tree against main, self-tests unchanged.
+The step's cost now grows with the tree's views, not with the gate count.
+The lint cache's cold compile is primed by `cache-prime-lint`.

@@ -727,18 +727,22 @@ fn the_overrun_carves_at_the_certified_scalar() {
                 &out,
                 Err(e) if matches!(
                     &e.error,
-                    sweep::blend::BlendError::PcurveMint { source }
-                        if crate::common::frame_cost::pcurve_escalates(
-                            source,
-                            "pcurve_envelope",
-                            (1.15e-12, 1.3e-12),
-                        )
+                    sweep::blend::BlendError::NotFinished { findings }
+                        if findings.as_slice().iter().any(|f| matches!(
+                            f,
+                            topo::ValidationError::Pcurve { finding }
+                                if crate::common::frame_cost::pcurve_escalates(
+                                    finding,
+                                    "pcurve_envelope",
+                                    (1.15e-12, 1.3e-12),
+                                )
+                        ))
                 )
             );
             assert!(
                 pinned,
-                "{what}: pinned to escalate pcurve_envelope in (1.15e-12, 1.3e-12] at the \
-                 pcurve re-mint, at ε 1e-12: {:?}",
+                "{what}: pinned to escalate pcurve_envelope in (1.15e-12, 1.3e-12] where the \
+                 finish completes the rows, at ε 1e-12: {:?}",
                 out.as_ref().map(|_| ()).map_err(|e| &e.error)
             );
             continue;

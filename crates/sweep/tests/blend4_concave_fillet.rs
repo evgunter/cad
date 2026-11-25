@@ -249,7 +249,7 @@ fn the_filleted_cavity() {
     for fk in &out.corner_faces {
         let f = out_body.get_face(*fk).expect("a minted corner face");
         assert!(
-            matches!(out_body.face_surface(*fk), Some(Surface::Sphere { .. })),
+            matches!(out_body.face_surface(*fk), Ok(Surface::Sphere { .. })),
             "a fillet corner patch is a sphere octant"
         );
         assert!(
@@ -267,7 +267,7 @@ fn the_filleted_cavity() {
     );
     assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        (counts.s, counts.genus()),
+        (counts.s, counts.h()),
         (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );

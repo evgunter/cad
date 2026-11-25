@@ -238,7 +238,10 @@ fn a_holed_region_reads_its_side_by_its_area() {
     let [x, y] = siblings[0];
     let f = body.faces().find(|(k, _)| *k == x).unwrap().1;
     assert_eq!(
-        topo::props::loop_edges(&body, f.outer).unwrap().0.len(),
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+            .unwrap()
+            .0
+            .len(),
         6,
         "each lune meets both slab planes and both seams"
     );
@@ -285,7 +288,8 @@ fn split_along_a_meridian(
 ) {
     let f = body.faces().find(|(k, _)| *k == face).unwrap().1.clone();
     let (center, radius, pole) = sphere_of(body, face);
-    let (edges, _) = topo::props::loop_edges(body, f.outer).unwrap();
+    let (edges, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
     let mut seam = None;
     let mut inside = None;
@@ -337,7 +341,7 @@ fn a_chain_of_three_siblings_reads_one_side() {
     let (mut body, want) = build(p, tol);
     let [x, _] = seam_siblings(&body, tol)[0];
     let on_a = match body.get_surface(body.faces().find(|(k, _)| *k == x).unwrap().1.surface) {
-        Some(Surface::Sphere { frame, .. }) => {
+        Ok(Surface::Sphere { frame, .. }) => {
             let center = frame.origin();
             (center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
         }

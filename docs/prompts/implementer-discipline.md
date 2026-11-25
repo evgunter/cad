@@ -17,11 +17,14 @@ hardware not shared with any other lane and its result is a durable artifact.
 
 **The per-PR gate is sized for latency, and the nightly holds the rest.**
 `.github/workflows/ci.yml` runs the default-eps suite minus the slow set (the
-`ci` profile in `.config/nextest.toml`), the slow tests your diff adds or
-edits, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches
+`ci` profile in `.config/nextest.toml`), the slow tests whose name your
+diff spells and those in every test file it edits (or whose string
+literals name a data file it edits), the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches
 and of every test file it adds or edits, lint (fmt, clippy `--all-features`,
 `scripts/gates/`), and the rows whose own subject you touched (viewer, python,
-demos, tools, mesh budget, topo release, step import, interval).
+demos, tools, mesh budget, topo release, step export fixtures, interval).
+A slow test that your `src` change moves without your diff naming it runs
+only at the nightly, which names the merge that turned it red.
 `.github/workflows/nightly.yml` runs everything else:
 the whole suite at every eps row, the k-lint rows, the render lanes, rustdoc,
 wasm32. The `change filter` job's log prints what this run selected, and
@@ -36,8 +39,9 @@ wasm32. The `change filter` job's log prints what this run selected, and
   implementer that notices one reports it to its orchestrator rather than
   fixing it; the orchestrator assigns the fix.
 - **A fast-set test costs under 0.25 s.** Its cost is its time run alone on
-  the gate's build: the gate re-runs alone any test its full parallel pass
-  reads over a bar, and that reading is the one that counts. A test you add or
+  the gate's build, scaled to the median hosted runner by a reference
+  workload timed beside it: the gate re-runs alone any test its full parallel
+  pass reads near a bar, and that scaled reading is the one that counts. A test you add or
   edit that costs 0.25 s or more goes in `.config/nextest.toml`'s `ci` filter
   in that PR. A slow-set test runs on that PR, on any PR that edits its file,
   and every night after. The gate also fails any fast-set test that costs 1 s

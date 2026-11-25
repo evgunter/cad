@@ -656,7 +656,7 @@ fn a_blind_bore_pin_is_not_quieted_by_the_bores_gap() {
     let (doc, plate) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![holed.into(), floor.into()]),
+            members: Bodies::spelled(vec![holed.into(), floor.into()]),
         },
     );
     let (doc, pin) = prism(doc, vec![circle(0.505)], 1.7);
@@ -792,7 +792,7 @@ fn an_undecided_pair_beside_the_press_fit_keeps_it_loud() {
         let body = &assembly.body;
         matches!(
             body.face_surface(f),
-            Some(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
+            Ok(geom::Surface::Cylinder { radius, .. }) if (radius - 0.05).abs() < 1e-12
         )
     };
     let beside = finding.evidence.iter().any(|e| {

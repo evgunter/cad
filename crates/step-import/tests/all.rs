@@ -159,6 +159,8 @@ mod r1_dm1_probe;
 mod recognize_pins;
 #[path = "records_follow_the_file.rs"]
 mod records_follow_the_file;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "rev_import_probe.rs"]
 mod rev_import_probe;
 #[path = "review_band_probes.rs"]

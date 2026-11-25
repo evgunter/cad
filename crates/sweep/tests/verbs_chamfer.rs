@@ -74,7 +74,7 @@ fn the_chamfered_cube() {
     let counts = euler_counts(&out_body);
     assert_eq!((counts.v, counts.e, counts.f), (24, 48, 26), "census");
     assert_eq!(
-        (counts.r, counts.s, counts.genus()),
+        (counts.r, counts.s, counts.h()),
         (0, 1, Ok(0)),
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );
@@ -82,7 +82,7 @@ fn the_chamfered_cube() {
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {
         assert!(
-            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
+            matches!(out_body.face_surface(k), Ok(Surface::Plane { .. })),
             "a chamfered cube carries planes only; face {k:?} does not"
         );
     }
@@ -274,7 +274,7 @@ fn a_circular_prisms_rims_chamfer_as_frustums() {
     assert_eq!(out.band_faces.len(), 2, "a frustum per rim");
     for f in &out.band_faces {
         assert!(
-            matches!(out.body.face_surface(*f), Some(Surface::Cone { .. })),
+            matches!(out.body.face_surface(*f), Ok(Surface::Cone { .. })),
             "a frustum band is a cone"
         );
     }
@@ -425,7 +425,7 @@ fn the_strip_mints_an_outward_normal_on_a_concave_edge() {
     let tau = Vec3::new(0.0, 0.0, 1.0);
     let n_a = Vec3::new(0.0, 1.0, 0.0);
     let n_b = Vec3::new(1.0, 0.0, 0.0);
-    let strip = chamfer_strip(p, tau, n_a, n_b, D);
+    let strip = chamfer_strip(p, geom::stated_direction(tau), n_a, n_b, D);
     let Surface::Plane { frame, .. } = strip.surface else {
         panic!("a chamfer strip is a plane");
     };

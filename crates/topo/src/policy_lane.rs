@@ -27,7 +27,7 @@ use geom_brep::{
 };
 use geom_core::{Band, Decide, Point3, TangentTransport};
 
-use crate::geometry::SurfaceKey;
+use crate::geometry::{SurfaceKey, SurfaceMiss};
 use crate::props::AtRestPolicy;
 
 /// **Whose data a certification reads**, named at the call.
@@ -135,7 +135,7 @@ pub(crate) fn certify_stated<T: AtRestPolicy>(
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
@@ -152,7 +152,7 @@ pub(crate) fn recertify<T: AtRestPolicy>(
     curve: &EdgeCurve<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<T::Carries<Certificate<T>>, CertifyError> {
@@ -167,7 +167,7 @@ pub(crate) fn recertify_stated<T: AtRestPolicy>(
     curve: &EdgeCurve<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
@@ -184,7 +184,7 @@ pub(crate) fn certifying_attach<T: geom_core::Certifies + geom_core::CertifiedBo
     spec: EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
@@ -202,7 +202,7 @@ pub(crate) fn certifying_reattach<T: geom_core::Certifies + geom_core::Certified
     curve: &EdgeCurve<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     band: Band,
     stated: Option<&StatedImage<T>>,
@@ -217,7 +217,7 @@ pub(crate) fn certifying_reattach<T: geom_core::Certifies + geom_core::Certified
 /// the mint, held with no certificate (DUAL-DESIGN DL1, DL3).
 pub(crate) fn minting_attach<T: Decide + TangentTransport>(
     spec: EdgeCurveSpec<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     band: Band,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     EdgeCurve::mint(spec, surfaces, band).map(EdgeCurve::uncertified)
@@ -228,7 +228,7 @@ pub(crate) fn minting_attach<T: Decide + TangentTransport>(
 /// it stands.
 pub(crate) fn minting_reattach<T: Decide + TangentTransport>(
     curve: &EdgeCurve<T>,
-    surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     band: Band,
 ) -> Result<T::Carries<Certificate<T>>, CertifyError> {
     EdgeCurve::mint(curve.restated_spec(), surfaces, band).map(|_| T::uncertified())
@@ -356,7 +356,7 @@ mod tests {
 /// rows' (`crate::tier3_tests`).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod origin_census {
+pub(crate) mod origin_census {
     use crate::source_walk::{CodeOnly, crate_sources, src_root};
     use test_utils::source::{attributed_extent, balanced_end, boundary_after, line};
 
@@ -406,7 +406,7 @@ mod origin_census {
     /// `text`'s production code — comments and literals blanked, every
     /// item a test-only `cfg` gates blanked too — and the names of the
     /// file modules it declares under such a `cfg`.
-    pub(super) fn production(text: &str) -> (String, Vec<String>) {
+    pub(crate) fn production(text: &str) -> (String, Vec<String>) {
         let code = CodeOnly::of(text);
         let code = code.as_str();
         let mut kept = code.as_bytes().to_vec();

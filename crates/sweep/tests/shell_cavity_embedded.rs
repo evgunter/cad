@@ -35,8 +35,8 @@ use sweep::test_support::{brick, finished, prism};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::voids::{VoidContainment, VoidEvidence, insert_void};
 use topo::clearance::{
-    BoundVerdict, Budgets, CLEARANCE_MARGIN, CLEARANCE_SUPPORT_GAP, ClearanceBound,
-    DEFAULT_MAX_CELL_DEPTH, SELF_INTERSECTION_GAP, Side, Sweep, Which,
+    BoundVerdict, Budgets, CLEARANCE_DEPTH_GAP, CLEARANCE_MARGIN, CLEARANCE_SUPPORT_GAP,
+    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, SELF_INTERSECTION_GAP, Side, Sweep, Which,
 };
 use topo::{Body, FaceKey, ShellError, Shelled};
 
@@ -296,13 +296,14 @@ fn the_planar_dumbbell_refuses_at_the_planar_gate() {
 }
 
 /// How many of `recorded`'s verdicts and escalations are the clearance
-/// engine's cell readings: its three distance compares and its cells'
+/// engine's cell readings: its four distance compares and its cells'
 /// region readings.
 fn cell_readings(recorded: &geom_core::k_stats::Recorded) -> usize {
     let engine = |p: &str| {
         [
             SELF_INTERSECTION_GAP,
             CLEARANCE_SUPPORT_GAP,
+            CLEARANCE_DEPTH_GAP,
             CLEARANCE_MARGIN,
         ]
         .contains(&p)

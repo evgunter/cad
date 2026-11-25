@@ -23,25 +23,20 @@
 
 use crate::corpus;
 
-/// FNV-1a 64 over the tables' deterministic Debug encoding — copied
-/// from `m4_pr3_names_ci.rs::digest` so the number is comparable.
+/// FNV-1a 64 over every node's names by what they say
+/// (`fixture::digest::name_shapes`): each name, its node ids spelled by
+/// place, with its entry's shape — no arena key, no mint id and no
+/// geometry.
 fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
-    for id in &ev.order {
-        feed(&format!("#{id:?}"));
-        for t in crate::fixture::tables(ev, *id) {
-            for (n, e) in t.iter() {
-                feed(&format!("{n:?}={e:?};"));
-            }
+    let mut h = crate::fixture::digest::Fnv::new();
+    for (place, id) in ev.order.iter().enumerate() {
+        h.feed(format!("@node{place}").as_bytes());
+        for row in crate::fixture::digest::name_shapes(ev, *id) {
+            h.feed(row.as_bytes());
+            h.feed(b";");
         }
     }
-    h
+    h.finish()
 }
 
 /// The pinned digest per registered document, in registry order.
@@ -56,12 +51,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// measurement is now this number: forty-two rim arcs and twelve box
 /// edges, in one pin.
 ///
-/// The digest encodes each name's entity with its slot VERSION, so a
-/// change in how many keys an arena has spent before a mint moves a
-/// row with no name changing. A graft spends one key per dead
-/// ancestor its forwarded records name (`topo`'s combine door), which
-/// is why the documents whose booleans graft a split operand carry
-/// versions that no name reads.
+/// The digest reads each name by what it says and its entry's shape,
+/// with no arena key, mint id or geometry, so a renumbered arena, a
+/// re-minted id or a moved body moves no row; a renamed role, a new
+/// name or a new tie does. Which cell a name denotes is the seat
+/// digests' (`fixture::digest::digest`), which read it by its geometry.
 ///
 /// `die_composed` and `die_composed_tour` are the only registered
 /// documents that carve a CLOSED chain, so they are the only two whose
@@ -82,51 +76,49 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// blend swapped, so D3 having ruled the role vocabulary shared, the
 /// blend composes the same `RoleSeg`s off the same upstream names. Its
 /// node id is minted from the node itself (N1), so a fillet and a
-/// chamfer mint two ids and their names differ in `node` alone.
+/// chamfer mint two ids and their names differ in `node` alone; read by
+/// place, those are the same names.
 /// `emit_fillet.rs`'s tie probe asserts the within-one-document case,
 /// where the two nodes differ and the names must be disjoint.
 ///
-/// A row moves when its document's names or the ids they are keyed by
-/// move, and a row is added with every document the registry gains;
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// tells a move of names and ids alone from one of geometry. The PR
-/// that moves a row says which documents moved and why.
+/// A row moves when its document's names move, and a row is added with every document the registry gains.
+/// The PR that moves a row says which documents moved and why.
 /// [`every_corpus_documents_name_tables_are_golden`] reads it.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xaa906bcbb1b5ba37),
-    ("corner_table", 0x735207785ea99a3c),
-    ("heat_sink", 0x950d417d74f7cf9f),
-    ("crossing_slots", 0xeccd53e8e6ba2ea6),
-    ("nested_islands_105", 0xf99bf1fd1695333e),
-    ("nested_islands_106_depth1", 0x082c11d124f6e188),
-    ("nested_islands_106_depth2", 0x18f202fc3bdb78c4),
-    ("declared_tangency", 0x68976e72b07858cd),
-    ("kitchen_sink", 0x025f5ac796e1892b),
-    ("cut_cylinder", 0xac336c4780f672d6),
-    ("measured_web", 0xc0cf33d6b94b5066),
-    ("boss_union", 0xdca1aebd15ce641a),
-    ("die_fillet", 0xb3d3efa9c99620d6),
-    ("die_chamfer", 0xc9992c4cbc320eda),
-    ("die_pips", 0x9303a82fb0f297cb),
-    ("heat_sink_fins", 0xe442e8c5bfc17f0b),
-    ("die_tool", 0xe31889879e89e294),
-    ("face_sketch", 0x00d9e29d5b2dc9f1),
-    ("part_select", 0x8c5b5312a7906e2e),
-    ("symmetric_plate", 0x02a679e41e38b2cc),
-    ("loft_prism", 0x8bb3034c807ec74e),
-    ("die_composed", 0x8197c40ab4700e1a),
-    ("die_composed_tour", 0x7716a9e25f3bb91d),
-    ("plate_param", 0xf9ca05e0eec8425b),
-    ("kiss_carry", 0x10f75c014986184a),
-    ("tube_ring", 0x0d6ec174da7a127f),
-    ("tube_arc", 0xe01a07393b8dd5cd),
-    ("hollow_tube_elbow", 0x89bbee16353c9287),
-    ("hollow_tube_ring", 0x43c67295fbe677e7),
-    ("reshaped_rod", 0xb1f520225ac856c4),
-    ("pin_in_bore", 0xd32530755becc1ab),
-    ("axis_projection", 0xf2cfdec7d34df8f7),
-    ("blocks_on_one_floor", 0x0bb8e316cc05c933),
-    ("revolves_on_one_axis", 0x7ae1d790dadfd55e),
+    ("die", 0x80fb24a6f1ae9ba2),
+    ("corner_table", 0x08907ad083e7cdfb),
+    ("heat_sink", 0x18913f722d28ae07),
+    ("crossing_slots", 0xfd6f240f452bcee0),
+    ("nested_islands_105", 0x32d2c78368ef35fc),
+    ("nested_islands_106_depth1", 0xb47e07297675a420),
+    ("nested_islands_106_depth2", 0xd8550b1d0c9ed5c7),
+    ("declared_tangency", 0xca14cb18cffacb24),
+    ("kitchen_sink", 0x1a5debaa269a544b),
+    ("cut_cylinder", 0x22a0d03fcb78332b),
+    ("measured_web", 0x6962a39b5e2dc962),
+    ("boss_union", 0xe9fcaaa450bac745),
+    ("die_fillet", 0xdb8817442b7968f9),
+    ("die_chamfer", 0xdb8817442b7968f9),
+    ("die_pips", 0xf0a972dffd5b70f7),
+    ("heat_sink_fins", 0xce2cfbcca8976ae0),
+    ("die_tool", 0xe5601b92c036cd10),
+    ("face_sketch", 0x19e0a31da991f68f),
+    ("part_select", 0x95abbfc3d7d34c69),
+    ("symmetric_plate", 0x9268c17572a48e9a),
+    ("loft_prism", 0x0f4f5fb2ac6ac7ac),
+    ("die_composed", 0x7e155f15fbad3a25),
+    ("die_composed_tour", 0xc4b3b1b920daefb4),
+    ("plate_param", 0x89d1d5f269b1e2cf),
+    ("kiss_carry", 0xc70e5bde21f51896),
+    ("tube_ring", 0xb33f785634fb18d3),
+    ("tube_arc", 0x241735bd4f9c6219),
+    ("hollow_tube_elbow", 0xebcf59f4b929c23d),
+    ("hollow_tube_ring", 0xc8b8154003bbf363),
+    ("reshaped_rod", 0xbadc7b4caa3f991a),
+    ("pin_in_bore", 0x8a333f9591bf5e06),
+    ("axis_projection", 0x6b49b2843959b06d),
+    ("blocks_on_one_floor", 0x8a79301884779812),
+    ("revolves_on_one_axis", 0x22ae7f88d671b250),
 ];
 
 #[test]

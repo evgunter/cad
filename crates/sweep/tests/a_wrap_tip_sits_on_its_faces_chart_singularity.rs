@@ -347,7 +347,10 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
+            let on_wall = matches!(
+                body.face_surface(face).ok()?,
+                geom::Surface::Cylinder { .. }
+            );
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");
@@ -505,7 +508,9 @@ fn side_about(
     held: &[Point3<f64>],
 ) -> geom_brep::props::MaterialSign {
     let f = body.get_face(face).unwrap();
-    let image = topo::props::chart_image_edges(body, f.outer).unwrap().0;
+    let image = topo::props::chart_image_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+        .unwrap()
+        .0;
     let mut surface = body.face_surface(face).unwrap().clone();
     if let (
         Some(turned),

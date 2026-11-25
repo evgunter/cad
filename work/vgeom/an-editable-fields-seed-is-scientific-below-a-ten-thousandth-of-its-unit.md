@@ -2,10 +2,12 @@
 id: an-editable-fields-seed-is-scientific-below-a-ten-thousandth-of-its-unit
 kind: issue
 title: An editable field holding less than 1e-4 of its unit is seeded with scientific text: is a field's seed the exact positional spelling or the told one
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
+closed: 2026-11-25
+pr: 7775
 ---
 
 
@@ -59,3 +61,7 @@ neighbouring row (the field door's dimension).
 ## Decided
 
 Ev, PR 7261 (2026-11-21): an editable field over a written value shows its exact positional spelling in the unit it was written in, never exponent form (`crates/geom-core/README.md`, "A number told to a person"). The row is now a build, not a question.
+
+## Closed (2026-11-25)
+
+PR 7775: every editable field (Properties slots and variables, creation forms and trace rows, free-move boxes, counts, the mate value and offset, the δ field) seeds its value's exact shortest spelling in its own unit, positionally (`props::FieldNumber`, `quantity::Decimal::positional`), and commits through `FieldNumber::canonical_of`. It types back through the text door; the float door's residue is `told/a-float-door-loses-what-the-text-door-keeps`. A formula's source is the open question `whether-a-formulas-source-spells-its-numbers-positionally`.

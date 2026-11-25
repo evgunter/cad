@@ -48,7 +48,7 @@ fn unmoved_reach<T: Decide>(
 /// the one fold [`body_reach`] reads, over the data
 /// `transform::map_isometry` writes into the image. Each vertex's point
 /// goes through the motion's affine; each certified edge's stored
-/// carrier through `map_carrier`, its reading over its span re-taken on
+/// carrier through `map_carrier_stretched`, its reading over its span re-taken on
 /// the image (`EdgeCurve::carried`); its two ends through the affine. So
 /// it reads the image's own quantity, from the image's own data, which a
 /// placement holds without building the image.
@@ -72,7 +72,8 @@ pub(crate) fn body_reach_at<T: Decide>(
 }
 
 /// **An edge where it stands under `iso`, as the image holds it**: its
-/// stored carrier mapped (`map_carrier`) and its reading over its span
+/// stored carrier mapped (`map_carrier_stretched`) and its reading over
+/// its span, stretched as the map stretched the carrier's parameter,
 /// re-taken on the image (`EdgeCurve::carried`), as
 /// `transform::map_isometry` writes it. On a periodic cubic the reading
 /// is a clamped view of the loop, and mapping that view instead rounds
@@ -86,8 +87,13 @@ fn placed_edge<T: Decide>(
     iso: &crate::Isometry<T>,
     curve: &geom_brep::EdgeCurve<T>,
 ) -> Result<geom_brep::EdgeCurve<T>, crate::TransformError> {
-    let carrier = crate::transform::map_carrier(iso, curve.stored_carrier())?;
-    Ok(curve.carried(carrier, curve.description().clone(), curve.authority()))
+    let (carrier, stretch) = crate::transform::map_carrier_stretched(iso, curve.stored_carrier())?;
+    Ok(curve.carried(
+        carrier,
+        stretch,
+        curve.description().clone(),
+        curve.authority(),
+    ))
 }
 
 /// **One edge's world box**, its ends as they stand: its carrier's
@@ -126,8 +132,9 @@ fn reach_of<T: Decide, E>(
         .vertices()
         .map(|(v, data)| (place(body.point_of(v, data)) - origin).norm_inf())
         .fold(T::zero(), T::max);
-    for (e, data) in body.edges() {
-        let Some(stored) = body.edge_curve_linked(e, data).certified() else {
+    for view in body.edge_views() {
+        let (e, data) = (view.key(), view.record());
+        let Some(stored) = view.certified() else {
             continue;
         };
         let moved = curve_of(stored)?;
@@ -406,7 +413,7 @@ mod tests {
                 spec,
                 arc.eval(t0),
                 arc.eval(t1),
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
@@ -414,6 +421,7 @@ mod tests {
             .unwrap_or_else(|e| panic!("span {k} certifies: {e:?}"));
             let curve = span.carried(
                 carrier.clone(),
+                1.0,
                 span.description().clone(),
                 span.authority(),
             );
@@ -446,7 +454,7 @@ mod tests {
             let imaged = reach(image);
             assert_eq!(placed.to_bits(), imaged.to_bits(), "span {k}");
             let viewed = crate::transform::map_carrier(&iso, curve.carrier()).unwrap();
-            let viewed = curve.carried(viewed, curve.description().clone(), curve.authority());
+            let viewed = curve.carried(viewed, 1.0, curve.description().clone(), curve.authority());
             if reach(&viewed).to_bits() != imaged.to_bits() {
                 view_differs += 1;
             }

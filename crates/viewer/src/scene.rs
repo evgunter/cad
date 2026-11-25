@@ -160,20 +160,29 @@ impl DisplayTolerance {
     /// remember whether its δ was typed or chosen by the triangle
     /// budget, so it is told as the latter.
     ///
-    /// [`DisplayTolerance::new`] refuses a δ whose millimetre value is
-    /// not an `f64`, and millimetres are the finest length row
-    /// ([`MM_PER_METRE`]), so every length unit can say a δ; the
-    /// [`crate::props::no_reading`] arm is the conversion's own
-    /// refusal, kept rather than unwrapped.
-    ///
     /// **No δ renders as `0.000`**: the grid has no floor
     /// (`no_delta_renders_as_a_number_a_delta_cannot_be`). It is a
-    /// render and never a commit path: the number a δ moves to is the
-    /// one a user types, never one the chrome echoed at them.
+    /// sentence's, never the δ field's ([`Self::field_text_in`]).
     pub fn render_in(self, unit: LengthUnit) -> String {
         let unit = unit.def();
         crate::readout::computed_number(self.0, unit)
-            .unwrap_or_else(|| crate::props::no_reading(unit))
+    }
+
+    /// **This δ as the δ field shows it, and so the text its edit
+    /// opens on**: its exact spelling in `unit`, positional at every
+    /// magnitude (`crate::props::FieldNumber::text`), so the default
+    /// δ reads `0.00005` in metres and a digit typed after it lands in
+    /// the number.
+    pub fn field_text_in(self, unit: LengthUnit) -> String {
+        match crate::props::shown_value(Some(unit.def()), self.0) {
+            Ok(number) => number.seed(),
+            Err(unit) => unreachable!(
+                "δ = {:e} m has no {} number, yet `DisplayTolerance::new` admits only \
+                 a positive δ whose millimetres are finite, and no length unit is finer",
+                self.0,
+                unit.symbol()
+            ),
+        }
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the
@@ -302,7 +311,11 @@ impl SceneError {
                 unit.symbol()
             ),
             Self::NoProduct(error, held) => {
-                write!(f, "{}", Said(error.as_ref(), Speaker::held(held)))
+                write!(
+                    f,
+                    "{}",
+                    Said(error.as_ref(), Speaker::held(held)).sentence()
+                )
             }
             Self::NotTessellated(error) => {
                 write!(
@@ -1118,10 +1131,15 @@ pub struct FittedDelta {
     pub delta: DisplayTolerance,
     /// The δ that was asked for.
     pub requested: DisplayTolerance,
-    /// What the requested δ was predicted to cost, when the budget
-    /// moved δ; `None` when the request was affordable and nothing
-    /// was changed.
-    pub requested_cost: Option<usize>,
+    /// What the requested δ was predicted to cost, in triangles, when
+    /// the budget moved δ; `None` when the request was affordable and
+    /// nothing was changed.
+    ///
+    /// A float because it is the law's prediction, not a count anything
+    /// tessellated: a δ typed fine enough prices a request past every
+    /// integer, and past every finite `f64` (`+inf`), and a cast into a
+    /// count would say the largest count there is instead.
+    pub requested_cost: Option<f64>,
     /// What finding this δ COST: triangles tessellated across every
     /// rung of the ladder.
     ///
@@ -1161,7 +1179,8 @@ impl FittedDelta {
     /// worse than no default at all.
     ///
     /// **Both δ are rendered, not formatted**, in `unit` — the working
-    /// notation's length unit ([`DisplayTolerance::render_in`]). A
+    /// notation's length unit ([`DisplayTolerance::render_in`]) — and
+    /// so is the cost, as a computed scalar ([`crate::readout::bare`]). A
     /// sentence whose whole job is to name the two δ in play is the
     /// last place a number may read as one δ cannot be. What that costs
     /// is that the sentence is as wide as the δ are awkward, which is
@@ -1172,8 +1191,14 @@ impl FittedDelta {
         let opened = self.delta.render_in(unit);
         let asked = self.requested.render_in(unit);
         let symbol = unit.symbol();
+        let cost = if requested.is_finite() {
+            let told = crate::readout::bare(requested, pncad::quantity::UnitQuantity::Scalar);
+            format!("about {told} triangles")
+        } else {
+            "more triangles than a number can say".to_owned()
+        };
         Some(format!(
-            "opened at δ = {opened} {symbol}: {asked} {symbol} needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
+            "opened at δ = {opened} {symbol}: {asked} {symbol} needs {cost}, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
         ))
     }
 }
@@ -1222,8 +1247,9 @@ pub enum ProbeStop {
 /// A ladder that starts at the request — try δ, halve until it fits —
 /// pays for the tessellation it then throws away, and the one it
 /// throws away is the expensive one. So this ladder runs the other
-/// way: it starts at the body's own extent, where nothing subdivides,
-/// and each rung is a δ the rung above it has already PRICED at
+/// way: it starts at the body's own extent, where nothing subdivides
+/// (or, when the scale probe's points span no finite box, at
+/// [`SCALE_PROBE_DELTA`] itself, where its count was read), and each rung is a δ the rung above it has already PRICED at
 /// `TRIANGLE_BUDGET / PROBE_FACTOR` triangles. It descends only while
 /// a finer rung would buy a materially better reading of `C`, and it
 /// stops at [`PROBE_FACTOR`] × the request, which is the rung that
@@ -1337,8 +1363,9 @@ struct Probe {
     /// Its triangle count.
     triangles: usize,
     /// How far apart the mesh's points are — read only from the scale
-    /// probe, where it is the body's own extent.
-    extent: f64,
+    /// probe, where it is the body's own extent — or `None` where they
+    /// span no finite box ([`extent`]).
+    extent: Option<f64>,
 }
 
 /// [`fit_delta`] over a probe door, which is what the ladder's own
@@ -1365,7 +1392,14 @@ fn fit_from_probes(
     // where a fit with no ladder would have started and ended. Only if
     // THAT refuses too is there no answer to give.
     let (mut triangles, mut probe_delta) = match probe(SCALE_PROBE_DELTA) {
-        Ok(scale) => (scale.triangles, scale.extent.max(finest.get())),
+        // With no extent to start at, the ladder starts where the
+        // probe's count was actually read.
+        Ok(scale) => (
+            scale.triangles,
+            scale
+                .extent
+                .map_or(SCALE_PROBE_DELTA, |extent| extent.max(finest.get())),
+        ),
         Err(_) => {
             let fallback = probe(finest.get()).map_err(SceneError::NotTessellated)?;
             return answer(
@@ -1460,8 +1494,7 @@ fn answer(requested: DisplayTolerance, reading: Reading) -> Result<FittedDelta, 
     #[allow(clippy::cast_precision_loss)]
     let constant = reading.triangles as f64 * reading.delta;
     let solved = constant / budget;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let at_request = (constant / requested.get()) as usize;
+    let at_request = constant / requested.get();
     if solved <= requested.get() {
         return Ok(FittedDelta {
             delta: requested,
@@ -1491,13 +1524,14 @@ fn triangle_count(mesh: &Mesh) -> usize {
 /// box, and so a δ at which the body that produced them does not
 /// subdivide at all.
 ///
-/// Zero for a mesh with no points, and for one whose points are not a
-/// finite box — a caller that starts a ladder here reads that as "no
-/// rung coarser than the finest", which is the one place the answer is
-/// a δ rather than a refusal.
-fn extent(mesh: &Mesh) -> f64 {
+/// Zero for a mesh with no points, which spans nothing. `None` where
+/// the points are not a finite box — a `NaN` position, or a diagonal
+/// that overflows — because no δ is the body's extent then, and a
+/// zero would tell the ladder that the scale probe's count holds all
+/// the way down at the finest rung, which is a cost nobody measured.
+fn extent(mesh: &Mesh) -> Option<f64> {
     let Some(box_) = Aabb::from_points(mesh.positions.iter().copied()) else {
-        return 0.0;
+        return Some(0.0);
     };
     let diagonal = Vec3::new(
         box_.max_x - box_.min_x,
@@ -1505,7 +1539,7 @@ fn extent(mesh: &Mesh) -> f64 {
         box_.max_z - box_.min_z,
     )
     .norm();
-    if diagonal.is_finite() { diagonal } else { 0.0 }
+    diagonal.is_finite().then_some(diagonal)
 }
 
 /// The whole path: document → evaluated product → tessellation at δ →
@@ -1635,7 +1669,7 @@ mod tests {
             let law = (constant / delta) as usize;
             Ok(Probe {
                 triangles: law.max(floor),
-                extent: 1.0,
+                extent: Some(1.0),
             })
         }
     }
@@ -1657,7 +1691,7 @@ mod tests {
             rungs.push(d);
             Ok(Probe {
                 triangles: flat,
-                extent: 1.0,
+                extent: Some(1.0),
             })
         })
         .expect("a flat body fits");
@@ -1683,6 +1717,65 @@ mod tests {
         );
     }
 
+    /// **A scale probe that measured no extent is still a rung.** Its
+    /// count was read at [`SCALE_PROBE_DELTA`], so the ladder starts
+    /// there; a body that does subdivide below it is still priced, and
+    /// a request it cannot afford is still moved.
+    #[test]
+    fn a_scale_probe_with_no_extent_still_prices_the_request() {
+        let mut law = curved(1.0e3, 10);
+        let fitted = fit_from_probes(delta(1.0e-4), |d| {
+            law(d).map(|probe| Probe {
+                extent: None,
+                ..probe
+            })
+        })
+        .expect("the body fits");
+        assert!(
+            fitted.delta > fitted.requested,
+            "a request costing about 1e7 triangles is moved: {fitted:?}"
+        );
+        assert!(
+            fitted.requested_cost.is_some(),
+            "and says what it would cost"
+        );
+    }
+
+    /// **A cost past every integer is reported as itself**, and one
+    /// past every finite `f64` is said to be, not printed as a count.
+    #[test]
+    fn a_requests_cost_is_not_cast_into_a_count() {
+        let fine = fit_from_probes(delta(1.0e-20), curved(1.0e3, 10)).expect("the body fits");
+        #[allow(clippy::cast_precision_loss)]
+        let largest_count = u64::MAX as f64;
+        assert!(
+            fine.requested_cost.is_some_and(|cost| cost > largest_count),
+            "a request at 1e-20 m costs about 1e23 triangles: {:?}",
+            fine.requested_cost
+        );
+        let said = fine
+            .wording(pncad::quantity::MM)
+            .expect("the budget moved δ");
+        let longest_digits = said
+            .split(|c: char| !c.is_ascii_digit())
+            .map(str::len)
+            .max()
+            .unwrap_or(0);
+        assert!(
+            longest_digits <= 8,
+            "a cost of about 1e23 is told, not printed as its binary expansion: {said}"
+        );
+        let finest =
+            fit_from_probes(delta(f64::MIN_POSITIVE), curved(1.0e3, 10)).expect("the body fits");
+        let said = finest
+            .wording(pncad::quantity::MM)
+            .expect("the budget moved δ");
+        assert!(
+            said.contains("more triangles than a number can say"),
+            "an unbounded cost is said to be one: {said}"
+        );
+    }
+
     /// A flat body small enough that the law's own step already
     /// reaches the request's rung pays two probes, not three: the step
     /// that discovers the flatness IS the step to the request.
@@ -1693,7 +1786,7 @@ mod tests {
             rungs.push(d);
             Ok(Probe {
                 triangles: 348,
-                extent: 0.05,
+                extent: Some(0.05),
             })
         })
         .expect("a flat body fits");
@@ -1717,7 +1810,7 @@ mod tests {
         let fitted = fit_from_probes(delta(requested), |d| {
             Ok(Probe {
                 triangles: count(d),
-                extent: 1.0e-3,
+                extent: Some(1.0e-3),
             })
         })
         .expect("the body fits");

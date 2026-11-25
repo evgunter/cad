@@ -58,7 +58,7 @@ fn survives_interval_dome_two_band_wire() {
     assert_eq!(t.body.vertices().count(), 3);
     assert_eq!(t.body.edges().count(), 5);
     assert_eq!(t.body.faces().count(), 4);
-    assert_eq!(t.body.surfaces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn survives_interval_donut_wrap_run() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    assert_eq!(t.body.surfaces().count(), 1);
+    assert_eq!(t.body.described_surfaces().count(), 1);
     assert_eq!(t.body.edges().count(), 4);
 }
 

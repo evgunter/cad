@@ -20,10 +20,11 @@
 //!   trivially equivariant (kinds are motion-invariant) and
 //!   scalar-independent. They go through NO funnel and carry NO
 //!   margin, deliberately: minting a fake margin for a tag match would
-//!   be dimension-laundering in the other direction. A missing
-//!   carrier, a dangling key or an unreadable adjacency is an honest
-//!   NO, never a panic — which is what makes a purely-exact filter
-//!   total.
+//!   be dimension-laundering in the other direction. A null carrier,
+//!   a stale key or an unreadable adjacency is an honest NO — which is
+//!   what makes a purely-exact filter total over a caller's keys; a
+//!   link a resolved record holds that does not resolve (an edge's
+//!   curve, a face's surface) panics, as every link does (D2 row 4).
 //!
 //!   **[`rim_of`] is a fourth EXACT door and it does NOT answer NO.**
 //!   It reads stored data the same way the three predicates do — the
@@ -65,7 +66,6 @@ use geom_core::Real;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::readback::CarrierAbsence;
 
 /// The kinds, re-exported where their sets and predicates live.
 ///
@@ -201,8 +201,8 @@ pub fn all_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 ///
 /// The flattening of the typed readback door
 /// [`crate::readback::edge_carrier_kind`], which is the one reading of
-/// an edge's carrier tag: the three lookups run once, there, and what
-/// is dropped here is only WHICH of them came back empty.
+/// an edge's carrier tag: the walk runs once, there, and what is
+/// dropped here is only WHICH of its two refusals came back.
 #[must_use]
 pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
     crate::readback::edge_carrier_kind(body, e).ok()
@@ -445,14 +445,14 @@ fn on_pair(sides: (SurfaceKey, SurfaceKey), pair: SurfacePair) -> bool {
 /// two surfaces (an ellipse rim from a tilted plane through a
 /// cylinder), when a consumer needs non-circle rims.
 fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError> {
-    match crate::readback::edge_carrier_ref(body, edge) {
-        Ok(Curve3::Circle(..)) => Ok(()),
-        Ok(other) => Err(RimError::NotAnArc {
+    let view = body.edge(edge).ok_or(RimError::Stale(edge))?;
+    match view.certified().map(|c| c.carrier()) {
+        Some(Curve3::Circle(..)) => Ok(()),
+        Some(other) => Err(RimError::NotAnArc {
             edge,
             kind: Some(other.kind()),
         }),
-        Err(CarrierAbsence::Dangling(edge)) => Err(RimError::Stale(edge)),
-        Err(CarrierAbsence::NoCarrier) => Err(RimError::NotAnArc { edge, kind: None }),
+        None => Err(RimError::NotAnArc { edge, kind: None }),
     }
 }
 
@@ -595,10 +595,14 @@ mod tests {
     use crate::fixtures::{plane_surface, raw_prism};
 
     /// A prism fixture with one wall re-surfaced as a PLANE, so the
-    /// body carries two surface kinds (the fixture's placeholder
-    /// Nurbs everywhere else) and circle-certified carriers.
+    /// body carries two surface kinds (a finite NURBS patch on every
+    /// other face, read for its kind only) and circle-certified carriers.
     fn mixed() -> Body<f64> {
         let mut p = raw_prism(4, Tol::witness()).body;
+        crate::fixtures::describe_pending_as(
+            &mut p,
+            &crate::fixtures::patch_spanning(Point3::origin(), Point3::new(1.0, 1.0, 1.0)),
+        );
         let face = all_faces(&p)[0];
         let plane = p.add_surface(plane_surface(
             Point3::origin(),

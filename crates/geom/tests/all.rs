@@ -68,6 +68,8 @@ mod curves {
 mod exact_q;
 
 // ---- curves ----
+#[path = "curves/accel_upper_bound.rs"]
+mod curves_accel_upper_bound;
 #[path = "curves/arc_window_adversarial.rs"]
 mod curves_arc_window_adversarial;
 #[path = "curves/boxes.rs"]
@@ -76,6 +78,8 @@ mod curves_boxes;
 mod curves_compose;
 #[path = "curves/cover_box_against_the_whole_span_eval.rs"]
 mod curves_cover_box_against_the_whole_span_eval;
+#[path = "curves/curve3_r1_probes.rs"]
+mod curves_curve3_r1_probes;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
@@ -84,6 +88,10 @@ mod curves_decoration_certified_coords;
 mod curves_derivative_at_is_ders1s;
 #[path = "curves/ders1_from.rs"]
 mod curves_ders1_from;
+#[path = "curves/ders1_meter.rs"]
+mod curves_ders1_meter;
+#[path = "curves/ders1_r2_probes.rs"]
+mod curves_ders1_r2_probes;
 #[path = "curves/directional_extent.rs"]
 mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]
@@ -108,24 +116,6 @@ mod curves_m5_pr7_speed_meter;
 mod curves_m8_14_long_turn_meter;
 #[path = "curves/n1r1_c24_dump.rs"]
 mod curves_n1r1_c24_dump;
-#[path = "r2_turn_probes.rs"]
-mod r2_turn_probes;
-#[path = "recourse_roster.rs"]
-mod recourse_roster;
-#[path = "review_turn_follow_ups_probes.rs"]
-mod review_turn_follow_ups_probes;
-// Lane registration (aggregation guard): the R1 meter probe was pushed
-// without a `#[path]` line.
-#[path = "cert_n2r2_probes.rs"]
-mod cert_n2r2_probes;
-#[path = "curves/accel_upper_bound.rs"]
-mod curves_accel_upper_bound;
-#[path = "curves/curve3_r1_probes.rs"]
-mod curves_curve3_r1_probes;
-#[path = "curves/ders1_meter.rs"]
-mod curves_ders1_meter;
-#[path = "curves/ders1_r2_probes.rs"]
-mod curves_ders1_r2_probes;
 #[path = "curves/n1r1_c24_meter.rs"]
 mod curves_n1r1_c24_meter;
 #[path = "curves/n1r1_lift_probes.rs"]
@@ -174,14 +164,20 @@ mod curves_speed_upper_bound;
 mod curves_split_at;
 #[path = "curves/swaying_corner_meter.rs"]
 mod curves_swaying_corner_meter;
+#[path = "depth_gap_rounding.rs"]
+mod depth_gap_rounding;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
-#[path = "n2r1_probes.rs"]
-mod n2r1_probes;
-#[path = "net_placeholder_width.rs"]
-mod net_placeholder_width;
-#[path = "net_placeholder_width_interval.rs"]
-mod net_placeholder_width_interval;
+#[path = "net_finiteness.rs"]
+mod net_finiteness;
+#[path = "net_finiteness_interval.rs"]
+mod net_finiteness_interval;
+#[path = "r2_turn_probes.rs"]
+mod r2_turn_probes;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
+#[path = "review_turn_follow_ups_probes.rs"]
+mod review_turn_follow_ups_probes;
 #[path = "span_bit_identity.rs"]
 mod span_bit_identity;
 #[path = "span_bit_identity_ext.rs"]

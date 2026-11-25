@@ -72,13 +72,13 @@ fn prism(scale: f64) -> Body<f64> {
 /// Is this face's surface a described NURBS wall whose control net lies
 /// exactly on `y = -1` (the planar wall a promotion restates)?
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -scale))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -scale)
             && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
@@ -271,13 +271,17 @@ fn posture(
     chart: &NurbsSurface<f64>,
 ) -> MintPosture {
     match out {
-        Ok(p @ Pcurve::IsoLine { p0, pl, .. }) => {
-            assert_eq!(pl.x, 0.0, "{row}: a seam image holds u constant: {pl:?}");
+        Ok(p @ Pcurve::IsoLine { line, .. }) => {
+            assert_eq!(
+                line.axis,
+                geom_brep::ChartAxis::U,
+                "{row}: a seam image holds u constant: {line:?}"
+            );
             let (du0, du1) = chart.knots_u_f64_interim().domain();
             assert!(
-                p0.x == du0 || p0.x == du1,
+                line.value == du0 || line.value == du1,
                 "{row}: on the chart's OWN boundary column, u = {} of [{du0}, {du1}]",
-                p0.x
+                line.value
             );
             MintPosture::Certified(p.clone())
         }
@@ -305,7 +309,7 @@ fn posture(
 /// The chart the bowed wall's face carries.
 fn chart_of(body: &Body<f64>, key: topo::SurfaceKey) -> NurbsSurface<f64> {
     match body.get_surface(key) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described NURBS chart: {other:?}"),
     }
 }
@@ -325,7 +329,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
         return;
     };
     let derived = format!("{image:?}");
-    let Pcurve::IsoLine { p0, pl, ends } = image else {
+    let Pcurve::IsoLine { line, at0, rate } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     // The moving channel is the chart's own `v`, traversed with the
@@ -333,18 +337,10 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     // domain, not an assumed identity.
     let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
-        (pl.y - (dv1 - dv0)).abs() < 1e-12,
-        "the seam traverses the chart's whole v domain: {pl:?} on [{dv0}, {dv1}]"
+        (rate - (dv1 - dv0)).abs() < 1e-12,
+        "the seam traverses the chart's whole v domain: rate {rate:?} on [{dv0}, {dv1}]"
     );
-    assert!(p0.y.abs() < 1e-12, "and starts at its v origin: {p0:?}");
-    // The arm places the column by its corners and states them.
-    let corners = ends.map(|e| e.map(|q| (q.x.to_bits(), q.y.to_bits())));
-    let want = [(p0.x, dv0), (p0.x, dv1)].map(|(x, y)| (x.to_bits(), y.to_bits()));
-    assert_eq!(
-        corners,
-        Some(want),
-        "the image states the column's corners: {ends:?}"
-    );
+    assert!(at0.abs() < 1e-12, "and starts at its v origin: {at0:?}");
     // The mint pass certifies every face of the body it charts.
     topo::mint_pcurves(&mut body, Tol::witness()).expect("the whole body charts over the new arm");
     let stored = body
@@ -358,8 +354,8 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     println!(
         "M8-4 boundary column @ eps={:e}: u = {}, v slope {}",
         Tol::witness().get().eps,
-        p0.x,
-        pl.y
+        line.value,
+        rate
     );
 }
 
@@ -610,16 +606,20 @@ fn an_interior_column_intersection_mints_a_general_image() {
         }
         chart_seams += 1;
         let cache = body.pcurve(*h).unwrap();
-        let Pcurve::IsoLine { p0, pl, .. } = cache.pcurve() else {
+        let Pcurve::IsoLine { line, .. } = cache.pcurve() else {
             panic!(
                 "the Chart-described seam takes the exact class: {:?}",
                 cache.pcurve()
             )
         };
-        assert_eq!(pl.x, 0.0, "a column holds u constant: {pl:?}");
+        assert_eq!(
+            line.axis,
+            geom_brep::ChartAxis::U,
+            "a column holds u constant: {line:?}"
+        );
         assert!(
-            (p0.x - 1.0).abs() < 1e-9,
-            "on the chart's interior knot column u = 1 of [0, 3]: {p0:?}"
+            (line.value - 1.0).abs() < 1e-9,
+            "on the chart's interior knot column u = 1 of [0, 3]: {line:?}"
         );
         assert!(
             cache.certificate().envelope <= eps,
@@ -628,7 +628,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         );
         println!(
             "M8-4 chart seam {h:?} @ eps={eps:e}: IsoLine on u = {}, envelope {:e} m, {:?}",
-            p0.x,
+            line.value,
             cache.certificate().envelope,
             cache.certificate().statement
         );
@@ -726,7 +726,7 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Sur
     pair.keys()
         .into_iter()
         .find_map(|k| match body.get_surface(k) {
-            Some(p @ Surface::Plane { .. }) => Some((k, p.clone())),
+            Ok(p @ Surface::Plane { .. }) => Some((k, p.clone())),
             _ => None,
         })
         .expect("one operand is the plane the flat wall was restated as")
@@ -792,22 +792,22 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     let MintPosture::Certified(image) = posture("imported chart", &out, &chart) else {
         return;
     };
-    let Pcurve::IsoLine { p0, pl, .. } = image else {
+    let Pcurve::IsoLine { line, rate, .. } = image else {
         panic!("a certified posture carries the iso line it asserted")
     };
     assert!(
-        p0.x == 0.0 || p0.x == wide,
-        "the column is the file's own domain end, not a literal: {p0:?}"
+        line.value == 0.0 || line.value == wide,
+        "the column is the file's own domain end, not a literal: {line:?}"
     );
     assert!(
-        (pl.y - 2.5).abs() < 1e-12,
-        "and the v map is affine onto the file's own v domain: {pl:?}"
+        (rate - 2.5).abs() < 1e-12,
+        "and the v map is affine onto the file's own v domain: rate {rate:?}"
     );
     println!(
         "M8-4 imported chart @ eps={:e}: u = {}, v slope {}",
         Tol::witness().get().eps,
-        p0.x,
-        pl.y
+        line.value,
+        rate
     );
 }
 
@@ -1052,7 +1052,7 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
     let (gt, gi) = patch_size(&body, &got, key);
     let oracle_walls: Vec<(usize, usize)> = oracle
         .faces()
-        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(oracle.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
         .map(|(_, f)| patch_size(&oracle, &want, f.surface))
         .collect();
     println!(
@@ -1160,7 +1160,7 @@ fn top_rim(
                 .find_map(|(own, other)| {
                     let lp = body.get_half_edge(own).unwrap().parent_loop;
                     let cap = he_surface(body, other);
-                    let on_cap = matches!(body.get_surface(cap), Some(Surface::Plane { .. }));
+                    let on_cap = matches!(body.get_surface(cap), Ok(Surface::Plane { .. }));
                     let ends =
                         [own, other].map(|h| vertex_at(body, body.get_half_edge(h).unwrap().start));
                     (body.get_loop(lp).unwrap().face == wall_face
@@ -1238,10 +1238,14 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
         });
         body.detach_pcurve(he);
         let image = match topo::pcurve_of(&body, he, band()) {
-            Ok(image @ Pcurve::IsoLine { p0, pl, .. }) => {
-                assert_eq!(pl.y, 0.0, "{what}: a row holds v constant: {pl:?}");
-                assert_eq!(p0.y, 1.0, "{what}: on the v = 1 row: {p0:?}");
-                assert!(pl.x < 0.0, "{what}: run back, u falling: {pl:?}");
+            Ok(image @ Pcurve::IsoLine { line, rate, .. }) => {
+                assert_eq!(
+                    line.axis,
+                    geom_brep::ChartAxis::V,
+                    "{what}: a row holds v constant: {line:?}"
+                );
+                assert_eq!(line.value, 1.0, "{what}: on the v = 1 row: {line:?}");
+                assert!(rate < 0.0, "{what}: run back, u falling: {rate:?}");
                 image
             }
             other => panic!("{what}: the rim derives as the row: {other:?}"),

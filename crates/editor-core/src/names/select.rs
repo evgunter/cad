@@ -63,8 +63,9 @@ use super::table::EntityRef;
 /// boolean emitter minted" without naming eleven variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OpGroup {
-    /// Shared across body-producing ops ([`RoleSeg::OutputBody`], and
-    /// [`RoleSeg::From`], an entity carried in through a read).
+    /// Shared across body-producing ops ([`RoleSeg::OutputBody`],
+    /// [`RoleSeg::From`], an entity carried in through a read, and
+    /// [`RoleSeg::ConventionalVertex`], a closed edge's vertex).
     Shared,
     /// Extrude — and the loft, a swept solid of the same shape, whose
     /// caps, rims and cap vertices are the extrude's roles and whose
@@ -140,6 +141,8 @@ seg_tags! {
     LoftSeam,
     LoftSectionEdge,
     LoftSectionVertex,
+    SubArc,
+    SubArcJoint,
     // Revolve
     Band,
     BandRim,
@@ -184,6 +187,8 @@ seg_tags! {
     Member,
     // Blend, appended
     HostFoot,
+    // Any op, appended
+    ConventionalVertex,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -232,6 +237,8 @@ impl SegTag {
             RoleSeg::LoftSeam(..) => Self::LoftSeam,
             RoleSeg::LoftSectionEdge(..) => Self::LoftSectionEdge,
             RoleSeg::LoftSectionVertex(..) => Self::LoftSectionVertex,
+            RoleSeg::SubArc(..) => Self::SubArc,
+            RoleSeg::SubArcJoint(..) => Self::SubArcJoint,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::Meridian(..) => Self::Meridian,
@@ -270,13 +277,14 @@ impl SegTag {
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Member { .. } => Self::Member,
+            RoleSeg::ConventionalVertex(..) => Self::ConventionalVertex,
         }
     }
 
     /// Which op minted segments with this tag.
     pub fn group(self) -> OpGroup {
         match self {
-            Self::OutputBody | Self::From => OpGroup::Shared,
+            Self::OutputBody | Self::From | Self::ConventionalVertex => OpGroup::Shared,
             Self::Cap
             | Self::Lateral
             | Self::RimEdge
@@ -285,7 +293,9 @@ impl SegTag {
             | Self::LoftWall
             | Self::LoftSeam
             | Self::LoftSectionEdge
-            | Self::LoftSectionVertex => OpGroup::Extrude,
+            | Self::LoftSectionVertex
+            | Self::SubArc
+            | Self::SubArcJoint => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::Meridian
@@ -349,6 +359,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::LoftSeam(_)
         | RoleSeg::LoftSectionEdge(..)
         | RoleSeg::LoftSectionVertex(..)
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::Pole(_)
@@ -376,7 +388,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -435,6 +448,7 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
         | RoleSeg::BandSection { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
+        | RoleSeg::ConventionalVertex(n)
         | RoleSeg::Inner(n)
         | RoleSeg::Rim(n)
         | RoleSeg::HoleRim { of: n, hole: _ }
@@ -1056,7 +1070,7 @@ fn matching(table: &super::NameTable, sel: &Selector) -> Vec<StableName> {
     let mut out: Vec<StableName> = table
         .iter()
         .map(|(name, _)| name)
-        .filter(|name| sel.matches(name))
+        .filter(|name| super::binds(name) && sel.matches(name))
         .cloned()
         .collect();
     out.sort();

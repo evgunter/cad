@@ -202,7 +202,7 @@ fn refuses_the_knife_edge(
     let named = body.face_surface(knife.wall);
     assert_eq!(
         named.map(geom::Surface::kind),
-        Some(wall),
+        Ok(wall),
         "{label}: the refusal names the grazed wall"
     );
     match knife.at {
@@ -941,7 +941,7 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         let e = split(&operand, &p, Tol::witness()).unwrap_err();
         let wall = e.knife_edge().unwrap().wall;
         let centre = match body.face_surface(wall) {
-            Some(geom::Surface::Cylinder { frame, .. }) => {
+            Ok(geom::Surface::Cylinder { frame, .. }) => {
                 let origin = frame.origin();
                 (origin.x, origin.y)
             }

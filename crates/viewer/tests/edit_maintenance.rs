@@ -129,7 +129,7 @@ fn face_of(doc: &Doc<ProfileProgram>, shell: RecipeNodeId) -> pncad::document::V
 fn line_after(outcome: &OpOutcome, op: SessionOp) -> String {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let notices: Vec<frame::Message> = frame::outcome_notices(outcome).collect();
-    match frame::frame_status(&notices, &[op], None) {
+    match frame::frame_status_untargeted(&notices, &[op], None) {
         RankedVerdict::Show(line) => line.text().to_owned(),
         other => panic!("an accepted edit with maintenance shows its rows, got {other:?}"),
     }
@@ -221,7 +221,7 @@ fn every_maintenance_row_rides_beside_a_refusal() {
         direction: Step::Undo,
     };
     let RankedVerdict::Show(line) =
-        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+        frame::frame_status_untargeted(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -311,7 +311,7 @@ fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
         Vec::new()
     );
     assert_eq!(
-        frame::frame_status(
+        frame::frame_status_untargeted(
             &frame::outcome_notices(outcome).collect::<Vec<_>>(),
             &[op],
             None
@@ -546,7 +546,7 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
         Vec::new()
     );
     assert_eq!(
-        frame::frame_status(
+        frame::frame_status_untargeted(
             &frame::outcome_notices(&outcome).collect::<Vec<_>>(),
             &[op],
             None
@@ -986,7 +986,7 @@ fn the_delete_button_counts_a_name_its_hand_over_takes_out_of_reach() {
     let (doc, fused) = common::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 placed_first.into(),
                 placed_second.into(),
             ]),

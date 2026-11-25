@@ -80,3 +80,4 @@ The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The 
 fails at ε `1e-6`, cone 31, split and conic ("the drawn cone bounds no one material (a fixture
 defect)"), on `lathe/full-revolve-one-band` at `03e5b2264` and on `lathe/mesh-budget-one-band`
 alike; not replayed on main.
+- 2026-11-23 — **another seed** (EMBED, lane strip, `embed/strip` at `fb97c19836`, topo's slow set under `--profile ci`): `CAD_FUZZ_SEED=0x4374899374838d3a CAD_FUZZ_EFFORT=1` reads "ε 1e-12, cone 18, split: the drawn cone bounds no one material (a fixture defect)" at `crates/topo/src/link/cone_fuzz.rs:2377`.

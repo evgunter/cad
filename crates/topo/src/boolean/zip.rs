@@ -1121,13 +1121,12 @@ fn one_vertex_sense<T: Decide>(
             .ok_or_else(|| corr("seam half-edge no longer resolves"))?
             .edge;
         let data = body
-            .get_edge(edge)
+            .edge(edge)
             .ok_or_else(|| corr("seam edge no longer resolves"))?;
-        let curve = body
-            .edge_curve_linked(edge, data)
+        let curve = data
             .certified()
             .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
-        Ok((curve, data.he_plus == he))
+        Ok((curve, data.record().he_plus == he))
     };
     // The unit direction a half leaves its start along: its carrier's
     // tangent at the start parameter, reversed on the minus half.

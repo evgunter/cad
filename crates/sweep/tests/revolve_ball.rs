@@ -37,7 +37,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (2, 1, 1, 0));
     // The one face's sphere is the only surface.
-    assert_eq!(t.body.surfaces().count(), 1);
+    assert_eq!(t.body.described_surfaces().count(), 1);
     // Every face lies on the unit sphere centered at the origin.
     let (face, _) = t.body.faces().next().unwrap();
     let Surface::Sphere { frame, radius, .. } = *t.body.face_surface(face).unwrap() else {

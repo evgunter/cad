@@ -974,7 +974,7 @@ pub(super) fn mint_plans<T: Decide>(
         })
         .collect();
     let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
-    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+    for (slot, operand) in Operand::BOTH.into_iter().enumerate() {
         let vertex = |i: usize| {
             let c = plans[i].contact;
             if slot == 0 { c.a } else { c.b }
@@ -1501,7 +1501,7 @@ fn shared_at<'s, T: geom_core::Real>(
         .filter(|&j| ends(plans[j].contact, slot).0 == vertex)
         .collect();
     (!plans[i].runs.is_empty() && !others.is_empty()).then(|| SharedAt {
-        operand: [Operand::A, Operand::B][slot],
+        operand: Operand::BOTH[slot],
         vertex,
         partner,
         others,
@@ -2630,7 +2630,18 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(GlueClass::Tangent) {
+    // A junction's locus is its rim, a BOUND of both sectors, not a line
+    // through their interiors: its codes (the rim bound `On`, every other
+    // `Out`, `sectors::junction_bound_side`) name the germ's ray as any
+    // crossing record's do, so it is read as one. Only a tangency's line
+    // lies inside both faces, where the codes name no ray.
+    let tangent = match read {
+        DeclarationRead::Spent(GlueClass::Tangent) => true,
+        DeclarationRead::Spent(GlueClass::Junction | GlueClass::Rest | GlueClass::Continuation)
+        | DeclarationRead::Settles(_)
+        | DeclarationRead::Moot => false,
+    };
+    if !tangent {
         if let Some(fan) = super::fan::Fan::of(sa, sb) {
             return fan_germ_dir(
                 (a_body, a_vertex, sa),
@@ -2642,14 +2653,14 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         }
         return germ_dir((sa, codes_a), (sb, codes_b), read, band);
     }
-    let s_a = a_body.proven_face(sa.face).surface().clone();
-    let s_b = b_body.proven_face(sb.face).surface().clone();
+    let s_a = a_body.proven_face(sa.face).expect_described().clone();
+    let s_b = b_body.proven_face(sb.face).expect_described().clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line {
             line: geom::Line { dir, .. },
             ..
-        }) => dir.normalize(),
+        }) => dir.get().normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
@@ -3102,8 +3113,8 @@ mod tests {
             intersect: true,
             coincident: None,
         };
-        let mut a = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let mut b = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut a = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut b = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -3269,8 +3280,8 @@ mod tests {
     fn as_runs_go_forward_between_consecutive_germs_and_two_as_the_orbit_allows() {
         use SideCode::{In, Out};
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let abody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let bbody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         // `laps` times round the orbit, and with `twin` a last entry
         // bisecting the last physical sector.
         // Entry `k`'s sector holds its record's germ: `+y` where A's codes
@@ -3454,8 +3465,8 @@ mod tests {
     fn a_whole_orbit_run_of_four_survivors_is_spelled_as_its_strut() {
         use SideCode::{In, Out};
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let abody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let bbody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let v3 = geom_core::Vec3::new;
         let sector = |body: &Body<f64>, he, start, end, normal: geom_core::Vec3<f64>| BoolSector {
             he,
@@ -3957,8 +3968,8 @@ mod tests {
             intersect: true,
             coincident: None,
         };
-        let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut bbody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).

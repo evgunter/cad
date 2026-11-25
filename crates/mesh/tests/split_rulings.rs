@@ -596,7 +596,7 @@ fn banded(angle: f64) -> Body<f64> {
     let (face, _) = body
         .faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { radius, .. }) if *radius > 1.5)
+            matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { radius, .. }) if *radius > 1.5)
         })
         .expect("the outer wall");
     let rims: Vec<topo::EdgeKey> = body

@@ -9,12 +9,13 @@ use geom_core::predicate::Band;
 use super::{
     ChartPeriods, DescribedChart, JointHalf, JointSides, Orbit, PcurveMintError, PinMiss, Singular,
     SingularMiss, Walked, decide_joint, derive_face, derive_image, entry_exit, entry_vertex,
-    half_edge_carrier, has_singular_set, is_plus, joint_has_room, joint_refusal, loop_rows,
-    not_owed, row_interval, singular_at, stored_edge, stored_reach, stored_rows, walk_halves,
+    half_edge_carrier, has_singular_set, is_plus, joint_has_room, joint_refusal, not_owed,
+    row_interval, singular_at, stored_edge, stored_reach, stored_rows, walk_halves,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::{JointElement, Winding};
+use crate::live::CycleLoop;
 use crate::props::AtRestPolicy;
 
 /// One loop of a face as [`loop_windings`] reads it off the walk.
@@ -47,8 +48,7 @@ struct ReadLoop {
 
 /// **The loop walk [`loop_windings`] stands on**: `lp` walked in `chart`, and, off the singular
 /// set, every closed-form row certified and every joint's room decided,
-/// so the winding read off the elements is the loop's own. `None` for
-/// an empty loop, which bounds nothing.
+/// so the winding read off the elements is the loop's own.
 ///
 /// THE SINGULAR-JOINT FENCE comes first. A joint on the chart's singular
 /// set — a sphere pole, a cone apex — takes the turn on the face's
@@ -83,17 +83,14 @@ struct ReadLoop {
 /// [`net_reach`]: super::net_reach
 /// [`walk_loop`]: super::walk_loop
 fn read_loop<T: AtRestPolicy>(
-    body: &Body<T>,
     face: FaceKey,
-    lp: LoopKey,
+    lp: CycleLoop<'_, T>,
     (chart, described): (&Surface<T>, DescribedChart<'_, T>),
     period: Option<Period<T>>,
     band: Band,
-) -> Result<Option<ReadLoop>, PcurveMintError> {
-    let cycle = loop_rows(body, lp);
-    if cycle.is_empty() {
-        return Ok(None);
-    }
+) -> Result<ReadLoop, PcurveMintError> {
+    let body = lp.body();
+    let cycle = lp.cycle();
     let n = cycle.len();
     let fenced: Vec<usize> = (0..n)
         .filter(|&i| {
@@ -117,10 +114,10 @@ fn read_loop<T: AtRestPolicy>(
             let run: Vec<HalfEdgeKey> = (start..end).map(|i| cycle[i % n]).collect();
             walk_halves(body, face, &run, described, band, false, &mut walked)?;
         }
-        return Ok(Some(ReadLoop {
+        return Ok(ReadLoop {
             elements: Vec::new(),
             singular: Some((cycle[first], singular)),
-        }));
+        });
     }
     walk_halves(body, face, &cycle, described, band, true, &mut walked)?;
     let elements: Vec<JointElement> = walked
@@ -155,15 +152,15 @@ fn read_loop<T: AtRestPolicy>(
         if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
             return Err(PcurveMintError::JointWithoutRoom {
                 face,
-                r#loop: lp,
+                r#loop: lp.key(),
                 half_edge: w.key,
             });
         }
     }
-    Ok(Some(ReadLoop {
+    Ok(ReadLoop {
         elements,
         singular: None,
-    }))
+    })
 }
 
 /// **How each loop of `face` winds in `chart`**, read off the loop walk:
@@ -172,13 +169,13 @@ fn read_loop<T: AtRestPolicy>(
 /// loop off the chart's singular set is certified against `chart`, and
 /// every joint's room decided, before its winding is read. A loop with a
 /// joint on the singular set is reported `singular`, and nothing else of
-/// it is read. Loops come outer first; an empty loop is absent.
+/// it is read. Loops come outer first; a lone-vertex loop has no
+/// half-edge to wind and is absent ([`crate::FaceView::cycle_loops`]).
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Stale`] when `face` does not resolve, and
-/// [`PcurveMintError::PlaceholderChart`] when `chart` is the mvfs
-/// placeholder; the loop walk's own refusals;
+/// [`PcurveMintError::Stale`] when `face` does not resolve; the loop
+/// walk's own refusals;
 /// [`PcurveMintError::Certify`] for a row that does not certify against
 /// `chart`; [`PcurveMintError::JointWithoutRoom`] for a joint without
 /// room; and [`PcurveMintError::Escalated`] for a joint whose incidence
@@ -193,13 +190,12 @@ pub fn loop_windings<T: AtRestPolicy>(
         role: "face",
         key: EntityId::Face(face),
     })?;
-    let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
+    let described = DescribedChart::of(chart);
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
-    for (lp, _, _) in view.loops() {
-        let Some(read) = read_loop(body, face, lp, (chart, described), period, band)? else {
-            continue;
-        };
+    for (cycle, _) in view.cycle_loops() {
+        let lp = cycle.key();
+        let read = read_loop(face, cycle, (chart, described), period, band)?;
         out.push(match read.singular {
             Some((half_edge, Some(cause))) => {
                 return Err(PcurveMintError::Escalated { half_edge, cause });
@@ -230,7 +226,7 @@ pub fn loop_windings<T: AtRestPolicy>(
 /// 1. **A face that stores none of its rows is re-derived** — the
 ///    minting pass over it, storing nothing ([`derive_face`]) — so the
 ///    finding says why the rows are missing: they derive and certify
-///    ([`PcurveMintError::Unminted`]: the body was not minted after it
+///    ([`PcurveMintError::Unminted`]: the body was not finished after it
 ///    was built or edited), or the derivation refuses (that refusal).
 ///    A face whose rows are not owed ([`not_owed`]: an uncovered class,
 ///    or a fitted face at a scalar with no fitted door) is excused here
@@ -352,10 +348,10 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
     let lane = T::fitted_lane();
     for face in body.face_views() {
         let face_key = face.key();
-        let surface = face.surface();
-        let Some(chart) = DescribedChart::minting(surface) else {
+        let Some(chart) = face.surface().ok().and_then(DescribedChart::minting) else {
             continue;
         };
+        let surface = chart.surface();
         // One walk of the face's loops ([`stored_rows`], shared with
         // `split_cache` and the Euler operators' site mint): the rows
         // it stores and the gaps.

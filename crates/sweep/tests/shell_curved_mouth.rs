@@ -24,7 +24,7 @@ use topo::{Body, FaceKey, ShellError};
 /// Every face of `body` on a surface of `kind`.
 fn faces_on(body: &Body<f64>, kind: geom::SurfaceKind) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Ok(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -495,7 +495,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         for &f in &cone {
             let surface = cup.face_surface(f);
             assert!(
-                matches!(surface, Some(geom::Surface::Cone { frame, .. })
+                matches!(surface, Ok(geom::Surface::Cone { frame, .. })
                     if frame.origin().x == 0.0 && frame.origin().y == apex && frame.origin().z == 0.0),
                 "{what}: the band wears the designated cone, got {surface:?}"
             );
@@ -755,7 +755,7 @@ pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
         topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(pb, (pt - pb) / (pt - pb).norm()),
+            carrier: geom::Curve3::line(pb, geom::stated_direction((pt - pb) / (pt - pb).norm())),
             param_start: 0.0,
             param_end: (pt - pb).norm(),
         },
@@ -829,7 +829,7 @@ fn walls_of(body: &Body<f64>, radius: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
+                Ok(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -1124,7 +1124,7 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
         topo::construction::MefSite::Chords { he1, he2 },
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(p1, (p2 - p1) / (p2 - p1).norm()),
+            carrier: geom::Curve3::line(p1, geom::stated_direction((p2 - p1) / (p2 - p1).norm())),
             param_start: 0.0,
             param_end: (p2 - p1).norm(),
         },
@@ -1141,7 +1141,10 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
         seam,
         geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::line(ends.0, (ends.1 - ends.0) / (ends.1 - ends.0).norm()),
+            carrier: geom::Curve3::line(
+                ends.0,
+                geom::stated_direction((ends.1 - ends.0) / (ends.1 - ends.0).norm()),
+            ),
             param_start: 0.0,
             param_end: (ends.1 - ends.0).norm(),
         },

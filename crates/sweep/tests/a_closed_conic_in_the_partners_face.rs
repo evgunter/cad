@@ -2305,18 +2305,15 @@ fn a_tube_through_a_balls_centre_closes_both_sections_at_its_wrap_edge() {
 /// pair's carried section, read on its component and sided in the ball's
 /// face by the island paths. The tube's vertex at azimuth 1.
 ///
-/// Every op in both orders builds to the gates it reaches
+/// Every op in both orders builds a body at its volume
 /// (`cylinder_sphere_frame::at_its_volume`): tiers 2 and 3′, the
-/// certificate and the volume, against [`disc_through_ball`]. The result
-/// is no legal operand yet: its far union refuses
-/// `Containment(PartialSphereFace)` and `tube ∖ ball` refuses at the
-/// piece sort on the same face
-/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-/// Both refusals are pinned exactly, so the row reds when that row lands
-/// and is flipped to SOUND then.
+/// certificate, the volume against [`disc_through_ball`], and a legal
+/// operand, its union with a far brick built. `tube ∖ ball` cuts the tube
+/// in two, whose curved faces tier 3′'s census cannot tell apart
+/// (`Ends::PartsUndecided`).
 #[test]
 fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
-    use crate::cylinder_sphere_frame::{Ends, Operand, at_its_volume, far_union, pad_ceiling};
+    use crate::cylinder_sphere_frame::{Ends, at_its_volume, pad_ceiling};
     let (big, (cx, cz), r, len) = (1.5, (0.3, 0.2), 0.5, 6.0);
     let ball = fin("the ball", ball_poled_z(big, Vec3::zero(), tol()));
     let along_y = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -FRAC_PI_2);
@@ -2332,18 +2329,10 @@ fn a_tube_through_a_ball_across_its_wrap_edge_builds_every_op() {
         .unwrap();
         let tube = fin("the tube", tube);
         for (op, got, want) in every_op_both_orders(&tube, &ball, (va, vb, vi), tol()) {
-            if let Some(built) = got.as_ref().ok().and_then(BooleanResult::body) {
-                let operand = far_union(&built.body);
-                assert!(
-                    matches!(operand, Operand::AtTheSphere),
-                    "azimuth {az}: {op}: the far union reads {operand:?}, pinned at \
-                     Containment(PartialSphereFace)"
-                );
-            }
             let ends = if op == "A ∖ B" {
-                Ends::Pieces
+                Ends::PartsUndecided
             } else {
-                Ends::Builds
+                Ends::Sound
             };
             off.extend(at_its_volume(
                 &format!("azimuth {az}: {op}"),

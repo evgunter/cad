@@ -302,7 +302,7 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
 /// top against the third top, read by the face-pair door itself, is in
 /// band: the tilt levered over their long ball. The step builds on the
 /// second judgement's record alone. This pins today's Built while
-/// `work/contacthold/a-fold-step-glues-a-pair-its-door-reads-in-band`
+/// `work/topo/a-fold-step-glues-a-pair-its-door-reads-in-band`
 /// asks whether `[verdicts.closeness]`'s topology or D10's band governs
 /// the pair.
 #[test]
@@ -456,7 +456,7 @@ fn a_glued_tangency_records_the_margin_the_door_certified() {
         panic!("the line the door decided is handed on: {tangency:?}");
     };
     assert!(
-        kept.origin.equals_exactly(line.origin) && kept.dir.equals_exactly(line.dir),
+        kept.origin.equals_exactly(line.origin) && kept.dir.get().equals_exactly(line.dir.get()),
         "the line kept is the door's: {kept:?}, {line:?}"
     );
     assert_eq!(

@@ -261,7 +261,7 @@ pub(crate) fn carve(
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
     let c = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c.s, c.genus()),
+        (c.s, c.h()),
         (1, Ok(0)),
         "{what} ({verb:?}): one closed genus-0 shell"
     );

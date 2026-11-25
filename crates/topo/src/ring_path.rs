@@ -88,6 +88,7 @@
 
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::UnitVec3;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -174,7 +175,7 @@ impl<T: Decide> Quadric<T> {
             } => {
                 let (h, w) = line.param_and_offset(p);
                 let (s, c) = half_angle.sin_cos();
-                w.normalize() * c - axis * h.select_le_zero(-s, s)
+                w.normalize() * c - axis.get() * h.select_le_zero(-s, s)
             }
             Self::Torus { axis, major, .. } => {
                 let tube = p - Self::core(axis, major, p);
@@ -263,7 +264,7 @@ impl<T: Decide> Quadric<T> {
                     return Ok(Vec::new());
                 }
                 let arc = CircleArc {
-                    circle: geom::Circle::new(geom::Frame::new(centre, axis, a), radius),
+                    circle: geom::Circle::new(great_circle(centre, axis, a), radius),
                     span: (T::zero(), sine.atan2(a.dot(b))),
                 };
                 Ok(vec![Path {
@@ -340,50 +341,18 @@ impl<T: Decide> Quadric<T> {
                 let (rs, rt) = (ws.norm(), wt.norm());
                 let mut paths = Vec::with_capacity(2);
                 // Round the start's meridian to `to`'s parallel, then round.
-                let turned = centre + axis * ht + ef * rt;
-                let meridian = parallel(
-                    geom::Line {
-                        origin: kf,
-                        dir: ef.cross(axis),
-                    },
-                    off_t,
-                    start,
-                    turned,
-                );
-                let round = parallel(
-                    geom::Line {
-                        origin: centre + axis * ht,
-                        dir: axis,
-                    },
-                    rt,
-                    turned,
-                    to,
-                );
+                let turned = centre + axis.get() * ht + ef * rt;
+                let meridian = parallel((kf, ef.cross(axis.get())), off_t, start, turned);
+                let round = parallel((centre + axis.get() * ht, axis.get()), rt, turned, to);
                 paths.push(Path {
                     pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                     reach: None,
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
-                let turned = centre + axis * hs + et * rs;
-                let round = parallel(
-                    geom::Line {
-                        origin: centre + axis * hs,
-                        dir: axis,
-                    },
-                    rs,
-                    start,
-                    turned,
-                );
-                let meridian = parallel(
-                    geom::Line {
-                        origin: kt,
-                        dir: et.cross(axis),
-                    },
-                    off_t,
-                    turned,
-                    to,
-                );
+                let turned = centre + axis.get() * hs + et * rs;
+                let round = parallel((centre + axis.get() * hs, axis.get()), rs, start, turned);
+                let meridian = parallel((kt, et.cross(axis.get())), off_t, turned, to);
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
@@ -438,7 +407,7 @@ impl<T: Decide> Quadric<T> {
         let (rise, ruling_at_to) = match *self {
             Self::Cone { .. } => {
                 let e = to - base;
-                (e.norm() - (below - base).norm(), e.normalize())
+                (e.norm() - (below - base).norm(), UnitVec3::squared(e))
             }
             _ => (ht - hf, axis),
         };
@@ -460,15 +429,7 @@ impl<T: Decide> Quadric<T> {
             Margin::of(charge(rise, slack)),
             band,
         )?;
-        let round_at_to = parallel(
-            geom::Line {
-                origin: base + axis * ht,
-                dir: axis,
-            },
-            rt,
-            turned,
-            to,
-        );
+        let round_at_to = parallel((base + axis.get() * ht, axis.get()), rt, turned, to);
         let turn = decide(
             "split_ring_path_turn",
             Margin::of(charge(
@@ -486,21 +447,13 @@ impl<T: Decide> Quadric<T> {
             });
         }
         if rise != Sign::Zero {
-            let round = parallel(
-                geom::Line {
-                    origin: base + axis * hf,
-                    dir: axis,
-                },
-                rf,
-                from,
-                below,
-            );
+            let round = parallel((base + axis.get() * hf, axis.get()), rf, from, below);
             paths.push(Path {
                 pieces: vec![Piece::Arc(round), piece(below, to, to)],
                 arrival: if rise == Sign::Positive {
-                    ruling_at_to
+                    ruling_at_to.get()
                 } else {
-                    -ruling_at_to
+                    -ruling_at_to.get()
                 },
                 reach: None,
             });
@@ -554,8 +507,8 @@ fn ruled_corners<T: Decide>(
     let (ht, wt) = line.param_and_offset(to);
     let (rf, rt) = (wf.norm(), wt.norm());
     [
-        line.origin + line.dir * ht + (wf / rf) * rt,
-        line.origin + line.dir * hf + (wt / rt) * rf,
+        line.origin + line.dir.get() * ht + (wf / rf) * rt,
+        line.origin + line.dir.get() * hf + (wt / rt) * rf,
     ]
 }
 
@@ -569,19 +522,25 @@ impl<T: Real> Path<T> {
     }
 }
 
+/// **A great circle's frame** on the axis `axis`, the direction of
+/// `a × b`, whose sine the path decided positive, levered over the arc
+/// (`split_ring_path_span`), and `a`, one end's direction from the
+/// centre: the frame they state ([`geom_core::RigidMotion::squared`]),
+/// its stated-point read at an enclosure scalar kept. The decision is
+/// the path's own, so nothing is decided again here.
+fn great_circle<T: Real>(centre: Point3<T>, axis: Vec3<T>, a: Vec3<T>) -> geom::Frame<T> {
+    geom::Frame::of_motion(&geom_core::RigidMotion::squared(centre, axis, a))
+}
+
 /// The arc of the circle centred `centre` about the unit `axis`, of
 /// radius `radius`, from `from` to `to` (both in its plane), the short
 /// way round: a parallel, or a torus's meridian.
 fn parallel<T: Decide>(
-    axis: geom::Line<T>,
+    (centre, axis): (Point3<T>, Vec3<T>),
     radius: T,
     from: Point3<T>,
     to: Point3<T>,
 ) -> CircleArc<T> {
-    let geom::Line {
-        origin: centre,
-        dir: axis,
-    } = axis;
     let u = from - centre;
     let u = u.normalize();
     let w = to - centre;
@@ -796,12 +755,13 @@ impl<T: Real> ConicArc<T> {
 /// is at least `minor`.
 #[derive(Clone, Copy)]
 pub(crate) struct Oval<T: Real> {
-    centre: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    /// The spiric carrier's frame, as the carrier holds it.
+    frame: geom::Frame<T>,
     major: T,
     minor: T,
     offset: T,
+    /// Its plane's frame: the axis the spiric's `u_ref`, kept bit for bit.
+    plane: geom::Frame<T>,
     span: (T, T),
     /// The side of its plane's two loops the oval's own lies on; `None`
     /// only where a row strips it to show what it guards.
@@ -828,7 +788,7 @@ pub(crate) enum LoopArc<T: Real> {
         circle: geom::Circle<T>,
         span: (T, T),
         /// The torus's centre, unit axis and major radius `R`.
-        core: (Point3<T>, Vec3<T>, T),
+        core: (Point3<T>, UnitVec3<T>, T),
         own: ArcLoop<T>,
     },
     /// An arc of a spline carrier known to lie on the face's surface
@@ -837,7 +797,7 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// **A spline arc on a cylinder, a sphere, a cone, a torus or a spline face,
 /// with the evidence that it lies on the face's surface to within the
 /// band.**
 ///
@@ -858,10 +818,14 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere, a torus or a spline face: the
-/// faces a carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
-/// pieces are its own iso curves, which lie on it. Every piece of a
+/// Both are read on a cylinder, a sphere, a cone, a torus or a spline
+/// face: the faces a carried chord bounds, which the ring lane's rows
+/// read (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline
+/// wall's pieces are its own iso curves, which lie on it. A cone's are
+/// its parallels, at each end's own radius, and its rulings' segments,
+/// off its apex, each segment leaning off its ruling by at most the
+/// ends' offsets from the cone, within the band ([`Quadric::ruled_paths`]),
+/// as a cylinder's does. Every piece of a
 /// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
@@ -949,9 +913,12 @@ impl<T: Real> LoopArc<T> {
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
-        let (dir, length) = d.direction_and_length();
+        let (_, length) = d.direction_and_length();
         Self::Line {
-            line: geom::Line { origin: from, dir },
+            line: geom::Line {
+                origin: from,
+                dir: UnitVec3::squared(d),
+            },
             span: (T::zero(), length),
         }
     }
@@ -964,18 +931,20 @@ impl<T: Decide> LoopArc<T> {
     /// per radian: a conic's minor semi-axis, an oval's tube radius),
     /// which levers an in-span reading, and the side of its plane's two
     /// loops its own lies on. `None` for a ruling or a crest.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn plane(&self) -> Option<SectionArc<T>> {
         match self {
             Self::Conic(c) => Some(SectionArc {
-                origin: c.conic().frame().origin(),
-                normal: c.conic().frame().axis(),
+                plane: c.conic().frame(),
                 span: c.span,
                 speed: c.conic().speed_lo(),
                 own: c.own,
             }),
             &Self::Oval(o) => Some(SectionArc {
-                origin: o.centre + o.u_ref * o.offset,
-                normal: o.u_ref,
+                plane: o.plane,
                 span: o.span,
                 speed: o.minor,
                 own: o.own,
@@ -1000,7 +969,7 @@ impl<T: Decide> Oval<T> {
     /// The oval's carrier.
     fn carrier(&self) -> geom::Curve3<T> {
         geom::Curve3::Spiric {
-            frame: geom::Frame::new(self.centre, self.axis, self.u_ref),
+            frame: self.frame,
             major_radius: self.major,
             minor_radius: self.minor,
             offset: self.offset,
@@ -1022,8 +991,7 @@ impl<T: Decide> Oval<T> {
 /// levered by ([`LoopArc::plane`]).
 #[derive(Clone, Copy)]
 struct SectionArc<T: Real> {
-    origin: Point3<T>,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     span: (T, T),
     speed: T,
     own: Option<ArcLoop<T>>,
@@ -1077,6 +1045,10 @@ impl<T: Real> LoopSplit<T> {
     ///
     /// `None` for a section with no two loops, or a meridian section
     /// whose first loop is no circle.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn plane_torus(
         section: &geom_brep::PlaneTorusSection<T>,
         (centre, axis, major): (Point3<T>, Vec3<T>, T),
@@ -1101,7 +1073,7 @@ impl<T: Real> LoopSplit<T> {
             geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
                 axis: geom::Line {
                     origin: centre,
-                    dir: axis.normalize(),
+                    dir: UnitVec3::squared(axis),
                 },
                 radius: major,
             }),
@@ -1169,12 +1141,15 @@ impl<T: Decide> Quadric<T> {
             spiric_frame.u_ref(),
         );
         Some(LoopArc::Oval(Oval {
-            centre: center,
-            axis,
-            u_ref,
+            frame: spiric_frame,
             major: major_radius,
             minor: minor_radius,
             offset,
+            plane: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                center + u_ref * offset,
+                spiric_frame.u_ref_unit(),
+                axis,
+            )),
             span: (t0.min(t1), t0.max(t1)),
             own: Some(ArcLoop {
                 split: LoopSplit::Side {
@@ -1203,6 +1178,10 @@ impl<T: Decide> Quadric<T> {
     /// radius from the plane's and the torus's stored directions and
     /// radii, never from a difference of far points
     /// (`box_edge_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,
@@ -1224,7 +1203,7 @@ impl<T: Decide> Quadric<T> {
         else {
             return Ok(None);
         };
-        let (k, n) = (circle.frame().origin(), circle.frame().axis());
+        let (k, n) = (circle.frame().origin(), circle.axis());
         let radius = circle.radius();
         let (k, n, radius) = (k, n, radius);
         let arm = geom_brep::circle_curvature_arm(circle);
@@ -1240,7 +1219,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), arm),
+            Margin::levered(n.dot(axis.get()), arm),
             band,
         )? == Sign::Zero
         {
@@ -1259,7 +1238,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), arm),
+            Margin::levered(n.cross(axis.get()).norm(), arm),
             band,
         )? != Sign::Zero
         {
@@ -1278,7 +1257,7 @@ impl<T: Decide> Quadric<T> {
                 // centre's height, `±r` on the torus).
                 let top = match decide(
                     "split_ring_torus_crest",
-                    Margin::of((k - centre).dot(axis)),
+                    Margin::of((k - centre).dot(axis.get())),
                     band,
                 )? {
                     Sign::Positive => true,
@@ -1292,7 +1271,7 @@ impl<T: Decide> Quadric<T> {
                     own: ArcLoop {
                         split: LoopSplit::Side {
                             origin: centre,
-                            dir: axis,
+                            dir: axis.get(),
                         },
                         positive: top,
                     },
@@ -1322,14 +1301,14 @@ impl<T: Decide> Quadric<T> {
 /// A crossing is passed over when any of its in-span readings is
 /// decided out of span, even where another escalates.
 ///
-/// - A circle piece meets a conic's or an oval's plane where
-///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
-///   on the piece's frame, `D` the piece's centre's offset from the
-///   plane): at two parameters when `r·√(A² + B²) > |D|`
-///   (**`split_ring_path_meets_plane`**, on the gap `r·√(A² + B²) − |D|`
-///   in metres: moving the plane by it flips the meeting). A graze inside
-///   the gap's band escalates, and the caller asks the next path. On the
-///   arrival arc, the root nearer the piece's end is the arrival. A gap
+/// - A circle piece meets a conic's or an oval's plane where the
+///   crossing reading finds it ([`plane_roots`], the plane arm of
+///   [`geom_brep::curve_face::cross()`], whose pose decides the gap
+///   `r·√(A² + B²) − |D|` uncharged: `A`, `B` the plane normal's
+///   components on the piece's frame, `D` the piece's centre's offset
+///   from the plane). A graze inside the gap's band escalates, and the
+///   caller asks the next path. On the arrival arc, the meeting nearer
+///   the piece's end is the arrival. A gap
 ///   in the zero band is a piece along the plane, which meets no conic
 ///   arc it is decided apart from ([`misses_in_plane`]): a path's
 ///   meridian or parallel through a point of an arc's carrier, or of its
@@ -1379,6 +1358,10 @@ impl<T: Decide> Quadric<T> {
 ///   carrier displacement that moves the root past the end: near a graze
 ///   a root moves by the displacement over the slope, so a span end a
 ///   decided arc length away can still be inside its reach.)
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn path_parity<T: Decide>(
     path: &Path<T>,
     arcs: &[LoopArc<T>],
@@ -1442,33 +1425,36 @@ pub(crate) fn path_parity<T: Decide>(
                     // A conic decided apart from the piece's circle misses
                     // it whatever the planes ([`coplanar_apart`]), so it
                     // answers past a plane meeting read in band.
-                    let roots =
-                        match plane_roots(&p, (sec.origin, sec.normal), arrival, slack, band) {
-                            Ok(roots) => roots,
-                            Err(diag) => {
-                                return match arc {
-                                    LoopArc::Conic(conic)
-                                        if !arrival
-                                            && coplanar_apart(&p, conic, slack, band)
-                                                == Ok(true) =>
-                                    {
-                                        Ok(Some(flip))
-                                    }
-                                    _ => Err(diag),
-                                };
-                            }
-                        };
-                    let Some(roots) = roots else {
-                        if let LoopArc::Conic(conic) = arc
-                            && !arrival
-                            && misses_in_plane(&p, conic, slack, band)?
-                        {
-                            return Ok(Some(flip));
-                        }
-                        return Ok(None);
+                    let apart = |conic: &ConicArc<T>| {
+                        !arrival && coplanar_apart(&p, conic, slack, band) == Ok(true)
                     };
-                    for (t, slope) in roots {
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
+                    let roots = match plane_roots(&p, &sec.plane, arrival, band) {
+                        Ok(PlaneMeet::Meets(roots)) => roots,
+                        Ok(PlaneMeet::Along) => {
+                            if let LoopArc::Conic(conic) = arc
+                                && !arrival
+                                && misses_in_plane(&p, conic, slack, band)?
+                            {
+                                return Ok(Some(flip));
+                            }
+                            return Ok(None);
+                        }
+                        Ok(PlaneMeet::Unread) => {
+                            return Ok(match arc {
+                                LoopArc::Conic(conic) if apart(conic) => Some(flip),
+                                _ => None,
+                            });
+                        }
+                        Err(diag) => {
+                            return match arc {
+                                LoopArc::Conic(conic) if apart(conic) => Ok(Some(flip)),
+                                _ => Err(diag),
+                            };
+                        }
+                    };
+                    for (m, slope) in roots {
+                        let t = m.t();
+                        let [p0, p1] = m.readings();
                         let [a0, a1] = in_span(
                             &carrier(arc),
                             param(arc, p.at(t)),
@@ -1513,14 +1499,20 @@ pub(crate) fn path_parity<T: Decide>(
                 ) => {
                     let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame().origin());
                     let e = e.normalize();
-                    let Some(roots) =
-                        plane_roots(&p, (p.circle.frame().origin(), e), arrival, slack, band)?
+                    let PlaneMeet::Meets(roots) = plane_roots(
+                        &p,
+                        // `ê` is square to the axis `a`, which seams the plane.
+                        &geom::Frame::new(p.circle.frame().origin(), e, a.get()),
+                        arrival,
+                        band,
+                    )?
                     else {
                         return Ok(None);
                     };
-                    for (t, slope) in roots {
+                    for (m, slope) in roots {
+                        let t = m.t();
                         let s = circle.param_in(p.at(t), span);
-                        let [p0, p1] = in_span(&p.carrier(), t, p.span, p.circle.radius() * slope);
+                        let [p0, p1] = m.readings();
                         let [a0, a1] = in_span(
                             &geom::Curve3::Circle(circle),
                             s,
@@ -1571,7 +1563,7 @@ pub(crate) fn path_parity<T: Decide>(
                         span,
                     },
                 ) => {
-                    let across = p.circle.frame().axis().dot(dir);
+                    let across = p.circle.axis().dot(dir.get());
                     if decide_m(
                         "split_ring_path_line_across",
                         Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
@@ -1582,13 +1574,8 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         return Ok(Some(flip));
                     }
-                    let s = p
-                        .circle
-                        .frame()
-                        .axis()
-                        .dot(p.circle.frame().origin() - origin)
-                        / across;
-                    let t = p.param(origin + dir * s);
+                    let s = p.circle.axis().dot(p.circle.frame().origin() - origin) / across;
+                    let t = p.param(origin + dir.get() * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
@@ -1605,7 +1592,7 @@ pub(crate) fn path_parity<T: Decide>(
                         return Ok(Some(flip));
                     }
                     let sec = section(arc);
-                    let offset = |x: Point3<T>| geom::plane_offset(sec.origin, sec.normal, x);
+                    let offset = |x: Point3<T>| sec.plane.height(x);
                     let (d0, d1) = (offset(from), offset(to));
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
@@ -1683,7 +1670,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let rounding = slack / lever.length() + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
-                        Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
+                        Margin::levered(charge(ruling.cross(dir.get()).norm(), rounding), lever),
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1772,8 +1759,9 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's length,
-/// an iso curve's chord, and charged `slack`). The arrival on the closing
+/// (**`split_ring_path_spline_across`**, levered at the piece's reach
+/// from the meeting, from below, whatever the piece's kind, and charged
+/// `slack`). The arrival on the closing
 /// chord, at the end of the path's last piece, is no crossing before it
 /// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
@@ -1789,28 +1777,28 @@ fn spline_crossings<T: Decide>(
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
-    // The piece's carrier and span, the arm its crossings are levered
-    // at, its length where that is the arm's (an iso curve's is bounded
+    // The piece's carrier and span, its length (the no-length reading
     // below), and the span end it stops at.
-    let (curve, params, length, extent, stop) = match piece {
+    let (curve, params, extent, stop) = match piece {
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
-            // Unsourced lever: the arc's length, its angular span times its radius, longer
-            // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            let length = Lever::unsourced(p.circle.radius() * (p.span.1 - p.span.0));
+            // A piece of no length is a Zero, read at the arc's diameter
+            // from above.
+            let arc = geom::Curve3::Circle(p.circle);
+            let (t0, t1) = p.span;
+            let extent = geom_brep::edge_extent_sup(&arc, t0, t1);
             (
-                geom::Curve3::Circle(p.circle),
+                arc,
                 p.span,
-                length,
-                Margin::of(charge(length.length(), slack)),
+                Margin::of(charge(extent.length(), slack)),
                 SpanEnd::Stop,
             )
         }
         &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
             let length = geom_brep::ExtentBall::point(from).lever_from(to);
+            let (chord, chord_length) = geom::Line::chord(from, to);
             (
-                geom::Curve3::line(from, to - from),
-                (T::zero(), T::one()),
-                length,
+                geom::Curve3::Line(chord),
+                (T::zero(), chord_length),
                 Margin::of(charge(length.length(), slack)),
                 SpanEnd::Stop,
             )
@@ -1818,7 +1806,6 @@ fn spline_crossings<T: Decide>(
         Piece::Iso(p) => (
             p.carrier(),
             p.span,
-            p.travel().0,
             // No longer than its span at the curve's greatest speed: a
             // chord says nothing of the length of a curve that turns.
             Margin::metered_sup(p.span.1 - p.span.0, p.curve.speed_upper_bound()),
@@ -1854,6 +1841,19 @@ fn spline_crossings<T: Decide>(
         };
         let (dp, da) = (curve.deriv(tp), carrier.deriv(ta));
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
+        // A crossing is a definite sign read at the meeting: its lever is
+        // the piece's reach from there, from below (a piece met at its
+        // middle reaches half its chord). No row holds the arc's: no pose
+        // tried reaches this reading against a circle piece with a lever
+        // that decides apart (`crossing_reach_rows`' module doc).
+        let (t0, t1) = params;
+        let length = crate::cover::piece_reach_bounds(
+            &curve,
+            params,
+            (curve.eval(t0), curve.eval(t1)),
+            curve.eval(tp),
+        )
+        .below();
         if decide(
             "split_ring_path_spline_across",
             Margin::levered(charge(sine, slack / length.length()), length),
@@ -1893,6 +1893,10 @@ impl<T: Decide> ConicArc<T> {
     /// floor under each of its points: `ring_path::arc_floor_rows`), less
     /// `|a − b|`, which bounds how far a conic point lies from the
     /// circle's at the same parameter.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
@@ -1989,6 +1993,10 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
 /// arc's own
 /// resolution over its span ([`geom_brep::carrier_resolution`]), the
 /// rounding its stored semi-axes and far centre amplify.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
     for piece in &path.pieces {
@@ -2009,7 +2017,7 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
         match arc {
             LoopArc::Conic(_) => {}
             LoopArc::Crest { circle, .. } => points.push(circle.frame().origin()),
-            LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
+            LoopArc::Oval(Oval { frame, .. }) => points.push(frame.origin()),
             LoopArc::Line { line, .. } => points.push(line.origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
                 points.extend([carrier.eval(span.0), carrier.eval(span.1)]);
@@ -2068,6 +2076,10 @@ fn segment_misses<T: Decide>(
 ///
 /// `Ok(false)` where neither is decided. The apart and in-span readings
 /// are charged `slack` ([`charge`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn misses_in_plane<T: Decide>(
     p: &CircleArc<T>,
     arc: &ConicArc<T>,
@@ -2129,6 +2141,10 @@ fn misses_in_plane<T: Decide>(
 /// triangle inequality, so the reading holds whatever the two planes:
 /// [`misses_in_plane`]'s first arm, and [`path_parity`]'s answer past a
 /// plane meeting [`plane_roots`] reads in band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_apart<T: Decide>(
     p: &CircleArc<T>,
     arc: &ConicArc<T>,
@@ -2148,84 +2164,180 @@ fn coplanar_apart<T: Decide>(
     )? == Sign::Positive)
 }
 
-/// **Where the circle piece `p` meets the plane through `o` with unit
-/// normal `n`**: the parameters to read, each with the slope `|n̂·τ̂|`
-/// the piece crosses the plane at. `A cos θ + B sin θ = −D/r` (`A`, `B`
-/// the normal's components on the piece's frame, `D` the piece's
-/// centre's offset from the plane) holds at two parameters when
-/// `r·√(A² + B²) > |D|` (**`split_ring_path_meets_plane`**, on the gap
-/// `r·√(A² + B²) − |D|` in metres: moving the plane by it flips the
-/// meeting, charged `slack`, [`charge`]); none when it is decided short,
-/// and `None` when it grazes in the band. On the arrival arc
-/// (`arrival`), the root nearer the piece's end is the arrival and only
-/// the other is read.
+/// **Where the circle piece `p` meets the plane of `plane`, with unit
+/// normal `n`**, the plane its loop arc lies in (the piece is read across
+/// the arc's plane, which is transversal to the surface all along the
+/// arc; a crest's, which touches it, is read across the cylinder instead): the crossing reading's meetings
+/// ([`geom_brep::curve_face::cross()`]) on the piece's span, each with
+/// the slope `|n̂·τ̂|` the piece crosses the plane at. A meeting inside
+/// the span is its parameter and reads inside the piece; one at an end
+/// reads on the piece's end (`InSpan::End`). `Lies`, `Tangent` and
+/// windows all read in the zero band are [`PlaneMeet::Along`]: the piece
+/// runs along the plane or grazes it. A window read in its escalation gap
+/// escalates; one a limit left unread is [`PlaneMeet::Unread`]; a fault
+/// fails loud ([`refused`]). On the arrival arc (`arrival`), the meeting nearest the
+/// piece's end is the arrival and only the others are read: the last, as
+/// the reading orders them, with no decision of its own.
 fn plane_roots<T: Decide>(
     p: &CircleArc<T>,
-    (o, n): (Point3<T>, Vec3<T>),
+    plane: &geom::Frame<T>,
     arrival: bool,
-    slack: T,
     band: Band,
-) -> Result<Option<Vec<(T, T)>>, Indeterminate> {
-    let (ca, cb) = (
-        n.dot(p.circle.frame().u_ref()),
-        n.dot(p.circle.frame().v_ref()),
-    );
-    let d = n.dot(p.circle.frame().origin() - o);
-    let rho = (ca.powi(2) + cb.powi(2)).sqrt();
-    // The gap `rρ − |D|`: moving the plane by it flips the meeting, so
-    // it is the deviation the sign rests on.
-    match decide(
-        "split_ring_path_meets_plane",
-        Margin::of(charge(p.circle.radius() * rho - d.abs(), slack)),
-        band,
-    )? {
-        Sign::Negative => return Ok(Some(Vec::new())),
-        Sign::Zero => return Ok(None),
-        Sign::Positive => {}
-    }
-    // Each root's direction is the phase direction `(ca, cb)` turned by
-    // `±offset`, read once within half a turn of the span's middle.
-    let middle = geom::mid_param(p.span.0, p.span.1);
-    let offset = (-d / (p.circle.radius() * rho))
-        .max(-T::one())
-        .min(T::one())
-        .acos();
-    let (s, c) = offset.sin_cos();
-    let root = |s: T| geom::Azimuth::of(cb * c + ca * s, ca * c - cb * s).near(middle);
-    let [r0, r1] = [root(s), root(T::zero() - s)];
-    // On the arrival arc, the root nearer the end is the arrival; the
-    // other is read. The pick is a raw comparison and needs no decision.
-    // The arrival lies on the plane up to rounding δ, and a root
-    // misplaced by δ in the plane's offset moves by δ over the slope it
-    // crosses at (as the in-span readings are levered): near a graze,
-    // with half-angle ω between the roots, the slope is `ρ·sin ω` and the
-    // roots lie `2rω` apart along the arc, so the root error against
-    // their separation is `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
-    // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that is under a half.
-    // The gap is charged its stored terms' resolution `s`, so a decided
-    // gap is `g > Kε + s`; the rounding is the coordinates' own, within
-    // the headroom the run's admission rule leaves (`(K − 1)ε`), plus
-    // `s`: `δ ≤ (K − 1)ε + s`, so the ratio is under a quarter however
-    // far the stored terms lie. The bound is the guard.
-    let roots = if arrival {
-        let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
-        vec![nearer.select_le_zero(r1, r0)]
-    } else {
-        vec![r0, r1]
+) -> Result<PlaneMeet<T>, Indeterminate> {
+    use geom_brep::curve_face::{OnSpan, Pose};
+    let carrier = p.carrier();
+    let span = geom_brep::curve_pair::Span::new(&carrier, p.span);
+    let n = plane.axis();
+    let plane = geom::Surface::Plane { frame: *plane };
+    let meetings = match geom_brep::curve_face::cross(&span, &plane, band) {
+        Ok(read) => match read.pose {
+            Pose::Apart | Pose::Isolated(_) => read.meetings,
+            Pose::Lies | Pose::Tangent(_) | Pose::Through(_) => return Ok(PlaneMeet::Along),
+        },
+        Err(refusal) => {
+            // The windows' worst reading: an escalation asks the next path
+            // before an unread stretch says nothing, and only windows all
+            // read in the zero band keep the piece along the plane.
+            let mut worst = Refused::Along;
+            for w in &refusal.windows {
+                match refused(w.why) {
+                    Refused::Escalated(diag) => return Err(diag),
+                    Refused::Unread => worst = Refused::Unread,
+                    Refused::Along => {}
+                }
+            }
+            return Ok(match worst {
+                Refused::Unread => PlaneMeet::Unread,
+                Refused::Along | Refused::Escalated(_) => PlaneMeet::Along,
+            });
+        }
     };
+    let mut at: Vec<InSpan<T>> = meetings
+        .iter()
+        .map(|m| match m.on_span {
+            OnSpan::Inside { t } => InSpan::Inside(t),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => InSpan::End(p.span.0),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => InSpan::End(p.span.1),
+        })
+        .collect();
+    // The meetings ascend along the span, so the last is the nearer the
+    // piece's end.
+    if arrival {
+        at.pop();
+    }
     // A carrier moved by δ moves the root by δ over the slope the piece
-    // crosses the plane at, `|n̂·τ̂|`: each in-span reading is levered by
-    // it, so its margin is the displacement that moves the root past the
-    // span's end.
-    Ok(Some(
-        roots
-            .into_iter()
-            .map(|t| {
-                let (st, ct) = t.sin_cos();
-                (t, (cb * ct - ca * st).abs())
+    // crosses the plane at, `|n̂·τ̂|`: each in-span reading of the other
+    // arc is levered by it.
+    let (ca, cb) = (n.dot(p.circle.u_ref()), n.dot(p.circle.v_ref()));
+    Ok(PlaneMeet::Meets(
+        at.into_iter()
+            .map(|m| {
+                let (st, ct) = m.t().sin_cos();
+                (m, (cb * ct - ca * st).abs())
             })
             .collect(),
     ))
+}
+
+/// A meeting [`plane_roots`] read, with the slope the piece crosses at.
+type PieceMeeting<T> = (InSpan<T>, T);
+
+/// **What [`plane_roots`] read of the piece against the plane.**
+#[derive(Debug)]
+enum PlaneMeet<T> {
+    /// Its meetings, each with its slope.
+    Meets(Vec<PieceMeeting<T>>),
+    /// It runs along the plane or grazes it, read in the zero band: the
+    /// premise [`misses_in_plane`] reads the pair under.
+    Along,
+    /// A stretch of it was not read, and no margin says how far it was:
+    /// the path says nothing here, and another may.
+    Unread,
+}
+
+/// **One unread window of the crossing reading, as the ring path takes
+/// it** ([`refused`]).
+#[derive(Debug)]
+enum Refused {
+    /// Read in its escalation gap: the caller asks the next path.
+    Escalated(Indeterminate),
+    /// Read in the zero band: a graze or a run along the plane.
+    Along,
+    /// A limit of the reading: a meter or a root finder that could not
+    /// settle, or a pose with no closed form.
+    Unread,
+}
+
+/// **What an unread window of a circle piece's crossing reading against
+/// a plane says to the path**, by what the refusal means.
+///
+/// # Panics
+///
+/// On a kernel fault (readings that contradict, a carrier an arm misread)
+/// and on a refusal a circle against a plane cannot raise (a torus
+/// outside the convention, an unbuilt or enclosed arm, a spline's piece
+/// walk): each is a fault of the reading, never a pose.
+fn refused(why: geom_brep::curve_face::CrossWhy) -> Refused {
+    use geom_brep::curve_face::{CrossWhy, PoseRefusal};
+    use geom_brep::curve_pair::MeetFault;
+    use geom_brep::roots::Unsettled;
+    let zero_or = |diag: Indeterminate| match diag.margin.rejected_sign() {
+        Some(Sign::Zero) => Refused::Along,
+        _ => Refused::Escalated(diag),
+    };
+    match why {
+        CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => zero_or(diag),
+        CrossWhy::Pose(PoseRefusal::Meter { .. }) => Refused::Unread,
+        CrossWhy::Pose(PoseRefusal::Fault(what)) => {
+            unreachable!("a ring path's plane crossing is a kernel fault: {what}")
+        }
+        CrossWhy::Pose(
+            refusal @ (PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_) | PoseRefusal::Torus(_)),
+        ) => unreachable!("a circle against a plane raised {refusal:?}, a kernel fault"),
+        CrossWhy::Method { fault, .. } => match fault {
+            MeetFault::Escalated(diag) | MeetFault::Touch(diag) => Refused::Escalated(diag),
+            // A touch or a run read in the zero band.
+            MeetFault::Unsettled(Unsettled::Tangency | Unsettled::Degenerate) => Refused::Along,
+            MeetFault::Unsettled(
+                Unsettled::Meter { .. }
+                | Unsettled::Exhausted
+                | Unsettled::Floor
+                | Unsettled::Resolvent
+                | Unsettled::CountDisagrees { .. }
+                | Unsettled::AtApex
+                | Unsettled::Crease,
+            )
+            | MeetFault::Unsupported { .. } => Refused::Unread,
+            MeetFault::Desync | MeetFault::Contradiction { .. } | MeetFault::Unwalked(_) => {
+                unreachable!("a ring path's plane crossing is a kernel fault: {fault:?}")
+            }
+        },
+    }
+}
+
+/// **Where a meeting [`plane_roots`] read sits on the piece**: inside its
+/// span, at its parameter, or on an end, at the end's parameter.
+#[derive(Clone, Copy, Debug)]
+enum InSpan<T> {
+    Inside(T),
+    End(T),
+}
+
+impl<T: Copy> InSpan<T> {
+    fn t(self) -> T {
+        match self {
+            Self::Inside(t) | Self::End(t) => t,
+        }
+    }
+
+    /// The piece's own in-span readings: inside is past both ends, an end
+    /// on one.
+    fn readings(self) -> [Result<Sign, Indeterminate>; 2] {
+        match self {
+            Self::Inside(_) => [Ok(Sign::Positive), Ok(Sign::Positive)],
+            Self::End(_) => [Ok(Sign::Zero), Ok(Sign::Zero)],
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2263,6 +2375,10 @@ mod spline_wall_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod span_turn_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod crossing_reach_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2478,7 +2594,7 @@ mod tests {
         for u in [0.5, 1.0] {
             let ruling = geom::Curve3::Line(geom::Line {
                 origin: at(u, 0.0),
-                dir: Vec3::unit_z(),
+                dir: geom_core::UnitVec3::exact_z(),
             });
             for (t0, t1) in cuts(0.3, 0.7) {
                 arcs.push(LoopArc::of(&ruling, (t0, t1)).unwrap());
@@ -3314,16 +3430,72 @@ mod tests {
         assert!(apart > 20_000, "{apart} segments read apart");
     }
 
-    /// The far-centre graze rows' readings at `slack`: `(poses read,
+    /// **A kernel fault in the plane crossing fails loud** ([`refused`]):
+    /// readings that contradict surface as a panic, never as a path that
+    /// says nothing.
+    #[test]
+    #[should_panic(expected = "kernel fault")]
+    fn a_contradiction_in_the_plane_crossing_surfaces() {
+        let _ = refused(geom_brep::curve_face::CrossWhy::Method {
+            door: geom_brep::curve_face::Door::PlaneCrossing,
+            fault: geom_brep::curve_pair::MeetFault::Contradiction {
+                readings: "a probe's two readings",
+            },
+        });
+    }
+
+    /// **A pose fault in the plane crossing fails loud** ([`refused`]).
+    #[test]
+    #[should_panic(expected = "kernel fault")]
+    fn a_pose_fault_in_the_plane_crossing_surfaces() {
+        let _ = refused(geom_brep::curve_face::CrossWhy::Pose(
+            geom_brep::curve_face::PoseRefusal::Fault("a probe's fault"),
+        ));
+    }
+
+    /// **A limit says nothing, and only a zero-band reading keeps the
+    /// piece along the plane** ([`refused`]): a root finder that could not
+    /// settle is [`Refused::Unread`], which reaches no
+    /// [`misses_in_plane`]; a touch decided in the zero band is
+    /// [`Refused::Along`].
+    #[test]
+    fn a_limit_of_the_plane_crossing_says_nothing_and_a_touch_reads_along() {
+        use geom_brep::curve_face::{CrossWhy, Door};
+        use geom_brep::curve_pair::MeetFault;
+        use geom_brep::roots::Unsettled;
+        let method = |fault| CrossWhy::Method {
+            door: Door::PlaneCrossing,
+            fault,
+        };
+        for (fault, want) in [
+            (MeetFault::Unsettled(Unsettled::Exhausted), "unread"),
+            (
+                MeetFault::Unsettled(Unsettled::Meter { row: "probe" }),
+                "unread",
+            ),
+            (MeetFault::Unsupported { pose: "probe" }, "unread"),
+            (MeetFault::Unsettled(Unsettled::Tangency), "along"),
+            (MeetFault::Unsettled(Unsettled::Degenerate), "along"),
+        ] {
+            let got = match refused(method(fault)) {
+                Refused::Unread => "unread",
+                Refused::Along => "along",
+                Refused::Escalated(_) => "escalated",
+            };
+            assert_eq!(got, want, "{fault:?}");
+        }
+    }
+
+    /// The far-centre graze rows' readings: `(poses read,
     /// of them read wrong)`. Each pose is a unit circle in the box near a
     /// graze of the plane of a section conic stored `far` along that plane
     /// (a shallow cut's ellipse, its arc by the circle), its gap set within
-    /// twice the band's escalation and read exactly (`two_product` and
-    /// `two_sum`). A reading is wrong where it is definite on a gap the
+    /// twice the band's escalation and read exactly (an exact expansion).
+    /// A reading is wrong where it is definite on a gap the
     /// band does not decide (within `Kε`), or definite against the exact
     /// gap's sign.
-    fn far_centre_grazes(far: f64, slack_of: impl Fn(&geom::Curve3<f64>) -> f64) -> (usize, usize) {
-        use geom_core::exact::{two_product, two_sum};
+    fn far_centre_grazes(far: f64) -> (usize, usize) {
+        use geom_core::exact::Expansion;
         let band = Band::linear_at(geom_core::Tol::witness(), 1e-12).unwrap();
         let mut rng = test_utils::fuzz::start("ring_path::far_centre_grazes");
         let unit = |rng: &mut test_utils::fuzz::Rng| {
@@ -3345,38 +3517,38 @@ mod tests {
             let u_ref = unit(&mut rng).cross(axis).normalize();
             let piece = CircleArc {
                 circle: geom::Circle::new(geom::Frame::new(c, axis, u_ref), 1.0),
-                span: (0.0, 6.0),
+                span: (0.0, core::f64::consts::TAU),
             };
             let n = unit(&mut rng);
             let frame = &piece.circle.frame();
-            let rho = (n.dot(frame.u_ref()).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
             let w = n.cross(unit(&mut rng)).normalize();
             let gap = rng.range(-2.0, 2.0) * band.escalate();
-            let o = c - n * (rho - gap) + w * far;
-            // The exact `n·(c − o)`, compensated: each difference and
-            // product error-free, their sum to the last bit.
-            let (mut hi, mut lo) = (0.0, 0.0);
-            for (a, b, k) in [(c.x, o.x, n.x), (c.y, o.y, n.y), (c.z, o.z, n.z)] {
-                let (d, de) = two_sum(a, -b);
-                let (pd, pe) = two_product(d, k);
-                let (s, se) = two_sum(hi, pd);
-                hi = s;
-                lo += se + pe + de * k;
-            }
-            let exact = rho - (hi + lo).abs();
-            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(o, n, w),
-                far,
-                far / 100.0,
-            ));
+            let rho = (n.dot(frame.u_ref()).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
+            let plane = geom::Frame::new(frame.origin() - n * (rho - gap) + w * far, n, w);
+            // The stored plane's, read exactly: `ρ` on its normal, and
+            // `n·(c − o)` as an exact expansion.
+            let (o, n) = (plane.origin(), plane.axis());
+            let rho = (n.dot(frame.u_ref()).powi(2) + n.dot(frame.v_ref()).powi(2)).sqrt();
+            let c = frame.origin();
+            let offset =
+                Expansion::difference_dot([c.x, c.y, c.z], [o.x, o.y, o.z], [n.x, n.y, n.z]);
+            let exact = rho - offset.components().iter().sum::<f64>().abs();
             read += 1;
-            let got = plane_roots(&piece, (o, n), false, slack_of(&carrier), band);
-            let definite = match got {
-                Ok(Some(roots)) => Some(!roots.is_empty()),
+            // The pose over the whole turn, so that whether the piece
+            // meets the plane is whether its circle does.
+            let carrier = piece.carrier();
+            let span = geom_brep::curve_pair::Span::new(&carrier, piece.span);
+            let plane = geom::Surface::Plane { frame: plane };
+            let definite = match geom_brep::curve_face::pose(&span, &plane, band) {
+                Ok(geom_brep::curve_face::Pose::Isolated(_)) => Some(true),
+                Ok(geom_brep::curve_face::Pose::Apart) => Some(false),
                 _ => None,
             };
+            // A reading within the margin's own rounding of the
+            // threshold (a few ulps of the unit radius) is the threshold's.
+            let ulps = 8.0 * f64::EPSILON;
             if let Some(meets) = definite
-                && (exact.abs() < band.escalate() || meets != (exact > 0.0))
+                && (exact.abs() < band.escalate() - ulps || meets != (exact > 0.0))
             {
                 wrong += 1;
             }
@@ -3387,49 +3559,16 @@ mod tests {
     /// **A graze against a far-centred section's plane is read wrong
     /// nowhere**: the conic's stored centre lies `far` along its plane
     /// from the arc a unit circle in the box grazes, so the gap
-    /// `r·ρ − |n·(c − o)|` rounds at that length, past the band at ε =
-    /// 1e-12 from about a megametre. Charged the conic's own resolution
-    /// over its span ([`geom_brep::carrier_resolution`], as
-    /// [`path_resolution`] charges it), no reading is definite where the
-    /// exact gap is not; charged nothing, some are (the amplification the
-    /// run's admission rule does not cover).
+    /// `r·ρ − |n·(c − o)|` is read across a megametre's coordinates. The
+    /// crossing reading charges no rounding (`[simple.conditioned]`), so
+    /// no reading may be definite where the exact gap is not.
     #[test]
     fn a_graze_against_a_far_centred_sections_plane_is_read_wrong_nowhere() {
-        let charge = |carrier: &geom::Curve3<f64>| {
-            geom_brep::carrier_resolution::resolution(carrier, -0.01, 0.01).unwrap()
-        };
-        for far in [1e4, 1e5, 1e6] {
-            // The charge is the conic's resolution, not a stand-down at
-            // any price: a few dozen roundings of its far terms.
-            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(
-                    Point3::origin(),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                ),
-                far,
-                far / 100.0,
-            ));
-            let slack = charge(&carrier);
-            assert!(
-                slack.is_finite() && slack <= 128.0 * f64::EPSILON * far,
-                "far {far:e}: the charge {slack:e} is the conic's resolution"
-            );
-            let charged = far_centre_grazes(far, charge);
-            assert_eq!(
-                charged.1, 0,
-                "far {far:e}: read wrong, charged: {charged:?}"
-            );
-            let bare = far_centre_grazes(far, |_| 0.0);
-            println!("far {far:e}: charged {charged:?}, bare {bare:?}");
-            if far >= 1e6 {
-                // The row can go red: read bare, the pose is read wrong.
-                assert!(
-                    bare.1 > 0,
-                    "far {far:e}: bare reads nothing wrong: {bare:?}"
-                );
-            }
-        }
+        let got: Vec<_> = [1e4, 1e5, 1e6]
+            .into_iter()
+            .map(|far| (far, far_centre_grazes(far)))
+            .collect();
+        assert!(got.iter().all(|g| g.1.1 == 0), "read wrong: {got:?}");
     }
 
     /// **A loop conic stored far from its arc charges the path its own
@@ -3607,9 +3746,10 @@ mod tests {
 
     /// **A circle piece decided apart from a conic arc misses it, past a
     /// plane meeting read in band** ([`coplanar_apart`]): the piece, a
-    /// unit circle in the `xz` plane, rises to the conic's plane `z = h`
-    /// within the band of touching it (its gap `1 − h` mid-band), so
-    /// [`plane_roots`] refuses; the conic, a unit circle about
+    /// unit circle in the `xz` plane over `(−2, 1)`, rises at `−π/2` to
+    /// the conic's plane `z = h` within the band of touching it (its gap
+    /// `1 − h` mid-band), so [`plane_roots`] refuses; the conic, a unit
+    /// circle about
     /// `(10, 0, h)`, lies decided apart from it whatever the planes. The
     /// pair crosses nowhere and flips nothing. Red against the old order,
     /// which refused at the plane meeting.
@@ -3625,7 +3765,7 @@ mod tests {
         );
         let piece = CircleArc {
             circle: geom::Circle::new(geom::Frame::new(o, y, x), 1.0),
-            span: (-1.0, 1.0),
+            span: (-2.0, 1.0),
         };
         let arc = LoopArc::of(
             &geom::Curve3::circle(Point3::new(10.0, 0.0, h), z, 1.0, x),
@@ -3634,7 +3774,7 @@ mod tests {
         .expect("a circle is a conic arc");
         let sec = arc.plane().expect("a conic's plane");
         assert!(
-            plane_roots(&piece, (sec.origin, sec.normal), false, 0.0, band()).is_err(),
+            plane_roots(&piece, &sec.plane, false, band()).is_err(),
             "the plane meeting is in band"
         );
         let path = Path {

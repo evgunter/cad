@@ -65,11 +65,6 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
 /// the rotational lane.
 const VOLUME_ON: &str = "VolumeUncomputable on a";
 
-/// The result's piece sort, whose point-in-solid walk cannot read a
-/// sphere face bounded by a spline chord
-/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-const PIECES: &str = "the piece sort's walk on a chorded sphere face";
-
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
 fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
@@ -88,8 +83,6 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
             Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
             None => format!("{VOLUME_ON} face of no recorded kind"),
         }
-    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
-        PIECES.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -102,8 +95,7 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
 /// ball's four booleans with the upright rod build since the join's
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
 /// they stopped at the join's lane dispatch before. Every other boolean
-/// builds but one of each rod's `b − a`, whose result's piece sort
-/// refuses ([`PIECES`]).
+/// builds.
 fn pinned(part: Part) -> Stops {
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
@@ -112,7 +104,7 @@ fn pinned(part: Part) -> Stops {
             ("unit u rod", BODY),
             ("unit i rod", BODY),
             ("unit a-b rod", BODY),
-            ("unit b-a rod", PIECES),
+            ("unit b-a rod", BODY),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
@@ -122,13 +114,13 @@ fn pinned(part: Part) -> Stops {
             ("unit u rodx", BODY),
             ("unit i rodx", BODY),
             ("unit a-b rodx", BODY),
-            ("unit b-a rodx", PIECES),
+            ("unit b-a rodx", BODY),
         ],
         Part::TiltTurnedRod => &[
             ("tilt u rodx", BODY),
             ("tilt i rodx", BODY),
             ("tilt a-b rodx", BODY),
-            ("tilt b-a rodx", PIECES),
+            ("tilt b-a rodx", BODY),
         ],
         Part::Stub => &[
             ("unit u stub", BODY),
@@ -415,7 +407,7 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
 
 fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect()
 }
@@ -588,13 +580,14 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
 
 /// **A corrupt body never finishes, and the raw door panics on it only
 /// where it always did**: a two-ball union with one entity removed at a
-/// time (a face, a loop, an edge or a half-edge). No removal passes
+/// time (a face, a loop, an edge, a half-edge or a vertex). No removal passes
 /// `AtRestBody::validate`, so the typed door never reads one. Read
 /// through the raw door, the seam pass refuses what it cannot follow
-/// `MassPropsError::Corrupt`, and six removals panic in the walk's own
+/// `MassPropsError::Corrupt`, and seven removals panic in the walk's own
 /// face resolution (`live.rs`, a shell's or a face's record naming a
 /// removed key) before any seam is read — as they did before the seam
-/// pass — so the row admits those six and no other.
+/// pass — so the row admits those seven and no other. Each edge's curve
+/// removed in turn refuses `MassPropsError::Corrupt`, never a panic.
 #[test]
 fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     use topo::EntityId;
@@ -617,6 +610,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     }
     ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
     ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    ids.extend(b.vertices().map(|(k, _)| EntityId::Vertex(k)));
     let loops: Vec<String> = ids
         .iter()
         .filter(|id| matches!(id, EntityId::Loop(_)))
@@ -649,6 +643,9 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         "Face(FaceKey(6v5))",
         "Loop(LoopKey(2v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
+        // The start vertex of that same half-edge: the shell's reference
+        // point reads it before any seam, as it reads the half-edge.
+        "Vertex(VertexKey(8v1))",
     ];
     let new: Vec<_> = panicked
         .iter()
@@ -665,6 +662,29 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
                 "a removed loop refuses Corrupt, never panics: {l}"
             );
         }
+    }
+    // A removed curve: every edge naming it still stands, so the raw
+    // door's walk resolves the edge and refuses its curve typed.
+    let curves: Vec<_> = b.edges().map(|(_, e)| e.curve).collect();
+    for curve in curves {
+        let c = b.with_curve_removed_for_tests(curve).unwrap();
+        assert!(
+            topo::finish(c.clone(), tol).is_err(),
+            "{curve:?}: the body with it removed finishes"
+        );
+        let door = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and whether the door panics on it.
+            topo::test_support::measure_unvalidated(
+                &c,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+        }));
+        assert!(
+            matches!(door, Ok(Err(topo::MassPropsError::Corrupt { .. }))),
+            "{curve:?}: a removed curve refuses Corrupt at the raw door, never panics: {:?}",
+            door.as_ref().map(|r| r.as_ref().map(|_| ()))
+        );
     }
 }
 

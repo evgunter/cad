@@ -23,4 +23,122 @@
 
   Its MINORs are filed as `checked-is-blind-to-a-wrong-arc-witness-by-a-node` (P3), and the oracle's overclaiming comment is corrected. U2 (`the-section-certificate-reads-the-cone-pairs-on-the-value`) un-parks. The cone × sphere / cone × cone door's unit can now be cut. No experiment row (Ev).
 - 2026-11-22 — Ev: a merge may go over running CI when the risk is low, for example a straightforward conflict resolution or a state-sync on a green head.
+- 2026-11-22 — **Dispatched:**
+  - `the-cone-sphere-and-cone-cone-pair-doors` (P0, dual), branch `sectcone/cone-sphere-cone-doors`, cut from `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door` now that 7357 has landed the cone × cone pose;
+  - U2, `the-section-certificate-reads-the-cone-pairs-on-the-value` (P1, single FULL), branch `sectcone/section-cert-cone-pairs`.
+
+  Three lanes now share `pair_section`: these two and the cone × torus door. Each is told to merge main often and announce its seams.
+- 2026-11-22 — **U2 stopped before building.** The section value never claims that a cone pair's loop winds about the partner, while topo's certificate claims it on both carriers. Routing as specced would weaken most of the oracle rows' classes, and could turn coaxial or parallel cone × cylinder clears (pencil tips, countersinks) into refusals. The lane recommended A: the value claims partner winding first. The orchestrator took A as a sequencing decision with a dominant argument. No ratified text moves and every class is kept, so no Ev ruling is needed. A new unit, `the-section-value-claims-a-cone-pairs-winding-on-the-partner` (P1, dual), is dispatched to the same lane. U2 is re-parked on it, with the lane's four seam facts folded into its spec: `Elsewhere` keeps its closed forms; the apex touch is mapped explicitly; `serves` stays false and U2 calls `pair_section` directly; the overlap ball is the region.
+- 2026-11-22 — **PR 7395** (`the-cone-torus-pair-door`): dual Opus review on `b68b49ec6e`. Both APPROVE-WITH-FIXES, no MAJOR, all by inspection because the local build slot was held for 7 h by another lane's battery. Both found:
+  - a coaxial cone × torus germ turning from `GermFrameUnsupported` into `JoinDesync`;
+  - a tautological volume witness;
+  - a false premise in the turn-row re-pin;
+  - a crossing row with no count.
+
+  The fix pass is running on the union. **PR 7455** (`the-section-value-claims-a-cone-pairs-winding-on-the-partner`): dual Opus review on `7447c5a47f`, both APPROVE-WITH-FIXES, no MAJOR. Orchestrator's ruling: a winding read that doesn't settle claims nothing rather than refusing the section. A missing claim is weaker, never wrong, and this keeps the poses main reads. Its fix pass is running. **PR 7457** (cone × sphere / cone × cone doors) is open, and the lane is bringing CI to green. Ev asked about local build contention; the investigation is in `[ev]` PR 7539 (a hold cap, `--status`, nice for long jobs).
 - 2026-11-22 — **A note from BOXFINISH, for whoever holds SECTCONE: a merge of yours turned default-set rows red on main without knowing it.** Bisected on main's first parent; the rows, payloads and what each PR's own body says are in `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`. PR 7354 (`sectcone/conic-pairs-on-the-value`) moves five: `boss_union`'s lowering digest, the m10 fence's `Interval` row, the boss-union parting, and two `sweep` band-edge poses whose DECISIONS changed (not bits). Also yours: `work/green/main-red-geom-breps-recourse-roster-misses-three-ssi-enclose-cone-sites.md`. The move is yours to judge and re-pin or fix; every program's gate inherits these reds until then.
+- 2026-11-23 — (CIW) PR 7501 pins `boss_union`'s seat7 digest and the id-masked Interval corpus at the readings PR 7354 left, each citing `green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9` as "holds PR 7354's move unjudged; SECTCONE owes the judgement". The judgement is still yours. When it lands, drop or re-cut those two pins.
+- 2026-11-23 — **PR 7455 merged** (`the-section-value-claims-a-cone-pairs-winding-on-the-partner`, closed). Two reds are inherited from main and annotated on the PR:
+  - lint `payload-rung-sweep` on `NodeErrorClass`, tracked in `work/tally/main-red-payload-rung-sweep-flags-node-error-class-half-of-a-family`;
+  - the app slow-set name check that can't see `app`-feature tests, tracked in `work/green/the-slow-set-name-check-cannot-see-app-feature-tests`.
+
+  fmt and clippy were skipped on CI behind the failing gates step, and are clean locally on geom-brep. U2 un-parks.
+- 2026-11-23 — `the-section-value-claims-a-cone-pairs-winding-on-the-partner` is closed (PR 7455; the merge note rides 7455's branch). U2 is dispatched again to the same lane, on its kept local branch `sectcone/section-cert-cone-pairs`, with the seam facts in its spec. **PR 7408** is through its fix pass: the bend is decided explicitly, a Newton polish runs before the certificate, and the past-end and curved rows are in. It waits on its app job before merging.
+- 2026-11-23 — **Main red from my merge of 7395**: two names in the `recourse_roster` were undeclared, and clippy flagged `unneeded_struct_pattern` in `cone_torus_pose.rs`. Neither had run on 7395's CI, because the gates step failed first on the inherited `NodeErrorClass` red. Both are fixed by PR 7591, merged over running CI (Ev's low-risk rule). Lesson for the remaining merges: while the inherited gates red masks clippy and the slow roster, a lane runs `cargo clippy` locally and the roster row before handing back. **PR 7408**: the moved mesh rows came from the new polish rounding exact closed-form feet. The polish now leaves pad-0 components alone, and the meshes are byte-identical to main again. Ev merged `[ev]` PR 7539: build-slot hold cap, `--status`, nice for long jobs.
+- 2026-11-23, 17:01Z — (ONEROUND orchestrator) **Seam note: ONEROUND's PR 7442 (`oneround/readings-not-levers`, in its delta read, not merged) changes what a refusal from `geom_core::k_stats::decide_across` offers.** A far row refused in band used to offer a tolerance at which the row's floor still refused; it now offers (|m| − s)/K where the bracket's floor has a size, and no tolerance where the bracket holds zero. No verdict moves (the lane's differential over every caller, nine crates on the `ci` profile: 0 of 15,530 tests change at ε 1e-9); what moves is the refusal's payload, for callers in `geom-brep/src/intersect.rs`, `locus.rs`, `pair_section/cylinders.rs`, `pair_section/torus.rs` and `topo/src/boolean/join.rs`: of 290 such refusals in that run, 27 now offer none and 17 a smaller tolerance (the per-name table is in the PR body). A row or a recourse of yours that reads the offered tolerance of one of those names reads the new one after it merges.
+- 2026-11-23 — **PR 7395 merged** (`the-cone-torus-pair-door`, closed). **The P0 `cone-torus-rung-three-arm-waits-on-the-cone` is closed**, and lily wall 2 builds. Review: dual Opus on `b68b49ec6e`, both APPROVE-WITH-FIXES with no MAJOR. The fix pass took the union: coaxial `JoinDesync` → `GermFrameUnsupported`, an independent |A∩B| oracle, threshold, mirror and count rows, and `ApexRuling` never R-tan. The fix pass then merged main with 7455 in; the winding seam agrees. Reds inherited and annotated: the square-wall fuzzer (GERM's row) and the `NodeErrorClass` lint (TALLY's row). The `claims` desync row is owed once the cone-ruled pairs march (7457).
+- 2026-11-23 — (LATHE orchestrator) Main was red in clippy at `crates/geom-brep/tests/cone_torus_pose.rs:229-230` (`unneeded_struct_pattern`: `ApexContact::Node { .. }` / `Touch { .. }` on unit variants, since PR 7395). That stopped the lint job before its gates ran on every PR building geom-brep's tests. Fixed in place, two patterns, no behaviour change, by LATHE's PR 7478.
+- 2026-11-23 (GERM orchestrator) — **A note for whoever holds SECTCONE: main's lint has a clippy error in `crates/geom-brep/tests/cone_torus_pose.rs`.** It is a struct pattern on unit `ApexContact` variants, and it arrived with PR 7395's fix pass (`cac8518856`). GERM's U4a lane found it on PR 7577 after merging main. Every branch that merges main inherits it. It is yours to fix.
+- 2026-11-23 — **PR 7408 merged** (`a-carried-sites-foot-is-certified-at-the-reading`, closed). It had a single FULL Opus review, APPROVE-WITH-FIXES with no MAJOR. The fix pass made the bend explicit and added the past-end and curved rows. It also added a Newton polish, which first moved two mesh rows by rounding exact closed-form feet; it now skips pad-0 components and the meshes are byte-identical to main. One inherited red, annotated: an `app`-feature slow-set name (GREEN's `the-slow-set-name-check-cannot-see-app-feature-tests`).
+
+## 2026-11-23 — U2 opened as 7637; single FULL review dispatched
+U2's lane opened PR 7637 (head `b0c05e10d7`). CI is green except topo's `recourse_roster` decide-site row, which is inherited: `boolean/join.rs: conic_section_frame_at: sa` (from 7395) and `live.rs:2421` are recorded on main in `green/main-red-recourse-roster-misses-chain-parity-and-spline-trim-decide-sites`. Filed: `a-cone-pairs-witness-claims-no-pad-for-its-meeting-box` (P3). Reviewer brief at `review-7637-brief.md`. It leans hardest on the loosened oracles and on the one new refusal (a wall K+0.9 bands off the apex). 7457's lane reports clippy and the roster green locally and is waiting on CI.
+- 2026-11-23, 19:39Z — (EMBED orchestrator) **A slow-set row on main is red since PR 7408: a notched rod's cut escalates at `section_site_foot_bend`.** `sweep::all self_intersection_proves_injectivity::a_notched_rod_holds_across_its_reflex_corners_in_every_pose` fails building its fixture (a radius-1 rod cut by a slab, in one of its poses or sizes). Green at `1bd32ee664`, red from `323c16d098`; neither PR's gate ran the two together. Evidence and the command are on your row `a-carried-sites-foot-escalates-where-its-polish-stalls-or-clamps-at-a-run-end`, which I re-banded P0 for it (a body that built now refuses). EMBED leaves its row as it is: the fix, or the judgement that the refusal is right, is yours.
+- 2026-11-23, 22:27Z — (EMBED orchestrator) **A second slow-set row is red on main at `section_site_foot_bend`:** `sweep::all verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar` (the ring lane's Boolean at `Interval`), reproduced on main `e3fdefa369`. Added to your row beside the notched rod, with the command.
+- 2026-11-23 — (GREEN U18) **PR 7354's five unjudged moves now have a row of their own here: `conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section` (P1).** GREEN's P0 `main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9` closes into it. The two `sweep` band-edge rows are re-bisected to 7354 on hosted CI and are held under `pinned_red` at the ε where they are red. Their refusal changed kind: an untyped `Euler(RebasedCarrier … TransversalityArm)` replaces the rim's `Containment` escalation, and `Coincidence(Section, Moot)` replaces `SectionEndEscalated { SquareToAxis }`. CIW's two `boss_union` pins and the two new held reds cite the row. When you judge them, drop or re-cut those pins.
+
+## 2026-11-24 — 7637 (U2) merged; U3 un-parked
+The single FULL review returned APPROVE-WITH-FIXES with one MAJOR. The new Touch arm in `cone_pair_search` gave the slack with no gate on the margin, so a wrong touch on a generic pose passed. The fix pass gated it and also took the MINORs:
+- the two new refusals (a wall K+0.9 bands off the apex, coaxial cones a hair apart) are pinned and filed P2;
+- `cone_search` checks witness and swap on in-band answers;
+- one `region_cut` helper;
+- stronger rows;
+- the stale citations of the retired file are re-pointed or closed;
+- the green roster row records all nine lines.
+
+The witness-pad row went to P2 (M), not landed. I read the MAJOR's fix myself (orchestrator read) and accepted it. Kernel CI is red only on the inherited reds: topo's `recourse_roster` decide-site row (`green/main-red-recourse-roster-misses-chain-parity-and-spline-trim-decide-sites`) and `square_search` (`germ/the-square-wall-fuzzer-finds-a-strip-crossing-at-a-tubes-top-read-tangent`). Merged over CI after a main merge whose only conflict was the topo lever count (branch +7 on main's 320 = 327). U3 `the-join-reads-the-cone-pairs-on-the-value` is un-parked: U2 and the limb-2 reader (7350) are both closed. 7457 must narrow its `cone_pair` arms to Plane | Sphere when it merges main.
+
+## 2026-11-24: main red 7720; 7457's dual review
+- **Main red:** PR 7651 (scalar) left geom-brep's lib tests failing to compile. Its `crossing_parameter_rows` handed `settle` an f64 reader, and main's own CI skipped every job on that merge. PR 7720 fixes it in one line; I merged it once lint (clippy, all targets) passed.
+- **7457:** green at `8f470a5c65`. Two Opus reviewers, one brief, both NOT-MERGEABLE-AS-IS. They agree on M1: a sphere tangency decided Zero lists one point, which is wrong for a touch beside a loop, the far-line saddle (a node) and two touches.
+  - r2 M2: the `Elsewhere` poses of the newly served pairs desync in the join, where they used to refuse typed.
+  - r1 M2: the boolean witness's ball has a pole on the cone face, which is the likely vertex-on-face refusal site.
+  - A reachable `unreachable!` in `replace_face`, plus minors.
+  The fix pass went to the implementer, and both reviewers will re-verify.
+
+## 2026-11-24: 7457 merged, which closes the last original P0; dispatches
+- **7457.** The fix pass fixed both reviews' MAJORs. Re-verification gave APPROVE (r1) and APPROVE-WITH-FIXES (r2). A last minors pass (`044bda71c4`) added:
+  - two touches listed only with the centre decided between the nappes;
+  - the two-cone frame guard deciding by pose;
+  - one typed `RadiusNotPositive`;
+  - the whole witness refusal pinned.
+  I read that pass myself. Then I merged main (geom-brep lever count 515), and merged over the kernel job once lint was green. Inherited red: `square_search`.
+- **Closed.** P0 `cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door` (on the branch). Also `main-red-cone-torus-pose-matches-unit-apex-variants-with-struct-patterns`, which 7591 had already fixed.
+- **Main red from 7637.** topo `cone_search` reads coaxial cones whose apexes are about 1e-9 apart as `Intractable`, on about half of all runs. It also fails on an unrelated branch (orbit, run 45398921416), and every nightly predates 7637's merge. Lane `sectcone/cone-search-coaxial-apexes` dispatched.
+- **Dispatched, all Opus, each single FULL unless noted:**
+  - P0 `a-carried-sites-foot-escalates-…` (`sectcone/foot-bend-escalation`). It is a regression from 7408: a rod cut by a slab, and the ring lane, refuse on `section_site_foot_bend`.
+  - P0 `a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face` (`sectcone/cone-face-refusal`).
+  - U3 (`sectcone/join-cone-pairs`).
+  - P1 main red `endpoint-census … ruling.rs` (`sectcone/endpoint-census-ruling`), reviewed by the orchestrator's read.
+  The common lane rules are in the private `lane-common.md`.
+- **Held.** `the-cone-stores-its-slope` waits until these land, because it touches every cone site.
+
+## 2026-11-24: 7730 merged (endpoint census note)
+The main red was stale: PR 7452 had already moved the count to (9, 9). 7730 writes the roster note for all nine reads, and explains why the two sign tests stay off the funnel: they are certified exclusions of zero in a debug-only walk. Reviewed by the orchestrator's read. Merged once lint was green; the change touches only a test-note string and the tracker.
+## 2026-11-24: 7725 merged (the cone_search main red)
+The cause was topo's mapping of `ConeAtTheBand` to `Intractable`. It is now R-tan, and a fixed row reproduces the first seed. cone_search passed on three kernel runs, each with a fresh seed. Orchestrator's read. Merged main and resolved the conflict with 7457's `RadiusNotPositive` line in `of_pair_section`. Merged over CI: the kernel job was red only on `square_search` (germ row).
+
+## 2026-11-24: 7734 merged, the P0 foot-bend regression from 7408
+**Cause.** A plane × cylinder ruling is a `Curve3::Line`. At `Interval`, `1/curvature_hi` is `1/[0,0]`, which is no enclosure, so `section_site_foot_bend` read `Invalid`. This hit the notched rod's `Interval` twin and the ring lane.
+
+**Fix.** The curvature bound is floored at `f64::MIN_POSITIVE` before its reciprocal; that is still an upper bound, so it stays sound. The new fast row was shown red with the fix reverted.
+
+**Review.** The orchestrator's read, not the item's single FULL. The change is one line with a direct soundness argument. CI is fully green.
+
+**Tracker.**
+- The item's other two cases (stalled polish, clamped witness) have a different cause. The row stays open and is re-banded to P3, its filing band.
+- Filed `parting/a-straight-carrier-over-a-plane-reads-its-parting-radius-as-one-over-zero` (P3).
+
+7733, the P0 cone-face refusal, is open with CI green and all 12 witness runs built. The site was `join.rs` `choose_roles`, whose ring-lane chord arm had no cone. It also needed the spline-run read in `chord_join` and cone-face quadrature in `props`. A single FULL review is dispatched.
+
+## 2026-11-24: winding down (Ev: finish what's started, start nothing new, hand the track back)
+- **Split.** `the-cone-stores-its-slope` and `the-cone-convention-ladder-is-spelled-five-times` moved by `git mv` into the new program `coneslope` (`ready`). The seam is the cone's representation versus the cone pairs' section and join. Ev agreed to the slope on PR 7326.
+- **Still running.** 7733 (the P0 cone face, in its fix pass) and 7735 (U3) are to land. After that the track hands back `ready`.
+- **Banded the three unbanded rows** (Ev asked). The coaxial-torus fuzz mismatch is P2: it might be a wrong class, but it was seen once on another branch and never replayed on main. The cylinder pinch's missing node is P3: a consistency question with no behaviour change. The sphere cut-in reading its circle from the door is P3: a second reading that cannot disagree today. That brings the load under budget with no further split.
+## 2026-11-24 — (GREEN U21) the tour at 1e-6 is red since 7395
+Filed `the-lily-lanterns-weld-still-refuses-at-the-interior-loop-guard-at-1e-6` (P1). It is bisected on hosted CI to PR 7395 (`f5744c8c20`). Lily wall 2, which 7395 retired, still refuses `CurvedPairUnsupported { InteriorLoopGuard, Cone, Torus }` at ε 1e-6. `demos/tour`'s `tour_runs_green_at_eps_1e_6` is red on main because of it, and it is not held. The judgement is yours: a fix, or a re-pin of the wall at 1e-6. Also yours, and already fixed: editor-core's `trim_3_windows_interval::a_holed_cylinder_wall_drops_the_cells_in_its_hole` went red at PR 7408 (`323c16d098`) on the straight-carrier `section_site_foot_bend` cause, which PR 7734 fixes.
+
+## 2026-11-25: 7733 and 7735 merged; the track goes back
+- **7733 (P0 cone face).** The site was the ring lane's chord arm in `choose_roles`. The fix pass closed the review's two certification MINORs: the cap lane now uses the rational spline enclosure, and `require_cone_cap` gates nappe, apex and on-cone. Orchestrator's read of the fix pass. CI was fully green.
+- **7735 (U3).** The tilted rod builds all four ops to their closed-form volumes, and there is a new coverage row for the cone rulings. I merged main into it (7733's final cap lane; the duplicate cap-lane pad row was deduped to main's text). Closed U3 and the parent `cone-germ-pairs-against-a-curved-face-have-no-section-frame`. The remainder is `the-cone-poses-read-elsewhere-have-no-germ-frame` (P2), and the inside row `point-in-solid-refuses-a-ruled-face-a-spline-bounds` (P2).
+
+## 2026-11-25: hand-back, track `ready` (Ev: finish what's started, then stop)
+- **7735 merged.** The kernel job was green with 7733's final cap lane. Lint was red only on `cover-kind-match` (`spline_implicit.rs` arm 1 → 2), which came in from main via SECTARMS and is already filed as `sectarms/main-red-cover-kind-match-raised-arm-in-spline-implicit`.
+- **Merged this sitting:**
+  - 7350, 7354, 7357, 7358, 7395, 7408, 7455, 7457, 7637, 7725, 7733, 7734 and 7735 (units and P0s);
+  - 7591 and 7720 (main reds);
+  - 7539 (build-slot policy, merged by Ev);
+  - 7730 (census note);
+  - 7606 (tracker).
+- **Left for a successor:**
+  - **Sectcone P1s:**
+    - `conic-germ-pairs-rank-by-the-frames-turn-not-the-foot-parameter` (H);
+    - `conic-pairs-on-the-value-moved-two-band-edge-refusals-and-boss-unions-section` (M);
+    - `the-r3-march-ends-no-branch-at-a-cone-node` (H; splitdoor's apex germ row is parked on it).
+  - **The P2/P3 tail.** It includes the cap lane's fitted-edge pad, the cone poses read elsewhere, the coaxial-torus fuzz mismatch, and the stalled-polish foot cases (P3).
+  - **CONESLOPE** holds the slope unit.
+- **Known reds not ours to fix:** the `square_search` fuzz (germ), and the `cover-kind-match` raise (sectarms). One copysign census row (not on this track) names sites in `pair_section/cones.rs` and `ruling.rs` since our merges; its owner has it filed.
+- **Process notes for a successor:**
+  - The host disk is small, so lanes should build on CI only.
+  - When gates fail first, CI skips clippy and the slow roster, so run them or declare the names.
+  - Merge main before merging a PR whose branch is behind: 7395 and 7651 each left main red that way.

@@ -60,6 +60,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::UnitVec3;
 use geom_core::period::{Exact, Extent, NotForward, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
@@ -74,7 +75,7 @@ use crate::dihedral::{
     DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
-use crate::keys::SurfaceKey;
+use crate::keys::{SurfaceKey, SurfaceMiss};
 use crate::locus_certificate::LocusCertificate;
 use crate::pcurve_cache::IncidenceDoor as _;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, StatedDoor, chart_pcurve_over};
@@ -532,6 +533,13 @@ pub enum CertifyError {
         /// The unresolved key.
         key: SurfaceKey,
     },
+    /// A surface key in the description names a pending slot: the
+    /// face it backs has no surface yet ([`SurfaceMiss::Pending`]), so
+    /// nothing can be certified against it.
+    PendingSurface {
+        /// The pending key.
+        key: SurfaceKey,
+    },
     /// A described surface is the `Nurbs` kind (no implicit form —
     /// its residual story is the SSI foot-point machinery, not this
     /// module's), or a `Nurbs` carrier arrived under a conventional
@@ -877,11 +885,25 @@ pub fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
     }
 }
 
+impl CertifyError {
+    /// The refusal of a surface key that handed no surface: unresolved
+    /// or pending.
+    pub fn missed(key: SurfaceKey, miss: SurfaceMiss) -> Self {
+        match miss {
+            SurfaceMiss::Stale => Self::UnresolvedSurface { key },
+            SurfaceMiss::Pending => Self::PendingSurface { key },
+        }
+    }
+}
+
 impl core::fmt::Display for CertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnresolvedSurface { key } => {
                 write!(f, "surface key {key:?} does not resolve")
+            }
+            Self::PendingSurface { key } => {
+                write!(f, "surface key {key:?}: {}", crate::PENDING_SURFACE)
             }
             Self::StatedImageMissed { sample, margin } => {
                 CertCheck::StatedImage.write_exceeded(f, *sample)?;
@@ -1183,6 +1205,7 @@ impl CertifyError {
             Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
             Self::Row { refusal, .. } => refusal.decision()?,
             Self::UnresolvedSurface { .. }
+            | Self::PendingSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
@@ -1852,18 +1875,21 @@ impl DoorCheck for CertCheck {
     }
 }
 
-/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum less
-/// its certified drift, as a sagitta at the folded arm, must classify
-/// positive. Both refusing verdicts are reachable: the drift is a bound
-/// independent of the sampled minimum, so it can exceed it.
-fn tube_separation<T: Decide>(
+/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum (the
+/// schedule's every sample, its ends included) less its certified drift,
+/// as a sagitta at the least folded arm, must classify
+/// positive ([`crate::dihedral::tube_separation`]). Both refusing
+/// verdicts are reachable: the drift is a bound independent of the
+/// sampled minimum, so it can exceed it.
+fn tube_separated<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
-    let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
-    match decide_reported("tangent_tube_margin", tube, band).map(|d| Refused::of(d, band)) {
+    match crate::dihedral::tube_separation(kappa_min, kappa_drift, arm, band)
+        .map(|d| Refused::of(d, band))
+    {
         Ok(None) => Ok(()),
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
@@ -1924,7 +1950,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// it (U2's transience fence).
     pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2};
-        let len = p0.distance(p1);
+        let (carrier, len) = geom::Line::chord(p0, p1);
         Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                 crate::mapped::MappedSource::ExtrudedPoint {
@@ -1933,7 +1959,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     vec: p1 - p0,
                 },
             )),
-            carrier: Curve3::line(p0, (p1 - p0) / len),
+            carrier: Curve3::Line(carrier),
             param_start: T::zero(),
             param_end: len,
         }
@@ -1955,6 +1981,10 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// `None` for a non-circle carrier: no other kind has this
     /// rotation pushforward, and the caller owns its own honest
     /// refusal there.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn arc_of_circle(carrier: Curve3<T>, t0: T, t1: T) -> Option<Self>
     where
         T: SpanLocate,
@@ -1973,7 +2003,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(start - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: frame.axis(),
+                        dir: frame.axis_unit(),
                     },
                     angle: t1 - t0,
                 },
@@ -2158,7 +2188,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     place: Affine3::translation(p - Point3::origin()),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: UnitVec3::exact_z(),
                     },
                     // A whole revolution, an angle by construction.
                     angle: geom_core::period::Period::<T>::angle().length(),
@@ -2321,7 +2351,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// Check 1's and check 2's refusals, and the chart image's.
     pub fn mint(
         spec: EdgeCurveSpec<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         band: Band,
     ) -> Result<MintedEdge<T>, CertifyError> {
         let (description, turn, reading) =
@@ -2409,7 +2439,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///     band: Band,
     ///     lane: NurbsLane<T>,
     /// ) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| Err(geom_brep::SurfaceMiss::Stale), geom_brep::ExtentBall::point(p).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2507,7 +2537,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2531,7 +2561,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2554,7 +2584,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2601,7 +2631,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         &self,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2625,7 +2655,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
         &self,
         start: Point3<T>,
         end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        surfaces: impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
         reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
@@ -2704,7 +2734,7 @@ pub struct StatedImage<T: Real> {
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
 ///     ends: (Point3<f64>, Point3<f64>),
-///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
+///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
@@ -2739,7 +2769,7 @@ pub struct StatedImage<T: Real> {
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
 ///     ends: (Point3<f64>, Point3<f64>),
-///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
+///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
@@ -2813,7 +2843,10 @@ pub struct NurbsLane<T: geom_core::Certifies> {
         (T, T),
         &Surface<T>,
         Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
+    ) -> Result<
+        crate::curve_face::SpanCrossings<T>,
+        crate::curve_face::composite::CompositeRefusal,
+    >,
     /// [`NurbsLane::spline_face_meetings`] at `T`.
     spline_face: fn(
         &Curve3<T>,
@@ -2875,7 +2908,8 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+    ) -> Result<crate::curve_face::SpanCrossings<T>, crate::curve_face::composite::CompositeRefusal>
+    {
         crate::curve_face::composite::crossings(
             net,
             params,
@@ -3041,8 +3075,8 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
     }
 
     /// **A spline span against an analytic face's carrier**: the
-    /// crossings strictly inside `params`, ascending, by the curve × face
-    /// table's ring-composite arm
+    /// crossings strictly inside `params`, ascending, and how the span
+    /// stands at each end, by the curve × face table's ring-composite arm
     /// ([`crate::curve_face::composite::crossings`]).
     ///
     /// # Errors
@@ -3055,7 +3089,8 @@ impl<T: geom_core::Certifies> NurbsLane<T> {
         params: (T, T),
         surface: &Surface<T>,
         band: Band,
-    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+    ) -> Result<crate::curve_face::SpanCrossings<T>, crate::curve_face::composite::CompositeRefusal>
+    {
         (self.composite)(net, params, surface, band)
     }
 
@@ -3325,12 +3360,6 @@ impl<T: Real> EdgeCurve<T> {
         (self.param_start, self.param_end)
     }
 
-    /// [`Self::params`] as the span [`crate::Pcurve::span_ends`] reads
-    /// this edge's chart images over.
-    pub fn edge_span(&self) -> crate::StoredSpan<T> {
-        crate::StoredSpan::new(self.param_start, self.param_end)
-    }
-
     /// What the scalar's door gave this edge to carry
     /// ([`Real::Carries`]): the attachment-time certification record at
     /// a certifying scalar, nothing at a tangent-transport one.
@@ -3498,32 +3527,45 @@ impl<T: Real> EdgeCurve<T> {
 
     /// **This edge under an isometry, its certificate carried**: the
     /// mapped `carrier`, `description` and `authority` on this edge's
-    /// own interval, with its turn and certificate verbatim.
+    /// interval scaled by `stretch`, with its turn and certificate
+    /// verbatim.
+    ///
+    /// `stretch` is the factor the map scaled the carrier's parameter by:
+    /// `one` for every carrier but a line whose image direction was
+    /// squared ([`geom_core::UnitVec3::through_isometry`]), whose
+    /// parameter, arc length along the squared direction, is the old one
+    /// times the length the image was divided by. The span is scaled to
+    /// match, so the edge's ends stay where its vertices are, and the
+    /// description's chart image is read on the same new parameter (the
+    /// caller's, [`crate::Pcurve::stretched`]).
     ///
     /// The certificate is `{samples, max_residual}`, a distance between
     /// the description and its carrier at the schedule's parameters, and
     /// the turn is the interval against one period. An isometry keeps
-    /// both, and a map keeps the carrier's parameter, so both are the
-    /// image's. That holds only where the three arguments are this
-    /// edge's data under one isometry, or under the family of isometries
-    /// a boxed motion encloses: then the data encloses the edge's image
-    /// under each member, every member keeps the distance and the turn,
-    /// and the carried certificate is each image's. Keeping that is the
-    /// caller's, and `topo`'s data map (`map_isometry`) is the one caller.
+    /// both. Under a stretch the schedule's parameters are the same
+    /// points, read on the stretched parameter, so both are the image's.
+    /// That holds only where the arguments are this edge's data under one
+    /// isometry, or under the family of isometries a boxed motion
+    /// encloses: then the data encloses the edge's image under each
+    /// member, every member keeps the distance and the turn, and the
+    /// carried certificate is each image's. Keeping that is the caller's,
+    /// and `topo`'s data map (`map_isometry`) is the one caller.
     #[must_use]
     pub fn carried(
         &self,
         carrier: Curve3<T>,
+        stretch: T,
         description: EdgeDescription<T>,
         authority: EdgeAuthority<T>,
     ) -> Self
     where
         T: SpanLocate,
     {
+        let (param_start, param_end) = (self.param_start * stretch, self.param_end * stretch);
         Self {
             description,
             authority,
-            reading: match reading_of(&carrier, (self.param_start, self.param_end)) {
+            reading: match reading_of(&carrier, (param_start, param_end)) {
                 Ok(reading) => reading,
                 // A map keeps the carrier's kind, its knots and the
                 // interval, so the view this edge was certified on
@@ -3531,8 +3573,8 @@ impl<T: Real> EdgeCurve<T> {
                 Err(e) => unreachable!("a mapped edge's carrier has no view over its span: {e}"),
             },
             stored: carrier,
-            param_start: self.param_start,
-            param_end: self.param_end,
+            param_start,
+            param_end,
             turn: self.turn,
             certificate: self.certificate,
             locus: None,
@@ -3584,11 +3626,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let (t0, t1) = (self.param_start, self.param_end);
         let span = t1 - t0;
         let a = (t - t0) / span;
-        let images = match self.description {
-            EdgeDescription::Chart(ref c) => Some(c.pcurve.split_at(t)),
-            _ => None,
-        };
-        let child = |s0: T, s1: T, ta: T, tb: T, second: bool| -> EdgeCurveSpec<T> {
+        let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
             let description = match self.description {
                 EdgeDescription::Intersection { pair, ref selector } => {
                     EdgeDescriptionSpec::Intersection {
@@ -3615,22 +3653,16 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
-                // the parent's map, verbatim, with a stated end kept
-                // only on the child that keeps that end
-                // ([`crate::Pcurve::split_at`]). Stating it exactly is
+                // the parent's image, verbatim. Stating it exactly is
                 // what keeps the sub-arc's description the restriction
                 // of its parent's rather than a re-derivation that can
                 // land a few ulps away from it.
-                EdgeDescription::Chart(ref c) => {
-                    EdgeDescriptionSpec::Chart {
-                        surface: c.surface,
-                        image: images.as_ref().map(|(first, rest)| {
-                            if second { rest.clone() } else { first.clone() }
-                        }),
-                        wrap: c.wrap,
-                        declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
-                    }
-                }
+                EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    image: Some(c.pcurve.clone()),
+                    wrap: c.wrap,
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
+                },
             };
             EdgeCurveSpec {
                 description,
@@ -3639,10 +3671,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 param_end: tb,
             }
         };
-        (
-            child(T::zero(), a, t0, t, false),
-            child(a, T::one(), t, t1, true),
-        )
+        (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
     }
 
     /// This carrier's spec view (for re-certification).
@@ -4266,7 +4295,7 @@ fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
 /// deciding scalar.
 fn resolve_spec<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Result<Resolved<T>, CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an intrinsic description
@@ -4300,7 +4329,7 @@ fn resolve_spec<T: Decide>(
     // would meter poison. A plane × spline `Intersection`, fitted or
     // not, never reaches it: `plane_nurbs_pair` takes that pair first.
     let resolve = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
-        let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
+        let s = surfaces(key).map_err(|miss| CertifyError::missed(key, miss))?;
         if !crate::edge_nurbs::is_analytic(&s) {
             return Err(CertifyError::Unimplemented);
         }
@@ -4309,17 +4338,9 @@ fn resolve_spec<T: Decide>(
     // The iso lane's resolver (M6-3): an `IsoCurve` description names
     // its surface as the CHART of the residual, so a DESCRIBED
     // `Surface::Nurbs` is exactly what it evaluates against — admitted
-    // here and nowhere else. The mvfs placeholder (all-poison control)
-    // is not a described surface and keeps refusing.
-    let resolve_iso = |key: SurfaceKey| -> Result<Surface<T>, CertifyError> {
-        let s = surfaces(key).ok_or(CertifyError::UnresolvedSurface { key })?;
-        if let Surface::Nurbs(ref payload) = s
-            && payload.is_placeholder()
-        {
-            return Err(CertifyError::Unimplemented);
-        }
-        Ok(s)
-    };
+    // here and nowhere else.
+    let resolve_iso =
+        |key: SurfaceKey| surfaces(key).map_err(|miss| CertifyError::missed(key, miss));
     Ok(match spec.description {
         EdgeDescriptionSpec::Intersection {
             pair,
@@ -4429,9 +4450,7 @@ fn resolve_spec<T: Decide>(
         // The chart arm resolves through the door its IMAGE needs. An
         // image the construction states is evaluated on the chart
         // itself, so a described spline chart is exactly what it needs
-        // and is admitted here and nowhere else (the mvfs placeholder,
-        // an all-poison control, is not a described surface and keeps
-        // refusing); a derived image comes from the analytic chart
+        // and is admitted here and nowhere else; a derived image comes from the analytic chart
         // machinery. A wrap edge names a chart that closes on itself,
         // which the plane never does.
         EdgeDescriptionSpec::Chart {
@@ -4605,24 +4624,12 @@ fn decide_turn<T: Decide>(
         // have a period is `Curve3::period`'s to say, so this arm restates
         // no kind list.
         //
-        // A line's span is forward in parameter, and then in metres where
-        // its `dir` is the zero vector: such a line names one point at
-        // every parameter, so no span on it is forward, and it refuses as
-        // `IntervalNotForward` (its metred margin is an exact zero) rather
-        // than certifying a direction its readers take as nonzero
-        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-        // The metres decision runs on that line alone, so every other
-        // line's span is decided once, as before.
-        (None, line) => {
+        // A line's span is forward in parameter, which is metres: its
+        // direction is a `UnitVec3`, so no line names one point at every
+        // parameter (a zero vector has no direction to mint, and squares
+        // to poison).
+        (None, _) => {
             forward(Margin::of(span))?;
-            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
-            }) {
-                forward(Margin::metered(
-                    span,
-                    geom::carrier_speed::speed_range(line).0,
-                ))?;
-            }
             None
         }
     })
@@ -4926,7 +4933,6 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::ImageMismatch { .. }
         | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
         | PcurveCertifyError::ChartRow { .. }
-        | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::IntervalNotForward
         | PcurveCertifyError::Band(_) => mint_refusal(e, surface, carrier),
     }
@@ -5074,7 +5080,6 @@ fn mint_refusal<T: Real>(
         | PcurveCertifyError::ChartWindingUnsupported
         | PcurveCertifyError::ChannelKindMismatch { .. }
         | PcurveCertifyError::WindingMismatch { .. }
-        | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::AzimuthPeriodExceeded
         | PcurveCertifyError::PlacementTurnsExceeded
         | PcurveCertifyError::TubePeriodExceeded
@@ -5092,7 +5097,7 @@ fn mint_refusal<T: Real>(
 /// [`run_checks`] runs them. No sample is read and nothing is certified.
 fn mint_checks<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     band: Band,
 ) -> Result<Minted<T>, CertifyError> {
     let read = ReadSpec::of(spec, band)?;
@@ -5215,7 +5220,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     start: Point3<T>,
     end: Point3<T>,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     reach: geom_core::Lever<T>,
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
@@ -5485,6 +5490,18 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                         band,
                         &mut max_residual,
                     )?;
+                } else {
+                    // An end sample decides nothing of its own here, but
+                    // its `|κ_rel|` and arm enter the tube's minima, as
+                    // the second-order walk's do
+                    // (`crate::dihedral::second_order_walk`): one sample
+                    // set for the tube the walk demands and the tube this
+                    // certificate reads.
+                    let (_, end_tau) = spec.carrier.ders1(t);
+                    let jet = crate::tangent::tangent_jet(surf1, surf2, p, end_tau);
+                    let arm = crate::folded_lever_arm(surf1, surf2, p, reach);
+                    tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
+                    tangent_arm_min = Some(tangent_arm_min.map_or(arm, |least| least.min(arm)));
                 }
             }
             // The fenced scaffolding arm (D3): the ONE conventional
@@ -5643,7 +5660,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                 CERT_SAMPLES - 2
             );
         };
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
+        tube_separated(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
@@ -6053,24 +6070,19 @@ enum Resolved<T: Real> {
 }
 
 /// The NURBS × NURBS pairing: two charts each a described NURBS
-/// surface or a fit ([`Surface::spline_chart`]), the mvfs placeholder
-/// never one.
+/// surface or a fit ([`Surface::spline_chart`]).
 fn nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(Surface<T>, Surface<T>)> {
     let [k1, k2] = pair.keys();
-    let (a, b) = (surfaces(k1)?, surfaces(k2)?);
-    let chart = |s: &Surface<T>| match s {
-        Surface::Nurbs(n) => !n.is_placeholder(),
-        _ => s.spline_chart().is_some(),
-    };
+    let (a, b) = (surfaces(k1).ok()?, surfaces(k2).ok()?);
+    let chart = |s: &Surface<T>| s.spline_chart().is_some();
     (chart(&a) && chart(&b)).then_some((a, b))
 }
 
 /// The plane × NURBS pairing: exactly one PLANE (returned with its
-/// key) and exactly one **described** NURBS wall (the mvfs placeholder
-/// is a mid-surgery "no description yet" fact, never an operand), or one
+/// key) and exactly one NURBS wall, or one
 /// fitted (`Approx`) wall, which is its fit here
 /// ([`Surface::spline_chart`]): the fit's distance from its description
 /// is the face's claim, re-derived per face at rest, and the edge's
@@ -6080,7 +6092,7 @@ fn nurbs_pair<T: Real>(
 /// its existing refusals verbatim.
 fn plane_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
     partner_nurbs_pair(pair, surfaces, |s| matches!(s, Surface::Plane { .. }))
 }
@@ -6092,7 +6104,7 @@ fn plane_nurbs_pair<T: Real>(
 /// the analytic path.
 fn residual_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
     partner_nurbs_pair(pair, surfaces, crate::edge_nurbs::is_residual_partner)
 }
@@ -6101,17 +6113,15 @@ fn residual_nurbs_pair<T: Real>(
 /// the other a wall with a spline chart.
 fn partner_nurbs_pair<T: Real>(
     pair: SurfacePair,
-    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    surfaces: &impl Fn(SurfaceKey) -> Result<Surface<T>, SurfaceMiss>,
     partner: impl Fn(&Surface<T>) -> bool,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
-    let wall = |s: &Surface<T>| match s {
-        Surface::Nurbs(n) => !n.is_placeholder(),
-        _ => s.spline_chart().is_some(),
-    };
     pair.keys().into_iter().find_map(|k| {
-        let analytic = surfaces(k).filter(|s| partner(s))?;
+        let analytic = surfaces(k).ok().filter(|s| partner(s))?;
         let other_key = pair.other(k)?;
-        let other = surfaces(other_key).filter(|s| wall(s))?;
+        let other = surfaces(other_key)
+            .ok()
+            .filter(|s| s.spline_chart().is_some())?;
         Some((k, analytic, other_key, other))
     })
 }
@@ -6825,10 +6835,13 @@ mod tests {
     /// slotmap, mirroring how a Body resolves).
     fn table(
         surfs: Vec<Surface<f64>>,
-    ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
+    ) -> (
+        Vec<SurfaceKey>,
+        impl Fn(SurfaceKey) -> Result<Surface<f64>, SurfaceMiss>,
+    ) {
         let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
         let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-        (keys, move |k| map.get(k).cloned())
+        (keys, move |k| map.get(k).cloned().ok_or(SurfaceMiss::Stale))
     }
 
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
@@ -6941,7 +6954,7 @@ mod tests {
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -6968,7 +6981,7 @@ mod tests {
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
-                carrier: Curve3::line(q0, (q1 - q0) / len),
+                carrier: Curve3::line(q0, geom::stated_direction((q1 - q0) / len)),
                 param_start: 0.0,
                 param_end: len,
             },
@@ -7044,7 +7057,7 @@ mod tests {
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::line(p0, Vec3::unit_z()),
+                carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -7084,7 +7097,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -7195,7 +7208,7 @@ mod tests {
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
-            carrier: Curve3::line(q0 + off - dir * anchor, dir),
+            carrier: Curve3::line(q0 + off - dir * anchor, geom::stated_direction(dir)),
             param_start: anchor,
             param_end: t1,
         };
@@ -7383,10 +7396,10 @@ mod tests {
             .iter()
             .map(|&(anchor, _, _)| {
                 let (chart, _) = d2_iso_chart(anchor);
-                let Pcurve::IsoLine { p0, pl, .. } = chart.pcurve else {
+                let Pcurve::IsoLine { at0, rate, .. } = chart.pcurve else {
                     panic!("the iso arm mints an IsoLine chart image");
                 };
-                (anchor, p0.y.to_bits(), pl.y.to_bits())
+                (anchor, at0.to_bits(), rate.to_bits())
             })
             .collect();
         assert_eq!(
@@ -7420,7 +7433,7 @@ mod tests {
     /// | `t0` (m) | legacy (m) | collapsed (m) | ULP | relative |
     /// |---|---|---|---|---|
     /// | 0     | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
-    /// | 1.7   | 4.4409e-16 | 7.7716e-16 | 3.38e15 | +75 % |
+    /// | 1.7   | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
     /// | 1e3   | 5.9064e-14 | 1.7053e-13 | 6.58e15 | **+189 %** |
     /// | 1e6   | 6.0536e-11 | 5.8208e-11 | 1.80e14 | **−3.85 %** |
     ///
@@ -7441,13 +7454,8 @@ mod tests {
         [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
     /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
     const D2_A0: i64 = 0;
-    /// Anchor 1.7 m: the two expressions agree, and the move is check 4's.
-    /// The description states its ends (`EdgeDescriptionSpec::iso`), the
-    /// map at `t1` stands one ulp from the stated `v1`, and the envelope
-    /// carries that ulp metred by the chart's `stretch_v = 3`, about
-    /// 3.4e-16 m; the certificate's residual is the larger of the
-    /// schedule's and the envelope, 7.8e-16 m against the legacy 4.4e-16 m.
-    const D2_A1: i64 = 3_377_699_720_527_872;
+    /// Anchor 1.7 m: the two expressions agree.
+    const D2_A1: i64 = 0;
     /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
     const D2_A2: i64 = 6_579_477_580_611_584;
     /// Anchor 1e6 m: they disagree by 3.85 %, the other way.
@@ -7477,7 +7485,7 @@ mod tests {
             spec.clone(),
             p,
             p,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7492,7 +7500,7 @@ mod tests {
                 bad,
                 p,
                 p,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
@@ -7510,7 +7518,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7520,7 +7528,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7537,100 +7545,12 @@ mod tests {
         a.recertify(
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
         .unwrap();
-    }
-
-    /// **A line's span is forward in metres where its `dir` is the zero
-    /// vector.** A line of zero direction names one point at every
-    /// parameter, so its span of one parameter unit refuses as the caller's
-    /// stated interval, not forward on the zero side, where a
-    /// parameter-only read certified it (this row is red without the
-    /// guard). A line at speed two certifies a span of half a unit: that
-    /// row asks only that the guard over-refuse nothing, and no mutation of
-    /// the guard reddens it.
-    ///
-    /// At the interval scalar the guard reads the same door: an exact
-    /// `[0, 0]` direction refuses as the point's zero does, and a direction
-    /// whose enclosure straddles zero past the band's escalation is not decided,
-    /// so the metred span escalates rather than certifying.
-    #[test]
-    fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
-        use geom_core::{Affine3, Interval, Point2};
-        fn along<T: Decide>(dir: Vec3<T>, param_end: T) -> EdgeCurveSpec<T> {
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
-                    crate::mapped::MappedSource::ExtrudedPoint {
-                        point: Point2::new(T::zero(), T::zero()),
-                        place: Affine3::translation(Vec3::new(T::zero(), T::zero(), T::zero())),
-                        vec: dir * param_end,
-                    },
-                )),
-                carrier: Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir),
-                param_start: T::zero(),
-                param_end,
-            }
-        }
-        // One certifying door per scalar, each at its own concrete type.
-        macro_rules! certify_at {
-            ($name:ident: $t:ty) => {
-                fn $name(
-                    spec: EdgeCurveSpec<$t>,
-                    p1: Point3<$t>,
-                ) -> Result<EdgeCurve<$t>, CertifyError> {
-                    let zero = <$t as geom_core::Real>::zero();
-                    EdgeCurve::certify(
-                        spec,
-                        Point3::new(zero, zero, zero),
-                        p1,
-                        |_| None,
-                        geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
-                        band(),
-                        NurbsLane::certified(),
-                    )
-                }
-            };
-        }
-        certify_at!(certify: f64);
-        certify_at!(certify_interval: Interval);
-        let zero_refusal = |err: &CertifyError| {
-            matches!(
-                err,
-                CertifyError::StatedInterval {
-                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(_)))
-                }
-            )
-        };
-        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
-        assert!(zero_refusal(&err), "{err:?}");
-        let fast = Vec3::new(2.0, 0.0, 0.0);
-        assert!(certify(along(fast, 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
-
-        let iv = Interval::from_f64;
-        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
-        let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
-        let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
-        assert!(zero_refusal(&err), "[0, 0]: {err:?}");
-        // A straddle past the escalation of the band in force, so its
-        // metred span reads neither zero nor positive at every ε.
-        let reach = 2.0 * band().escalate();
-        let wide = Interval::from_bounds(-reach, reach);
-        let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
-        let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                CertifyError::Escalated {
-                    check: CertCheck::ParamSpan,
-                    ..
-                }
-            ),
-            "straddling: {err:?}"
-        );
     }
 
     #[test]
@@ -7642,12 +7562,12 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
         let off = 100.0 * eps();
-        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), geom_core::UnitVec3::exact_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7666,12 +7586,15 @@ mod tests {
         );
         // An in-band offset (3·ε) escalates instead of passing.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), Vec3::unit_x());
+        spec.carrier = Curve3::line(
+            Point3::new(0.0, 3.0 * eps(), 0.0),
+            geom_core::UnitVec3::exact_x(),
+        );
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7721,7 +7644,7 @@ mod tests {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7788,7 +7711,7 @@ mod tests {
             line_spec(p0, p1),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -7822,7 +7745,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7842,7 +7765,7 @@ mod tests {
         let mut bad = spec.clone();
         bad.carrier = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let err = EdgeCurve::certify(
             bad,
@@ -7961,7 +7884,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -7999,7 +7922,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::line(p0, Vec3::unit_x()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -8040,7 +7963,7 @@ mod tests {
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::line(p0, Vec3::unit_z()),
+            carrier: Curve3::line(p0, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -8058,7 +7981,7 @@ mod tests {
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
         let mut antipode = spec.clone();
-        antipode.carrier = Curve3::line(q0, Vec3::unit_z());
+        antipode.carrier = Curve3::line(q0, geom_core::UnitVec3::exact_z());
         let cut = EdgeCurve::certify(
             antipode,
             q0,
@@ -8084,7 +8007,7 @@ mod tests {
             Point3::new(r + 1.0, 0.0, 3.0),
         );
         let mut off = spec.clone();
-        off.carrier = Curve3::line(o0, Vec3::unit_z());
+        off.carrier = Curve3::line(o0, geom_core::UnitVec3::exact_z());
         assert!(
             EdgeCurve::certify(
                 off,
@@ -8224,7 +8147,7 @@ mod tests {
                 spec.clone(),
                 p0,
                 p1,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
@@ -8239,7 +8162,7 @@ mod tests {
             spec.clone(),
             nan,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8263,7 +8186,7 @@ mod tests {
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     angle: TAU,
                 },
@@ -8276,7 +8199,7 @@ mod tests {
             spec.clone(),
             p,
             p,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8321,7 +8244,7 @@ mod tests {
             spec.clone(),
             p0,
             p1,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
@@ -8496,7 +8419,7 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     kappa_min,
                     drift,
                     geom_core::test_support::fixture_lever(1.0),
@@ -8506,7 +8429,7 @@ mod tests {
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     point(kappa_min),
                     point(drift),
                     geom_core::test_support::fixture_lever(point(1.0)),
@@ -8818,7 +8741,7 @@ mod tests {
             spec,
             start,
             end,
-            |_| None,
+            |_| Err(crate::SurfaceMiss::Stale),
             geom_core::test_support::fixture_lever(1.0),
             coarse,
             NurbsLane::certified(),
@@ -8833,7 +8756,7 @@ mod tests {
                 .recertify(
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
@@ -8861,7 +8784,7 @@ mod tests {
                 .recertify_stated(
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
@@ -8908,7 +8831,7 @@ mod tests {
                     spec,
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -8922,7 +8845,7 @@ mod tests {
                     spec,
                     start,
                     end,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
@@ -8931,7 +8854,7 @@ mod tests {
                 .map(|_| ())
             }),
             ("mint", |spec, band| {
-                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
+                EdgeCurve::mint(spec, |_| Err(crate::SurfaceMiss::Stale), band).map(|_| ())
             }),
         ];
         let circle = Curve3::circle(
@@ -9070,7 +8993,7 @@ mod tests {
                 spec,
                 a,
                 b,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),
@@ -9087,7 +9010,7 @@ mod tests {
                     spec,
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9104,7 +9027,7 @@ mod tests {
                     spec,
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
@@ -9113,7 +9036,7 @@ mod tests {
                 .map(|_| ())
             }),
             ("mint", |spec, band| {
-                EdgeCurve::mint(spec, |_| None, band).map(|_| ())
+                EdgeCurve::mint(spec, |_| Err(crate::SurfaceMiss::Stale), band).map(|_| ())
             }),
         ];
         type Recertify = fn(&EdgeCurve<f64>, Band) -> Result<Certificate<f64>, CertifyError>;
@@ -9126,7 +9049,7 @@ mod tests {
                 curve.recertify(
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9140,7 +9063,7 @@ mod tests {
                 curve.recertify_stated(
                     a,
                     b,
-                    |_| None,
+                    |_| Err(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
@@ -9213,7 +9136,7 @@ mod tests {
                 EdgeCurveSpec::line_between(p, q),
                 p,
                 q,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),
@@ -10422,7 +10345,10 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line(geom::Line { origin: p0, dir }),
+            carrier: Curve3::Line(geom::Line {
+                origin: p0,
+                dir: geom::stated_direction(dir),
+            }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };
@@ -10713,7 +10639,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(on + Vec3::unit_z() * 0.5),
             },
-            carrier: Curve3::line(on, Vec3::unit_z()),
+            carrier: Curve3::line(on, geom_core::UnitVec3::exact_z()),
             param_start: 0.0,
             param_end: 1.0,
         };

@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Interval, Point2, Point3, Real, Vec3};
 use test_utils::fuzz;
 
 use super::Pcurve;
@@ -215,11 +215,8 @@ fn spec_of<T: Real>(
     let c = T::from_f64;
     let (_, _, _, p0, p1) = chart.ruling();
     let image = match stated {
-        Stated::Iso => Pcurve::IsoLine {
-            p0: Point2::new(c(p0[0]), c(p0[1])),
-            pl: Vec2::new(c(p1[0] - p0[0]), c(p1[1] - p0[1])),
-            ends: None,
-        },
+        // Each chart's ruling is a row or a column of it.
+        Stated::Iso => Pcurve::iso_line_for_tests(p0, [p1[0] - p0[0], p1[1] - p0[1]]).unwrap(),
         Stated::General => {
             let line = NurbsCurve2::new(
                 KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -273,7 +270,7 @@ macro_rules! door_at {
                     spec_of(key, chart, stated, carrier),
                     start,
                     end,
-                    |k| table.get(k).cloned(),
+                    |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(<$t as Real>::one()),
                     band(),
                     NurbsLane::certified(),
@@ -311,7 +308,7 @@ macro_rules! door_at {
                     },
                     start,
                     end,
-                    |k| table.get(k).cloned(),
+                    |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(<$t as Real>::one()),
                     band(),
                     NurbsLane::certified(),

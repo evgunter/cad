@@ -179,7 +179,7 @@ fn an_empty_open_list_is_the_sealed_hollow() {
             counts.v - counts.e + counts.f,
             counts.r,
             counts.s,
-            counts.genus()
+            counts.h()
         ),
         (4, 0, 2, Ok(0)),
         "two genus-0 shells"
@@ -392,7 +392,7 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
         panic!("the band's name resolves to a face, got {named:?}")
     };
     assert!(
-        matches!(body.face_surface(band), Some(geom::Surface::Sphere { .. })),
+        matches!(body.face_surface(band), Ok(geom::Surface::Sphere { .. })),
         "the band is the cap's sphere face, got {:?}",
         body.face_surface(band)
     );

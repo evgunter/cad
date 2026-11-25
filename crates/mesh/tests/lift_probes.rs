@@ -232,7 +232,8 @@ fn ball_across_a_wall() -> Vec<Named> {
     .collect()
 }
 
-/// The reach probes' lofts: one creased wall and the twisted blade.
+/// The reach probes' lofts: a semicircle's wall between two lines, which
+/// the loft cuts at its sub-arc joint, and the twisted blade.
 fn lofts() -> Vec<Named> {
     let corners = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let section = |b: f64| -> Section {
@@ -1207,8 +1208,8 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 155 loops
-/// of the 131 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 177 loops
+/// of the 153 curved faces, the 24 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
 /// apex row where it passes one (12 loops), and its sampled polygon is
 /// simple and wound with the face ([`not_closing`]). The 30 faces a
@@ -1225,8 +1226,8 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
         rows(&[
             ("Cone", 19, 15, 3, 6),
             ("Cylinder", 68, 2, 12, 0),
-            ("Nurbs", 12, 0, 0, 0),
-            ("Sphere", 9, 5, 3, 6),
+            ("Nurbs", 14, 0, 0, 0),
+            ("Sphere", 14, 0, 3, 11),
             ("Torus", 23, 8, 6, 0),
         ]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
@@ -1846,16 +1847,17 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
     );
 }
 
-/// **A ring that is one vertex answers typed.** The pipe's wall, a lone
-/// vertex struck into it off its outer loop (`mev_line` from the loop's
-/// first half-edge to a point of the wall, then `kemr` of the strut),
-/// and its rows minted: the wall holds one ring, `LoopBoundary::Empty`,
-/// and `topo::validate` passes it. `Body::face_lift` answers
-/// `RingEmpty` naming that ring, and the mesh refuses the face
-/// `DomainUnread` with that cause: a vertex bounds no region and has no
-/// place in the chart.
+/// **A ring that is one vertex bounds no area.** The pipe's wall, a
+/// lone vertex struck into it off its outer loop (`mev_line` from the
+/// loop's first half-edge to a point of the wall, then `kemr` of the
+/// strut), and its rows minted: the wall holds one ring,
+/// `LoopBoundary::Empty`, and `topo::validate` passes it.
+/// `Body::face_lift` lifts the wall's outline alone, a lone vertex being
+/// no ring of the region (`FaceView::area_loops`). The mesh's own loop
+/// walk still refuses the face `EmptyLoop`
+/// (`work/tesslane/mesh-walk-refuses-a-face-holding-a-lone-ring.md`).
 #[test]
-fn a_ring_that_is_one_vertex_answers_typed() {
+fn a_ring_that_is_one_vertex_bounds_no_area() {
     let mut body = rod(1.0, -2.0, 4.0);
     let (fk, _) = body
         .faces()
@@ -1890,18 +1892,17 @@ fn a_ring_that_is_one_vertex_answers_typed() {
         "the wall holds one ring, a lone vertex, and the body validates"
     );
     let band = geom_core::Band::linear(tol()).expect("the probes' band");
-    assert_eq!(
-        body.face_lift(fk, band).err(),
-        Some(topo::pcurves::RingPlacementError::RingEmpty { ring: rings[0] }),
-        "the door names the empty ring"
+    let lift = body.face_lift(fk, band).expect("the wall's lift");
+    assert!(
+        lift.rings().is_empty(),
+        "a lone vertex is no ring of the lift"
     );
     match mesh::tessellate(&body, 1e-2, tol()) {
-        Err(mesh::TessellateError::DomainUnread { face, cause }) => assert!(
-            face == fk && *cause == topo::pcurves::RingPlacementError::RingEmpty { ring: rings[0] },
-            "the mesh refuses the wall with the door's cause, got {face:?} {cause:?}"
-        ),
+        Err(mesh::TessellateError::EmptyLoop { face }) => {
+            assert_eq!(face, fk, "the mesh's walk names the wall");
+        }
         other => panic!(
-            "expected DomainUnread, got {:?}",
+            "expected the mesh walk's EmptyLoop, got {:?}",
             other.map(|m| m.patches.len())
         ),
     }

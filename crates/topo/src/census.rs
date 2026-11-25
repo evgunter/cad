@@ -58,8 +58,8 @@
 //!   F5). Cone, torus and NURBS sides are reach-tested like any
 //!   other — every surface kind has a sound cheap reach bound
 //!   ([`face_reach`]); what refuses without a distance test is a
-//!   DESCRIPTION with no claim in it (a placeholder patch), not a
-//!   kind. A cross-key face–face record on such a pair is read by the
+//!   face with no claim to bound (a pending face, a net that is not
+//!   finite), not a kind. A cross-key face–face record on such a pair is read by the
 //!   tangent lane where the carriers derive a closed-form line (plane ×
 //!   cylinder, parallel cylinders) and refused typed where they do not,
 //!   so the class is never silently passed. One
@@ -310,6 +310,7 @@
 //! identity claim about the carriers — what the declared pair itself
 //! must satisfy is the confirm pass's, on C3's ladder.
 
+use geom_core::UnitVec3;
 use std::collections::BTreeSet;
 
 use crate::live::NAMES_ONLY_LIVE;
@@ -333,7 +334,6 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey}
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
-use crate::null::CurveGeom;
 use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
@@ -359,7 +359,7 @@ struct EdgeGeo<T: Real> {
     /// body holds.
     points: [Option<PointKey>; 2],
     /// The unit direction from `p0` to `p1`.
-    dir: Vec3<T>,
+    dir: UnitVec3<T>,
     /// The length from `p0` to `p1` (positive on tier-2 bodies).
     len: T,
     /// The two adjacent faces (structural-adjacency exclusions).
@@ -373,7 +373,7 @@ struct EdgeGeo<T: Real> {
 #[derive(Clone, Copy)]
 struct Span<T: Real> {
     p0: Point3<T>,
-    dir: Vec3<T>,
+    dir: UnitVec3<T>,
     at: (T, T),
     /// The span's two end points: an edge's stored vertices, as given,
     /// or a stretch's ends evaluated on its edge's line.
@@ -458,7 +458,10 @@ impl<T: Real> Spans<T> for Stretch<'_, T> {
             p0: e.p0,
             dir: e.dir,
             at: self.at,
-            ends: [e.p0 + e.dir * self.at.0, e.p0 + e.dir * self.at.1],
+            ends: [
+                e.p0 + e.dir.get() * self.at.0,
+                e.p0 + e.dir.get() * self.at.1,
+            ],
             points: [None; 2],
             produced: from + from + self.at.0.abs() + self.at.1.abs(),
             stored: false,
@@ -650,7 +653,7 @@ impl CensusTrace {
 /// plane; pruning drops only such spurious escalations), admitted as
 /// such by the differential suites, never absorbed. No row exhibits a
 /// member of the class
-/// (`work/contacthold/the-census-filters-named-difference-has-no-witness-row.md`).
+/// (`work/censusread/the-census-filters-named-difference-has-no-witness-row.md`).
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is
@@ -928,6 +931,9 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
 /// dangling key), the touch analysis reports
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
+/// The census reads an edge through [`crate::Body::edge`], so a stale
+/// edge stays its own miss; the curve past a resolved edge is a link
+/// ([`crate::live::EdgeView::curve`]), and a dangling one panics.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -1603,17 +1609,17 @@ fn line_edge<T: Real>(geo: &Geo<T>, e: EdgeKey) -> Option<&EdgeGeo<T>> {
 fn meeting_point<T: Real>(geo: &Geo<T>, (p, q): (EntityId, EntityId)) -> Option<Point3<T>> {
     let line_plane = |e: EdgeKey, f: FaceKey| {
         let (e, f) = (line_edge(geo, e)?, planar_face(geo, f)?);
-        let along = e.dir.dot(f.normal);
-        bounded(e.p0 + e.dir * ((f.origin - e.p0).dot(f.normal) / along))
+        let along = e.dir.get().dot(f.normal);
+        bounded(e.p0 + e.dir.get() * ((f.origin - e.p0).dot(f.normal) / along))
     };
     match (p, q) {
         (EntityId::Vertex(v), _) | (_, EntityId::Vertex(v)) => geo.vmap.get(&v).copied(),
         (EntityId::Edge(a), EntityId::Edge(b)) => {
             let (a, b) = (line_edge(geo, a)?, line_edge(geo, b)?);
-            let k = a.dir.dot(b.dir);
+            let k = a.dir.get().dot(b.dir.get());
             let w = a.p0 - b.p0;
-            let s = (k * b.dir.dot(w) - a.dir.dot(w)) / (T::one() - k.powi(2));
-            bounded(a.p0 + a.dir * s)
+            let s = (k * b.dir.get().dot(w) - a.dir.get().dot(w)) / (T::one() - k.powi(2));
+            bounded(a.p0 + a.dir.get() * s)
         }
         (EntityId::Edge(e), EntityId::Face(f)) | (EntityId::Face(f), EntityId::Edge(e)) => {
             line_plane(e, f)
@@ -1945,7 +1951,7 @@ fn face_cone<T: Decide>(
             // at its length, not a unit tangent ([`curved::edge_tangent_at`]):
             // the corner's lever is that length.
             let along = match geo.line_edge(e) {
-                Some(g) => Departure::Exact(g.dir * g.len),
+                Some(g) => Departure::Exact(g.dir.get() * g.len),
                 None => {
                     let mut refused = Vec::new();
                     match curved::tangent_on_interior(body, e, q, band, &mut refused) {
@@ -2028,8 +2034,9 @@ fn placed<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
     let plane = body.face(f).and_then(|view| {
-        held.check(view.surface(), band);
-        match *view.surface() {
+        let surface = view.surface().ok()?;
+        held.check(surface, band);
+        match *surface {
             geom::Surface::Plane { frame, .. } => {
                 let normal = frame.axis();
                 Some(normal)
@@ -2362,7 +2369,7 @@ fn pair_contact<T: Decide>(
     // a sphere and a plane, or two spheres. A sphere against any other
     // carrier (a ball seated in a bore meets it along a circle) is the
     // line lane's, which derives no line for it.
-    let kind = |f: FaceKey| body.face(f).map(|d| d.surface().kind());
+    let kind = |f: FaceKey| body.face(f).and_then(|d| Some(d.surface().ok()?.kind()));
     match (kind(fx), kind(fy)) {
         (
             Some(geom::SurfaceKind::Sphere),
@@ -2377,7 +2384,7 @@ fn pair_contact<T: Decide>(
         Ok(crate::boolean::RestTangent::Line {
             carrier: geom::Curve3::Line(geom::Line { dir, .. }),
             ..
-        }) => Some(PairContact::Line(dir.normalize())),
+        }) => Some(PairContact::Line(dir.get().normalize())),
         _ => None,
     }
 }
@@ -2443,11 +2450,7 @@ fn edge_line_span<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<(geom::Line<T>, (T, T))> {
-    let curve = body
-        .edges
-        .get(ek)
-        .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)?;
+    let curve = body.edge(ek)?.certified()?;
     Some((curve.carrier().as_line()?, curve.params()))
 }
 
@@ -2487,7 +2490,7 @@ fn edge_geo<T: Real>(body: &Body<T>, key: EdgeKey) -> Option<EdgeGeo<T>> {
         p0,
         p1,
         points: [Some(k0), Some(k1)],
-        dir: chord.normalize(),
+        dir: UnitVec3::squared(chord),
         len: chord.norm(),
         f_plus,
         f_minus,
@@ -2542,7 +2545,7 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
             if let Some(((lo, hi), _)) = overlap {
                 found.push(CollinearOverlap {
                     edges: [ea.key, eb.key],
-                    ends: [ea.p0 + ea.dir * lo, ea.p0 + ea.dir * hi],
+                    ends: [ea.p0 + ea.dir.get() * lo, ea.p0 + ea.dir.get() * hi],
                 });
             }
         }
@@ -2675,8 +2678,9 @@ impl WedgeRefusal {
 
 /// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) const WEDGE_UNREAD: [TouchUnread; 6] = [
+pub(crate) const WEDGE_UNREAD: [TouchUnread; 7] = [
     TouchUnread::Curved(CurvedUnread::Unreadable),
+    TouchUnread::PendingFace,
     TouchUnread::NormalFault(NormalAbort::KernelFault),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[0]),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[1]),
@@ -2815,6 +2819,13 @@ fn wedges_overlap<P, W, D>(
     }
 }
 
+/// Whether `face`'s surface slot is pending: the reading the normal doors'
+/// `None` folds in with a spline chart's, told apart where a refusal
+/// names its cause.
+fn is_pending<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
+    body.face(face).is_some_and(|f| f.slot().is_pending())
+}
+
 /// `e`'s material wedge ([`line_wedges`]), its sheets read at `at`, a
 /// point of the edge.
 fn wedge<T: Decide>(
@@ -2825,6 +2836,9 @@ fn wedge<T: Decide>(
 ) -> Result<Wedge<T>, WedgeRefusal> {
     let normal =
         |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, at, band) {
+            Ok(_) if is_pending(body, face) => {
+                Err(WedgeRefusal::Unread(e.key, TouchUnread::PendingFace))
+            }
             Ok(Some(n)) => Ok(n),
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
@@ -2845,10 +2859,10 @@ fn wedge<T: Decide>(
     // on `f_minus`; each sheet is the face's normal crossed with its
     // half's direction, which points into the face.
     let (n_plus, n_minus) = (normal(e.f_plus)?, normal(e.f_minus)?);
-    let own = n_plus.vec().cross(e.dir);
-    let next = n_minus.vec().cross(-e.dir);
+    let own = n_plus.vec().cross(e.dir.get());
+    let next = n_minus.vec().cross(-e.dir.get());
     let arm = e.len;
-    let shape = geom_brep::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band)
+    let shape = geom_brep::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir.get(), band)
         .map_err(|fault| match fault {
             geom_brep::sector_shape::SectorFault::Rung {
                 rung: geom_brep::sector_shape::SectorRung::Straight { .. },
@@ -2865,7 +2879,7 @@ fn wedge<T: Decide>(
             }
         })?;
     Ok(Wedge {
-        axis: e.dir,
+        axis: e.dir.get(),
         own: shape.unit_own,
         next: shape.unit_next,
         inside: shape
@@ -2930,7 +2944,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let mut vertex_faces: std::collections::BTreeMap<VertexKey, BTreeSet<FaceKey>> =
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
-        let plane = match body.surfaces.get(face.surface) {
+        let plane = match body.get_surface(face.surface).ok() {
             Some(&geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((origin, normal))
@@ -3524,7 +3538,7 @@ fn read_containment<V>(
         }
         Err(
             e @ (ContainError::Uncrossable(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
@@ -3772,7 +3786,7 @@ fn ef_bound_backed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> bool {
-    let q = e.p0 + e.dir * cut.s;
+    let q = e.p0 + e.dir.get() * cut.s;
     match cut.at {
         CutAt::Crossing(g) => {
             return declared.ee_recorded(e.key, g)
@@ -4332,7 +4346,7 @@ fn span_clear_as<T: Decide>(
         edge: e,
         at: (lo * e.len, hi * e.len),
     };
-    let middle = e.p0 + e.dir * (geom::mid_param(lo, hi) * e.len);
+    let middle = e.p0 + e.dir.get() * (geom::mid_param(lo, hi) * e.len);
     let half = (hi - lo) * e.len * T::from_f64(0.5);
     let Some(face) = body.get_face(f.key) else {
         return Some(false);
@@ -4717,7 +4731,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.face(f).map(|f| f.surface()) else {
+    let Some(Ok(surface)) = body.face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -4755,7 +4769,7 @@ fn curved_overlap_cells<T: Decide>(
                 continue;
             }
         }
-        let mid = e.p0 + e.dir * geom::mid_param(pair[0], pair[1]);
+        let mid = e.p0 + e.dir.get() * geom::mid_param(pair[0], pair[1]);
         // The midpoint is on `f`'s carrier as the edge is: decided there
         // above (`line_on_quadric_carrier`, at the ends and the
         // midpoint), with no margin of the point in hand, so held in band.
@@ -4793,6 +4807,7 @@ fn edge_in_curved_face<T: Decide>(
         why,
     };
     let floor = match crate::face_normal::face_outward_normal_at(body, f, p, band) {
+        Ok(_) if is_pending(body, f) => return Some(undecided(TouchUnread::PendingFace)),
         Ok(Some(n)) => n.vec(),
         Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
             return Some(undecided(TouchUnread::InBand));
@@ -4823,7 +4838,7 @@ fn edge_in_curved_face<T: Decide>(
             Ok(Sign::Zero) | Err(_) => return Some(undecided(TouchUnread::InBand)),
         }
     }
-    let ray = floor.cross(e.dir).normalize();
+    let ray = floor.cross(e.dir.get()).normalize();
     for v in [ray, -ray, -floor] {
         match strictly_inside(&w, v, band) {
             Ok(false) => {}
@@ -4956,7 +4971,7 @@ fn ef_overlap_cells<T: Decide>(
                 continue;
             }
         }
-        let mid = e.p0 + e.dir * geom::mid_param(lo.s, hi.s);
+        let mid = e.p0 + e.dir.get() * geom::mid_param(lo.s, hi.s);
         if contain(body, f.plane(), mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
@@ -4983,15 +4998,30 @@ fn boundary_crossings<T: Decide>(
     use crate::splitting::containment::carrier_loop;
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
-    let Some(face) = body.get_face(f.key) else {
+    let Some(face) = body.face(f.key) else {
         census_fault(
             format_args!("face {:?} does not resolve", f.key),
             NAMES_ONLY_LIVE,
         )
     };
+    // A lone ring holds no edge to cross: an edge through its vertex is
+    // a vertex-edge contact, which pass 2 reads over every vertex
+    // ([`sweep_vertex_edge`]). A face with no outline has no boundary
+    // edge to read.
+    let area = match face.area_loops() {
+        Ok(area) => area,
+        Err(no) => {
+            refused(
+                CrossRefusal::Unsupported(ContainError::EmptyLoop(no.r#loop)),
+                errors,
+            );
+            return None;
+        }
+    };
     let mut cuts = Vec::new();
-    for lk in face.loop_keys() {
-        let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
+    for (cycle, _) in area.cycles() {
+        let lk = cycle.key();
+        let lp = match carrier_loop(cycle, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
@@ -5087,9 +5117,8 @@ fn edge_crossings<T: Decide>(
 ) -> Option<Vec<(T, CutAt)>> {
     use crate::splitting::containment::LoopEdge;
     let stored = body
-        .get_edge(side.key)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(CurveGeom::certified);
+        .edge(side.key)
+        .and_then(crate::live::EdgeView::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
     let straight = stored.is_none_or(|c| !c.carrier().is_curved());
@@ -5143,7 +5172,7 @@ fn meetings<T: Decide>(
     let (a, b) = side.ends;
     // A straight edge with no certified curve of its own is the segment
     // between its loop ends.
-    let chord = geom::Curve3::line(a, (b - a).normalize());
+    let chord = geom::Curve3::line(a, UnitVec3::squared(b - a));
     let (boundary, at) = match (edge, stored) {
         (LoopEdge::Chord, Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
@@ -5288,7 +5317,7 @@ fn pair_edge_edge<T: Decide>(
             // its sides: no record makes two wedges' overlap valid (D1).
             // An aligned pair holding it is that overlap, reported once
             // as the pair's interference.
-            let q = ea.p0 + ea.dir * geom::mid_param(span.0, span.1);
+            let q = ea.p0 + ea.dir.get() * geom::mid_param(span.0, span.1);
             let mut certified = false;
             let answered = declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
                 certified =
@@ -5528,7 +5557,10 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
+        Margin::levered(
+            a.dir.get().cross(b.dir.get()).norm(),
+            a.extent().min(b.extent()),
+        ),
         band,
         errors,
     )
@@ -5767,7 +5799,7 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
     let [from_lo, from_hi] = reach[0][0];
     LinesClosest {
         gap: [lo.max(T::zero()), hi],
-        point: ea.p0 + ea.dir * geom::mid_param(from_lo, from_hi),
+        point: ea.p0 + ea.dir.get() * geom::mid_param(from_lo, from_hi),
         reach,
     }
 }
@@ -5803,7 +5835,7 @@ impl<T: Real> Closest<T> for Stretch<'_, T> {
 
 /// Two edge lines' frame: `n = da × db`, `|n|²` and `s = |n|`.
 fn lines_frame<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> (Vec3<T>, T, T) {
-    let n = ea.dir.cross(eb.dir);
+    let n = ea.dir.get().cross(eb.dir.get());
     let nn = n.norm_squared();
     (n, nn, nn.sqrt())
 }
@@ -5819,7 +5851,7 @@ fn gap_from_ends<T: Real>(e: Vec3<T>, n: Vec3<T>, s: T) -> [T; 2] {
 /// The axis `w = d_y × (d_x × d_y)/|n|²` whose dot with `q − p` is how
 /// far `x`'s end `p` stands from the closest point, `q` on `y`'s line.
 fn reach_axis<T: Real>(x: &EdgeGeo<T>, y: &EdgeGeo<T>, nn: T) -> Vec3<T> {
-    y.dir.cross(x.dir.cross(y.dir)) / nn
+    y.dir.get().cross(x.dir.get().cross(y.dir.get())) / nn
 }
 
 /// A reach read from an end `e` short of a point of the other line,
@@ -5847,10 +5879,10 @@ fn ee_cross_point<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 /// one reading's projections ([`geom_core::one_line`]), clipped to
 /// `ea`'s span by value.
 fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
-    let (s0, s1) = on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), T::zero()).b;
+    let (s0, s1) = on_one_line(ea.dir.get(), (ea.p0, ea.p1), (eb.p0, eb.p1), T::zero()).b;
     let lo = s0.min(s1).max(T::zero());
     let hi = s0.max(s1).min(ea.len);
-    ea.p0 + ea.dir * geom::mid_param(lo, hi)
+    ea.p0 + ea.dir.get() * geom::mid_param(lo, hi)
 }
 
 /// Whether two non-parallel edges cross at a point inside both their
@@ -6215,7 +6247,7 @@ fn collinear_overlap<T: Decide>(
     // `at`: of stored vertices as given (`produced` zero), or of a
     // stretch's ends charged for their evaluation.
     let along = on_one_line(
-        ea.dir,
+        ea.dir.get(),
         (ea.p0, ea.ends[1]),
         (eb.ends[0], eb.ends[1]),
         eb.produced,
@@ -6269,9 +6301,9 @@ fn collinear_overlap<T: Decide>(
 fn overlap_gap<T: Real>(ea: &Span<T>, eb: &Span<T>, (t0, t1): (T, T)) -> Margin<T> {
     let lo = t0.min(t1).max(ea.at.0);
     let run = (t0.max(t1).min(ea.at.1) - lo).max(T::zero());
-    let off = |w: Vec3<T>| eb.dir.cross(w.cross(eb.dir));
-    let start = off(ea.p0 + ea.dir * lo - eb.p0);
-    let turn = off(ea.dir);
+    let off = |w: Vec3<T>| eb.dir.get().cross(w.cross(eb.dir.get()));
+    let start = off(ea.p0 + ea.dir.get() * lo - eb.p0);
+    let turn = off(ea.dir.get());
     // An exactly parallel pair has no turn, its offset the same all
     // along the run; the floor only keeps its 0/0 off the division.
     let rate = turn.norm_squared().max(T::from_f64(f64::MIN_POSITIVE));
@@ -6370,7 +6402,7 @@ fn ee_collinear_lane<T: Decide>(
                 a: ea.key,
                 b: eb.key,
             },
-            witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
+            witness: witness(ea.p0 + ea.dir.get() * geom::mid_param(lo, hi)),
             margin: Some(margin),
         });
     }
@@ -6392,13 +6424,13 @@ fn ee_overlap_sides<T: Decide>(
     (lo, hi): (T, T),
     band: Band,
 ) -> Option<ValidationError> {
-    let ends = [ea.p0 + ea.dir * lo, ea.p0 + ea.dir * hi];
+    let ends = [ea.p0 + ea.dir.get() * lo, ea.p0 + ea.dir.get() * hi];
     let edges = if ea.key < eb.key {
         [ea.key, eb.key]
     } else {
         [eb.key, ea.key]
     };
-    let at = witness(ea.p0 + ea.dir * geom::mid_param(lo, hi));
+    let at = witness(ea.p0 + ea.dir.get() * geom::mid_param(lo, hi));
     let (why, unread) = match line_wedges(body, &[CollinearOverlap { edges, ends }], band) {
         Ok(None) => return None,
         Ok(Some(_)) => {
@@ -6441,7 +6473,7 @@ fn ee_bound_backed<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Bound {
     let va = edge_vertex_at(ea, s, band, errors);
-    let q = ea.p0 + ea.dir * s;
+    let q = ea.p0 + ea.dir.get() * s;
     let sb = eb.span().line().param(q);
     let vb = edge_vertex_at(eb, sb, band, errors);
     let mut holds = |cells, x: &[FaceKey], y: &[FaceKey]| {
@@ -6769,7 +6801,7 @@ fn curved_same_side_pairs<T: Decide>(
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
 ) -> CurvedSameSide {
-    let surface = |f: FaceKey| body.surfaces.get(body.get_face(f)?.surface);
+    let surface = |f: FaceKey| body.face(f)?.surface().ok();
     let kind = |f: FaceKey| {
         surface(f)
             .filter(|s| geom_brep::carrier_eq::exact_curved(s))
@@ -6931,7 +6963,7 @@ fn thin_overlap<T: Decide>(geo: &Geo<T>, fa: &FaceGeo<T>, fb: &FaceGeo<T>, band:
         point_hull(along).map(|(lo, hi)| (lo.x, hi.x))
     };
     geo.sides_of(fa.key).chain(geo.sides_of(fb.key)).any(|e| {
-        let d = fa.normal.cross(e.dir).normalize();
+        let d = fa.normal.cross(e.dir.get()).normalize();
         let (Some((la, ha)), Some((lb, hb))) = (span(&pa, d), span(&pb, d)) else {
             return false;
         };
@@ -7261,7 +7293,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.record().surface,
-            kind: f.surface().kind(),
+            kind: f.surface().ok()?.kind(),
             edges: body
                 .unchecked_face_boundary(f.record())
                 .filter_map(|read| match read {
@@ -7527,6 +7559,25 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
+/// **How far a face reaches along `aim`**: bounds on `x·â` over the
+/// face, its cover read along the aim, with a sphere face's pole-side
+/// cut ([`crate::cover::face_cover_toward`]). `None` for a face with no
+/// cover.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+pub(crate) fn face_reach_toward<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    aim: geom_core::UnitVec3<T>,
+) -> Option<(T, T)> {
+    crate::cover::face_cover_toward(body, f, band, aim)
+        .ok()
+        .map(|cover| cover.range_along(aim.get()))
+}
+
 /// The touch lane's recourse for a designed contact it cannot read yet.
 macro_rules! designed_contact {
     () => {
@@ -7614,6 +7665,8 @@ pub(crate) enum Undecided {
     VolumeUncertified,
     /// Arm 2: an instance with a face kind the door does not serve.
     FaceKindUnsupported,
+    /// Arm 2: an instance with a face that has no surface yet.
+    PendingFace,
     /// Arm 2: an instance whose topology the door could not walk.
     CorruptInstance,
     /// Arm 2: an instance with a lone-vertex loop where the reading
@@ -7691,12 +7744,11 @@ impl Undecided {
             // Neither this nor `Unclaimable` is gated by distance: a
             // face with no sound reach bound is refused at ANY
             // separation, so moving the parts is no way through. A
-            // placeholder surface is also reported on its own, as the
-            // kernel defect it is (`UncertifiableSurface`).
+            // pending face is also reported on its own (`UncertifiableSurface`).
             Self::NoSoundReach => {
-                "one face has no extent the check can bound (a placeholder surface, or an \
-                 edge whose curve has no bounds), so no distance clears it. There is no way \
-                 through yet for this shape"
+                "one face has no extent the check can bound (a face with no surface yet, or \
+                 an edge whose curve has no bounds), so no distance clears it. There is no \
+                 way through yet for this shape"
             }
             Self::Unclaimable => {
                 "a face of one has no extent the check can bound, so where that part ends \
@@ -7754,6 +7806,10 @@ impl Undecided {
                  is not a flat cut) the check cannot yet test a point against. Recourse: move the parts until \
                  their bounding boxes no longer overlap"
             }
+            Self::PendingFace => {
+                "one part has a face with no surface yet. Recourse: describe every face's \
+                 surface before checking the parts"
+            }
             Self::CorruptInstance => concat!(
                 "one part's topology could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
@@ -7779,7 +7835,9 @@ impl Undecided {
             E::Escalated { .. } => Self::WitnessTooClose(None),
             E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
-            E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
+            E::RayExhausted | E::RegionRayExhausted { .. } | E::Loop(L::RayExhausted { .. }) => {
+                Self::WitnessGrazed
+            }
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
@@ -7789,6 +7847,7 @@ impl Undecided {
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. }
             | E::Loop(L::Uncrossable(_)) => Self::FaceKindUnsupported,
+            E::PendingFace { .. } => Self::PendingFace,
             E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::Loop(L::CorruptLoop { .. }) => {
                 Self::CorruptInstance
             }
@@ -7962,7 +8021,9 @@ enum Recorded {
 
 mod curved;
 pub(crate) use curved::{EdgeSpan, edge_span};
-mod depth_gap;
+pub(crate) mod depth_gap;
+mod face_pair;
+pub(crate) use face_pair::faces_apart;
 #[cfg(test)]
 mod depth_gap_fuzz;
 mod in_plane;
@@ -8160,6 +8221,7 @@ impl TouchUnread {
             | Self::NormalFault(_) => Undecided::Touch(self),
             Self::Corrupt => Undecided::CorruptInstance,
             Self::LoneLoop => Undecided::LoneLoop,
+            Self::PendingFace => Undecided::PendingFace,
         }
     }
 
@@ -8254,6 +8316,7 @@ impl TouchUnread {
             ),
             Self::Corrupt => Undecided::CorruptInstance.what(),
             Self::LoneLoop => Undecided::LoneLoop.what(),
+            Self::PendingFace => Undecided::PendingFace.what(),
         }
     }
 
@@ -8371,6 +8434,10 @@ impl TouchUnread {
                  does not read. ",
                 geom_core::kernel_or_file_defect_ending!()
             ),
+            Self::PendingFace => {
+                "a face of the part there has no surface yet. Recourse: describe every \
+                 face's surface first"
+            }
         };
         said.into()
     }
@@ -9277,7 +9344,10 @@ impl<T: Decide> FaceSector<T> {
         // a defect (tier 1 admits none); a lone-vertex loop is no ring of
         // the polygon; a face that resolves off a plane is curved.
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = face.surface().clone();
+        let surface = face
+            .surface()
+            .map_err(|_| TouchUnread::PendingFace)?
+            .clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         fg.walked?;
         // A planar face at rest has an outward normal: none is a defect.
@@ -9559,10 +9629,11 @@ fn tangent_sectors<T: Decide>(
 ) -> Result<Vec<crate::link::TangentPiece<T>>, TouchUnread> {
     use crate::link::{Bound, TangentFan};
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body
-        .get_surface(face.surface)
-        .cloned()
-        .ok_or(TouchUnread::Corrupt)?;
+    let surface = match body.get_surface(face.surface) {
+        Ok(surface) => surface.clone(),
+        Err(crate::SurfaceMiss::Stale) => return Err(TouchUnread::Corrupt),
+        Err(crate::SurfaceMiss::Pending) => return Err(TouchUnread::PendingFace),
+    };
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     // A lone-vertex loop has no sector to give but at a corner held.
     let mut cycles = Vec::new();
@@ -9713,10 +9784,9 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
 /// Whether edge `e`'s certified carrier is a circle
 /// ([`crate::link::Bound::circle`]).
 fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
-    body.get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|g| g.certified())
-        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
+    body.edge(e)
+        .and_then(crate::live::EdgeView::certified)
+        .is_some_and(|c| c.carrier().as_circle().is_some())
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
@@ -9748,6 +9818,7 @@ fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
         // may hold both sides of a fold, and refuses by the crease's own
         // standing: in band, or a limit where decided.
         SectorFaceError::Crease { reading, .. } => TouchUnread::kept(Refusal::of_crease(*reading)),
+        SectorFaceError::Pending { .. } => TouchUnread::PendingFace,
         SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
         SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
@@ -9773,6 +9844,7 @@ fn foot_normal<T: Decide>(
             Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
         }
         Err(FootNormalError::Unread) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        Err(FootNormalError::Pending) => Err(TouchUnread::PendingFace),
     }
 }
 
@@ -9923,7 +9995,10 @@ impl<T: Decide> Link<T> {
             }
             let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
-                surface: face.surface().clone(),
+                surface: face
+                    .surface()
+                    .map_err(|_| TouchUnread::PendingFace)?
+                    .clone(),
                 sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
                 along,
@@ -9970,7 +10045,9 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = face.surface();
+    let surface = face
+        .surface()
+        .map_err(|crate::Pending| TouchUnread::PendingFace)?;
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };
@@ -10002,51 +10079,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Option<crate::props::ShellRole> {
     crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
-}
-
-/// A face's world reach ([`face_reach`]): its low and high corners.
-type WorldReach<T> = (Point3<T>, Point3<T>);
-
-/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
-/// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, either face's own normal where it
-/// is planar, the offset from an axis or centre either face proposes
-/// to the other's nearest boundary segment point ([`depth_gap::toward`]),
-/// either face's arc chords' normals, and the line between the two
-/// carriers' axes or centres ([`depth_gap::across`]). Each face comes
-/// with its world reach, the lever its normal is read over; `proposed`
-/// is the directions [`depth_gap::toward`] and [`depth_gap::across`]
-/// read off the two faces.
-///
-/// The test is the boolean's narrow phase
-/// ([`crate::separating::apart_by`]): both faces' covers are
-/// read along the direction, a sphere face's with its pole-side cut
-/// along it ([`crate::cover::face_cover_toward`]), and the pair
-/// clears only on a gap, less both faces' [`sweep_pad`], decided
-/// definitely positive at this lane's scalar. Each cover holds its
-/// face's locus, so the gap proves the loci disjoint, as a world-axis
-/// gap does.
-fn backstop_apart<T: Decide>(
-    body: &Body<T>,
-    (fa, ra): (FaceKey, WorldReach<T>),
-    (fb, rb): (FaceKey, WorldReach<T>),
-    proposed: Vec<geom_core::UnitVec3<T>>,
-    band: Band,
-) -> bool {
-    use crate::separating::{Item, apart_by, planar_axis};
-    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
-        .into_iter()
-        .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
-        .collect();
-    axes.extend(proposed);
-    apart_by(
-        (body, Item::Face(fa)),
-        (body, Item::Face(fb)),
-        &axes,
-        sweep_pad(band),
-        band,
-        &|body, f, aim| crate::cover::face_cover_toward(body, f, band, aim).ok(),
-    )
 }
 
 /// What the material test of one ordering read: every vertex of
@@ -10148,9 +10180,10 @@ pub(crate) fn answered_in_band(
 ///    land here; the certified excluder this stands in for is the C9
 ///    exclusion ring. The reach boxes are SOUND supersets: [`face_reach`]
 ///    is the face's cover's box ([`crate::cover::face_cover`],
-///    the one reading of a face), so no bound is derived twice. A
-///    description with no claim in it (a placeholder patch) refuses
-///    WITHOUT a distance test rather than under-claiming its reach. A
+///    the one reading of a face), so no bound is derived twice. A face
+///    with no claim to bound (a pending face, a net that is not finite)
+///    refuses WITHOUT a distance test rather than under-claiming its
+///    reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
@@ -10215,7 +10248,7 @@ pub(crate) fn answered_in_band(
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
 /// (`census_backstop_gap` — metre coordinate differences — then the
-/// turned directions of [`backstop_apart`], then a gap in depth about
+/// turned directions of [`faces_apart`], then a gap in depth about
 /// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
 /// nested walls no direction separates: [`depth_gap`], then two planar
 /// faces apart where each meets the other's plane, edge gaps and
@@ -10366,25 +10399,26 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .map(|f| (f, false))
         .chain(planar_keys.iter().map(|f| (f, true)))
     {
-        // A placeholder surface is "no description yet" (mid-surgery
+        // A pending surface is "no description yet" (mid-surgery
         // scaffolding): there is no geometry to be within reach OF —
         // excluded from the backstop. What licenses the exclusion is a
         // named check, not an accident: the census's only production
         // caller is [`crate::validate::validate_pseudomanifold`], and
         // it runs `census_and_certify` ONLY when `tier3_local_checks`
         // came back empty, whose check 1 pushes `UncertifiableSurface`
-        // for every placeholder face. So no body reaching this arm
+        // for every pending face. So no body reaching this arm
         // through the public door carries one. The unsound direction is
         // a SECOND caller of `census_and_certify` that does not gate on
         // tier 3 — this skip would go quiet on faces the arm can say
         // nothing about. (The in-src rows below are exactly that
         // caller, deliberately: they run open euler scaffolds below
-        // tier 3's bar, and their seed faces still carry the mvfs
-        // placeholder. They are why this line is reachable at all.)
-        if matches!(
-            body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
-            Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
-        ) {
+        // tier 3's bar, and their seed faces are still pending. They are
+        // why this line is reachable at all.)
+        if body
+            .get_face(f)
+            .and_then(|d| body.surface_slot(d.surface))
+            .is_some_and(crate::SurfaceSlot::is_pending)
+        {
             continue;
         }
         let Some(solid) = solid_of(f) else { continue };
@@ -10546,60 +10580,33 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
-            // A DESCRIPTION with no claim in it refuses without a
-            // distance test (`face_reach` docs — the loud direction).
-            // Every surface KIND has a reach bound; what has none is a
-            // placeholder patch, or a face whose boundary carries an
-            // unboxable curve.
+            // A face with no claim to bound refuses without a distance
+            // test (`face_reach` docs — the loud direction). Every
+            // surface KIND has a reach bound; what has none is a pending
+            // face, a net that is not finite, or a face whose boundary
+            // carries an unboxable curve.
             let before = errors.len();
             if let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) {
                 // Definite separation along ANY direction clears the
                 // pair: the margin is the gap between the sound reaches
                 // along it — a metre coordinate difference (audit row).
-                // The world axes are read first; then the directions
-                // that turn with the pair ([`backstop_apart`]).
-                let mut cleared = false;
-                for (alo, ahi, blo, bhi) in [
+                // The world axes are read first; then the face pair's
+                // own reading ([`faces_apart`]).
+                let world = [
                     (alo.x, ahi.x, blo.x, bhi.x),
                     (alo.y, ahi.y, blo.y, bhi.y),
                     (alo.z, ahi.z, blo.z, bhi.z),
-                ] {
+                ]
+                .into_iter()
+                .any(|(alo, ahi, blo, bhi)| {
                     let gap = (blo - ahi).max(alo - bhi);
-                    if matches!(
+                    matches!(
                         decide("census_backstop_gap", Margin::of(gap), band),
                         Ok(Sign::Positive)
-                    ) {
-                        cleared = true;
-                        break;
-                    }
-                }
-                // Both faces are read once for their depths, which aim
-                // the offset directions and bound the depth gap.
-                let reads = if cleared {
-                    None
-                } else {
-                    depth_gap::face_read(body, a.face, band)
-                        .zip(depth_gap::face_read(body, b.face, band))
-                };
-                let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
-                    let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, band));
-                    dirs
-                });
-                if !cleared
-                    && !backstop_apart(
-                        body,
-                        (a.face, (alo, ahi)),
-                        (b.face, (blo, bhi)),
-                        proposed.clone(),
-                        band,
                     )
-                    && !reads.as_ref().is_some_and(|(ra, rb)| {
-                        depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
-                    })
-                    && !(a.planar
-                        && b.planar
-                        && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
+                });
+                if !world
+                    && !faces_apart((body, a.face), (body, b.face), &[], sweep_pad(band), band)
                 {
                     // The lone loop is the cause only where it is what
                     // keeps each face out of the exact sweeps.
@@ -11659,7 +11666,7 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
     let chord = p1 - p0;
     EdgeGeo {
         p1,
-        ..span_along(p0, chord.normalize(), chord.norm())
+        ..span_along(p0, UnitVec3::squared(chord), chord.norm())
     }
 }
 
@@ -11668,13 +11675,13 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
 /// For a span given by where it starts and how it runs (a ray, an edge's
 /// stored line): its direction is the one given, where [`segment`]'s is
 /// read off two ends.
-fn span_along<T: Real>(p0: Point3<T>, dir: Vec3<T>, len: T) -> EdgeGeo<T> {
+fn span_along<T: Real>(p0: Point3<T>, dir: UnitVec3<T>, len: T) -> EdgeGeo<T> {
     EdgeGeo {
         key: EdgeKey::default(),
         v0: VertexKey::default(),
         v1: VertexKey::default(),
         p0,
-        p1: p0 + dir * len,
+        p1: p0 + dir.get() * len,
         points: [None; 2],
         dir,
         len,
@@ -11694,14 +11701,13 @@ fn on_its_line<T: Real>(
     edge: &EdgeGeo<T>,
     (line, (t0, t1)): (geom::Line<T>, (T, T)),
 ) -> EdgeGeo<T> {
-    let (dir, speed) = line.dir.direction_and_length();
     EdgeGeo {
         key: edge.key,
         v0: edge.v0,
         v1: edge.v1,
         f_plus: edge.f_plus,
         f_minus: edge.f_minus,
-        ..span_along(line.at(t0), dir, (t1 - t0) * speed)
+        ..span_along(line.at(t0), line.dir, t1 - t0)
     }
 }
 
@@ -11743,7 +11749,7 @@ pub(crate) struct LinePass<T: Real> {
 /// so over their bodies it changes none yet.
 pub(crate) fn line_passes<T: Real>(
     body: &Body<T>,
-    (from, dir, top): (Point3<T>, Vec3<T>, T),
+    (from, dir, top): (Point3<T>, UnitVec3<T>, T),
     keep: impl Fn(EdgeKey, FaceKey, FaceKey) -> bool,
 ) -> Vec<LinePass<T>> {
     let ray = span_along(from, dir, top);
@@ -11789,6 +11795,11 @@ impl<'b, T: crate::props::AtRestPolicy> RecordConfirm<'b, T> {
             band,
             region,
         }
+    }
+
+    /// The body this confirm reads.
+    pub(crate) fn body(&self) -> &'b Body<T> {
+        self.body
     }
 
     /// Whether a record of `pair` is confirmed: `Ok(false)` where the
@@ -12225,7 +12236,7 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
     band: Band,
     region: Option<T::RegionLane>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
+    let kind = |f: FaceKey| Some(body.face(f)?.surface().ok()?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
@@ -12339,7 +12350,7 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
 /// decides exactly ([`geom_brep::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face(f)
-        .map(|f| f.surface())
+        .and_then(|f| f.surface().ok())
         .is_some_and(geom_brep::carrier_eq::exact_curved)
 }
 
@@ -12595,7 +12606,7 @@ fn shared_interior_witness<T: Decide>(
             .into_iter()
             .filter_map(|v| Some((geo.vmap.get(&v).copied()?, FaceContainment::OnVertex(v))));
         let middles = edges.iter().filter_map(|&e| {
-            let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
+            let curve = body.proven_edge(e).certified()?;
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         probes.extend(
@@ -13842,8 +13853,9 @@ mod tests {
     /// **A `(vertex, edge)` record on a circle edge is witnessed by the
     /// curved lane**: a vertex off the rim's carrier reads stale, as it
     /// would against a line. The record ties the vertex to the rim for the
-    /// self-touch sweep too, where the sheet's corner face there has no
-    /// sector arm: the point refuses undecided, naming that. Red when the
+    /// self-touch sweep too, where the sheet's corner face there is still
+    /// pending, so it has no surface to read: the point refuses undecided,
+    /// naming that. Red when the
     /// arm skips the record or still refuses the circle as unsupported, or
     /// when the self-touch point passes unread.
     #[test]
@@ -13901,11 +13913,11 @@ mod tests {
             errors.iter().any(|e| matches!(
                 e,
                 ValidationError::BoundaryCrossesItselfUndecided {
-                    why: TouchUnread::Curved(CurvedUnread::NoSectorArm),
+                    why: TouchUnread::PendingFace,
                     ..
                 }
             )),
-            "the self-touch point refuses, no sector arm: {errors:?}"
+            "the self-touch point refuses, naming the pending face: {errors:?}"
         );
     }
 
@@ -13941,8 +13953,8 @@ mod tests {
     ///
     /// **Why it fires, exactly — and it is not about where the sheets
     /// are.** Each `cyl_sheet` is its own `mvfs` seed, so a two-sheet
-    /// fixture is a two-INSTANCE body; and each seed FACE keeps the
-    /// mvfs NURBS placeholder, whose control net is poison. A solid
+    /// fixture is a two-INSTANCE body; and each seed FACE stays
+    /// pending, with no surface to bound. A solid
     /// carrying a face with no claimable box can never be the container
     /// ([`sweep_cross_solid_backstop`] arm 2), so both directions refuse
     /// with *"a surface kind with no cheap sound box leaves the
@@ -13954,7 +13966,7 @@ mod tests {
     ///
     /// These fixtures sit below tier 3's closed-body bar and call
     /// `census_and_certify` directly, which is the only door that
-    /// reaches a placeholder face; through `validate_pseudomanifold` the
+    /// reaches a pending face; through `validate_pseudomanifold` the
     /// state cannot be minted.
     ///
     /// The filter is by ENTITY GRANULARITY rather than by count, so a
@@ -13984,21 +13996,19 @@ mod tests {
     /// **What the containment arm actually says about these scaffolds,
     /// and that it is not about where they are.**
     ///
-    /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
-    /// face. A placeholder net is poison, so the solid has no claimable
-    /// extent and can never be the container: arm 2 must reach its
-    /// TYPED refusal for that case. Folding the poison net instead
-    /// yields `Some((NaN, NaN))`, every margin decides neither sign,
-    /// and the arm falls out at its in-band refusal having compared no
-    /// geometry — which reads, in a suite, exactly like the arm
-    /// measuring two overlapping sheets.
+    /// Each `cyl_sheet` leaves its `mvfs` seed face pending. A pending
+    /// face has no cover, so the solid has no claimable extent and can
+    /// never be the container: arm 2 must reach its TYPED refusal for
+    /// that case, not an in-band refusal having compared no geometry —
+    /// which reads, in a suite, exactly like the arm measuring two
+    /// overlapping sheets.
     ///
     /// The second half is what makes that unmistakable: a sheet a
     /// KILOMETRE away produces the byte-identical refusal. If this row
     /// ever fails there, an extent comparison has started happening and
     /// the `face_findings` allowance above needs re-reading.
     #[test]
-    fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
+    fn a_pending_seed_leaves_the_containing_extent_unclaimable() {
         let refusals = |z0: f64, z1: f64| -> Vec<String> {
             let mut body = Body::<f64>::new();
             let (_w1, cyl) = unit_cyl_sheet(
@@ -14043,8 +14053,8 @@ mod tests {
                 && near
                     .iter()
                     .all(|r| r.ends_with(Undecided::Unclaimable.what())),
-            "the placeholder seed must reach the TYPED refusal, not the in-band \
-             fallout of a NaN box: {near:?}"
+            "the pending seed must reach the TYPED refusal, not an in-band \
+             fallout: {near:?}"
         );
         assert_eq!(
             near,
@@ -14094,7 +14104,7 @@ mod tests {
             }
         }
         let net = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-        assert!(!net.is_placeholder());
+        assert!(net.is_finite());
         body.set_face_surface(
             far_wall,
             FaceSurface::New {
@@ -15319,12 +15329,14 @@ mod tests {
     }
     // ---- A described net carrying poison: the reach and box lanes ----
 
-    /// Every mvfs placeholder seed face of `body`, its surface swapped
-    /// for `surface`.
-    fn swap_placeholders(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
+    /// Every pending seed face of `body`, described as `surface`.
+    fn describe_pending_seeds(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
         let seeds: Vec<FaceKey> = body
             .faces()
-            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if p.is_placeholder()))
+            .filter(|(_, f)| {
+                body.surface_slot(f.surface)
+                    .is_some_and(crate::SurfaceSlot::is_pending)
+            })
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
@@ -15418,7 +15430,7 @@ mod tests {
                 Tol::witness(),
             );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-            let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(poisoned));
+            let seeds = describe_pending_seeds(&mut body, &crate::fixtures::poisoned_net(poisoned));
             assert_eq!(seeds.len(), 2, "{what}: one seed face per sheet");
             for &f in &seeds {
                 let reach = face_reach(&body, f, Band::linear(Tol::witness()).unwrap());
@@ -15509,7 +15521,7 @@ mod tests {
             Tol::witness(),
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
+        let seeds = describe_pending_seeds(&mut body, &crate::fixtures::poisoned_net(|_| true));
         let b =
             crate::boxes::face_box(&body, seeds[0], 1e-9, Band::linear(Tol::witness()).unwrap());
         eprintln!("[face_box] masquerade box = {b:?}");
@@ -16502,10 +16514,10 @@ mod tests {
         // walk reads the cap's two-vertex loop on its carriers: each
         // vertex is decided outside the cap, and nothing is refused
         // about a face it is nowhere near, under either strategy.
-        // (The sheet's seed face has a placeholder surface, so the
-        // backstop refuses the sheet×cube instance pair `Undecidable`
-        // under BOTH strategies — a poisoned extent is never pruned;
-        // that shared refusal is not this row's subject.)
+        // (The sheet's seed face is pending, so the backstop refuses the
+        // sheet×cube instance pair `Undecidable` under BOTH strategies —
+        // an extent with no cover is never pruned; that shared refusal
+        // is not this row's subject.)
         let body = half_disc_cap_and_far_cube();
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(
@@ -16551,7 +16563,7 @@ mod tests {
         let cap = body
             .faces()
             .find(|(_, f)| {
-                matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }))
+                matches!(body.get_surface(f.surface), Ok(Surface::Plane { .. }))
                     && match body.loops[f.outer].boundary {
                         LoopBoundary::Cycle { first } => {
                             body.loop_cycle(first).is_some_and(|c| c.len() == 2)
@@ -16621,7 +16633,7 @@ mod tests {
         );
         let cap = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Plane { .. })))
             .map(|(k, _)| k)
             .expect("the cap");
         assert_eq!(
@@ -18461,7 +18473,7 @@ mod tests {
                 .edges
                 .iter()
                 .find(|e| {
-                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                     ends.iter().all(|p| p.y == 0.30 && p.z == 0.5) && close(e.len, 0.9)
                 })
                 .expect("the shelf's y = 0.30 underside edge")
@@ -18481,7 +18493,7 @@ mod tests {
             let f = planar_face(&geo, face).unwrap();
             let mut errors = Vec::new();
             let cuts = boundary_crossings(body, e, f, band(), &mut errors);
-            let at_x = |c: Cut<f64>| ((e.p0 + e.dir * c.s).x, c.at);
+            let at_x = |c: Cut<f64>| ((e.p0 + e.dir.get() * c.s).x, c.at);
             (cuts.map(|c| c.into_iter().map(at_x).collect()), errors)
         }
 
@@ -18510,7 +18522,7 @@ mod tests {
             let got: Vec<_> = cells
                 .iter()
                 .map(|c| {
-                    let x = |cut: Cut<f64>| (e.p0 + e.dir * cut.s).x;
+                    let x = |cut: Cut<f64>| (e.p0 + e.dir.get() * cut.s).x;
                     (x(c.lo), c.lo.at, x(c.hi), c.hi.at, c.mid)
                 })
                 .collect();
@@ -18733,7 +18745,7 @@ mod tests {
                 .edges
                 .iter()
                 .find(|e| {
-                    let ends = [e.p0, e.p0 + e.dir * e.len];
+                    let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                     ends.iter().all(|p| p.y == 0.5 && p.z == 0.0)
                 })
                 .expect("the cube's y = 0.5 bottom edge")
@@ -18821,7 +18833,7 @@ mod tests {
                     .edges
                     .iter()
                     .find(|e| {
-                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                         ends.iter().all(|p| p.y == 0.0 && p.z == 0.0)
                     })
                     .expect("the plate's resting edge");
@@ -18881,7 +18893,7 @@ mod tests {
                     .edges
                     .iter()
                     .find(|e| {
-                        let ends = [e.p0, e.p0 + e.dir * e.len];
+                        let ends = [e.p0, e.p0 + e.dir.get() * e.len];
                         e.f_plus != cap && ends.iter().all(|p| p.x == 0.5 && p.z == z0)
                     })
                     .expect("a cube edge in the cap's plane")
@@ -18922,7 +18934,7 @@ mod tests {
             assert!(!cuts.is_empty(), "the straddling edge is cut");
             for cut in &cuts {
                 assert!(matches!(cut.at, CutAt::CurvedCrossing(_)), "{cuts:?}");
-                let q = e.p0 + e.dir * cut.s;
+                let q = e.p0 + e.dir.get() * cut.s;
                 let off = (0..=4096)
                     .map(|i| {
                         let v =
@@ -19010,7 +19022,7 @@ mod tests {
                 p0: a,
                 p1: b,
                 points: [None; 2],
-                dir: (b - a).normalize(),
+                dir: geom_core::UnitVec3::squared(b - a),
                 len: (b - a).norm(),
                 ..*any
             }
@@ -19029,7 +19041,7 @@ mod tests {
             let f = planar_face(&geo, face).unwrap();
             let mut errors = Vec::new();
             let cells = ef_overlap_cells(body, e, f, &geo, band(), &mut errors);
-            let y = |c: Cut<f64>| (e.p0 + e.dir * c.s).y;
+            let y = |c: Cut<f64>| (e.p0 + e.dir.get() * c.s).y;
             (
                 cells
                     .iter()
@@ -19516,7 +19528,7 @@ mod records_by_carrier {
     fn face_at_z(body: &Body<f64>, z: f64, up: bool) -> FaceKey {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - z).abs() < 1e-12
@@ -19633,7 +19645,7 @@ mod records_by_carrier {
             let side = block
                 .faces()
                 .find(|(_, f)| match block.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { frame, .. }) => {
+                    Ok(geom::Surface::Plane { frame, .. }) => {
                         let (origin, normal) = (frame.origin(), frame.axis());
                         normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-12
                     }
@@ -19910,7 +19922,7 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - 1.0).abs() < 1e-12
                 }
@@ -19971,7 +19983,7 @@ mod two_carrier_records {
         let top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                 }
@@ -20041,7 +20053,7 @@ mod two_carrier_records {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
                 }
@@ -20100,7 +20112,7 @@ mod two_carrier_records {
         let a_top = body
             .faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5
                         && (origin.z - 1.0).abs() < 1e-12
@@ -20268,7 +20280,7 @@ mod two_carrier_records {
             let top = body
                 .faces()
                 .find(|(_, f)| match body.get_surface(f.surface) {
-                    Some(geom::Surface::Plane { frame, .. }) => {
+                    Ok(geom::Surface::Plane { frame, .. }) => {
                         let (origin, normal) = (frame.origin(), frame.axis());
                         normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
                     }
@@ -20884,7 +20896,7 @@ mod two_carrier_records {
             ) -> Result<bool, Vec<usize>> {
                 let carrier = geom::Curve3::Line(geom::Line {
                     origin: geom_core::Point3::new(0.0, y, z),
-                    dir: geom_core::Vec3::unit_x(),
+                    dir: geom_core::UnitVec3::exact_x(),
                 });
                 crate::boolean::line_through_both_faces(
                     faces,
@@ -21317,7 +21329,7 @@ mod edge_face_residual {
             .faces()
             .find(|&(k, f)| {
                 matches!(body.get_surface(f.surface),
-                    Some(geom::Surface::Plane { frame, .. })
+                    Ok(geom::Surface::Plane { frame, .. })
                         if frame.axis().z.abs() > 0.5 && (frame.origin().z - 1.0).abs() < 1e-12)
                     && body.vertices().any(|(v, _)| {
                         at(v) == [0.0, 0.0, 1.0]
@@ -21386,7 +21398,7 @@ mod point_touch {
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
@@ -21775,7 +21787,7 @@ mod edge_pairs_as_segments {
         for at in [AT_1E12, AT_1E9] {
             assert!(
                 span_charge(
-                    on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
+                    on_one_line(ea.dir.get(), (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
                     band(at)
                 )
                 .is_some()
@@ -21929,7 +21941,7 @@ mod edge_pairs_as_segments {
         let (sa, sb) = (segment((a0, a1)), segment((b0, b1)));
         assert!(
             span_charge(
-                on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise,
+                on_one_line(sa.dir.get(), (a0, a1), (b0, b1), 0.0).noise,
                 band(AT_1E12)
             )
             .is_none()
@@ -22019,7 +22031,7 @@ mod edge_pairs_as_segments {
                 continue;
             }
             read_pairs += 1;
-            let noise = on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise;
+            let noise = on_one_line(sa.dir.get(), (a0, a1), (b0, b1), 0.0).noise;
             charged += usize::from(span_charge(noise, band(AT_1E12)).is_some());
             let none = matches!(read, Some(None));
             assert!(
@@ -22377,8 +22389,8 @@ mod same_solid_tangent_lines {
     /// Two cylinder-wall sheets over angles `±u` about each seam and
     /// heights (0, 1) and (0.2, 0.8), each face's sense given (`true`:
     /// material inside the cylinder), filed under one solid when
-    /// `one_solid`. Each sheet's seed face keeps its placeholder, so the
-    /// two walls are the only faces on the lane. The census with no
+    /// `one_solid`. Each sheet's seed face stays pending, so the two
+    /// walls are the only faces on the lane. The census with no
     /// record, and what it says of the two walls.
     fn walls(
         (a, sense_a, ua): (CylFrame, bool, f64),
@@ -22653,8 +22665,8 @@ mod arc_interiors {
             .find(|&e| {
                 let (s, t) = body.edge_vertices(e).unwrap();
                 let curved = body
-                    .get_curve_geom(body.get_edge(e).unwrap().curve)
-                    .and_then(CurveGeom::certified)
+                    .edge(e)
+                    .and_then(crate::live::EdgeView::certified)
                     .is_some_and(|c| c.carrier().is_curved());
                 curved && (s == va || t == va)
             })
@@ -22702,7 +22714,7 @@ mod arc_interiors {
             p0: at,
             p1: far,
             points: [Some(key), Some(far_key)],
-            dir: u,
+            dir: geom_core::UnitVec3::squared(u),
             len: 1.0,
             f_plus: FaceKey::default(),
             f_minus: FaceKey::default(),
@@ -23224,7 +23236,7 @@ mod lone_vertex_rows {
         // read edge by edge, and its boundary members for a lone vertex.
         let lines = |f| {
             let view = body.face(f).expect("a face");
-            if !matches!(view.surface(), geom::Surface::Plane { .. })
+            if !matches!(view.surface().unwrap(), geom::Surface::Plane { .. })
                 || !view
                     .half_edges()
                     .iter()
@@ -23310,7 +23322,7 @@ mod lone_vertex_rows {
         let mut post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
         let plane = |body: &crate::Body<f64>, normal: geom_core::Vec3<f64>| {
             body.face_views()
-                .find(|f| matches!(*f.surface(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
+                .find(|f| matches!(*f.surface().unwrap(), geom::Surface::Plane { frame, .. } if (frame.axis() - normal).norm() < 1e-12))
                 .map(|f| f.key())
                 .expect("the face")
         };
@@ -23522,13 +23534,13 @@ mod corner_cause_rows {
     #[test]
     fn each_corner_cause_is_named_apart() {
         let face = FaceKey::default();
-        let apex = VertexFace::Apex(ConeApex {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            half_angle: 0.5_f64,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        });
+        let apex = VertexFace::Apex(ConeApex::stated(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::UnitVec3::exact_z(),
+            0.5_f64,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        ));
         assert!(
             matches!(
                 vertex_normal(apex),
@@ -23589,13 +23601,17 @@ mod line_pass_rows {
         let (key, edge) = line_edges(&body)
             .into_iter()
             .map(|e| (e.key, e))
-            .find(|(_, e)| e.dir.z.abs() < 0.5 && e.p0.z > 0.5)
+            .find(|(_, e)| e.dir.get().z.abs() < 0.5 && e.p0.z > 0.5)
             .expect("a brick has a top edge");
         let moved = edge.points[1].expect("an edge of a body sits on points");
         body.points.get_mut(moved).expect("the point resolves").z += 1e-3;
-        let middle = edge.p0 + edge.dir * (0.5 * edge.len);
-        let across = edge.dir.cross(Vec3::new(0.0, 0.0, 1.0));
-        let passes = line_passes(&body, (middle - across, across, 2.0), |k, _, _| k == key);
+        let middle = edge.p0 + edge.dir.get() * (0.5 * edge.len);
+        let across = edge.dir.get().cross(Vec3::new(0.0, 0.0, 1.0));
+        let passes = line_passes(
+            &body,
+            (middle - across, geom::stated_direction(across), 2.0),
+            |k, _, _| k == key,
+        );
         let [pass] = &passes[..] else {
             panic!("the one edge kept: {} passes", passes.len());
         };
@@ -23604,5 +23620,37 @@ mod line_pass_rows {
             "the span runs through the edge's stored line: gap {:?}",
             pass.gap
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_view_review_probes {
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: census tag reads no longer read a torn curve as "no".
+    #[test]
+    fn on_circle_and_line_span_panic_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(!super::on_circle(&body, edge));
+        assert!(super::edge_line_span(&body, edge).is_some());
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        for (what, f) in [
+            (
+                "on_circle",
+                &(|| {
+                    let _ = super::on_circle(&body, edge);
+                }) as &dyn Fn(),
+            ),
+            ("edge_line_span", &|| {
+                let _ = super::edge_line_span(&body, edge);
+            }),
+        ] {
+            let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
+            assert!(msg.contains("curve names"), "{what}: {msg}");
+        }
     }
 }

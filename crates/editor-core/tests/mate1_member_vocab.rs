@@ -68,12 +68,39 @@ pub(crate) fn slid_with(
 
 /// **A copy of `body` placed against `target` at `at`** (the copy's
 /// own frame in `target`'s own coordinates), under `o`:
-/// [`fixture::against`] for bodies only a resolver evaluates. Returns
-/// the document and the placement.
+/// [`fixture::against`] for bodies only a resolver evaluates. `body` is
+/// one body; a family is [`each_against_with`]. Returns the document and
+/// the placement.
 pub(crate) fn against_with(
     doc: ProfileDoc,
     target: RecipeNodeId,
     body: RecipeNodeId,
+    at: &Frame,
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let source = editor_core::BodyRead::plain(crate::fixture::body_read(&doc, body.into()));
+    placed_against(doc, target, body, source, at, o)
+}
+
+/// [`against_with`] for a family `body`, placed member by member inside
+/// its binder (`{k in xs: place(xs[k])}`, [`fixture::member_here`], which
+/// panics where `body` is no yield).
+pub(crate) fn each_against_with(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    at: &Frame,
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let source = crate::fixture::member_here(&doc, body.into());
+    placed_against(doc, target, body, source, at, o)
+}
+
+fn placed_against(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    source: editor_core::BodyRead<editor_core::Formula>,
     at: &Frame,
     o: &editor_core::EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
@@ -86,10 +113,7 @@ pub(crate) fn against_with(
         at,
         Tol::witness(),
     );
-    let (doc, placement) = insert(
-        doc,
-        crate::fixture::stood(editor_core::BodyRead::plain(read)),
-    );
+    let (doc, placement) = insert(doc, crate::fixture::stood(source));
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)

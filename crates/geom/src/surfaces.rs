@@ -5,8 +5,7 @@
 //! …), and a closed enum makes every dispatch site exhaustively checked
 //! at compile time. The [`Surface::Nurbs`] variant is the universal
 //! fallback — it carries a validated [`NurbsSurface`] payload (see
-//! [`nurbs`]) and its evaluator arms are real; the "no description yet"
-//! state is [`Surface::nurbs_placeholder`].
+//! [`nurbs`]) and its evaluator arms are real.
 //!
 //! # Surface conventions (normative; the surface half)
 //!
@@ -74,9 +73,7 @@ use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
-pub use nurbs::{
-    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
-};
+pub use nurbs::{NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
 /// An analytic surface — a **complete locus**. Units, the
@@ -274,10 +271,7 @@ pub enum Surface<T: Real> {
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
-    /// see the enum docs on the `Copy` loss). The "no description yet"
-    /// state the former unit variant carried is
-    /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
-    /// the same all-poison evaluation behavior.
+    /// see the enum docs on the `Copy` loss).
     Nurbs(Arc<NurbsSurface<T>>),
 
     /// An **approximating** surface: a fitted NURBS standing in for a
@@ -293,9 +287,7 @@ pub enum Surface<T: Real> {
     /// trusts the stored certificate.
     ///
     /// The payload is certified by construction ([`ApproxSurface`] has
-    /// no other door), so unlike [`Surface::Nurbs`] there is no
-    /// placeholder state in this variant: an `Approx` surface is always
-    /// described.
+    /// no other door).
     ///
     /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]), and its
     /// fit as geometry: evaluation, boxes, pcurves and sections read the
@@ -327,7 +319,7 @@ pub enum SurfaceKind {
     Torus,
     /// A [`Surface::Spindle`].
     Spindle,
-    /// A [`Surface::Nurbs`], described or the placeholder.
+    /// A [`Surface::Nurbs`].
     Nurbs,
     /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
     /// kind-indexed table says what it does with one; the intersection
@@ -435,8 +427,7 @@ impl<T: Real> Surface<T> {
     /// **A surface of revolution's axis, as a line**: from a cylinder's
     /// axis point, a cone's apex, or a sphere's, a torus's or a spindle's
     /// centre, along its stored axis as stored ([`Frame::axis_line`] of
-    /// [`Self::frame`]). A reader that takes the axis as unit (a meridian
-    /// sheet, a revolve's seed) says so with [`Line::unit`]. `None` for a
+    /// [`Self::frame`]), its direction the frame's unit axis. `None` for a
     /// plane, whose frame axis is a normal and not an axis line, and for
     /// a net. The one door to a surface of revolution's axis.
     #[must_use]
@@ -793,12 +784,6 @@ impl<T: Real> RingTorus<T> {
     }
 }
 
-/// What a refusal of the placeholder chart
-/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
-/// one text, so every reader sees the same fact in the same words.
-pub const PLACEHOLDER_SURFACE: &str =
-    "the surface has no description yet: it is only the placeholder a construction starts from";
-
 /// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
 /// ([`spindle_sheet`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -926,20 +911,31 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
     }
 }
 
+/// **A point's distance from a spindle sheet, its one home**: the point
+/// at height `h` along the axis and distance `rho ≥ 0` from it, the sheet
+/// `(R, r)` the arc of its meridian circle on `ρ ≥ 0`. Where the circle's
+/// point nearest the point lies on that arc, the distance is the circle's,
+/// `|√((ρ − R)² + h²) − r|`; where it lies across the axis (its `ρ`,
+/// `R + r·(ρ − R)/d`, not positive), on the spindle's other sheet, the
+/// sheet's nearest point is the apex ([`sheet_apex`]) on the point's side,
+/// and the distance is to it. The two agree where they meet, at the apex,
+/// so the distance is unsigned: a signed one would change sign there.
+///
+/// It is a point's distance, not a bound over a box; zero exactly on the
+/// sheet.
+pub fn sheet_distance<T: Real>(major_radius: T, minor_radius: T, rho: T, h: T) -> T {
+    let d = ((rho - major_radius).powi(2) + h.powi(2)).sqrt();
+    let across = major_radius * d + minor_radius * (rho - major_radius);
+    let apex = sheet_apex(major_radius, minor_radius).height;
+    let to_apex = (rho.powi(2) + (h.abs() - apex).powi(2)).sqrt();
+    across.select_le_zero(to_apex, (d - minor_radius).abs())
+}
+
 /// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
 /// `Some` on a channel that is an angle, `None` on one that is a length.
 pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
 
 impl<T: Real> Surface<T> {
-    /// The "no description yet" NURBS state (the former unit
-    /// placeholder variant, as data): a structurally valid payload
-    /// whose control points are all-poison, so evaluation yields the
-    /// all-poison point and every downstream certification fails
-    /// loudly (D4 ¶2) — representable ≠ described.
-    pub fn nurbs_placeholder() -> Self {
-        Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
-    }
-
     /// The **spline chart** a surface evaluates through, when it has
     /// one: the payload for [`Surface::Nurbs`], the fit for
     /// [`Surface::Approx`], `None` for the analytic kinds.
@@ -993,18 +989,6 @@ impl<T: Real> Surface<T> {
         }
     }
 
-    /// Is this surface's chart the placeholder — the
-    /// [`NurbsSurface::placeholder`] payload a construction starts from,
-    /// or an approximating surface whose fit is one? Such a chart has no
-    /// locus (its net is all-poison), so nothing can be imaged on it or
-    /// metred through it. The ONE spelling of the question: every door
-    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
-    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
-    pub fn is_placeholder_chart(&self) -> bool {
-        self.spline_chart()
-            .is_some_and(NurbsSurface::is_placeholder)
-    }
-
     /// **The representability margins of this surface's datum
     /// conventions** — each quantity a variant's docs require to be
     /// strictly positive for its stored datum to describe the surface
@@ -1021,20 +1005,15 @@ impl<T: Real> Surface<T> {
     /// - `Spindle`: `minor_radius`, lower end, likewise; the sheet's
     ///   range `−r < R ≤ r`, `R ≠ 0` relates the two datums and is
     ///   [`spindle_sheet`]'s;
-    /// - **the frame**, for `Cylinder`, `Sphere`, `Torus` and `Spindle`, after the
-    ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
-    ///   each within `band`'s coincidence threshold ε at the kind's
-    ///   radius (`convention::frame_margins`, which says what each frame
-    ///   margin protects — the locus, and on the cylinder's tilt the
-    ///   chart — and how the lever bounds the movement);
-    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
-    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
-    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
-    ///   by an amount that grows with distance from `origin`, which no
-    ///   datum bounds), and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
-    ///   margined either, for the same reason as the plane's tilt: it
-    ///   moves the half-angle, a deviation that grows along the slant.
+    /// - **no frame margin**, for any kind: a carrier's frame is a
+    ///   [`crate::Frame`], a `RigidMotion`, unit and square by its type
+    ///   (fork 274 decision 1). At an enclosure scalar its entries
+    ///   enclose a rotation (the polar read), so a length or a tilt read
+    ///   off them reads only their width; at `f64` its rounding is
+    ///   charged where it is levered (`Frame::rounding`);
+    /// - `Plane`, `Nurbs`, `Approx`: no scalar margin — a plane stores
+    ///   no scalar datum, and a spline's datum is its net
+    ///   ([`NurbsSurface::is_finite`]).
     ///
     /// **This is the one place in code these bounds are computed for
     /// the at-rest check**, and it is not the only place they are
@@ -1052,35 +1031,12 @@ impl<T: Real> Surface<T> {
     /// the crate docs' conventional-and-unchecked rule — and a margin
     /// of a poisoned datum is poison. The variants are destructured
     /// without `..`, so a field a variant gains is a compile error
-    /// here rather than a convention this door silently omits. The
-    /// scalar conventions come first, so a consumer reading the first
-    /// failing margin names a non-positive radius before the frame it
-    /// levers.
-    pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
-        use crate::convention::{frame_margins, lower};
-        let frame = |axis, u_ref, arm| {
-            frame_margins(
-                axis,
-                u_ref,
-                arm,
-                band,
-                SurfaceDatum::Axis,
-                SurfaceDatum::URef,
-            )
-        };
+    /// here rather than a convention this door silently omits.
+    pub fn representability_margins(&self) -> Vec<RepresentabilityMargin<T>> {
+        use crate::convention::lower;
         match self {
-            Surface::Cylinder {
-                frame: carrier_frame,
-                radius,
-            }
-            | Surface::Sphere {
-                frame: carrier_frame,
-                radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::Radius, *radius))
-                    .chain(frame(axis, u_ref, *radius))
-                    .collect()
+            Surface::Cylinder { frame: _, radius } | Surface::Sphere { frame: _, radius } => {
+                vec![lower(SurfaceDatum::Radius, *radius)]
             }
             Surface::Cone {
                 frame: _,
@@ -1089,31 +1045,20 @@ impl<T: Real> Surface<T> {
                 lower(SurfaceDatum::HalfAngle, *half_angle),
                 RepresentabilityMargin {
                     datum: SurfaceDatum::HalfAngle,
-                    measure: crate::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                     margin: T::pi() * T::from_f64(0.5) - *half_angle,
                 },
             ],
             Surface::Torus {
-                frame: carrier_frame,
-                major_radius,
+                frame: _,
+                major_radius: _,
                 minor_radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
-                    .collect()
             }
-            Surface::Spindle {
-                frame: carrier_frame,
-                major_radius,
+            | Surface::Spindle {
+                frame: _,
+                major_radius: _,
                 minor_radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, major_radius.abs() + *minor_radius))
-                    .collect()
-            }
+            } => vec![lower(SurfaceDatum::MinorRadius, *minor_radius)],
             Surface::Plane { frame: _ } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
         }
     }
@@ -1592,8 +1537,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Cone: `tangential(u)·(v·sin α)` — **zero at the apex** (`v = 0`,
     /// the chart singularity). Sphere: `tangential(u)·(radius·cos v)` —
     /// **zero at the poles**. Torus:
-    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`.
     ///
     /// [`Surface::jet`]'s `du`, projected — the enum evaluates its jet
     /// once, and a caller wanting a second partial at the same `(u, v)`
@@ -1609,7 +1553,7 @@ impl<T: SpanLocate> Surface<T> {
     /// generator direction (slant parameterization). Sphere:
     /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
-    /// the payload jet's `dv` (all-poison for the placeholder state).
+    /// the payload jet's `dv`.
     ///
     /// [`Surface::jet`]'s `dv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
@@ -1636,7 +1580,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane: zero. Cylinder: `radial(u)·(−radius)`. Cone:
     /// `radial(u)·(−(v·sin α))`. Sphere: `radial(u)·(−(radius·cos v))`.
     /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
-    /// `duu` (all-poison for the placeholder state). (Each is the
+    /// `duu`. (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
     ///
     /// [`Surface::jet`]'s `duu`, projected (see [`Surface::deriv_u`]).
@@ -1649,8 +1593,7 @@ impl<T: SpanLocate> Surface<T> {
     ///
     /// Plane, cylinder: zero. Cone: `tangential(u)·sin α`. Sphere:
     /// `tangential(u)·(−(radius·sin v))`. Torus:
-    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
-    /// (all-poison for the placeholder state).
+    /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`.
     ///
     /// [`Surface::jet`]'s `duv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
@@ -1662,8 +1605,7 @@ impl<T: SpanLocate> Surface<T> {
     /// Plane, cylinder, cone: zero (rulings/generators are straight).
     /// Sphere: `(radial(u)·cos v + axis·sin v)·(−radius)` — the inward
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
-    /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
-    /// placeholder state).
+    /// tube. Nurbs: the payload jet's `dvv`.
     ///
     /// [`Surface::jet`]'s `dvv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
@@ -1704,7 +1646,7 @@ mod tests {
         };
         let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
             cone(a)
-                .representability_margins(geom_core::Band::new(1e-9, 1e-8).unwrap())
+                .representability_margins()
                 .into_iter()
                 .map(|m| {
                     assert_eq!(m.datum, SurfaceDatum::HalfAngle);
@@ -2131,7 +2073,7 @@ mod tests {
         ))
     }
 
-    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// A NURBS lifts as its PAYLOAD:
     /// the lifted surface's value channel is the source's evaluation bit
     /// for bit, and its `u`-tangent channel is the source's closed-form
     /// `∂u` to rounding.
@@ -2162,8 +2104,8 @@ mod tests {
             }
         }
         assert!(
-            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
-            "a described NURBS lifted to the placeholder"
+            matches!(&sd, Surface::Nurbs(_)),
+            "a NURBS lifts as its payload"
         );
     }
 
@@ -2264,8 +2206,8 @@ mod tests {
     /// every weight — and the lifted surface evaluates to the source at
     /// every `(u, v)` drawn from knot values, span boundaries and span
     /// midpoints in both directions. A lift that perturbs an interior
-    /// knot or a weight is red here and nowhere in the
-    /// placeholder-vs-payload rows above.
+    /// knot or a weight is red here and nowhere in the payload rows
+    /// above.
     #[test]
     fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
         let s = knotted_sheet();
@@ -2314,40 +2256,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-
-    /// The placeholder lifts to the placeholder: a structural map keeps
-    /// poison, so `is_placeholder` survives the lift at both scalars.
-    #[test]
-    fn placeholder_lifts_to_the_placeholder() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
-        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
-        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
-        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
-    }
-
-    /// The placeholder's own doc promises an ALL-poison answer, so
-    /// every channel is read: a first-channel assertion here passes on
-    /// an answer poisoned in `x` and finite in `y`/`z`, which is
-    /// exactly the state the placeholder has to be distinguishable
-    /// from.
-    #[test]
-    fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Surface<f64> = Surface::nurbs_placeholder();
-        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
-        let p = n.eval(0.5, 0.5);
-        assert!(all_poison(p.x, p.y, p.z));
-        for v in [
-            n.deriv_u(0.5, 0.5),
-            n.deriv_v(0.5, 0.5),
-            n.normal(0.5, 0.5),
-            n.deriv_uu(0.5, 0.5),
-            n.deriv_uv(0.5, 0.5),
-            n.deriv_vv(0.5, 0.5),
-        ] {
-            assert!(all_poison(v.x, v.y, v.z));
         }
     }
 
@@ -2509,8 +2417,8 @@ mod tests {
                 }
             }
             assert!(
-                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
-                "a described NURBS lifted to the placeholder"
+                matches!(&si, Surface::Nurbs(_)),
+                "a NURBS lifts as its payload"
             );
         }
 
@@ -2568,18 +2476,12 @@ mod tests {
             }
         }
 
-        /// NaI in → NaI out, and the Nurbs placeholder poisons at
-        /// interval type.
+        /// NaI in → NaI out.
         #[test]
         fn poison_propagates_at_interval() {
             let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
-            let n: Surface<Interval> = Surface::nurbs_placeholder();
-            // All-poison, not first-channel-poison: the placeholder's
-            // promise is the whole point.
-            let q = n.eval(Interval::zero(), Interval::zero());
-            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
 

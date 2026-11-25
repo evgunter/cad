@@ -44,7 +44,7 @@ use geom::{ChartInverse, Curve3, Surface};
 use geom_brep::chart_singularity::{self as home, Lies, Unread};
 use geom_brep::curve_pair::{self, Span, SpanEnd};
 use geom_brep::props::LoopEdge;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, UnitVec3, Vec3};
 
 use super::surgery::{
     self, CutLine, Unlinked, boundary_census, split_at_point, use_end, use_start,
@@ -65,7 +65,7 @@ enum Chart {
         frame: geom::Frame<f64>,
         center: Point3<f64>,
         radius: f64,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         u_ref: Vec3<f64>,
     },
     /// A cone: the apex.
@@ -73,7 +73,7 @@ enum Chart {
         /// The stored frame, carried back by [`Chart::surface`].
         frame: geom::Frame<f64>,
         apex: Point3<f64>,
-        axis: Vec3<f64>,
+        axis: UnitVec3<f64>,
         half_angle: f64,
         u_ref: Vec3<f64>,
     },
@@ -83,7 +83,7 @@ impl Chart {
     fn of(surface: &Surface<f64>) -> Option<Self> {
         match *surface {
             Surface::Sphere { frame, radius } => {
-                let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Sphere {
                     frame,
                     center,
@@ -93,7 +93,7 @@ impl Chart {
                 })
             }
             Surface::Cone { frame, half_angle } => {
-                let (apex, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+                let (apex, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
                 Some(Self::Cone {
                     frame,
                     apex,
@@ -106,7 +106,7 @@ impl Chart {
         }
     }
 
-    fn axis(self) -> Vec3<f64> {
+    fn axis_unit(self) -> UnitVec3<f64> {
         match self {
             Self::Sphere { axis, .. } | Self::Cone { axis, .. } => axis,
         }
@@ -770,7 +770,10 @@ fn meridian_ray(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> Ray {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center,
+                radius,
+                axis.get(),
+                d,
             )),
             from: if k == 0 { 0.0 } else { core::f64::consts::PI },
             sign: if k == 0 { 1.0 } else { -1.0 },
@@ -782,13 +785,11 @@ fn meridian_ray(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> Ray {
             half_angle,
             ..
         } => Ray {
+            // The azimuth is squared about the axis, so the generator
+            // swings in one frame's plane ([`geom::pole_form::cone_generator`]).
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                geom::Line {
-                    origin: apex,
-                    dir: axis,
-                },
+                geom_core::RigidMotion::squared_about(apex, axis, d),
                 half_angle,
-                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -912,6 +913,10 @@ fn interior(
 /// span holds one, and its ends otherwise. Offered points within the
 /// band of the nearest one tie, and the tie goes to the least turn from
 /// the surface's `u_ref`, either way round, the negative turn first.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wrap_azimuth(
     solid: &SolidSpec,
     fi: usize,
@@ -920,7 +925,7 @@ fn wrap_azimuth(
     read: &Read,
 ) -> Result<Vec3<f64>, StepImportError> {
     let face_id = solid.faces[fi].id;
-    let (axis, origin, u_ref) = (chart.axis(), chart.origin(), chart.u_ref());
+    let (axis, origin, u_ref) = (chart.axis_unit(), chart.origin(), chart.u_ref());
     let frame = match chart.surface() {
         Surface::Sphere { frame, .. } | Surface::Cone { frame, .. } => frame,
         _ => unreachable!("a chart is a sphere's or a cone's"),
@@ -954,7 +959,7 @@ fn wrap_azimuth(
         };
         match &spec.carrier {
             Curve3::Line(geom::Line { origin: o, dir }) => {
-                let t = (x - *o).dot(*dir) / dir.dot(*dir);
+                let t = (x - *o).dot(dir.get()) / dir.get().dot(dir.get());
                 if t > spec.t0.min(spec.t1) && t < spec.t0.max(spec.t1) {
                     offered.push(spec.carrier.eval(t));
                 }
@@ -1471,8 +1476,8 @@ mod meetings_are_the_kernels {
         let Curve3::Line(generator) = ray.carrier else {
             unreachable!("a cone's ray is its generator line")
         };
-        let g = generator.dir * beta.cos() + y * beta.sin();
-        let graze = Curve3::line(crossing - g * 0.5, g);
+        let g = generator.dir.get() * beta.cos() + y * beta.sin();
+        let graze = Curve3::line(crossing - g * 0.5, geom::stated_direction(g));
         let (s, h) = half_angle.sin_cos();
         let (rim, rim_vertex) = closed(
             12,
@@ -1601,7 +1606,8 @@ mod meetings_are_the_kernels {
         };
         let ray = meridian_ray(chart, 0, x, 1.0);
         let crossing = ray.carrier.eval(2.0);
-        let line = Curve3::line(crossing - y * 1e-3, y * 2e-3);
+        // The 2 mm chord across the crossing, its span in metres.
+        let line = Curve3::line(crossing - y * 1e-3, geom_core::UnitVec3::squared(y));
         let solid = face(
             cone,
             vec![(
@@ -1611,18 +1617,21 @@ mod meetings_are_the_kernels {
                     end: 2,
                     carrier: line.clone(),
                     t0: 0.0,
-                    t1: 1.0,
+                    t1: 2e-3 * y.norm(),
                     reversed: false,
                     curve: None,
                 },
             )],
-            vec![(1, line.eval(0.0)), (2, line.eval(1.0))],
+            vec![(1, line.eval(0.0)), (2, line.eval(2e-3 * y.norm()))],
         );
         let got = first_hit(&solid, 0, &ray, &read_at(1e-9));
         let Ok((Hit::Edge { edge: 11, t }, _)) = got else {
             panic!("the line at slant 2: {}", shown(&got))
         };
-        assert!((t - 0.5).abs() < 1e-9, "met at the line's middle: t {t}");
+        assert!(
+            (t - 1e-3 * y.norm()).abs() < 1e-9,
+            "met at the line's middle: t {t}"
+        );
     }
 
     /// **A boundary arc along the ray is met at its first end.** The arc

@@ -59,7 +59,8 @@
 //!   its axis in SKETCH coordinates, so a tilted axis is spelled by
 //!   tilting the sketch frame, and a `Partial` sweep of a meridian
 //!   whose ends sit on that axis closes fine.
-//! - the two short **leaves** are keeled blades: a thin LANCEOLATE
+//! - the two short **leaves** are one keeled blade and its mirror
+//!   image across the stem ([`across_the_stem`]): a thin LANCEOLATE
 //!   section — two circular arcs meeting at two sharp margins, an
 //!   unequal ridge and keel across the chord — carried along a gently
 //!   arching circular spine by the general-path SWEEP. The blade
@@ -137,11 +138,12 @@
 //! rule: a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
 //! where narration begins.
 //!
-//! **The swept and lofted blades are the exception**: their frames
-//! and outlines are built from computed geometry (a spine, a curl), so
-//! they enter `S` as the computed values they are — the frame's inputs
-//! through `map(S::from_computed)` and minted at `S`, `lift_computed`
-//! on each loop.
+//! **The swept and lofted blades' frames are the exception**: they are
+//! built from computed geometry (a spine, a curl), so their inputs
+//! enter `S` as the computed values they are, through
+//! `map(S::from_computed)`, and the frame is minted at `S`. Their
+//! outlines are authored numbers and are drawn at `S` like every other
+//! sketch.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -149,9 +151,7 @@ use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 use pncad::topo::LeafBody as _;
 
-use pncad::geom_core::{
-    Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
-};
+use pncad::geom_core::{Affine3, Mat3, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
@@ -160,8 +160,7 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
-    SectionUnbuilt,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, SectionUnbuilt,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -823,21 +822,21 @@ impl Lance {
     /// The lens, wound counterclockwise in the sketch `(s, t)` frame
     /// from the `+s` margin: over the ridge to the `−s` margin, then
     /// under the keel back.
-    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
+    fn outline<S: Scalar>(self, tol: Tol) -> Vec<ConstructedLoop<S>> {
         let half = 0.5 * self.width;
         let closed = Open
-            .at(Point2::new(half, 0.0))
+            .at(p2::<S>(half, 0.0))
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, self.ridge),
-                    p: Point2::new(-half, 0.0),
+                    q: p2::<S>(0.0, self.ridge),
+                    p: p2::<S>(-half, 0.0),
                 },
                 tol,
             )
             .expect("the blade's ridge arc")
             .arc_to(
                 Via {
-                    q: Point2::new(0.0, -self.keel),
+                    q: p2::<S>(0.0, -self.keel),
                     p: Start,
                 },
                 tol,
@@ -884,7 +883,8 @@ impl SweptLeaf {
     }
 }
 
-/// `lily_leaf_b`, the longer swept leaf.
+/// `lily_leaf_b`, the short swept leaf; `lily_leaf_c` is its mirror
+/// image [`across_the_stem`].
 pub const LEAF_B: SweptLeaf = SweptLeaf {
     base: Point3::new(-0.03, -0.06, 0.06),
     dir: Vec3::new(-0.68, -0.55, 0.44),
@@ -897,18 +897,20 @@ pub const LEAF_B: SweptLeaf = SweptLeaf {
     curl: -0.40,
 };
 
-/// `lily_leaf_c`, the shorter swept leaf.
-pub const LEAF_C: SweptLeaf = SweptLeaf {
-    base: Point3::new(0.02, 0.01, 0.02),
-    dir: Vec3::new(0.62, 0.10, 0.78),
-    len: 0.95,
-    section: Lance {
-        width: 0.140,
-        ridge: 0.013,
-        keel: 0.006,
-    },
-    curl: -0.35,
-};
+/// **The plane the two short leaves are mirrored across**: upright,
+/// through the foot's axis, square to the plant's plane (the one the
+/// stem arches in), so `lily_leaf_c` stands opposite `lily_leaf_b`
+/// across the stem. The scene authors [`LEAF_B`] once and mirrors it
+/// (a finished body's `moved_by` under the reflection) rather than
+/// placing a second leaf by hand.
+///
+/// # Panics
+///
+/// Never: the normal is a unit axis.
+pub fn across_the_stem<S: Scalar>(tol: Tol) -> pncad::topo::Reflection<S> {
+    pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), tol)
+        .expect("the plane across the stem has a normal")
+}
 
 /// The long basal leaf's blade direction at its base, and its spine,
 /// named rather than inlined because
@@ -1029,19 +1031,15 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The outline is built in `f64`, so it enters `S` as the computed
-    // values it is; the frame is minted at `S` from those values.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are, and the frame is minted at `S`.
     let place = sketch_frame::<S>(
         base.map(S::from_computed),
         u.map(S::from_computed),
         v.map(S::from_computed),
         tol,
     );
-    let outline: Vec<_> = section
-        .outline(tol)
-        .iter()
-        .map(|lp| lp.lift_computed())
-        .collect();
+    let outline = section.outline::<S>(tol);
     sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
@@ -1209,13 +1207,10 @@ fn blade_station<S: Scalar>(
     let (st, ct) = (roll.sin(), roll.cos());
     let uu = u * ct + vk * st;
     let vv = vk * ct - u * st;
-    // Built in `f64`, so they enter `S` as the computed values they are.
+    // The frame's inputs are computed in `f64`, so they enter `S` as
+    // the computed values they are.
     (
-        section
-            .outline(tol)
-            .iter()
-            .map(|lp| lp.lift_computed())
-            .collect(),
+        section.outline(tol),
         sketch_frame::<S>(
             p.map(S::from_computed),
             uu.map(S::from_computed),
@@ -1593,6 +1588,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
     let rootstock = rootstock::<S>(tol);
+    // The two short leaves: one authored, one its mirror image across
+    // the stem. A finished body mirrors through `moved_by`, which
+    // carries its certificates and derives the image's rows again.
+    let leaf_b: Body<S> = LEAF_B.build(tol);
+    let leaf_c = crate::booleans::finished("lily_leaf_b", leaf_b.clone(), tol)
+        .moved_by(&pncad::topo::Isometry::Improper(across_the_stem(tol)), tol)
+        .expect("the short leaf mirrors across the stem")
+        .into_body();
 
     let mut pieces = vec![
         Piece {
@@ -1663,14 +1666,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         Piece {
             name: "lily_leaf_b",
             color: GREEN_LEAF,
-            body: LEAF_B.build(tol),
+            body: leaf_b,
             caps: None,
             contacts: None,
         },
         Piece {
             name: "lily_leaf_c",
             color: GREEN_LEAF,
-            body: LEAF_C.build(tol),
+            body: leaf_c,
             caps: None,
             contacts: None,
         },
@@ -1815,14 +1818,15 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 arching stem, a closed globular lantern with three spreading sepals tangent to the \
                 globe, a bud of three nested pre-tepals on a tripod of axes, \
                 one long tapering twisted basal leaf and two shorter \
-                untapered ones; torus/sphere/cylinder/cone/plane exact to the stored \
+                untapered ones, a pair mirrored across the stem; torus/sphere/cylinder/cone/plane exact to the stored \
                 parameter, blades skinned out of plane",
         ops: "revolve(Full) bored corm + extrude three-arc foot -> union (the \
               rootstock); Turtle-walked G1 arc chain -> tube_along_arc(world centre/axis/ \
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
               bud; sweep_body(lanceolate arc section, arched NURBS \
-              spine) for the two short leaves; loft_body(tapering lanceolate \
+              spine) for one short leaf -> moved_by its reflection across the stem \
+              for the other; loft_body(tapering lanceolate \
               sections on rolled placements) for the long leaf and the sepals",
         delta: 5e-3,
         note: Some(note),
@@ -1882,7 +1886,7 @@ fn cone_station_circles<S: Scalar>(
 ) -> Vec<(pncad::topo::FaceKey, Circle)> {
     let mut out = Vec::new();
     for (k, _) in body.faces() {
-        let Some(&pncad::geom::Surface::Cone {
+        let Ok(&pncad::geom::Surface::Cone {
             frame: carrier_frame,
             half_angle,
             ..
@@ -1931,7 +1935,7 @@ struct TorusCarrier {
 /// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (fk, _) in body.faces() {
-        if let Some(&pncad::geom::Surface::Torus {
+        if let Ok(&pncad::geom::Surface::Torus {
             frame,
             major_radius,
             minor_radius,
@@ -2143,7 +2147,7 @@ pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, Boolean
     let (zc, axis) = lantern
         .faces()
         .find_map(|(fk, _)| match lantern.face_surface(fk) {
-            Some(&pncad::topo::Surface::Sphere { frame, .. }) => {
+            Ok(&pncad::topo::Surface::Sphere { frame, .. }) => {
                 let (center, axis) = (frame.origin(), frame.axis());
                 Some((center, axis))
             }
@@ -2234,44 +2238,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
     println!("   wall 1 — RETIRED: the stem's two arcs glue into one stem");
 
-    // 2. The flower grows OUT OF the pedicel, and it is now authored
-    //    so that it CAN: the neck cone's rim and the arch tube's
-    //    terminal meridian circle are one circle, asserted above off
-    //    both stored carriers. There is no transverse curve here to
-    //    have a closed form for.
-    //
-    //    The crossing layer passes the weld circle: the lantern's neck
-    //    rim lies on the arch's torus wall as its terminal meridian
-    //    circle, and the carrier ladder decides the neck cone distinct
-    //    from the torus, so the circle is an edge lying on the wall.
-    //    The planar pair the throat disk and the arch's cap form is
-    //    decided on its zero. What refuses is the interior-loop guard,
-    //    on the neck cone against the arch's torus wall: the section
-    //    certificate has no arm for a cone against a torus that is not
-    //    coaxial with it, so it cannot certify that the two walls meet
-    //    in no loop the join did not cut.
-    wall(
-        2,
-        "weld the lantern onto the arch (cone x the arch's end cap, \
-         meeting on one shared circle)",
-        pncad::topo::union(lant, arch, tol),
-        |e| {
-            // The pair refused is the neck cone against the arch's
-            // torus wall (`review_probes::the_weld_refuses_at_the_cone_torus_pair`).
-            matches!(
-                e,
-                BooleanError::CurvedPairUnsupported {
-                    site: PairRefusalSite::InteriorLoopGuard,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
-                    ..
-                }
-            )
-        },
-        "join flower to stem — the section certificate has no arm for the \
-         neck cone against the arch's torus wall",
+    // Wall 2 — RETIRED, kept live. The flower grows out of the pedicel:
+    //    the neck cone's rim and the arch tube's terminal meridian circle
+    //    are one circle, asserted above off both stored carriers. The
+    //    crossing layer passes it as an edge lying on the torus wall,
+    //    the throat disk and the arch's cap are decided on their zero,
+    //    and the interior-loop guard reads the neck cone against the
+    //    arch's torus wall through the section value's cone × torus
+    //    pose, marched, so the union builds. The scene still ships the
+    //    flower and the arch as two pieces; welding them is the scene's
+    //    own change to make.
+    let welded = pncad::topo::union(lant, arch, tol).expect("the lantern welds onto the arch");
+    assert_eq!(
+        welded.body().map(|b| b.body.shells().count()),
+        Some(1),
+        "the welded flower is one shell"
     );
+    println!("   wall 2 — RETIRED: the lantern welds onto the arch");
 
     // 3. The lily's leaves DO leave their own plane now — each blade
     //    is a lanceolate section swept along an arching spine. What is
@@ -2333,13 +2316,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 5 — RETIRED. A mirror is a construction now
     //    (`topo::mirror_body`): a leaf mirrored across the plant's plane
-    //    builds, and is a body at rest. The scene's three leaves are
-    //    still placed by hand; authoring one and mirroring it is the
-    //    scene's own change to make.
+    //    builds, and is a body at rest. The scene mirrors its short
+    //    swept leaf across the stem ([`across_the_stem`]); this keeps
+    //    the lofted leaf's mirror live beside it.
     let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
         .expect("the plant's plane has a normal");
-    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
-        .expect("a leaf mirrors across the plant's plane");
+    let mirrored =
+        pncad::topo::mirror_body(leaf_a, &across).expect("a leaf mirrors across the plant's plane");
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
@@ -2355,7 +2338,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Ok(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -2433,38 +2416,37 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    that pair's section is a torus × spline one, read whole over
     //    the wall's chart. The section hugs the leaf's lower cap rim,
     //    within a hundredth of the wall's chart of the root station
-    //    along the middle two thirds of the rim. The reading refuses at
-    //    its accounting, which exceeds the subdivision's 200000-cell
-    //    budget, and the section value hands that on as `Unaccounted`.
-    //    The cells go to the wall's corner at the margin of the root,
-    //    more than a centimetre outside the tube: the accounting clears a
-    //    cell by the torus's canonical quartic over the cell's box, and
-    //    on a torus this thin (ring/pipe ~83) that bound is far wider
-    //    than the form's own variation over the cell, so a cell there
-    //    clears only once it is under half a millimetre across
-    //    (`work/ssiarith/the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells.md`).
-    //    It refuses the same way at 1e-9 and 1e-6.
+    //    along the middle two thirds of the rim. The reading marches it
+    //    and accounts the rest of the chart, each cell cleared by the
+    //    torus's quartic over the cell's box, read as the meet of its
+    //    expanded and its factored forms.
     //
-    //    Past the germ mint, the join frames the torus wall against the
-    //    leaf's lower cap, the cap the tube crosses in two chords. That
-    //    plane is tilted against the torus's axis, so it cuts a general
-    //    spiric quartic whose loops wind round the tube, and C5 routes
-    //    that section to its unbuilt general rung
-    //    (`work/secttorus/c5-plane-torus-cone-cylinder-arms`). At 1e-12
-    //    the lower stem's declared frontier stands the lily walls down
-    //    before this one.
-    wall(
+    //    The pierce pass then asks the faces of the leaf whether they
+    //    hold the point where one of its vertices pierces the tube, and
+    //    the leaf's other NURBS wall cannot say: its trim reads no closed
+    //    lift of its loop in its chart, so the union refuses
+    //    `HeldPierceUnbuilt` with `placed: false`
+    //    (`work/splice/lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass.md`).
+    //    It stops there at 1e-9 and at 1e-6, though at 1e-6 wall 2 stops
+    //    the probes before this one.
+    //
+    //    At 1e-12 the lower stem's declared frontier stands the lily
+    //    walls down before this one.
+    crate::walls::join_wall(
+        "lily",
         8,
         "grow the long leaf out of the stem (its NURBS walls through the \
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
-            // The leaf's ridge wall: of its two NURBS walls, the one
-            // whose control points about the root stand on the ridge
-            // side of the root's chord, `+v` of the sheath's frame.
+            // Which of the leaf's two NURBS walls a face is: `Some(true)`
+            // for the ridge wall, whose control points about the root
+            // stand on the ridge side of the root's chord (`+v` of the
+            // sheath's frame), `Some(false)` for the other, `None` off
+            // both.
             let (root, (_, sheath_up, _), _, _) = leaf_a_spine(tol);
-            let ridge_wall = |f| match leaf_a.face_surface(f) {
-                Some(pncad::topo::Surface::Nurbs(n)) => {
+            let ridge_side = |f| match leaf_a.face_surface(f) {
+                Ok(pncad::topo::Surface::Nurbs(n)) => {
                     let lean: f64 = n
                         .control()
                         .iter()
@@ -2472,16 +2454,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                         .filter(|c| (*c - root).norm() < 0.1)
                         .map(|c| (c - root).dot(sheath_up))
                         .sum();
-                    lean > 0.0
+                    Some(lean > 0.0)
                 }
-                _ => false,
+                _ => None,
             };
             let scalar = <S as pncad::geom_core::Real>::NAME;
             let marches = scalar == <f64 as pncad::geom_core::Real>::NAME;
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
             let lower_tube = |f| match stem.face_surface(f) {
-                Some(pncad::topo::Surface::Torus {
+                Ok(pncad::topo::Surface::Torus {
                     frame,
                     major_radius,
                     ..
@@ -2492,31 +2474,40 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
                 _ => false,
             };
-            matches!(
-                e,
+            match e {
+                // At the tour's own scalar the torus × spline section
+                // marches and is accounted, and the pierce pass asks the
+                // leaf's other wall whether it holds the point.
+                BooleanError::HeldPierceUnbuilt {
+                    operand: pncad::topo::Operand::B,
+                    face,
+                    pierced,
+                    kind: SurfaceKind::Nurbs,
+                    pierced_kind: SurfaceKind::Torus,
+                    placed: false,
+                } => marches && lower_tube(*pierced) && ridge_side(*face) == Some(false),
+                // PINNED, not wanted: a scalar handed no march lane (the
+                // K sweep's) reads the ridge wall's section one refusal
+                // short of the tour, and the refusal names that scalar.
+                // It waits on
+                // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
                 BooleanError::GermSectionUnbuilt {
                     a_face,
                     a_kind: SurfaceKind::Torus,
                     b_face,
                     b_kind: SurfaceKind::Nurbs,
-                    why: SectionUnbuilt::Refused(why),
-                } if lower_tube(*a_face) && ridge_wall(*b_face) && match why {
-                    // At the tour's own scalar the torus × spline section
-                    // marches, and runs to its cell budget.
-                    pncad::geom_brep::SectionError::Unaccounted { cause } => {
-                        marches && cause.contains("cell budget")
-                    }
-                    // PINNED, not wanted: a scalar handed no march lane
-                    // (the K sweep's) reads this wall one refusal short
-                    // of the tour, and the refusal names that scalar. It
-                    // waits on
-                    // `work/sectarms/the-torus-spline-germ-section-has-no-march-lane-at-the-recording-scalar.md`.
-                    pncad::geom_brep::SectionError::NoMarch { scalar: unmarched } => {
-                        !marches && *unmarched == scalar
-                    }
-                    _ => false,
+                    why:
+                        SectionUnbuilt::Refused(pncad::geom_brep::SectionError::NoMarch {
+                            scalar: unmarched,
+                        }),
+                } => {
+                    !marches
+                        && *unmarched == scalar
+                        && lower_tube(*a_face)
+                        && ridge_side(*b_face) == Some(true)
                 }
-            )
+                _ => false,
+            }
         },
         "join the long leaf to the stem it grows from",
     );

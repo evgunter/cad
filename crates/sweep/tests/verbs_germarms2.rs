@@ -79,7 +79,7 @@ fn assert_same_door(direct: &BooleanError, reposed: &BooleanError, what: &str) {
 /// The single cylinder surface of an operand built by [`cyl`].
 fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
     let mut found = None;
-    for (_, s) in b.surfaces() {
+    for (_, s) in b.described_surfaces() {
         if let topo::Surface::Cylinder { frame, radius, .. } = s {
             let (origin, axis) = (frame.origin(), frame.axis());
             assert!(found.is_none(), "the fixture has one wall surface");
@@ -133,9 +133,9 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     // a parabola in the span parameter and its vertex is the foot.
     let w = origin - o2;
     let perp = |v: Vec3<f64>| v - a2 * v.dot(a2);
-    let (wp, dp) = (perp(w), perp(dir));
+    let (wp, dp) = (perp(w), perp(dir.get()));
     let t = -wp.dot(dp) / dp.norm_squared();
-    let touch = origin + dir * t;
+    let touch = origin + dir.get() * t;
     let gap = perp(touch - o2).norm() - r;
     assert!(
         gap.abs() < 1e-15,

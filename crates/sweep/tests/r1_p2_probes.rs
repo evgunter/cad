@@ -76,13 +76,13 @@ fn prism(scale: f64) -> Body<f64> {
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().all(|p| p.y == -scale))
 }
 
 fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
-    matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+    matches!(body.get_surface(key), Ok(Surface::Nurbs(n))
+        if n.control().iter().any(|p| p.y != -scale)
             && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
@@ -183,7 +183,7 @@ fn intrinsic_seam_at(
 
 fn chart_of(body: &Body<f64>, key: topo::SurfaceKey) -> NurbsSurface<f64> {
     match body.get_surface(key) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("the bowed wall is a described NURBS chart: {other:?}"),
     }
 }
@@ -426,19 +426,23 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
             }
             rims += 1;
             let out = topo::pcurve_of(&body, he, band());
-            let Ok(Pcurve::IsoLine { p0, pl, .. }) = out else {
+            let Ok(Pcurve::IsoLine { line, at0, rate }) = out else {
                 panic!("a cap rim on the widened chart derives via the measured map: {out:?}")
             };
-            assert_ne!(pl.x, 0.0, "u is the MOVING channel on a rim: {pl:?}");
-            assert_eq!(pl.y, 0.0, "and v is fixed: {pl:?}");
+            assert_ne!(rate, 0.0, "u is the MOVING channel on a rim: {rate:?}");
+            assert_eq!(
+                line.axis,
+                geom_brep::ChartAxis::V,
+                "and v is fixed: {line:?}"
+            );
             assert!(
-                p0.y == dv0 || p0.y == dv1,
+                line.value == dv0 || line.value == dv1,
                 "on a genuine chart v-boundary: v = {} of [{dv0}, {dv1}]",
-                p0.y
+                line.value
             );
             for i in 0..=8 {
                 let t = t0 + (t1 - t0) * (f64::from(i) / 8.0);
-                let (u, v) = (p0.x + pl.x * t, p0.y + pl.y * t);
+                let (u, v) = (at0 + rate * t, line.value);
                 assert!(
                     (1.0..=2.0).contains(&u),
                     "the measured map lands on the FACE's patch [1, 2]: u({t}) = {u}"
@@ -495,14 +499,18 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
             }
             seams += 1;
             let out = topo::pcurve_of(&body, he, band());
-            let Ok(pcurve @ Pcurve::IsoLine { p0, pl, .. }) = out else {
+            let Ok(pcurve @ Pcurve::IsoLine { line, .. }) = out else {
                 panic!("a Chart-described interior column takes the exact class: {out:?}")
             };
-            assert_eq!(pl.x, 0.0, "a column holds u constant: {pl:?}");
+            assert_eq!(
+                line.axis,
+                geom_brep::ChartAxis::U,
+                "a column holds u constant: {line:?}"
+            );
             assert!(
-                du0 < p0.x && p0.x < du1,
+                du0 < line.value && line.value < du1,
                 "on a column strictly INSIDE the chart's u domain [{du0}, {du1}]: {}",
-                p0.x
+                line.value
             );
             let cache = geom_brep::PcurveCache::certify(
                 pcurve,
@@ -525,7 +533,7 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
             );
             println!(
                 "R1: chart seam {he:?} on u = {} of [{du0}, {du1}], envelope {:e} m @ eps={eps:e}",
-                p0.x,
+                line.value,
                 cache.certificate().envelope
             );
         }
@@ -588,9 +596,8 @@ fn r1_dual_scalar_wall_seam_arm_names_the_missing_lane() {
         .faces()
         .find_map(|(fk, f)| match body.face_surface(fk) {
             // The same wall of the same loft: its net is the f64 pick's.
-            Some(Surface::Nurbs(n))
-                if !n.is_placeholder()
-                    && n.control().len() == picked.len()
+            Ok(Surface::Nurbs(n))
+                if n.control().len() == picked.len()
                     && n.control()
                         .iter()
                         .zip(&picked)

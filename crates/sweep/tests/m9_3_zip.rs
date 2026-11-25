@@ -98,7 +98,7 @@ fn two_peg_plate_union_is_exactly_additive() {
     // surface survives anywhere in the result.
     assert!(
         body.faces()
-            .all(|(fk, _)| !matches!(body.face_surface(fk), Some(geom::Surface::Cylinder { .. }))),
+            .all(|(fk, _)| !matches!(body.face_surface(fk), Ok(geom::Surface::Cylinder { .. }))),
         "full-engagement patch removal deletes every wall face"
     );
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
@@ -113,7 +113,7 @@ fn two_peg_plate_union_is_exactly_additive() {
     assert_eq!(counts.s, 1, "one shell");
     assert_eq!(counts.r, 0, "the flush peg ends merge into the top face");
     assert_eq!(
-        counts.genus(),
+        counts.h(),
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );
@@ -243,7 +243,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let face_kind = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
-            .and_then(|l| body.face_surface(l.face))
+            .and_then(|l| body.face_surface(l.face).ok())
             .map(geom::Surface::kind)
     };
     let mut rim_edges = Vec::new();
@@ -317,7 +317,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     assert_eq!(counts.s, 1, "one shell");
     assert_eq!(counts.r, 0, "no ring loops in the kissing rounds");
     assert_eq!(
-        counts.genus(),
+        counts.h(),
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );

@@ -98,10 +98,10 @@ fn lofted_wall_verdict(k: usize) -> (Vec<f64>, bool) {
         .collect();
     let lofted =
         sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the loft builds");
-    let fk = lofted.side_faces[0][0][0].unwrap();
+    let fk = lofted.side_faces[0][0][0][0].unwrap();
     let sk = lofted.body.get_face(fk).unwrap().surface;
     let n = match lofted.body.get_surface(sk) {
-        Some(Surface::Nurbs(n)) => (**n).clone(),
+        Ok(Surface::Nurbs(n)) => (**n).clone(),
         other => panic!("a lofted wall is a NURBS chart: {other:?}"),
     };
     let knots = n.knots_v_f64_interim().knots().to_vec();

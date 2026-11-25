@@ -65,10 +65,12 @@ pub(crate) fn along_y(
         Vec::new(),
         fixture::slides_along(by, [0.0, 1.0, 0.0], 2.0),
     );
-    insert(
+    let (doc, row) = insert(
         doc,
         Node::place(source, editor_core::Operand::Var(target), placed.bundle()),
-    )
+    );
+    // The row is its binder's yield (D10 `[repetition]`).
+    (fixture::yielded(doc, row), row)
 }
 
 /// **The nested document**: a cube, an inner row of `M` along x over
@@ -87,19 +89,23 @@ pub(crate) fn nested_doc(
     let (doc, cube) = cube_doc(label);
     let (doc, i, inner) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(N), Some(i));
-    let read = BodyRead::plain(fixture::body_read(&doc, inner.into()));
+    // The outer row stands in the binder `{i, j}` and reads the inner
+    // row's member there, `inner[i, j]`.
+    let read = fixture::member_here(&doc, inner.into());
     let (doc, outer) = along_y(doc, (inner, read), j);
     (doc, cube, inner, outer, i, j)
 }
 
 /// **Each inner member alone, placed as the outer places it**: one row
-/// of `N` over `inner[i]` per `i`, under one index of its own. The
-/// document and the rows, by `i`.
+/// of `N` over `inner[i, 0]` per `i`, under one index of its own. The
+/// inner row is a yield of the binder `{i, j}`, keyed by both indices,
+/// and reads no `j`, so `inner[i, 0]` is its member `i`. The document and
+/// the rows, by `i`.
 pub(crate) fn per_member(doc: ProfileDoc, inner: RecipeNodeId) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (mut doc, alone) = fixture::index(doc, "alone", N);
     let mut rows = Vec::new();
     for i in 0..M {
-        let read = BodyRead::indexed(inner, vec![Formula::count(i)]);
+        let read = BodyRead::indexed(inner, vec![Formula::count(i), Formula::count(0)]);
         let (next, row) = along_y(doc, (inner, read), alone);
         doc = next;
         rows.push(row);
@@ -117,7 +123,10 @@ pub(crate) fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<
         b.edges().count(),
         b.vertices().count()
     )];
-    v.extend(b.surfaces().map(|(k, s)| format!("S {k:?} {s:?}")));
+    v.extend(
+        b.described_surfaces()
+            .map(|(k, s)| format!("S {k:?} {s:?}")),
+    );
     v.extend(b.curves().map(|(k, c)| format!("C {k:?} {c:?}")));
     v.extend(b.points().map(|(k, p)| format!("P {k:?} {p:?}")));
     v
@@ -183,7 +192,9 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         ev.table_at(inner).expect("the inner"),
         ev.table_at(outer).expect("the outer"),
     );
-    assert_eq!(of_outer.len(), of_inner.len() * N as usize);
+    // The inner row is a yield of the binder `{i, j}`, one member per
+    // pair as the outer is.
+    assert_eq!(of_outer.len(), of_inner.len());
     for (name, entry) in of_outer.iter() {
         assert_eq!(name.node, outer);
         let [RoleSeg::Member { at, of: inner_name }] = name.path.as_slice() else {
@@ -204,7 +215,7 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         let inner_entry = of_inner
             .lookup(&in_member(
                 inner,
-                vec![(i_var, *i)],
+                vec![(i_var, *i), (j_var, *j)],
                 master.as_ref().clone(),
             ))
             .expect("the inner row exists");
@@ -214,7 +225,11 @@ fn a_family_of_families_is_one_member_per_pair_outer_first() {
         };
         let expected = match inner_entry {
             Entry::Unique(e) => {
-                assert_eq!(e.body, *i, "the inner row's body is its member's place");
+                assert_eq!(
+                    e.body,
+                    u32::try_from(flat(*i as usize, *j as usize)).unwrap(),
+                    "the inner row's body is its member's place"
+                );
                 Entry::Unique(at_flat(e))
             }
             Entry::Tied(es) => Entry::Tied(es.iter().map(at_flat).collect()),
@@ -352,7 +367,10 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
     let (doc, both) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![row.into(), cube.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::Spell::All(row.into()),
+                editor_core::Spell::One(cube.into()),
+            ]),
         },
     );
     let ev = run(&doc, &opts());

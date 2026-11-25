@@ -51,11 +51,11 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             147  boolean/mod.rs
+crate-visible             144  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
-crate-visible              22  boolean/ops.rs
+crate-visible              21  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
-crate-visible              20  boolean/records.rs
+crate-visible              19  boolean/records.rs
 crate-visible               7  boolean/reduce.rs
 crate-visible              19  boolean/refusal_routes.rs
 crate-visible              12  boolean/section_cert.rs
@@ -121,25 +121,25 @@ names-splitting            22  chord_join.rs  # work/onedoor/chord-joins-ring-si
 names-splitting            16  chord_join/ring_side_rows.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             7  chord_join/sibling_escalation_rows.rs
 names-splitting            61  contain.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
-names-splitting             9  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            18  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs
 names-splitting             3  offset_together.rs
 names-splitting             6  props.rs
-names-splitting            16  region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            32  region.rs  # work/onedoor/splitting-arc-readers-take-no-body (the pieced arcs, a spline arc's own); work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            10  review_d18.rs
 names-splitting             1  ruled_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             2  separation.rs
 names-splitting             2  shell.rs
 names-splitting            33  solid_contain.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
-names-splitting             4  sphere_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting             5  sphere_region.rs  # work/onedoor/splitting-arc-readers-take-no-body (the pieced arcs); work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             3  spline_region.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             2  surgery.rs
 names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting             4  tier3_tests.rs
-names-splitting            18  torus_region.rs  # work/onedoor/splitting-arc-readers-take-no-body
-names-splitting            41  validate.rs
+names-splitting             8  torus_region.rs  # work/onedoor/splitting-arc-readers-take-no-body
+names-splitting            37  validate.rs
 names-splitting            19  vertex_section.rs
 
 refused-binding             4  census.rs
@@ -177,7 +177,6 @@ ambiguous classify                       # offset_axial.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
 ambiguous holds                          # census/depth_gap.rs
-ambiguous landings                       # region.rs  work/onecopy/the-containment-move-leaves-two-names-in-boolean
 ambiguous maximal_faces_gate             # lib.rs
 ambiguous no_crossings_certificates      # lib.rs
 ambiguous no_crossings_section_report    # lib.rs

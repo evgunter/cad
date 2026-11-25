@@ -78,7 +78,7 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
 fn sphere<T: Decide>(body: &Body<T>) -> geom_brep::SurfaceKey {
     body.faces()
         .map(|(_, f)| f.surface)
-        .find(|&k| matches!(body.get_surface(k), Some(Surface::Sphere { .. })))
+        .find(|&k| matches!(body.get_surface(k), Ok(Surface::Sphere { .. })))
         .expect("the hemisphere's sphere")
 }
 
@@ -112,7 +112,7 @@ fn refused<T: Decide + AtRestPolicy + Bounds>(declared: bool) -> CertifyError {
         } else {
             description
         },
-        carrier: Curve3::line(start, (end - start) / len),
+        carrier: Curve3::line(start, geom_core::UnitVec3::chord(end - start).0),
         param_start: T::zero(),
         param_end: len,
     };

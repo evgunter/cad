@@ -19,7 +19,7 @@ use crate::datum::ANALYTIC_DATA_MAX;
 use crate::{Curve3, CurveKind, Surface, SurfaceKind};
 use core::num::NonZeroUsize;
 use geom_core::spline::{KnotVector, Knots, SpanLocate};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, UnitVec3, Vec3};
 use std::sync::Arc;
 
 /// One analytic kind: a builder over a flat scalar list, and how many
@@ -111,7 +111,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
         .filter_map(|kind| -> Option<AnalyticKind<Curve3<f64>>> {
             Some(match kind {
                 CurveKind::Line => AnalyticKind {
-                    build: |x| Curve3::line(pt(&x[0..3]), dir(&x[3..6])),
+                    build: |x| Curve3::line(pt(&x[0..3]), UnitVec3::squared(dir(&x[3..6]))),
                     scalars: 6,
                 },
                 CurveKind::Circle => AnalyticKind {
@@ -271,4 +271,26 @@ pub fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
         }
         _ => unreachable!("only a framed analytic surface is reframed"),
     }
+}
+
+/// A described NURBS surface for rows that need one of the spline kind
+/// and nothing more: the bilinear patch over `[0, 1]²` on `z = 0`.
+///
+/// # Panics
+///
+/// Never: the knots and net are fixed and valid.
+#[must_use]
+#[allow(clippy::unwrap_used)]
+pub fn unit_patch() -> Surface<f64> {
+    let kv = || {
+        geom_core::spline::Knots::from(
+            geom_core::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        )
+    };
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .map(|(x, y)| Point3::new(x, y, 0.0))
+        .to_vec();
+    Surface::Nurbs(std::sync::Arc::new(
+        crate::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap(),
+    ))
 }

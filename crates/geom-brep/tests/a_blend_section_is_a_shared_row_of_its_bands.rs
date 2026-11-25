@@ -134,7 +134,7 @@ fn cone_generator(before: f64, span: (f64, f64)) -> Row<f64> {
                 frame: geom::Frame::new(apex, Vec3::new(0.0, 1.0, 0.0), along),
             },
         ],
-        carrier: Curve3::line(apex - along * before, along),
+        carrier: Curve3::line(apex - along * before, geom::stated_direction(along)),
         span,
     }
 }
@@ -165,7 +165,7 @@ fn chamfer_junction(centre: Point3<f64>, big: f64, s: f64, heading: f64) -> Row<
                 half_angle: core::f64::consts::FRAC_PI_4,
             },
         ],
-        carrier: Curve3::line(on_plane, g / len),
+        carrier: Curve3::line(on_plane, geom::stated_direction(g / len)),
         span: (0.0, len),
     }
 }
@@ -207,7 +207,12 @@ fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         spec,
         p0,
         p1,
-        |k| surfaces.get(k).cloned(),
+        |k| {
+            surfaces
+                .get(k)
+                .cloned()
+                .ok_or(geom_brep::SurfaceMiss::Stale)
+        },
         geom_core::test_support::fixture_lever(T::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),

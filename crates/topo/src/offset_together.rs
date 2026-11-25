@@ -213,7 +213,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let surface = data.surface();
+            let surface = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?;
             let Surface::Plane { frame, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
@@ -294,13 +296,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             .collect();
         rows.sort_unstable();
         rows.dedup();
-        for (vertex, here, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
+        for (vertex, _, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
             for p in planes {
                 if !at.iter().any(|q| q.same_move(p)) {
                     at.push(p);
                 }
             }
-            arms.extend(corner_arms(body, *vertex, *here));
+            arms.extend(corner_arms(body, *vertex)?);
         }
         let planes: Vec<(Vec3<T>, T)> = at.iter().map(|p| (p.normal, p.c)).collect();
         solve_planar_corner(group[0], &planes, &arms, band)
@@ -337,7 +339,8 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -351,7 +354,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
         );
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = view.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
@@ -396,7 +399,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 dir,
             }
             .param(p_start);
-            let origin = origin + ((p_start - old_start) - dir * slide);
+            let origin = origin + ((p_start - old_start) - dir.get() * slide);
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.
@@ -437,7 +440,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         };
         // The edge's two planes as the door leaves them.
         let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
-            Some(&Surface::Plane {
+            Ok(&Surface::Plane {
                 frame: carrier_frame,
             }) => Surface::Plane {
                 frame: carrier_frame.with_origin(carrier_frame.origin() + p.delta),
@@ -511,7 +514,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = face.surface().clone()
+        } = face.expect_described().clone()
         else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };
@@ -524,30 +527,6 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         )?);
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
-    // Every edge OF THE SCOPE was just re-described, so its stored
-    // pcurve rows are stale — re-minted here for the same reason
-    // `replace_faces_offset` re-mints, and before the tier-2 gate that
-    // adopts the clone. A row outside the scope is not re-derived: the
-    // door did not touch its edge, so the row is exactly as fresh as it
-    // was found, which is what the `Maintains` posture claims.
-    //
-    // **KEPT although it is inert today, deliberately.** Only MINTING
-    // charts carry pcurve rows and a plane is not one, so on every body
-    // this door currently accepts the pass clears nothing and cannot go
-    // red — which means it is also not covered by any row here, and
-    // that is said rather than left for a reader to discover. It stays
-    // because the door's scope gate is the only thing making it inert:
-    // the curved corners that follow bring charts that DO mint, and a
-    // door that re-describes every edge in the scope without re-minting
-    // would be storing stale rows the moment they arrive. The census
-    // posture (`Maintains`, by re-minting) is therefore honest now and
-    // stays honest then.
-    let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
-        ReplaceFaceError::Pcurve {
-            source: source.for_driver(),
-        }
-    })?;
     // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
     // carry the account of what stays linear in the body).
     work.close_gated("offset_planes_together")
@@ -676,36 +655,38 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
     Vec3::new(p.x, p.y, p.z)
 }
 
-/// The chord length of every edge ending at a vertex — the lengths the
-/// corner's conditioning is levered by (see [`solve_planar_corner`]).
+/// How far every edge ending at a vertex reaches from it — the lengths
+/// the corner's conditioning is levered by (see
+/// [`solve_planar_corner`]), each read off the edge's cover from below
+/// ([`crate::cover::edge_reach_bounds`]): a corner is resolved only on a
+/// definite sign.
 ///
-/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
-/// difference is load-bearing rather than a duplication to collapse.**
-/// A chord is the arc length here because this door's bodies are
-/// all-planar and a planar edge is a straight segment: no closed edge
-/// exists for a chord to read zero on. The axial door's do — a chart
-/// with ONE seam closes on itself — and a zero arm makes every meter
-/// read `Zero` and call a perfectly transversal corner degenerate,
-/// which is what it measured on the revolved tube.
-fn corner_arms<T: Real>(
+/// **The axial door keeps its own copy** (`offset_axial::corner_arms`):
+/// its edges include closed ones, a chart with ONE seam closing on
+/// itself, and its line and circle arms read lengths of their own. Here
+/// every edge is a straight segment, whose reach from its end is its
+/// length, so no edge reads zero.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::CarrierLaneUnsupported`] for an edge with no
+/// certified curve, whose reach no cover bounds.
+fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-    here: Point3<T>,
-) -> Vec<geom_core::Lever<T>> {
+) -> Result<Vec<geom_core::Lever<T>>, ReplaceFaceError<T>> {
+    let here = body.point_of(vertex, proven(&body.vertices, vertex, EntityId::Vertex));
     body.vertex_orbit_linked(vertex)
         .into_iter()
         .map(|he| {
-            let next = proven(&body.half_edges, he, EntityId::HalfEdge).next;
-            let far = linked(
-                &body.half_edges,
-                next,
-                EntityId::HalfEdge,
-                EntityId::HalfEdge(he),
-                "next",
-            )
-            .start;
-            let there = body.linked_vertex_point(far, EntityId::HalfEdge(next), "start");
-            geom_brep::ExtentBall::point(here).lever_from(there)
+            let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
+            crate::cover::edge_reach_bounds(body, edge, here)
+                .map(geom_brep::LeverBounds::below)
+                .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge: key,
+                    what: "it has no curve to lever its corner by",
+                })
         })
         .collect()
 }
@@ -751,13 +732,10 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// statements were byte-identical twins and a fact spelled twice is a
 /// fact that drifts.
 ///
-/// **Narrowed to the scope, and only these two things.** (1) This
-/// partition: `of_solids` walks the named solids' shells and nothing
-/// else, so another solid's shells, faces, loops and half-edges are
-/// not read at all. (2) The closing pcurve pass
-/// ([`crate::pcurves::mint_pcurves_of`], over
-/// [`Scope::faces_in_scope`]): the rows of the scope's faces are
-/// re-derived and no others are read or written.
+/// **Narrowed to the scope, and only this.** The partition:
+/// `of_solids` walks the named solids' shells and nothing else, so
+/// another solid's shells, faces, loops and half-edges are not read at
+/// all.
 ///
 /// **Everything else a door does reads the whole body:**
 ///
@@ -891,7 +869,8 @@ impl Scope {
                     let f = body.linked_face(face, holder, "faces");
                     for member in f.boundary() {
                         self.vertices.insert(member.vertex(), solid);
-                        if let BoundaryMember::Edge { ek, .. } = member {
+                        if let BoundaryMember::Edge { edge, .. } = member {
+                            let ek = edge.key();
                             self.edges.insert(ek, solid);
                         }
                     }
@@ -901,14 +880,13 @@ impl Scope {
         }
     }
 
-    /// Every face of every solid this scope names — the faces a door's
-    /// closing pcurve pass is entitled to re-mint.
+    /// Every face of every solid this scope names.
     ///
     /// **In face-arena order**, and that is a contract, not an
     /// accident: it is read off the partition the walk already built,
     /// whose `SecondaryMap` iterates in key-slot order, so this is
-    /// exactly [`crate::pcurves::mint_pcurves`]'s own order restricted
-    /// to the scope. No second walk of the body, and nothing here can
+    /// exactly the body's own face order restricted to the scope. No
+    /// second walk of the body, and nothing here can
     /// fail — the entities were resolved when the scope was built.
     pub(crate) fn faces_in_scope(&self) -> Vec<FaceKey> {
         self.faces
@@ -1238,6 +1216,39 @@ mod scope_walks {
         let mut work = body.clone();
         offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
             .expect("the door reads its scope, and its scope charts");
+    }
+
+    /// **A corner levered by an edge with no curve refuses, naming the
+    /// lever.** The first box with one of its edges null scaffolding: the
+    /// corner solve reads each edge's reach from its corner, and the
+    /// scaffold has none, so the door refuses before it moves anything.
+    #[test]
+    fn a_corner_on_an_edge_with_no_curve_refuses_its_lever() {
+        let tol = Tol::witness();
+        let (mut body, first, _) = two_boxes();
+        let face = body.faces_of_solid(first).expect("a live solid")[0];
+        let he = body.face(face).unwrap().cycles().next().unwrap().1[0];
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let (below_end, above_end) = body.edge_vertices(edge).unwrap();
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves[curve] = crate::null::CurveGeom::NullScaffold(crate::null::NullEdge {
+            below_end,
+            above_end,
+        });
+        let moves = moves_of(&body, first, 0.1);
+        let got =
+            offset_planes_together(&mut body.clone(), &moves, Band::linear(tol).unwrap(), tol);
+        assert!(
+            matches!(
+                got,
+                Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    what: "it has no curve to lever its corner by",
+                    ..
+                })
+            ),
+            "the corner's lever refuses on the scaffold edge, got {:?}",
+            got.map(|_| ())
+        );
     }
 
     /// The scope walk's two hops answer DIFFERENTLY, and that is why it

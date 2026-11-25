@@ -20,7 +20,7 @@ fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })
@@ -35,7 +35,7 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().x - x).abs() < 1e-9 && frame.axis().y.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
             )
         })
@@ -329,7 +329,7 @@ fn probe_opened_box_census() {
         (16, 24, 11, 1, 1),
         "the rim surgery's census"
     );
-    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré at genus 0");
+    assert_eq!(counts.h(), Ok(0), "Euler–Poincaré at genus 0");
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
@@ -344,7 +344,7 @@ fn probe_opened_box_census() {
     let counts = euler_counts(&tube);
     let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] tube census: V={v} E={e} F={f} R={r} S={s}");
-    assert_eq!(counts.genus(), Ok(1), "Euler–Poincaré at genus 1");
+    assert_eq!(counts.h(), Ok(1), "Euler–Poincaré at genus 1");
 }
 
 /// TWO ADJACENT faces designated open — the designation the acceptance
@@ -427,7 +427,7 @@ fn probe_opened_vessel_cup() {
     let mut caps: Vec<(FaceKey, f64)> = v
         .faces()
         .filter_map(|(k, _)| match v.face_surface(k) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let origin = frame.origin();
                 Some((k, origin.y))
             }
@@ -474,7 +474,7 @@ fn probe_opened_vessel_cup() {
                 .faces()
                 .filter(|(fk, _)| {
                     matches!(cup.face_surface(*fk),
-                        Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12)
+                        Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() < 1e-12)
                 })
                 .map(|(k, _)| k)
                 .collect();
@@ -487,7 +487,7 @@ fn probe_opened_vessel_cup() {
             assert_eq!(counts.r, 1, "and that is the body's only ring");
             // THE GENUS: `topo::shell`'s own docs say a cup is 0.
             assert_eq!(
-                counts.genus(),
+                counts.h(),
                 Ok(0),
                 "one opening gives a cup, which is genus 0"
             );
@@ -580,7 +580,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     let v = disc_drum(1.0, 2.0);
     let cyl: Vec<FaceKey> = v
         .faces()
-        .filter(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(v.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(cyl.len(), 2, "the drum wears one cylinder on two faces");
@@ -603,7 +603,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     // A mixed group refuses too, untouched.
     let cap = v
         .faces()
-        .find(|(fk, _)| matches!(v.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .find(|(fk, _)| matches!(v.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
@@ -656,7 +656,7 @@ fn probe_late_err_leaves_body_untouched() {
     ])]);
     let cap = elbow
         .faces()
-        .find(|(fk, _)| matches!(elbow.face_surface(*fk), Some(geom::Surface::Plane { .. })))
+        .find(|(fk, _)| matches!(elbow.face_surface(*fk), Ok(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mut work = elbow.clone();

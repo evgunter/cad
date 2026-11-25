@@ -54,7 +54,7 @@ fn fingerprint(b: &Body<f64>) -> String {
     for (k, c) in b.curves() {
         let _ = writeln!(s, "C {k:?} {c:?}");
     }
-    for (k, sf) in b.surfaces() {
+    for (k, sf) in b.described_surfaces() {
         let _ = writeln!(s, "S {k:?} {sf:?}");
     }
     for (k, e) in b.edges() {
@@ -229,7 +229,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, join) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![fa.into(), fb_in.into()]),
+            members: editor_core::Bodies::spelled(vec![fa.into(), fb_in.into()]),
         },
     );
     // One more hop: a copy of the poisoned join.
@@ -362,7 +362,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
+            members: editor_core::Bodies::spelled(vec![t1.into(), t2.into()]),
         },
     );
     // A ring of base about an axis read off it (data only).
@@ -728,20 +728,37 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
 /// R6: the refusal doors — every wrong wiring is a TYPED refusal, at
 /// the edit door where the read's kind decides it and per node where
 /// its value does, never a panic and never a silent guess; a family at
-/// a body seat is no wrong wiring but a family of readers.
+/// a seat for one body refuses by kind, and "each member" is written.
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
     let (base, u, pat) = (ids[1], ids[4], ids[5]);
     let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
-    // A family read plainly at a pair's seat (their flag #5) makes the
-    // subtract a family under the same index (D10 `[repetition]`): one
+    // A family read plainly at a pair's seat (their flag #5) refuses by
+    // kind (D10 `[repetition]`); `{k in pat: u − pat[k]}` is one
     // subtract per member, not a guess at one body.
+    let refused = crate::fixture::insert_refused(
+        &doc,
+        Node::Subtract {
+            from: u.into(),
+            tool: pat.into(),
+        },
+    );
+    assert!(
+        matches!(
+            refused,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            }
+        ),
+        "a family at a seat for one body: {refused:?}"
+    );
     let (per_member, cut) = crate::fixture::insert(
         doc.clone(),
         Node::Subtract {
             from: u.into(),
-            tool: pat.into(),
+            tool: crate::fixture::member_here(&doc, pat.into()).into(),
         },
     );
     assert_eq!(

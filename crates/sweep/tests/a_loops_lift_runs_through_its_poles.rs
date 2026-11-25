@@ -301,7 +301,7 @@ fn the_stored_lift_bounds_the_faces_own_region_through_its_poles() {
     let mut polar = 0;
     for (name, body) in &fixtures {
         for (face, _) in body.faces() {
-            if !matches!(body.face_surface(face), Some(Surface::Sphere { .. })) {
+            if !matches!(body.face_surface(face), Ok(Surface::Sphere { .. })) {
                 continue;
             }
             let Some((area, at_pole)) = region_area(body, face) else {

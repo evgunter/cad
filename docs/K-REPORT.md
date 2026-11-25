@@ -1083,6 +1083,14 @@ ball from the oval's speed bound. The boundary reading's are
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
+**Roster retirement (GERM): the spiric edge's ray rows.** A ray counts a
+spiric arc's crossings as a conic arc's, across the ray's square plane
+through the co-surface arm and the spiric × plane door
+(`containment::arc_crossings`), so `point_in_arc_loop_spiric_side`,
+`_turn`, `_advance` and `point_in_arc_loop_reach` are retired; the
+boundary reading's four stand. The door's own row is
+`spiric_plane_oval_side` (geom-brep's census).
+
 **Roster addition (SPLICE): the spline edge's crossing row.** Eleven
 new names from `topo/src/splitting/spline_arc.rs`, the row the carrier
 walk crosses a spline edge by, halving the arc into Bézier pieces each
@@ -1104,13 +1112,14 @@ the ray's are the walk's own, bare literals:
 | `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
 | `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Eighteen
 names from `topo/src/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
-first-harmonic root door. Five are its boundary pre-pass's, a
-`ConicRows` value (`BOUNDARY`) it reads each arc through on the arc's
-own circle:
+first-harmonic root door. Nine are its boundary pre-pass's: a
+`ConicRows` value (`BOUNDARY`) it reads each circle arc through on the
+arc's own circle, and an `ArcRows` value (`SPLINE`) it reads each
+spline arc through piece by piece:
 
 | name | carrier |
 |---|---|
@@ -1128,6 +1137,10 @@ own circle:
 | `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
 | `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
 | `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_sphere_region_spline_end` | `ArcRows` field (`SPLINE`): the distance to either end of a spline arc |
+| `bool_sphere_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
+| `bool_sphere_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
+| `bool_sphere_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
@@ -1149,7 +1162,7 @@ for its boundary pre-pass:
 | `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
 | `bool_torus_region_span` | a bare literal: a crossing's parameter against its edge's span ends, at the circle's radius or the tube's; where that is in band, the cosine of its angle from the span's middle against the half-span's, at the same lever |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
-| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
+| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner; on a spindle sheet, a meridian's crossing or corner against its apex |
 | `bool_torus_region_order` | a bare literal: two crossings' places along the path |
 | `bool_torus_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the tube's radius |
 | `bool_torus_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
@@ -1165,6 +1178,21 @@ for its boundary pre-pass:
 
 They pool with nothing: the region is read by the point doors at points
 on a torus.
+
+**Roster addition (EMBEDWALK): a torus face's spline edges.** Four names
+from `topo/src/torus_region.rs`, read where the region's builder hands
+it the scalar's spline reader: an `ArcRows` value (`SPLINE`) its
+boundary pre-pass reads each spline edge through piece by piece. A
+spline edge's crossings of a leg's plane, ends included, are the ring
+composite's (`spline_composite_*`). They pool with the torus region's
+other names:
+
+| name | carrier |
+|---|---|
+| `bool_torus_region_spline_end` | `ArcRows` field (`SPLINE`): the distance to either end of a spline arc |
+| `bool_torus_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
+| `bool_torus_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
+| `bool_torus_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of

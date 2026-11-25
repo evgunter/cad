@@ -105,7 +105,6 @@ fn shape(frame: &Frame) -> String {
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OpenConic { conic }) => format!("open conic {conic:?}"),
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
             format!("degenerate torus {convention:?}")
         }
@@ -146,7 +145,7 @@ fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what:
         "{what}: the frame's centre {c:?} is the conic's {centre:?}"
     );
     assert!(
-        a.normalize().cross(normal.normalize()).norm() < 1e-12,
+        a.get().normalize().cross(normal.normalize()).norm() < 1e-12,
         "{what}: the frame's axis {a:?} is the cutting plane's normal {normal:?}"
     );
 }
@@ -393,14 +392,9 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     let cone = far_cone();
     let alpha = 0.01_f64.atan();
     let b = band();
-    let on = super::carrier_pair::face_witnesses(&body, face).unwrap();
+    let cover = || crate::cover::face_cover(&body, face, b);
     let reading = |a: &geom::Surface<f64>, c: &geom::Surface<f64>| {
-        let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
-            (Vec::new(), on.clone())
-        } else {
-            (on.clone(), Vec::new())
-        };
-        let at = frame_reading(a, on_a, on_b).unwrap();
+        let at = frame_reading(a, cover, cover).unwrap();
         let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
         (at, extent)
     };
@@ -684,20 +678,20 @@ fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
     );
     let unit = |d: Vec3<f64>| d / d.norm();
     for k in 0..2 {
-        let d = unit(plus.dirs[k]);
+        let d = unit(plus.dirs[k].get());
         assert!(
             (d.x.abs() < 1e-12) && ((d.y / d.z).abs() - 2.0).abs() < 1e-12,
             "line {k}: along (0, 2, ±1), not {d:?}"
         );
         assert!(
-            unit(minus.dirs[1 - k]).cross(d).norm() < 1e-12,
+            unit(minus.dirs[1 - k].get()).cross(d).norm() < 1e-12,
             "line {k}: the flipped normal reads it as line {}",
             1 - k
         );
     }
     let read = |site, dir| line_of(&plus, (site, dir), band());
     for k in 0..2 {
-        let d = unit(plus.dirs[k]);
+        let d = unit(plus.dirs[k].get());
         for (what, site, dir) in [
             ("a site up the line", apex + d * 0.4, -d),
             ("a site on the far nappe", apex - d * 0.3, d),
@@ -749,14 +743,14 @@ fn a_plane_off_the_apex_reads_one_loop() {
 }
 
 /// The cone wall about `z` with its apex at the origin (its lamina twin,
-/// which the fixture leaves on the seed's placeholder, put on the cone
+/// which the fixture leaves pending, put on the cone
 /// too, so the body moves) and the brick whose face `x = 0` holds the
 /// apex: its section the lines along `(0, ±1, 1)`.
 fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
     let (mut wall, face) =
         crate::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
-    let carrier = wall.proven_face(face).surface().clone();
+    let carrier = wall.proven_face(face).surface().unwrap().clone();
     let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     wall.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
@@ -781,7 +775,7 @@ fn apex_pair_faces(
     let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
         body.faces()
             .map(|(k, _)| k)
-            .find(|&k| keep(body.proven_face(k).surface()))
+            .find(|&k| keep(body.proven_face(k).surface().unwrap()))
             .unwrap()
     };
     let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
@@ -922,12 +916,12 @@ fn the_mint_takes_the_pairs_held_reading() {
     for k in 0..2 {
         let d = lines.dirs[k];
         assert_eq!(
-            mint(&door, d).unwrap(),
+            mint(&door, d.get()).unwrap(),
             SectionPick::Line(k),
             "line {k}: the door's reading"
         );
         assert_eq!(
-            mint(&swapped, d).unwrap(),
+            mint(&swapped, d.get()).unwrap(),
             SectionPick::Line(1 - k),
             "line {k}: a held reading with its lines swapped"
         );
@@ -937,7 +931,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         b,
         Ok(PkSection::Loop(geom::Line {
             origin: Point3::new(0.0, 0.0, 1.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         })),
     );
     let at_apex = super::join::germ_branch(
@@ -945,7 +939,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         a,
         b,
         loci,
-        (Point3::origin(), lines.dirs[0]),
+        (Point3::origin(), lines.dirs[0].get()),
         band(),
     )
     .unwrap();
@@ -956,5 +950,27 @@ fn the_mint_takes_the_pairs_held_reading() {
             Err(BooleanError::JoinDesync { .. })
         ),
         "a pierce germ along a ruling the held reading reads as a loop is a desync"
+    );
+}
+
+/// **A plane×cone surface pair's reach is read from inside its faces.**
+/// The glue door's reach ([`super::join::surface_pair_reach`]) of
+/// [`far_generator_wall`], its face its own window, is measured from a
+/// point of the face's region: its farthest distance from there is no
+/// more than the generator it holds, about 1 m, and no less than half
+/// it, where the apex a hundred metres off, or a carrier's stored
+/// origin, would read about a hundred.
+#[test]
+fn a_cone_surface_pairs_reach_is_read_from_inside_its_faces() {
+    let (body, face) = far_generator_wall();
+    let reach =
+        super::join::surface_pair_reach((&body, &body), &[(face, face)], &far_cone(), band())
+            .unwrap();
+    // A face reach's lever is its measure from its own `at`, whatever
+    // pivot it is asked from.
+    let across = reach.lever_from(Point3::new(1.0, 0.0, 0.0)).length();
+    assert!(
+        (0.5..=1.01).contains(&across),
+        "the surface pair's reach reads its faces from inside them, got {across}"
     );
 }

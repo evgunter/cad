@@ -88,7 +88,7 @@ impl Fnv {
             Curve3::Line(geom::Line { origin, dir }) => {
                 self.u64(40);
                 self.p3(origin);
-                self.v3(dir);
+                self.v3(&dir.get());
             }
             Curve3::Circle(circle) => {
                 let (center, axis, u_ref) = (
@@ -261,7 +261,7 @@ impl Fnv {
                 CurveGeom::NullScaffold(_) => self.u64(51),
             }
         }
-        for (_k, s) in body.surfaces() {
+        for (_k, s) in body.described_surfaces() {
             self.surface(s);
         }
     }
@@ -318,6 +318,7 @@ fn deep_digest<T: topo::AtRestPolicy + Decide + Bounds>(ev: &Evaluation<T>) -> u
                         }
                     }
                     ValuePayload::Family => d.u64(19),
+                    ValuePayload::Datum(_) => d.u64(20),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);

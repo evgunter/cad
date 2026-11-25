@@ -154,6 +154,7 @@
 //! `geom_core::k_stats::decide` (M2 PR 7) — a `Probe`-lane run records
 //! every decision under its predicate name.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod extrude;
 pub mod loft;
 pub mod revolve;
@@ -235,7 +236,7 @@ mod restatement_census {
     /// on the carrier its surgery builds (`blend/surgery.rs`).
     const COMPUTED: [(&str, &str, usize); 2] = [
         ("blend/surgery.rs", "set_edge_curve", 1),
-        ("loft.rs", "set_edge_curve", 2),
+        ("loft.rs", "set_edge_curve", 1),
     ];
 
     #[test]

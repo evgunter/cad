@@ -34,10 +34,10 @@ fn geometric_cube_passes_all_three_tiers() {
     assert_eq!(t.body.vertices().count(), 8);
     assert_eq!(t.body.edges().count(), 12);
     assert_eq!(t.body.faces().count(), 6);
-    assert_eq!(t.body.surfaces().count(), 6);
+    assert_eq!(t.body.surface_slots().count(), 6);
     assert!(
         t.body
-            .surfaces()
+            .described_surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
     // At rest the un-upgraded chords are named — all twelve, once each
@@ -131,14 +131,8 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
-    body.set_face_surface(
-        seed_face,
-        FaceSurface::New {
-            surface: Surface::nurbs_placeholder(),
-            sense: true,
-        },
-    )
-    .unwrap();
+    body.set_face_surface(seed_face, FaceSurface::Pending { sense: true })
+        .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
@@ -161,7 +155,10 @@ fn wrong_cache_is_rejected_at_attachment() {
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
+    spec.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     let err = body
         .mev(
             MevSite::Lone {
@@ -387,7 +384,10 @@ fn a_minted_chords_refusal_names_the_minted_edge() {
         .unwrap();
     let mut chord =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    chord.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
+    chord.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     let err = body
         .mef(
             MefSite::Chords {

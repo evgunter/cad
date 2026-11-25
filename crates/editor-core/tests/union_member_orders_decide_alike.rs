@@ -13,7 +13,7 @@
 //!
 //! - **the outcome's kind**: every order builds, or every order refuses;
 //! - **a refusal**: the pass's own, the same in every order — or a
-//!   fold step's ([`NodeErrorKind::UnionFoldStep`]), whose inner
+//!   fold step's ([`NodeErrorKind::FoldStep`]), whose inner
 //!   refusal is of one kind in every order (the member it names is the
 //!   one each order folds in, and differs);
 //! - **the judged rows**: the union's order-free rows (DM4), each the
@@ -182,14 +182,14 @@ fn decide(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
     );
     let ev = run(&doc);
     match failure(&ev, union) {
-        Some(NodeErrorKind::UnionFoldStep {
+        Some(NodeErrorKind::FoldStep {
             member,
             read,
             refusal,
@@ -331,7 +331,7 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
             let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
             Some(Carrier::Line(u, w - u))
         }
-        editor_core::EntityKey::Face(f) => match body.face_surface(f)? {
+        editor_core::EntityKey::Face(f) => match body.face_surface(f).ok()? {
             topo::Surface::Plane { frame, .. } => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some(Carrier::Plane(origin, normal))
@@ -717,7 +717,7 @@ fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
@@ -886,7 +886,7 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
         let (doc, union) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     order.iter().map(|&i| members[i].into()).collect(),
                 ),
             },
@@ -1012,7 +1012,7 @@ fn published_row_cells_are_member_cells_that_meet() {
             let (doc, union) = insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         order.iter().map(|&i| members[i].into()).collect(),
                     ),
                 },
@@ -1044,7 +1044,7 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 order.iter().map(|&i| members[i].into()).collect(),
             ),
         },
@@ -1188,7 +1188,7 @@ fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
             let (doc, union) = insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         order.iter().map(|&i| members[i].into()).collect(),
                     ),
                 },

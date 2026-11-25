@@ -19,24 +19,16 @@
 //! dropped.
 //!
 //! This is the exact rendering, for text that must read back as the
-//! float it came from: the viewer's field text
-//! (`viewer::props::render_number`), a serialized form, a dump. A
-//! number a sentence quotes is a [`crate::Told`], which spells the
-//! float it chooses in this notation. `quantity::fmt`'s
-//! `render_shortest` is the same rendering and a second copy: this
-//! crate depends on `quantity`, which is a leaf and cannot name this
-//! type, and this type writes to a `Formatter` where that one returns
-//! a `String`. Both are `{:?}` without its integral tail, which
-//! `the_rendering_is_debug_without_its_integral_tail` pins here.
+//! float it came from: a serialized form, a dump. An editable field's
+//! text is not this one: it is its value's shortest decimal in the
+//! field's own unit, positional at every magnitude
+//! ([`quantity::Decimal::positional`]). A number a sentence quotes is a
+//! [`crate::Told`], which spells a
+//! decimal of its unit in the same notation. The notation is
+//! [`quantity::Decimal`]'s: this is the decimal a finite float reads as,
+//! displayed, so `quantity`'s formatter and this rendering are one rule.
 
 use core::fmt;
-
-/// The smallest magnitude rendered positionally (std's `Debug`
-/// boundary for `f64`).
-const POSITIONAL_FLOOR: f64 = 1e-4;
-/// The first magnitude rendered scientifically (std's `Debug` boundary
-/// for `f64`).
-const POSITIONAL_CEILING: f64 = 1e16;
 
 /// An `f64` rendered for a message: positional where that is short,
 /// scientific where it is not (the module docs give the boundary).
@@ -47,15 +39,9 @@ pub struct Readable(pub f64);
 
 impl fmt::Display for Readable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let x = self.0;
-        let magnitude = x.abs();
-        let positional = !x.is_finite()
-            || magnitude == 0.0
-            || (POSITIONAL_FLOOR..POSITIONAL_CEILING).contains(&magnitude);
-        if positional {
-            write!(f, "{x}")
-        } else {
-            write!(f, "{x:e}")
+        match quantity::Decimal::of_float(self.0) {
+            Some(decimal) => fmt::Display::fmt(&decimal, f),
+            None => write!(f, "{}", self.0),
         }
     }
 }
@@ -124,8 +110,7 @@ mod tests {
         }
     }
 
-    /// The rendering is `{:?}` less a trailing `.0`, which is what
-    /// the two other copies of it in the tree spell by hand.
+    /// The rendering is `{:?}` less a trailing `.0`.
     #[test]
     fn the_rendering_is_debug_without_its_integral_tail() {
         let mut x = f64::from_bits(1);

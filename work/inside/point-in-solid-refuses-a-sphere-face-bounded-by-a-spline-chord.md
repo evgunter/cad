@@ -2,10 +2,13 @@
 id: point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord
 kind: issue
 title: point_in_solid refuses a sphere face bounded by a spline chord (PartialSphereFace), so every cylinder x sphere result that builds is no legal operand
-status: open
+status: closed
 opened: 2026-11-04
 priority: P0
 cost: M
+closed: 2026-11-25
+pr: 7755
+branch: inside/sphere-chord-region
 ---
 
 

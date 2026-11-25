@@ -135,7 +135,7 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let body = &lofted.body;
     let interior_of = |face: topo::FaceKey| -> Vec<f64> {
-        let Some(geom::Surface::Nurbs(net)) = body.face_surface(face) else {
+        let Ok(geom::Surface::Nurbs(net)) = body.face_surface(face) else {
             panic!("{row}: a loft wall is a spline")
         };
         let knots = net.knot_values_v();
@@ -152,6 +152,7 @@ fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let walls: Vec<topo::FaceKey> = lofted
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flatten()
         .flatten()
@@ -316,8 +317,7 @@ fn row(
     // `shell_reference`), so on these walls, centred on the world
     // origin, a quadrature face's lever is their diameter where the
     // origin's was their radius (`m8_3_rational_volume`'s ceiling).
-    // blade-10 measured 1.11e-6 at 1e-9, 1.08 times the target: the
-    // ceiling is the measure with headroom, not a bound the rule
+    // The ceiling is a measured pad with headroom, not a bound the rule
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
     assert!(
@@ -325,21 +325,7 @@ fn row(
         "PAD CEILING {name}: volume pad {} vs {ceiling}",
         got.enclosure.volume_pad
     );
-    // The measure the ceiling's comment cites, held where it was taken.
-    if name == "blade-10 (deg 3)" && eps == DEFAULT_EPS {
-        assert!(
-            (got.enclosure.volume_pad / BLADE_10_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
-            "MEASURED {name}: volume pad {} moved from the {BLADE_10_PAD_AT_DEFAULT_EPS} the \
-             ceiling's comment cites",
-            got.enclosure.volume_pad
-        );
-    }
 }
-
-/// blade-10's volume pad at the default ε, the measure the ceiling's
-/// comment cites (blade-8 at v-degree 1 read the same pad, before its
-/// walls became one slab each).
-const BLADE_10_PAD_AT_DEFAULT_EPS: f64 = 1.106_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's

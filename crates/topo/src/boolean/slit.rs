@@ -2,7 +2,8 @@
 //! line** (`crates/topo/README.md`, tier 3: where more than two sheets
 //! meet on a line, the material decides the edges, and no face passes
 //! through an edge's material wedge). Three operations on the result
-//! build what it decides:
+//! build what it decides, and the closing also deletes the chart cuts
+//! the kernel made for its own reasons (*Closing a cut*, below):
 //!
 //! - **Parting** ([`part_riders`]) makes two edges of one, where an edge
 //!   lies in a face whose material crosses its wedge.
@@ -118,6 +119,24 @@
 //! [`part_mid_slit`]). F's region is unchanged by each step. A strut
 //! the zip kept between two walls is a reflex edge of the result, and
 //! stays.
+//!
+//! # Closing a cut
+//!
+//! A cut the kernel makes for its own reasons is no edge of the result:
+//! a wall keeps the cuts its author wrote, and the kernel adds none
+//! (`docs/DESIGN.md`, `[edges]`).
+//! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
+//! meridian through a section circle no edge reaches, so that the
+//! re-entered op's crossing layer meets the circle, and the re-entered op
+//! is handed each cut (`ops::Pass::CutIn`). The output stage reads
+//! every edge of the result split off one ([`CutRoots`]) and
+//! [`close_cuts`] deletes each, after the struts and before the
+//! coplanar merge: `kef` where it lies between two faces, `kev` where an
+//! end dangles, and `kemr` where one face lies on both sides and neither
+//! end is free, which leaves the section circle a ring of the face
+//! ([`part_cut`]). Each step leaves the face's region as it was, so the
+//! face is the cut face again, its own seam or wrap edge kept, and the
+//! edge join then removes the circle's crossings.
 
 use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};
@@ -462,8 +481,12 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         // A zero-area ring in a curved face is not measured, so the
         // parting refuses on any face it would part that is no plane.
-        let plane =
-            |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
+        let plane = |f: FaceKey| {
+            matches!(
+                body.proven_face(f).expect_described(),
+                geom::Surface::Plane { .. }
+            )
+        };
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -719,28 +742,74 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// One edge the output stage closed its face across ([`close_struts`]):
-/// a strut, deleted with its free end, or a slit's stretch, deleted by
-/// parting its loop ([`part_mid_slit`]).
+/// One edge the output stage closed its face across ([`close_struts`],
+/// [`close_cuts`]), by how it went.
 #[derive(Clone, Debug)]
-pub(super) struct ClosedStrut {
-    /// The face on both sides of the edge.
-    pub(super) face: FaceKey,
-    /// The edge.
-    pub(super) edge: EdgeKey,
-    /// The vertices deleted with it: a strut's free end, then, where both
-    /// its ends were free, the other; none for a slit's stretch, whose
-    /// delete parts its loop ([`part_mid_slit`]).
-    pub(super) vertices: Vec<VertexKey>,
+pub(super) enum ClosedStrut {
+    /// A strut, deleted with its free end and, where both its ends were
+    /// free, the other ([`crate::strut`]).
+    Pruned {
+        /// The face the strut lay in.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The vertices deleted with it, the free end first.
+        vertices: Vec<VertexKey>,
+    },
+    /// A slit's stretch or a cut's piece with one face on both sides and
+    /// no free end, deleted by parting the face's loop ([`part_mid_slit`],
+    /// [`part_cut`]).
+    Parted {
+        /// The face on both sides of the edge.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// A cut's piece between two pieces of one face, deleted with one of
+    /// them, whose rings move to the other first (`kef`).
+    Merged {
+        /// The piece that survives.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The piece deleted with the edge.
+        absorbed: FaceKey,
+    },
 }
 
 impl ClosedStrut {
-    /// The lineage rows of the closing, `(dead, holder)`: the edge and
-    /// its deleted vertices lie in the face.
-    pub(super) fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
-        core::iter::once(Cell::Edge(self.edge))
-            .chain(self.vertices.iter().map(|&v| Cell::Vertex(v)))
-            .map(|dead| (dead, Cell::Face(self.face)))
+    /// The deleted edge.
+    pub(super) fn edge(&self) -> EdgeKey {
+        match *self {
+            Self::Pruned { edge, .. } | Self::Parted { edge, .. } | Self::Merged { edge, .. } => {
+                edge
+            }
+        }
+    }
+
+    /// The lineage rows of the closing, `(dead, holder)`: the edge, the
+    /// vertices deleted with it and the piece deleted with it lie in the
+    /// face that holds their place.
+    pub(super) fn substitutions(&self) -> Vec<(Cell, Cell)> {
+        let (face, dead): (FaceKey, Vec<Cell>) = match self {
+            Self::Pruned {
+                face,
+                edge,
+                vertices,
+            } => (
+                *face,
+                core::iter::once(Cell::Edge(*edge))
+                    .chain(vertices.iter().map(|&v| Cell::Vertex(v)))
+                    .collect(),
+            ),
+            Self::Parted { face, edge } => (*face, vec![Cell::Edge(*edge)]),
+            Self::Merged {
+                face,
+                edge,
+                absorbed,
+            } => (*face, vec![Cell::Edge(*edge), Cell::Face(*absorbed)]),
+        };
+        dead.into_iter().map(|d| (d, Cell::Face(face))).collect()
     }
 }
 
@@ -783,11 +852,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
                 return Ok(closed);
             };
             part_mid_slit(body, face, edge, tol)?;
-            closed.push(ClosedStrut {
-                face,
-                edge,
-                vertices: Vec::new(),
-            });
+            closed.push(ClosedStrut::Parted { face, edge });
             continue;
         };
         let plan = body
@@ -801,12 +866,340 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
                 },
             })?;
         let vertices = body.prune_strut(&plan, tol)?;
-        closed.push(ClosedStrut {
+        closed.push(ClosedStrut::Pruned {
             face,
             edge,
             vertices,
         });
     }
+}
+
+/// **The chart cuts a door made for its own reasons**, in the result's
+/// keys, which the output stage closes ([`close_cuts`]).
+#[derive(Clone, Debug, Default)]
+pub(super) struct CutRoots {
+    /// Each cut's edge and every edge split off one before the graft:
+    /// every edge split off one of these is a piece of the cut.
+    pub(super) edges: BTreeSet<EdgeKey>,
+    /// The operands' own edges and every edge split off one before the
+    /// graft: an author's, which the closing leaves.
+    pub(super) authored: BTreeSet<EdgeKey>,
+    /// The faces the cuts divided that the operands held before them.
+    pub(super) held: BTreeSet<FaceKey>,
+    /// The surfaces of the faces the cuts divided.
+    pub(super) surfaces: BTreeSet<crate::geometry::SurfaceKey>,
+}
+
+/// **Whether `edge`'s split chain reaches `set`**: `edge` itself, or the
+/// edge `parents` (child → parent) records it split from, and so on.
+///
+/// # Panics
+///
+/// Where the records cycle: each names an edge split before it.
+pub(super) fn split_reaches(
+    parents: &BTreeMap<EdgeKey, EdgeKey>,
+    edge: EdgeKey,
+    set: &BTreeSet<EdgeKey>,
+) -> bool {
+    let mut at = edge;
+    for _ in 0..=parents.len() {
+        if set.contains(&at) {
+            return true;
+        }
+        match parents.get(&at) {
+            Some(&parent) => at = parent,
+            None => return false,
+        }
+    }
+    unreachable!("the split records of {edge:?} cycle: each names an edge split earlier")
+}
+
+/// `seeds`, with every edge `parents` (child → parent) records whose split
+/// chain reaches one ([`split_reaches`]).
+pub(super) fn split_descent(
+    parents: &BTreeMap<EdgeKey, EdgeKey>,
+    seeds: &[EdgeKey],
+) -> BTreeSet<EdgeKey> {
+    let seeds: BTreeSet<EdgeKey> = seeds.iter().copied().collect();
+    parents
+        .keys()
+        .copied()
+        .filter(|&e| split_reaches(parents, e, &seeds))
+        .chain(seeds.iter().copied())
+        .collect()
+}
+
+impl CutRoots {
+    /// Every live edge of `body` that is a cut's piece, through
+    /// `split_from` (child → parent), in arena order.
+    pub(super) fn pieces<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        split_from: &BTreeMap<EdgeKey, EdgeKey>,
+    ) -> Vec<EdgeKey> {
+        if self.edges.is_empty() {
+            return Vec::new();
+        }
+        body.edges()
+            .map(|(e, _)| e)
+            .filter(|&e| split_reaches(split_from, e, &self.edges))
+            .collect()
+    }
+
+    /// **The edges a surviving cut would leave** (module docs, *Closing
+    /// a cut*), read without the cuts' own keys: each live edge of `body`
+    /// both of whose sides lie on the surface of a face a cut divided
+    /// (one face, or two pieces of it), that is no seam the op minted
+    /// between its operands (`section`) and no author's edge
+    /// ([`Self::authored`], through `split_from`). A cut piece the chase
+    /// into the result's keys missed is all three; a seam, a wrap edge and
+    /// an operand's own edge between two of its faces are none.
+    pub(super) fn left_standing<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        split_from: &BTreeMap<EdgeKey, EdgeKey>,
+        section: &BTreeSet<EdgeKey>,
+    ) -> Vec<EdgeKey> {
+        if self.surfaces.is_empty() {
+            return Vec::new();
+        }
+        let surface = |h: HalfEdgeKey| {
+            let face = proven(&body.loops, half(body, h).parent_loop, EntityId::Loop).face;
+            proven(&body.faces, face, EntityId::Face).surface
+        };
+        body.edges()
+            .filter(|&(e, d)| {
+                let s = surface(d.he_plus);
+                s == surface(d.he_minus)
+                    && self.surfaces.contains(&s)
+                    && !section.contains(&e)
+                    && !split_reaches(split_from, e, &self.authored)
+            })
+            .map(|(e, _)| e)
+            .collect()
+    }
+}
+
+/// **Deletes every piece of a chart cut the result holds** (module docs,
+/// *Closing a cut*): `pieces` are the edges the op split off the cuts a
+/// door made for its own reasons (`ops::finish_output`), `held` the
+/// faces the operands held before those cuts, `section` the edges the op
+/// minted between its operands. Each step deletes one live piece, the
+/// first in this order of preference, and the reading starts again:
+///
+/// - a piece between two faces goes with one of them (`kef`). The face
+///   that survives is the one in `held`, a key the operand had before the
+///   cut, where exactly one side is; where neither or both are, the face
+///   on the piece's plus half. The dying face's rings move to the
+///   survivor first (`ring_move`), as the coplanar merge drains an
+///   absorbed face, since `kef` takes a face without rings. Either way
+///   the closing's substitution row reads the dying key onto the
+///   survivor ([`ClosedStrut::Merged`]), so a record on either piece
+///   lands on the one face;
+/// - a piece one of whose ends dangles goes with that end (`kev`,
+///   [`crate::strut`]), on a plane. Two meridians of one sphere meet only
+///   at its poles, which keep their own seam or wrap edge, so no measured
+///   sphere cut leaves one; a piece that dangled on a curved face would
+///   refuse as a strut there does;
+/// - a piece with one face on both sides and no free end parts that
+///   face's loop (`kemr`, [`part_cut`]).
+///
+/// The face is the cut face again, its region unchanged by each step:
+/// one face across every piece, and each section circle that crossed
+/// the cut a ring of it, whose crossings the edge join then removes.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a piece lies between faces on two
+/// surfaces, or as [`part_cut`]; [`BooleanError::JoinDesync`] where a
+/// piece with both ends free is its face's outline, and
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a piece with a free
+/// end lies in a curved face ([`crate::strut::StrutRefusal`]); the Euler operators'
+/// refusals.
+pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    pieces: &[EdgeKey],
+    held: &BTreeSet<FaceKey>,
+    section: &BTreeSet<EdgeKey>,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<ClosedStrut>, BooleanError> {
+    let mut closed = Vec::new();
+    loop {
+        let live: Vec<EdgeKey> = pieces
+            .iter()
+            .copied()
+            .filter(|&e| body.get_edge(e).is_some())
+            .collect();
+        let Some(&first) = live.first() else {
+            return Ok(closed);
+        };
+        let face_of = |body: &Body<T>, h: HalfEdgeKey| {
+            proven(&body.loops, half(body, h).parent_loop, EntityId::Loop).face
+        };
+        let between = live.iter().find_map(|&edge| {
+            let e = proven(&body.edges, edge, EntityId::Edge);
+            let (p, m) = (e.he_plus, e.he_minus);
+            let (fp, fm) = (face_of(body, p), face_of(body, m));
+            (fp != fm).then_some((edge, [(p, fp), (m, fm)]))
+        });
+        if let Some((edge, sides)) = between {
+            let surface = |f| proven(&body.faces, f, EntityId::Face).surface;
+            if surface(sides[0].1) != surface(sides[1].1) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a chart cut's piece lies between faces on two surfaces",
+                });
+            }
+            let [(_, kept), (he, dying)] =
+                if held.contains(&sides[1].1) && !held.contains(&sides[0].1) {
+                    [sides[1], sides[0]]
+                } else {
+                    [sides[0], sides[1]]
+                };
+            // No measured pose reaches this move yet: in every cut-in row
+            // the dying piece holds no ring (PR 7664's review replaced it
+            // with a no-op and every row stayed green). The pose that does
+            // is `work/orbit/a-chart-cut-kef-onto-a-ringed-piece-has-no-row.md`.
+            let rings = proven(&body.faces, dying, EntityId::Face).rings.clone();
+            for ring in rings {
+                body.ring_move_minting(ring, kept, tol)?;
+            }
+            let done = body.kef_minting(he, tol)?;
+            if done.killed_face != dying || done.killed_edge != edge {
+                return Err(BooleanError::JoinDesync {
+                    what: "a chart cut's kef killed another face or edge",
+                });
+            }
+            closed.push(ClosedStrut::Merged {
+                face: kept,
+                edge,
+                absorbed: dying,
+            });
+            continue;
+        }
+        let one_face = |edge: EdgeKey| {
+            let e = proven(&body.edges, edge, EntityId::Edge);
+            face_of(body, e.he_plus)
+        };
+        if let Some((edge, toward_free)) = live
+            .iter()
+            .find_map(|&edge| body.toward_free_end(edge).map(|t| (edge, t)))
+        {
+            let face = one_face(edge);
+            let plan =
+                body.plan_strut_prune(face, toward_free)
+                    .map_err(|refusal| match refusal {
+                        crate::strut::StrutRefusal::Curved => {
+                            BooleanError::CurvedFaceClosesAcrossSlit { face, edge }
+                        }
+                        crate::strut::StrutRefusal::LoneOutline => BooleanError::JoinDesync {
+                            what: "a chart cut's piece with both ends free is its face's outline",
+                        },
+                    })?;
+            let vertices = body.prune_strut(&plan, tol)?;
+            closed.push(ClosedStrut::Pruned {
+                face,
+                edge,
+                vertices,
+            });
+            continue;
+        }
+        let face = one_face(first);
+        part_cut(body, first, (section, pieces), band, tol)?;
+        closed.push(ClosedStrut::Parted { face, edge: first });
+    }
+}
+
+/// The half-edge `h` resolves to, which every caller read off a live edge
+/// or loop.
+fn half<T: geom_core::Real>(body: &Body<T>, h: HalfEdgeKey) -> &crate::entity::HalfEdge {
+    proven(&body.half_edges, h, EntityId::HalfEdge)
+}
+
+/// **Deletes a cut's piece between section circles and the rest of its
+/// face**: `edge`, both of whose halves bound one face in one loop and
+/// neither of whose ends is free, deleted with `kemr`. The loop parts in
+/// two, and `kemr` makes one part a new ring of the face: the part every
+/// edge of which is in `section` or is another of the cut's `pieces`,
+/// the circles a cut ran through and the pieces between them, where only
+/// one part is. Where both are, the face holds no edge of its own
+/// boundary there, so its chart's seam and poles lie outside it, beyond
+/// one loop: the part with the chart's pole beyond one of its circles
+/// keeps the outline ([`pole_beyond`]). Where the loop is a ring, both
+/// parts are rings whichever is new. No edge is minted, so the
+/// face's surface does not matter.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the pole's side of a circle is in
+/// band ([`pole_beyond`]); [`BooleanError::JoinDesync`] where the halves
+/// lie in two loops, where of the outline neither part is circles, or
+/// where both are and not one has the pole beyond it: a cut runs
+/// through the circles that crossed it to the face's boundary, so a
+/// piece left with one face on both sides joins circles to the rest;
+/// `kemr`'s refusals.
+fn part_cut<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    (section, pieces): (&BTreeSet<EdgeKey>, &[EdgeKey]),
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (plus, minus) = (e.he_plus, e.he_minus);
+    let lp = half(body, plus).parent_loop;
+    if half(body, minus).parent_loop != lp {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's piece with one face on both sides lies in two of its loops",
+        });
+    }
+    let face = proven(&body.loops, lp, EntityId::Loop).face;
+    let outline = proven(&body.faces, face, EntityId::Face).outer;
+    let cycle = body.loop_cycle(plus).ok_or(BooleanError::JoinDesync {
+        what: "a chart cut's piece's loop does not walk",
+    })?;
+    let at = cycle
+        .iter()
+        .position(|&h| h == minus)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a chart cut's piece's two halves in one loop do not walk to each other",
+        })?;
+    // Each side: the halves strictly between one half and the other, in
+    // `next` order.
+    let (after_plus, after_minus) = (&cycle[1..at], &cycle[at + 1..]);
+    let circle = |hs: &[HalfEdgeKey]| {
+        !hs.is_empty()
+            && hs.iter().all(|&h| {
+                let e = half(body, h).edge;
+                section.contains(&e) || pieces.contains(&e)
+            })
+    };
+    let (he1, he2) = match (circle(after_plus), circle(after_minus)) {
+        (true, false) => (plus, minus),
+        (false, true) => (minus, plus),
+        _ if lp != outline => (plus, minus),
+        (true, true) => match (
+            pole_beyond(body, face, (after_plus, after_minus), section, band)?,
+            pole_beyond(body, face, (after_minus, after_plus), section, band)?,
+        ) {
+            (false, true) => (plus, minus),
+            (true, false) => (minus, plus),
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "of a chart cut's two circle-bounded parts, not one keeps the face's \
+                           chart pole beyond it",
+                });
+            }
+        },
+        _ => {
+            return Err(BooleanError::JoinDesync {
+                what: "a chart cut's piece with one face on both sides joins no section \
+                       circles to the rest of the face's outline",
+            });
+        }
+    };
+    body.kemr_minting(he1, he2, tol)?;
+    Ok(())
 }
 
 /// **Deletes a slit's stretch closed across**: `edge`, both of whose
@@ -870,6 +1263,84 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
     Ok(())
 }
 
+/// **Whether the chart's pole of `face`'s sphere lies beyond `part`**:
+/// beyond one of its circles (each edge of `part` in `section` on a
+/// circle), on the far side of the circle's plane from `other`, the
+/// rest of the face's loop. The face lies on `other`'s side of each of
+/// `part`'s circles, which it does not cross, so a pole beyond one lies
+/// in the region that circle cuts off the face.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the pole or `other`'s first
+/// vertex lies in band of a circle's plane, and no other circle has the
+/// pole beyond it.
+fn pole_beyond<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (part, other): (&[HalfEdgeKey], &[HalfEdgeKey]),
+    section: &BTreeSet<EdgeKey>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let &geom::Surface::Sphere { frame, radius, .. } = body.proven_face(face).expect_described()
+    else {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's face is not on a sphere",
+        });
+    };
+    // Either pole serves: the face holds no edge of its own boundary
+    // here, so its chart's seam, which joins the two poles, lies outside
+    // it, both poles beyond one loop.
+    let pole = frame.origin() + frame.axis() * radius;
+    let Some(&first) = other.first() else {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's piece parts its loop with nothing on one side",
+        });
+    };
+    let inside = body.resolve_vertex_point(half(body, first).start, crate::live::Proven);
+    let side = |p: Point3<T>, at: Point3<T>, normal: geom_core::Vec3<T>| {
+        crate::validate::decide(
+            "bool_cut_close_pole_side",
+            Margin::of(normal.dot(p - at)),
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(super::SphereQuestion::CutIn),
+            diag,
+        })
+    };
+    // A circle read in band may not be the one the pole lies beyond, so
+    // its reading is kept until every other circle has been read.
+    let mut in_band = None;
+    for &h in part {
+        let e = half(body, h).edge;
+        if !section.contains(&e) {
+            continue;
+        }
+        let Some(geom::Curve3::Circle(circle)) = body
+            .edge(e)
+            .and_then(|view| view.certified())
+            .map(|c| c.carrier().clone())
+        else {
+            continue;
+        };
+        let (at, normal) = (
+            body.resolve_vertex_point(half(body, h).start, crate::live::Proven),
+            circle.axis(),
+        );
+        match (side(inside, at, normal), side(pole, at, normal)) {
+            (Ok(Sign::Positive), Ok(Sign::Negative)) | (Ok(Sign::Negative), Ok(Sign::Positive)) => {
+                return Ok(true);
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                in_band.get_or_insert(e);
+            }
+            _ => {}
+        }
+    }
+    in_band.map_or(Ok(false), Err)
+}
+
 /// A face an edge lies in ([`riders`]).
 #[derive(Clone, Copy)]
 struct LiesIn {
@@ -895,7 +1366,7 @@ struct LiesIn {
 /// vertex of them on the edge. A closed edge is asked as an open one is:
 /// its ends are one vertex, so the faces both its ends lie on are the
 /// faces that vertex lies on.
-fn riders<T: Decide>(
+fn riders<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -1053,7 +1524,7 @@ struct Names {
 /// where an unread carrier's edge has both its faces going into `f`'s
 /// material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
-fn holding<T: Decide>(
+fn holding<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     named: &[&Contact],
     e: EdgeKey,
@@ -1249,11 +1720,6 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 /// tube and then its ring ([`geom_brep::variety::Variety::of`]).
 const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
-/// The site [`carrier_on_surface`] decides a spiric's plane against a
-/// plane face's under: their tilt over the spiric's reach, then the
-/// spiric's plane's height.
-const RIDER_SPIRIC_PLANE: &str = "bool_rider_spiric_plane";
-
 /// The site [`clears_plane`] decides a spline's control point beyond a
 /// plane under.
 const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
@@ -1307,16 +1773,21 @@ pub(super) enum Placed {
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
-/// A spiric lies in its own plane, so against a plane it reads as a conic
-/// does, by the two planes' tilt over its reach and then its plane's
-/// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
+/// A spiric lies in its own plane, so against a plane it reads by the
+/// spiric × plane arm's pose ([`geom_brep::curve_face::pose()`]): on where
+/// it lies, off otherwise. A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
-/// whole length ([`clears_plane`], a plane's). A spiric lies along no
+/// whole length, against a plane by its net's hull ([`clears_plane`]),
+/// and against a curved analytic surface where the curve × face table's
+/// composite door crosses it at isolated points only
+/// ([`spline_crosses`]). A spiric lies along no
 /// piece of a sphere, a cylinder or a cone by degree, and on a ring torus
 /// lies along a piece only where along all of it; either way it reads off
 /// where a point of its span reads off ([`spiric_on_curved`]). A spline
-/// not certified off, and any carrier against a torus not decided a ring,
+/// neither certified off nor crossed at isolated points (on its own
+/// surface, or touching it), and any carrier against a torus not decided
+/// a ring,
 /// is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a spiric
 /// on. Every point read off is read through the one certificate
 /// ([`geom_brep::variety`]), which holds the carrier kinds it is sound for;
@@ -1349,19 +1820,19 @@ pub(super) enum Placed {
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
 /// offset, or the torus's bound between them, is in band.
-pub(super) fn carrier_on_surface<T: Decide>(
+pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     f: FaceKey,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    let surface = body.proven_face(f).surface();
+    let surface = body.proven_face(f).expect_described();
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
 /// [`carrier_on_surface`] on `surface` itself.
-fn conic_or_line_on<T: Decide>(
+fn conic_or_line_on<T: crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -1443,51 +1914,41 @@ fn conic_or_line_on<T: Decide>(
         ) => {
             return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
-        // A spiric lies in its own plane, so against a plane it reads as a
-        // conic does: in it where the two planes are one, and otherwise
-        // meeting it at four points at most.
-        (
-            &geom::Curve3::Spiric {
-                frame: spiric_frame,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
-            &geom::Surface::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let (center, u_ref) = (spiric_frame.origin(), spiric_frame.u_ref());
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (n, u) = (normal.normalize(), u_ref.normalize());
-            let refused = |diag| {
-                BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
-            };
-            let tilt = n.cross(u).norm() * (major_radius + minor_radius);
-            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
-                .map_err(refused)?
-            {
-                Sign::Zero => {
-                    let height = (center + u * offset - origin).dot(n);
-                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
-                        .map_err(refused)?
-                    {
-                        Sign::Zero => Ok(Placed::On),
-                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
-                    }
+        // A carrier the table reads by the spiric × plane door: its pose,
+        // in the plane where it lies and otherwise meeting it at four
+        // points at most.
+        _ if geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+            == geom_brep::curve_face::Door::SpiricPlane =>
+        {
+            use geom_brep::curve_face::{Pose, PoseRefusal};
+            let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+            return match geom_brep::curve_face::pose(&span, surface, band).map_err(|u| u.why) {
+                Ok(Pose::Lies) => Ok(Placed::On),
+                Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
+                    Ok(Placed::Off)
                 }
-                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+                Err(PoseRefusal::InBand { diag, .. }) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+                Err(refusal) => unreachable!(
+                    "the spiric × plane arm refuses a minted spiric only in band: {refusal:?}"
+                ),
             };
         }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
         {
-            return Ok(if clears_plane(carrier, surface, band) {
-                Placed::Off
-            } else {
-                Placed::Unread(EdgeInFaceGap::CarrierUnread)
-            });
+            return Ok(
+                if clears_plane(carrier, surface, band)
+                    || spline_crosses(carrier, (t0, t1), surface, band)
+                {
+                    Placed::Off
+                } else {
+                    Placed::Unread(EdgeInFaceGap::CarrierUnread)
+                },
+            );
         }
         _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
@@ -1512,7 +1973,7 @@ fn conic_or_line_on<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             torus_between(
                 &points,
                 geom::Line {
@@ -1558,6 +2019,34 @@ fn clears_plane<T: Decide>(
         }
         _ => false,
     }
+}
+
+/// **Whether a spline carrier meets a curved analytic surface at
+/// isolated points only over `(t0, t1)`**: the curve × face table's composite door
+/// ([`geom_brep::curve_face::cross()`]) read every piece of the span
+/// clear of the surface or monotone across it, so no piece lies on it. A
+/// touch, or a piece within the band of the surface, refuses there, and
+/// is no reading that the carrier is on.
+fn spline_crosses<T: crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let geom::Curve3::Nurbs(net) = carrier else {
+        return false;
+    };
+    // A plane is read on the hull alone ([`clears_plane`]).
+    if matches!(surface, geom::Surface::Plane { .. }) {
+        return false;
+    }
+    let composite = geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+        == geom_brep::curve_face::Door::SplineComposite;
+    composite
+        && matches!(
+            T::spline_face_crossings(net, (t0.min(t1), t0.max(t1)), surface, band),
+            Some(Ok(_))
+        )
 }
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
@@ -1954,11 +2443,8 @@ fn walls_inside<T: Decide>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let edge = body.get_edge(e).ok_or_else(desync)?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(|c| c.certified())
-        .ok_or_else(desync)?;
+    let edge = body.edge(e).ok_or_else(desync)?;
+    let curve = edge.certified().ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
     let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
@@ -2008,15 +2494,22 @@ fn walls_inside<T: Decide>(
         Err(crate::face_normal::FootNormalError::NoFoot { .. }) => {
             return Err(refused(EdgeInFaceGap::NoNormal));
         }
+        Err(crate::face_normal::FootNormalError::Pending) => unreachable!(
+            "{f:?} is pending in a boolean operand: operands are finished bodies, and tier 3 \
+             refuses a pending face at rest"
+        ),
     };
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?
             == super::sectors::FaceShape::Plane;
     let mut inside = [false; 2];
     let mut flat = [false; 2];
-    for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
-        .into_iter()
-        .enumerate()
+    for (k, (he, dir)) in [
+        (edge.record().he_plus, tangent),
+        (edge.record().he_minus, -tangent),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
         let normal = normal_at(wall)?;
@@ -2030,7 +2523,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| body.proven_face(face).surface();
+        let surface = |face: FaceKey| body.proven_face(face).expect_described();
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -2122,7 +2615,7 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.proven_face(f).surface();
+    let chart = body.proven_face(f).expect_described();
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -2162,7 +2655,7 @@ fn spline_floor<T: Decide>(
         }
         Err(SplineNormalError::StaleFace) => crate::contain::driver_face_stale(f),
         // The chart was read as a spline above, so the point door's arm
-        // and the placeholder's are a chart with no one normal here.
+        // and a pending face's are a chart with no one normal here.
         Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
         Err(SplineNormalError::At(why)) => match why.refusal() {
             Ok(_) => Ok(None),
@@ -2248,12 +2741,9 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let data = body.get_edge(edge).ok_or_else(desync)?;
-    let h = data.he_plus;
-    let curve = body
-        .get_curve_geom(data.curve)
-        .and_then(|c| c.certified())
-        .cloned();
+    let data = body.edge(edge).ok_or_else(desync)?;
+    let h = data.record().he_plus;
+    let curve = data.certified().cloned();
     let (start, end) = crate::query::edge_ends(body, edge);
     let wall = body.face_of_half_edge(h).ok_or_else(desync)?;
     let surfaces = [face, wall].map(|f| body.get_face(f).map(|d| d.surface));
@@ -2786,10 +3276,7 @@ struct Resting {
 
 /// An edge's certified carrier and its span.
 fn span_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(geom::Curve3<T>, (T, T))> {
-    let curve = body
-        .get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|c| c.certified())?;
+    let curve = body.edge(e).and_then(crate::live::EdgeView::certified)?;
     Some((curve.carrier().clone(), curve.params()))
 }
 
@@ -2986,10 +3473,9 @@ fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod unread_piece {
-    use super::{ContainError, EdgeInFaceGap, Names, holding};
+    use super::{Names, holding};
     use crate::Body;
     use crate::LoopBoundary;
-    use crate::boolean::BooleanError;
     use crate::construction::MevSite;
     use crate::entity::{EdgeKey, FaceKey, LoopKey};
     use geom_core::{Band, Point3, Tol};
@@ -3036,12 +3522,12 @@ mod unread_piece {
         (body, p.top_face, ring, edge)
     }
 
-    /// Where both the edge's ends lie on the face, the unread piece
-    /// refuses with the door's refusal; where nothing names the pair but
-    /// a crossing, the face is not asked.
+    /// A lone-vertex ring bounds no area, so the face is read past it
+    /// whether its ends or only a crossing name the pair. Red where the
+    /// face door refused the face whose ends named it as a lone loop.
     #[test]
-    fn an_unread_piece_refuses_unless_only_a_crossing_names_the_pair() {
-        let (body, top, ring, edge) = top_with_an_empty_ring();
+    fn a_lone_ring_leaves_the_face_read() {
+        let (body, top, _, edge) = top_with_an_empty_ring();
         let band = Band::linear(Tol::witness()).unwrap();
         let read = |ends| {
             holding(
@@ -3058,20 +3544,67 @@ mod unread_piece {
         };
         let named = read(true);
         assert!(
-            matches!(
-                &named,
-                Err(BooleanError::EdgeInFace {
-                    edge: e,
-                    face: f,
-                    gap: EdgeInFaceGap::Unread(Some(ContainError::EmptyLoop(lk))),
-                }) if *e == edge && *f == top && *lk == ring
-            ),
-            "ends on the face: the unread piece refuses naming the door's refusal, got {named:?}"
+            matches!(named, Ok(None)),
+            "ends on the face: the face is read, got {named:?}"
         );
         let crossed = read(false);
         assert!(
             matches!(crossed, Ok(None)),
             "a crossing-only pair: the face is not asked, got {crossed:?}"
+        );
+    }
+}
+
+/// **A marched edge reads off a surface only where it crosses it**: a
+/// plane tilted against the ring torus `(2, 0.5)` cuts two loops round the
+/// tube, each marched to a periodic cubic. Half of one, on its clamped
+/// view, is crossed at isolated points by the cylinder of radius 2 about
+/// the torus's axis, so the composite door reads it off that surface;
+/// against its own torus it lies within the band along every piece, so
+/// it stays unread, never off.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod marched_rider {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    #[test]
+    fn a_marched_edge_reads_off_a_crossed_surface_and_never_off_its_own() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let torus = geom::Surface::Torus {
+            frame: geom::Frame::new(Point3::origin(), z, Vec3::unit_x()),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+        };
+        let n = Vec3::new(0.5, 0.0, 0.75_f64.sqrt());
+        let plane = geom::Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_y()),
+        };
+        let geom_brep::SectionRead::Built(section) =
+            geom_brep::pair_section(&plane, &torus, None, None::<geom_core::NoLane>, band).unwrap()
+        else {
+            panic!("a tilted plane is the section value's");
+        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band)
+            .unwrap();
+        let geom::Curve3::Periodic(loop_) = &carried.components()[0].carrier else {
+            panic!("a marched loop is a periodic cubic");
+        };
+        let (a, b) = loop_.base_span();
+        let span = (a, a + 0.5 * (b - a));
+        let half = geom::Curve3::Nurbs(std::sync::Arc::new(loop_.clamped_view(span).unwrap()));
+        let wall = geom::Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, -3.0), z, Vec3::unit_x()),
+            radius: 2.0,
+        };
+        assert!(
+            super::spline_crosses(&half, span, &wall, band),
+            "the crossed wall reads it off"
+        );
+        assert!(
+            !super::spline_crosses(&half, span, &torus, band),
+            "its own torus never reads it off"
         );
     }
 }
@@ -3372,7 +3905,7 @@ mod spline_rider {
         );
         crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
         crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
-        let normal = body.proven_face(face).surface().clone();
+        let normal = body.proven_face(face).expect_described().clone();
         assert!(
             matches!(normal, geom::Surface::Plane { frame, .. }
                 if (frame.origin().x - 1.0).abs() < 1e-12 && frame.axis().x.abs() > 0.99),
@@ -4260,7 +4793,10 @@ mod parting_order_rows {
     /// and orders.
     #[test]
     fn a_parting_order_is_read_at_the_inf_and_one_point_at_the_sup() {
-        let line = geom::Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.6, 0.8));
+        let line = geom::Curve3::line(
+            Point3::new(1.0, 2.0, 3.0),
+            geom::stated_direction(Vec3::new(0.0, 0.6, 0.8)),
+        );
         assert!(read(&line, 1e-6).unwrap());
         assert!(!read(&line, -1e-6).unwrap());
         assert!(is_one_point(&read(&line, 1e-10)));

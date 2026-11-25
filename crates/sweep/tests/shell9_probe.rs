@@ -139,7 +139,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
         let geom_brep::EdgeDescription::Chart(c) = curve.description() else {
             continue;
         };
-        if !matches!(reverted.get_surface(c.surface), Some(Surface::Plane { .. }))
+        if !matches!(reverted.get_surface(c.surface), Ok(Surface::Plane { .. }))
             || !matches!(curve.carrier(), geom::Curve3::Circle(..))
         {
             continue;
@@ -190,13 +190,13 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     assert_eq!(circles, 1, "the latitude ring's one circle");
 }
 
-/// **Sphere, the closing mint.** The grafted body is tier-3 valid on
-/// the rows the graft carried, and the closing `mint_pcurves` pass —
-/// which `shell` runs on the body it assembles, the `Transfers` row's
-/// contract for a producer — clears and re-derives them, leaving the
-/// body tier-3 valid at the thin solid's closed form: the verb's
-/// result carries exactly the rows the hand re-mint of the same graft
-/// carries, key for key and bit for bit.
+/// **Sphere, the carried rows against a hand re-mint.** The grafted
+/// body is tier-3 valid on the rows the graft carried, and a
+/// `mint_pcurves` pass over it clears and re-derives them, leaving the
+/// body tier-3 valid at the thin solid's closed form. `shell` keeps the
+/// carried rows (its finish completes, never replaces), and its result
+/// carries exactly the rows the hand re-mint of the same graft carries,
+/// key for key and bit for bit: the carried rows are the derived ones.
 #[test]
 fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_shell_runs() {
     let (r, t) = (1.0, 0.05);
@@ -231,11 +231,11 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         props.enclosure.volume_pad
     );
     let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
-        .expect("shell runs the closing mint");
+        .expect("shell takes the sphere");
     assert!(!rows(&out).is_empty(), "the sphere's faces carry rows");
     assert_eq!(
         rows(&shelled.body),
         rows(&out),
-        "the verb's rows are the re-mint's"
+        "the verb's carried rows are the hand re-mint's"
     );
 }

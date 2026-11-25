@@ -87,14 +87,18 @@ impl<'b, T: geom_core::Real> Seat<'b, T> {
         }
     }
 
-    /// A curve carrier of the body, in the reader's frame
-    /// ([`crate::transform::carrier_at`]); `None` where the map refuses.
-    #[must_use]
-    pub fn curve(&self, c: &geom::Curve3<T>) -> Option<geom::Curve3<T>> {
-        match &self.at {
-            None => Some(c.clone()),
-            Some(m) => crate::transform::carrier_at(m, c).ok(),
-        }
+    /// **The map from `other`'s body coordinates into this one's**,
+    /// through the reader's frame the two seats share
+    /// ([`RigidMotion::relative`]).
+    ///
+    /// # Errors
+    ///
+    /// The inverse's or the composition's overflow.
+    pub(crate) fn relative(
+        &self,
+        other: &Seat<'_, T>,
+    ) -> Result<Option<RigidMotion<T>>, RigidMotionError> {
+        RigidMotion::relative(self.at.as_ref(), other.at.as_ref())
     }
 
     /// **A point of the reader's frame, in the body's own coordinates**:

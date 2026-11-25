@@ -42,9 +42,18 @@ impl ViewerBehavior<'_> {
         // The COMMITTED document, the one the toggles were read over.
         let doc = self.session.committed_doc();
         let part_files = self.session.part_files();
-        let label = |node| crate::tree::node_label(doc, node, part_files);
-        self.ops
-            .extend(toggles_ui(ui, doc, &self.toggles.groups, label));
+        let label = |node| {
+            crate::relations::Related::node(doc, node, part_files)
+                .said()
+                .clone()
+        };
+        self.ops.extend(toggles_ui(
+            ui,
+            doc,
+            self.session.doc(),
+            &self.toggles.groups,
+            label,
+        ));
         ui.separator();
         for line in camera_readout(self.camera, *self.notation) {
             ui.label(line);
@@ -58,10 +67,11 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            // A sentence, so `widgets::message` — here in a layout
+            // A sentence, so `widgets::sentence` — here in a layout
             // egui would have wrapped it in anyway, which is a fact
             // about the column and not about the message.
-            crate::widgets::message(ui, status.text());
+            let said = crate::widgets::sentence(ui, status.said(), self.session.doc(), None);
+            self.ops.extend(said.map(crate::session::SessionOp::Select));
         }
     }
 
@@ -94,8 +104,9 @@ pub(crate) const IN_NO_SPACE: &str = "in no space";
 fn toggles_ui(
     ui: &mut egui::Ui,
     doc: &Doc<ProfileProgram>,
+    on_screen: &Doc<ProfileProgram>,
     groups: &[SpaceToggles],
-    label: impl Fn(RecipeNodeId) -> String,
+    label: impl Fn(RecipeNodeId) -> pncad::document::Sentence,
 ) -> Vec<SessionOp> {
     let mut ops = Vec::new();
     for group in groups {
@@ -115,10 +126,14 @@ fn toggles_ui(
                 ui.add_space(crate::pane::features::INDENT_STEP);
                 let mut on = body.on;
                 // A body under a hidden space keeps its own toggle,
-                // which the space's then overrides.
+                // which the space's then overrides. The box toggles and
+                // the name beside it is a link to the body, so the two
+                // clicks are two widgets.
                 let toggle = ui
-                    .add_enabled(group.on, egui::Checkbox::new(&mut on, label(body.node)))
+                    .add_enabled(group.on, egui::Checkbox::without_text(&mut on))
                     .on_disabled_hover_text(SPACE_HIDDEN);
+                let name = crate::widgets::sentence(ui, &label(body.node), on_screen, None);
+                ops.extend(name.map(SessionOp::Select));
                 if !body.drawn_by_default {
                     ui.weak(READ_AS_A_BODY);
                 }
@@ -136,7 +151,11 @@ fn toggles_ui(
 
 /// A space as its toggle names it: as a sentence does, capitalised.
 fn space_label(doc: &Doc<ProfileProgram>, space: VarId) -> String {
-    crate::tools::capitalised(&doc.spoken_space(space).to_string())
+    crate::tools::capitalised(
+        &pncad::document::Said(&doc.spoken_space(space), pncad::document::Speaker::TAG)
+            .sentence()
+            .to_string(),
+    )
 }
 
 /// The camera's state as the View pane's two lines, read in the working
@@ -187,22 +206,27 @@ fn camera_reading(canonical: f64, unit: UnitDef) -> String {
 /// [`delta_text_edit`]'s width is a sum of two numbers this file names.
 const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
 
-/// **The δ field, as wide as the widest render it can be handed.**
+/// **The δ field, one width whatever it holds.**
 ///
-/// A render the field cannot show is clipped, and a clipped render
-/// reads as a different δ — the defect [`crate::readout::MAX_CHARS`]
-/// exists to prevent — so the text area is
-/// [`crate::widgets::widest_number`] in the field's own font, and the
-/// field is that plus [`FIELD_MARGIN`].
-/// `the_field_shows_every_render_the_bound_covers` measures it.
+/// The text area is [`crate::widgets::widest_number`] in the field's
+/// own font, which a told number fits
+/// (`the_field_shows_every_render_the_bound_covers` measures it), plus
+/// [`FIELD_MARGIN`]. δ's exact spelling
+/// ([`crate::scene::DisplayTolerance::field_text_in`]) is as long as
+/// its figures and its zeros make it, up to hundreds of characters, and
+/// a field as wide as that would push the pane out; so a longer text
+/// scrolls inside the field (egui's single-line edit follows its
+/// cursor) rather than widening it
+/// (`the_field_keeps_its_width_over_a_long_spelling`).
 ///
 /// A pane narrower than this clips anyway; that is every field in the
 /// chrome and is not this width's to fix.
 fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextEdit<'text> {
     let font = egui::FontSelection::Default.resolve(ui.style());
+    let room = crate::widgets::widest_number(ui, &font);
     egui::TextEdit::singleline(text)
         .margin(FIELD_MARGIN)
-        .desired_width(crate::widgets::widest_number(ui, &font) + FIELD_MARGIN.sum().x)
+        .desired_width(room + FIELD_MARGIN.sum().x)
 }
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -224,28 +248,21 @@ fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextE
 ///
 /// **A keystroke is what makes a draft, and nothing else does.** The
 /// text a field shows while nobody has typed into it is a RENDER of
-/// the δ in force, shortened to read as a length; the text a field
+/// the δ in force, its exact spelling in `unit`
+/// ([`crate::scene::DisplayTolerance::field_text_in`]); the text a field
 /// commits is a draft, which is the user's own spelling. Holding the
 /// two apart is what `draft: Option<String>` is for
 /// ([`crate::drafts::Drafts::delta_text`]): `Some` is text as typed, so
 /// a field that was focused and left with nothing typed into it has
-/// nothing to commit and commits nothing. Seeding the draft with the
-/// render instead would make an untouched field indistinguishable from
-/// a typed one, and every δ whose render is not its own exact spelling
-/// would move — silently, or into
-/// [`crate::scene::DisplayTolerance::new`]'s refusal — because a field
-/// was focused and left.
+/// nothing to commit and commits nothing — no re-tessellation, and no
+/// trip through the float the typed number door reads.
 ///
 /// **A draft typed back to the render is that same untouched field,
 /// two keystrokes later.** The render is what the box already held, so
-/// a draft that reads as it carries no number the render does not; and
-/// since the render is a rounding of δ
-/// ([`crate::scene::DisplayTolerance::render_in`]), committing one
-/// could only move δ to a coarser spelling of itself. There is no δ
-/// for which that is what the user asked for, so it commits nothing.
-/// What a user who means to re-assert the displayed δ does instead is
-/// type any other spelling of it — `0.050` for a render of `0.05` —
-/// which is a draft like any other and commits.
+/// a draft that reads as it carries no number the render does not, and
+/// it commits nothing. What a user who means to re-assert the displayed
+/// δ does instead is type any other spelling of it — `0.050` for a
+/// render of `0.05` — which is a draft like any other and commits.
 fn delta_field(
     ui: &mut egui::Ui,
     in_force: DisplayTolerance,
@@ -255,7 +272,7 @@ fn delta_field(
     delta_request: &mut Option<DisplayTolerance>,
 ) {
     let drafted = draft.is_some();
-    let render = in_force.render_in(unit);
+    let render = in_force.field_text_in(unit);
     let mut text = draft.take().unwrap_or_else(|| render.clone());
     let field = ui
         .horizontal(|ui| {
@@ -320,7 +337,7 @@ mod tests {
     use crate::camera::Camera;
     use crate::display::{BodyToggle, SpaceToggles};
     use crate::frame;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::pane::headless::painted_text;
     use crate::props::Notation;
     use crate::scene::DisplayTolerance;
     use crate::session::SessionOp;
@@ -355,22 +372,74 @@ mod tests {
         let doc = Doc::empty_derived("view-toggles", Tol::witness());
         let (node, groups) = one_undrawn_body();
         let text = painted_text(|ui| {
-            toggles_ui(ui, &doc, &groups, |_| "the body".into());
+            toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into());
         });
         let world = text.find("The world").expect("the world's row is drawn");
         let body = text.find("the body").expect("the body's row is drawn");
         assert!(world < body, "the world first: {text}");
         assert!(text.contains(READ_AS_A_BODY), "{text}");
 
-        let ops = core::cell::RefCell::new(Vec::new());
-        painted_after_clicking("the body", |ui| {
-            ops.borrow_mut()
-                .extend(toggles_ui(ui, &doc, &groups, |_| "the body".into()));
-        });
+        let named = crate::pane::headless::find(
+            &crate::pane::headless::landed(|ui| {
+                toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into());
+            }),
+            "the body",
+        )
+        .allocated;
+        // The box, left of the name it toggles.
+        let at = egui::pos2(
+            named.left() - egui::Style::default().spacing.interact_size.y / 2.0,
+            named.center().y,
+        );
         assert_eq!(
-            ops.into_inner(),
+            crate::pane::headless::ops_after_clicking_at(at, |ui| {
+                toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into())
+            }),
             vec![SessionOp::SetBodyOn { node, on: true }],
             "the click shows the body"
+        );
+    }
+
+    /// **A body's name in the list is a link to it**: a click on the
+    /// name selects the body and toggles nothing.
+    ///
+    /// *Breaks if* the name is drawn as the checkbox's own text (a click
+    /// on it toggles) or as words.
+    #[test]
+    fn a_bodys_name_in_the_list_selects_it() {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        let extrude = doc.ids()[1];
+        let groups = vec![SpaceToggles {
+            space: Some(VarId::WORLD),
+            on: true,
+            bodies: vec![BodyToggle {
+                node: extrude,
+                on: true,
+                drawn_by_default: true,
+            }],
+        }];
+        let files = crate::parts::PartFiles::default();
+        let label = |node| {
+            crate::relations::Related::node(&doc, node, &files)
+                .said()
+                .clone()
+        };
+        let name = crate::tree::node_label(&doc, extrude, &files);
+        let at = crate::pane::headless::find(
+            &crate::pane::headless::landed(|ui| {
+                toggles_ui(ui, &doc, &doc, &groups, label);
+            }),
+            &name,
+        )
+        .allocated
+        .center();
+        assert_eq!(
+            crate::pane::headless::ops_after_clicking_at(at, |ui| {
+                toggles_ui(ui, &doc, &doc, &groups, label)
+            }),
+            vec![SessionOp::Select(crate::session::Selection::Node(extrude))],
+            "the click selects the body"
         );
     }
 
@@ -379,10 +448,9 @@ mod tests {
     ///
     /// The unit: the same distance reads in metres and millimetres, and
     /// an angle in degrees and half turns, as the unit table writes
-    /// them. The existence: a camera distance above `f64::MAX * MILLI`
-    /// metres has no millimetre value, and the render says which
-    /// notation could not name it instead of spelling `inf`, while
-    /// metres still name it.
+    /// them. A camera distance above `f64::MAX * MILLI` metres has no
+    /// millimetre float, and the render says it in millimetres all the
+    /// same, never spelling `inf`.
     #[test]
     fn a_camera_reading_reads_in_the_unit_it_is_handed() {
         assert_eq!(camera_reading(0.05, M.def()), "0.05 m");
@@ -396,7 +464,7 @@ mod tests {
             "0.5 pi rad"
         );
         let unnameable = 1.0e306;
-        assert_eq!(camera_reading(unnameable, MM.def()), "1e306 m");
+        assert_eq!(camera_reading(unnameable, MM.def()), "1e309 mm");
         assert_eq!(camera_reading(unnameable, M.def()), "1e306 m");
         assert!(
             !camera_reading(f64::INFINITY, M.def()).contains("inf"),
@@ -609,11 +677,9 @@ mod tests {
 
     /// **A draft typed back to the render commits nothing.** The render
     /// is what the field already held, so two keystrokes that cancel out
-    /// leave the user's own draft reading exactly as the render did —
-    /// and committing a render can only coarsen δ to a spelling of
-    /// itself. δ here is 1/30 of the starting δ, whose render
-    /// (`0.0016667`) is a rounding: committing it would move δ from
-    /// 1.66666666666…e-6 to 1.6667e-6.
+    /// leave the user's own draft reading exactly as the render did, and
+    /// δ is left as it stands. δ here is 1/30 of the starting δ, whose
+    /// render is every one of its figures.
     #[test]
     fn a_draft_typed_back_to_the_render_commits_nothing() {
         let mut field = Field::at(0.05 / 30.0);
@@ -624,7 +690,7 @@ mod tests {
         field.backspace();
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.0016667"),
+            Some("0.0016666666666666669"),
             "and the draft is back to the render it started from"
         );
         field.tab();
@@ -698,21 +764,45 @@ mod tests {
         output.textures_delta.clear();
     }
 
+    /// **A spelling longer than the bound does not widen the field**:
+    /// the field over a told number's widest text and the field over a
+    /// ninety-figure spelling are one width.
+    #[test]
+    fn the_field_keeps_its_width_over_a_long_spelling() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let mut bound: String =
+                std::iter::repeat_n('0', crate::readout::MAX_CHARS + 1).collect();
+            let mut long = format!("0.{}1", "0".repeat(88));
+            let bounded = super::delta_text_edit(ui, &mut bound)
+                .show(ui)
+                .response
+                .rect;
+            let longer = super::delta_text_edit(ui, &mut long).show(ui).response.rect;
+            assert_eq!(
+                longer.width(),
+                bounded.width(),
+                "a long spelling widened the field"
+            );
+        });
+        output.textures_delta.clear();
+    }
+
     /// **The field reads and writes the working notation's unit**: the
     /// same δ shows as its metre value in a metre notation, and a
     /// number typed there commits as metres — so a field that kept
     /// millimetres reds on both halves.
     #[test]
     fn the_field_reads_and_commits_in_the_working_unit() {
-        let mut field = Field::at(500.0);
+        let mut field = Field::at(0.05);
         field.unit = M;
         field.frame(Vec::new());
         field.tab();
         field.type_text("7");
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.57"),
-            "the render the keystroke landed on is δ in metres"
+            Some("0.000057"),
+            "the render the keystroke landed on is δ in metres, positionally"
         );
         field.frame(vec![
             egui::Event::Key {
@@ -730,6 +820,48 @@ mod tests {
             Some(DisplayTolerance::new(0.002).expect("a positive δ")),
             "and a typed number is metres"
         );
+    }
+
+    /// **The field's seed is δ's exact spelling in the field's unit,
+    /// never in exponent form**, below `1e-4` and past `1e16` of the
+    /// unit as between them, and it types back as δ: a keystroke
+    /// lands after the seed's last digit, so the draft it makes reads
+    /// as the seed with that digit appended.
+    #[test]
+    fn the_fields_seed_is_delta_positionally_and_types_back() {
+        for (delta_m, unit, seed) in [
+            (5.0e-5, M, "0.00005"),
+            (1.0e-9, M, "0.000000001"),
+            (4.0e-8, MM, "0.00004"),
+            (2.5e14, MM, "250000000000000000"),
+            (3.0e17, M, "300000000000000000"),
+            (0.0254e-6, IN, "0.000001"),
+        ] {
+            let delta = DisplayTolerance::new(delta_m).expect("a positive δ");
+            assert_eq!(
+                delta.field_text_in(unit),
+                seed,
+                "δ = {delta_m} m in {unit:?}"
+            );
+            let mut field = Field::at(0.05);
+            (field.delta, field.unit) = (delta, unit);
+            field.frame(Vec::new());
+            field.tab();
+            field.type_text("7");
+            assert_eq!(
+                field.draft.as_deref(),
+                Some(format!("{seed}7").as_str()),
+                "the edit opened on {seed}"
+            );
+            let typed: f64 = seed.parse().expect("the seed is a number");
+            assert_eq!(
+                DisplayTolerance::typed(typed, unit)
+                    .ok()
+                    .map(DisplayTolerance::get),
+                Some(delta.get()),
+                "{seed} {unit:?} types back as δ"
+            );
+        }
     }
 
     /// **A refused δ is named as it was typed, in the field's unit** —
@@ -760,7 +892,7 @@ mod tests {
             ]);
             field.tab();
             assert_eq!(field.request, None, "{typed} {unit:?} commits nothing");
-            let said_texts: Vec<&str> = field.notices.iter().map(frame::Message::text).collect();
+            let said_texts: Vec<String> = field.notices.iter().map(frame::Message::text).collect();
             assert!(
                 matches!(said_texts.as_slice(), [one] if one.starts_with(said)),
                 "{typed} in {unit:?} is refused as typed: {said_texts:?}"

@@ -156,7 +156,7 @@ fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
-                    .and_then(|l| body.face_surface(l.face))
+                    .and_then(|l| body.face_surface(l.face).ok())
                     .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
             })
         })
@@ -212,7 +212,7 @@ fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
-                    .and_then(|l| body.face_surface(l.face))
+                    .and_then(|l| body.face_surface(l.face).ok())
                     .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
@@ -247,7 +247,7 @@ fn spine_unsupported_names_the_canal_surface_unit() {
                 .filter_map(|he| {
                     let h = body.get_half_edge(*he)?;
                     Some(matches!(
-                        body.face_surface(body.get_loop(h.parent_loop)?.face)?,
+                        body.face_surface(body.get_loop(h.parent_loop)?.face).ok()?,
                         geom::Surface::Torus { .. }
                     ))
                 })
@@ -477,7 +477,7 @@ fn plane(normal: Vec3<f64>) -> geom::Surface<f64> {
 /// sides' material on their normals' far side, walked along `+z`.
 fn plane_wedge(na: Vec3<f64>, nb: Vec3<f64>) -> geom_brep::WedgeVerdict {
     let (a, b) = (plane(na), plane(nb));
-    let axis = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let axis = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
     let side = |surface| geom_brep::SideFace {
         surface,
         sense: true,
@@ -683,7 +683,7 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
+            matches!(body.face_surface(f).ok()?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {

@@ -12,10 +12,10 @@
 //! circle in a horizontal plane), so no edge of either operand crosses
 //! the other — the S12 finding's poking-but-not-crossing shape. Every
 //! row here therefore exercises §1's re-cut end to end: the extent scan
-//! certifies the escape, the group is rigidly re-charted about the
-//! escape normal (a rotation about the sphere's own center — the same
-//! point set), and the re-entered pipeline finds the section circles
-//! with the ordinary crossing layer and joins them through §2's arm.
+//! certifies the escape, the face holding each section circle is cut
+//! along its chart's meridian through the circle, and the re-entered
+//! pipeline finds the section circles with the ordinary crossing layer
+//! and joins them through §2's arm.
 //!
 //! **Tolerance shape.** Volume slack derives from the resolved band;
 //! the in-band escalation row PLACES its fixture from the resolved
@@ -112,8 +112,8 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 const PIP_R: f64 = 0.5;
 const PIP_H: f64 = 0.3;
 
-/// The pip's ball, y-poled: its poles lie on a horizontal axis, which
-/// is the chart the §1 re-cut must re-align.
+/// The pip's ball, y-poled: its poles lie on a horizontal axis, so its
+/// seam stays clear of the slab and only the §1 re-cut meets the circle.
 fn pip_ball(x: f64, y: f64) -> AtRestBody<f64> {
     let ball = ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness());
     finished("the pip ball", ball, Tol::witness())
@@ -146,7 +146,7 @@ fn die_pip_subtract_is_green() {
     // The cavity wall keeps the reverted bit (mef inheritance, S12).
     let reversed = cut
         .faces()
-        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Some(Surface::Sphere { .. })) && !f.sense)
+        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Ok(Surface::Sphere { .. })) && !f.sense)
         .count();
     assert!(reversed > 0, "the pip wall must be sense: false");
 
@@ -183,9 +183,10 @@ fn die_pip_subtract_is_green() {
             assert!(cache.certificate().max_residual < 1e-9);
         }
     }
-    assert!(
-        seam_arcs >= 1,
-        "the seam circle survives as an exact circle, got {seam_arcs}"
+    assert_eq!(
+        seam_arcs, 1,
+        "the seam circle survives as one exact closed circle edge: the meridian the ball \
+         was cut along to meet it is a cut of the chart, not an edge"
     );
 }
 
@@ -214,9 +215,9 @@ fn die_pip_intersect_is_the_cap_and_additive() {
 /// closed-sphere GROUP arm under multiple sphere surfaces. The two-ball
 /// operand is itself §1 output (a no-crossing ∪ whose extent scan
 /// certifies the balls disjoint and assembles two shells), and the
-/// subtract re-cuts EACH group about its own escape normal. The
-/// assembly and the re-cut graft carry certificates and the seam zip
-/// re-certifies, each graft's bridge read off its record.
+/// subtract cuts EACH ball in along its own meridian through its circle,
+/// in place: no graft. The assembly carries certificates and the seam
+/// zip re-certifies, each graft's bridge read off its record.
 #[test]
 fn two_pips_cut_under_the_group_arm() {
     // Placements: disjoint balls, both far enough from every slab
@@ -247,17 +248,11 @@ fn two_pips_cut_under_the_group_arm() {
         "the disjoint union's assembly graft"
     );
     let cut = both_lanes(BooleanOp::Subtract, &slab(), &pair);
-    // Per lane: the re-cut grafts the second turned ball back onto the
-    // first, carrying, and the seam zip then re-certifies.
+    // Per lane: the cut-ins graft nothing, and the seam zip re-certifies.
     assert_eq!(
         topo::test_support::take_graft_bridges(),
-        [
-            GraftBridge::RemapKeys,
-            GraftBridge::Recertify,
-            GraftBridge::RemapKeys,
-            GraftBridge::Recertify,
-        ],
-        "the re-cut graft, then the seam zip's, in each lane"
+        [GraftBridge::Recertify, GraftBridge::Recertify],
+        "the seam zip's graft alone, in each lane"
     );
     assert!(
         (vol(&cut) - (16.0 - 2.0 * cap(PIP_R, PIP_H))).abs() < slack(),
@@ -268,7 +263,7 @@ fn two_pips_cut_under_the_group_arm() {
     let sphere_surfaces: std::collections::BTreeSet<String> = cut
         .faces()
         .filter_map(|(fk, _)| match cut.face_surface(fk) {
-            Some(s @ Surface::Sphere { .. }) => Some(format!("{s:?}")),
+            Ok(s @ Surface::Sphere { .. }) => Some(format!("{s:?}")),
             _ => None,
         })
         .collect();
@@ -279,16 +274,14 @@ fn two_pips_cut_under_the_group_arm() {
     );
 }
 
-/// **A re-charted ball's rows name its input shell, not the cells the
-/// turn moved.** `slab ∖ (two balls)` re-charts both balls and keeps no
-/// shell, so the first turned ball becomes the re-cut operand with its
-/// input keys at turned places, and the second is grafted under new
-/// keys. Every row naming a cell of the pair names every face of one of
-/// its input shells, both shells reached: the sphere each turned cell
-/// lies on. An input edge or vertex of the first ball, held under its
-/// own key but standing where the turn put it, names no row.
+/// **A cut-in ball's rows name the input face the cut divided, not the
+/// piece the cut minted.** `slab ∖ (two balls)` cuts each ball's face in
+/// along a meridian through its circle before the op re-enters, so the
+/// circle's crossings land on a piece under a key the cut minted. Every
+/// row naming a cell of the pair names one face of the pair (the face
+/// that piece reads back to), both balls reached.
 #[test]
-fn a_re_charted_balls_rows_name_its_input_shells_faces() {
+fn a_cut_in_balls_rows_name_the_input_face_each_cut_divides() {
     let pair = topo::union(&pip_ball(2.0, 1.2), &pip_ball(2.0, 2.8), Tol::witness())
         .expect("disjoint balls assemble")
         .body()
@@ -326,10 +319,12 @@ fn a_re_charted_balls_rows_name_its_input_shells_faces() {
         if named.is_empty() {
             continue;
         }
-        let shell = shells.iter().position(|faces| *faces == named);
+        let shell = shells
+            .iter()
+            .position(|faces| named.len() == 1 && named.is_subset(faces));
         assert!(
             shell.is_some(),
-            "row {row:?} names the pair's {named:?}, not every face of one of its shells \
+            "row {row:?} names the pair's {named:?}, not one face of one of its shells \
              {shells:?}"
         );
         if let Some(at) = shell {
@@ -405,8 +400,8 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
 /// direction is not a depth choice: a seam great circle lies in the
 /// plane `z = c_z` with the ball's own radius, so a Z-offset seam is
 /// equidistant from the other centre all the way round and never
-/// crosses it. The scan re-charts each ball with its pole on the centre
-/// line, and the re-entered pipeline joins the circle their seams now
+/// crosses it. The scan cuts each ball's face along a meridian through
+/// the circle, and the re-entered pipeline joins the circle those cuts
 /// cross: the union is two balls less their lens, and it meshes.
 #[test]
 fn overlapping_sphere_pair_builds_through_the_scan() {
@@ -434,14 +429,11 @@ fn overlapping_sphere_pair_builds_through_the_scan() {
 /// the scan: the extent certificate `center ± r` is the whole group's,
 /// so it was only spent for a CLOSED group.
 ///
-/// That certificate is asked WHERE IT IS USED now, not on arrival, and
-/// the trimmed group is served for everything it does not need: a box
-/// that proves the whole sphere clear proves the trimmed subset clear,
-/// because the face is a subset of the sphere and over-claiming is the
-/// sound direction for a SEPARATION test. What still needs closedness
-/// is the plane arm's ESCAPE conclusion — whole-circle membership is
-/// the carrier's, and the re-chart it feeds rotates a closed group
-/// about its centre — and that arm keeps the refusal.
+/// A box that proves the whole sphere clear proves the trimmed subset
+/// clear, because the face is a subset of the sphere and over-claiming
+/// is the sound direction for a SEPARATION test; an ESCAPE is read off
+/// the group's faces by the section certificate, closed or trimmed
+/// alike, and cut in where it places the circle inside one.
 ///
 /// So this pair assembles: two shells, volumes add, and sequential pip
 /// authoring has its live route.

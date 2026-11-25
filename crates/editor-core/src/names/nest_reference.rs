@@ -135,6 +135,8 @@ pub(super) enum RoleSeg {
     LoftSeam(Vec<(SectionId, ProfileVertexRef)>),
     LoftSectionEdge(SectionId, ProfileEdgeRef),
     LoftSectionVertex(SectionId, ProfileVertexRef),
+    SubArc(u32),
+    SubArcJoint(u32),
 
     Band(PieceRun),
     BandRim(ProfileVertexRef),
@@ -231,4 +233,5 @@ pub(super) enum RoleSeg {
         vertex: NameRef,
         edge: NameRef,
     },
+    ConventionalVertex(NameRef),
 }

@@ -105,10 +105,10 @@ fn shell() -> Body<f64> {
 }
 
 /// `body` reflected across the plane through the origin normal to
-/// `normal`.
+/// `normal`, its rows completed as a finished body's move completes them.
 fn mirrored(body: &Body<f64>, normal: Vec3<f64>) -> Body<f64> {
     let r = topo::Reflection::across(Point3::new(0.0, 0.0, 0.0), normal, Tol::witness()).unwrap();
-    topo::mirror_body(body, &r, Tol::witness()).unwrap()
+    topo::test_support::completed(topo::mirror_body(body, &r).unwrap(), Tol::witness()).unwrap()
 }
 
 /// A move by `v`.
@@ -196,7 +196,7 @@ fn interference<'a>(body: &Body<f64>, findings: &'a [ValidationError]) -> Vec<&'
 /// The surface kind of face `f`'s carrier.
 fn kind(body: &Body<f64>, f: EntityId) -> Option<geom::SurfaceKind> {
     let EntityId::Face(f) = f else { return None };
-    Some(body.face_surface(f)?.kind())
+    Some(body.face_surface(f).ok()?.kind())
 }
 
 /// The undecidable face pairs on two carriers of `kind` each.

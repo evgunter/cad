@@ -338,7 +338,7 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .collect();
@@ -352,7 +352,7 @@ pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -411,7 +411,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         (6, 9, 7),
         "the vessel's operand census: each wall one face"
     );
-    assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
+    assert_eq!(euler_counts(&body).h(), Ok(0), "a vessel is a ball");
     let props =
         pncad::topo::mass_properties(&body, tol, crate::printed()).expect("the operand's props");
     let (v_out, a_out) = boundary(R_BELLIED, 0.0);
@@ -449,7 +449,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
          and inserted whole through the shared void door"
     );
     assert_eq!(
-        euler_counts(&sealed).genus(),
+        euler_counts(&sealed).h(),
         Ok(0),
         "a sealed hollow is genus 0"
     );
@@ -623,7 +623,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let counts = euler_counts(&cup);
     assert_eq!(
-        (counts.r, counts.genus(), counts.s),
+        (counts.r, counts.h(), counts.s),
         (5, Ok(0), 1),
         "the mouth's ONE rim annulus carrying ONE ring, beside the four latitude \
          annuli whole with their rings; genus 0 as `topo::shell`'s docs promise a cup \

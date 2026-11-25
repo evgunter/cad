@@ -1,7 +1,7 @@
 ---
 id: a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them
 kind: issue
-title: A slow row's ε = 1e-6 and 1e-12 assertions run nowhere on the PR that adds it: the slow-set step runs at the default ε only, and the ε rows skip the slow set
+title: The slow rows a PR selects run at the default ε only; run them at 1e-6 and 1e-12 too, under a per-row time cap from the nightly's junit
 status: open
 opened: 2026-11-14
 priority: P2
@@ -9,32 +9,71 @@ cost: E
 refs: [6897, 7057, 7078]
 ---
 
+**The gap.** The slow-set step (`.github/workflows/ci.yml:457-475`) runs
+the slow rows a PR selects at the default ε. Since PR 7359 that means the
+rows it names, plus every slow row in a file it edits. The ε step
+(`ci.yml:432-447`) runs under `--profile ci`, which leaves the slow set
+out. So a slow row's 1e-6 and 1e-12 assertions first run on the nightly,
+on the PR that adds them as on every later one.
 
-Found by the delta review of BOXFINISH's PR 6946 (2026-11-14, run
-43635938074 on head `34c263a6`).
+**Instances since 2026-10-22.**
+- **Merged red:**
+  - PR 5872 (10-28): four `pair_section` and `cylinder_sphere_frame` rows
+    red at 1e-6;
+  - PR 6897 (11-17): `node_end_rows` red at 1e-6.
+- **Caught by review or by hand:**
+  - PR 6946 (11-14): `far_walls_of_many_arcs`, whose pins are all at
+    1e-12;
+  - PR 6972 (11-15): `m10_5_r1` at 1e-6 and 1e-12, and
+    `coincidence_door` at 1e-12;
+  - PR 6985 (11-15): three of its six re-stated rows red at 1e-12;
+  - PR 6934.
+- **Worked around:** PR 7078 (11-18) added a fast row so its 1e-12
+  branch would be gated at all.
 
-`crates/geom-brep/tests/far_walls_of_many_arcs.rs` is a row whose typed
-pins all live at ε = 1e-12. It costs 0.47 s on the runner, so it is in
-the slow set. On its own PR the gate ran it once, in the "slow tests
-this diff adds or edits" step, at the default ε. The ε = 1e-6 and
-1e-12 step runs under the `ci` nextest profile, which skips the slow
-set. So the assertions that are the row's subject ran only on the
-reviewer's box before the merge, and first run hosted on the nightly.
+**The cost.** Times come from the nightly's junit (run 44870651337,
+opt-2), scaled by about 2.5 for the PR gate's opt-1. A file's slow rows
+cost a median of 2 s at the default ε and 3 s at 1e-12, and a p90 of 34
+s and 52 s. So adding 1e-6 and 1e-12 costs about 10 s for a median
+selecting PR and about 3 to 4 min at the p90, and nothing on a PR that
+selects no slow row. That last case is the typical PR.
 
-`memories/review-and-dependency-policy.md`: a stated coverage gap
-blocks when the untested axis is the row's own subject. Here the gate
-left that axis untested without saying so.
+The tail at 1e-12 is the risk: 113 slow rows take more than 30 s there
+and 10 take more than 300 s. A cap keeps it bounded. Each row runs at
+1e-12 only when its nightly 1e-12 time is under 30 s, read from the last
+nightly's junit or from a list kept beside the slow set. The rows over
+the cap are named in the step summary as not run.
 
-What closes it: the step that runs a diff's added or edited slow tests
-runs them at every ε row the diff's crates are run at; or the gate's
-log says which added rows it did not run at which ε.
+**What it subsumes.**
+- `the-slow-tests-a-diff-adds-run-at-the-default-eps-only`, the same gap
+  with the cost of the PR 5872 rows.
+- Most of the cases `an-extra-eps-step-that-selects-no-test-reads-green`
+  describes.
 
-## Second instance: a slow row merged red at 1e-6 (PR 6897), 2026-11-17
+What would close it: the slow-set step's selection also runs at 1e-6
+and, under the cap, at 1e-12, and its summary names the rows the cap
+left out.
 
-PR 7057's review traced how `ssi::certify::node_end_rows::a_chain_ends_at_a_node_only_where_its_end_is_at_the_node` reached main red at ε = 1e-6. The row is in the slow set (`.config/nextest.toml`'s `ci` filter). Its 1e-6 case was red at PR 6897's merge `dfa288a929`, the PR that added it. The extra-ε step (`.github/workflows/ci.yml`, "test (eps 1e-6, 1e-12 — …)") runs `cargo nextest run --profile ci`, which excludes the slow set, so the red case ran nowhere before the merge. The same holds for `pair_section::wiring::close_rings_carry_counted`, whose pin lives at 1e-6 only. So the gap is wider than the PR that adds a row. Every slow row a diff adds or edits runs on that PR at the default ε only, and a slow row the diff moves without editing it runs at no ε at all.
+- 2026-11-22 — **Reformulated by CIW triage** (the earlier body is in git history): - Since 10-22:
+- merged red: PR 5872 (10-28, four rows at 1e-6) and PR 6897 (11-17,
+`node_end_rows` at 1e-6);
+- caught by review or by hand: PRs 6946, 6972, 6985 and 6934;
+- worked around: PR 7078.
+- Cost, from nightly junit scaled ×2.5: a median edited file's slow rows
+add about 10 s at 1e-6 plus 1e-12, and the p90 adds about 3 to 4 min.
+A PR that selects no slow row pays 0, and that is the typical PR.
+- The 1e-12 tail needs a cap: 113 slow rows take more than 30 s at
+1e-12, and 10 take more than 300 s.
+- Reform at `reform/a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them.md`:
+run at 1e-6 always, at 1e-12 under a 30 s per-row cap, and name the
+rows the cap skipped.
 
-Raised from P3 to P2 on this evidence: the gap has now let a red row merge onto main, where it stayed red until another lane found it.
+## Seen again (2026-11-25, SSIARITH, PR 7781)
 
-## Third instance: a branch that exists only at 1e-12 (PR 7078), 2026-11-18
-
-PR 7078 added nine slow rows in `crates/sweep/tests/band_mixed_corner_reach.rs`, and one of them pins a branch that exists only at 1e-12 (the inset fillet's `shared_row_touch` escalation at `Interval`). To gate that branch per PR, the lane had to add a fast row (`the_inset_witness_fillets_or_escalates_at_every_eps_row`) that the `ci` profile keeps at every ε. A lane that does not know the gap pays for it, or writes a pin that first runs on the nightly.
+PR 7781 edits `crates/sweep/tests/verbs_cylcyl_r1_review_probes.rs`'s
+slow row `every_reachable_crossing_pose_refuses_typed_or_answers_correctly`:
+its 1e-12 pin removed, its 1e-6 pin re-pinned on new digits. The gate
+(run 45594701363) ran the row once, in the slow-set step at the default
+ε (75 s). The `eps 1e-6, 1e-12` step's `--profile ci` dropped it, so
+neither changed pin had a hosted reading; the lane ran both locally
+instead. — (SSIARITH orchestrator)

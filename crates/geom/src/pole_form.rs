@@ -14,7 +14,7 @@
 //! carriers ([`sphere_meridian`], [`cone_generator`]). It says what the
 //! wrap edge's carrier is, not where a door places it round the axis.
 
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Real, RigidMotion, Vec3};
 
 use crate::Curve3;
 
@@ -32,18 +32,16 @@ pub fn sphere_meridian<T: Real>(
     Curve3::circle(center, axis.cross(d), radius, axis)
 }
 
-/// The cone's generator at azimuth `d` (a unit direction perpendicular
-/// to `axis`): the line through the apex whose parameter is the
-/// surface's own slant `v`, `apex + (axis·cos α + d·sin α)·v`, so
-/// `v > 0` runs on the nappe opening along `axis` and `v < 0` on the
-/// other.
-pub fn cone_generator<T: Real>(axis: crate::Line<T>, half_angle: T, d: Vec3<T>) -> Curve3<T> {
-    let crate::Line {
-        origin: apex,
-        dir: axis,
-    } = axis;
+/// The cone's generator in `frame`'s `w`–`u` plane: the line through the
+/// apex `frame.origin()` whose parameter is the surface's own slant `v`,
+/// `apex + (w·cos α + u·sin α)·v` ([`RigidMotion::swing`]), so `v > 0`
+/// runs on the nappe opening along the axis `w` and `v < 0` on the
+/// other, at the azimuth `u`. A caller holding an axis and an azimuth
+/// squares the azimuth about the axis first
+/// ([`RigidMotion::squared_about`]).
+pub fn cone_generator<T: Real>(frame: RigidMotion<T>, half_angle: T) -> Curve3<T> {
     let (s, c) = half_angle.sin_cos();
-    Curve3::line(apex, axis * c + d * s)
+    Curve3::line(frame.origin(), frame.swing(c, s))
 }
 
 #[cfg(test)]
@@ -81,22 +79,62 @@ mod tests {
 
         let (apex, alpha) = (Point3::new(0.0, 0.0, 2.0), 0.4);
         let axis = Vec3::new(0.0, 0.0, -1.0);
+        let frame = crate::Frame::new(apex, axis, u_ref);
         let cone = Surface::Cone {
-            frame: crate::Frame::new(apex, axis, u_ref),
+            frame,
             half_angle: alpha,
         };
         for (u, d) in [(0.0, u_ref), (core::f64::consts::PI, -u_ref)] {
             let g = cone_generator(
-                crate::Line {
-                    origin: apex,
-                    dir: axis,
-                },
+                geom_core::RigidMotion::squared_about(apex, frame.axis_unit(), d),
                 alpha,
-                d,
             );
             for v in [-1.5, 0.0, 0.7] {
                 assert!((g.eval(v) - cone.eval(u, v)).norm() < 1e-14, "{u}: v = {v}");
             }
         }
+    }
+
+    /// **A generator at an azimuth read near the axis, far along it,
+    /// opens at its half-angle**: the azimuth of a point `50 m` along a
+    /// tilted axis and `1e-5 m` off it, read as the importer reads one
+    /// (the point's offset from the axis, normalized), stands off square
+    /// to the axis by the axial distance's rounding over the radius,
+    /// millions of ulps. Squared about the axis
+    /// ([`RigidMotion::squared_about`]), the generator swings in one
+    /// frame's plane: unit to its rounding, and `α` off the axis to a few
+    /// ulps at every azimuth tried. Red under the generator swung toward
+    /// the raw azimuth, `w·cos α + d·sin α`, whose angle to the axis is
+    /// off by the azimuth's tilt.
+    #[test]
+    fn a_generator_read_near_the_axis_far_along_it_opens_at_its_half_angle() {
+        let apex = Point3::new(0.3, -1.2, 0.7);
+        let axis = crate::stated_direction(Vec3::new(2.0, -1.0, 2.0) / 3.0);
+        let across = Vec3::new(1.0, 2.0, 0.0) / 5.0_f64.sqrt();
+        let alpha = 0.35_f64;
+        let mut tilted = 0;
+        for k in 0..64 {
+            let t = f64::from(k) * 0.098;
+            let ring = across * t.cos() + axis.get().cross(across) * t.sin();
+            let p = apex + axis.get() * 50.0 + ring * 1e-5;
+            let d = crate::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .offset(p)
+            .normalize();
+            tilted += usize::from(d.dot(axis.get()).abs() > 1e3 * f64::EPSILON);
+            let Curve3::Line(g) = cone_generator(RigidMotion::squared_about(apex, axis, d), alpha)
+            else {
+                unreachable!("a generator is a line")
+            };
+            assert!(
+                geom_core::UnitVec3::stated(g.dir.get()).is_some(),
+                "{k}: unit"
+            );
+            let off = (g.dir.get().dot(axis.get()) - alpha.cos()).abs();
+            assert!(off <= 4.0 * f64::EPSILON, "{k}: {off:e} off cos α");
+        }
+        assert!(tilted > 0, "some azimuth stands off square to the axis");
     }
 }

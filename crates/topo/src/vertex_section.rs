@@ -53,8 +53,8 @@ use crate::validate::decide_reported;
 /// dihedral between the plane and such a face (metres).
 pub(crate) const VERTEX_SECTION_SIDE: &str = "vertex_section_side";
 
-/// K name: that reading's own rounding, `K` times over, against the
-/// zero band (metres): Zero admits the reading as the input's.
+/// K name: that reading's own rounding against the `ε/K` share of the
+/// band (metres): Zero admits the reading as the input's.
 pub(crate) const VERTEX_SECTION_RESOLUTION: &str = "vertex_section_resolution";
 
 /// K name: that reading moved toward zero by its own rounding, where the
@@ -276,9 +276,13 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// which has an arm for every kind read here.
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = body.proven_face(face);
-    match *f.surface() {
+    // A pending face is not read, as a spline face is not.
+    let Ok(surface) = f.surface() else {
+        return false;
+    };
+    match *surface {
         geom::Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             !matches!(
                 crate::face_normal::cone_point(
                     geom::Line {
@@ -394,7 +398,7 @@ fn section_sine<T: Decide>(
     band: Band,
 ) -> Option<Rounded<T>> {
     let f = body.proven_face(face);
-    let wall = f.surface().clone();
+    let wall = f.surface().ok()?.clone();
     if let Ok(Some(WallSection {
         case: SectionCase::Straight(_) | SectionCase::Tangent(_),
         ..

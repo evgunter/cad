@@ -26,7 +26,7 @@ fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
         v,
     };
     joint_has_room(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         vertex,
         Some(geom_brep::Period::new(core::f64::consts::TAU)),
         Orbit::of(surface, &image),
@@ -36,13 +36,16 @@ fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
 
 /// **The room fence holds at a small `K`.** A wrong orbit pick needs
 /// the joint's two chart ends half a step apart in azimuth, and
-/// those ends sit within `2ε` of the vertex, so the fence decides
-/// the chord they would span (`2·(d − 2ε)·sin(step/4)`) against the
-/// joint bound `4ε`. At `K = 1.5` a cone vertex `3ε` from the axis
-/// has an arc room `(π/2)·d` past four times the escalation, which
-/// the arc reading admitted, while a circle through it is under
-/// `4ε` across from the ends' least lever, so the integer pins
-/// nothing: it refuses. At `6ε` it has room.
+/// those ends sit within `2ε` of the vertex, so the fence decides a
+/// quarter of the chord the vertex's parallel spans half a step
+/// across (`d·sin(step/4)/2`) against the escalation, the band padded
+/// by the `ε` the ends' stand-off can move it. At `K = 1.5` a cone
+/// vertex `3ε` from the axis has an arc room `(π/2)·d` past four
+/// times the escalation, which the arc reading admitted, while a
+/// circle through it is under `4ε` across, so the integer pins
+/// nothing: it refuses. So does one `4ε` off, whose quarter chord
+/// `2ε` passes the escalation `1.5ε` but not its padding. At `6ε` it
+/// has room.
 #[test]
 fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
     let alpha: f64 = 0.3;
@@ -56,12 +59,21 @@ fn at_a_small_k_a_cone_joint_near_the_axis_has_no_room() {
     };
     let at = |d: f64| Point3::new(d, 0.0, d / alpha.tan());
     assert!(!room(&cone, at(3.0 * EPS)), "3ε from the axis: no room");
+    assert!(
+        !room(&cone, at(4.0 * EPS)),
+        "4ε from the axis: the ends' stand-off leaves no room"
+    );
     assert!(room(&cone, at(6.0 * EPS)), "6ε from the axis: room");
 }
 
 /// The sphere's step is half a period, so its chord is the
 /// `sin(π/4)` one: at `K = 1.5` a vertex `4.5ε` from the axis, which
-/// the arc reading admitted, refuses, and one `8ε` off has room.
+/// the arc reading admitted, refuses, and one `8ε` off has room. One
+/// `6.6ε` off refuses: its quarter chord, `2.33ε`, is short of the
+/// escalation padded by the ends' `ε`, though the chord at `d − 2ε`
+/// would pass the escalation alone. The chord is the vertex's parallel's,
+/// at its distance from the axis, not a chord of the sphere's radius: at
+/// that one every vertex would have room.
 #[test]
 fn at_a_small_k_a_sphere_joint_near_a_pole_has_no_room() {
     let sphere = Surface::Sphere {
@@ -74,5 +86,6 @@ fn at_a_small_k_a_sphere_joint_near_a_pole_has_no_room() {
     };
     let at = |d: f64| Point3::new(d, 0.0, (1.0 - d * d).sqrt());
     assert!(!room(&sphere, at(4.5 * EPS)), "4.5ε from the axis: no room");
+    assert!(!room(&sphere, at(6.6 * EPS)), "6.6ε from the axis: no room");
     assert!(room(&sphere, at(8.0 * EPS)), "8ε from the axis: room");
 }

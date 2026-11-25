@@ -154,7 +154,10 @@ pub fn selection(
     };
     let (x, y) = (
         carried(from.read, cap_top),
-        carried(tool.read, ball_face(RoleSeg::Band(lower.into()))),
+        carried(
+            tool.reads().next().expect("a subtract with one tool").read,
+            ball_face(RoleSeg::Band(lower.into())),
+        ),
     );
     let (a, b) = if y < x { (y, x) } else { (x, y) };
     out.push(at(RoleSeg::Seam {
@@ -226,7 +229,9 @@ pub fn excluded_meridians(
     pipped: RecipeNodeId,
 ) -> Vec<StableName> {
     let tool = match doc.node(pipped) {
-        Some(Node::Subtract { tool, .. }) => tool.read,
+        Some(Node::Subtract { tool, .. }) => {
+            tool.reads().next().expect("a subtract with one tool").read
+        }
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
     [MeridianEnd::Seam]

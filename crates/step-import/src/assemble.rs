@@ -978,8 +978,6 @@ fn build_one_shell(
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
     let faces = assemble_solid(&mut door, &shell, tol, band, file)?;
-    topo::mint_pcurves(&mut door, tol)
-        .map_err(|source| StepImportError::Pcurves { source, file })?;
     door.sweep_and_close();
     moves.extend(join(&mut body, solid.id, &faces, tol, band, file)?);
     Ok((body, moves, shell.holders))
@@ -1142,7 +1140,7 @@ mod tests {
     #[test]
     fn the_tied_selfloop_door_refuses_a_strut_it_cannot_mint() {
         use geom::Curve3;
-        use geom_core::{Point3, Tol, Vec3};
+        use geom_core::{Point3, Tol};
 
         const SELF_LOOP: u64 = 10;
         const NEIGHBOUR: u64 = 20;
@@ -1164,7 +1162,7 @@ mod tests {
                     start: VERTEX,
                     end: VERTEX,
                     description: crate::build::Description::Wrap,
-                    carrier: Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+                    carrier: Curve3::line(Point3::new(x, 0.0, 0.0), geom_core::UnitVec3::exact_x()),
                     t0: 0.0,
                     t1: 1.0,
                 },

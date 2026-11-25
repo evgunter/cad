@@ -80,7 +80,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
             aliased,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -95,7 +95,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
         mk(FRAC_PI_2),
         p0,
         p1,
-        |_| None,
+        |_| Err(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -117,7 +117,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::unit_z(),
+                    dir: geom_core::UnitVec3::exact_z(),
                 },
                 angle: TAU,
             },
@@ -132,7 +132,7 @@ fn fixed_winding_aliased_full_period_refused() {
             spec,
             p,
             p,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -184,7 +184,7 @@ fn survives_wrong_carriers_are_rejected() {
             wrong_radius,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -206,7 +206,7 @@ fn survives_wrong_carriers_are_rejected() {
             wrong_center,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -224,7 +224,7 @@ fn survives_wrong_carriers_are_rejected() {
             one_turn,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -235,13 +235,16 @@ fn survives_wrong_carriers_are_rejected() {
     let l0 = Point3::origin();
     let l1 = Point3::new(1.0, 0.0, 0.0);
     let mut line = EdgeCurveSpec::line_between(l0, l1);
-    line.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps(), 0.0), Vec3::unit_x());
+    line.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps(), 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     assert!(
         EdgeCurve::certify(
             line,
             l0,
             l1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -260,7 +263,7 @@ fn survives_wrong_carriers_are_rejected() {
             shifted,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -670,7 +673,7 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
             spec,
             start,
             end,
-            |k| arena.get(k).cloned(),
+            |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -786,7 +789,7 @@ fn fixed_reversed_interval_refused() {
             },
         )),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
-        carrier: Curve3::line(p0, Vec3::unit_x()),
+        carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -795,7 +798,7 @@ fn fixed_reversed_interval_refused() {
             spec,
             p1,
             p0,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -827,7 +830,7 @@ fn fixed_zero_length_edge_refused() {
                 vec: Vec3::zero(),
             },
         )),
-        carrier: Curve3::line(p, Vec3::unit_x()),
+        carrier: Curve3::line(p, geom_core::UnitVec3::exact_x()),
         param_start: 0.0,
         param_end: 0.0,
     };
@@ -836,7 +839,7 @@ fn fixed_zero_length_edge_refused() {
             spec,
             p,
             p,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -864,7 +867,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
         spec,
         p,
         p,
-        |_| None,
+        |_| Err(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -878,7 +881,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
             spec,
             q,
             q,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
@@ -1031,7 +1034,7 @@ mod interval_lane {
             spec,
             p0,
             p1,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -1062,7 +1065,7 @@ mod interval_lane {
                     place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: v3(0.0, 0.0, 1.0),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },
@@ -1080,7 +1083,7 @@ mod interval_lane {
             spec,
             p,
             p,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
@@ -1123,7 +1126,7 @@ mod interval_lane {
             spec,
             p,
             p,
-            |_| None,
+            |_| Err(geom_brep::SurfaceMiss::Stale),
             fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),

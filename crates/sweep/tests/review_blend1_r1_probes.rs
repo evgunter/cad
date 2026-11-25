@@ -74,7 +74,7 @@ fn tilt_raised_cap(
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
+            matches!(body.face_surface(f).ok()?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
@@ -342,7 +342,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     };
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
-    let axis = geom::Curve3::line(o, Vec3::new(0.0, 0.0, 1.0));
+    let axis = geom::Curve3::line(o, geom_core::UnitVec3::exact_z());
     let side = |surface| geom_brep::SideFace {
         surface,
         sense: true,
@@ -456,7 +456,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                     geom::Curve3::Line(geom::Line { origin, dir }) => ((origin.x - 1.0).abs()
                         < 1e-12
                         && origin.y.abs() < 1e-6
-                        && dir.z.abs() > 0.5)
+                        && dir.get().z.abs() > 0.5)
                         .then_some(k),
                     _ => None,
                 }

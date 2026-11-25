@@ -78,7 +78,7 @@ fn check(body: &Body<f64>, expect: EulerCounts, h: i64) {
     assert_eq!(validate(body), Ok(()));
     let l = euler_counts(body);
     assert_eq!(l, expect);
-    assert_eq!(l.genus(), Ok(h));
+    assert_eq!(l.h(), Ok(h));
 }
 
 // ---------------------------------------------------------------------
@@ -122,7 +122,7 @@ fn build_box(body: &mut Body<f64>, tol: Tol) -> BoxBuilt {
     // The hole recipes the three callers plant pierce this box's FACES,
     // at the face coordinates 0.0 and 2.0 — flatly off a unit cube's
     // faces — and cross its section at 0.5 and 1.5. `Declined` puts all
-    // six faces on the one NURBS placeholder, so no geometric tier can
+    // six faces on the one pending slot, so no geometric tier can
     // check a ring's vertex against the plane it is supposed to lie in:
     // normalising this box would leave every hole mis-sited and every
     // row still green. `carve_hole` carries the assertion that is the
@@ -485,7 +485,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(1));
+    assert_eq!(l.h(), Ok(1));
 
     // Orientation, derived by hand (see review notes): the rim ring on
     // the front face walks H1→H3→H2 — CW viewed from OUTSIDE (−y),
@@ -552,10 +552,10 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         }
     );
     assert_eq!(l.v - l.e + l.f - l.r, -2);
-    assert_eq!(l.genus(), Ok(2));
+    assert_eq!(l.h(), Ok(2));
     assert_eq!(body.loops().count(), 17); // 13 outer + 4 rings
     assert_eq!(body.half_edges().count(), 66);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     assert_eq!(body.curves().count(), 33);
     // No vertex is ever killed (kemr strands the strut tip as the ring
     // anchor), so points == vertices.
@@ -933,7 +933,7 @@ fn raw_self_loop(tol: Tol) -> (Body<f64>, HalfEdgeKey, HalfEdgeKey, VertexKey) {
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(crate::fixtures::test_surface(Point3::new(0.0, 0.0, 0.0)));
+    let surface = body.add_pending_surface();
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: h1 },
@@ -1260,7 +1260,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(0));
+    assert_eq!(l.h(), Ok(0));
 
     // Join ring B into ring A: BothEmpty with a RING as the target —
     // the merged segment loop stays a ring of the face.
@@ -1335,7 +1335,7 @@ fn mekr_joins_two_independent_rings_and_then_the_outer() {
             s: 1
         }
     );
-    assert_eq!(l.genus(), Ok(0));
+    assert_eq!(l.h(), Ok(0));
 }
 
 // ---------------------------------------------------------------------
@@ -1415,7 +1415,7 @@ fn raw_shared_curve_chain(
         prov.clone(),
     );
     body.get_solid_mut(solid).unwrap().shells.push(shell);
-    let surface = body.add_surface(crate::fixtures::test_surface(p(0.0)));
+    let surface = body.add_pending_surface();
     let lp = body.add_loop(
         Loop {
             boundary: LoopBoundary::Cycle { first: a0 },
@@ -1496,7 +1496,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let shared = body.kfmrh(seed.face, split.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(shared.killed_surface, None);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
 
     // Private case: same construction, but give the mef face its OWN
     // surface first (public mutation; body stays tier-1-valid since
@@ -1512,14 +1512,14 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
             tol,
         )
         .unwrap();
-    let private = body2.add_surface(crate::fixtures::test_surface(Point3::new(5.0, 0.0, 0.0)));
+    let private = body2.add_pending_surface();
     body2.get_face_mut(split2.face).unwrap().surface = private;
     assert_eq!(validate(&body2), Ok(()));
     let reaped = body2.kfmrh(seed2.face, split2.face).unwrap();
     assert_eq!(validate(&body2), Ok(()));
     assert_eq!(reaped.killed_surface, Some(private));
-    assert!(body2.get_surface(private).is_none());
-    assert_eq!(body2.surfaces().count(), 1);
+    assert!(body2.get_surface(private).err() == Some(crate::SurfaceMiss::Stale));
+    assert_eq!(body2.surface_slots().count(), 1);
 }
 
 // ---------------------------------------------------------------------

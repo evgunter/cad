@@ -439,12 +439,14 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 let geom::Curve3::Line(geom::Line { origin: o, dir }) = spec.carrier else {
                     continue;
                 };
-                if (dir.x.hypot(dir.z) - t * dir.y.abs()).abs() > 1e-6 * dir.norm() {
+                if (dir.get().x.hypot(dir.get().z) - t * dir.get().y.abs()).abs()
+                    > 1e-6 * dir.get().norm()
+                {
                     continue;
                 }
                 let at = |s: f64| {
                     let y = y0 + (y1 - y0) * s;
-                    o + dir * ((y - o.y) / dir.y)
+                    o + dir.get() * ((y - o.y) / dir.get().y)
                 };
                 walls += 1;
                 let miss = (0..=64)
@@ -541,7 +543,7 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
     // Pinned red at 1e-6: the first union builds 1.0e-6 under its closed
     // form, where the row holds it to 3.9e-8
-    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
+    // (`work/onedoor/a-planar-faces-volume-term-reads-its-unweighted-mean-vertex-so-in-band-vertices-lever-over-the-face.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],

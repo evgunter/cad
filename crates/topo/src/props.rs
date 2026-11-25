@@ -55,7 +55,8 @@ use slotmap::Key;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::live::{AreaLoops, AreaMiss, CycleLoop, FaceView};
 use crate::shell::{ShellError, Shelled};
 use crate::validate::ValidationError;
 
@@ -198,9 +199,10 @@ pub struct VolumeEnclosure<T: Real> {
 /// consumer (`mesh`'s shape door).
 #[derive(Clone, Debug, PartialEq)]
 pub enum LoopEdgesError {
-    /// A loop is empty or a referenced key fails to resolve —
-    /// tier-1/tier-2 scaffolding or corruption; the structural
-    /// validators own the diagnosis, this is the fail-loud surface.
+    /// A key the flattening reads past the loop's proven walk fails to
+    /// resolve (an edge's curve, a half-edge's mate) — corruption the
+    /// structural validators own the diagnosis of; this is the
+    /// fail-loud surface.
     Corrupt {
         /// What failed to resolve (static description).
         what: &'static str,
@@ -264,12 +266,22 @@ pub enum MassPropsError {
         /// What failed to resolve (static description).
         what: &'static str,
     },
+    /// A face's outer loop is a lone vertex: the face has no outline,
+    /// so no region to measure ([`crate::NoOutline`]).
+    NoOutline(crate::NoOutline),
     /// An edge is M3 null-edge scaffolding (no carrier by type — see
     /// `crate::null`): the body is mid-surgery, and mass properties are
     /// defined on at-rest bodies only (tier 2 refuses null entities).
     NullScaffoldEdge {
         /// The scaffolding edge.
         edge: crate::entity::EdgeKey,
+    },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and mass properties are defined on
+    /// at-rest bodies only (tier 3 refuses a pending face).
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
     },
     /// The caller's [`Settle::Resolution`] is finer than ε: the model
     /// defines its measures only to ε of boundary displacement, so no
@@ -337,11 +349,22 @@ impl MassPropsError {
                 "the body's structure is incomplete ({what}). {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
+            Self::NoOutline(_) => write!(
+                f,
+                "a face's outline is a single vertex, so the face bounds no region to \
+                 measure. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::NullScaffoldEdge { .. } => write!(
                 f,
                 "an edge is a placeholder a construction leaves while it is under way, which a \
                  body at rest never carries. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "face {face:?} has no surface yet, which a body at rest never carries. {}",
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::ResolutionFinerThanEps { resolution, eps } => write!(
                 f,
@@ -1489,8 +1512,8 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     let mut bound = T::zero();
     for run in runs {
         let face = body.proven_face(run.face);
-        let loops = face_loops(body, face.record())?;
-        let surface = face_anchored(face.surface(), &loops);
+        let loops = face_loops(face)?;
+        let surface = face_anchored(face.expect_described(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
@@ -1685,7 +1708,7 @@ fn rederive_faces<T: geom_core::Certifies>(
     let mut quadrature = false;
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.expect_described();
         #[cfg(any(test, feature = "test-support"))]
         read_points::note(
             body,
@@ -1704,7 +1727,7 @@ fn rederive_faces<T: geom_core::Certifies>(
                     unreachable!("a face holding a quadrature enclosure is in a quadrature state")
                 };
                 let taken = *taken;
-                let flat = flat_loops(body, face.record())?;
+                let flat = flat_loops(face)?;
                 let rerun = if tight {
                     lane.cut_face_rounds(
                         body,
@@ -1787,9 +1810,9 @@ fn lifted_closed_form<T: geom_core::Certifies>(
         |surface, loops, points, same_sense, band, about, cap| {
             (lane.closed_form)(surface, loops, points, same_sense, band, about, cap)
         },
-        face.surface(),
-        &face_loops(body, face.record())?,
-        &face_tips(body, face.record())?,
+        face.expect_described(),
+        &face_loops(face)?,
+        &face_tips(face)?,
         face.sense(),
         band,
         corner_of(lane, run),
@@ -1837,9 +1860,9 @@ fn shell_polygons<T: geom_core::Certifies>(
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.expect_described();
         match (
-            vertex_rings(body, surface, &flat_loops(body, face.record())?, lane)?,
+            vertex_rings(body, surface, &flat_loops(face)?, lane)?,
             surface,
         ) {
             (
@@ -2547,7 +2570,7 @@ fn splice_in_arena_order<T: Decide>(
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
-/// doors, 4 threads against the serial walk's golden. This one pins the rule those rows depend
+/// doors, 1 and 4 threads against the serial walk. This one pins the rule those rows depend
 /// on at the site that carries it, with the refusal placed where no
 /// fixture body puts it: at a chosen slot, with a recording on every
 /// slot before and after, so a fold that spliced one face too few or
@@ -2953,7 +2976,12 @@ mod region_carry_tests {
             .map(|i| {
                 let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
                 LoopEdge::hand_built(
-                    geom::Curve3::line(iv(a), iv(Point3::origin() + (b - a)) - Point3::origin()),
+                    geom::Curve3::line(
+                        iv(a),
+                        geom_core::UnitVec3::checked(
+                            iv(Point3::origin() + (b - a)) - Point3::origin(),
+                        ),
+                    ),
                     Interval::from_f64(0.0),
                     Interval::from_f64(1.0),
                     counter,
@@ -3723,7 +3751,7 @@ pub fn closed_form_reads<T: CertifiedPolicy + geom_core::CertifiedBounds>(
         |(flux, area): (Interval, Interval)| [(flux.lo(), flux.hi()), (area.lo(), area.hi())];
     let mut reads = Vec::new();
     for run in &walked.runs {
-        let surface = body.proven_face(run.face).surface();
+        let surface = body.proven_face(run.face).expect_described();
         if run.contribution.enclosure.is_some() || matches!(surface, Surface::Plane { .. }) {
             continue;
         }
@@ -4007,7 +4035,7 @@ pub fn quadrature_rounds(
             round = run.next_round();
         }
         if quadrature {
-            rounds.push((face, body.proven_face(face).surface().kind(), met));
+            rounds.push((face, body.proven_face(face).expect_described().kind(), met));
         }
     }
     Ok(rounds)
@@ -4208,17 +4236,14 @@ impl<T: Real> FaceRun<T> {
 /// walked, in traversal order.
 pub(crate) type FlatLoop<T> = (Vec<LoopEdge<T>>, Vec<HalfEdgeKey>);
 
-/// A face's loops as every integrator reads them: each loop's chart
+/// A face's loops as every integrator reads them: each cycle's chart
 /// image ([`chart_image_edges`]) with its half-edges, the outer first,
 /// then the rings, those that bound area
 /// ([`geom_brep::chart_image::bounds_area`]). Empty where none does.
-fn flat_loops<T: Decide>(
-    body: &Body<T>,
-    face: &crate::entity::Face,
-) -> Result<Vec<FlatLoop<T>>, MassPropsError> {
+fn flat_loops<T: Decide>(face: FaceView<'_, T>) -> Result<Vec<FlatLoop<T>>, MassPropsError> {
     let mut loops = Vec::new();
-    for lk in face.loop_keys() {
-        let image = chart_image_edges(body, lk)?;
+    for (lp, _) in area_of(face)?.cycles() {
+        let image = chart_image_edges(lp)?;
         if geom_brep::chart_image::bounds_area(&image.0) {
             loops.push(image);
         }
@@ -4227,11 +4252,8 @@ fn flat_loops<T: Decide>(
 }
 
 /// A face's loops flattened ([`flat_loops`]), their edges alone.
-fn face_loops<T: Decide>(
-    body: &Body<T>,
-    face: &crate::entity::Face,
-) -> Result<Vec<Vec<LoopEdge<T>>>, MassPropsError> {
-    Ok(edges_of(&flat_loops(body, face)?))
+fn face_loops<T: Decide>(face: FaceView<'_, T>) -> Result<Vec<Vec<LoopEdge<T>>>, MassPropsError> {
+    Ok(edges_of(&flat_loops(face)?))
 }
 
 /// Flattened loops' edges alone.
@@ -4300,8 +4322,11 @@ fn closed_form_about<U: Decide>(
 }
 
 /// The stored start vertex of the outer loop of the face `face`, a face
-/// the walk read out of the arena or a solid's record: every hop past
-/// the face is a link, and a miss panics naming its holder.
+/// the walk read out of the arena or a solid's record: a boundary point
+/// of the face, which a lone outer loop's vertex is too. Every hop past
+/// the face is a link, and a miss panics naming its holder; only the
+/// first hop of the walk is read, so a raw door's torn body panics here
+/// only where the face's first corner is torn.
 fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
     use crate::entity::EntityId;
     let (outer, l) = body.proven_face(face).outer();
@@ -4328,8 +4353,8 @@ fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
 /// the walk reads by quadrature: its own read refuses, typed, in its turn.
 fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<FlatLoop<T>>> {
     let face = body.proven_face(face);
-    let surface = face.surface();
-    let loops = flat_loops(body, face.record()).ok()?;
+    let surface = face.surface().ok()?;
+    let loops = flat_loops(face).ok()?;
     let carriers = loops
         .iter()
         .flat_map(|(edges, _)| edges)
@@ -4706,7 +4731,7 @@ fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
     let curved = faces
         .iter()
         .copied()
-        .find(|&f| !matches!(body.proven_face(f).surface(), Surface::Plane { .. }));
+        .find(|&f| !matches!(body.proven_face(f).surface(), Ok(Surface::Plane { .. })));
     face_start(body, curved.unwrap_or(faces[0]))
 }
 
@@ -4788,7 +4813,7 @@ fn region_edges<T: Decide>(
     let (mut boundary, mut every) = (Vec::new(), Vec::new());
     for &key in faces {
         let face = body.proven_face(key);
-        let surface = face.surface();
+        let surface = face.surface().ok()?;
         let plane = match *surface {
             Surface::Plane { frame, .. } => {
                 let normal = frame.axis();
@@ -4796,7 +4821,7 @@ fn region_edges<T: Decide>(
             }
             _ => None,
         };
-        for (edges, hes) in flat_loops(body, face.record()).ok()? {
+        for (edges, hes) in flat_loops(face).ok()? {
             for (e, he) in edges.into_iter().zip(hes) {
                 let mate_face = body.mate(he).and_then(|m| body.face_of_half_edge(m))?;
                 if !faces.contains(&mate_face) {
@@ -4857,7 +4882,9 @@ pub(crate) fn read_seam_regions<T: Decide>(
 ) -> Vec<ReadRegion<T>> {
     let mut regions: Vec<ReadRegion<T>> = Vec::new();
     for key in faces {
-        let surface = body.proven_face(key).surface();
+        let Ok(surface) = body.proven_face(key).surface() else {
+            continue;
+        };
         if !matches!(surface, Surface::Sphere { .. })
             || regions.iter().any(|r| r.members.contains(&key))
         {
@@ -4957,9 +4984,9 @@ fn seam_refusals<T: Decide>(
     use geom_brep::props::{MaterialSign, SeamCover};
     let own = |member: FaceKey| {
         let rec = body.proven_face(member);
-        let surface = rec.surface();
-        let held = face_tips(body, rec.record()).ok()?;
-        face_loops(body, rec.record()).ok().and_then(|loops| {
+        let surface = rec.surface().ok()?;
+        let held = face_tips(rec).ok()?;
+        face_loops(rec).ok().and_then(|loops| {
             let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
             geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band).ok()
         })
@@ -5057,10 +5084,20 @@ pub(crate) fn seam_region<T: Decide>(
     let mut half_edges = Vec::new();
     let mut i = 0;
     while let Some(&f) = members.get(i) {
-        let rec = face(f)?;
+        let view = body.face(f).ok_or(unresolved)?;
         let first = loops.len();
-        for lk in rec.loop_keys() {
-            let Ok((edges, hes)) = loop_edges(body, lk) else {
+        // A face with no outline leaves the region unread; a lone ring
+        // bounds no area and holds no edge a seam crosses.
+        let area = match view.area_loops_unchecked() {
+            Ok(area) => area,
+            Err(AreaMiss::NoOutline(_)) => return Ok(None),
+            Err(AreaMiss::Torn(_)) => {
+                return Err("a seam region walked a loop that does not walk");
+            }
+        };
+        for (lp, _) in area.cycles() {
+            let hes = lp.cycle();
+            let Ok(edges) = run_edges(body, &hes) else {
                 return Ok(None);
             };
             for &h in &hes {
@@ -5072,7 +5109,7 @@ pub(crate) fn seam_region<T: Decide>(
             loops.push(edges);
             half_edges.extend(hes);
         }
-        claims.push((rec.sense, first..loops.len()));
+        claims.push((view.sense(), first..loops.len()));
         i += 1;
     }
     let mut inside_of = Vec::with_capacity(half_edges.len());
@@ -5114,12 +5151,15 @@ pub(crate) fn seam_region<T: Decide>(
 }
 
 /// **Whether a face's flux is read by the certified quadrature** rather
-/// than a closed form: a plane or a cone bounded by a spiric or a
-/// rational spline rim on any loop (the boundary's vector area its
-/// closed form reads is an elliptic integral, or a rational one:
-/// [`curved_rim`]), a curved face other than a cone trimmed by an
-/// ellipse, a spiric or a spline, and a described spline face whatever
-/// bounds it. Structural, on the surface and carrier kinds,
+/// than a closed form: a plane bounded by a spiric or a rational spline
+/// rim on any loop (the boundary's vector area its closed form reads is
+/// an elliptic integral, or a rational one: [`curved_rim`]), a cone
+/// bounded by any trim its closed form does not read (that form reads
+/// lines and conics alone; the cap lane reads the rest through
+/// `geom_brep::props::require_cone_cap`'s gates, every spline's vector
+/// area enclosed), any other curved face trimmed by an ellipse, a spiric
+/// or a spline ([`trims`]), and a described spline face whatever bounds
+/// it. Structural, on the surface and carrier kinds,
 /// never a runtime fallback: [`face_flux_about`] dispatches on it and
 /// [`shell_reference`] reads it.
 fn takes_quadrature<'a, T: Decide + 'a>(
@@ -5128,11 +5168,9 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 ) -> bool {
     let carriers = || carriers.clone();
     match surface {
-        Surface::Plane { .. } | Surface::Cone { .. } => carriers().any(curved_rim),
-        _ => {
-            surface.spline_chart().is_some()
-                || (!matches!(surface, Surface::Cone { .. }) && carriers().any(trims))
-        }
+        Surface::Plane { .. } => carriers().any(curved_rim),
+        Surface::Cone { .. } => carriers().any(|c| trims(c) && c.conic().is_none()),
+        _ => surface.spline_chart().is_some() || carriers().any(trims),
     }
 }
 
@@ -5301,17 +5339,21 @@ fn face_flux_about<T: Decide>(
     resolution: Option<f64>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let face = body.proven_face(face_key);
-    let surface = face.surface();
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,
     };
+    // Every run is minted here, so a run past this read is on a
+    // described face.
+    let surface = face
+        .surface()
+        .map_err(|_| MassPropsError::PendingFace { face: face_key })?;
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut enclosure = None;
     let mut state = FaceState::Closed;
-    let loops = flat_loops(body, face.record())?;
-    let held = face_tips(body, face.record())?;
+    let loops = flat_loops(face)?;
+    let held = face_tips(face)?;
     let plane_loops = match surface {
         Surface::Plane { .. } => Some(edges_of(&loops)),
         _ => None,
@@ -5486,64 +5528,58 @@ fn quadrature_contribution<T: Real>(
 /// walking it, and this is the same half-edge cycle that walk reads —
 /// one flattening, not two. Its error type is its own
 /// ([`LoopEdgesError`]) so that a consumer across the crate boundary
-/// matches exactly the two states a flatten can reach, and a third
-/// arm added here is a compile error there rather than an
-/// `unreachable!`.
+/// matches exactly the states a flatten can reach, and an arm added
+/// here is a compile error there rather than an `unreachable!`. The
+/// loop's own walk is proven by the [`CycleLoop`] it is handed, so a
+/// torn loop is that handle's refusal ([`crate::NoCycle::Torn`]), never
+/// this one's.
+///
+/// # Errors
+///
+/// [`LoopEdgesError::Corrupt`] where an edge's curve or a half-edge's
+/// mate does not resolve; [`LoopEdgesError::NullScaffoldEdge`] for a
+/// null scaffolding edge.
 #[allow(clippy::type_complexity)]
 pub fn loop_edges<T: Decide>(
-    body: &Body<T>,
-    lk: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
-    let corrupt = |what| LoopEdgesError::Corrupt { what };
-    let Some(loop_) = body.loops.get(lk) else {
-        return Err(corrupt("loop key does not resolve"));
-    };
-    let LoopBoundary::Cycle { first } = loop_.boundary else {
-        return Err(corrupt("empty loop (construction scaffolding at rest)"));
-    };
-    let Some(cycle) = body.loop_cycle(first) else {
-        return Err(corrupt("broken half-edge cycle"));
-    };
-    Ok((run_edges(body, &cycle)?, cycle))
+    let cycle = lp.cycle();
+    Ok((run_edges(lp.body(), &cycle)?, cycle))
 }
 
 /// **A loop's chart image, flattened**: [`loop_edges`] over the loop's
 /// cycle with its spurs taken out ([`crate::surface_boundary::chart_image`]),
 /// its seams kept. The view every integrator and chart reader takes; empty
-/// where the loop is all spurs. It is [`chart_image_with_tips`] without
-/// the tips, which a reader of the face's side must not drop.
+/// where the loop is all spurs. It is [`image_with_tips`] without the tips,
+/// which a reader of the face's side must not drop.
 ///
 /// # Errors
 ///
 /// As [`loop_edges`].
 #[allow(clippy::type_complexity)]
 pub fn chart_image_edges<T: Decide>(
-    body: &Body<T>,
-    lk: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
-    chart_image_with_tips(body, lk).map(|(image, _)| image)
+    let (_, cycle) = loop_edges(lp)?;
+    image_of_cycle(lp.body(), &cycle)
 }
 
-/// **A loop's chart image and its tips**: the image
-/// ([`chart_image_edges`]) with the stored point of every tip it drops
-/// ([`image_with_tips`]), the datum of the face's side, read together
-/// so that no reader of the side reads the image without them.
+/// [`chart_image_edges`] of a loop's cycle the caller has walked.
 ///
 /// # Errors
 ///
 /// As [`loop_edges`].
-pub(crate) fn chart_image_with_tips<T: Decide>(
+pub(crate) fn image_of_cycle<T: Decide>(
     body: &Body<T>,
-    lk: LoopKey,
-) -> Result<(FlatLoop<T>, Vec<Point3<T>>), LoopEdgesError> {
-    let (_, cycle) = loop_edges(body, lk)?;
-    image_with_tips(body, &cycle)
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<FlatLoop<T>, LoopEdgesError> {
+    Ok(image_with_tips(body, cycle)?.0)
 }
 
-/// [`chart_image_with_tips`] of a loop's cycle the caller has walked:
-/// its chart image with the stored point of every tip the image drops
-/// ([`crate::surface_boundary::tips`]), the datum of the face's side
-/// ([`geom_brep::props::boundary_material_sign_holding`]).
+/// [`image_of_cycle`] with the stored point of every tip the chart image
+/// drops ([`crate::surface_boundary::tips`]), the datum of the face's
+/// side ([`geom_brep::props::boundary_material_sign_holding`]). A reader
+/// of the face's side reads the image with them, never without.
 ///
 /// # Errors
 ///
@@ -5564,26 +5600,44 @@ pub(crate) fn image_with_tips<T: Decide>(
 }
 
 /// The stored points of the tips of every loop of `face`
-/// ([`crate::surface_boundary::tips`]), each loop's as
-/// [`image_with_tips`] reads them: the points the face holds that its
-/// chart image drops.
+/// ([`crate::surface_boundary::tips`]), each cycle's as
+/// [`image_with_tips`] reads them, and each lone ring's vertex: the
+/// points the face holds that its chart image drops.
 ///
 /// # Errors
 ///
-/// As [`loop_edges`].
+/// As [`loop_edges`], and [`MassPropsError::NoOutline`] for a face with
+/// no outline ([`FaceView::area_loops`]).
 pub(crate) fn face_tips<T: Decide>(
-    body: &Body<T>,
-    face: &crate::entity::Face,
-) -> Result<Vec<Point3<T>>, LoopEdgesError> {
+    face: FaceView<'_, T>,
+) -> Result<Vec<Point3<T>>, MassPropsError> {
+    let body = face.body();
+    let area = area_of(face)?;
     let mut held = Vec::new();
-    for lk in face.loop_keys() {
-        let (_, cycle) = loop_edges(body, lk)?;
-        let tips = crate::surface_boundary::tips(body, &cycle).ok_or(LoopEdgesError::Corrupt {
-            what: "half-edge mate does not resolve",
-        })?;
+    for (lp, _) in area.cycles() {
+        let tips =
+            crate::surface_boundary::tips(body, &lp.cycle()).ok_or(LoopEdgesError::Corrupt {
+                what: "half-edge mate does not resolve",
+            })?;
         held.extend(tip_points(body, &tips)?);
     }
+    held.extend(area.lone_rings().iter().map(|lone| lone.point));
     Ok(held)
+}
+
+/// The region `face` bounds ([`FaceView::area_loops`]), read as the raw
+/// door reads a body no validator has certified
+/// ([`FaceView::area_loops_unchecked`]): a face with no outline refused
+/// [`MassPropsError::NoOutline`], and a loop that does not resolve or
+/// walk refused [`MassPropsError::Corrupt`] rather than met as a broken
+/// link.
+fn area_of<T: Real>(face: FaceView<'_, T>) -> Result<AreaLoops<'_, T>, MassPropsError> {
+    face.area_loops_unchecked().map_err(|miss| match miss {
+        AreaMiss::NoOutline(no) => MassPropsError::NoOutline(no),
+        AreaMiss::Torn(_) => MassPropsError::Corrupt {
+            what: "a face's loop does not resolve or does not walk",
+        },
+    })
 }
 
 /// The stored point of each vertex of `tips`.
@@ -5602,6 +5656,11 @@ fn tip_points<T: Real>(
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
 /// the order given: a loop's cycle, or a chain of half-edges from
 /// several faces that closes on itself.
+///
+/// The raw mass-properties door reads it over a body tier 1 has not
+/// vouched for, so every record the run names, an edge's curve
+/// included, is read raw, and one that does not resolve is
+/// [`LoopEdgesError::Corrupt`].
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
@@ -7241,7 +7300,7 @@ pub trait AtRestPolicy: Decide {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7264,7 +7323,7 @@ pub trait AtRestPolicy: Decide {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7284,19 +7343,31 @@ pub trait AtRestPolicy: Decide {
     /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
     fn spline_foot() -> Option<Self::SplineFoot>;
 
-    /// **A spline span's crossings of an analytic face's carrier at this
-    /// scalar, or `None` where it is not derived here** — the boolean's
-    /// planar lane ([`geom_brep::NurbsLane::surface_crossings`], the
-    /// curve × face table's ring-composite arm). The arm crosses its
+    /// **The scalar's reading of a spline span against an analytic
+    /// face's carrier, or `None` where it is not derived here** — the
+    /// boolean's planar lane ([`geom_brep::NurbsLane::surface_crossings`],
+    /// the curve × face table's ring-composite arm). The arm crosses its
     /// scalars into certification arithmetic by their certified
-    /// enclosures, so it is read at the certifying scalars alone, and
-    /// a dual answers `None` and the lane refuses the class by name.
+    /// enclosures, so it is read at the certifying scalars alone, and a
+    /// dual has none: the one place the reader's absence is stated.
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>>;
+
+    /// **A spline span's crossings of an analytic face's carrier at this
+    /// scalar** by [`AtRestPolicy::spline_face_reader`], `None` where the
+    /// scalar has none and the lane refuses the class by name.
     fn spline_face_crossings(
         net: &geom::NurbsCurve3<Self>,
         params: (Self, Self),
         surface: &geom::Surface<Self>,
         band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>>;
+    ) -> Option<
+        Result<
+            geom_brep::curve_face::SpanCrossings<Self>,
+            geom_brep::curve_face::composite::CompositeRefusal,
+        >,
+    > {
+        Self::spline_face_reader().map(|read| read(net, params, surface, band))
+    }
 
     /// **An analytic span's meetings with a spline chart at this
     /// scalar, or `None` where it is not derived here** — the boolean's
@@ -7427,15 +7498,34 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one place a body's verdict is derived**: tier 3, whose
-    /// first act is tiers 1 and 2, with the verdict kept beside the body,
-    /// at a certifying scalar; tier 2 alone at a dual. A finished body
-    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
+    /// **The one place a body's verdict is derived**: its pcurve rows
+    /// completed ([`crate::Completed`]), then [`AtRestPolicy::finish_completed`].
+    /// A finished body moved by an isometry stays finished
+    /// ([`crate::FinishedBody::moved`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`]: every finding, none folded into another;
+    /// completion's refusal as [`ValidationError::Pcurve`].
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::finish_completed(completed, tol), refused)
+    }
+
+    /// **The verdict of a completed body**: tier 3, whose first act is
+    /// tiers 1 and 2, with the verdict kept beside the body, at a
+    /// certifying scalar; tier 2 alone at a dual. Reached only through
+    /// [`AtRestPolicy::finish`] and [`AtRestPolicy::leaf`], whose
+    /// completion is the one constructor of its argument.
     ///
     /// # Errors
     ///
     /// [`crate::NotFinished`]: every finding, none folded into another.
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished>;
 
     /// **This scalar's leaf** ([`crate::LeafBody`]): what a sweep door
     /// (extrude, revolve, loft, sweep) returns, and what an evaluator
@@ -7497,8 +7587,23 @@ pub trait AtRestPolicy: Decide {
     /// # Errors
     ///
     /// [`crate::NotFinished`]: the finish's findings, or tier 2's at
-    /// the box scalars.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
+    /// the box scalars; completion's refusal as [`ValidationError::Pcurve`].
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        let mut completed = crate::finish::complete(body, tol)?;
+        let refused = completed.take_refused();
+        crate::finish::with_refusals(Self::leaf_completed(completed, tol), refused)
+    }
+
+    /// **The leaf of a completed body** ([`AtRestPolicy::leaf`], its
+    /// completion run).
+    ///
+    /// # Errors
+    ///
+    /// As [`AtRestPolicy::leaf`], completion's aside.
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished>;
 
     /// **The one taker door** ([`crate::take`]): `leaf` as the finished
     /// body a door that takes finished bodies takes. At `f64` and `Probe`
@@ -7556,6 +7661,26 @@ impl<T> CertifiedPolicy for T where
 {
 }
 
+/// **A spline span's crossings of an analytic face's carrier at a
+/// certifying scalar**: the curve × face table's ring-composite arm
+/// ([`geom_brep::NurbsLane::surface_crossings`]). It is the reader every
+/// certifying [`AtRestPolicy::spline_face_reader`] hands over, and the
+/// one a door bound on certification rights rather than on the policy
+/// hands its regions ([`crate::cell_region`]).
+pub(crate) fn certified_spline_face_crossings<
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
+>(
+    net: &geom::NurbsCurve3<T>,
+    params: (T, T),
+    surface: &geom::Surface<T>,
+    band: geom_core::Band,
+) -> Result<
+    geom_brep::curve_face::SpanCrossings<T>,
+    geom_brep::curve_face::composite::CompositeRefusal,
+> {
+    geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+}
+
 impl AtRestPolicy for f64 {
     type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
 
@@ -7579,7 +7704,7 @@ impl AtRestPolicy for f64 {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7594,7 +7719,7 @@ impl AtRestPolicy for f64 {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7608,13 +7733,8 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -7678,8 +7798,11 @@ impl AtRestPolicy for f64 {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7689,9 +7812,12 @@ impl AtRestPolicy for f64 {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish_completed(body, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -7757,7 +7883,7 @@ impl AtRestPolicy for geom_core::Probe {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7772,7 +7898,7 @@ impl AtRestPolicy for geom_core::Probe {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7786,13 +7912,8 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -7858,8 +7979,11 @@ impl AtRestPolicy for geom_core::Probe {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
     const TAKE_FINISHES: bool = false;
@@ -7869,9 +7993,12 @@ impl AtRestPolicy for geom_core::Probe {
     /// (`docs/predicate-dimension-audit.md` F34). A refusal has no
     /// taker: its record is relogged here, so the failure carries what
     /// its frame recorded on the way to it.
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
         let scope = geom_core::k_stats::Bracket::open();
-        let finished = Self::finish(body, tol);
+        let finished = Self::finish_completed(body, tol);
         let record = scope.finish();
         match finished {
             Ok(body) => Ok(body.holding(record)),
@@ -7933,7 +8060,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7948,7 +8075,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -7962,13 +8089,8 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -8033,15 +8155,21 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     fn take(
@@ -8105,7 +8233,7 @@ where
         spec: geom_brep::EdgeCurveSpec<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8120,7 +8248,7 @@ where
         curve: &geom_brep::EdgeCurve<Self>,
         start: Point3<Self>,
         end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8134,13 +8262,8 @@ where
         Some(geom_brep::SplineFoot::certified())
     }
 
-    fn spline_face_crossings(
-        net: &geom::NurbsCurve3<Self>,
-        params: (Self, Self),
-        surface: &geom::Surface<Self>,
-        band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
-        Some(geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band))
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -8211,15 +8334,21 @@ where
 
     type Finished = crate::AtRestBody<Self>;
 
-    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body.into_body(), tol).map_err(crate::NotFinished::new)
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = true;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     fn take(
@@ -8291,7 +8420,7 @@ where
         spec: geom_brep::EdgeCurveSpec<Self>,
         _start: Point3<Self>,
         _end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8305,7 +8434,7 @@ where
         curve: &geom_brep::EdgeCurve<Self>,
         _start: Point3<Self>,
         _end: Point3<Self>,
-        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Result<Surface<Self>, crate::SurfaceMiss>,
         _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
@@ -8322,12 +8451,7 @@ where
     }
 
     /// The arm reads certified enclosures, which a dual does not hold.
-    fn spline_face_crossings(
-        _net: &geom::NurbsCurve3<Self>,
-        _params: (Self, Self),
-        _surface: &geom::Surface<Self>,
-        _band: geom_core::Band,
-    ) -> Option<Result<Vec<Self>, geom_brep::curve_face::composite::CompositeRefusal>> {
+    fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
         None
     }
 
@@ -8400,15 +8524,21 @@ where
 
     /// Tier 2 alone: a dual certifies nothing (DL1), so its finished
     /// body is a replay's, carrying no verdict.
-    fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn finish_completed(
+        body: crate::Completed<Self>,
+        _tol: Tol,
+    ) -> Result<Self::Finished, crate::NotFinished> {
+        crate::Replay::of(body.into_body())
     }
 
     type Leaf = crate::Replay<Self>;
     const TAKE_FINISHES: bool = false;
 
-    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::finish(body, tol)
+    fn leaf_completed(
+        body: crate::Completed<Self>,
+        tol: Tol,
+    ) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish_completed(body, tol)
     }
 
     /// The leaf is the finished body: passed through as it is.
@@ -8633,8 +8763,8 @@ mod at_rest_policy_tests {
     use crate::test_support_fixtures::identity_map;
     use geom_core::{Decide, Point3, Tol};
 
-    /// The `mvfs` seed body: its face surface is the placeholder, which
-    /// a body at rest may not carry (`Body::mvfs` docs) — the cheapest
+    /// The `mvfs` seed body: its face surface is pending, which a body
+    /// at rest may not carry (`Body::mvfs` docs) — the cheapest
     /// scalar-generic refusing subject.
     fn refusing_body<T: Decide>() -> Body<T> {
         let mut b = Body::new();
@@ -8925,7 +9055,7 @@ mod face_list_door_tests {
                 let k = body.proven_face(f).record().surface;
                 let Some(Surface::Plane {
                     frame: carrier_frame,
-                }) = body.surfaces.get_mut(k)
+                }) = body.surface_mut(k)
                 else {
                     continue;
                 };
@@ -8940,7 +9070,7 @@ mod face_list_door_tests {
                     .faces()
                     .filter(|&(_, face)| {
                         matches!(
-                            body.surfaces.get(face.surface),
+                            body.get_surface(face.surface).ok(),
                             Some(Surface::Plane { .. } | Surface::Cylinder { .. })
                         )
                     })
@@ -8953,10 +9083,10 @@ mod face_list_door_tests {
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
                 match surface {
-                    Surface::Plane { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Plane { frame, .. }) => {
                         *frame = frame.translated(frame.u_ref() * slide)
                     }
-                    Surface::Cylinder { frame, .. } => {
+                    crate::SurfaceSlot::Described(Surface::Cylinder { frame, .. }) => {
                         *frame = frame.translated(frame.axis() * slide)
                     }
                     _ => {}
@@ -9461,22 +9591,17 @@ mod exact_enclosure_rows {
                             .iter()
                             .map(|run| {
                                 let face = body.proven_face(run.face);
-                                let surface = face.surface();
-                                vertex_rings(
-                                    &body,
-                                    surface,
-                                    &flat_loops(&body, face.record()).unwrap(),
-                                    lane,
-                                )
-                                .unwrap()
-                                .expect("line-bounded")
-                                .iter()
-                                .map(|ring| {
-                                    ring.iter()
-                                        .map(|p| [p.x.lo(), p.y.lo(), p.z.lo()])
-                                        .collect()
-                                })
-                                .collect()
+                                let surface = face.surface().unwrap();
+                                vertex_rings(&body, surface, &flat_loops(face).unwrap(), lane)
+                                    .unwrap()
+                                    .expect("line-bounded")
+                                    .iter()
+                                    .map(|ring| {
+                                        ring.iter()
+                                            .map(|p| [p.x.lo(), p.y.lo(), p.z.lo()])
+                                            .collect()
+                                    })
+                                    .collect()
                             })
                             .collect();
                         let exact = six_volume(&polygons);
@@ -9779,14 +9904,14 @@ mod shell_reference_rows {
         let mut carried = 0;
         for run in &runs {
             let face = body.proven_face(run.face);
-            let surface = face.surface();
-            let loops = face_loops(&body, face.record()).unwrap();
+            let surface = face.surface().unwrap();
+            let loops = face_loops(face).unwrap();
             let from = corner_of(lane, run);
             let (c, moved) = closed_form_or_carried(
                 refusing_up_planes,
                 surface,
                 &loops,
-                &face_tips(&body, face.record()).unwrap(),
+                &face_tips(face).unwrap(),
                 face.sense(),
                 band,
                 from,
@@ -9806,6 +9931,41 @@ mod shell_reference_rows {
         assert!(
             volume.lo() <= 6.0 && 6.0 <= volume.hi(),
             "the carried sum encloses the prism's 6 m³: {volume:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod review_7437_probe {
+    #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    use geom_core::Tol;
+
+    /// A body with one edge's curve removed, read through the raw
+    /// mass-properties door, refuses `Corrupt`, typed: the door reads a
+    /// body tier 1 has not vouched for (`run_edges`).
+    #[test]
+    fn raw_door_on_a_removed_curve() {
+        let tol = Tol::witness();
+        let mut body = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let curve = body.edges.iter().next().unwrap().1.curve;
+        body.curves.remove(curve).expect("the curve was there");
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and the door's typed refusal of it.
+            crate::test_support::measure_unvalidated(
+                &body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .map(|_| ())
+            .map_err(|e| format!("{e:?}"))
+        }));
+        let Ok(refusal) = got else {
+            panic!("the raw door panicked on a removed curve")
+        };
+        let refusal = refusal.expect_err("a body naming a removed curve measures nothing");
+        assert!(
+            refusal.contains("Corrupt") && refusal.contains("curve key does not resolve"),
+            "the raw door refuses a removed curve Corrupt: {refusal}"
         );
     }
 }

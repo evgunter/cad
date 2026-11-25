@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
 // Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_brep::{EdgeAuthority, EdgeDescription};
@@ -14,16 +14,22 @@ use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::RevolveAxis;
 use topo::readback::{EulerCounts, euler_counts};
-use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
+use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed};
 
 pub fn eps() -> f64 {
     Tol::witness().get().eps
 }
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
-    Profile::new(SketchPlane::xy(), loops)
-        .validate(Tol::witness())
-        .unwrap()
+    validated_on(SketchPlane::xy(), loops)
+}
+
+/// [`validated`] on another sketch plane.
+pub fn validated_on(
+    plane: SketchPlane<f64>,
+    loops: Vec<ProfileLoop<f64>>,
+) -> ValidatedProfile<f64> {
+    Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
 
 /// The y-axis of the sketch plane (the canonical test axis: profiles
@@ -36,6 +42,33 @@ pub fn donut_profile() -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(2.0, -0.5), 1.0),
         (Point2::new(2.0, 0.5), 1.0),
+    ])
+}
+
+/// The football of the spindle sheet `(R, r)` about the sketch `y` axis,
+/// its centre `by` up the axis: the arc from its lower apex to its upper
+/// through the circle's widest point, closed down the axis. Revolved
+/// whole, two sheet faces, each a π-band between meridians ending at
+/// both apexes.
+pub fn football(big: f64, r: f64, by: f64) -> ProfileLoop<f64> {
+    let h = ((r - big) * (r + big)).sqrt();
+    let v_star = (-big / r).acos();
+    bulge_loop(vec![
+        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
+        (Point2::new(0.0, by + h), 0.0),
+    ])
+}
+
+/// A horn's needle tip: the horn of radius 1 (its centre `(1, 0)`, its
+/// cusp at the origin) reached at its cusp from one side, its arc
+/// `sweep` radians of the circle from the cusp, closed by a line to the
+/// axis and down it. At `sweep = π/2` the arc meets the disc tangent.
+pub fn needle_tip(sweep: f64) -> ProfileLoop<f64> {
+    let (s, c) = sweep.sin_cos();
+    bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -(sweep / 4.0).tan()),
+        (Point2::new(1.0 - c, s), 0.0),
+        (Point2::new(0.0, s), 0.0),
     ])
 }
 
@@ -67,7 +100,10 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::test_support::validate_completed(body, Tol::witness()),
+        Ok(())
+    );
 }
 
 /// (v, e, f, r) of a body.
@@ -313,7 +349,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
             None => s.push_str(&format!("{k:?} {c:?}\n")),
         }
     }
-    for (k, srf) in t.body.surfaces() {
+    for (k, srf) in t.body.described_surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
     }
     for (k, f) in t.body.faces() {
@@ -446,4 +482,52 @@ pub fn measured_volume(body: &Body<f64>) -> f64 {
 /// band. `m5_pr9c_sphere_doors` uses a different expression entirely.
 pub fn probe_offset() -> f64 {
     (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+}
+
+/// **A half turn's caps are left on the start cap's record, with the row
+/// naming start cap then end cap.** `start_record` is the plane the same
+/// profile's start cap wears where the caps stay two records (a turn
+/// short of π with the same sign): the start cap's plane depends on the
+/// turn's sign alone, so the record that survives must state it bit for
+/// bit, and an act that kept the end cap's record (the turned plane)
+/// fails here. The cells are compared in the order the act writes them,
+/// not sorted.
+pub fn assert_half_turn_caps(t: &sweep::Revolved<f64>, start_record: &geom::Surface<f64>) {
+    let sweep::RevolvedKind::Partial {
+        start_cap,
+        end_cap,
+        coplanar_caps,
+        ..
+    } = &t.kind
+    else {
+        panic!("a partial revolve");
+    };
+    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
+    assert_eq!(key(start_cap), key(end_cap), "the caps wear one record");
+    let kept = t.body.get_surface(key(start_cap)).unwrap();
+    assert!(
+        kept.same_content_by(start_record, |a, b| a == b),
+        "the start cap's record survives: kept {kept:?}, start cap's {start_record:?}"
+    );
+    let row = coplanar_caps.expect("the caps' coincidence is recorded");
+    let cells = row.cells.map(|c| match c {
+        topo::RowCell::Result {
+            cell: topo::Cell::Face(f),
+        } => Some(f),
+        _ => None,
+    });
+    assert_eq!(
+        cells,
+        [Some(*start_cap), Some(*end_cap)],
+        "the row names the start cap, then the end cap: {row:?}"
+    );
+}
+
+/// The start cap's record of a partial revolve, as a surface value.
+pub fn start_cap_record(t: &sweep::Revolved<f64>) -> geom::Surface<f64> {
+    let sweep::RevolvedKind::Partial { start_cap, .. } = &t.kind else {
+        panic!("a partial revolve");
+    };
+    let key = t.body.get_face(*start_cap).unwrap().surface;
+    t.body.get_surface(key).unwrap().clone()
 }

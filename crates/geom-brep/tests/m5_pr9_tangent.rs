@@ -48,7 +48,10 @@ fn keys2() -> (
 /// The ruling-line edge spec over `z ∈ [0, 1]`, witness at carrier
 /// mid (the S2 pin).
 fn ruling_spec(k1: SurfaceKey, k2: SurfaceKey) -> EdgeCurveSpec<f64> {
-    let carrier = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(1.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -79,7 +82,7 @@ fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
         panic!("a tangent locus of plane×cylinder is a line");
     };
     assert!((origin.x - 1.0).abs() < 1e-12 && origin.y.abs() < 1e-12);
-    assert!(dir.cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
+    assert!(dir.get().cross(Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12);
 }
 
 #[test]
@@ -91,7 +94,7 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -119,7 +122,7 @@ fn the_tangent_predicates_reach_the_k_funnel() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -169,7 +172,10 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
             ),
         },
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -184,7 +190,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -238,7 +244,10 @@ fn an_in_band_second_order_margin_escalates_f6() {
     );
     // The plane x = 1 is tangent to this near-flat wall along the
     // same ruling {(1, 0, z)} — the cylinder bulges toward −x.
-    let carrier = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(1.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -253,7 +262,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -275,7 +284,10 @@ fn a_skewed_carrier_fails_normal_parallelism() {
     // 0.05 tilt over a 1 m edge: sinθ ≈ y/1 up to 0.05, margin ≈
     // 0.05 m ≫ escalate at any battery ε).
     let (k1, k2, map) = keys2();
-    let carrier = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.05, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(1.0, 0.0, 0.0),
+        geom_core::UnitVec3::squared(Vec3::new(0.0, 0.05, 1.0)),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -290,7 +302,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -314,7 +326,10 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
     let b = band();
     let off = b.escalate() * 100.0;
     let (k1, k2, map) = keys2();
-    let carrier = Curve3::line(Point3::new(1.0 + off, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(1.0 + off, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -329,7 +344,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -360,7 +375,7 @@ fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
         let (k1, k2, map) = arena2(cylinder(), plane_through_line(1.0 + gap, 0.0));
         let carrier = Curve3::line(
             Point3::new(1.0 + witness, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         );
         let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
         let spec = EdgeCurveSpec {
@@ -378,7 +393,7 @@ fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
                 spec,
                 p0,
                 p1,
-                |k| map.get(k).cloned(),
+                |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
                 fixture_lever(1.0),
                 band(),
                 geom_brep::NurbsLane::certified(),
@@ -460,7 +475,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -514,7 +529,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -550,7 +565,10 @@ fn outside_the_span_bound_lane_refuses_typed() {
             ),
         },
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(s2, 0.0, s2));
+    let carrier = Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(s2, 0.0, s2)),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -565,7 +583,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -592,7 +610,7 @@ fn certify_ruling(
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -748,7 +766,10 @@ fn certify_line_at(
     s2: Surface<f64>,
 ) -> Result<EdgeCurve<f64>, CertifyError> {
     let (k1, k2, map) = arena2(s1, s2);
-    let carrier = Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let carrier = Curve3::line(
+        Point3::new(x, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    );
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
@@ -763,7 +784,7 @@ fn certify_line_at(
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
@@ -871,7 +892,11 @@ fn certify_line_at_interval(
 ) {
     let lift = Interval::from_f64;
     let (k1, k2, map) = arena2(s1.map_scalar(lift), s2.map_scalar(lift));
-    let carrier = Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).map_scalar(lift);
+    let carrier = Curve3::line(
+        Point3::new(x, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+    )
+    .map_scalar(lift);
     let (t0, t1) = (lift(0.0), lift(1.0));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
@@ -888,7 +913,7 @@ fn certify_line_at_interval(
         spec,
         p0,
         p1,
-        |k| map.get(k).cloned(),
+        |k| map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         fixture_lever(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),

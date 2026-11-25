@@ -53,6 +53,7 @@
 //! A carrier with no closed-form distance and foot (a cone, a spline)
 //! localizes nothing, and the door stays.
 
+use geom_core::UnitVec3;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
@@ -60,7 +61,7 @@ use super::{BooleanDecision, reduce};
 use crate::body::Body;
 use crate::boxes;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
-use crate::entity::{EdgeKey, EntityId, FaceKey};
+use crate::entity::{EdgeKey, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::bisect::Step;
@@ -165,9 +166,9 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = axis.normalize();
+        let a = UnitVec3::squared(axis);
         let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
-        (a * h, off)
+        (a.get() * h, off)
     };
     match *surface {
         geom::Surface::Sphere { frame, radius, .. } => {
@@ -330,7 +331,9 @@ fn ball_off_face<T: Decide + Bounds>(
             BoundaryMember::Isolated { point, .. } => {
                 Ok(clear((point - foot).norm(), radius, band))
             }
-            BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band),
+            BoundaryMember::Edge { edge, .. } => {
+                edge_clear_of_ball(y, edge.key(), foot, radius, band)
+            }
         };
         Rung::holds(clear_of_ball.map(|c| !c), (), BooleanError::refusal)
     });
@@ -348,7 +351,7 @@ fn ball_off_face<T: Decide + Bounds>(
             ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
-            | ContainError::RayExhausted
+            | ContainError::RayExhausted(_)
             | ContainError::Uncrossable(_),
         ) => Ok(false),
         // The foot is placed only where every boundary edge's whole
@@ -408,12 +411,29 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
     if !boxes::edge_box(y, edge, pad).overlaps(&boxes::centred_box(at, radius, pad)) {
         return Ok(true);
     }
-    let e = crate::live::proven(&y.edges, edge, EntityId::Edge);
-    let curve = reduce::certified(y.get_curve_geom(e.curve))?;
-    Ok(
-        crate::splitting::containment::arc_distance_floor(curve.carrier(), curve.params(), at)
-            .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band))),
-    )
+    let curve = reduce::certified(y.proven_edge(edge))?;
+    Ok(arc_clear_of_ball(
+        curve.carrier(),
+        curve.params(),
+        at,
+        radius,
+        band,
+    ))
+}
+
+/// **Whether the arc `span` of `carrier` stays definitely farther than
+/// `radius` from `at`**: its distance floor
+/// ([`crate::splitting::containment::arc_distance_floor`]) decided past
+/// `radius`. A carrier with no cover over the span is not clear.
+pub(super) fn arc_clear_of_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    at: Point3<T>,
+    radius: T,
+    band: Band,
+) -> bool {
+    crate::splitting::containment::arc_distance_floor(carrier, span, at)
+        .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band)))
 }
 
 #[cfg(test)]

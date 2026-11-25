@@ -71,16 +71,20 @@
 //! enter recipe data or the kernel (`Formula::literal`'s ruled door 1),
 //! exactly as for raw `f64` authoring today.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
+mod decimal;
+mod exact;
 mod fmt;
 mod notation;
 mod units;
 mod written;
 
+pub use decimal::{Decimal, POSITIONAL_DECADES, Positional};
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
 pub use notation::Notation;
 pub use units::{
-    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, ONE, PI, RAD, ScalarUnit, UNITS,
-    UnitDef, UnitQuantity, unit_by_symbol,
+    AngleUnit, CENTI, CM, DECIDING_FIGURES, DEG, IN, InUnit, LengthUnit, M, MILLI, MM, ONE, PI,
+    RAD, ROUND_TRIP_FIGURES, Rounding, ScalarUnit, UNITS, UnitDef, UnitQuantity, unit_by_symbol,
 };
 pub use written::{WrittenAngle, WrittenLength};
 
@@ -120,13 +124,14 @@ impl Length {
         self.0
     }
 
-    /// The value expressed in `unit` (display-side conversion; the
-    /// canonical value stays what it is).
+    /// The value expressed in `unit`: the float nearest the exact
+    /// quotient by the unit's factor, ±∞ where that is past the format
+    /// (display-side; the canonical value stays what it is).
     ///
     /// `unit`'s factor is the table's, not the caller's — [`LengthUnit`]
     /// wraps a [`UnitDef`] row (the seal, whose narrative lives there).
     pub fn in_unit(self, unit: LengthUnit) -> f64 {
-        self.0 / unit.factor()
+        unit.def().quotient(self.0)
     }
 }
 
@@ -141,10 +146,9 @@ impl Angle {
         self.0
     }
 
-    /// The value expressed in `unit` (display-side conversion); the
-    /// factor is the table's, as on [`Length::in_unit`].
+    /// The value expressed in `unit`, as [`Length::in_unit`] says.
     pub fn in_unit(self, unit: AngleUnit) -> f64 {
-        self.0 / unit.factor()
+        unit.def().quotient(self.0)
     }
 }
 
@@ -160,17 +164,18 @@ impl Count {
     }
 }
 
-/// `25.0 * MM` — the primary construction spelling (L4: `25 * mm`).
+/// `25.0 * MM` — the primary construction spelling (L4: `25 * mm`):
+/// the number is read as the decimal its shortest digits spell, and is
+/// that decimal of the unit rounded once ([`UnitDef::canonical_of_float`]),
+/// so `300.04 * MM` is the float nearest 0.30004 m.
 ///
 /// This is the D6 typed-units boundary itself: the factor applied is
 /// the one the unit table pairs with the symbol, because a
-/// [`LengthUnit`] is a table row (the seal on [`UnitDef`]). A unit
-/// whose factor disagreed with its symbol would make this multiply
-/// produce a correct-looking `Length` of the wrong magnitude.
+/// [`LengthUnit`] is a table row (the seal on [`UnitDef`]).
 impl Mul<LengthUnit> for f64 {
     type Output = Length;
     fn mul(self, unit: LengthUnit) -> Length {
-        Length(self * unit.factor())
+        Length(unit.def().canonical_of_float(self))
     }
 }
 
@@ -178,7 +183,7 @@ impl Mul<LengthUnit> for f64 {
 impl Mul<f64> for LengthUnit {
     type Output = Length;
     fn mul(self, value: f64) -> Length {
-        Length(value * self.factor())
+        value * self
     }
 }
 
@@ -186,7 +191,7 @@ impl Mul<f64> for LengthUnit {
 impl Mul<AngleUnit> for f64 {
     type Output = Angle;
     fn mul(self, unit: AngleUnit) -> Angle {
-        Angle(self * unit.factor())
+        Angle(unit.def().canonical_of_float(self))
     }
 }
 
@@ -194,7 +199,7 @@ impl Mul<AngleUnit> for f64 {
 impl Mul<f64> for AngleUnit {
     type Output = Angle;
     fn mul(self, value: f64) -> Angle {
-        Angle(value * self.factor())
+        value * self
     }
 }
 

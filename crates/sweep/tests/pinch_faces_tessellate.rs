@@ -180,8 +180,8 @@ fn faces_through_two_vertices_on_one_point(body: &Body<f64>) -> usize {
         .filter(|(fk, _)| {
             body.face(*fk)
                 .expect("a live face")
-                .loops()
-                .any(|(l, _, _)| topo::loop_points::loop_pinches(body, l).expect("a live loop"))
+                .cycle_loops()
+                .any(|(l, _)| topo::loop_points::loop_pinches(l))
         })
         .count()
 }
@@ -366,7 +366,7 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         if bb
             .body
             .faces()
-            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Some(geom::Surface::Plane { .. })))
+            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Ok(geom::Surface::Plane { .. })))
         {
             let (got, want) = (
                 mesh::validate::signed_volume(&mesh),

@@ -555,15 +555,24 @@ fn holds_until_parting(
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
 /// zero it parts at. Its parting came later when the least turn lost its
 /// identity shortcut: an identity chart decides its pole verdict and
-/// conditioning, in step at both builds.
+/// conditioning, in step at both builds. It came 3 sooner when a chart's
+/// spin was set from its frames at `Sym`, which decides no renormalized
+/// axis. Validation stopped reading an adjacent line pair's
+/// shared vertex (`profile::seg`'s `line_line`): the four corners, on
+/// both builds, lost 16 each of `chord_side`, `line_span` and
+/// `contact_at_shared_vertex`, so 48 fewer decisions are compared
+/// before the parting, at every ε row. The checks paired do not move.
+/// Fewer of the margins moved and re-valued: at the default ε 1994 ->
+/// 1990 (floor 1993 -> 1989), and at 1e-6 the row reads 1952 (floor 1955
+/// -> 1951). The 1e-12 row still clears its floor.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3255, 7228),
+        (3204, 7228),
         PerRow {
-            at_1e6: 1955,
-            at_1e9: 1993,
+            at_1e6: 1951,
+            at_1e9: 1989,
             at_1e12: 1802,
         },
         &[],
@@ -579,11 +588,15 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// order where `p0`'s exactly axis-aligned faces used to merge them
 /// (the owed item's `bool_pair_gap` swap). Its parting came later, as
 /// `plate_param`'s did, when the least turn lost its identity shortcut.
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`): its four corners, on both
+/// builds, ask 24 fewer decisions before the parting, at
+/// every ε row; the checks paired do not move.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2399, 3856),
+        (2372, 3856),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,
@@ -776,9 +789,9 @@ fn a_planted_laundering_is_seen_and_from_computed_is_opaque() {
     let margins = |d: f64| {
         let x = at(d) * at(d);
         [
-            x - Sym::from_f64(x.value),
+            x - Sym::from_f64(x.value()),
             x - at(d) * at(d),
-            x - Sym::from_computed(x.value),
+            x - Sym::from_computed(x.value()),
         ]
     };
     let p1: Vec<Decision> = session(|| {
@@ -832,7 +845,7 @@ fn a_check_laundering_is_caught_and_its_flips_part_nothing() {
             let _ = decide("revalue_doc", x);
             geom_core::k_stats::checking(|| {
                 let xx = x * x;
-                let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value));
+                let _ = decide("revalue_reader_laundered", xx - Sym::from_f64(xx.value()));
                 let _ = decide("revalue_reader_tie", Sym::param(w, d) - Sym::from_f64(0.25));
                 if d > 0.3 {
                     let _ = decide("revalue_reader_extra", x);
@@ -892,7 +905,7 @@ fn a_decision_answered_with_another_sign_keeps_what_follows_apart() {
             let split = decide(
                 "revalue_split",
                 if laundered_split {
-                    x + (x - Sym::from_f64(x.value))
+                    x + (x - Sym::from_f64(x.value()))
                 } else {
                     x
                 },
@@ -1055,10 +1068,7 @@ fn the_instrument_and_the_door_replay_in_one_session() {
     );
     assert!(!instrument.is_empty(), "the replay decides");
     assert_eq!(
-        (
-            instrument_counts.symbolic,
-            instrument_counts.checks_expanded
-        ),
+        (instrument_counts.symbolic, instrument_counts.frozen),
         (0, 0),
         "a deferring session discharges nothing eagerly: {instrument_counts:?}"
     );

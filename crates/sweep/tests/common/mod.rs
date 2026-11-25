@@ -219,6 +219,10 @@ pub mod membership;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
+/// The keel trees in the plane: a block less V-grooves whose floors
+/// meet end to end, at any scalar. Body authoring, so it routes here.
+pub mod keel_tree;
+
 pub mod semicircle_wall;
 
 /// The `Interval` literals — a scalar, and points and vectors from
@@ -236,6 +240,11 @@ pub mod oracles;
 /// enclosure width its subtract is measured to escalate on — which two
 /// suites' rows run as one fixture. Body authoring, so it routes here.
 pub mod sphere_recut;
+
+/// Whether a result's sphere faces are maximal over the cuts its
+/// operands wrote ([`maximal_spheres::assert_spheres_maximal`]). A reader
+/// over stored carriers that evaluates no surface, so it routes here.
+pub mod maximal_spheres;
 
 /// The `shell` verb's operands — the vessel, the tube, the hollow box
 /// and the two-void box — and the two role readers a shell row runs

@@ -40,7 +40,7 @@
 //! lane's cross-check of the bit (`geom_brep::props::curved_face_holding`)
 //! the mass-property doors' seam refusals (`props::face_tips`) and a
 //! sphere face's cover window (`cover::sphere_window`, through
-//! `props::chart_image_with_tips`), which reads a wrap-tip cap as its
+//! `props::image_with_tips`), which reads a wrap-tip cap as its
 //! latitude zone and not the whole ball. One reader of a sphere face
 //! does not: the seam region's reader, which refuses a region holding a
 //! tip (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).

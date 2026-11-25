@@ -50,7 +50,11 @@ use mesh::TessellateError;
 /// The shape door's verdict on `face`'s outer loop.
 fn door(body: &topo::Body<f64>, face: topo::FaceKey) -> Result<(), PropsError> {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let (outer, _) = topo::props::loop_edges(body, body.get_face(face).unwrap().outer).unwrap();
+    let (outer, _) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(face).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
     geom_brep::props::require_iso_rectangle(body.face_surface(face).unwrap(), &outer, band)
 }
 
@@ -125,10 +129,11 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let sphere_face = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(fk, f)| (fk, f.outer))
         .expect("the wedge has a sphere face");
-    let (outer, _) = topo::props::loop_edges(&body, sphere_face.1).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(sphere_face.1).expect("a cycle loop")).unwrap();
     let surface = body.face_surface(sphere_face.0).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(
@@ -186,7 +191,8 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     body.faces()
         .map(|(fk, f)| {
-            let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
+            let (outer, _) =
+                topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
             let surface = body.face_surface(fk).unwrap();
             (
                 fk,
@@ -337,10 +343,18 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
     let base = donut();
     let (f0, _) = base.faces().next().unwrap();
-    let (outer0, _) = topo::props::loop_edges(&base, base.get_face(f0).unwrap().outer).unwrap();
+    let (outer0, _) = topo::props::loop_edges(
+        base.cycle_loop(base.get_face(f0).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
     for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
         let (body, (t0, t1)) = split_seam_donut(fracs);
-        let (outer, _) = topo::props::loop_edges(&body, body.get_face(f0).unwrap().outer).unwrap();
+        let (outer, _) = topo::props::loop_edges(
+            body.cycle_loop(body.get_face(f0).unwrap().outer)
+                .expect("a cycle loop"),
+        )
+        .unwrap();
         // The seam is the one minor circle on this face's boundary,
         // traversed once in each direction; take its forward chain.
         let seam0 = outer0
@@ -430,7 +444,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
 fn a_zero_width_slit_passes_the_door_and_trips_the_spatial_check_feature_sized() {
     let (body, face) = slit();
     let f = body.get_face(face).unwrap();
-    let (outer, _) = topo::props::loop_edges(&body, f.outer).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     let surface = body.face_surface(face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     assert_eq!(

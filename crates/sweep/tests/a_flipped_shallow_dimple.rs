@@ -64,7 +64,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     );
     let dimple: Vec<_> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(dimple.len(), 1, "the dimple is one face on its seam");

@@ -20,8 +20,9 @@
 //!   driven slot, a measure, a display tolerance), on the grid.
 //! - [`bare`]: the same in the canonical unit, for a sentence that
 //!   words the unit itself.
-//! - [`field_number`] and [`names`]: the fields' door, which has no
-//!   unit in hand (see [`field_number`]).
+//!
+//! An editable field's text is not told text: it is its value's exact
+//! spelling in the field's unit (`crate::props::FieldNumber::text`).
 //!
 //! No door renders a nonzero value as zero: the grid is relative below
 //! its cap and has no floor.
@@ -70,11 +71,9 @@ fn dimension(unit: UnitDef) -> geom_core::Dimension {
     geom_core::Dimension::of(unit.quantity())
 }
 
-/// A canonical value nobody wrote, told in `unit` with its unit word.
-///
-/// Where `unit` cannot say the value (its factor carries it out of the
-/// format) the text is in the canonical unit and says so: `1e306 m`
-/// for a length a millimetre reader asked about.
+/// A canonical value nobody wrote, told in `unit` with its unit word:
+/// `1e309 mm` for a length of `1e306 m`, whose number of millimetres
+/// no float holds.
 pub fn computed(canonical: f64, unit: UnitDef) -> String {
     Told::computed(&canonical, dimension(unit))
         .told_in(Notation::CANONICAL.with(unit))
@@ -82,12 +81,11 @@ pub fn computed(canonical: f64, unit: UnitDef) -> String {
 }
 
 /// [`computed`]'s number alone, for a surface that writes the unit
-/// itself; `None` where `unit` cannot say the value, since a number
-/// with the wrong unit beside it is a different value.
-pub fn computed_number(canonical: f64, unit: UnitDef) -> Option<String> {
+/// itself.
+pub fn computed_number(canonical: f64, unit: UnitDef) -> String {
     Told::computed(&canonical, dimension(unit))
         .number_in(Notation::CANONICAL.with(unit))
-        .map(|number| number.to_string())
+        .to_string()
 }
 
 /// A value the chrome computed, told on the grid in the canonical unit
@@ -98,43 +96,9 @@ pub fn bare(value: f64, quantity: UnitQuantity) -> String {
     canonical_number(&Told::computed(&value, geom_core::Dimension::of(quantity)))
 }
 
-/// A quantity's number in the canonical unit, which says every
-/// quantity.
+/// A quantity's number in the canonical unit.
 fn canonical_number(told: &Told) -> String {
-    told.number_in(Notation::CANONICAL)
-        .map_or_else(|| told.to_string(), |number| number.to_string())
-}
-
-/// The number a field holds, as the field shows it.
-///
-/// **A field's formatter has the number and not its unit**: `egui`
-/// hands a `DragValue`'s formatter the `f64` the widget is bound to,
-/// which is the canonical value already divided by its unit's factor.
-/// So this door cannot say what the quantity is, and tells the number
-/// as a computed length in the canonical unit: four figures, and a
-/// tenth of ε of the WRITTEN number. Every length unit's factor is at
-/// most one, so that is at least as fine as the rule's grid for a
-/// length and finer than it for an angle or a ratio. Threading the
-/// unit to the formatter is
-/// `work/vgeom/the-field-door-tells-a-written-number-with-no-unit-in-hand.md`.
-pub fn field_number(value: f64) -> String {
-    canonical_number(&as_field(value))
-}
-
-/// Whether `spelling` names `value` as a field shows it: it reads as a
-/// number that [`field_number`] spells the same way.
-///
-/// Width is no part of it: a caller judging a spelling someone else
-/// chose is asking only whether that text names this value.
-pub fn names(spelling: &str, value: f64) -> bool {
-    spelling
-        .parse::<f64>()
-        .is_ok_and(|read| as_field(read) == as_field(value))
-}
-
-/// A field's number as the told quantity [`field_number`] renders.
-fn as_field(value: f64) -> Told {
-    Told::computed(&value, geom_core::Dimension::Length)
+    told.number_in(Notation::CANONICAL).to_string()
 }
 
 #[cfg(test)]
@@ -143,7 +107,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{MAX_CHARS, bare, computed, computed_number, field_number, names};
+    use super::{bare, computed, computed_number};
     use quantity::{DEG, IN, M, MM, ONE, PI, UnitQuantity};
 
     #[test]
@@ -161,14 +125,18 @@ mod tests {
         assert_eq!(computed(0.0, MM.def()), "0 mm");
     }
 
+    /// A value whose number of the unit no float holds is said in the
+    /// unit all the same.
     #[test]
-    fn a_value_the_unit_cannot_say_reads_in_the_canonical_unit() {
-        assert_eq!(computed(1.0e306, MM.def()), "1e306 m");
-        assert_eq!(computed_number(1.0e306, MM.def()), None);
-        assert_eq!(computed(5.0e-324, PI.def()), "5e-324 rad");
-        assert_eq!(computed_number(5.0e-324, PI.def()), None);
-        assert_eq!(computed_number(0.025, MM.def()).as_deref(), Some("25"));
-        assert_eq!(computed_number(0.25, ONE.def()).as_deref(), Some("0.25"));
+    fn a_unit_says_a_value_its_number_has_no_float_for() {
+        assert_eq!(computed(1.0e306, MM.def()), "1e309 mm");
+        assert_eq!(computed_number(1.0e306, MM.def()), "1e309");
+        // The floats there are a whole least subnormal apart, so one
+        // figure is all the decimal carries.
+        assert_eq!(computed(5.0e-324, PI.def()), "2e-324 pi rad");
+        assert_eq!(computed_number(5.0e-324, PI.def()), "2e-324");
+        assert_eq!(computed_number(0.025, MM.def()), "25");
+        assert_eq!(computed_number(0.25, ONE.def()), "0.25");
     }
 
     #[test]
@@ -180,51 +148,5 @@ mod tests {
         assert_eq!(bare(-0.0, UnitQuantity::Length), "0");
         assert_eq!(bare(f64::NAN, UnitQuantity::Length), "NaN");
         assert_eq!(bare(f64::INFINITY, UnitQuantity::Angle), "inf");
-    }
-
-    /// No nonzero value reads as zero, every render reads back within
-    /// the coarser of a tenth of ε and four figures of the value, and
-    /// none passes the character bound.
-    #[test]
-    fn a_field_number_names_its_value_within_the_bound() {
-        let mut value = 1.0e-320_f64;
-        while value < 1.0e300 {
-            for signed in [value, -value] {
-                let text = field_number(signed);
-                let read: f64 = text
-                    .parse()
-                    .unwrap_or_else(|error| panic!("{signed} renders as {text}: {error}"));
-                assert!(read != 0.0, "{signed} renders as {text}");
-                assert!(
-                    (read - signed).abs() <= 1.0e-10_f64.max(signed.abs() * 5.0e-4),
-                    "{signed} renders as {text}"
-                );
-                assert!(
-                    text.trim_start_matches('-').chars().count() <= MAX_CHARS,
-                    "{signed} renders as {text}, past the {MAX_CHARS} character bound"
-                );
-                assert!(names(&text, signed), "{text} does not name {signed}");
-            }
-            value *= 1.5;
-        }
-        assert_eq!(field_number(0.0), "0");
-        assert_eq!(field_number(1000.001), "1000.001");
-        assert_eq!(field_number(1024.0), "1024");
-        assert_eq!(field_number(0.0003746), "0.0003746");
-        assert_eq!(field_number(4.0e-7), "4e-7");
-        // Past the last four-figure decimal the format holds, the grid
-        // point below.
-        assert_eq!(field_number(f64::MAX), "1.797e308");
-    }
-
-    #[test]
-    fn a_spelling_names_a_value_it_is_told_as() {
-        assert!(names("1000.001", 1000.001));
-        assert!(names("0.3", 0.1 + 0.2));
-        assert!(!names("1000.0", 1000.001));
-        assert!(!names("0.000", 4.0e-7));
-        assert!(names("inf", f64::INFINITY));
-        assert_eq!(field_number(f64::INFINITY), "inf");
-        assert!(!names("not a number", 1.0));
     }
 }

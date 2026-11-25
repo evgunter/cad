@@ -56,7 +56,7 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Ok(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -66,7 +66,7 @@ fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .filter(|(fk, _)| {
             matches!(
                 b.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z).abs() < 1e-9 && frame.axis().z.abs() > 0.5
             )
         })

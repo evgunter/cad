@@ -149,10 +149,9 @@
 //!
 //! - `mvfs`/`mev` insert the given [`Point3`] as a new point (only
 //!   vertex-creating operators carry coordinates — Mäntylä ch. 11).
-//!   `mvfs`'s seed face gets the [`Surface::Nurbs`]
-//!   representable-unimplemented placeholder — the honest "no
-//!   description yet" state (a sweep's seed face becomes a cap whose
-//!   plane exists only later; attach it via
+//!   `mvfs`'s seed face gets a pending surface slot
+//!   ([`crate::SurfaceSlot::Pending`]) — "no description yet" (a sweep's
+//!   seed face becomes a cap whose plane exists only later; attach it via
 //!   [`Body::set_face_surface`](crate::construction::Construct::set_face_surface)). Legal mid-construction; the tier-3
 //!   validator rejects it at rest.
 //! - `mev`/`mef`/`mekr` certify their curve spec with `he_plus`'s
@@ -259,7 +258,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey, SurfaceSlot};
 use crate::joint::JointElement;
 use crate::live::{Arg, KeySource, Live, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
@@ -285,6 +284,15 @@ pub enum FaceSurface<T: Real> {
         /// The surface to mint.
         surface: Surface<T>,
         /// The material side against `surface`'s chart normal.
+        sense: bool,
+    },
+    /// Mint a pending surface slot for the new face
+    /// ([`crate::SurfaceSlot::Pending`]): the face
+    /// waits for a describing door to give it a surface (a sweep's
+    /// transient disc, killed before the body finishes).
+    Pending {
+        /// The provisional material side; a pending slot has no chart
+        /// normal to state it against.
         sense: bool,
     },
     /// Share an existing surface key (identical-by-construction
@@ -318,7 +326,7 @@ pub enum RechartDoor {
     /// ring.
     Mfkrh,
     /// [`Body::mfkrh_plug`](crate::construction::Construct::mfkrh_plug): mints a face from a ring on a fresh
-    /// placeholder chart, which asks only the strand. Its caller picks
+    /// pending slot, which asks only the strand. Its caller picks
     /// no chart, so its lever is the door: [`Body::mfkrh`](crate::construction::Construct::mfkrh), which takes
     /// one.
     MfkrhPlug,
@@ -455,8 +463,8 @@ impl RechartDoor {
                  certifies each re-description it is handed against the new chart"
             ),
             Self::MfkrhPlug => format!(
-                "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
-                 chart that {named} not name. Recourse: promote the ring with mfkrh onto a \
+                "{name}: the face it would mint from face {face:?} lies on a fresh pending \
+                 slot that {named} not name. Recourse: promote the ring with mfkrh onto a \
                  chart its certified edges name"
             ),
             Self::RingMove => format!(
@@ -619,9 +627,8 @@ pub struct MvfsCreated {
     pub vertex: VertexKey,
     /// The new point carrying the given coordinates.
     pub point: PointKey,
-    /// The face's surface: the `Surface::Nurbs` "no description yet"
-    /// placeholder (module docs, geometry policy) — attach the real
-    /// surface via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest.
+    /// The face's surface slot, pending (module docs, geometry policy) —
+    /// attach the real surface via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest.
     pub surface: SurfaceKey,
 }
 
@@ -2181,7 +2188,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         let point_key = self.add_point(point);
-        let surface = self.add_surface(Surface::nurbs_placeholder());
+        let surface = self.add_pending_surface();
         let vertex = self.add_vertex(
             Vertex {
                 point: point_key,
@@ -3778,9 +3785,8 @@ impl<T: Decide> Body<T> {
             _ => None,
         };
         let own = edge
-            .and_then(|edge| self.edges.get(edge))
-            .and_then(|data| self.get_curve_geom(data.curve))
-            .and_then(|curve| curve.certified())
+            .and_then(|edge| self.edge(edge))
+            .and_then(crate::live::EdgeView::certified)
             .and_then(geom_brep::EdgeCurve::locus_certificate);
         let kept: Vec<_> = kept.into_iter().chain(own).collect();
         crate::policy_lane::certify_stated(
@@ -3788,7 +3794,7 @@ impl<T: Decide> Body<T> {
             spec,
             p_start,
             p_end,
-            |k| self.surfaces.get(k).cloned(),
+            |k| self.resolve_surface(k),
             reach,
             band,
             stated.as_ref(),
@@ -3817,7 +3823,7 @@ impl<T: Decide> Body<T> {
             .find_map(|he| {
                 let surface = self.faces.get(self.face_of_half_edge(he)?)?.surface;
                 let on_pair = pair.keys().contains(&surface);
-                let spline = self.surfaces.get(surface)?.spline_chart().is_some();
+                let spline = self.get_surface(surface).ok()?.spline_chart().is_some();
                 (on_pair && spline).then_some((he, surface))
             })
             .and_then(|(he, surface)| {
@@ -3894,11 +3900,12 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         run: &[HalfEdgeKey],
     ) -> Result<Option<&EdgeCurve<T>>, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        match self.edge_curve_linked(edge, edge_data) {
+        let edge_data = self.proven_edge(edge);
+        match edge_data.curve() {
             crate::null::CurveGeom::Certified(curve) => Ok(Some(curve)),
             crate::null::CurveGeom::NullScaffold(_)
-                if run.contains(&edge_data.he_plus) && run.contains(&edge_data.he_minus) =>
+                if run.contains(&edge_data.record().he_plus)
+                    && run.contains(&edge_data.record().he_minus) =>
             {
                 Ok(None)
             }
@@ -4018,7 +4025,7 @@ impl<T: Decide> Body<T> {
                 continue;
             };
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new);
-            let surfaces = |k| self.surfaces.get(k).cloned();
+            let surfaces = |k| self.resolve_surface(k);
             let reach = crate::wedge_reach(
                 self,
                 crate::edge_faces(self, edge_key),
@@ -4097,7 +4104,9 @@ impl<T: Decide> Body<T> {
         };
         let sense = match *spec {
             FaceSurface::Inherit => derived,
-            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => {
+            FaceSurface::New { sense, .. }
+            | FaceSurface::Shared { sense, .. }
+            | FaceSurface::Pending { sense } => {
                 if on_parent_chart && sense != derived {
                     return Err(EulerOpError::SenseContradictsChart {
                         face: parent,
@@ -4127,6 +4136,7 @@ impl<T: Decide> Body<T> {
         match spec {
             FaceSurface::Inherit => inherit,
             FaceSurface::New { surface, .. } => self.add_surface(surface),
+            FaceSurface::Pending { .. } => self.add_pending_surface(),
             FaceSurface::Shared { key, .. } => key,
         }
     }
@@ -4277,8 +4287,7 @@ impl<T: Decide> Body<T> {
             }
             seen.push(face);
             let view = self.proven_face(face);
-            let surface = view.surface();
-            if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
+            if let Some(from) = crate::pcurves::site_rows_from(self, face, view.slot()) {
                 minted.push((face, from));
             }
         }
@@ -4333,7 +4342,7 @@ impl<T: Decide> Body<T> {
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
         let view = self.proven_face(face);
-        let surface = view.surface().clone();
+        let surface = view.slot().clone();
         let loops = view
             .record()
             .loop_keys()
@@ -4389,19 +4398,22 @@ impl<T: Decide> Body<T> {
         // The bit the door writes ([`Body::resolve_face_surface`]): the
         // stated one, or the one the door's topology derives.
         let sense = match *surface {
-            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => sense,
+            FaceSurface::New { sense, .. }
+            | FaceSurface::Shared { sense, .. }
+            | FaceSurface::Pending { sense } => sense,
             FaceSurface::Inherit => match side {
                 ParentSide::With => from_data.sense(),
                 ParentSide::Against => !from_data.sense(),
             },
         };
         let chart = match surface {
-            FaceSurface::Inherit => from_data.surface().clone(),
+            FaceSurface::Inherit => from_data.slot().clone(),
             FaceSurface::Shared { key, .. } => self
-                .get_surface(*key)
+                .surface_slot(*key)
                 .cloned()
                 .ok_or_else(|| Arg("surface").miss_geometry(GeomRef::Surface(*key)))?,
-            FaceSurface::New { surface, .. } => surface.clone(),
+            FaceSurface::New { surface, .. } => SurfaceSlot::Described(surface.clone()),
+            FaceSurface::Pending { .. } => SurfaceSlot::Pending,
         };
         Ok(SiteFace {
             rows_from: from,
@@ -5299,14 +5311,15 @@ mod tests {
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
-        *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
+        body.surfaces[s_seed] = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_z(),
                 geom_core::Vec3::unit_x(),
             ),
-        };
-        *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
+        }
+        .into();
+        *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_y(),
@@ -5751,9 +5764,11 @@ mod tests {
             .collect();
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-        assert!(!patch.is_placeholder());
-        *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
-        *body.surfaces.get_mut(s_plus).unwrap() = geom::Surface::Plane {
+        assert!(patch.is_finite());
+        assert!(
+            body.describe_slot_for_tests(s_seed, geom::Surface::Nurbs(std::sync::Arc::new(patch)))
+        );
+        *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_y(),
@@ -5902,7 +5917,7 @@ mod tests {
             .find(|&f| {
                 matches!(
                     body.face(f).map(|f| f.surface()),
-                    Some(geom::Surface::Plane { .. })
+                    Some(Ok(geom::Surface::Plane { .. }))
                 )
             })
             .unwrap();
@@ -6363,7 +6378,7 @@ mod tests {
             },
             prov(),
         );
-        let surface_c = body.add_surface(crate::fixtures::test_surface(p(10.0)));
+        let surface_c = body.add_pending_surface();
         let face_c = body.add_face(
             Face {
                 sense: true,

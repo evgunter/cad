@@ -248,7 +248,9 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
     };
     // The tool is the pip, a placement of the ball; the ball's names
     // ride it verbatim, still carrying the revolve's id.
-    let ball = match doc.node(operand(tool.read)) {
+    let ball = match doc.node(operand(
+        tool.reads().next().expect("a subtract with one tool").read,
+    )) {
         Some(Node::Place { source, .. }) => operand(source.read),
         other => panic!("the die's tool is the placed ball, got {other:?}"),
     };
@@ -402,7 +404,7 @@ fn two_boxes(low_first: bool) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
     let (doc, union) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![low_placed.into(), tall_placed.into()]),
+            members: editor_core::Bodies::spelled(vec![low_placed.into(), tall_placed.into()]),
         },
     );
     (doc, low, tall, union)

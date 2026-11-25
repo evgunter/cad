@@ -50,10 +50,9 @@ pub trait Construct<T: geom_core::Real> {
     /// boolean leaves a void shell — [`crate::Solid`].)
     ///
     /// **Minting order** (D9, exact): point, surface, vertex, solid,
-    /// shell, loop, face. The seed face's surface is the
-    /// [`Surface::Nurbs`](geom::Surface::Nurbs) representable-unimplemented placeholder —
-    /// the honest "no description yet" state (module docs, geometry
-    /// policy): a construction attaches the real surface via
+    /// shell, loop, face. The seed face's surface slot is pending
+    /// ([`crate::SurfaceSlot::Pending`]) — "no description yet" (module
+    /// docs, geometry policy): a construction attaches the real surface via
     /// [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) once it exists; a body reaching rest
     /// with it fails tier 3.
     ///
@@ -692,22 +691,20 @@ pub trait Construct<T: geom_core::Real> {
     ) -> Result<MfkrhCreated, EulerOpError>
     where
         T: Decide;
-    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh) with [`FaceSurface::New`] holding the
-    /// `Surface::Nurbs` placeholder — the new face is born with the
-    /// honest "no description yet" surface (`crate::euler`'s geometry
-    /// policy; replace it via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest).
-    /// Mirrors the M1 fresh-surface semantics for the migrated suites
-    /// and for promotions whose real surface is not yet known.
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh) with [`FaceSurface::Pending`]:
+    /// the new face is born with no surface yet (`crate::euler`'s geometry
+    /// policy; describe it via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest),
+    /// for promotions whose real surface is not yet known.
     ///
-    /// The placeholder is a fresh payload, so it is never the demoting
-    /// face's chart: `mfkrh` writes `sense`, the caller's provisional
+    /// The pending slot is fresh, so it is never the demoting face's
+    /// chart: `mfkrh` writes `sense`, the caller's provisional
     /// bit, as stated, and drops the promoted ring's rows — a spline
     /// chart, so none is owed there and this keys-only door never
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
     ///
     /// **The new face is chartless.** No description names the
-    /// placeholder's fresh key and no certificate vouches on it, so of
+    /// pending slot's fresh key and no certificate vouches on it, so of
     /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s questions ([`Body::vouch_move`]) it asks only
     /// the strand, as [`RechartDoor::MfkrhPlug`](crate::RechartDoor::MfkrhPlug): a ring with an edge
     /// whose description would name no key its faces wear is refused.
@@ -1011,7 +1008,7 @@ pub trait Construct<T: geom_core::Real> {
     /// described against a key neither of its faces wears, then a
     /// certified edge landing on a chart its description does not name,
     /// unless the two keys share one payload or the surviving face
-    /// wears the "no chart yet" placeholder. [`Body::kef_describing`](crate::construction::Construct::kef_describing)
+    /// is pending. [`Body::kef_describing`](crate::construction::Construct::kef_describing)
     /// takes the move with its re-descriptions under a band.
     ///
     /// # Precondition check order
@@ -1487,16 +1484,13 @@ pub trait Construct<T: geom_core::Real> {
     /// `ring_move` re-glues the per-shell component partition (a face
     /// glues all its loops — validator pass 11), so unlike the Euler
     /// operators its tier-1 preservation is not a per-surgery
-    /// Euler-vector fact. It holds anyway, by the separating-curve
-    /// argument (independently derived by the PR 5 review): validator
-    /// passes 3/4/6 force every component to be a closed oriented
-    /// surface, and on a genus-0 component every ring cycle is a
-    /// separating (Jordan) curve — so a cross-component move
-    /// re-partitions the complex into pieces that are again closed
-    /// surfaces with `χ = 2(1 − g)`, `g ≥ 0`; a NON-separating ring
-    /// forces its component's genus ≥ 1 before the move, and a move can
-    /// merge at most two components, so no move manufactures odd χ or
-    /// negative genus. Exercised continuously by the seqgen fuzz lane
+    /// Euler-vector fact. Tier 1 is preserved by the records: the ring
+    /// keeps its half-edges, mates and vertices, and only its owning
+    /// face changes, within one shell. That every component then still
+    /// reads an even χ with `g ≥ 0` is the per-component theorem of
+    /// checks 1–7 and 10 (`crate::euler_theorem`), not a check: no
+    /// move can manufacture odd χ or negative genus. Exercised
+    /// continuously by the seqgen fuzz lane
     /// (`ring_move` is a candidate mutator) and by the promoted review
     /// sweeps (`tests/review_m1_pr5.rs`: every `ring_move` to depth 2
     /// over adversarial fixtures, including the non-separating-ring
@@ -1631,8 +1625,7 @@ pub trait Construct<T: geom_core::Real> {
     /// one is undecided the op refuses
     /// ([`EulerOpError::SplitJointUndecided`]) rather than write an
     /// element nothing decided. A half-edge with no row keeps none: the op carries
-    /// what is there, and minting what is missing is the producer's
-    /// closing mint.
+    /// what is there, and the finish completes what is missing.
     ///
     /// The carry is exact on every chart; two readers of the split body are
     /// narrower, both stated at `split_cache`. On a SPLINE chart the
@@ -1703,8 +1696,8 @@ pub trait Construct<T: geom_core::Real> {
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
     /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
-    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
+    /// description's.
     fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError>
     where
         T: Decide + crate::props::AtRestPolicy;
@@ -1772,8 +1765,7 @@ pub trait Construct<T: geom_core::Real> {
     /// Tier-1 preservation: components move **whole**, so every edge's
     /// two faces stay in one shell (pass 10) and each new shell's
     /// complex is exactly one component with its old per-component
-    /// Euler–Poincaré count (pass 11) — the partition is re-labeled,
-    /// never re-cut.
+    /// Euler–Poincaré count — the partition is re-labeled, never re-cut.
     ///
     /// # Errors
     ///
@@ -2137,8 +2129,7 @@ pub trait Construct<T: geom_core::Real> {
     /// bit changes.** A joint on a pole or an apex stores the turn there
     /// on the face's side ([`crate::joint`]), so a flipped face's rows
     /// are about its other side: they are dropped
-    /// ([`Body::sides_agree`]), and the face is minted again by its
-    /// producer's closing mint.
+    /// ([`Body::sides_agree`]), and the finish completes the face again.
     ///
     /// Not an Euler operator (no topology changes) and not a numeric
     /// decision (a `bool` is written, nothing compared); tier 1 is

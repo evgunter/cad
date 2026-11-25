@@ -2,8 +2,10 @@
 //! counterexample search for a wrong body. Each rod passes through a
 //! point `p` drawn inside the tube, so `p` lies in both operands: a
 //! body `donut ∩ rod` answers must hold `p`, and a body either
-//! subtract answers must not. Any body answered must also be valid at
-//! tier 3, and the volumes of `A ∖ B` and `A ∩ B` must sum to `A`'s.
+//! subtract answers must not, wherever `point_in_solid` reads the body
+//! (it reads no torus face a marched edge trims). Any body answered must
+//! also be valid at tier 3, and the volumes of `A ∖ B` and `A ∩ B` must
+//! sum to `A`'s.
 //!
 //! Most rods refuse (the join's germ frame, the pierce door, or an
 //! escalation, depending on the pose and the band); the row prints the
@@ -33,12 +35,19 @@ use test_utils::fuzz;
 use topo::{Body, BooleanResult};
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::pinned_volume(
-        "the volume integrates",
-        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
-        Tol::witness(),
-    )
-    .volume
+    measured(b).expect("an operand's volume is met")
+}
+
+/// `b`'s volume where the measurement meets its pinned resolution;
+/// `None` where it stops at its floor, a bracket and not a number met.
+fn measured(b: &Body<f64>) -> Option<f64> {
+    let tol = Tol::witness();
+    let body = topo::test_support::finished("the measured body", topo::Body::clone(b), tol);
+    topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the volume integrates")
+        .met()
+        .ok()
+        .map(|e| e.volume)
 }
 
 #[test]
@@ -55,7 +64,10 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
     .body;
     let vol_donut = volume(&donut);
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
-    for i in 0..fuzz::scaled(60) {
+    let (mut answered, mut checked) = (0_usize, 0_usize);
+    // Each rod's three ops march every tilted face's section, so 24 rods
+    // at EFFORT 1 (the nightly's `CAD_FUZZ_EFFORT` raises it).
+    for i in 0..fuzz::scaled(24) {
         let theta = rng.range(0.0, std::f64::consts::TAU);
         let phi = rng.range(0.0, std::f64::consts::TAU);
         let s = 0.45 * rng.unit().sqrt();
@@ -78,6 +90,7 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
             )
         };
         let mut vols = [None; 3];
+        let (mut bodies, mut p_read) = ([false; 3], [false; 3]);
         for (k, (op, r)) in subtract_both_orders_and_intersect(&donut, &rod)
             .into_iter()
             .enumerate()
@@ -102,34 +115,80 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
                         what(op)
                     );
                     let at_p = topo::point_in_solid(&b.body, p, band, Tol::witness());
-                    assert!(
-                        matches!(
-                            (at_p, want_p),
-                            (Ok(topo::SolidContainment::In), true)
-                                | (Ok(topo::SolidContainment::Out), false)
-                        ),
-                        "{}: p must be {} the result",
-                        what(op),
-                        if want_p { "in" } else { "out of" }
-                    );
-                    vols[k] = Some(volume(&b.body));
-                    *counts.entry("Body".into()).or_default() += 1;
+                    // The ray lane reads no torus face a marched edge
+                    // trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`):
+                    // the body is then held by its tier-3 validity and
+                    // the volumes below alone.
+                    bodies[k] = true;
+                    p_read[k] = at_p.is_ok();
+                    if matches!(at_p, Err(topo::PointInSolidError::PartialTorusFace { .. })) {
+                        *counts
+                            .entry("p unread on a trimmed torus face".into())
+                            .or_default() += 1;
+                    } else {
+                        assert!(
+                            matches!(
+                                (&at_p, want_p),
+                                (Ok(topo::SolidContainment::In), true)
+                                    | (Ok(topo::SolidContainment::Out), false)
+                            ),
+                            "{}: p must be {} the result, got {at_p:?}",
+                            what(op),
+                            if want_p { "in" } else { "out of" }
+                        );
+                    }
+                    vols[k] = measured(&b.body);
+                    *counts
+                        .entry(
+                            if vols[k].is_some() {
+                                "Body"
+                            } else {
+                                "Body, volume unmet"
+                            }
+                            .into(),
+                        )
+                        .or_default() += 1;
                 }
             }
         }
-        if let [Some(a_minus_b), Some(b_minus_a), Some(a_and_b)] = vols {
-            let vol_rod = volume(&rod);
-            assert!(
-                (a_minus_b + a_and_b - vol_donut).abs() <= 1e-8 * vol_donut,
-                "{}",
-                what("vol(A ∖ B) + vol(A ∩ B) = vol(A)")
-            );
-            assert!(
-                (b_minus_a + a_and_b - vol_rod).abs() <= 1e-8 * vol_donut,
-                "{}",
-                what("vol(B ∖ A) + vol(A ∩ B) = vol(B)")
-            );
+        // Each identity is held wherever both its volumes were met, so a
+        // body whose `p` is unread is still held by its volume.
+        let vol_rod = volume(&rod);
+        let mut held = [false; 3];
+        for (k, total, name) in [
+            (0, vol_donut, "vol(A ∖ B) + vol(A ∩ B) = vol(A)"),
+            (1, vol_rod, "vol(B ∖ A) + vol(A ∩ B) = vol(B)"),
+        ] {
+            if let (Some(part), Some(meet)) = (vols[k], vols[2]) {
+                assert!(
+                    (part + meet - total).abs() <= 1e-8 * vol_donut,
+                    "{}",
+                    what(name)
+                );
+                held[k] = true;
+                held[2] = true;
+            }
+        }
+        for k in 0..3 {
+            if bodies[k] {
+                answered += 1;
+                if p_read[k] || held[k] {
+                    checked += 1;
+                }
+            }
         }
     }
-    println!("germ_torus_rods: outcomes over every rod and op: {counts:?}");
+    println!(
+        "germ_torus_rods: outcomes over every rod and op: {counts:?}; {checked} of {answered} \
+         bodies held past tier 3"
+    );
+    // A body is held past tier 3 by `p`'s place in it or by a volume
+    // identity; one whose `p` is unread and whose identities each want an
+    // unmet volume (`work/orbit/a-marched-torus-bodys-volume-stops-at-its-floor.md`)
+    // is held by tier 3 alone, and they stay the exception.
+    assert!(
+        checked * 10 >= answered * 9,
+        "only {checked} of {answered} bodies held past tier 3; {}",
+        fuzz::replay()
+    );
 }

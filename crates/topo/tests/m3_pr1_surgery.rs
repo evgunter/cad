@@ -20,7 +20,7 @@ use geom_core::Tol;
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
 fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::FaceKey) {
     // Declined is what the surgery below wants: every face on the one
-    // `mvfs` placeholder, so the ring planting and the shell motions are
+    // `mvfs` pending slot, so the ring planting and the shell motions are
     // read at tiers 1-2 and no geometry enters.
     let cube = declined_cube::<f64>(Tol::witness());
     let mut body = cube.body;
@@ -133,9 +133,6 @@ fn multi_shell_lifecycle_roundtrip() {
     let (_, solid) = body.solids().next().unwrap();
     assert_eq!(solid.shells.len(), 2);
     assert_eq!(body.get_face(inner).unwrap().shell, shells[1]);
-    // Component-aware E–P on the multi-shell solid: both shells are
-    // closed genus-0 pieces — the validator's pass 11 accepts each
-    // (already implied by tier 2 above, asserted for the record).
     assert_eq!(body.shells().count(), 2);
     // Fuse back: cross-shell kfmrh re-homes the inner box's faces and
     // demotes its promoted face to a ring of the top face again.
@@ -424,7 +421,7 @@ fn merge_coplanar_glues_on_the_margin() {
     let pair: Vec<_> = declared
         .faces()
         .filter_map(|(fk, f)| match declared.face_surface(fk) {
-            Some(geom::Surface::Plane { frame, .. })
+            Ok(geom::Surface::Plane { frame, .. })
                 if frame.origin().z == 1.0 && frame.axis().z == 1.0 =>
             {
                 Some(f.surface)

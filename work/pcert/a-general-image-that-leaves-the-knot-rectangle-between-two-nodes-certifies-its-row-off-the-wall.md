@@ -2,7 +2,9 @@
 id: a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall
 kind: issue
 title: certify_general certifies a pcurve row whose image leaves the wall's knot rectangle between two nodes: the carrier up to 1e-5 m (1e4 eps) past the rim reads on the wall's polynomial extension
-status: open
+status: closed
+closed: 2026-11-25
+pr: 7738
 opened: 2026-11-12
 priority: P0
 cost: M
@@ -59,7 +61,7 @@ inside the rim its lowest control `v` is already −2.2e-5.
 - A witness-selected `Intersection` edge on a residual × NURBS pair is
   refused all the same: limb 3's tube is cut to the knot rectangle and
   refuses `TubeNotOneArc { Count { solutions: 4 } }`
-  (`spline_implicit::rest_rows::an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube`,
+  (`spline_implicit::rest_rows::an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_at_limb_2`,
   PR 6879). So the edge certificate of that class is not what is open.
 - What is open is every reader of the row alone: an edge that owes no
   limb 3 (a structural selector, an `OnPair`, a `Chart` locus; README C2),
@@ -81,3 +83,24 @@ inside the rim its lowest control `v` is already −2.2e-5.
 - Or decline the extension in `compose::tensor` for this reader: a
   window that leaves the domain refuses instead of being served by the
   boundary cell.
+
+## Closed (PCERT, 2026-11-25)
+
+The first candidate, taken at limb 2's own home:
+`ssi::certify::chart_domain_limb` bounds the image's two coordinates over
+the edge's interval by its Bernstein pieces' rational hulls
+(`CurveCertData::coordinate_spans`, new in geom-core), halved while a
+piece leaves the rectangle, up to 16 rounds. It meters the escape at
+the chart's sup arms and decides it at `ssi_chart_domain`. An escape in
+the band is added to the bound, and one past it refuses under the hull
+limb. Both readers of the spline composite call it: the fitted door's
+check 4 (`fitted_lane`, so `certify_fitted`, `certify_general` and
+recertification at rest), and the edge certificate's limb 2
+(`nurbs_limbs`, so `plane_nurbs_incidence` and the other edges that owe no
+limb 3 are held too). An image that stays inside decides nothing. A channel the net closes in
+(`spline_net_closes`) is not held: the mint states a seam-crossing side
+a period past the domain, which the composite reads on the extension;
+that residue is the P1
+`a-closed-spline-charts-image-across-its-seam-is-read-on-the-extension`. Row:
+`rest_rows::a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified`,
+red against no hold and against the control hull alone.

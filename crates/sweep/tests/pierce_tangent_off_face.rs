@@ -258,7 +258,7 @@ fn each_lens_caps_cover_is_its_zone() {
     let lens = lens();
     let mut caps = 0;
     for (face, _) in lens.faces() {
-        let Some(geom::Surface::Sphere { frame, radius }) = lens.face_surface(face).cloned() else {
+        let Ok(geom::Surface::Sphere { frame, radius }) = lens.face_surface(face).cloned() else {
             continue;
         };
         caps += 1;

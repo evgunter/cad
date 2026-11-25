@@ -4,7 +4,7 @@ kind: issue
 title: "escalation-discards.sh misses an arm that returns on an escalation: `Err(_) => return …`"
 status: open
 opened: 2026-11-14
-priority: P2
+priority: P3
 ---
 
 
@@ -48,3 +48,5 @@ review). Each passes over a refusal unread, and none matches a one-line
 
 Owed beside the above: widen the pattern to these shapes, or name them
 under "WHAT IT CANNOT SEE", then re-sweep.
+- 2026-11-22 — **Re-banded P2 → P3 by CIW triage.** A gate blind spot (an `Err(_) => return …` arm). One instance, PR 6949 (2026-11-14), caught in review. Not about latency.
+Widening a grep pattern costs nothing measurable.

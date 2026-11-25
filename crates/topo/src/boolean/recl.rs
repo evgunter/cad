@@ -77,19 +77,29 @@ pub(super) fn require_same<T: crate::props::AtRestPolicy>(
     on: super::CornerOn,
     band: Band,
 ) -> Result<CarrierRelation, BooleanError> {
-    // A glued tangency has no carrier-identity answer (its carriers are
-    // distinct); every lane that meets one lumps it by its curving
-    // ([`super::sectors::tangent_lump`]) before reaching here.
-    if declared.glues_tangent(o1, s1.face, o2, s2.face) {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a glued tangency reached the carrier-identity check",
-        });
+    // A glued tangency or junction has no carrier-identity answer (its
+    // carriers are distinct); every lane that meets one lumps it, a
+    // tangency by its curving ([`super::sectors::tangent_lump`]), a
+    // junction on its certificate ([`super::sectors::junction_lump`]),
+    // before reaching here.
+    match declared.class_of(o1, s1.face, o2, s2.face) {
+        Some(crate::contact::GlueClass::Tangent) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a glued tangency reached the carrier-identity check",
+            });
+        }
+        Some(crate::contact::GlueClass::Junction) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a glued rim junction reached the carrier-identity check",
+            });
+        }
+        Some(crate::contact::GlueClass::Rest | crate::contact::GlueClass::Continuation) | None => {}
     }
     if let Some(relation) = declared.glued_relation(o1, s1.face, o2, s2.face) {
         return Ok(relation);
     }
     for (body, operand, s) in [(body1, o1, s1), (body2, o2, s2)] {
-        let kind = body.proven_face(s.face).surface().kind();
+        let kind = body.proven_face(s.face).expect_described().kind();
         if FaceShape::of_kind(kind) != FaceShape::Plane {
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
@@ -172,27 +182,98 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
             Coincide::TangentSide,
             &[],
         );
-        if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_a = a_body.proven_face(sa.face).surface().clone();
-            let s_b = b_body.proven_face(sb.face).surface().clone();
-            let p = a_body.half_edge_start_point(sa.he).ok_or(
-                BooleanError::ClassificationInvariant {
-                    what: "v-v site lost its point",
-                },
-            )?;
-            let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, (d, reached)| {
-                super::sectors::tangent_relative_side(own, other, n, p, d, reached, read, band)
-            };
-            let [a_start, a_end] = sa.reached_bounds();
-            let [b_start, b_end] = sb.reached_bounds();
-            let ca = (
-                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_start)?,
-                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_end)?,
-            );
-            let cb = (
-                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_start)?,
-                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_end)?,
-            );
+        // Declared-`Junction` (two faces ending on one rim, their
+        // interiors meeting nowhere near it): the all-on reading is the
+        // rim's shared tangent plane, and each bound reads the junction's
+        // certificate ([`super::sectors::junction_bound_side`]): one riding
+        // the rim stays `On`, every other lies outside the other operand.
+        // Nothing curves here: a junction claims no touch.
+        use crate::contact::GlueClass;
+        let codes = match read {
+            DeclarationRead::Spent(class @ (GlueClass::Tangent | GlueClass::Junction)) => {
+                let p = a_body.half_edge_start_point(sa.he).ok_or(
+                    BooleanError::ClassificationInvariant {
+                        what: "v-v site lost its point",
+                    },
+                )?;
+                let [a_start, a_end] = sa.reached_bounds();
+                let [b_start, b_end] = sb.reached_bounds();
+                if class == GlueClass::Tangent {
+                    let s_a = a_body.proven_face(sa.face).expect_described().clone();
+                    let s_b = b_body.proven_face(sb.face).expect_described().clone();
+                    let side =
+                        |own: &geom::Surface<T>, other: &geom::Surface<T>, n, (d, reached)| {
+                            super::sectors::tangent_relative_side(
+                                own, other, n, p, d, reached, read, band,
+                            )
+                        };
+                    Some((
+                        (
+                            side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_start)?,
+                            side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_end)?,
+                        ),
+                        (
+                            side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_start)?,
+                            side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_end)?,
+                        ),
+                    ))
+                } else {
+                    let rim = declared.junction_at(
+                        super::Operand::A,
+                        sa.face,
+                        super::Operand::B,
+                        sb.face,
+                    );
+                    // Each bound with the edge behind it, which a bound
+                    // rides the rim only by being.
+                    let side = |body: &Body<T>, operand, face, bound, other| {
+                        let kind = body.proven_face(face).expect_described().kind();
+                        super::sectors::junction_bound_side(
+                            rim, p, bound, other, operand, face, kind, read, band,
+                        )
+                    };
+                    let (on_a, on_b) = ((a_body, sa.face), (b_body, sb.face));
+                    Some((
+                        (
+                            side(
+                                a_body,
+                                super::Operand::A,
+                                sa.face,
+                                (sa.start, sa.start_reach),
+                                on_b,
+                            )?,
+                            side(
+                                a_body,
+                                super::Operand::A,
+                                sa.face,
+                                (sa.end, sa.end_reach),
+                                on_b,
+                            )?,
+                        ),
+                        (
+                            side(
+                                b_body,
+                                super::Operand::B,
+                                sb.face,
+                                (sb.start, sb.start_reach),
+                                on_a,
+                            )?,
+                            side(
+                                b_body,
+                                super::Operand::B,
+                                sb.face,
+                                (sb.end, sb.end_reach),
+                                on_a,
+                            )?,
+                        ),
+                    ))
+                }
+            }
+            DeclarationRead::Spent(GlueClass::Rest | GlueClass::Continuation)
+            | DeclarationRead::Settles(_)
+            | DeclarationRead::Moot => None,
+        };
+        if let Some((ca, cb)) = codes {
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
             // is this record's own edge-engine business): the sector
@@ -236,8 +317,8 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
             rec.sa = ca;
             rec.sb = cb;
             cancel_uniform(rec);
-            // The first-order reading of a tangent pair is all On; its
-            // second-order one is the first that decides anything, and
+            // The first-order reading of a tangent or junction pair is all
+            // On; its own reading is the first that decides anything, and
             // the germ loci are read from it.
             first_read[i].sa = ca;
             first_read[i].sb = cb;
@@ -255,7 +336,7 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind: body.proven_face(face).surface().kind(),
+                    kind: body.proven_face(face).expect_described().kind(),
                 });
             }
         };
@@ -711,7 +792,7 @@ pub(super) fn recl_edges<T: crate::props::AtRestPolicy>(
                 (Operand::B, b_vertex, &b_ms, b_sectors, b_body),
             ];
             for (operand, vertex, ms, secs, body) in sides {
-                let Some(face) = tips[usize::from(operand == Operand::B)].face_at(vertex) else {
+                let Some(face) = tips[operand.index()].face_at(vertex) else {
                     continue;
                 };
                 let bounds_face = |he: crate::entity::HalfEdgeKey| {
@@ -1522,7 +1603,7 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
     let secs_of = |slot: usize| if slot == 0 { a_sectors } else { b_sectors };
     let body_of = |slot: usize| if slot == 0 { a_body } else { b_body };
-    let operand_of = |slot: usize| if slot == 0 { Operand::A } else { Operand::B };
+    let operand_of = |slot: usize| Operand::BOTH[slot];
     let wedges = [aw, bw];
     // A wedge's two flanks: each flanker's bound off the line.
     let flanks = |secs: &[BoolSector<T>], w: Wedge| -> Flanks<T> {
@@ -1636,14 +1717,37 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
             Coincide::TangentSide,
             &[],
         );
-        let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = own_body.proven_face(own_sec.face).surface().clone();
-            let s_other = other_body.proven_face(other_sec.face).surface().clone();
-            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+        let site = || {
+            own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-edge site lost its point",
                 },
-            )?;
+            )
+        };
+        let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Junction) {
+            // A junction lumps on its certificate: outside the other
+            // operand wherever the site is on the rim
+            // ([`super::sectors::junction_lump`]).
+            super::sectors::junction_lump(
+                declared.junction_at(own_op, own_sec.face, other_op, other_sec.face),
+                site()?,
+                (other_body, other_sec.face),
+                own_op,
+                own_sec.face,
+                own_body.proven_face(own_sec.face).expect_described().kind(),
+                read,
+                band,
+            )?
+        } else if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
+            let s_own = own_body
+                .proven_face(own_sec.face)
+                .expect_described()
+                .clone();
+            let s_other = other_body
+                .proven_face(other_sec.face)
+                .expect_described()
+                .clone();
+            let p = site()?;
             let reach = declared.reach_of(own_op, own_sec.face, other_op, other_sec.face)?;
             super::sectors::tangent_lump(
                 &s_own,
@@ -1680,7 +1784,8 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                FaceShape::of_kind(body.proven_face(face).surface().kind()) == FaceShape::Plane
+                FaceShape::of_kind(body.proven_face(face).expect_described().kind())
+                    == FaceShape::Plane
             });
         let which = if planar {
             Coincide::FlankSense
@@ -1977,12 +2082,26 @@ fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
     let lumps_in = |flank: Flank, tie| -> Result<bool, BooleanError> {
         let own_sec = &own_secs[flanker(flank)];
         let arm = own_sec.arm.min(ref_sector.arm);
-        let lump = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+        let class = declared.class_of(own_op, own_sec.face, ref_op, ref_sector.face);
+        let lump = if class == Some(crate::contact::GlueClass::Junction) {
+            // A junction's flanker lumps on its certificate
+            // ([`super::sectors::junction_lump`]).
+            super::sectors::junction_lump(
+                declared.junction_at(own_op, own_sec.face, ref_op, ref_sector.face),
+                site_point(own_sec)?,
+                (ref_body, ref_sector.face),
+                own_op,
+                own_sec.face,
+                own_body.proven_face(own_sec.face).expect_described().kind(),
+                tangent_read(own_sec.face),
+                band,
+            )?
+        } else if class == Some(crate::contact::GlueClass::Tangent) {
             let read = tangent_read(own_sec.face);
             let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                own_body.proven_face(own_sec.face).surface(),
-                ref_body.proven_face(ref_sector.face).surface(),
+                own_body.proven_face(own_sec.face).expect_described(),
+                ref_body.proven_face(ref_sector.face).expect_described(),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.plane(ref_op)?,
                 own_sec.plane(own_op)?,

@@ -9,6 +9,7 @@
 use std::collections::BTreeSet;
 
 use crate::fixture::{self, insert, len, section_ids};
+use editor_core::LoopProgram;
 use editor_core::{
     Axis3, DocEdit, EditError, EvalOptions, Formula, LoftSection, Node, Operand, ProfileDoc,
     RecipeNodeId, RoleSeg, SectionId, SectionIdBreak, SectionIdFault, SlotId, SlotValue,
@@ -378,9 +379,9 @@ fn a_slab_wall_is_said_between_its_sections_and_a_whole_loft_wall_by_none() {
     let ids = section_ids(&doc, loft);
     let all = names(&doc, loft);
     let middle = wall_over(&all, &ids[1..3]);
-    let said = doc.spoken_name(&middle).to_string();
+    let said = editor_core::test_support::said_text(&doc.spoken_name(&middle));
     assert!(said.contains("between sections 2 and 3 "), "{said}");
-    let by_tag = SpokenName::absent(middle).to_string();
+    let by_tag = editor_core::test_support::said_text(&SpokenName::absent(middle));
     let tagged = format!("between sections {} and {} ", ids[1], ids[2]);
     assert!(by_tag.contains(&tagged), "{by_tag} says {tagged}");
 
@@ -396,17 +397,17 @@ fn a_slab_wall_is_said_between_its_sections_and_a_whole_loft_wall_by_none() {
         names(&dropped, loft).contains(&last),
         "the last slab's wall is kept"
     );
-    let now = dropped.spoken_name(&last).to_string();
+    let now = editor_core::test_support::said_text(&dropped.spoken_name(&last));
     assert!(now.contains("between sections 2 and 3 "), "{now}");
-    let then = doc.spoken_name(&last).to_string();
+    let then = editor_core::test_support::said_text(&doc.spoken_name(&last));
     assert!(then.contains("between sections 3 and 4 "), "{then}");
 
     let (whole, _, cubic) = loft_at(&[0.5, 0.45, 0.4], 2);
     let ids = section_ids(&whole, cubic);
     let wall = wall_over(&names(&whole, cubic), &ids);
     for said in [
-        whole.spoken_name(&wall).to_string(),
-        SpokenName::absent(wall.clone()).to_string(),
+        editor_core::test_support::said_text(&whole.spoken_name(&wall)),
+        editor_core::test_support::said_text(&SpokenName::absent(wall.clone())),
     ] {
         assert!(
             said.starts_with("the loft wall over ") && !said.contains("section"),
@@ -582,7 +583,7 @@ fn set_members_on_a_loft_keeps_its_section_ids() {
         .apply(
             &DocEdit::SetMembers {
                 node: loft,
-                members: editor_core::Bodies::Spelled(vec![p[0].into(), other.into()]),
+                members: editor_core::Bodies::spelled(vec![p[0].into(), other.into()]),
             },
             Tol::witness(),
         )
@@ -590,4 +591,180 @@ fn set_members_on_a_loft_keeps_its_section_ids() {
         .doc;
     assert_eq!(repointed.upstream(loft), vec![p[0], other]);
     assert_eq!(section_ids(&repointed, loft), section_ids(&doc, loft));
+}
+
+/// **A lofted half turn names its quarter walls after the whole.** Two
+/// half discs (a half turn closed by its diameter) lofted: the skin cuts
+/// the half turn's wall at its sub-arc joint (`crates/sweep/README.md`,
+/// "Walls"), so its wall, rims and joint are named after that segment's
+/// own name — two `SubArc` walls and one `SubArcJoint` seam, two
+/// `SubArc` rims and one `SubArcJoint` cap vertex an end — the
+/// diameter's wall keeps its plain name, and a piece is said before its
+/// whole. Broken by a cut wall named as its whole (two faces, one name)
+/// or left unnamed.
+#[test]
+fn a_lofted_half_turn_names_its_quarter_walls_after_the_whole() {
+    use editor_core::{CapEnd, EntityKind};
+    let (doc, _, loft) = half_disc_loft();
+    let all = names(&doc, loft);
+    let count = |kind: EntityKind, head: fn(&RoleSeg) -> bool, part: fn(&RoleSeg) -> bool| {
+        all.iter()
+            .filter(|n| n.kind == kind && matches!(n.path.as_slice(), [h, p] if head(h) && part(p)))
+            .count()
+    };
+    let wall = |s: &RoleSeg| matches!(s, RoleSeg::LoftWall(_));
+    let rim = |s: &RoleSeg| matches!(s, RoleSeg::RimEdge(..));
+    let piece = |s: &RoleSeg| matches!(s, RoleSeg::SubArc(0 | 1));
+    let joint = |s: &RoleSeg| matches!(s, RoleSeg::SubArcJoint(1));
+    assert_eq!(
+        count(EntityKind::Face, wall, piece),
+        2,
+        "two quarter walls: {all:#?}"
+    );
+    assert_eq!(count(EntityKind::Edge, wall, joint), 1, "one joint seam");
+    assert_eq!(count(EntityKind::Edge, rim, piece), 4, "two rims a cap");
+    assert_eq!(
+        count(EntityKind::Vertex, rim, joint),
+        2,
+        "a joint vertex a cap"
+    );
+    assert_eq!(
+        all.iter()
+            .filter(|n| matches!(n.path.as_slice(), [RoleSeg::LoftWall(_)]))
+            .count(),
+        1,
+        "the diameter's wall alone is named as its whole segment"
+    );
+    let second = all
+        .iter()
+        .find(|n| {
+            n.kind == EntityKind::Face && matches!(n.path.as_slice(), [_, RoleSeg::SubArc(1)])
+        })
+        .expect("a second quarter wall");
+    let said = editor_core::test_support::said_text(&doc.spoken_name(second));
+    assert!(
+        said.starts_with("sub-arc 2 of the loft wall over "),
+        "{said}"
+    );
+    let cap_joint = all
+        .iter()
+        .find(|n| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::RimEdge(CapEnd::Start, _), RoleSeg::SubArcJoint(1)]
+            )
+        })
+        .expect("a start cap joint vertex");
+    let said = editor_core::test_support::said_text(&doc.spoken_name(cap_joint));
+    assert!(
+        said.starts_with("the joint of sub-arcs 1 and 2 of the start rim edge over "),
+        "{said}"
+    );
+}
+
+/// Two half discs (a half turn of bulge 1 closed by its diameter) of
+/// radii 1 and 0.8, lofted at degree 1, section `k` at `z = k`.
+fn half_disc_loft() -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    use editor_core::{ProgramArcData, ProgramStep, ProgramTarget};
+    let half_disc = |r: f64| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At(fixture::len2([r, 0.0])),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: ProgramTarget::Point(fixture::len2([-r, 0.0])),
+                b: fixture::scl(1.0),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let mut doc = ProfileDoc::empty_derived("lofted-half-turn-names", Tol::witness());
+    let mut profiles = Vec::new();
+    for r in [1.0, 0.8] {
+        let (d, p) = insert(
+            doc,
+            Node::Profile(editor_core::ProfileProgram {
+                loops: vec![half_disc(r)],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        doc = d;
+        profiles.push(p);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            first: profiles[0].into(),
+            first_id: None,
+            then: vec![up(profiles[1], 1.0)],
+            v_degree: Formula::count(1),
+        },
+    );
+    (doc, profiles, loft)
+}
+
+/// The sub-arc indices of `all`'s quarter-wall faces, `[LoftWall(..),
+/// SubArc(q)]`, sorted.
+fn sub_arc_walls(all: &BTreeSet<StableName>) -> Vec<u32> {
+    let mut qs: Vec<u32> = all
+        .iter()
+        .filter_map(|n| match n.path.as_slice() {
+            [RoleSeg::LoftWall(_), RoleSeg::SubArc(q)] => Some(*q),
+            _ => None,
+        })
+        .collect();
+    qs.sort_unstable();
+    qs
+}
+
+/// **A sub-arc's name holds while every section's sub-arc count holds,
+/// and the pieces renumber when one changes.** The second half disc's
+/// bulge set to 0.8 keeps its arc at two sub-arcs, so every name is
+/// published again. Set to 1.2, its arc sweeps about 200°, three
+/// sub-arcs, and the wall is cut at `⅓`, `½` and `⅔`: four pieces, and
+/// `SubArc(1)` still published but now the second of four
+/// (`work/refs/a-lofted-segments-sub-arc-pieces-are-named-by-position.md`).
+/// Broken by a name keyed on a value the edit moves, or by pieces that do
+/// not follow the cut.
+#[test]
+fn a_sub_arc_name_holds_while_the_counts_hold_and_renumbers_when_they_change() {
+    let (doc, profiles, loft) = half_disc_loft();
+    let before = names(&doc, loft);
+    let bulge = |b: f64| {
+        doc.apply(
+            &DocEdit::SetParam {
+                node: profiles[1],
+                slot: SlotId::Profile {
+                    loop_: 0,
+                    step: 1,
+                    arg: editor_core::StepArg::Bulge,
+                },
+                value: SlotValue::Formula(fixture::scl(b)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the bulge set")
+        .doc
+    };
+    assert_eq!(sub_arc_walls(&before), [0, 1], "two quarter walls");
+    assert_eq!(
+        names(&bulge(0.8), loft),
+        before,
+        "a bulge that keeps the sub-arc counts renames nothing"
+    );
+    let after = names(&bulge(1.2), loft);
+    assert_eq!(sub_arc_walls(&after), [0, 1, 2, 3], "cut at ⅓, ½ and ⅔");
+    let second = before
+        .iter()
+        .find(|n| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::LoftWall(_), RoleSeg::SubArc(1)]
+            )
+        })
+        .expect("the second quarter wall");
+    assert!(
+        after.contains(second),
+        "the second piece's name is published again, on the second of four"
+    );
 }

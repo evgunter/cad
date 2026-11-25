@@ -218,15 +218,15 @@ pub(crate) enum Scaffolding {
 /// before it ([`crate::live::OPERATORS_KEEP_LINKS`]).
 #[track_caller]
 pub(crate) fn is_placeholder<T: Real>(body: &Body<T>, edge: crate::entity::EdgeKey) -> bool {
-    let data = crate::live::proven(&body.edges, edge, EntityId::Edge);
-    if body.edge_curve_linked(edge, data).null_scaffold().is_none() {
+    let view = body.proven_edge(edge);
+    if view.curve().null_scaffold().is_none() {
         return false;
     }
     let point = |he| {
         let start = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge).start;
         body.resolve_vertex_point_key(start, crate::live::Proven)
     };
-    point(data.he_plus) == point(data.he_minus)
+    point(view.record().he_plus) == point(view.record().he_minus)
 }
 
 impl<T: geom_core::Decide> Body<T> {
@@ -1529,7 +1529,7 @@ mod tests {
         let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
         let read = |body: &Body<f64>| {
             let face = body.get_face(wall).unwrap();
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.surface_slot(face.surface).unwrap();
             crate::pcurves::site_rows_from(body, wall, surface).is_some()
         };
         assert!(read(&body), "the held-open wall is read further");

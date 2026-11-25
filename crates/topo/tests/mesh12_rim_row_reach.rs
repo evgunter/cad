@@ -221,7 +221,7 @@ fn the_remint_admits_every_gap_the_certifying_doors_build() {
                 return None;
             };
             let face = body.face_of_half_edge(he)?;
-            let sphere = body.face_surface(face)?;
+            let sphere = body.face_surface(face).ok()?;
             let shifted = row.pcurve().translate(0.0, 100.0 * eps / RS);
             let (t0, t1) = row.params();
             Some(geom_brep::PcurveCache::certify(
@@ -274,7 +274,9 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
         for (fk, face) in body.faces() {
             let surface = body.face_surface(fk).unwrap();
-            let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
+            let (outer, _) =
+                topo::props::loop_edges(body.cycle_loop(face.outer).expect("a cycle loop"))
+                    .unwrap();
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
             let door = require_iso_rectangle(surface, &outer, band);

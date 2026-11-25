@@ -90,7 +90,7 @@ fn the_chamfered_cavity() {
     // ringed face is not a disk, so each costs the alternating sum one.
     assert_eq!(counts.r, 2, "the vent's two mouths");
     assert_eq!(
-        (counts.s, counts.genus()),
+        (counts.s, counts.h()),
         (1, Ok(0)),
         "Euler–Poincaré, ring-corrected"
     );
@@ -116,7 +116,7 @@ fn the_chamfered_cavity() {
 /// stored sense bit — read, never sampled.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane {
+    let Ok(Surface::Plane {
         frame: carrier_frame,
         ..
     }) = body.face_surface(face)
@@ -129,7 +129,7 @@ fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
 
 /// A point on a face's carrier plane.
 fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
-    let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
+    let Ok(Surface::Plane { frame, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
 

@@ -70,6 +70,29 @@ pub(super) fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
     h
 }
 
+/// What `body` meshes to, for a row's message: the refusal, or the
+/// vertex, triangle and face (patch) counts and the enclosed volume.
+fn mesh_shape(body: &Body<f64>, delta: f64) -> String {
+    match mesh::tessellate(body, delta, Tol::witness()) {
+        Ok(m) => {
+            let tris: usize = m.patches.iter().map(|q| q.triangles.len()).sum();
+            let mut volume = 0.0;
+            for q in &m.patches {
+                for t in &q.triangles {
+                    let [a, b, c] = t.map(|i| m.positions[i as usize] - Point3::origin());
+                    volume += a.dot(b.cross(c)) / 6.0;
+                }
+            }
+            format!(
+                "Ok: {} vertices, {tris} triangles, {} faces, volume {volume:.9}",
+                m.positions.len(),
+                m.patches.len()
+            )
+        }
+        Err(e) => format!("Err: {e:?}"),
+    }
+}
+
 /// The K-funnel's recording of `run`, verdicts and escalations in order.
 fn k_digest(run: impl FnOnce()) -> u64 {
     let bracket = Bracket::open();
@@ -168,7 +191,7 @@ fn poisoned(
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("a ringless wall");
@@ -224,7 +247,7 @@ fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
         let label = format!("x0 = {x0}, θ = {theta:e}");
         assert!(
             body.faces().any(|(fk, _)| {
-                matches!(body.face_surface(fk), Some(Surface::Sphere { .. }))
+                matches!(body.face_surface(fk), Ok(Surface::Sphere { .. }))
                     && !no_non_iso_form(&body, fk)
             }),
             "{label}: a sphere face stores a projected image"
@@ -309,7 +332,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "donut",
             0x8e3d_031d_bf7e_b783,
             0xcbf2_9ce4_8422_2325,
-            0x10e7_f0a2_46fd_3c81,
+            0x7278_5776_b24f_0ce5,
         ),
         (
             "ball less a slab turned 0.3",
@@ -321,7 +344,7 @@ fn a_body_that_meshes_records_mains_k_stream() {
             "pipe cut on a tilt",
             0xcbf2_9ce4_8422_2325,
             0xcbf2_9ce4_8422_2325,
-            0x3f32_81cc_55e5_8d9a,
+            0xcdc8_47b7_d422_010b,
         ),
         (
             "ball less a slab at 0.3 turned 2e-9",
@@ -353,7 +376,10 @@ fn a_body_that_meshes_records_mains_k_stream() {
         assert_eq!(got, hit, "{name}: a memo hit's K stream is main's");
         let got = mesh_digest(body, 5e-2);
         if got != bytes {
-            moved.push(format!("{name}: {got:#x}, main's {bytes:#x}"));
+            moved.push(format!(
+                "{name}: {got:#x}, main's {bytes:#x}; {}",
+                mesh_shape(body, 5e-2)
+            ));
         }
     }
     assert!(
@@ -435,7 +461,7 @@ fn a_split_side_is_not_read_before_the_doors_answer() {
     let (wall, _) = washer
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(washer.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(washer.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .expect("a ringless wall");
     let seam: Vec<topo::EdgeKey> = washer
@@ -526,7 +552,7 @@ fn poisoned_ellipse_wall() -> (Body<f64>, topo::FaceKey) {
     let (fk, sense, was) = body
         .faces()
         .find(|(fk, f)| {
-            f.rings.is_empty() && matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. }))
+            f.rings.is_empty() && matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. }))
         })
         .map(|(fk, f)| (fk, f.sense, body.face_surface(fk).unwrap().clone()))
         .expect("the wall");

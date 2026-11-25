@@ -292,18 +292,19 @@ pub(crate) fn name_extrude<T: topo::AtRestPolicy + Decide>(
             }
         }
     }
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
 }
 
 /// Names every boundary entity of a loft body (M6-3): caps, walls,
 /// rims, seams, cap vertices, interior sections' rings and vertices,
 /// output body, by the combinatorial zip below — per segment one wall
-/// per slab, the first meeting the start cap and the last the end cap
-/// along one rim each, and adjacent slabs' walls along one rim of the
-/// section between them — with a wall and a seam named by the pieces
-/// the skin paired, one per section it spans (`sections` and their
-/// `ids`, first to last).
+/// per sub-arc per slab, the first slab meeting the start cap and the
+/// last the end cap along one rim each, and adjacent slabs' walls along
+/// one rim of the section between them — with a wall and a seam named
+/// by the pieces the skin paired, one per section it spans (`sections`
+/// and their `ids`, first to last). A segment the loft cuts at its
+/// sub-arc joints names each piece after the whole, `SubArc(q)`, and
+/// each joint `SubArcJoint(q)`.
 pub(crate) fn name_loft<T: topo::AtRestPolicy + Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
@@ -317,26 +318,67 @@ pub(crate) fn name_loft<T: topo::AtRestPolicy + Decide>(
             ids,
         },
         &built.body,
-        built.top,
-        built.bottom,
-        &built.side_faces,
-        &built.seam_edges,
+        LoftKeys {
+            end_cap: built.top,
+            start_cap: built.bottom,
+            side_faces: &built.side_faces,
+            lateral_edges: &built.seam_edges,
+            joint_edges: &built.joint_edges,
+        },
     )
 }
 
-/// The loft's zip: two caps, per-(loop, segment, slab) walls,
-/// per-(loop, vertex, slab) seam edges, each segment's first and last
-/// walls meeting the caps along one rim, adjacent slabs' walls along
-/// one interior rim, adjacent slabs' seams at one interior vertex.
+/// The keys a loft's zip reads ([`sweep::Lofted`]'s).
+struct LoftKeys<'a> {
+    end_cap: FaceKey,
+    start_cap: FaceKey,
+    /// `[loop][segment][sub-arc][slab]`.
+    side_faces: &'a [Vec<Vec<Vec<Option<FaceKey>>>>],
+    /// `[loop][vertex][slab]`.
+    lateral_edges: &'a [Vec<Vec<Option<EdgeKey>>>],
+    /// `[loop][segment][joint][slab]`, joint `i` between sub-arcs `i`
+    /// and `i + 1`.
+    joint_edges: &'a [Vec<Vec<Vec<Option<EdgeKey>>>>],
+}
+
+/// `seg` alone for a segment of one sub-arc, and `seg` then `part` for
+/// one the loft cuts.
+fn cut(seg: RoleSeg, part: RoleSeg, pieces: usize) -> Vec<RoleSeg> {
+    if pieces == 1 {
+        vec![seg]
+    } else {
+        vec![seg, part]
+    }
+}
+
+/// The name of `kind` minted by `node` at `path`.
+fn named(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> super::role::StableName {
+    super::role::StableName { kind, node, path }
+}
+
+/// A sub-arc index as its name holds it.
+fn sub_arc(q: usize) -> u32 {
+    u32::try_from(q).unwrap_or_else(|_| unreachable!("a segment has fewer than 2³² sub-arcs"))
+}
+
+/// The loft's zip: two caps, per-(loop, segment, sub-arc, slab) walls,
+/// per-(loop, vertex, slab) seam edges and per-(loop, segment, joint,
+/// slab) joint seams, each sub-arc's first and last walls meeting the
+/// caps along one rim, adjacent slabs' walls along one interior rim,
+/// adjacent slabs' seams at one interior vertex.
 fn name_loft_topology<T: Decide>(
     node: RecipeNodeId,
     swept: &Sections<'_>,
     body: &Body<T>,
-    end_cap: topo::FaceKey,
-    start_cap: topo::FaceKey,
-    side_faces: &[Vec<Vec<Option<topo::FaceKey>>>],
-    lateral_edges: &[Vec<Vec<Option<EdgeKey>>>],
+    keys: LoftKeys<'_>,
 ) -> Result<Arc<NameTable>, NamingError> {
+    let LoftKeys {
+        end_cap,
+        start_cap,
+        side_faces,
+        lateral_edges,
+        joint_edges,
+    } = keys;
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
@@ -348,12 +390,15 @@ fn name_loft_topology<T: Decide>(
             ent(0, EntityKey::Face(face)),
         )?;
     }
-    // The rim where loop `l`, segment `k` meets `cap`: the edge between
-    // `cap` and the segment's wall nearest it, or, where the segment has
-    // no wall at all (pinned at both ends, the same curve in every
-    // section), the edge the two caps hold.
-    let cap_rim = |l: usize, k: usize, end: CapEnd, cap: FaceKey| {
-        let mut walls = side_faces[l][k].iter().flatten();
+    // The rim where loop `l`, segment `k`'s sub-arc `q` meets `cap`: the
+    // edge between `cap` and that piece's wall nearest it, or, where the
+    // piece has no wall in any slab (its segment held flat through every
+    // slab, the same line in every section), the edge the two caps hold.
+    // A segment held flat in some slabs only is a line in those slabs'
+    // sections but can be cut there by the other sections' joints, so it
+    // may be several pieces, each with a wall in some other slab.
+    let cap_rim = |l: usize, k: usize, q: usize, end: CapEnd, cap: FaceKey| {
+        let mut walls = side_faces[l][k][q].iter().flatten();
         let wall = match end {
             CapEnd::Start => walls.next(),
             CapEnd::End => walls.next_back(),
@@ -371,58 +416,75 @@ fn name_loft_topology<T: Decide>(
 
     // Walls, cap rims and interior rims, indexed by the emitter's
     // canonical (loop, segment, slab) maps and named by the pieces at
-    // those positions. A slab where the segment has no wall names
-    // nothing: its rim is the one below or above it.
+    // those positions, each sub-arc's after its segment's. A slab where
+    // the piece has no wall names nothing: its rim is the one below or
+    // above it.
     for (l, segs) in side_faces.iter().enumerate() {
-        for (k, walls) in segs.iter().enumerate() {
-            for (s, wall) in walls.iter().enumerate() {
-                let Some(wall) = *wall else { continue };
+        for (k, subs) in segs.iter().enumerate() {
+            let pieces = subs.len();
+            for (q, walls) in subs.iter().enumerate() {
+                let part = RoleSeg::SubArc(sub_arc(q));
+                for (s, wall) in walls.iter().enumerate() {
+                    let Some(wall) = *wall else { continue };
+                    t.insert(
+                        named(
+                            EntityKind::Face,
+                            node,
+                            cut(swept.wall(l, k, s, walls.len()), part.clone(), pieces),
+                        ),
+                        ent(0, EntityKey::Face(wall)),
+                    )?;
+                }
+                let start = cap_rim(l, k, q, CapEnd::Start, start_cap);
                 t.insert(
-                    name1(EntityKind::Face, node, swept.wall(l, k, s, walls.len())),
-                    ent(0, EntityKey::Face(wall)),
+                    named(
+                        EntityKind::Edge,
+                        node,
+                        cut(swept.rim(CapEnd::Start, l, k), part.clone(), pieces),
+                    ),
+                    ent(0, EntityKey::Edge(start)),
                 )?;
-            }
-            let start = cap_rim(l, k, CapEnd::Start, start_cap);
-            t.insert(
-                name1(EntityKind::Edge, node, swept.rim(CapEnd::Start, l, k)),
-                ent(0, EntityKey::Edge(start)),
-            )?;
-            if walls.iter().any(Option::is_some) {
-                t.insert(
-                    name1(EntityKind::Edge, node, swept.rim(CapEnd::End, l, k)),
-                    ent(0, EntityKey::Edge(cap_rim(l, k, CapEnd::End, end_cap))),
-                )?;
-            }
-            // Two walls of consecutive slabs, or of slabs with only
-            // wall-less slabs between them, meet along the rim of the
-            // first section above the lower one.
-            let held: Vec<(usize, FaceKey)> = walls
-                .iter()
-                .enumerate()
-                .filter_map(|(s, w)| w.map(|w| (s, w)))
-                .collect();
-            for pair in held.windows(2) {
-                let ((s, below), (_, above)) = (pair[0], pair[1]);
-                let rim = match rim_between(body, below, above) {
-                    Rim::One(e) => e,
-                    Rim::NotOne(found) => section_rim_contradicted(below, above, found),
-                };
-                t.insert(
-                    name1(EntityKind::Edge, node, swept.section_edge(s + 1, l, k)),
-                    ent(0, EntityKey::Edge(rim)),
-                )?;
+                if walls.iter().any(Option::is_some) {
+                    t.insert(
+                        named(
+                            EntityKind::Edge,
+                            node,
+                            cut(swept.rim(CapEnd::End, l, k), part.clone(), pieces),
+                        ),
+                        ent(0, EntityKey::Edge(cap_rim(l, k, q, CapEnd::End, end_cap))),
+                    )?;
+                }
+                // Two walls of consecutive slabs, or of slabs with only
+                // wall-less slabs between them, meet along the rim of the
+                // first section above the lower one.
+                let held: Vec<(usize, FaceKey)> = walls
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(s, w)| w.map(|w| (s, w)))
+                    .collect();
+                for pair in held.windows(2) {
+                    let ((s, below), (_, above)) = (pair[0], pair[1]);
+                    let rim = match rim_between(body, below, above) {
+                        Rim::One(e) => e,
+                        Rim::NotOne(found) => section_rim_contradicted(below, above, found),
+                    };
+                    t.insert(
+                        named(
+                            EntityKind::Edge,
+                            node,
+                            cut(swept.section_edge(s + 1, l, k), part.clone(), pieces),
+                        ),
+                        ent(0, EntityKey::Edge(rim)),
+                    )?;
+                }
             }
         }
     }
 
     // Struts, cap vertices and interior vertices. Strut `j` joins the
     // walls of segments `j − 1` and `j`. Corner `j`'s vertex at each
-    // section is walked up its struts: at the start cap it is the strut's
-    // common vertex with the start rim of segment `j`, or, where slab 0
-    // pins the corner, that rim's start (the rim runs from corner `j` to
-    // corner `j + 1`); each strut then reaches the next section's vertex,
-    // and a slab that pins the corner keeps it. A vertex is named at the
-    // first section that holds it.
+    // section is walked up its struts ([`walk_corner`]), from the start
+    // rim of segment `j`'s first sub-arc, which runs from corner `j`.
     for (l, struts) in lateral_edges.iter().enumerate() {
         for (j, slabs) in struts.iter().enumerate() {
             for (s, strut) in slabs.iter().enumerate() {
@@ -432,63 +494,121 @@ fn name_loft_topology<T: Decide>(
                     ent(0, EntityKey::Edge(strut)),
                 )?;
             }
-            let rim = cap_rim(l, j, CapEnd::Start, start_cap);
-            let first = match slabs.first().copied().flatten() {
-                Some(strut) => {
-                    let (s0, s1) = edge_ends(body, strut);
-                    let (r0, r1) = edge_ends(body, rim);
-                    let Some(vtx) = common_vertex((s0, s1), (r0, r1)) else {
-                        unreachable!(
-                            "loft strut {strut:?} (ends {:?}) and rim {rim:?} (ends {:?}) share \
-                             no single endpoint, though the loft mints the strut between its \
-                             walls' rims",
-                            (s0, s1),
-                            (r0, r1)
-                        );
-                    };
-                    vtx
-                }
-                None => edge_ends(body, rim).0,
-            };
-            t.insert(
-                name1(
-                    EntityKind::Vertex,
-                    node,
-                    swept.cap_vertex(CapEnd::Start, l, j),
-                ),
-                ent(0, EntityKey::Vertex(first)),
-            )?;
-            let mut at = first;
-            for (s, strut) in slabs.iter().enumerate() {
-                let Some(strut) = *strut else { continue };
-                let (a, b) = edge_ends(body, strut);
-                at = if a == at {
-                    b
-                } else if b == at {
-                    a
-                } else {
-                    unreachable!(
-                        "loft strut {strut:?} (ends {:?}) does not leave the vertex {at:?} \
-                         below it, though the loft mints each slab's strut from the last \
-                         one's far end",
-                        (a, b)
-                    )
-                };
-                let role = if s + 1 == slabs.len() {
-                    swept.cap_vertex(CapEnd::End, l, j)
-                } else {
-                    swept.section_vertex(s + 1, l, j)
+            let rim = cap_rim(l, j, 0, CapEnd::Start, start_cap);
+            for (vtx, at) in walk_corner(body, slabs, rim) {
+                let role = match at {
+                    Section::Start => swept.cap_vertex(CapEnd::Start, l, j),
+                    Section::Interior(s) => swept.section_vertex(s, l, j),
+                    Section::End => swept.cap_vertex(CapEnd::End, l, j),
                 };
                 t.insert(
                     name1(EntityKind::Vertex, node, role),
-                    ent(0, EntityKey::Vertex(at)),
+                    ent(0, EntityKey::Vertex(vtx)),
                 )?;
             }
         }
     }
 
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    // Joint seams, their cap vertices and interior vertices: joint `i`
+    // of segment `k` is the seam where sub-arc `i + 1` starts, named
+    // `SubArcJoint(i + 1)` after the segment's wall, rim or section
+    // edge, and walked up from the start rim of sub-arc `i + 1`.
+    for (l, segs) in joint_edges.iter().enumerate() {
+        for (k, joints) in segs.iter().enumerate() {
+            for (i, slabs) in joints.iter().enumerate() {
+                let part = RoleSeg::SubArcJoint(sub_arc(i + 1));
+                for (s, strut) in slabs.iter().enumerate() {
+                    let Some(strut) = *strut else { continue };
+                    t.insert(
+                        named(
+                            EntityKind::Edge,
+                            node,
+                            vec![swept.wall(l, k, s, slabs.len()), part.clone()],
+                        ),
+                        ent(0, EntityKey::Edge(strut)),
+                    )?;
+                }
+                let rim = cap_rim(l, k, i + 1, CapEnd::Start, start_cap);
+                for (vtx, at) in walk_corner(body, slabs, rim) {
+                    let head = match at {
+                        Section::Start => swept.rim(CapEnd::Start, l, k),
+                        Section::Interior(s) => swept.section_edge(s, l, k),
+                        Section::End => swept.rim(CapEnd::End, l, k),
+                    };
+                    t.insert(
+                        named(EntityKind::Vertex, node, vec![head, part.clone()]),
+                        ent(0, EntityKey::Vertex(vtx)),
+                    )?;
+                }
+            }
+        }
+    }
+
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
+}
+
+/// Where along the stack [`walk_corner`] found a vertex.
+enum Section {
+    /// The start cap.
+    Start,
+    /// Interior section `s`.
+    Interior(usize),
+    /// The end cap.
+    End,
+}
+
+/// **A seam's vertices, walked up its struts**: at the start cap the
+/// first strut's common vertex with `start_rim` (the start rim of the
+/// wall the seam starts), or, where slab 0 pins it, that rim's start;
+/// each strut then reaches the next section's vertex, and a slab that
+/// pins it keeps it. A vertex is reported at the first section that
+/// holds it.
+fn walk_corner<T: Decide>(
+    body: &Body<T>,
+    slabs: &[Option<EdgeKey>],
+    start_rim: EdgeKey,
+) -> Vec<(VertexKey, Section)> {
+    let first = match slabs.first().copied().flatten() {
+        Some(strut) => {
+            let (s0, s1) = edge_ends(body, strut);
+            let (r0, r1) = edge_ends(body, start_rim);
+            let Some(vtx) = common_vertex((s0, s1), (r0, r1)) else {
+                unreachable!(
+                    "loft strut {strut:?} (ends {:?}) and rim {start_rim:?} (ends {:?}) share \
+                     no single endpoint, though the loft mints the strut between its walls' \
+                     rims",
+                    (s0, s1),
+                    (r0, r1)
+                );
+            };
+            vtx
+        }
+        None => edge_ends(body, start_rim).0,
+    };
+    let mut out = vec![(first, Section::Start)];
+    let mut at = first;
+    for (s, strut) in slabs.iter().enumerate() {
+        let Some(strut) = *strut else { continue };
+        let (a, b) = edge_ends(body, strut);
+        at = if a == at {
+            b
+        } else if b == at {
+            a
+        } else {
+            unreachable!(
+                "loft strut {strut:?} (ends {:?}) does not leave the vertex {at:?} below it, \
+                 though the loft mints each slab's strut from the last one's far end",
+                (a, b)
+            )
+        };
+        let section = if s + 1 == slabs.len() {
+            Section::End
+        } else {
+            Section::Interior(s + 1)
+        };
+        out.push((at, section));
+    }
+    out
 }
 
 /// Names every boundary entity of a revolution (spec D2: the M2
@@ -670,8 +790,7 @@ pub(crate) fn name_revolve<T: topo::AtRestPolicy + Decide>(
         }
     }
 
-    super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Arc::new(super::emit::finish(t, body, 0)?))
 }
 
 /// The unique vertex two endpoint pairs share (`None` when disjoint

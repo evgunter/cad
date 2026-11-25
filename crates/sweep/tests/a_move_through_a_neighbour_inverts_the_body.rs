@@ -46,7 +46,7 @@ fn tube() -> Body<f64> {
 
 fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| body.face_surface(*fk).is_some_and(&want))
+        .find(|(fk, _)| body.face_surface(*fk).is_ok_and(&want))
         .map(|(k, _)| k)
         .expect("the fixture has the face")
 }

@@ -75,7 +75,7 @@ fn authority_census(body: &Body<f64>) -> Vec<(EdgeKey, bool)> {
 ///   scaffold reached rest and validation cannot see it.
 fn fence_crosscheck(body: &Body<f64>, ctx: &str) {
     let scaffolds = scaffold_edges(body);
-    let verdict = topo::validate_geometric(body, Tol::witness());
+    let verdict = topo::test_support::validate_completed(body, Tol::witness());
     match (scaffolds.is_empty(), verdict) {
         (true, Ok(())) => {}
         (true, Err(errs)) => panic!("{ctx}: tier 3 refuses a scaffold-free body: {errs:?}"),
@@ -405,7 +405,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -414,7 +414,7 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
 fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
     body.faces()
         .find(|(fk, _)| {
-            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+            matches!(body.face_surface(*fk), Ok(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))
@@ -588,7 +588,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
             axis: geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::unit_y(),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             angle: 0.5,
         })),

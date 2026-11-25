@@ -5,9 +5,12 @@
 //! paths and reads each leg to its closest crossing; a door supplies only
 //! its surface's legs ([`Legs`], and [`Paths`] for a roster of them) and
 //! its own rows. Where a leg meets an edge is read once for every door
-//! ([`landings`]): the edge against the leg's plane, or the leg against
-//! the edge's, through the plane door, and the root then on its plane's
-//! section curve.
+//! ([`landings`]), by the co-surface arm: the edge against the leg's
+//! plane, or the leg against the edge's, as the arm's direction table
+//! fixes, and the root then on both planes' section curves. A spline
+//! edge, which the arm reads by its enclosures alone, is crossed with
+//! the leg's plane by the curve × face table's ring composite, through
+//! the door's spline reader ([`Legs::splines`]).
 //!
 //! # Co-surface carriers
 //!
@@ -26,17 +29,19 @@
 //! off the surface.
 
 use geom_brep::curve_pair::on_surface::{
-    AcrossRefusal, Charted, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
+    Charted, MeetRefusal, Met, NoSuchFamily, OnSurface, Read, Shape, SurfaceCurve,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
-use crate::live::BoundaryMember;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
+use crate::splitting::Uncrossable;
+use crate::splitting::UncrossableCarrier;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
-use crate::splitting::{PointInLoopError, Uncrossable};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
 
 /// Where along each edge an aimed path's target lies, as shares of its
@@ -50,13 +55,12 @@ pub(crate) enum RegionRefusal {
     /// The point is in the band of a boundary edge; or no path decided,
     /// and the first one set aside read in band.
     Escalated(Indeterminate),
-    /// No path settled ([`crate::ray_walk::NoRaySettled`]): each grazed or
-    /// gave nothing to read. `outer` is the face's outer loop, the loop
-    /// the solid door names as the region walk's.
-    RayExhausted {
-        /// The face's outer loop.
-        outer: LoopKey,
-    },
+    /// The point is left unplaced: no path of the walk settled
+    /// ([`crate::ray_walk::NoRaySettled`]; each grazed or gave nothing to
+    /// read), or an arc's own reading did not place it
+    /// ([`circle_edge_hit`]). The walk reads the face's whole boundary, so
+    /// its subject is the face, not one of its loops.
+    RayExhausted,
     /// A boundary arc winds definitely past a whole turn, which bounds
     /// no region.
     WoundPastPeriod,
@@ -86,15 +90,13 @@ impl RegionRefusal {
 
     /// The refusal as the point-in-solid door states it, for a point on
     /// `face`'s carrier: a region walk no path of which settled is that
-    /// face's loop walk's, as a planar face's is
-    /// ([`PointInSolidError::Loop`]) — not the solid's own sweep, whose
-    /// exhaustion says the point is off the solid's boundary.
+    /// face's ([`PointInSolidError::RegionRayExhausted`]) — not the solid's
+    /// own sweep, whose exhaustion says the point is off the solid's
+    /// boundary.
     pub(crate) fn of_face(self, face: FaceKey) -> PointInSolidError {
         match self {
             Self::Escalated(diag) => PointInSolidError::Escalated { face, diag },
-            Self::RayExhausted { outer } => {
-                PointInSolidError::Loop(PointInLoopError::RayExhausted { r#loop: outer })
-            }
+            Self::RayExhausted => PointInSolidError::RegionRayExhausted { face },
             Self::WoundPastPeriod => PointInSolidError::CorruptFace { face },
             Self::Unreadable(cause) => PointInSolidError::EdgeCarrierUnsupported { face, cause },
         }
@@ -103,8 +105,7 @@ impl RegionRefusal {
 
 /// **Whether `p` is on the circle arc `circle` over `(t0, t1)`**, read on
 /// the arc's own carrier ([`ConicArc::hit`]): on the arc or within the
-/// band of one of its ends is `true`; in the band of it refuses. `outer`
-/// is named if the reading cannot place `p`.
+/// band of one of its ends is `true`; in the band of it refuses.
 ///
 /// # Errors
 ///
@@ -117,7 +118,6 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     turn: Option<&geom_brep::CertifiedTurn<T>>,
     rows: ConicRows,
     p: Point3<T>,
-    outer: LoopKey,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
     let k = match ConicArc::of(circle, turn, rows, band) {
@@ -133,7 +133,58 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     {
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
-        ConicHit::Unsettled => Err(RegionRefusal::RayExhausted { outer }),
+        ConicHit::Unsettled => Err(RegionRefusal::RayExhausted),
+    }
+}
+
+/// **Whether `p` is on `edge`, an arc its carrier reads piece by piece**
+/// (`arc`, [`PiecedArc::contact`]): on the arc or within the band of one
+/// of its ends is `true`; in the band of it refuses, and a reading that
+/// runs out of depth or budget names the edge as one it cannot cross,
+/// on `carrier`: a limit of that one edge's reading, the door's
+/// `EdgeCarrierUnsupported`. [`circle_edge_hit`] folds its own unplaced
+/// reading into the walk's exhaustion instead, where a circle's does not
+/// arise (`work/inside/region-ray-exhausted-folds-an-arcs-unsettled-reading.md`).
+///
+/// # Errors
+///
+/// [`RegionRefusal::Escalated`] in band; [`RegionRefusal::Unreadable`]
+/// where the pieces outlast the depth or the budget.
+pub(crate) fn pieced_edge_hit<T: Decide>(
+    arc: &impl PiecedArc<T>,
+    edge: &RegionEdge<T>,
+    (rows, carrier): (ArcRows, UncrossableCarrier),
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    match arc.contact(p, rows, band) {
+        Ok(ArcHit::On(_) | ArcHit::End) => Ok(true),
+        Ok(ArcHit::Off) => Ok(false),
+        Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
+        Err(ArcRefusal::Unsettled) => Err(edge.uncrossable(carrier)),
+    }
+}
+
+/// **Whether `p` is on `edge`, a spline arc on `spline`**, read piece by
+/// piece on `rows` ([`pieced_edge_hit`]). A span with no piece cut (an
+/// end no single point at an enclosure scalar) is a span the reading
+/// cannot cross.
+///
+/// # Errors
+///
+/// As [`pieced_edge_hit`]; [`RegionRefusal::Unreadable`] for a span with
+/// no piece cut.
+pub(crate) fn spline_edge_hit<T: Decide>(
+    spline: &std::sync::Arc<geom::NurbsCurve3<T>>,
+    edge: &RegionEdge<T>,
+    rows: ArcRows,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, RegionRefusal> {
+    let spline_arc = UncrossableCarrier::Spline;
+    match SplineArc::new(spline, (edge.t0, edge.t1)) {
+        Some(pieces) => pieced_edge_hit(&pieces, edge, (rows, spline_arc), p, band),
+        None => Err(edge.uncrossable(spline_arc)),
     }
 }
 
@@ -268,26 +319,14 @@ impl<T: Decide> QueryFoot<T> {
     }
 }
 
-/// Which curve of a pair is read across the other's plane
-/// ([`Legs::across`]).
-pub(crate) enum ReadAcross {
-    /// The edge across the leg's plane, in the edge's parameter
-    /// ([`OnSurface::across`]).
-    EdgeOverLeg,
-    /// The leg across the edge's own plane, in the leg's parameter
-    /// ([`OnSurface::under`]); the door places each meeting on the edge
-    /// ([`Legs::on_edge_plane`]).
-    LegOverEdge,
-}
-
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
-/// edge ([`Landing`]). One curve is read across the other's plane by the
-/// curve × face crossing reading, the pair's direction the door's choice
-/// ([`Legs::across`]), and each meeting is a meeting of the pair where it
-/// lies on both curves: on the leg's section of its plane
-/// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where
-/// the door places it on the edge. Where along the leg each landing lies
+/// edge ([`Landing`]): the co-surface arm's reading of the pair
+/// ([`OnSurface::meet`]), one curve across the other's plane as its
+/// direction table fixes, each meeting kept where it lies on both curves'
+/// sections of their planes
+/// ([`Section`](geom_brep::curve_pair::on_surface::Section)) and placed on
+/// the edge's span. Where along the leg each landing lies
 /// is the skeleton's to read ([`Leg::place`]). An edge in the leg's plane
 /// on the leg's own curve (a shared run) is no crossing: the leg runs
 /// along it where it reaches it ([`Leg::along`]).
@@ -300,6 +339,13 @@ pub(crate) enum ReadAcross {
 /// however near the edge's end it lies (a first leg ends at its corner
 /// short of a vertex every edge's root lies in band of).
 ///
+/// A root past the leg's end, or at an open one, is dropped before its
+/// section is asked: an open end is where the leg stops on its surface's
+/// axis (a sheet's or a cone's apex), and there no curve of the plane is
+/// told from another, so asking first would graze a path its end already
+/// settles. A root the section cannot tell anywhere short of the end
+/// grazes.
+///
 /// # Errors
 ///
 /// A reading in band, a component in band, or a touch sets the path
@@ -310,12 +356,16 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
     leg: &Leg<T, D::Course>,
     band: Band,
 ) -> Result<Vec<Landing<T>>, Fault> {
-    use geom_brep::curve_face::{CrossWhy, OnSpan};
+    use geom_brep::curve_face::{CrossWhy, OnSpan, PoseRefusal};
     use geom_brep::curve_pair::MeetFault;
     let curve = leg.course.curve();
     let on_leg = |y: Point3<T>| -> Result<bool, Fault> {
         on_section(curve.section_of(y, D::COMPONENT, band).map_err(in_band)?)
     };
+    // A point decided past the leg's end, or at an open one, before its
+    // section is asked: where the leg stops (a sheet's or a cone's apex)
+    // no curve of the plane is told from another.
+    let off_leg = |y: Point3<T>| matches!(leg.place(y, D::AT, band), Ok(None));
     // An edge in the leg's plane: run along where it lies on the leg's
     // own curve, read at its middle.
     let in_plane = || -> Result<Vec<Landing<T>>, Fault> {
@@ -325,62 +375,170 @@ pub(crate) fn landings<T: Decide, D: Legs<T>>(
         Ok(Vec::new())
     };
     let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
-    let mut out = Vec::new();
-    match door.across(leg, edge, band)? {
-        ReadAcross::EdgeOverLeg => {
-            let meetings = match across(on.across(&curve, band))? {
-                Ok(CoSurface::InPlane) => return in_plane(),
-                Ok(CoSurface::Touch) => return Err(RayFault::Graze),
-                Ok(CoSurface::Roots(meetings)) => meetings,
-                Err(refusal) => {
-                    set_aside_unless(&refusal.windows, |w| match w.why {
-                        // A root in band of the edge's end, the window's
-                        // centre: no meeting off the leg's own section of
-                        // its plane, or past the leg's own end.
-                        CrossWhy::Method {
-                            fault: MeetFault::Escalated(_),
-                            ..
-                        } => {
-                            let y = edge.at(geom::mid_param(w.window.0, w.window.1));
-                            Ok(!on_leg(y)? || matches!(leg.place(y, D::AT, band), Ok(None)))
-                        }
-                        _ => Ok(false),
-                    })?;
-                    refusal.found
-                }
-            };
-            for m in meetings {
-                if !on_leg(m.point)? {
-                    continue;
-                }
-                let (t, sideless) = match m.on_span {
-                    OnSpan::Inside { t } => (t, false),
-                    OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
-                    OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
-                };
-                out.push((m.point, t, sideless));
-            }
+    let span = || leg.course.span(leg.end.map(|end| end.place));
+    let meetings = match on.meet(&curve, span, D::COMPONENT, band) {
+        Ok(Met::InPlane) => return in_plane(),
+        Ok(Met::Touch) => return Err(RayFault::Graze),
+        Ok(Met::Meets(meetings)) => meetings,
+        // The arm reads a spline by its enclosures alone: the door's own
+        // spline reader crosses it.
+        Err(MeetRefusal::Windows {
+            read: Read::EdgeOverLeg,
+            windows,
+            ..
+        }) if windows
+            .iter()
+            .all(|w| matches!(w.why, CrossWhy::Pose(PoseRefusal::Enclosed))) =>
+        {
+            return spline_landings(door, edge, &curve, |y| Ok(!off_leg(y) && on_leg(y)?), band);
         }
-        ReadAcross::LegOverEdge => {
-            let (params, whole) = leg.course.span(leg.end.map(|end| end.place));
-            let meetings = match across(on.under(&curve, params, whole, band))? {
-                Ok(CoSurface::InPlane) => return in_plane(),
-                Ok(CoSurface::Touch) => return Err(RayFault::Graze),
-                Ok(CoSurface::Roots(meetings)) => meetings,
-                Err(refusal) => {
-                    set_aside_unless(&refusal.windows, |_| Ok(false))?;
-                    unreachable!("a refusal holds a window")
+        Err(MeetRefusal::Windows {
+            read,
+            found,
+            windows,
+        }) => {
+            set_aside_unless(&windows, |w| match (read, w.why) {
+                // A root in band of the edge's end, the window's centre:
+                // no meeting off the leg's own section of its plane, or
+                // past the leg's own end.
+                (
+                    Read::EdgeOverLeg,
+                    CrossWhy::Method {
+                        fault: MeetFault::Escalated(_),
+                        ..
+                    },
+                ) => {
+                    let y = edge.at(geom::mid_param(w.window.0, w.window.1));
+                    Ok(off_leg(y) || !on_leg(y)?)
                 }
-            };
-            for m in meetings {
-                if let Some((t, sideless)) = door.on_edge_plane(edge, m.point, band)? {
-                    out.push((m.point, t, sideless));
-                }
-            }
+                _ => Ok(false),
+            })?;
+            found
         }
+        Err(MeetRefusal::Section(diag) | MeetRefusal::Place(diag)) => {
+            return Err(in_band(diag));
+        }
+        Err(MeetRefusal::OffRecord { edge, curve }) => unreachable!(
+            "a region door keys its edges and charts its legs from one record: the edge's \
+             {edge:?}, the leg's {curve:?}"
+        ),
+    };
+    let mut out = Vec::with_capacity(meetings.len());
+    for m in meetings {
+        // A root the section could not tell from its plane's other curve
+        // (an axis point) is no meeting past the leg's own end, and grazes
+        // anywhere else.
+        if !m.sided {
+            if off_leg(m.point) {
+                continue;
+            }
+            return Err(RayFault::Graze);
+        }
+        let (t, sideless) = match m.on_edge {
+            OnSpan::Inside { t } => (t, false),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Start) => (edge.t0, true),
+            OnSpan::End(geom_brep::curve_pair::SpanEnd::Stop) => (edge.t1, true),
+        };
+        out.push((m.point, t, sideless));
     }
     Ok(out)
 }
+
+/// **Where a spline edge meets a leg**, which the co-surface arm reads
+/// by the spline's enclosures alone
+/// ([`PoseRefusal::Enclosed`](geom_brep::curve_face::PoseRefusal::Enclosed)):
+/// the ring composite's reading of the edge against the leg's plane, by
+/// the door's spline reader ([`Legs::splines`]). Its crossings strictly
+/// inside the span are landings that read a side. An end the composite
+/// reads near the plane
+/// ([`EndReading::Within`](geom_brep::curve_face::EndReading::Within))
+/// holds the end's meeting somewhere on its stretch to `until`, a
+/// decision the composite made once, on its own margin, and this reads
+/// no other. Where the stretch is the end itself (a crossing the
+/// composite decided at the end, within the band's zero of it in
+/// metres), the meeting is a landing at the end that reads no side, as
+/// the arm places a root within the band of an end. On any other
+/// stretch the meeting may lie anywhere up to `until`, so its place along
+/// the leg is not read, and the leg grazes. Each landing is kept where it lies on
+/// the leg's own section of its plane, as [`OnSurface::meet`] keeps a
+/// root.
+///
+/// Both ends past the band, the crossings' count has the parity of the
+/// ends' sides: an even count where they agree. A count that does not
+/// is a reading of this leg that came out wrong, and blocks it.
+///
+/// # Errors
+///
+/// A door with no spline reader, a reading that runs out of depth or
+/// budget or cannot form, or a parity that does not hold blocks the path
+/// on the edge ([`RayFault::Blocked`]); a tangency, a meeting at a crease
+/// or a near end's stretch past the end grazes; a reading in band sets
+/// the path aside on its margin.
+fn spline_landings<T: Decide, D: Legs<T>>(
+    door: &D,
+    edge: &RegionEdge<T>,
+    curve: &SurfaceCurve<T>,
+    on_leg: impl Fn(Point3<T>) -> Result<bool, Fault>,
+    band: Band,
+) -> Result<Vec<Landing<T>>, Fault> {
+    use geom_brep::curve_face::EndReading;
+    use geom_brep::curve_face::composite::CompositeRefusal;
+    use geom_brep::roots::Unsettled;
+    let blocked = || RayFault::Blocked(edge.uncrossable(UncrossableCarrier::Spline));
+    let (Some(crossings), geom::Curve3::Nurbs(net)) = (door.splines(), &edge.carrier) else {
+        return Err(blocked());
+    };
+    let found = match crossings(net, (edge.t0, edge.t1), &curve.plane_surface(), band) {
+        Ok(found) => found,
+        Err(CompositeRefusal::Escalated(diag)) => return Err(in_band(diag)),
+        Err(CompositeRefusal::Unsettled(Unsettled::Tangency | Unsettled::Crease)) => {
+            return Err(RayFault::Graze);
+        }
+        Err(
+            CompositeRefusal::Unsettled(_)
+            | CompositeRefusal::FaceDegenerate(_)
+            | CompositeRefusal::Unread(_),
+        ) => return Err(blocked()),
+    };
+    if let [EndReading::Past(start), EndReading::Past(stop)] = found.ends
+        && (found.roots.len() % 2 == 1) != (start != stop)
+    {
+        return Err(blocked());
+    }
+    // A near end's meeting, a landing at the end where its stretch is the
+    // end alone.
+    let at_end = |t: T, reading: EndReading| -> Result<Option<Point3<T>>, Fault> {
+        match reading {
+            EndReading::Past(_) => Ok(None),
+            EndReading::Within { until } if t.point_value() == Some(until) => Ok(Some(edge.at(t))),
+            EndReading::Within { .. } => Err(RayFault::Graze),
+        }
+    };
+    let mut met = Vec::with_capacity(found.roots.len() + 2);
+    met.extend(at_end(edge.t0, found.ends[0])?.map(|y| (edge.t0, y, true)));
+    met.extend(found.roots.into_iter().map(|t| (t, edge.at(t), false)));
+    met.extend(at_end(edge.t1, found.ends[1])?.map(|y| (edge.t1, y, true)));
+    let mut landings = Vec::with_capacity(met.len());
+    for (t, y, sideless) in met {
+        if on_leg(y)? {
+            landings.push((y, t, sideless));
+        }
+    }
+    Ok(landings)
+}
+
+/// **A spline edge's reading against an analytic face's carrier at the
+/// door's scalar**: the curve × face table's ring-composite arm, where the
+/// scalar reads it ([`crate::props::AtRestPolicy::spline_face_reader`]).
+pub(crate) type SplineCrossings<T> = fn(
+    &geom::NurbsCurve3<T>,
+    (T, T),
+    &geom::Surface<T>,
+    Band,
+) -> Result<
+    geom_brep::curve_face::SpanCrossings<T>,
+    geom_brep::curve_face::composite::CompositeRefusal,
+>;
 
 /// **A crossing reading's windows, as a path's fault**: a fault among
 /// them is a kernel fault and panics, whatever else stands; otherwise
@@ -409,32 +567,6 @@ fn set_aside_unless<T: Decide>(
         }
     }
     Ok(())
-}
-
-/// An edge's reading against a leg as the door reads it: its windows
-/// apart (`Err` inside the `Ok`).
-///
-/// # Panics
-///
-/// On a pair on two records: a door keys its edges and charts its legs
-/// from its one record ([`Legs::charted`]), so a mismatch is a fault in
-/// the door's wiring, not in the face; and on an edge in no one plane
-/// read the other way, which no door asks for.
-#[allow(clippy::type_complexity)]
-fn across<T: geom_core::Real>(
-    read: Result<CoSurface<T>, AcrossRefusal<T>>,
-) -> Result<Result<CoSurface<T>, geom_brep::curve_face::CrossRefusal<T>>, Fault> {
-    match read {
-        Ok(read) => Ok(Ok(read)),
-        Err(AcrossRefusal::Windows(refusal)) => Ok(Err(refusal)),
-        Err(AcrossRefusal::OffRecord { edge, curve }) => unreachable!(
-            "a region door keys its edges and charts its legs from one record: the edge's \
-             {edge:?}, the leg's {curve:?}"
-        ),
-        Err(AcrossRefusal::NoPlane) => {
-            unreachable!("a door reads a leg across a conic's or a spiric's plane only")
-        }
-    }
 }
 
 /// Whether a root lies on the leg's own section of its plane
@@ -475,13 +607,23 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) t1: T,
     /// The certified turn of `[t0, t1]` on a periodic carrier
     /// ([`geom_brep::CertifiedTurn`]), the interval and extent a conic
-    /// reading reads; `None` on a line.
+    /// reading reads; `None` on a line or a spline.
     pub(crate) turn: Option<geom_brep::CertifiedTurn<T>>,
     /// Whether the loop runs `t0 → t1` (its `he_plus`).
     pub(crate) forward: bool,
 }
 
 impl<T: Decide> RegionEdge<T> {
+    /// The refusal of a reading that cannot cross this edge on its
+    /// `carrier`.
+    pub(crate) fn uncrossable(&self, carrier: UncrossableCarrier) -> RegionRefusal {
+        RegionRefusal::Unreadable(Uncrossable {
+            r#loop: self.r#loop,
+            edge: self.edge,
+            carrier,
+        })
+    }
+
     pub(crate) fn at(&self, t: T) -> Point3<T> {
         self.carrier.eval(t)
     }
@@ -507,8 +649,9 @@ impl<T: Decide> RegionEdge<T> {
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// an outer loop with no cycle, or a surface boundary that does not walk.
+/// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
+/// a surface boundary that does not walk; a face with no outline as
+/// [`crate::NoOutline`] reads it ([`crate::solid_contain::no_outline`]).
 ///
 /// # Panics
 ///
@@ -522,20 +665,12 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.face(face).ok_or_else(corrupt)?;
+    let area = f.area_loops().map_err(crate::solid_contain::no_outline)?;
     let mut null = Vec::new();
-    for (_, members, role) in f.boundary_by_loop() {
-        for member in members {
-            // A lone ring vertex bounds no area; an outer loop must.
-            if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
-                return Err(corrupt());
-            }
-            let BoundaryMember::Edge {
-                ek: edge_key, edge, ..
-            } = member
-            else {
-                continue;
-            };
-            let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
+    for (lp, _) in area.cycles() {
+        for crate::live::EdgeMember { edge, .. } in lp.edges() {
+            let edge_key = edge.key();
+            let Some(curve) = edge.certified() else {
                 if crate::null::is_placeholder(body, edge_key) {
                     null.push(edge_key);
                     continue;
@@ -555,8 +690,8 @@ pub(crate) fn boundary<T: Decide>(
             if null.contains(&h.edge) {
                 continue;
             }
-            let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
-            let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
+            let edge = body.linked_edge(h.edge, crate::entity::EntityId::HalfEdge(he), "edge");
+            let Some(curve) = edge.certified() else {
                 unreachable!("every edge of the face's loops was read certified above")
             };
             let (t0, t1) = curve.params();
@@ -568,7 +703,7 @@ pub(crate) fn boundary<T: Decide>(
                 t0,
                 t1,
                 turn: curve.turn().copied(),
-                forward: he == edge.he_plus,
+                forward: he == edge.record().he_plus,
             });
         }
     }
@@ -607,9 +742,6 @@ pub(crate) trait Region<T: Decide> {
         self.edges_mut().retain(|e| keep.contains(&e.cycle));
         self
     }
-
-    /// The face's outer loop, named by an exhaustion.
-    fn outer(&self) -> LoopKey;
 
     /// Whether `p` is on `edge`, or within the band of one of its ends,
     /// read on the edge's own carrier.
@@ -810,40 +942,14 @@ pub(crate) trait Legs<T: Decide>: Region<T> {
     /// ([`QueryFoot`]).
     fn charted(&self) -> &Charted<T>;
 
-    /// Which of `leg` and `edge` is read across the other's plane: the
-    /// edge across the leg's unless the door says otherwise.
-    ///
-    /// # Errors
-    ///
-    /// A choice in band sets the path aside.
-    fn across(
-        &self,
-        _leg: &Leg<T, Self::Course>,
-        _edge: &RegionEdge<T>,
-        _band: Band,
-    ) -> Result<ReadAcross, Fault> {
-        Ok(ReadAcross::EdgeOverLeg)
-    }
-
-    /// Where `y`, a meeting of a leg with `edge`'s plane
-    /// ([`ReadAcross::LegOverEdge`]), lies on `edge`: its parameter and
-    /// whether it is at an end, or `None` off the edge (on its plane's
-    /// other curve, or past its span).
-    ///
-    /// # Errors
-    ///
-    /// A reading in band sets the path aside.
-    fn on_edge_plane(
-        &self,
-        _edge: &RegionEdge<T>,
-        _y: Point3<T>,
-        _band: Band,
-    ) -> Result<Option<(T, bool)>, Fault> {
-        unreachable!("the door reads no leg across an edge's plane")
-    }
-
     /// The face's unit outward normal at `y`.
     fn outward(&self, y: Point3<T>) -> Vec3<T>;
+
+    /// The spline reader the door reads a spline edge against a leg by
+    /// ([`spline_landings`]): `None` for a door that admits no spline.
+    fn splines(&self) -> Option<SplineCrossings<T>> {
+        None
+    }
 }
 
 /// A path to read: a leg from `p`, or two through a corner.
@@ -906,8 +1012,8 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
 ///
 /// # Errors
 ///
-/// [`RegionRefusal::RayExhausted`] naming the face's outer loop where no
-/// path settled, or the first in-band one's refusal.
+/// [`RegionRefusal::RayExhausted`] where no path settled, or the first
+/// in-band one's refusal.
 pub(crate) fn walk<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
@@ -928,9 +1034,7 @@ pub(crate) fn walk<T: Decide, D: Paths<T>>(
     ray_walk::walk(
         singles.into_iter().chain(aimed),
         |path| read_path(door, p, path, band),
-        || RegionRefusal::RayExhausted {
-            outer: door.outer(),
-        },
+        || RegionRefusal::RayExhausted,
     )
 }
 
@@ -1042,17 +1146,25 @@ impl<T: Decide> Round<T> {
 
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn swept(&self, y: Point3<T>) -> T {
         let w = y - self.circle.frame().origin();
-        between(w.normalize(), self.circle.frame().u_ref())
+        between(w.normalize(), self.circle.u_ref())
     }
 
     /// The arc length from the start round to `y`, a point of the
     /// circle, in `[0, 2π·radius)`: the shorter way where `y` lies ahead
     /// of the start's diameter, the longer way where it lies behind.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
-        let ahead = (y - self.circle.frame().origin()).dot(self.circle.frame().v_ref());
+        let ahead = (y - self.circle.frame().origin()).dot(self.circle.v_ref());
         let turn = geom::conic_period::<T>().length();
         self.circle.radius() * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
@@ -1070,20 +1182,24 @@ impl<T: Decide> Course<T> for Round<T> {
         Ok(Some(self.arc(y)))
     }
 
-    /// Read without a decision. Only a first leg is bounded round a
-    /// circle, and it starts at the query, which the boundary pre-pass
-    /// placed off every edge; an unbounded leg runs along an edge on its
-    /// circle wherever the edge lies.
+    /// Read without a decision: a circle has no behind, so every point of
+    /// it is ahead of the start. A leg round its whole circle runs along an
+    /// edge on it wherever the edge lies. A bounded leg (a first leg to its
+    /// corner, a sheet's meridian to its apex) decides each end of such an
+    /// edge against its own end ([`Leg::short_of_end`]). An edge's end at
+    /// the leg's start reads `0`, short of the end, so the leg grazes, or
+    /// a whole turn, past it; both are true of an edge that ends at the
+    /// start.
     fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
         Ok(Some(self.arc(y)))
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        let h = self
-            .circle
-            .frame()
-            .axis()
-            .cross(y - self.circle.frame().origin());
+        let h = self.circle.axis().cross(y - self.circle.frame().origin());
         h.normalize()
     }
 
@@ -1131,15 +1247,16 @@ impl<T: Decide> Course<T> for Line<T> {
     }
 
     fn heading(&self, _: Point3<T>) -> Vec3<T> {
-        self.line.dir
+        self.line.dir.get()
     }
 
     fn curve(&self) -> SurfaceCurve<T> {
         self.curve
     }
 
-    /// No door reads a ruling across an edge's plane: a ruling meets no
-    /// spiric edge.
+    /// The direction table reads every edge across a ruling's plane
+    /// ([`geom_brep::curve_pair::on_surface::direction`]): a ruling meets
+    /// no spiric edge.
     fn span(&self, _: Option<T>) -> ((T, T), bool) {
         unreachable!("a ruling is read only across its own plane")
     }
@@ -1171,9 +1288,9 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
 #[allow(clippy::unwrap_used)]
 pub(crate) fn part_null_edge(body: &mut Body<f64>, to: Point3<f64>) {
     let nulls: Vec<_> = body
-        .edges()
-        .filter(|&(e, d)| body.edge_curve_linked(e, d).null_scaffold().is_some())
-        .map(|(e, _)| e)
+        .edge_views()
+        .filter(|e| e.curve().null_scaffold().is_some())
+        .map(crate::live::EdgeView::key)
         .collect();
     assert_eq!(nulls.len(), 1, "the fixture holds one null edge");
     let null = nulls[0];
@@ -1203,7 +1320,7 @@ macro_rules! fixture_turns {
                 spec,
                 start,
                 end,
-                |_| None,
+                |_| Err(crate::SurfaceMiss::Stale),
                 geom_brep::ExtentBall::of_covered(circle.cover().as_ref().ok()).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
@@ -1216,6 +1333,47 @@ macro_rules! fixture_turns {
 }
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
+
+/// `edge`, a circle arc, carried on the rational quadratic that is
+/// exactly that arc: one segment per quarter turn or less, run the
+/// arc's way over `[0, 1]`.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+pub(crate) fn fixture_spline_of_arc(edge: &RegionEdge<f64>) -> RegionEdge<f64> {
+    let Some(frame) = edge.carrier.frame() else {
+        unreachable!("a fixture arc is a circle")
+    };
+    let centre = frame.origin();
+    let sweep = edge.t1 - edge.t0;
+    let segments = (sweep / core::f64::consts::FRAC_PI_2).ceil().max(1.0);
+    let half = sweep / segments / 2.0;
+    let (mut control, mut weights) = (vec![edge.at(edge.t0)], vec![1.0]);
+    let mut knots = vec![0.0; 3];
+    for k in 0..segments as usize {
+        let k = k as f64;
+        let middle = edge.at(edge.t0 + (2.0 * k + 1.0) * half);
+        control.push(centre + (middle - centre) / half.cos());
+        weights.push(half.cos());
+        control.push(edge.at(edge.t0 + (2.0 * k + 2.0) * half));
+        weights.push(1.0);
+        knots.extend([(k + 1.0) / segments; 2]);
+    }
+    knots.push(1.0);
+    let knots = geom_core::spline::KnotVector::clamped(knots, 2).unwrap();
+    let spline = geom::NurbsCurve3::new(knots, control, weights).unwrap();
+    RegionEdge {
+        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline)),
+        t0: 0.0,
+        t1: 1.0,
+        turn: None,
+        ..edge.clone()
+    }
+}
 
 /// **A door's answer as a frame pin compares it**: the answer itself,
 /// or its refusal's predicate (`Some("another refusal")` for a refusal
@@ -1289,7 +1447,7 @@ mod tests {
 
     /// The segment `[x0, x1]` of the `x` axis.
     fn x_segment(x0: f64, x1: f64) -> RegionEdge<f64> {
-        let carrier = geom::Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
+        let carrier = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         edge(carrier, (x0, x1))
     }
 
@@ -1418,9 +1576,6 @@ mod tests {
         fn edges_mut(&mut self) -> &mut Vec<RegionEdge<f64>> {
             &mut self.edges
         }
-        fn outer(&self) -> LoopKey {
-            LoopKey::default()
-        }
         fn on_edge(
             &self,
             edge: &RegionEdge<f64>,
@@ -1496,7 +1651,6 @@ mod standing_rows {
     use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::RegionRefusal;
-    use crate::entity::LoopKey;
 
     /// **Every variant stands as its point-in-solid image does**
     /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
@@ -1513,16 +1667,14 @@ mod standing_rows {
         };
         let every = [
             RegionRefusal::Escalated(diag),
-            RegionRefusal::RayExhausted {
-                outer: LoopKey::default(),
-            },
+            RegionRefusal::RayExhausted,
             RegionRefusal::WoundPastPeriod,
             RegionRefusal::Unreadable(crate::test_support_samples::uncrossable()),
         ];
         for e in every {
             let want = match e {
                 RegionRefusal::Escalated(diag) => Ok(Refusal::Margin(diag)),
-                RegionRefusal::RayExhausted { .. } => Ok(Refusal::InBand),
+                RegionRefusal::RayExhausted => Ok(Refusal::InBand),
                 RegionRefusal::Unreadable(_) => Ok(Refusal::Limit),
                 RegionRefusal::WoundPastPeriod => Err(Aborts),
             };

@@ -3,7 +3,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
   "snapshot": {
     "id": "a8d79f40ddb79de569d778f1c0b832f9",
     "mint": {
-      "chain": "793d52552bbe134bfc1ad4bc6e42ccf600a7aab674d074aae886988845326b12",
+      "chain": "bdcb8af25293c47ec8133b882639ab0547b91d47e8ce4d75f8080c664f377f27",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -4881,79 +4881,79 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "var": "1625:f9ef7ce387a10ecd"
         },
         {
-          "node": "1626:b6734eeacd61639c"
+          "node": "1626:873c270dcebe2b08"
         },
         {
-          "var": "1627:3c969d505a44ae48"
+          "var": "1627:56b723c51ffab403"
         },
         {
-          "var": "1628:0d6b7b17123df860"
+          "var": "1628:f8d6b35c1e69a2d8"
         },
         {
-          "var": "1629:ba60a4d989ed9b33"
+          "var": "1629:b2574fa242d977de"
         },
         {
-          "node": "1630:a2655a1b91abc7be"
+          "node": "1630:5b459ade5207a28d"
         },
         {
-          "var": "1631:5e3932be20ac7af9"
+          "var": "1631:a0f29dd8867ff69c"
         },
         {
-          "var": "1632:24877a5421b92af6"
+          "var": "1632:b7607396e0484736"
         },
         {
-          "var": "1633:1cfe809c41efeec8"
+          "var": "1633:de8202604ccbdd26"
         },
         {
-          "node": "1634:2b571d8ce68fc6be"
+          "node": "1634:83d1e79a11b1a577"
         },
         {
-          "var": "1635:7a1ec679c08df390"
+          "var": "1635:1ff8e9fd0cb84503"
         },
         {
-          "var": "1636:8d7f31eb0a50d940"
+          "var": "1636:0f656e13ab79a6cf"
         },
         {
-          "var": "1637:b04222e294dd23e3"
+          "var": "1637:f171bab51b440769"
         },
         {
-          "var": "1638:5506c799a158de7c"
+          "var": "1638:6e70c9b5dfab7ed7"
         },
         {
-          "var": "1639:a8b7bf6cb2e3ed0b"
+          "var": "1639:af25a0f7d84788f8"
         },
         {
-          "var": "1640:99e295d57e66987d"
+          "var": "1640:c15a58d4b01024c1"
         },
         {
-          "var": "1641:1e46f75b92c5ecdd"
+          "var": "1641:2b818390e441ae46"
         },
         {
-          "var": "1642:2ee3635a7efe0a40"
+          "var": "1642:01e553d20a3ab24b"
         },
         {
-          "node": "1643:07b311ba00533e91"
+          "node": "1643:12d1cc238ed30c9d"
         },
         {
-          "var": "1644:680b8d929c275449"
+          "var": "1644:a4a905a41729b3bf"
         },
         {
-          "constraint": "1645:05bc0d4b27b0bd5f"
+          "constraint": "1645:f8b6758644dc574e"
         },
         {
-          "constraint": "1646:8a25b8f88c81a996"
+          "constraint": "1646:eb284956ad3772bc"
         },
         {
-          "constraint": "1647:021e5c41331b12bf"
+          "constraint": "1647:40441d7bf4d8bd4c"
         },
         {
-          "constraint": "1648:f86a14434c0da02b"
+          "constraint": "1648:55baa292d942c52a"
         },
         {
-          "constraint": "1649:24824df22f398cbf"
+          "constraint": "1649:54c074b1fdb43094"
         },
         {
-          "constraint": "1650:793d52552bbe134b"
+          "constraint": "1650:bdcb8af25293c47e"
         }
       ]
     },
@@ -6004,92 +6004,96 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1626:b6734eeacd61639c": {
+      "1626:873c270dcebe2b08": {
         "Subtract": {
           "from": "18:608252c10d916cfe",
-          "tool": "1625:f9ef7ce387a10ecd"
+          "tool": {
+            "Spelled": [
+              "1625:f9ef7ce387a10ecd"
+            ]
+          }
         }
       },
-      "1630:a2655a1b91abc7be": {
+      "1630:5b459ade5207a28d": {
         "Fillet": {
-          "radius": "1629:ba60a4d989ed9b33",
-          "selection": "1628:0d6b7b17123df860"
+          "radius": "1629:b2574fa242d977de",
+          "selection": "1628:f8d6b35c1e69a2d8"
         }
       },
-      "1634:2b571d8ce68fc6be": {
+      "1634:83d1e79a11b1a577": {
         "Fillet": {
-          "radius": "1633:1cfe809c41efeec8",
-          "selection": "1632:24877a5421b92af6"
+          "radius": "1633:de8202604ccbdd26",
+          "selection": "1632:b7607396e0484736"
         }
       },
-      "1643:07b311ba00533e91": {
+      "1643:12d1cc238ed30c9d": {
         "Place": {
-          "source": "1636:8d7f31eb0a50d940",
+          "source": "1636:0f656e13ab79a6cf",
           "target": "0:0000000000000000",
           "constraints": [
             {
-              "id": "1645:05bc0d4b27b0bd5f",
+              "id": "1645:f8b6758644dc574e",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "x"
                   },
-                  "by": "1637:b04222e294dd23e3"
+                  "by": "1637:f171bab51b440769"
                 }
               }
             },
             {
-              "id": "1646:8a25b8f88c81a996",
+              "id": "1646:eb284956ad3772bc",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "y"
                   },
-                  "by": "1638:5506c799a158de7c"
+                  "by": "1638:6e70c9b5dfab7ed7"
                 }
               }
             },
             {
-              "id": "1647:021e5c41331b12bf",
+              "id": "1647:40441d7bf4d8bd4c",
               "kind": {
                 "value": {
                   "coord": {
                     "slide": "z"
                   },
-                  "by": "1639:a8b7bf6cb2e3ed0b"
+                  "by": "1639:af25a0f7d84788f8"
                 }
               }
             },
             {
-              "id": "1648:f86a14434c0da02b",
+              "id": "1648:55baa292d942c52a",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "x"
                   },
-                  "by": "1640:99e295d57e66987d"
+                  "by": "1640:c15a58d4b01024c1"
                 }
               }
             },
             {
-              "id": "1649:24824df22f398cbf",
+              "id": "1649:54c074b1fdb43094",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "y"
                   },
-                  "by": "1641:1e46f75b92c5ecdd"
+                  "by": "1641:2b818390e441ae46"
                 }
               }
             },
             {
-              "id": "1650:793d52552bbe134b",
+              "id": "1650:bdcb8af25293c47e",
               "kind": {
                 "value": {
                   "coord": {
                     "spin": "z"
                   },
-                  "by": "1642:2ee3635a7efe0a40"
+                  "by": "1642:01e553d20a3ab24b"
                 }
               }
             }
@@ -29584,24 +29588,24 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1627:3c969d505a44ae48": {
+      "1627:56b723c51ffab403": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "1626:b6734eeacd61639c",
+            "node": "1626:873c270dcebe2b08",
             "port": 0
           }
         }
       },
-      "1628:0d6b7b17123df860": {
+      "1628:f8d6b35c1e69a2d8": {
         "kind": "Edges",
         "def": {
           "Select": {
-            "body": "1627:3c969d505a44ae48",
+            "body": "1627:56b723c51ffab403",
             "names": [
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29629,7 +29633,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29657,7 +29661,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29685,7 +29689,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29713,7 +29717,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29741,7 +29745,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29769,7 +29773,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29797,7 +29801,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29825,7 +29829,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29850,7 +29854,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29875,7 +29879,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29900,7 +29904,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1626:b6734eeacd61639c",
+                "node": "1626:873c270dcebe2b08",
                 "path": [
                   {
                     "From": {
@@ -29927,7 +29931,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1629:ba60a4d989ed9b33": {
+      "1629:b2574fa242d977de": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -29939,37 +29943,37 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1631:5e3932be20ac7af9": {
+      "1631:a0f29dd8867ff69c": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "1630:a2655a1b91abc7be",
+            "node": "1630:5b459ade5207a28d",
             "port": 0
           }
         }
       },
-      "1632:24877a5421b92af6": {
+      "1632:b7607396e0484736": {
         "kind": "Edges",
         "def": {
           "Select": {
-            "body": "1631:5e3932be20ac7af9",
+            "body": "1631:a0f29dd8867ff69c",
             "names": [
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -29989,7 +29993,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30033,20 +30037,97 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "End"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "100:40de6e4e680b2645",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30066,7 +30147,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30110,20 +30191,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30143,7 +30224,84 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "176:2dce75bc66133298",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30187,20 +30345,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30220,7 +30378,84 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "252:c520163d1c609a96",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30264,20 +30499,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30297,7 +30532,84 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "328:255295141c6fa612",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30341,20 +30653,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30374,7 +30686,84 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "404:844e00cf56756ea1",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30418,20 +30807,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30451,7 +30840,84 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "480:12cdcd2e6d625663",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30495,20 +30961,97 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Cap": "Start"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "556:2dbb8ba98972bf3b",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30533,7 +31076,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30577,20 +31120,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30615,7 +31158,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1392:12c8ed772c9f8749",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "11:1727f41743e500c9",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30659,20 +31284,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30697,7 +31322,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1468:1917c9165a599dce",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "11:1727f41743e500c9",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30741,20 +31448,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30779,7 +31486,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1544:884f4c40245f58f6",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "11:1727f41743e500c9",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30823,20 +31612,102 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "11:1727f41743e500c9",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1620:430ace9ff67af44b",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30861,7 +31732,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30905,20 +31776,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30943,7 +31814,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "632:6909de807587a840",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "12:40ebf48fc1ce9abb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -30987,20 +31940,102 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "12:40ebf48fc1ce9abb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "708:9b9b48953836b646",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31025,7 +32060,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31069,20 +32104,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31107,7 +32142,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1164:e3d31d319b17a316",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "13:5515fee17d00383e",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31151,20 +32268,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31189,7 +32306,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1240:0342ab2e9382dbd3",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "13:5515fee17d00383e",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31233,20 +32432,102 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "13:5515fee17d00383e",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1316:2f1152cf17a4a3be",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31271,7 +32552,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31315,20 +32596,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31353,7 +32634,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "784:62a4029784a8c507",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "14:74e05563fbf673eb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31397,20 +32760,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31435,7 +32798,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "860:39d35ecc7ada2f75",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "14:74e05563fbf673eb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31479,20 +32924,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31517,7 +32962,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "936:913fb7021ee121ff",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "14:74e05563fbf673eb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31561,20 +33088,20 @@ id: a8d79f40ddb79de569d778f1c0b832f9
               },
               {
                 "kind": "Edge",
-                "node": "1630:a2655a1b91abc7be",
+                "node": "1630:5b459ade5207a28d",
                 "path": [
                   {
                     "From": {
-                      "read": "1627:3c969d505a44ae48",
+                      "read": "1627:56b723c51ffab403",
                       "of": {
                         "kind": "Edge",
-                        "node": "1626:b6734eeacd61639c",
+                        "node": "1626:873c270dcebe2b08",
                         "path": [
                           {
                             "Seam": {
                               "a": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31599,7 +33126,89 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               },
                               "b": {
                                 "kind": "Face",
-                                "node": "1626:b6734eeacd61639c",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1012:cf29141aad4e4457",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "14:74e05563fbf673eb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
                                 "path": [
                                   {
                                     "From": {
@@ -31640,12 +33249,94 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     }
                   }
                 ]
+              },
+              {
+                "kind": "Edge",
+                "node": "1630:5b459ade5207a28d",
+                "path": [
+                  {
+                    "From": {
+                      "read": "1627:56b723c51ffab403",
+                      "of": {
+                        "kind": "Edge",
+                        "node": "1626:873c270dcebe2b08",
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "18:608252c10d916cfe",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "17:4a08cd5c982f47a4",
+                                        "path": [
+                                          {
+                                            "Lateral": {
+                                              "Piece": {
+                                                "step": "14:74e05563fbf673eb",
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": "1626:873c270dcebe2b08",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "1625:f9ef7ce387a10ecd",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "1624:795abaeaf26f9692",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "1088:2b05dcd5241abecd",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "38:9264d69fd3261fec",
+                                                "path": [
+                                                  {
+                                                    "BandPi": {
+                                                      "Piece": {
+                                                        "step": "31:1b0abda1136e629c",
+                                                        "role": "Leg"
+                                                      }
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             ]
           }
         }
       },
-      "1633:1cfe809c41efeec8": {
+      "1633:de8202604ccbdd26": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -31657,22 +33348,22 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1635:7a1ec679c08df390": {
+      "1635:1ff8e9fd0cb84503": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "1634:2b571d8ce68fc6be",
+            "node": "1634:83d1e79a11b1a577",
             "port": 0
           }
         }
       },
-      "1636:8d7f31eb0a50d940": {
+      "1636:0f656e13ab79a6cf": {
         "kind": "Body",
         "def": {
-          "Source": "1635:7a1ec679c08df390"
+          "Source": "1635:1ff8e9fd0cb84503"
         }
       },
-      "1637:b04222e294dd23e3": {
+      "1637:f171bab51b440769": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -31680,7 +33371,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1638:5506c799a158de7c": {
+      "1638:6e70c9b5dfab7ed7": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -31688,7 +33379,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1639:a8b7bf6cb2e3ed0b": {
+      "1639:af25a0f7d84788f8": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -31696,7 +33387,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1640:99e295d57e66987d": {
+      "1640:c15a58d4b01024c1": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -31704,7 +33395,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1641:1e46f75b92c5ecdd": {
+      "1641:2b818390e441ae46": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -31712,7 +33403,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1642:2ee3635a7efe0a40": {
+      "1642:01e553d20a3ab24b": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -31720,11 +33411,11 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           }
         }
       },
-      "1644:680b8d929c275449": {
+      "1644:a4a905a41729b3bf": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "1643:07b311ba00533e91",
+            "node": "1643:12d1cc238ed30c9d",
             "port": 0
           }
         }
@@ -31734,6 +33425,6 @@ id: a8d79f40ddb79de569d778f1c0b832f9
     "witnesses": {},
     "metadata": {},
     "appearance": [],
-    "product": "1644:680b8d929c275449"
+    "product": "1644:a4a905a41729b3bf"
   }
 }

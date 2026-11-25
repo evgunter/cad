@@ -76,6 +76,7 @@
 //! whose document half [`pick_face`] checks and whose node, body and
 //! mesh came from one tessellation.
 
+use crate::say;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -568,6 +569,23 @@ pub struct PickTarget<'a> {
 }
 
 impl<'a> PickTarget<'a> {
+    /// **`ray` read into the coordinates this target's mesh is in**: the
+    /// frame's rotation transposed about its origin, or `ray` itself for
+    /// a body in its space's coordinates. The one spelling [`pick_face`]
+    /// reads every target's ray by, so a caller that certifies a
+    /// crossing of this mesh itself reads it on the very ray the door
+    /// does.
+    #[must_use]
+    pub fn ray_in_frame(&self, ray: &Ray) -> Ray {
+        self.map.map_or(*ray, |map| {
+            let back = map.linear().transpose();
+            Ray {
+                origin: Point3::origin() + back * (ray.origin - map.origin()),
+                dir: back * ray.dir,
+            }
+        })
+    }
+
     /// A target assembled BY HAND from a mesh index the caller built —
     /// **test support**: it exists only in a build that asks for this
     /// crate's `test-support` feature, which is what makes the rest of
@@ -646,28 +664,29 @@ pub enum NodePickError {
 // payload's `Display` verbatim, each carrying its own door's words,
 // prefix included.
 impl crate::spoken::Say for NodePickError {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Standing(standing) => {
-                write!(f, "pick: {}", crate::spoken::Said(standing, by))
+                say!(f, "pick: ", crate::spoken::Said(standing, by))
             }
-            Self::NotABody { node } => write!(
+            Self::NotABody { node } => say!(
                 f,
-                "pick: {}'s value is not body-denoting (a pose, profile, declaration, or \
+                "pick: ",
+                by.node(*node),
+                format_args!(
+                    "'s value is not body-denoting (a pose, profile, declaration, or \
                  mate), so there is nothing to tessellate and index. {}",
-                by.node(*node),
-                crate::sentence::Recourse("offer a body-producing node instead")
+                    crate::sentence::Recourse("offer a body-producing node instead")
+                )
             ),
-            Self::NoSuchBody { node, body } => write!(
+            Self::NoSuchBody { node, body } => say!(
                 f,
-                "pick: {}'s value has no output body at index {} — the index is stale, or \
-                 that body is currently empty (an annihilated boolean, an empty split side)",
+                "pick: ",
                 by.node(*node),
-                body
+                format_args!(
+                    "'s value has no output body at index {body} — the index is stale, or \
+                 that body is currently empty (an annihilated boolean, an empty split side)"
+                )
             ),
             // The tessellator reads the body at rest.
             Self::Tessellate(error) => {
@@ -681,7 +700,7 @@ impl crate::spoken::Say for NodePickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NodePickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -690,7 +709,7 @@ impl NodePickError {
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
     /// reads an evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -736,11 +755,7 @@ impl From<NodeStanding> for NameLookupError {
 }
 
 impl crate::spoken::Say for NameLookupError {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::EvaluationOfAnotherDocument(m) => write!(
                 f,
@@ -749,7 +764,7 @@ impl crate::spoken::Say for NameLookupError {
                 m.found, m.expected
             ),
             Self::Standing(standing) => {
-                write!(f, "name lookup: {}", crate::spoken::Said(standing, by))
+                say!(f, "name lookup: ", crate::spoken::Said(standing, by))
             }
         }
     }
@@ -758,7 +773,7 @@ impl crate::spoken::Say for NameLookupError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for NameLookupError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -767,7 +782,7 @@ impl NameLookupError {
     /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
     /// reads an evaluation alone, so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Sentence {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -812,18 +827,14 @@ pub enum RimNameFault {
 }
 
 impl crate::spoken::Say for RimNameFault {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Unnamed(unnamed) => {
-                write!(f, "rim names: {}", crate::spoken::Said(unnamed, by))
+                say!(f, "rim names: ", crate::spoken::Said(unnamed, by))
             }
-            Self::NoBody { node, body } => write!(
+            Self::NoBody { node, body } => say!(
                 f,
-                "rim names: {}",
+                "rim names: ",
                 crate::spoken::Said(
                     &NodePickError::NoSuchBody {
                         node: *node,
@@ -832,12 +843,15 @@ impl crate::spoken::Say for RimNameFault {
                     by
                 )
             ),
-            Self::Stale { node, body } => write!(
+            Self::Stale { node, body } => say!(
                 f,
-                "rim names: a drawn edge of {} body {body} is not in the body this evaluation \
+                "rim names: a drawn edge of ",
+                by.node(*node),
+                format_args!(
+                    " body {body} is not in the body this evaluation \
                  holds — the pick was built against an earlier evaluation; rebuild it against \
-                 this one",
-                by.node(*node)
+                 this one"
+                )
             ),
         }
     }
@@ -846,7 +860,7 @@ impl crate::spoken::Say for RimNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for RimNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -880,9 +894,11 @@ impl core::error::Error for RimNameFault {}
 /// what may be reused across it is the content keys' business.
 ///
 /// **What admission costs a caller that went through [`PickMemo`]:
-/// nothing.** An index is served back only under the evaluation memo's
-/// own reuse condition, so a later run in which this node's value
-/// MOVED misses the memo and rebuilds; the admitted case is reachable
+/// nothing.** An index is served back only on the node's keys and the
+/// run's computing frame, which between them fix the body tessellated
+/// (the memo's other conditions are about what a value records, not
+/// where its body's points are), so a later run in which this node's
+/// value MOVED misses the memo and rebuilds; the admitted case is reachable
 /// only by holding an index across pictures by hand. The rows are
 /// `edit_pair_apply_names::a_later_evaluation_of_the_same_document_is_admitted`
 /// (what the doors answer) and `::what_the_admitted_later_evaluation_answers`
@@ -913,6 +929,10 @@ struct PickEntry {
     /// tessellation under its own frame.
     body: crate::eval::Held<f64>,
     naming_key: NamingKey,
+    /// The computing frame of the run the body was built in
+    /// ([`Evaluation::computing_frame`]): no key hashes it, and a body
+    /// built in another frame is another body under the same keys.
+    built_in: Option<[u64; 7]>,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
     pick: NodePick,
@@ -1283,7 +1303,9 @@ impl NodePick {
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
-            && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
+            && ((entry.content_key == value.content_key
+                && entry.naming_key == value.naming_key
+                && entry.built_in == eval.computing_frame())
                 || entry.body.same(body_arc.holding()))
             && entry.tolerances == tolerances
         {
@@ -1299,6 +1321,7 @@ impl NodePick {
             entry.pick = pick.clone();
             entry.content_key = value.content_key;
             entry.naming_key = value.naming_key;
+            entry.built_in = eval.computing_frame();
             memo.keep_tables(&keys);
             memo.node_hits += 1;
             return Ok(pick);
@@ -1323,6 +1346,7 @@ impl NodePick {
                 content_key: value.content_key,
                 body: body_arc.holding().clone(),
                 naming_key: value.naming_key,
+                built_in: eval.computing_frame(),
                 tolerances,
                 pick: pick.clone(),
                 keys: tessellation.keys,
@@ -1703,9 +1727,12 @@ pub struct PickHit {
     /// not a second rule. The three are fields rather than one `span`
     /// because 43 call sites read them by name.
     ///
-    /// **The parameter is of the ray this call was given.** A consumer
-    /// that carries a hit across a transform converts all three, or
-    /// none of them mean anything: the viewer's moved-copy crossing is
+    /// **The parameter is of the ray this call was given**, and an
+    /// affine map carries a ray's parameter with it (`map(o + t·d)` is
+    /// `map(o) + t·map(d)`): a consumer that maps the ray into another
+    /// frame before the call gets back all three as parameters of the
+    /// ray it mapped. The certificate is the mapped ray's as rounded,
+    /// which is the viewer's moved-copy crossing:
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     pub t: f64,
     /// See [`PickHit::t`].
@@ -1922,13 +1949,7 @@ pub fn pick_face<T: topo::AtRestPolicy + Decide>(
         // rigid map keeps the ray's parameter, so every target's `t` is
         // one parameter along the one ray, and a hit's point is read off
         // the ray as handed.
-        let local = target.map.map_or(*ray, |map| {
-            let back = map.linear().transpose();
-            Ray {
-                origin: Point3::origin() + back * (ray.origin - map.origin()),
-                dir: back * ray.dir,
-            }
-        });
+        let local = target.ray_in_frame(ray);
         let ray = &local;
         for cand in target.pick.candidates(ray) {
             let Some((tri, face)) = target.pick.triangle(&cand) else {

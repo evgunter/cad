@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
-use crate::entity::EdgeKey;
+use crate::entity::{EdgeKey, LoopKey};
 use crate::region::QueryFoot;
 use crate::region::refusal_class as class;
 use core::f64::consts::{PI, TAU};
@@ -54,7 +54,12 @@ fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
 fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     let d = b - a;
     let len = d.norm();
-    edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
+    edge(
+        k,
+        geom::Curve3::line(a, geom::stated_direction(d / len)),
+        (0.0, len),
+        true,
+    )
 }
 
 /// The region on `surface`, a cylinder or a cone, under the fixtures'
@@ -75,7 +80,6 @@ fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale: 1.0,
         edges,
     }
@@ -248,7 +252,6 @@ fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale,
         edges,
     }
@@ -743,7 +746,6 @@ fn cone_window(
         charted,
         surface,
         sense: true,
-        outer: LoopKey::default(),
         scale: 2.0,
         edges: vec![
             cone_rim(1, vs.0, us, true),
@@ -787,7 +789,6 @@ fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
                 charted,
                 surface,
                 sense: true,
-                outer: LoopKey::default(),
                 scale: 1.0,
                 edges: window(1, us, zs, false),
             }
@@ -853,8 +854,10 @@ fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
 /// answers otherwise than the first. With the legs started at
 /// `surface.eval(uv)`, the chart's round trip of the foot, 141 do; started
 /// at the foot, 35; with the curve × face pose reading a graze past a leg's
-/// span by its reach (PR 7226), 24. What is left is the rulings, whose origin is their
-/// locus, and the frame a curve carries in its section
+/// span by its reach, 24; with a plane's offset read to its own digits,
+/// 25, one rim query whose frames split between a span-end refusal and an
+/// answer at the escalation itself. What is left is the rulings, whose
+/// origin is their locus, and the frame a curve carries in its section
 /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
 #[test]
 fn a_cones_circle_legs_read_no_chart_frame_at_the_escalation() {
@@ -905,4 +908,4 @@ fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64
 }
 
 /// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
-const KEPT_CONE: usize = 24;
+const KEPT_CONE: usize = 25;

@@ -170,7 +170,7 @@ fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
         b.vertices().count()
     ));
     let mut s: Vec<String> = b
-        .surfaces()
+        .described_surfaces()
         .map(|(_, s)| key_free(&format!("S {s:?}")))
         .collect();
     let mut c: Vec<String> = b
@@ -260,7 +260,7 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
         let selection = edges_of_body(&first, split, h.output_body());
         assert!(!selection.is_empty(), "the half has edges");
         let joined = r.insert(Node::Union {
-            members: editor_core::Bodies::Spelled(vec![port(split, h).into(), other.into()]),
+            members: editor_core::Bodies::spelled(vec![port(split, h).into(), other.into()]),
         });
         let rounded = r.insert(Node::fillet(port(split, h), len(RADIUS), selection.clone()));
         let ev = eval_after(&r.doc, Some(&first));
@@ -338,7 +338,7 @@ fn a2_the_member_is_the_member() {
     let p1 = r.member(pat, 1);
     let p2 = r.member(pat, 2);
     let joined = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
+        members: editor_core::Bodies::spelled(vec![p1.into(), p2.into()]),
     });
     let ev = eval(&r.doc);
     assert!(
@@ -576,7 +576,7 @@ fn a4_every_refusal_is_typed() {
             var: editor_core::VarRef::Id(k),
             def: editor_core::VarDecl::Index {
                 count: Formula::count(2),
-                within: None,
+                after: None,
             },
             fresh: Vec::new(),
         },

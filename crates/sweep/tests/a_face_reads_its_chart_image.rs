@@ -82,11 +82,21 @@ fn counts(body: &Body<f64>, face: FaceKey) -> (Vec<usize>, Vec<usize>) {
         .collect();
     let full = loops
         .iter()
-        .map(|&l| topo::props::loop_edges(body, l).unwrap().0.len())
+        .map(|&l| {
+            topo::props::loop_edges(body.cycle_loop(l).expect("a cycle loop"))
+                .unwrap()
+                .0
+                .len()
+        })
         .collect();
     let image = loops
         .iter()
-        .map(|&l| topo::props::chart_image_edges(body, l).unwrap().0.len())
+        .map(|&l| {
+            topo::props::chart_image_edges(body.cycle_loop(l).expect("a cycle loop"))
+                .unwrap()
+                .0
+                .len()
+        })
         .filter(|&n| n > 0)
         .collect();
     (full, image)
@@ -96,7 +106,7 @@ fn counts(body: &Body<f64>, face: FaceKey) -> (Vec<usize>, Vec<usize>) {
 fn wall(body: &Body<f64>) -> FaceKey {
     let mut curved = body
         .faces()
-        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })));
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Ok(geom::Surface::Plane { .. })));
     let (face, _) = curved.next().expect("a curved face");
     assert!(curved.next().is_none(), "one curved face");
     face
@@ -275,7 +285,8 @@ fn a_built_spur_is_out_of_the_chart_image() {
     let (lune, he) = body
         .faces()
         .find_map(|(face, f)| {
-            let (_, hes) = topo::props::loop_edges(&body, f.outer).unwrap();
+            let (_, hes) =
+                topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
             hes.into_iter()
                 .find(|&h| at_north(&body, h))
                 .map(|h| (face, h))
@@ -326,7 +337,11 @@ fn a_built_spur_is_out_of_the_chart_image() {
     // The lune's cycle read from every half-edge: from the spur's return
     // half the cycle ends on its way out, which only the pass across the
     // cycle's start takes out.
-    let (_, cycle) = topo::props::loop_edges(&body, body.get_face(lune).unwrap().outer).unwrap();
+    let (_, cycle) = topo::props::loop_edges(
+        body.cycle_loop(body.get_face(lune).unwrap().outer)
+            .expect("a cycle loop"),
+    )
+    .unwrap();
     let want = topo::surface_boundary::chart_image(&body, &cycle)
         .unwrap()
         .half_edges;

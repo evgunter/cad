@@ -41,6 +41,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
+use geom_core::UnitVec3;
 use geom_core::k_stats::TestSite;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::construction::Construct;
@@ -54,7 +55,8 @@ use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
     face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
-    split_fragment, split_param_in_span, stored_piece, unbuilt_end, unbuilt_geometry, unresolved,
+    split_fragment, split_param_in_span, stored_piece, surface_missed, unbuilt_end,
+    unbuilt_geometry, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, UnbuiltEnd, classify};
 
@@ -116,6 +118,10 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// [`BlendError::BodyNotIntact`] when the end is not the incidence
     /// the verdict classified or the end face is not a plane.
     #[allow(clippy::too_many_arguments)] // the band's own reads, one per argument.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(in crate::blend) fn plan(
         body: &Body<T>,
         vertex: VertexKey,
@@ -129,12 +135,9 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body.face_surface(face).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(face),
-                "a cut-off's end face's stored surface",
-            )
-        })?;
+        let stored = body
+            .face_surface(face)
+            .map_err(|miss| surface_missed(face, "a cut-off's end face's stored surface", miss))?;
         let Surface::Plane {
             frame: carrier_frame,
             ..
@@ -382,6 +385,10 @@ impl<T: Bounds> SectionFrame<T> {
     }
 
     /// `d` in the section's unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn unit(self, d: Vec3<T>) -> (T, T) {
         geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
     }
@@ -400,11 +407,15 @@ impl<T: Bounds> SectionFrame<T> {
     /// length by more than `1/minor`. A scaled radius `ρ < 1` is at
     /// least `minor·(1 − ρ)` from the section, which shrinks no length
     /// by less than `minor`. `None` for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => self
-                .scaled(origin + dir * ta - center)
-                .max(self.scaled(origin + dir * tb - center)),
+                .scaled(origin + dir.get() * ta - center)
+                .max(self.scaled(origin + dir.get() * tb - center)),
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
                 Some(k) => self.scaled(k.frame().origin() - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
@@ -422,11 +433,15 @@ impl<T: Bounds> SectionFrame<T> {
     /// `a/minor` short of `c`'s. A scaled radius `ρ > 1` is at least
     /// `minor·(ρ − 1)` from the section, as in [`Self::depth`]. `None`
     /// for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
                 let at = |p: Point3<T>| self.unit(p - center);
-                let (a, b) = (at(origin + dir * ta), at(origin + dir * tb));
+                let (a, b) = (at(origin + dir.get() * ta), at(origin + dir.get() * tb));
                 let (ex, ey) = (b.0 - a.0, b.1 - a.1);
                 let s = (T::zero() - (a.0 * ex + a.1 * ey) / (ex.powi(2) + ey.powi(2)))
                     .max(T::zero())
@@ -520,22 +535,21 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let pa = line.at(ta);
         let chord = line.at(tb) - pa;
         // The chord is not the zero vector: the window is a certified
-        // edge's, decided forward at certification, and certification
-        // refuses a line carrier whose `dir` is the zero vector
-        // (`EdgeCurve::certify`'s Line arm), so a surgery-minted line of
-        // zero direction cannot reach this reading. That is all it
-        // decides: a chord shorter than the format's squares reach
-        // (about 1e-154 m at `f64`) still reads `len` as zero here, as
-        // any plain norm does.
-        let len = chord.norm();
-        let e = chord * (one / len);
+        // edge's, decided forward at certification (`ta < tb`), and the
+        // line's direction is unit, so over the reals the chord's length
+        // is `tb − ta > 0`. A chord shorter than the format's squares
+        // reach (about 1e-154 m at `f64`) still reads its length as zero,
+        // as any plain norm does, and the chord door then answers poison
+        // ([`UnitVec3::chord`]) rather than a direction.
+        let (e_unit, len) = UnitVec3::chord(chord);
+        let e = e_unit.get();
         let q0 = pa - self.center;
         // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
         // as [`piece_distance`] reads it, which does not cancel far
         // from `center` as `q0·q0 − b²` does.
         let (b, rho) = geom::Line {
             origin: self.center,
-            dir: e,
+            dir: e_unit,
         }
         .height_and_distance(pa);
         let d2 = rho.powi(2);
@@ -625,6 +639,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
@@ -636,7 +654,7 @@ fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Op
     };
     let side = |(x, _): Piece<'_, T>, (y, window): Piece<'_, T>| {
         let geom::Line { origin, dir } = x.as_line()?;
-        let (low, high) = piece_along(y, window, origin, n.cross(dir).normalize())?;
+        let (low, high) = piece_along(y, window, origin, n.cross(dir.get()).normalize())?;
         Some(low.max(T::zero() - high))
     };
     match (round(a.0), round(b.0)) {
@@ -683,8 +701,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let mut least = (section.minor() * (section.scaled(q) - T::one()))
             .min(b.axis.cross(ua).normalize().dot(q))
             .min(ub.cross(b.axis).normalize().dot(q));
-        let ray = Curve3::line(self.center, q);
-        let span = (T::zero(), T::one());
+        let (ray, reach) = geom::Line::chord(self.center, p);
+        let (ray, span) = (Curve3::Line(ray), (T::zero(), reach));
         for (rim, window) in &b.rims {
             least = least.min(apart((&ray, span), (rim, *window), b.axis)?);
         }
@@ -839,6 +857,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// old vertex, a rim, or the end face's half of a rim does not
     /// resolve, or a round end curve does not run forward from one foot
     /// to the other.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(
         body: &Body<T>,
         vertex: VertexKey,
@@ -862,11 +884,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle(circle) => {
-                        let (center, axis, u_ref) = (
-                            circle.frame().origin(),
-                            circle.frame().axis(),
-                            circle.frame().u_ref(),
-                        );
+                        let (center, axis, u_ref) =
+                            (circle.frame().origin(), circle.axis(), circle.u_ref());
                         let radius = circle.radius();
                         (center, axis, radius, radius, u_ref)
                     }
@@ -912,7 +931,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.frame().u_ref(), frame.shape.frame().v_ref());
+            let (u, w) = (frame.shape.u_ref(), frame.shape.v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
@@ -1365,23 +1384,16 @@ mod tests {
         /// `Interval`.
         pub(super) fn meter(&self, a: (f64, f64), b: (f64, f64)) -> (f64, Interval) {
             let at = |x: f64, y: f64| Point3::new(x, y, 0.0);
-            let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
             let iv = Interval::from_f64;
+            // The segment is its chord, its span in metres, at each scalar
+            // from its own two ends.
+            let ip = |x: f64, y: f64| Point3::new(iv(x), iv(y), iv(0.0));
+            let (line, len) = geom::Line::chord(at(a.0, a.1), at(b.0, b.1));
+            let (line_i, len_i) = geom::Line::chord(ip(a.0, a.1), ip(b.0, b.1));
             (
-                self.sliver::<f64>().line_clearance(
-                    geom::Line {
-                        origin: at(a.0, a.1),
-                        dir,
-                    },
-                    (0.0, 1.0),
-                ),
-                self.sliver::<Interval>().line_clearance(
-                    geom::Line {
-                        origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                        dir: Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
-                    },
-                    (iv(0.0), iv(1.0)),
-                ),
+                self.sliver::<f64>().line_clearance(line, (0.0, len)),
+                self.sliver::<Interval>()
+                    .line_clearance(line_i, (iv(0.0), len_i)),
             )
         }
 
@@ -1522,11 +1534,12 @@ mod tests {
                             "{what}, {scalar}: {a:?} → {b:?}: {read} is below the least G {least}"
                         );
                     }
-                    let carrier = Curve3::line(
-                        Point3::new(a.0, a.1, 0.0),
-                        Vec3::new(b.0 - a.0, b.1 - a.1, 0.0),
-                    );
-                    let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, 1.0));
+                    let (chord, chord_len) =
+                        geom::Line::chord(Point3::new(a.0, a.1, 0.0), Point3::new(b.0, b.1, 0.0));
+                    let carrier = Curve3::Line(chord);
+                    let whole = region
+                        .sliver::<f64>()
+                        .whole_clearance(&carrier, (0.0, chord_len));
                     handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
                 }
             }
@@ -1561,8 +1574,10 @@ mod tests {
         let (a, b) = (at(-1.0e4), at(1.0e4));
         let (m, iv) = region.meter(a, b);
         assert!((m + 0.15).abs() < 1e-11, "f64 reads {m}, not −0.15");
+        // `1.0047e-10` under: the chord's far end rounds at `1e4` m on
+        // its unit direction, where a stated `b − a` landed on `b`.
         assert!(
-            iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
+            iv.lo() <= -0.15 && iv.lo() > -0.15 - 2e-10,
             "Interval reads {iv:?}, not −0.15"
         );
     }
@@ -1616,8 +1631,14 @@ mod tests {
             "f64 reads {m}, the least G is {least}: {}",
             what()
         );
+        // The chord's far end is `a + e·len` on its unit direction,
+        // rounded at the reach of `a`, where a stated `b − a` landed on `b`
+        // exactly: over the length, that rounding is `e`'s width, and the
+        // reading carries it at the reach of the centre.
+        let far_end = 8.0 * f64::EPSILON * (1.0 + a.0.hypot(a.1)).powi(2) / scale;
         assert!(
-            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            iv.lo() <= least + slack
+                && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale) - far_end,
             "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
             what()
         );
@@ -1701,7 +1722,14 @@ mod tests {
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
         let rim = |o: Point3<f64>, d: Vec3<f64>| {
-            (Curve3::Line(geom::Line { origin: o, dir: d }), (0.0, 1.0))
+            // The rim is its chord `o → o + d`, its span in metres.
+            (
+                Curve3::Line(geom::Line {
+                    origin: o,
+                    dir: geom_core::UnitVec3::squared(d),
+                }),
+                (0.0, d.norm()),
+            )
         };
         CapSliver {
             cap: FaceKey::default(),

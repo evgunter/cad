@@ -331,7 +331,7 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
     let [moved] = moved.as_slice() else {
         panic!("the top's one mate moved into the part with it: {moved:?}");
     };
-    let [a] = fixture::face_reads(&out.part, moved.to)[..] else {
+    let [a] = fixture::face_reads(&out.part, moved.to.read)[..] else {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
@@ -387,7 +387,7 @@ fn an_underqualified_member_side_is_refused_at_the_door() {
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(i));
     let (doc, outer) =
-        fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
+        fixture::family_of_members(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let refused = editor_core::apply(

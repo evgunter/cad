@@ -233,7 +233,7 @@ fn facing_at(body: &Body<f64>, axis: usize, at: f64) -> Vec<FaceKey> {
             let n = n.vec();
             [n.x, n.y, n.z][axis] > 0.5
                 && matches!(body.get_surface(f.surface),
-                    Some(crate::Surface::Plane { frame, .. }) if (coord(frame.origin()) - at).abs() < 1e-9)
+                    Ok(crate::Surface::Plane { frame, .. }) if (coord(frame.origin()) - at).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .collect()
@@ -311,7 +311,7 @@ fn the_pair_door_reads_an_uncut_row_as_a_substitution() {
         super::BooleanOp::Union,
         &out.naming,
         &out.body,
-        ([&p, &tile], [None, None]),
+        [&p, &tile],
         band(),
     );
     let top = tops_at(&out.body, 1.0)[0];
@@ -541,7 +541,7 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
 fn plane_of(body: &Body<f64>, face: FaceKey) -> ([f64; 3], [f64; 3]) {
     let f = body.get_face(face).expect("the face resolves");
     match body.get_surface(f.surface) {
-        Some(crate::Surface::Plane { frame, .. }) => {
+        Ok(crate::Surface::Plane { frame, .. }) => {
             let (origin, normal) = (frame.origin(), frame.axis());
             let n = normal.normalize();
             ([origin.x, origin.y, origin.z], [n.x, n.y, n.z])
@@ -647,3 +647,43 @@ type BoolFn = fn(
     &crate::validate::AtRestBody<f64>,
     Tol,
 ) -> Result<BooleanResult<f64>, super::BooleanError>;
+
+/// **Two faces on one plane read their senses at the face's reach, not
+/// at a unit arm.** Coincident 1 × 2 rectangles, their senses read under
+/// the band `(1.1, 11)`: the cosine of their normals is 1, levered at
+/// the face's boundary reach from its first edge's middle (`√2` or
+/// `√4.25`, whichever edge is first, past the zero either way), so the
+/// reading is in band and escalates. At a unit
+/// arm it would read 1, inside the zero, and refuse as square normals.
+/// No face a certified body holds is narrow enough to show this at the
+/// run's own band: its edges are definitely longer than the band, so
+/// its reach is too. Red where the senses are levered at a unit arm.
+#[test]
+fn a_faces_senses_are_levered_at_its_reach() {
+    let (bx, fx) = at_one(&rect((0.0, 1.0), (0.0, 2.0)), true);
+    let (by, fy) = at_one(&rect((0.0, 1.0), (0.0, 2.0)), true);
+    let wide = Band::new(1.1, 11.0).unwrap();
+    let got = overlap((&bx, fx), (&by, fy), wide);
+    assert!(
+        matches!(&got, Err(OverlapRefusal::Senses(diag)) if diag.predicate == Some("bool_overlap_senses")),
+        "the senses read in band at the face's reach: {got:?}"
+    );
+}
+
+/// **A face's senses are levered at its reach from the point they are
+/// read at.** The row above's rectangles, a hundred metres along `x̂`:
+/// from the middle of their first edge the reach is the same `√2` or
+/// `√4.25`, and the reading is in band. From the world origin it would
+/// be about 102, past the escalation, and the senses would read
+/// definite. Red where the reach is read from anywhere but `p`.
+#[test]
+fn a_faces_senses_are_levered_from_where_they_are_read() {
+    let (bx, fx) = at_one(&rect((100.0, 101.0), (0.0, 2.0)), true);
+    let (by, fy) = at_one(&rect((100.0, 101.0), (0.0, 2.0)), true);
+    let wide = Band::new(1.1, 11.0).unwrap();
+    let got = overlap((&bx, fx), (&by, fy), wide);
+    assert!(
+        matches!(&got, Err(OverlapRefusal::Senses(diag)) if diag.predicate == Some("bool_overlap_senses")),
+        "the senses read in band at the face's reach from its edge: {got:?}"
+    );
+}

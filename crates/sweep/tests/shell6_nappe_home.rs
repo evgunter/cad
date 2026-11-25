@@ -142,7 +142,7 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 "{what}: {door}: half-angle carried"
             );
             assert_eq!(
-                topo::validate_geometric(&work, tol),
+                topo::test_support::validate_completed(&work, tol),
                 Ok(()),
                 "{what}: the {door} door's own output must validate"
             );
@@ -425,7 +425,7 @@ fn the_displacement_moves_the_face_along_its_own_outward_normal() {
             let action = ConeOffset::new(
                 geom::Line {
                     origin: apex,
-                    dir: axis,
+                    dir: geom::stated_direction(axis),
                 },
                 half_angle,
                 nappe.turn(d_face),

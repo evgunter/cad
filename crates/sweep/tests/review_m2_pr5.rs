@@ -275,7 +275,7 @@ fn survives_wire_four_segment_dome_one_band_structure() {
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 1);
     // Exactly 4 surfaces, one per wall.
-    assert_eq!(t.body.surfaces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full");
     };
@@ -373,7 +373,7 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     // one cylinder wall.
     assert_eq!(counts(&t.body), (2, 3, 3, 0));
     // plane + ONE cylinder + plane.
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let walls = t.walls();
     assert_eq!(walls[0][1], walls[0][2], "one wall over the run");
     assert!(t.rims[0][2].is_none(), "the split vertex has no rim");
@@ -573,7 +573,11 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert_all_tiers(&t.body);
     // V4 E8 F4 R0: E–P = 0 ⇒ g = 1.
     assert_eq!(counts(&t.body), (4, 8, 4, 0));
-    assert_eq!(t.body.surfaces().count(), 1, "one torus for all four walls");
+    assert_eq!(
+        t.body.described_surfaces().count(),
+        1,
+        "one torus for all four walls"
+    );
     let keys: Vec<_> = t.walls()[0]
         .iter()
         .map(|w| wall_key(&t.body, w.unwrap()))
@@ -581,7 +585,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert!(keys.windows(2).all(|w| w[0] == w[1]), "{keys:?}");
     assert!(matches!(
         t.body.get_surface(keys[0]),
-        Some(Surface::Torus { .. })
+        Ok(Surface::Torus { .. })
     ));
     // All rims conventional — one torus on both sides under-determines
     // the locus, so each rim is an image in that chart declared by the
@@ -1017,7 +1021,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
         .filter(|w| {
             matches!(
                 t.body.get_surface(wall_key(&t.body, w.unwrap())),
-                Some(Surface::Torus { .. })
+                Ok(Surface::Torus { .. })
             )
         })
         .count();
@@ -1052,7 +1056,7 @@ fn survives_near_full_period_rim_span_escalates() {
                 place: geom_core::Affine3::identity(),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::new(0.0, 1.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 angle: span,
             },
@@ -1341,7 +1345,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     let plane_key = wall_key(&body, annulus);
     assert!(matches!(
         body.get_surface(plane_key),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     // The annulus's outer circle: its whole outer cycle.
     let face = body.get_face(annulus).unwrap();
@@ -1391,14 +1395,14 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     // whole (no pole): V = 1 + 1 = 2; E = 1 + 1 = 2; F = 1 + 1 = 2.
     assert_eq!(counts(&t.body), (2, 2, 2, 0));
     // Surfaces: ONE cone + one plane.
-    assert_eq!(t.body.surfaces().count(), 2);
+    assert_eq!(t.body.described_surfaces().count(), 2);
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
     let walls = t.walls();
     assert_eq!(walls[0][0], walls[0][1], "one wall over the run");
     let k0 = wall_key(&t.body, walls[0][0].unwrap());
-    assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Cone { .. })));
     assert!(t.rims[0][1].is_none(), "the split vertex has no rim");
     // The run's one meridian is the cone's seam, its apex end a tip.
     let seam = meridians[0][0].unwrap();
@@ -1487,7 +1491,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // disc is built whole (no pole, no meridian): V = 2 + the pole;
     // E = 2 rims + 2 meridians; F = 3; R = 0. 3 surfaces.
     assert_eq!(counts(&t.body), (3, 4, 3, 0));
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
@@ -1495,7 +1499,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
-        Some(Surface::Sphere { .. })
+        Ok(Surface::Sphere { .. })
     ));
     // Transverse base join: Intersection.
     assert!(matches!(

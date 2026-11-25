@@ -11,8 +11,18 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{LoopContainment, PointInLoopError, point_in_loop};
 
-fn n_z() -> Vec3<f64> {
-    Vec3::new(0.0, 0.0, 1.0)
+/// The plane square to `n` through the origin, as a frame.
+fn plane(n: Vec3<f64>) -> geom::Frame<f64> {
+    let u = if n.x.abs() < 0.5 {
+        Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        Vec3::new(0.0, 1.0, 0.0)
+    };
+    geom::Frame::new(Point3::origin(), n, u)
+}
+
+fn n_z() -> geom::Frame<f64> {
+    plane(Vec3::new(0.0, 0.0, 1.0))
 }
 
 /// The margin an escalation refused on, for the sign-blindness row.
@@ -223,11 +233,11 @@ fn boundary_pre_pass_edges() {
 #[test]
 fn the_verdict_is_blind_to_the_normals_sign() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let flipped = Vec3::new(0.0, 0.0, -1.0);
+    let flipped = n_z().reversed();
     // A refusal's sign-INVARIANT content: the variant, and for an
     // escalation the predicate, the band and the margin's KIND. The
     // margin's VALUE is signed and is meant to differ — see
-    // `point_in_loop`'s "sign of `normal`" section.
+    // `point_in_loop`'s "which of the plane's two frames" section.
     fn shape(r: &Result<LoopContainment, PointInLoopError>) -> String {
         match r {
             Ok(v) => format!("{v:?}"),
@@ -380,14 +390,14 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         Tol::witness(),
     );
     let wall = fx.body.get_face(fx.side_faces[1]).unwrap(); // (4,0) → (3,1)
-    let Some(geom::Surface::Plane { frame, .. }) = fx.body.face_surface(fx.side_faces[1]) else {
+    let Ok(geom::Surface::Plane { frame, .. }) = fx.body.face_surface(fx.side_faces[1]) else {
         panic!("a prism wall carries a plane");
     };
     let normal = frame.axis();
-    let (n, minus_n) = (normal, normal * -1.0);
+    let (n, minus_n) = (*frame, frame.reversed());
     assert!(
-        n.x.abs() > 0.1 && n.y.abs() > 0.1,
-        "the wall must be oblique for this row to mean anything, got {n:?}"
+        normal.x.abs() > 0.1 && normal.y.abs() > 0.1,
+        "the wall must be oblique for this row to mean anything, got {normal:?}"
     );
     // Points in that wall's plane: the segment runs (4,0,z) → (3,1,z).
     for (s, z, expect) in [
@@ -437,7 +447,7 @@ fn an_in_band_schedule_arm_takes_the_next_member() {
         .collect();
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let wall = fx.body.get_face(fx.side_faces[1]).unwrap();
-    let n = Vec3::new(c, s, 0.0);
+    let n = plane(Vec3::new(c, s, 0.0));
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     for (y, z, expect) in [
         (0.5, 0.5, LoopContainment::In),

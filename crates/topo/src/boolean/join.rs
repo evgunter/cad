@@ -179,7 +179,7 @@ use crate::face_normal::{NormalAtError, face_outward_normal};
 use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
-use crate::validate::{decide, decide_positive};
+use crate::validate::decide;
 use geom_core::Tol;
 use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, argmin_decided, climb_agreeing};
 
@@ -316,7 +316,7 @@ fn keyed_surface<T: geom_core::Real>(
     face: FaceKey,
 ) -> (crate::geometry::SurfaceKey, &geom::Surface<T>) {
     let face = body.proven_face(face);
-    (face.record().surface, face.surface())
+    (face.record().surface, face.expect_described())
 }
 
 /// **A segment's germ face pair, as [`bool_connect`] reads it** before
@@ -458,7 +458,7 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
-    /// A cylinder, sphere, torus or spline face closed by a carried chord,
+    /// A cylinder, sphere, cone, torus or spline face closed by a carried chord,
     /// whose run may hold earlier carried chords: closed by the chord's arc with its
     /// evidence of lying on the face
     /// ([`crate::chord_join::path_island_winding_closed_by`]).
@@ -1016,8 +1016,7 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
                     ));
                 }
                 if let Some((x, _)) = pierced
-                    && component_winds(red, &g0, section, f0.component)?
-                        [usize::from(x == Operand::B)]
+                    && component_winds(red, &g0, section, f0.component)?[x.index()]
                 {
                     return Err(winds_round());
                 }
@@ -1218,13 +1217,12 @@ fn stands_on<T: crate::props::AtRestPolicy>(
         return Ok(false);
     };
     let edge = x
-        .get_edge(e)
+        .edge(e)
         .ok_or(desync("a germ's closed edge no longer resolves"))?;
-    let curve = x
-        .edge_curve_linked(e, edge)
+    let curve = edge
         .certified()
         .ok_or(desync("a germ's closed edge is scaffolding"))?;
-    for h in [edge.he_plus, edge.he_minus] {
+    for h in [edge.record().he_plus, edge.record().he_minus] {
         let face = x
             .face_of_half_edge(h)
             .ok_or(desync("a germ's closed edge has a half with no face"))?;
@@ -1277,10 +1275,9 @@ fn site_cell<T: Decide>(
         super::Locus::InFace(face) => face,
         super::Locus::OnEdge(e) => {
             let edge = body
-                .get_edge(e)
+                .edge(e)
                 .ok_or(desync("a germ's closed edge no longer resolves"))?;
-            let copied = body
-                .edge_curve_linked(e, edge)
+            let copied = edge
                 .certified()
                 .is_some_and(|c| crate::chord_join::copies_closed_edge(c.carrier()));
             return Ok(SiteCell::Closed(copied.then_some(e)));
@@ -1299,12 +1296,12 @@ fn site_cell<T: Decide>(
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
             let e = body
-                .get_edge(k)
+                .edge(k)
                 .ok_or(desync("a site edge no longer resolves"))?;
-            if body.edge_curve_linked(k, e).null_scaffold().is_some() {
+            if e.curve().null_scaffold().is_some() {
                 continue;
             }
-            for h in [e.he_plus, e.he_minus] {
+            for h in [e.record().he_plus, e.record().he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
                     return Ok(SiteCell::Other(face));
                 }
@@ -1364,6 +1361,10 @@ pub(super) struct Connected {
 /// The lockstep joining sweep (module docs). Mutates both annotated
 /// clones in `red` in place; returns the completed polygon pairs in
 /// completion order, with [`NullFacePair::Boolean`] records set.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -1808,8 +1809,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let mut curve_b = curve_b;
         curve_b.keep(minted.first().and_then(|&chord| {
             red.a
-                .stored_curve_as(chord, crate::live::Arg("chord"))
-                .ok()
+                .proven_edge(chord)
+                .certified()
                 .and_then(|curve| curve.locus_certificate().cloned())
         }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -2231,7 +2232,7 @@ fn nearest_sign<T: Decide>(
 /// `p`'s radius. Each factor's length is a scale on the whole, so the
 /// axis need not be unit for a sign or for a ratio of two of these.
 fn turn_of<T: geom_core::Real>(axis: geom::Line<T>, p: geom_core::Point3<T>, v: Vec3<T>) -> T {
-    axis.dir.dot((p - axis.origin).cross(v))
+    axis.dir.get().dot((p - axis.origin).cross(v))
 }
 
 /// **How far `p` has turned past `from`'s site, along the conic**: the
@@ -2273,43 +2274,32 @@ fn turned_past<T: geom_core::Real>(from: Turn<T>, p: geom_core::Point3<T>) -> Ma
 /// `k` passes about 10. `cot ψ` is
 /// `|t̂·(site − c)|·|axis|` over `|turn(t̂)|`, the axis's length
 /// cancelling with [`turn_of`]'s.
-fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
+fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> T {
     let axis = from.frame();
-    let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.norm()
+    let cot = from.tangent().dot(from.site() - axis.origin).abs() * axis.dir.get().norm()
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
-    // Unsourced lever: the band's ε, how far a site may stand off the
-    // conic, which is a tolerance and no extent, curvature or box.
-    Margin::levered(
-        cot + cot,
-        geom_core::Lever::unsourced(T::from_f64(band.zero())),
-    )
+    (cot + cot) * T::from_f64(band.zero())
 }
 
-/// **[`turned_past`] decided under `name`, clear of the sites' slack**:
-/// a definite sign stands only where the margin's size definitely
-/// exceeds [`off_conic_slack`] (`bool_join_arc_clear`), and a tie only
-/// where the slack itself is within the band (`bool_join_arc_slack`).
-/// Anything else is two sites the conic cannot order, and escalates.
+/// **[`turned_past`] decided under `name` across the sites' slack**
+/// ([`geom_core::k_stats::decide_across`], [`off_conic_slack`] its
+/// swing): a tie only where the reading and the slack together stand
+/// within the band, and a definite sign only where the reading clears
+/// the slack by the band's escalation (`bool_join_arc_clear`). Anything
+/// else is two sites the conic cannot order, and escalates.
 fn travel<T: Decide>(
     name: &'static str,
     from: Turn<T>,
     p: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let margin = turned_past(from, p);
-    let slack = off_conic_slack(from, band);
-    let sign = decide(name, margin, band).map_err(join_escalate)?;
-    let tie_clear = sign == Sign::Zero
-        && decide("bool_join_arc_slack", slack, band).map_err(join_escalate)? == Sign::Zero;
-    if !tie_clear {
-        decide_positive(
-            "bool_join_arc_clear",
-            Margin::of(margin.value().abs() - slack.value()),
-            band,
-        )
-        .map_err(join_escalate)?;
-    }
-    Ok(sign)
+    geom_core::k_stats::decide_across(
+        [name, "bool_join_arc_clear"],
+        turned_past(from, p).value(),
+        off_conic_slack(from, band),
+        band,
+    )
+    .map_err(join_escalate)
 }
 
 /// **Which half-turn of the germ's section conic its partner lies in**:
@@ -2319,10 +2309,11 @@ fn travel<T: Decide>(
 /// at the germ's own azimuth (no travel) or at the half-turn, and both
 /// sort ahead of every site genuinely `Behind`; within `Ahead`,
 /// [`along_sign`] orders a half-turn site by its turn like any other.
-/// A tie stands only where [`travel`]'s slack is itself within the band,
-/// so a partner at the half-turn reads `Ahead` on a circle and on a
-/// mild ellipse, and escalates where `cot ψ` at the germ's site makes
-/// the slack leave the band (from about `cot ψ = 0.5` on).
+/// A tie stands only where the distance and [`travel`]'s slack together
+/// are within the band, so a partner at the half-turn reads `Ahead` on a
+/// circle and on a mild ellipse, and escalates where `cot ψ` at the
+/// germ's site makes the slack leave the band (from about `cot ψ = 0.5`
+/// on).
 ///
 /// A straight germ line has no turn to read, so every partner is
 /// `Ahead` and the order is the chord alone — the planar pairing.
@@ -2792,9 +2783,8 @@ fn along_edge_conic<T: Decide>(
         _ => return Ok(None),
     };
     let carrier = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
+        .edge(edge)
+        .and_then(crate::live::EdgeView::certified)
         .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?
         .carrier()
         .clone();
@@ -2853,6 +2843,10 @@ fn germ_loops<T: crate::props::AtRestPolicy>(
 /// Section escalations propagate; non-escalation classification
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn germ_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (a, b): (&Body<T>, &Body<T>),
@@ -2903,9 +2897,25 @@ pub(super) fn face_pair_section_loops<T: crate::props::AtRestPolicy>(
         });
     }
     let ((_, sa), (_, sb)) = (keyed_surface(body_a, face_a), keyed_surface(body_b, face_b));
+    let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
+    if matches!(
+        (sa.kind(), sb.kind()),
+        (geom::SurfaceKind::Plane, geom::SurfaceKind::Torus)
+            | (geom::SurfaceKind::Torus, geom::SurfaceKind::Plane)
+    ) {
+        // The table holds the pose the value read closed. It holds none
+        // of a pose the value read tilted, whose germs ride its carried
+        // components, nor any where no glue door read it; the pose is
+        // then decided as the value decides it, so the frame reads one
+        // answer either way: served where closed, a desync where tilted.
+        return match sections.plane_torus((body_a, face_a), (body_b, face_b)) {
+            Some(pose) => pt_germ_frame(pose),
+            None => plane_torus_frame(sa, sb, band),
+        }
+        .map_err(refused);
+    }
     let extent = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
-    pair_section_frame_at(sa, sb, extent, band)
-        .map_err(|e| frame_refusal(e, (face_a, sa), (face_b, sb)))
+    pair_section_frame_at(sa, sb, extent, band).map_err(refused)
 }
 
 /// **What a face pair's frame is levered at**: the consumed region's
@@ -2918,16 +2928,12 @@ fn frame_lever<T: Decide>(
     band: Band,
 ) -> Result<FrameExtent<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let witnesses = |body: &Body<T>, f: FaceKey| {
-        super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
-            unreachable!(
-                "{}, whose surface the caller resolved, does not resolve",
-                crate::entity::EntityId::Face(f)
-            )
-        })
-    };
-    let at =
-        frame_reading(sa, witnesses(body_a, face_a), witnesses(body_b, face_b)).map_err(desync)?;
+    let at = frame_reading(
+        sa,
+        || crate::cover::face_cover(body_a, face_a, band),
+        || crate::cover::face_cover(body_b, face_b, band),
+    )
+    .map_err(desync)?;
     frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, band).map_err(desync)
 }
 
@@ -2945,33 +2951,27 @@ fn germ_section_frame<T: crate::props::AtRestPolicy>(
 }
 
 /// **Where the germ frame reads its axis rows**: the centre of the
-/// curved face's boundary vertices (the first face's where both are
-/// curved), a point among those the section is consumed at, so the gap is
-/// read where the section is and not where a carrier's origin is stored.
-/// [`pair_section_frame_at`] levers the plane×cone and plane×torus pairs
-/// at their curved face's measures from this point ([`frame_extent`]).
-/// No lever is a ball chosen around the faces (`geom_brep::Reach`'s
-/// module docs).
+/// curved face's cover's ball (the first face's where both are curved;
+/// [`crate::cover::face_cover`], [`geom_brep::ExtentBall::of_cover`]), a
+/// point derived from the region the section is consumed on, so the gap
+/// is read where the section is and not where a carrier's origin is
+/// stored. [`pair_section_frame_at`] levers the plane×cone pair at its
+/// cone face's measures from this point ([`frame_extent`]). No lever is a ball chosen around the faces
+/// (`geom_brep::Reach`'s module docs).
 ///
 /// # Errors
 ///
-/// A face pair with no boundary vertices.
+/// A curved face with no cover.
 pub(super) fn frame_reading<T: Decide>(
     sa: &geom::Surface<T>,
-    on_a: Vec<geom_core::Point3<T>>,
-    on_b: Vec<geom_core::Point3<T>>,
+    cover_a: impl FnOnce() -> crate::cover::FaceCovered<T>,
+    cover_b: impl FnOnce() -> crate::cover::FaceCovered<T>,
 ) -> Result<geom_core::Point3<T>, &'static str> {
-    let curved = match sa {
-        geom::Surface::Plane { .. } => on_b,
-        _ => on_a,
-    };
-    let points: Vec<geom_brep::ExtentBall<T>> = curved
-        .into_iter()
-        .map(geom_brep::ExtentBall::point)
-        .collect();
-    geom_brep::ExtentBall::enclosing(&points)
-        .map(|ball| ball.center())
-        .ok_or("a germ face pair has no boundary vertices")
+    let plane_first = matches!(sa, geom::Surface::Plane { .. });
+    let curved = if plane_first { cover_b() } else { cover_a() };
+    curved
+        .map(|cover| geom_brep::ExtentBall::of_cover(&cover).center())
+        .map_err(|_| "a germ face pair's curved face has no cover")
 }
 
 /// **What [`pair_section_frame_at`] levers a pair at**: the consumed
@@ -2980,12 +2980,13 @@ pub(super) fn frame_reading<T: Decide>(
 pub(super) enum FrameExtent<T: geom_core::Real> {
     /// Nothing measured: the pair is levered by its radii.
     Radii,
-    /// A plane×torus pair's torus face: its farthest distance from `at`
-    /// ([`face_reach_from`](crate::cover::face_reach_from)).
-    Reach(geom_core::Lever<T>),
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::cover::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
+    /// The ball of both faces' covers: the region a pose the value reads
+    /// elsewhere is read over (two cones of one aperture on parallel
+    /// axes).
+    Region(geom_brep::ExtentBall<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -2993,10 +2994,9 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
 /// ([`crate::cover::face_cover`]). A plane×cone pair's section lies on
 /// the cone face, which hands the table its range along the cone's axis
 /// from `at` and its farthest distance from `at`: the measures the
-/// cone's split lane reads the same section at. A plane×torus pair's
-/// lies on the torus face, which hands its farthest distance from `at`,
-/// the one measure the torus's split lane levers it at. Every other
-/// pair is levered by its radii.
+/// cone's split lane reads the same section at. Every other pair is
+/// levered by its radii; a plane×torus pair is read on its pose
+/// ([`face_pair_section_loops`]).
 ///
 /// # Errors
 ///
@@ -3014,13 +3014,23 @@ pub(super) fn frame_extent<T: Decide>(
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             cone_reach((body_a, face_a), (body_b, face_b), at, cone, band)
         }
-        (geom::Surface::Plane { .. }, geom::Surface::Torus { .. }) => {
-            face_reach(body_b, face_b, at, band)
+        // Two cones: the ball of both faces' covers, where both have one,
+        // the region a pose the value reads elsewhere is read over
+        // ([`conic_section_frame_at`]); every other pair, its radii.
+        _ if sa.kind() != geom::SurfaceKind::Cone || sb.kind() != geom::SurfaceKind::Cone => {
+            Ok(FrameExtent::Radii)
         }
-        (geom::Surface::Torus { .. }, geom::Surface::Plane { .. }) => {
-            face_reach(body_a, face_a, at, band)
+        _ => {
+            let ball = |body, face| {
+                crate::cover::face_cover(body, face, band)
+                    .ok()
+                    .map(|cover| geom_brep::ExtentBall::of_cover(&cover))
+            };
+            Ok(ball(body_a, face_a)
+                .zip(ball(body_b, face_b))
+                .and_then(|(x, y)| geom_brep::ExtentBall::enclosing(&[x, y]))
+                .map_or(FrameExtent::Radii, FrameExtent::Region))
         }
-        _ => Ok(FrameExtent::Radii),
     }
 }
 
@@ -3064,14 +3074,14 @@ fn cone_reach<T: Decide>(
 /// the pair at (`glue::section_door`): the measure [`cone_reach`] takes
 /// of one face pair, taken over every met face pair on the surface pair
 /// (`pairs`, each its cone face then its plane face) from one point, the
-/// centre of the ball about all their cone faces' boundary vertices.
-/// How far any of them reaches either way along the cone's axis and
-/// from that point, each cone face narrowed to its plane face's window,
-/// so no one face's extent sets the lever for its pieces and siblings.
+/// centre of the ball of all their cone faces' covers' hull. How far any
+/// of them reaches either way along the cone's axis and from that point,
+/// each cone face narrowed to its plane face's window, so no one face's
+/// extent sets the lever for its pieces and siblings.
 ///
 /// # Errors
 ///
-/// A pair list with no boundary vertex, or a cone face whose reach does
+/// An empty pair list, or a cone face with no cover or whose reach does
 /// not read (a lone loop).
 pub(super) fn surface_pair_reach<T: Decide>(
     (cone_body, plane_body): (&Body<T>, &Body<T>),
@@ -3079,15 +3089,14 @@ pub(super) fn surface_pair_reach<T: Decide>(
     cone: &geom::Surface<T>,
     band: Band,
 ) -> Result<geom_brep::Reach<T>, &'static str> {
-    let corners: Vec<geom_brep::ExtentBall<T>> = pairs
-        .iter()
-        .filter_map(|&(fc, _)| super::carrier_pair::face_witnesses(cone_body, fc))
-        .flatten()
-        .map(geom_brep::ExtentBall::point)
-        .collect();
-    let at = geom_brep::ExtentBall::enclosing(&corners)
-        .ok_or("a plane×cone surface pair's cone faces have no boundary vertices")?
-        .center();
+    let at = crate::cover::hull_of_covers(
+        pairs
+            .iter()
+            .map(|&(fc, _)| crate::cover::face_cover(cone_body, fc, band)),
+    )
+    .ok_or("a plane×cone surface pair with no face pair")?
+    .map(|cover| geom_brep::ExtentBall::of_cover(&cover).center())
+    .map_err(|_| UNCOVERED_WALL)?;
     let mut most: Option<(T, T, geom_core::Lever<T>)> = None;
     for &(fc, fp) in pairs {
         let FrameExtent::Cone(geom_brep::Reach::Face {
@@ -3106,18 +3115,6 @@ pub(super) fn surface_pair_reach<T: Decide>(
     }
     let (below, above, across) = most.ok_or("a plane×cone surface pair with no face pair")?;
     Ok(geom_brep::Reach::of_face(at, (below, above), across))
-}
-
-/// [`frame_extent`]'s plane×torus arm: the torus face's reach from `at`.
-fn face_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    at: geom_core::Point3<T>,
-    band: Band,
-) -> Result<FrameExtent<T>, &'static str> {
-    crate::cover::face_reach_from(body, face, at, band)
-        .map(FrameExtent::Reach)
-        .map_err(|_| UNCOVERED_WALL)
 }
 
 /// **The rulings lane's chords are rulings**: each wall's split lane,
@@ -3267,14 +3264,6 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
                 verdict,
             }
         }
-        FrameError::Spiric { loops, section } => BooleanError::GermSectionSpiric {
-            a_face: a.0,
-            a_kind: a.1.kind(),
-            b_face: b.0,
-            b_kind: b.1.kind(),
-            loops,
-            section,
-        },
     }
 }
 
@@ -3317,14 +3306,6 @@ pub(super) enum FrameError {
         convention: geom_brep::TorusConvention,
         /// Its decided verdict.
         verdict: geom_brep::recourse::Refused,
-    },
-    /// A plane cuts a torus in a general spiric quartic, which the
-    /// table routes to its unbuilt general rung.
-    Spiric {
-        /// The loops the section certificate reads.
-        loops: super::SpiricLoops,
-        /// The table's refusal.
-        section: geom_brep::SectionError,
     },
 }
 
@@ -3496,9 +3477,8 @@ pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
                 body_b
             };
             let straight = body
-                .get_edge(edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(crate::null::CurveGeom::certified)
+                .edge(edge)
+                .and_then(crate::live::EdgeView::certified)
                 .ok_or(BooleanError::JoinDesync {
                     what: "an OnEdge germ's edge carries no certified curve",
                 })?
@@ -3708,7 +3688,7 @@ pub(super) fn line_of<T: Decide>(
         [true, true] => {
             let mut along = [false; 2];
             for (k, d) in lines.dirs.iter().enumerate() {
-                let sine = dir.cross(*d).norm() / (dir.norm() * d.norm());
+                let sine = dir.cross(d.get()).norm() / (dir.norm() * d.get().norm());
                 along[k] = on_as("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
             }
             along
@@ -4000,6 +3980,11 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             | P::SphereTorus(_)
             | P::CylinderTorus(_)
             | P::TorusTorus(_)
+            | P::ConeTorus(_)
+            | P::ConeCylinder(_)
+            | P::ConeCone(_)
+            | P::ConeSphere(_)
+            | P::PlaneTorus(_)
             | P::SplineImplicit(_)
             | P::SplinePair(_)
             | P::PlaneSphere(_)
@@ -4008,11 +3993,6 @@ fn rides_carried<T: crate::props::AtRestPolicy>(
             P::CylinderCylinder(_) => {
                 return Err(BooleanError::JoinDesync {
                     what: "a cylinder pair's pose read past its cylinder reading",
-                });
-            }
-            P::ConeCylinder(_) | P::ConeCone(_) => {
-                return Err(BooleanError::JoinDesync {
-                    what: "the section table holds a cone pair, which its glue door never reads",
                 });
             }
         },
@@ -4090,8 +4070,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         {
             Ok(None)
         }
-        (Sf::Plane { .. }, Sf::Torus { .. }) => pt_germ_frame(sa, sb, extent, band),
-        (Sf::Torus { .. }, Sf::Plane { .. }) => pt_germ_frame(sb, sa, extent, band),
+        (Sf::Plane { .. }, Sf::Torus { .. }) | (Sf::Torus { .. }, Sf::Plane { .. }) => Err(
+            FrameError::Desync("a plane×torus frame is read on its pose, not on its kinds"),
+        ),
         _ => {
             conic_section_frame_at(sa, sb, extent, band).map(|frame| frame.map(SectionLoops::conic))
         }
@@ -4102,7 +4083,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
 /// plane×cone ([`pk_germ_frame`]), and plane×plane, a line by
 /// construction. The pairs the section value builds have no frame: the
 /// operation's section table holds them, and their germs match by foot
-/// parameter on the section's components ([`along_facing`]).
+/// parameter on the section's components ([`along_facing`]). A pair the
+/// value reads elsewhere by its pose (a coaxial cone against a torus)
+/// has no arm here either ([`FrameError::NoArm`]).
 fn conic_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
@@ -4111,6 +4094,29 @@ fn conic_section_frame_at<T: Decide>(
 ) -> Result<Option<geom::Line<T>>, FrameError> {
     if let Some((plane, cone)) = plane_and_cone(sa, sb) {
         return pk_germ_frame(plane, cone, extent, band);
+    }
+    // A coaxial cone against a torus is served by kind and read
+    // elsewhere by its pose (the closed form's), so the table holds
+    // nothing for it: no frame, and no desync.
+    if let Some(Ok(pose)) = geom_brep::ConeTorusPose::decide(sa, sb, band)
+        && matches!(pose.stance(), geom_brep::KtStance::Coaxial { .. })
+    {
+        return Err(FrameError::NoArm);
+    }
+    // Likewise a sphere on a cone's axis (the closed form's circles).
+    if let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+        geom_brep::pair_section::ConeRuledPose::decide_sphere(sa, sb, band)
+    {
+        return Err(FrameError::NoArm);
+    }
+    // Likewise two cones of one aperture on parallel axes (the plane
+    // conic), read over the two faces' region; two through one apex take
+    // their rulings' plane before any frame.
+    if let FrameExtent::Region(region) = &extent
+        && let Some(Ok(geom_brep::pair_section::ConeRead::Elsewhere)) =
+            geom_brep::pair_section::ConeRuledPose::decide(sa, sb, *region, band)
+    {
+        return Err(FrameError::NoArm);
     }
     if geom_brep::pair_section::serves(sa.kind(), sb.kind()) {
         return Err(FrameError::Desync(
@@ -4200,6 +4206,10 @@ pub(super) enum PkSection<T: geom_core::Real> {
 ///
 /// The section's refusals ([`section_refusal`]), and a line pair whose
 /// lines are no lines.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn pk_section<T: Decide>(
     plane: &geom::Surface<T>,
     cone: &geom::Surface<T>,
@@ -4255,8 +4265,9 @@ pub(super) fn pk_section<T: Decide>(
     }
 }
 
-/// **The plane×torus germ frame**, through THE table's own
-/// [`geom_brep::plane_torus_section`]. Each served section is two loops,
+/// **The plane×torus germ frame**, read off the section value's pose
+/// ([`geom_brep::PlaneTorusPose::closed_form`]), so the frame takes the
+/// closed form exactly where the value does. Each served section is two loops,
 /// each with a frame it turns about strictly monotonically:
 ///
 /// - **meridian circles** (the plane holds the axis): each circle's own
@@ -4280,30 +4291,16 @@ pub(super) fn pk_section<T: Decide>(
 /// Each loop margin is at least `√((R − r)² − d²)` or `√(r² − h²)` at
 /// every point of the section, which the table decided positive.
 ///
-/// A general plane cuts a spiric quartic, which the table routes to its
-/// unbuilt general rung; that refuses as [`FrameError::Spiric`], naming
-/// the loops by the section certificate's own margins
-/// ([`section_cert::torus_plane_loops`](super::section_cert::torus_plane_loops)).
-/// A tangent circle or no section under a minted germ is the desync the
-/// sphere arm's tangent point is. Where the table routes the pose to its
-/// general rung and the certificate's unlevered margins read it touching
-/// or empty, the two readings straddle the band about one pose, which
-/// escalates ([`PT_TOUCHING_UNDER_A_GERM`]), as does a certificate
-/// margin left undecided.
-///
-/// Levered at the torus face's reach from the reading point
-/// ([`FrameExtent::Reach`]); any other extent is a desync.
+/// A tilted plane cuts a spiric quartic, the section value's, which the
+/// operation's section table holds, so a germ on it is read by its
+/// components and a tilted pose reaching this frame is a desync.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn pt_germ_frame<T: Decide>(
-    plane: &geom::Surface<T>,
-    torus: &geom::Surface<T>,
-    extent: FrameExtent<T>,
-    band: Band,
+    pose: &geom_brep::PlaneTorusPose<T>,
 ) -> Result<Option<SectionLoops<T>>, FrameError> {
-    let FrameExtent::Reach(lever) = extent else {
-        return Err(FrameError::Desync(
-            "a plane×torus frame was levered at no torus face's reach",
-        ));
-    };
     let (
         &geom::Surface::Plane {
             frame: plane_frame, ..
@@ -4311,17 +4308,16 @@ fn pt_germ_frame<T: Decide>(
         &geom::Surface::Torus {
             frame: torus_frame,
             major_radius: big_r,
-            minor_radius: r,
             ..
         },
-    ) = (plane, torus)
+    ) = (pose.plane(), pose.torus())
     else {
         return Err(FrameError::Desync(
-            "the plane×torus frame was handed another kind pair",
+            "the plane×torus pose holds another kind pair",
         ));
     };
-    let (q, n) = (plane_frame.origin(), plane_frame.axis());
-    let (c, a) = (torus_frame.origin(), torus_frame.axis());
+    let n = plane_frame.axis_unit();
+    let (c, a) = (torus_frame.origin(), torus_frame.axis_unit());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
@@ -4333,11 +4329,11 @@ fn pt_germ_frame<T: Decide>(
         }
         _ => Err(carried()),
     };
-    let section = geom_brep::plane_torus_section(plane, torus, lever, band);
+    let section = pose.closed_form().cloned();
     let split = section
         .as_ref()
         .ok()
-        .and_then(|s| LoopSplit::plane_torus(s, (c, a, big_r), n));
+        .and_then(|s| LoopSplit::plane_torus(s, (c, a.get(), big_r), n.get()));
     let two = |loops| match split {
         Some(split) => Ok(Some(SectionLoops::Two { loops, split })),
         None => Err(carried()),
@@ -4382,27 +4378,25 @@ fn pt_germ_frame<T: Decide>(
         ) => Err(FrameError::Desync(
             "germ pair's plane×torus section is not a locus",
         )),
-        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => {
-            let axis = geom::Line { origin: c, dir: a };
-            match super::section_cert::torus_plane_loops((axis, big_r, r), (q, n), band) {
-                Ok(Some(loops)) => Err(FrameError::Spiric { loops, section: e }),
-                Ok(None) => Err(FrameError::section(crate::invalid_margin::invalid(
-                    band,
-                    PT_TOUCHING_UNDER_A_GERM,
-                ))),
-                Err(diag) => Err(FrameError::section(diag)),
-            }
-        }
+        Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => Err(FrameError::Desync(
+            "a tilted plane×torus pose, the section value's, reached the closed form's frame",
+        )),
         Err(e) => Err(section_refusal(e)),
     }
 }
 
-/// [`pt_germ_frame`]'s escalation where the table, levered at the torus
-/// face's reach, routes a pose to its general rung and the section
-/// certificate's unlevered margins read it touching or empty: two
-/// readings of one pose straddling the band
-/// ([`crate::invalid_margin::invalid`]).
-const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
+/// [`pt_germ_frame`] on the pose of `sa` against `sb`, decided as the
+/// section value decides it ([`face_pair_section_loops`]).
+pub(super) fn plane_torus_frame<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    band: Band,
+) -> Result<Option<SectionLoops<T>>, FrameError> {
+    match geom_brep::PlaneTorusPose::decide(sa, sb, band) {
+        Some(pose) => pt_germ_frame(&pose.map_err(|r| section_refusal(r.into()))?),
+        None => Err(FrameError::Desync("not a plane and a torus")),
+    }
+}
 
 #[cfg(test)]
 pub(super) fn germs_face_each_other<T: Decide>(
@@ -4777,18 +4771,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             crate::ring_path::Carrier::of(surface()),
         ) {
             (Some(normal), _) => RingFace::Plane(normal.vec()),
-            (
-                None,
-                Some(
-                    crate::ring_path::Carrier::Quadric(
-                        crate::ring_path::Quadric::Cylinder { .. }
-                        | crate::ring_path::Quadric::Sphere { .. }
-                        | crate::ring_path::Quadric::Torus { .. },
-                    )
-                    | crate::ring_path::Carrier::Wall(_),
-                ),
-            ) => RingFace::Carried,
-            _ => {
+            (None, Some(_)) => RingFace::Carried,
+            (None, None) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -4876,8 +4860,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
-    /// A ring of the cylinder, sphere, torus or spline `face` a carried
-    /// chord closes.
+    /// A ring of the cylinder, sphere, cone, torus or spline `face` a
+    /// carried chord closes.
     CarriedRing { face: FaceKey },
 }
 
@@ -4985,7 +4969,7 @@ fn ring_order<T: Decide>(
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve, and
-/// a carried chord's cylinder, sphere, torus or spline face
+/// a carried chord's cylinder, sphere, cone, torus or spline face
 /// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
@@ -5070,15 +5054,13 @@ fn run_spline_edge<T: Decide>(
             .get_half_edge(he)
             .ok_or(desync("ring-run half no longer resolves"))?
             .edge;
-        let curve = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .ok_or(desync("a ring-run edge carries no curve"))?;
+        let view = body
+            .edge(edge)
+            .ok_or(desync("a ring-run half's edge no longer resolves"))?;
         // A null edge is scaffolding, wound as its chord.
-        let spline = match curve {
-            crate::null::CurveGeom::Certified(c) => matches!(c.carrier(), geom::Curve3::Nurbs(_)),
-            crate::null::CurveGeom::NullScaffold(_) => false,
-        };
+        let spline = view
+            .certified()
+            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Nurbs(_)));
         if spline {
             return body
                 .split_root(edge, |_| false)
@@ -5190,7 +5172,7 @@ fn slit_tip_on<T: crate::props::AtRestPolicy>(
                 .into_iter()
                 .chain(paired)
                 .find_map(|(operand, w)| {
-                    red.slit_tips[usize::from(operand == Operand::B)]
+                    red.slit_tips[operand.index()]
                         .face_at(w)
                         .map(|face| (operand, face))
                 })
@@ -5651,14 +5633,10 @@ fn seam_germ_side<T: Decide>(
                 let m = body
                     .get_half_edge(mate)
                     .ok_or(desync("section mate no longer resolves"))?;
-                let edge = body
-                    .get_edge(m.edge)
-                    .ok_or(desync("section mate's edge no longer resolves"))?;
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .ok_or(desync("section mate's edge carries no curve"))?
-                    .certified();
-                Ok((edge.he_plus, curve))
+                let edge =
+                    body.linked_edge(m.edge, crate::entity::EntityId::HalfEdge(mate), "edge");
+                let curve = edge.certified();
+                Ok((edge.record().he_plus, curve))
             })();
             let (he_plus, curve) = match resolved {
                 Ok(read) => read,
@@ -6054,7 +6032,17 @@ mod holding_rows {
         );
         let band = Band::new(1e-9, 1e-8).unwrap();
         let half = 0.5 * (band.zero() + band.escalate());
-        let (body, _, _) = half_disc_cap(0.0, tol);
+        // The lamina's back face, left pending by the fixture, described
+        // as a spline patch through the cap's plane: a face whose trim
+        // the door does not read.
+        let (mut body, _, _) = half_disc_cap(0.0, tol);
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ),
+        );
         let held = holding_face_normal((&body, Operand::A), Point3::new(0.0, 0.5, half), band);
         assert!(
             matches!(&held, Ok(Err(why @ HoldingUnread::Trim))
@@ -6332,7 +6320,7 @@ mod travel_rows {
                 turn: Turn::facing(
                     geom::Line {
                         origin: Point3::origin(),
-                        dir: Vec3::unit_z(),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     (germ, Vec3::unit_x()),
                     (site, tangent),
@@ -6391,39 +6379,154 @@ mod travel_rows {
             "circle"
         );
     }
+    /// [`germ_arm`] of the germ at `t = −π/4` turning clockwise and a
+    /// partner `bands` bands of arc past its antipode, on lane `T`.
+    fn half_turn_arm_on<T: geom_core::Decide>(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+        half_turn_arm_in::<T>(k, bands * band().zero(), band())
+    }
+
+    /// [`germ_arm`] in `band` of the germ at `t = −π/4` turning
+    /// clockwise and a partner `arc` metres past its antipode.
+    fn half_turn_arm_in<T: geom_core::Decide>(
+        k: f64,
+        arc: f64,
+        band: Band,
+    ) -> Result<GermArm, BooleanError> {
+        let (germ, dir) = at(k, -FRAC_PI_4);
+        let speed = (k * k * 0.5 + 0.5).sqrt();
+        let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI + arc / speed);
+        let turn = Turn::<T>::facing(
+            geom::Line {
+                origin: Point3::origin(),
+                dir: geom_core::UnitVec3::exact_z(),
+            },
+            (germ.map(T::from_f64), (dir * -1.0).map(T::from_f64)),
+            (site.map(T::from_f64), tangent.map(T::from_f64)),
+            band,
+        )
+        .unwrap();
+        assert!(turn.is_some(), "the germ and its partner face");
+        germ_arm(turn, band)
+    }
+
+    /// [`half_turn_arm_on`] at `f64`.
+    fn half_turn_arm(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+        half_turn_arm_on::<f64>(k, bands)
+    }
+
     /// **A partner at the germ's half-turn reads `Ahead` only where the
     /// slack is within the band.** The germ at `t = −π/4` turning
     /// clockwise, its partner at the antipode: the margin is zero, a tie,
     /// which stands on a circle (`cot ψ` 0) and escalates at `k = 10`,
-    /// where `cot ψ` is 4.95 there.
+    /// where `cot ψ` is 4.95 there and the slack, 9.9 bands, leaves the
+    /// tie's own row in band.
     #[test]
     fn a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band() {
-        let arm = |k: f64| {
-            let (germ, dir) = at(k, -FRAC_PI_4);
-            let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
-            let turn = Turn::facing(
-                geom::Line {
-                    origin: Point3::origin(),
-                    dir: Vec3::unit_z(),
-                },
-                (germ, dir * -1.0),
-                (site, tangent),
-                band(),
-            )
-            .unwrap();
-            assert!(turn.is_some(), "the germ and its partner face");
-            germ_arm(turn, band())
-        };
+        let arm = |k: f64| half_turn_arm(k, 0.0);
         assert!(matches!(arm(1.0), Ok(GermArm::Ahead)), "circle");
         assert!(
             matches!(
                 arm(10.0),
                 Err(BooleanError::Escalated { ref diag, .. })
-                    if matches!(diag.predicate, Some("bool_join_arc_slack" | "bool_join_arc_clear"))
+                    if diag.predicate == Some("bool_join_arc_ahead")
             ),
             "k = 10: {:?}",
             arm(10.0).err()
         );
+    }
+
+    /// **A tie the sites' slack hides offers a tolerance only where
+    /// one decides it.** The slack is the band's own zero times
+    /// `2·cot ψ`, so it shrinks with the tolerance and the bracket
+    /// about the reading shrinks with it:
+    ///
+    /// - at aspect 10 (`cot ψ` 4.95) a partner at the half-turn reads
+    ///   zero, and the slack is all there is: the bracket holds zero,
+    ///   the refusal states the far reading and offers no tolerance;
+    /// - at aspect `0.4 + √1.16` (`cot ψ` 0.4) a partner `3e-9 m` past
+    ///   the half-turn reads `3.8e-9` across its slack in a band of
+    ///   `1e-9`: the refusal offers the tolerance its floor, `2.2e-9`,
+    ///   decides at, and the same pair read in that band is ordered.
+    #[test]
+    fn a_tie_across_the_slack_offers_only_a_tolerance_that_orders_the_pair() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let refused = |k: f64, arc: f64| match half_turn_arm_in::<f64>(k, arc, band) {
+            Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_arc_ahead") =>
+            {
+                diag
+            }
+            other => panic!("k = {k}, {arc:e} m: {:?}", other.err()),
+        };
+        assert!(
+            !refused(10.0, 0.0).offers_tolerance(),
+            "a reading that is all slack: {}",
+            refused(10.0, 0.0)
+        );
+        assert!(
+            matches!(
+                refused(10.0, 0.0).margin.diagnostic_f64_for_error_text(),
+                geom_core::ErrorTextReading::Value(far) if (far - 9.9e-9).abs() < 1e-12
+            ),
+            "its sentence states the far reading, the slack: {}",
+            refused(10.0, 0.0)
+        );
+        let k = 0.4 + 1.16_f64.sqrt();
+        let offered = refused(k, 3e-9)
+            .offered_band()
+            .expect("a floor with a size");
+        assert!(
+            (offered.zero() - 2.2e-10).abs() < 1e-12,
+            "the floor's size over K: {:e}",
+            offered.zero()
+        );
+        assert!(
+            half_turn_arm_in::<f64>(k, 3e-9, offered).is_ok(),
+            "read in the offered band: {:?}",
+            half_turn_arm_in::<f64>(k, 3e-9, offered).err()
+        );
+    }
+
+    /// **A reading and a slack each within the band do not tie
+    /// together.** At aspect `0.4 + √1.16` the germ's `cot ψ` is `0.4`,
+    /// so the sites' slack is `0.8` of the band's zero; a partner `0.8`
+    /// bands of arc past the half-turn reads as far. Either alone is a
+    /// tie, and the two sum to `1.6` bands, which is no tie: the row
+    /// escalates under the reading's own name, on both lanes.
+    #[test]
+    fn a_reading_and_a_slack_each_within_the_band_do_not_tie_together() {
+        let k = 0.4 + 1.16_f64.sqrt();
+        assert!(
+            matches!(half_turn_arm(k, 0.0), Ok(GermArm::Ahead)),
+            "the slack alone: {:?}",
+            half_turn_arm(k, 0.0).err()
+        );
+        assert!(
+            matches!(half_turn_arm(1.0, 0.8), Ok(GermArm::Ahead)),
+            "the reading alone: {:?}",
+            half_turn_arm(1.0, 0.8).err()
+        );
+        // The slack is two sites' stand-off, not one's: `0.4` bands of
+        // arc beside it are `1.2` together.
+        for bands in [0.8, -0.8, 0.4] {
+            for (lane, arm) in [
+                ("f64", half_turn_arm(k, bands)),
+                (
+                    "Interval",
+                    half_turn_arm_on::<geom_core::Interval>(k, bands),
+                ),
+            ] {
+                assert!(
+                    matches!(
+                        arm,
+                        Err(BooleanError::Escalated { ref diag, .. })
+                            if diag.predicate == Some("bool_join_arc_ahead")
+                    ),
+                    "{lane}, {bands} bands past the half-turn: {:?}",
+                    arm.err()
+                );
+            }
+        }
     }
 }
 
@@ -6477,7 +6580,7 @@ mod self_check_rows {
         let err = super::germs_face_each_other(
             Some(&super::SectionLoops::conic(geom::Line {
                 origin: o,
-                dir: z,
+                dir: geom::stated_direction(z),
             })),
             &germ(Vec3::new(1.0, w, 0.0)),
             &germ(Vec3::new(0.0, 1.0, 0.0)),
@@ -6689,7 +6792,10 @@ mod self_check_rows {
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, pair_section_frame, section_unbuilt};
+    use super::{
+        FrameError, FrameExtent, one_loop, pair_section_frame, pair_section_frame_at,
+        section_unbuilt,
+    };
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
@@ -6885,6 +6991,73 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// **A served cone pair the value reads elsewhere refuses its frame
+    /// typed**: a sphere on a cone's axis (the coaxial circles) and two
+    /// cones of one aperture on parallel axes (the plane conic, read over
+    /// the two faces' region) are served by kind, and the table holds no
+    /// section for them, so a germ asks their frame; it answers `NoArm`,
+    /// as a coaxial cone × torus does, and never a desync. The same sphere
+    /// off the axis and a tilted cone, which the table holds, desync: the
+    /// guards read the pose, not the kind. Red if either `Elsewhere` pose
+    /// desyncs, or a guard swallows a held pose.
+    #[test]
+    fn a_cone_pair_read_elsewhere_refuses_its_frame_typed() {
+        let cone = |apex: Point3<f64>| geom::Surface::Cone {
+            frame: geom::Frame::new(apex, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            half_angle: core::f64::consts::FRAC_PI_6,
+        };
+        let ball = |centre: Point3<f64>| geom::Surface::Sphere {
+            frame: geom::Frame::new(centre, Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            radius: 0.5,
+        };
+        let k = cone(Point3::new(0.0, 0.0, 0.0));
+        let region = FrameExtent::Region(geom_brep::ExtentBall::of_box(
+            Point3::new(-3.0, -3.0, -3.0),
+            Point3::new(3.0, 3.0, 3.0),
+        ));
+        let frame = |a: &geom::Surface<f64>, b: &geom::Surface<f64>, extent: FrameExtent<f64>| {
+            one_loop(pair_section_frame_at(a, b, extent, band()))
+        };
+        let parallel = cone(Point3::new(1.0, 0.0, 0.0));
+        let on_axis = ball(Point3::new(0.0, 0.0, 2.0));
+        for (what, other, extent) in [
+            ("a sphere on the cone's axis", &on_axis, FrameExtent::Radii),
+            (
+                "a cone of one aperture on a parallel axis",
+                &parallel,
+                region.clone(),
+            ),
+        ] {
+            for (a, b) in [(&k, other), (other, &k)] {
+                assert!(
+                    matches!(frame(a, b, extent.clone()), Err(FrameError::NoArm)),
+                    "{what}: refused typed"
+                );
+            }
+        }
+        let tilted = geom::Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(2.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 1.0).normalize(),
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            half_angle: 0.3,
+        };
+        for (what, other, extent) in [
+            (
+                "a sphere off the axis",
+                ball(Point3::new(0.8, 0.0, 2.0)),
+                FrameExtent::Radii,
+            ),
+            ("a tilted cone", tilted, region.clone()),
+        ] {
+            assert!(
+                matches!(frame(&k, &other, extent), Err(FrameError::Desync(_))),
+                "{what} is held by the table, so a frame ask is a desync"
+            );
+        }
+    }
+
     /// **The nodes are a property of the whole intersecting
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
@@ -6931,11 +7104,8 @@ mod frame_dispatch_tests {
                     let geom::Curve3::Ellipse(conic_k) = *e else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
-                    let (center, axis, u_ref) = (
-                        conic_k.frame().origin(),
-                        conic_k.frame().axis(),
-                        conic_k.frame().u_ref(),
-                    );
+                    let (center, axis, u_ref) =
+                        (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:
@@ -7000,7 +7170,10 @@ mod rulings_lane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -7363,7 +7536,7 @@ mod first_pair_rows {
 
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let germ = (Point3::new(1.0, 0.0, 0.0), Vec3::unit_y());
         let turn = |t: f64| {
@@ -7525,7 +7698,7 @@ mod first_pair_rows {
     ) -> Result<Vec<(usize, usize)>, BooleanError> {
         let frame = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         let site = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
         let dir = |(t, ccw): (f64, bool)| {
@@ -7853,7 +8026,7 @@ mod face_surface_tests {
         let reads: Vec<usize> = [
             "get_surface(",
             ".face_surface(",
-            ".surface()",
+            ".expect_described()",
             "carrier_surface(",
         ]
         .iter()
@@ -7929,7 +8102,7 @@ mod foot_rows {
     use super::{
         Along, BooleanError, FootSpeed, PartnerDistance, along_sign, germ_arm, nearest_of,
     };
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -7938,7 +8111,7 @@ mod foot_rows {
     /// A partner `travel` along the line `x` from the germ at the origin,
     /// its site `off` across it.
     fn partner(travel: f64, off: f64) -> PartnerDistance<f64> {
-        let line = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
+        let line = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let speed = FootSpeed::of(&line, (-10.0, 10.0), band()).unwrap();
         let site = Point3::new(travel, off, 0.0);
         PartnerDistance {

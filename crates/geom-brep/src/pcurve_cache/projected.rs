@@ -183,6 +183,7 @@
 //! line's are closed forms of their coefficients and certify at every
 //! `Decide` scalar.
 
+use geom_core::UnitVec3;
 use std::sync::Arc;
 
 use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve2, NurbsCurve3, Quarter, Surface};
@@ -1762,7 +1763,7 @@ pub(crate) fn project_ending<T: Decide>(
             let (t0, t1) = span.unwrap_or_else(|| super::own_interval(carrier));
             FramedCarrier::Line {
                 point: to_frame(point - origin, &e),
-                dir: to_frame(dir, &e),
+                dir: to_frame(dir.get(), &e),
                 origin: t0,
                 span: t1 - t0,
             }
@@ -3347,7 +3348,10 @@ pub(super) fn projected_envelope<T: Decide>(
                 conic,
                 geom::Line {
                     origin: o,
-                    dir: e[2],
+                    // `e[2]`, the twin's frame axis, as the witness it is.
+                    dir: twin
+                        .frame()
+                        .map_or_else(|| UnitVec3::squared(e[2]), |f| f.axis_unit()),
                 },
             ));
             let rho_floor = (rho_twin - d).max(T::zero());
@@ -3387,7 +3391,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 ));
             };
             let (rho_lo, _, _) = met_floors(image, &met, (t0, t1), band)?;
-            let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
+            let (p, l) = (to_frame(at0 - o, &e), to_frame(along.get(), &e));
             // The stored line's gap from the re-derived one is affine in
             // `t`, so its sup over the edge is at an end.
             let gap = |t: T| (point - p + (dir - l) * t).norm();
@@ -3441,7 +3445,7 @@ pub(super) fn projected_envelope<T: Decide>(
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed)?,
+        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed),
     };
     // Consecutive branch centres on one branch: each piece holds its
     // sector at the break it shares with the next, so their centres are
@@ -3655,9 +3659,6 @@ pub(super) fn run_projected_checks<T: Decide>(
         why,
     };
     // ---- Check 1: the lane and the stored structure. ----
-    if surface.is_placeholder_chart() {
-        return Err(PcurveCertifyError::PlaceholderChart);
-    }
     if !crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
@@ -3758,7 +3759,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         // torus's tube), bounded where it varies over the box (the
         // sphere's, torus's and cone's azimuth: `azimuth_lever_inf` to
         // the sup arm).
-        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
+        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed);
         let swept = image.sweep_box(t0, t1);
         let one_turn = Period::angle();
         let azimuth = Extent::between(swept.u_min, swept.u_max);

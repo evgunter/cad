@@ -59,8 +59,8 @@
 //! from outside this crate, or hands the bit to a `geom_brep` door
 //! that mints one from gradients of its own. What holds that in place
 //! mechanically is two rows in this file's tests, each naming what it
-//! cannot see: `the_planar_sense_flip_lives_in_one_place` (no other
-//! `topo/src` file re-forks the planar fold) and
+//! cannot see: `the_planar_sense_flip_lives_in_one_place` (no function
+//! in another `topo/src` file re-forks the planar fold) and
 //! `no_source_file_folds_the_bit_by_hand` (no `crates/*/src` file
 //! negates a value under the bit by hand, the sanctioned scalar
 //! negations named).
@@ -127,8 +127,8 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// supports); the module docs list the in-crate callers.
 ///
 /// `None` for a non-planar face (the caller falls through to its own
-/// curved arms, or has none), and for a face key that no longer
-/// resolves.
+/// curved arms, or has none), for a face with no surface yet, and for a
+/// face key that no longer resolves.
 ///
 /// # Panics
 ///
@@ -136,7 +136,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
             Some(plane_outward_normal(f.record(), normal))
@@ -152,8 +152,9 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// a material side off the sign (`side_code`, a containment ray's
 /// `d·n̂`) are why the fold is here.
 ///
-/// `None` for a face that is not a plane, and for a `face` key that
-/// does not resolve: a public door hands this its own caller's key.
+/// `None` for a face that is not a plane, for a face with no surface
+/// yet, and for a `face` key that does not resolve: a public door hands
+/// this its own caller's key.
 ///
 /// # Panics
 ///
@@ -161,7 +162,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// surface is not a non-planar one.
 pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some(plane_desc_of(f.record(), origin, normal))
@@ -194,8 +195,9 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// material side whatever the kind.
 ///
 /// `None` for a carrier with no closed description here (a spindle, a
-/// NURBS patch, a fitted stand-in), and for a `face` key that does not
-/// resolve: a public door hands this its own caller's key.
+/// NURBS patch, a fitted stand-in), for a face with no surface yet, and
+/// for a `face` key that does not resolve: a public door hands this its
+/// own caller's key.
 ///
 /// # Panics
 ///
@@ -203,7 +205,7 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
-    carrier_desc_on(f.record(), f.surface())
+    carrier_desc_on(f.record(), f.surface().ok()?)
 }
 
 /// [`face_carrier_desc`] of a face read from another operand's frame
@@ -216,7 +218,7 @@ pub fn seated_carrier_desc<T: Decide>(
     face: FaceKey,
 ) -> Option<CarrierDesc<T>> {
     let f = seat.body().face(face)?;
-    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+    carrier_desc_on(f.record(), &seat.surface(f.surface().ok()?)?)
 }
 
 /// The description of a face whose record is `record` on `surface`.
@@ -243,7 +245,7 @@ fn carrier_desc_on<T: Decide>(
         }),
         geom::Surface::Cylinder { frame, radius, .. } => Some(CarrierDesc::Cylinder {
             origin: frame.origin(),
-            axis: frame.axis(),
+            axis: frame.axis_unit(),
             radius: *radius,
             outward,
         }),
@@ -253,7 +255,7 @@ fn carrier_desc_on<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Torus {
                 center,
                 axis,
@@ -265,7 +267,7 @@ fn carrier_desc_on<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Cone {
                 apex,
                 axis,
@@ -470,7 +472,7 @@ pub(crate) enum SplineNormalError {
     /// The face's carrier is not a spline chart: the point door
     /// ([`face_outward_normal_at`]) answers for it.
     NotSpline,
-    /// The face's chart is the placeholder, which has no locus.
+    /// The face's surface is still pending: it has no locus.
     PlaceholderChart,
     /// The chart point read no normal ([`NormalAtError`]).
     At(NormalAtError),
@@ -565,8 +567,8 @@ fn ring_half(
 ///
 /// [`NormalAtError`] — an in-band margin, a torus outside the ring
 /// convention, a point definitely off the surface, or a cone's apex. A
-/// face key that
-/// no longer resolves is `Ok(None)`.
+/// face key that no longer resolves, a spline face and a face with no
+/// surface yet are `Ok(None)`.
 ///
 /// # Panics
 ///
@@ -580,7 +582,11 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     let Some(f) = body.face(face) else {
         return Ok(None);
     };
-    let surface = f.surface();
+    // A pending face has no arm at a point, as a spline chart has none:
+    // a caller whose refusal names the cause reads the slot apart.
+    let Ok(surface) = f.surface() else {
+        return Ok(None);
+    };
     match surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -628,7 +634,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
@@ -708,14 +714,16 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = f.surface();
+    let surface = f
+        .surface()
+        .map_err(|crate::Pending| FootNormalError::Pending)?;
     match *surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
         geom::Surface::Cylinder { frame, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { frame, .. } => {
@@ -723,7 +731,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             clear(Margin::norm3(p - center))?
         }
         geom::Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             cone_axis_clearance(
                 geom::Line {
                     origin: apex,
@@ -733,14 +741,14 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
                 band,
             )
             .map_err(|_| FootNormalError::NoFoot { band })?;
-            clear(Margin::of((p - apex).dot(axis)))?;
+            clear(Margin::of((p - apex).dot(axis.get())))?;
         }
         geom::Surface::Torus {
             frame,
             major_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let radial = geom::Line {
                 origin: center,
                 dir: axis,
@@ -772,6 +780,8 @@ pub(crate) enum FootNormalError {
     },
     /// The carrier is one this door reads no foot on.
     Unread,
+    /// The face has no surface yet ([`crate::SurfaceMiss::Pending`]).
+    Pending,
 }
 
 /// A spline face's OUTWARD normal **at the chart point `uv` a point
@@ -817,11 +827,10 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
     let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = f.surface();
+    let surface = f
+        .surface()
+        .map_err(|_| SplineNormalError::PlaceholderChart)?;
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
-    if surface.is_placeholder_chart() {
-        return Err(SplineNormalError::PlaceholderChart);
-    }
     let uv = (T::from_computed(u), T::from_computed(v));
     let net = geom::cover::Cover::net(chart.control().to_vec());
     let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();
@@ -1379,10 +1388,13 @@ mod tests {
 
     /// **The anti-re-fork row for the planar sense flip.** The plane
     /// arm of this walk goes through [`crate::face_normal`], the one
-    /// door, and no file under `topo/src` other than that one may both
+    /// door, and no function under `topo/src` outside that file may both
     /// destructure a plane surface pattern for its normal and mint an
     /// [`OutwardNormal`] from a chart — which is what a second flip
-    /// looks like textually. The row reads each file's CODE view
+    /// looks like textually. The unit is the function, not the file: a
+    /// file that folds a general gradient through the door in one
+    /// function and matches a plane in another holds one flip, not two.
+    /// The row reads each file's CODE view
     /// (comments and literals blanked), so it sees mints and not
     /// mentions: a doc comment may name the constructor, which is what
     /// the door's design asks of its callers. (The pattern is spelled
@@ -1408,6 +1420,10 @@ mod tests {
     /// 5. **A mint inside a `macro_rules!` body or assembled from a
     ///    string literal.** The code view blanks literals and does not
     ///    expand macros.
+    /// 6. **A plane matched in one function and minted in a helper it
+    ///    calls.** Neither function holds both halves.
+    /// 7. **A plane match and mint outside any `fn`** — a `static` or
+    ///    `const` initializer, which no `fn` item holds.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
         let home = crate::source_walk::src_root().join("face_normal.rs");
@@ -1422,13 +1438,18 @@ mod tests {
             }
             let text = std::fs::read_to_string(path).expect("a readable source file");
             let code = test_utils::source::code_only(&text);
-            assert!(
-                !(code.contains("Surface::Plane {") && code.contains("from_chart")),
-                "{} mints an OutwardNormal from a plane's chart normal — the planar \
-                 sense flip has been re-forked out of face_normal.rs, which must hold \
-                 the only one. Call `face_outward_normal` instead.",
-                path.display()
-            );
+            let fns = test_utils::source::fn_items(&code)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            for (name, body) in fns {
+                let body = &code[body];
+                assert!(
+                    !(body.contains("Surface::Plane {") && body.contains("from_chart")),
+                    "{} `fn {name}` mints an OutwardNormal from a plane's chart normal — \
+                     the planar sense flip has been re-forked out of face_normal.rs, which \
+                     must hold the only one. Call `face_outward_normal` instead.",
+                    path.display()
+                );
+            }
         }
         let here = test_utils::source::code_only(
             &std::fs::read_to_string(&home).expect("the home module is readable"),
@@ -1497,12 +1518,16 @@ mod tests {
     /// signed scalar, which is textually the same shape — each named
     /// with what it negates, so a new hit is either a vector fold that
     /// belongs at a door or a scalar that is added here in the open
-    /// with its reason. The vector class's expected count is zero.
+    /// with its reason. Each entry admits one fold of its key, so a
+    /// second fold of a sanctioned name reds; an entry whose fold has
+    /// gone is not a red: the claim is that no fold stands unnamed.
     ///
     /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`),
-    /// and this file's test module, whose rows spell the expected flip by
-    /// hand on purpose. This file's doors are read like any other file's,
-    /// so a fold in one of them is a hit.
+    /// and every `#[cfg(test)]` or `#[cfg(any(test, …))]` item (a
+    /// `test-support` feature beside `test`), whose rows and helpers spell a flip
+    /// by hand on purpose and reach no material verdict a user sees.
+    /// This file's doors are read like any other file's, so a fold in
+    /// one of them is a hit.
     ///
     /// **What it cannot match**: a bit renamed at a boundary before it
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
@@ -1511,7 +1536,9 @@ mod tests {
     /// arm whose expression contains a `;` or a brace; a side compared
     /// with `interior_is_left` and not folded under an `if`; a fold in
     /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
-    /// walk does not enter; a macro body. The walk is over the source
+    /// walk does not enter; a fold in a test module mounted from its own
+    /// file (`#[cfg(test)] mod rows;`), which is read as production; a
+    /// macro body. The walk is over the source
     /// tree at test time, so a crate outside `crates/` is not seen.
     #[test]
     fn no_source_file_folds_the_bit_by_hand() {
@@ -1523,7 +1550,7 @@ mod tests {
         // sphere's radial flux term `R·Area` and a closed surface's
         // whole flux, a witness's implicit residual read as its height
         // above the face, an offset distance into the material.
-        let mut sanctioned: Vec<(String, String)> = [
+        let sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
             // encloses, for a face whose chart image is empty.
@@ -1539,7 +1566,6 @@ mod tests {
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
-        sanctioned.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -1559,11 +1585,11 @@ mod tests {
                 walked += 1;
                 let text = std::fs::read_to_string(&path).expect("a readable source file");
                 let mut code = test_utils::source::code_only(&text);
-                if rel == "crates/topo/src/face_normal.rs" {
-                    let tests = code
-                        .find("mod tests {")
-                        .expect("face_normal.rs has its test module");
-                    code.truncate(tests);
+                // Blanked in place: the extents nest, so their offsets
+                // must survive one another.
+                for extent in test_utils::source::cfg_test_extents(&code) {
+                    let blank = " ".repeat(extent.len());
+                    code.replace_range(extent, &blank);
                 }
                 for negated in hand_folds_of_sense(&code) {
                     hits.push((rel.clone(), negated));
@@ -1574,12 +1600,26 @@ mod tests {
             walked > 100,
             "the walk saw {walked} files — it is not reading crates/*/src"
         );
-        hits.sort();
-        assert_eq!(
-            hits, sanctioned,
-            "the hand folds under a face's sense bit are not the sanctioned scalars. \
-             A NORMAL folds through `OutwardNormal::from_chart` or a `face_normal` door, \
-             and a genuinely signed scalar joins the list with what it negates."
+        // Each entry is a ceiling on its key's count: a second fold of a
+        // sanctioned scalar in the same file is a new fold, and reds.
+        let tally = |rows: &[(String, String)]| {
+            let mut out = std::collections::BTreeMap::new();
+            for row in rows {
+                *out.entry(row.clone()).or_insert(0usize) += 1;
+            }
+            out
+        };
+        let admitted = tally(&sanctioned);
+        let unnamed: Vec<_> = tally(&hits)
+            .into_iter()
+            .filter(|(key, n)| *n > admitted.get(key).copied().unwrap_or(0))
+            .collect();
+        assert!(
+            unnamed.is_empty(),
+            "hand folds under a face's sense bit that are not sanctioned scalars: \
+             {unnamed:#?}\nA NORMAL folds through `OutwardNormal::from_chart` or a \
+             `face_normal` door, and a genuinely signed scalar joins the list with what \
+             it negates."
         );
     }
 
@@ -1924,9 +1964,9 @@ mod tests {
 
     /// **The spline door names each face it has no chart point to read
     /// on**: a key that no longer resolves, a carrier that is not a spline
-    /// chart, a placeholder chart.
+    /// chart, a face with no surface yet.
     #[test]
-    fn the_spline_door_names_a_stale_a_non_spline_and_a_placeholder_face() {
+    fn the_spline_door_names_a_stale_a_non_spline_and_a_pending_face() {
         use super::SplineNormalError;
         let p = Point3::new(0.0, 0.0, 1.0);
         let read = |body: &crate::body::Body<f64>, face| {
@@ -1939,10 +1979,8 @@ mod tests {
             read(&plane, face),
             Err(SplineNormalError::NotSpline)
         ));
-        let (placeholder, face) = face_on(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        )));
-        let got = read(&placeholder, face);
+        let st = crate::fixtures::mvfs_state();
+        let got = read(&st.body, st.face);
         assert!(
             matches!(got, Err(SplineNormalError::PlaceholderChart)),
             "{got:?}"

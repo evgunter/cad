@@ -117,6 +117,8 @@ pub(crate) enum SegTag {
     LoftSeam,
     LoftSectionEdge,
     LoftSectionVertex,
+    SubArc,
+    SubArcJoint,
     // Revolve
     Band,
     BandRim,
@@ -161,6 +163,8 @@ pub(crate) enum SegTag {
     Member,
     // Blend, appended
     HostFoot,
+    // Any op, appended
+    ConventionalVertex,
 }
 
 impl SegTag {
@@ -177,6 +181,8 @@ impl SegTag {
             Self::LoftSeam => s::SegTag::LoftSeam,
             Self::LoftSectionEdge => s::SegTag::LoftSectionEdge,
             Self::LoftSectionVertex => s::SegTag::LoftSectionVertex,
+            Self::SubArc => s::SegTag::SubArc,
+            Self::SubArcJoint => s::SegTag::SubArcJoint,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
             Self::Meridian => s::SegTag::Meridian,
@@ -214,6 +220,7 @@ impl SegTag {
             Self::Rim => s::SegTag::Rim,
             Self::HoleRim => s::SegTag::HoleRim,
             Self::Member => s::SegTag::Member,
+            Self::ConventionalVertex => s::SegTag::ConventionalVertex,
         }
     }
 }
@@ -783,7 +790,7 @@ pub(crate) fn select_refusal(
             };
             fill(&mut fields, "name", text(&name));
             fill(&mut fields, "predicate", text(predicate));
-            err.spoken(doc, evaluation)
+            err.spoken(doc, evaluation).to_string()
         }
         R::TiedDisagrees {
             name,
@@ -830,7 +837,7 @@ pub(crate) fn select_refusal(
                 Err(failed) => return failed,
             };
             fill(&mut fields, "name", text(&name));
-            err.spoken(doc, evaluation)
+            err.spoken(doc, evaluation).to_string()
         }
         R::NotAPlane { face } => {
             let face = match crate::py::doc::name_text(py, face) {
@@ -879,7 +886,7 @@ pub(crate) fn select_refusal(
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => other.spoken(doc, evaluation),
+        other => other.spoken(doc, evaluation).to_string(),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }
@@ -934,6 +941,8 @@ mod growth_tripwire {
             s::SegTag::LoftSeam => SegTag::LoftSeam,
             s::SegTag::LoftSectionEdge => SegTag::LoftSectionEdge,
             s::SegTag::LoftSectionVertex => SegTag::LoftSectionVertex,
+            s::SegTag::SubArc => SegTag::SubArc,
+            s::SegTag::SubArcJoint => SegTag::SubArcJoint,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
             s::SegTag::Meridian => SegTag::Meridian,
@@ -971,6 +980,7 @@ mod growth_tripwire {
             s::SegTag::Rim => SegTag::Rim,
             s::SegTag::HoleRim => SegTag::HoleRim,
             s::SegTag::Member => SegTag::Member,
+            s::SegTag::ConventionalVertex => SegTag::ConventionalVertex,
         }
     }
 

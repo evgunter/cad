@@ -212,14 +212,7 @@ pub(crate) fn traversals(
             .get_half_edge(half_edge)
             .ok_or(TessellateError::MissingEntity { what: "half-edge" })?
             .start;
-        let edge = body
-            .get_edge(ek)
-            .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .certified()
-            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+        let curve = edge_curve(body, ek)?;
         let mut ids = chords
             .get(&ek)
             .ok_or(TessellateError::MissingEntity {
@@ -666,17 +659,15 @@ fn iso_side_starts(
 /// curved lane refuses one that reaches it otherwise
 /// (`curved::PINCHED_FACE_ROUTED_HERE`).
 pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateError> {
-    topo::loop_points::loop_pinches(body, lk).map_err(|unresolved| TessellateError::MissingEntity {
-        what: match unresolved.entity() {
-            topo::EntityId::Solid(_) => "solid",
-            topo::EntityId::Shell(_) => "shell",
-            topo::EntityId::Face(_) => "face",
-            topo::EntityId::Loop(_) => "loop",
-            topo::EntityId::HalfEdge(_) => "half-edge",
-            topo::EntityId::Edge(_) => "edge",
-            topo::EntityId::Vertex(_) => "vertex",
-        },
-    })
+    match body.cycle_loop(lk) {
+        Ok(lp) => Ok(topo::loop_points::loop_pinches(lp)),
+        // A lone vertex has no corners, so passes no point twice.
+        Err(topo::NoCycle::Lone(_)) => Ok(false),
+        Err(topo::NoCycle::Stale) => Err(TessellateError::MissingEntity { what: "loop" }),
+        Err(topo::NoCycle::Torn) => Err(TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        }),
+    }
 }
 
 /// **Whether a straight side of face `fk`'s outer loop holds a point
@@ -728,13 +719,7 @@ pub(crate) fn splits_a_straight_side(
             .ok_or(TessellateError::MissingEntity {
                 what: "vertex position",
             })?;
-        let carrier = body
-            .get_edge(ek)
-            .and_then(|edge| body.get_curve_geom(edge.curve))
-            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
-            .certified()
-            .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?
-            .carrier();
+        let carrier = edge_curve(body, ek)?.carrier();
         walk.push((
             chart.v_of(*point),
             matches!(carrier, geom::Curve3::Line(..)),
@@ -1640,6 +1625,27 @@ pub(crate) fn loop_polygon(
     Ok(out)
 }
 
+/// **Edge `ek`'s certified curve, every miss typed**: the one mesh read
+/// of an edge's curve. [`crate::tessellate()`] takes a body it does not
+/// re-validate and refuses a dangling key typed, so the curve is read
+/// raw through [`Body::get_curve_geom`] rather than through
+/// [`topo::EdgeView`], whose curve link panics:
+/// [`TessellateError::MissingEntity`] for a stale edge (`"edge"`) or a
+/// curve key it names that does not resolve (`"edge curve"`), and
+/// [`TessellateError::NullScaffoldEdge`] for null scaffolding.
+pub(crate) fn edge_curve(
+    body: &Body<f64>,
+    ek: EdgeKey,
+) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
+    let edge = body
+        .get_edge(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
+    body.get_curve_geom(edge.curve)
+        .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
+        .certified()
+        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -2111,7 +2117,7 @@ mod tests {
                 .unwrap();
         let (fk, _) = body
             .faces()
-            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Ok(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         let rectangle = routes

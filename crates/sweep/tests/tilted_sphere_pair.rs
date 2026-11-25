@@ -373,7 +373,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
         for (k, _) in body.faces() {
             let on_b = matches!(
                 body.face_surface(k),
-                Some(geom::Surface::Sphere { frame, .. })
+                Ok(geom::Surface::Sphere { frame, .. })
                     if (frame.origin() - geom_core::Point3::new(b_centre.x, b_centre.y, b_centre.z)).norm() < 1e-12
             );
             if on_b_only && !on_b {
@@ -535,7 +535,8 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         if !matches!(surface, geom::Surface::Sphere { .. }) {
             continue;
         }
-        let (outer, _) = topo::props::loop_edges(&body, f.outer).expect("the loop");
+        let (outer, _) = topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+            .expect("the loop");
         if geom_brep::props::boundary_material_sign(surface, &outer, band)
             == Ok(geom_brep::props::MaterialSign::Unencoded)
         {

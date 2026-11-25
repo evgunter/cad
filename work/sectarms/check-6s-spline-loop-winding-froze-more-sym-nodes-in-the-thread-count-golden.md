@@ -51,3 +51,9 @@ Then the lines are re-cut as explained, their mention leaves `expected`'s
 pinned list, and GREEN's
 `the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained`
 loses this move.
+
+## The golden is gone; the question stands (CIW, 2026-11-23)
+
+PR 7501 deletes the thread-count golden that pinned `frozen` 16. This row's "Done when" — confirm which nodes freeze — was never measured, so the row stays open. Nothing pins these freeze counts now. The suite's serial comparison and its dispute-coverage guard (a floor on the share of contradiction checks that saw a whole form) are what remain.
+
+- 2026-11-23 — accounted by BOXFINISH's PR 7394 (a definite numeric sign asks the symbolic tier nothing): the two lines read `frozen` 14 and 12 again at every ε, and the +2/+4 were freezes of the contradiction check that walked every definite margin's forms at `Sym<f64>` (it ran in every build). Decisions, `sym` and `num` do not move. (BOXFINISH)

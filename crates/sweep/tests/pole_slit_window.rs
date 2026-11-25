@@ -78,7 +78,7 @@ fn slits<T: Decide + topo::AtRestPolicy>() -> Vec<Body<T>> {
 fn slits_of<T: Decide + topo::AtRestPolicy>(body: &Body<T>, struts: usize) -> Vec<Body<T>> {
     let on_sphere = |he| {
         body.face_of_half_edge(he)
-            .and_then(|face| body.face_surface(face))
+            .and_then(|face| body.face_surface(face).ok())
             .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
     };
     let meridians: Vec<_> = body
@@ -158,7 +158,7 @@ fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, topo::ChartWindow
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit
         .faces()
-        .filter(|(fk, _)| matches!(slit.face_surface(*fk), Some(geom::Surface::Sphere { .. })));
+        .filter(|(fk, _)| matches!(slit.face_surface(*fk), Ok(geom::Surface::Sphere { .. })));
     let (face, _) = spheres.next().expect("the slit sphere face");
     assert!(spheres.next().is_none(), "one sphere face after the kill");
     face_azimuth_window_traces(slit, face, band)

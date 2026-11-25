@@ -324,7 +324,7 @@ fn door_spec(
     wall: NurbsSurface<f64>,
     carrier: NurbsCurve3<f64>,
 ) -> (
-    impl Fn(SurfaceKey) -> Option<Surface<f64>>,
+    impl Fn(SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
     EdgeCurveSpec<f64>,
 ) {
     let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
@@ -333,7 +333,7 @@ fn door_spec(
     let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
     let witness = carrier.eval(0.5);
     (
-        move |k| arena.get(k).cloned(),
+        move |k| arena.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
@@ -582,7 +582,10 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
         let refused = |r: &CarrierDomainRefusal| {
             r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
         };
-        let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = Curve3::line(
+            Point3::new(1.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let mint_refuses = |name: &str, carrier: &Curve3<f64>| {
             let mint =
                 FittedLane::<f64>::certified().general_image(carrier, (lo, hi), &wall, band());

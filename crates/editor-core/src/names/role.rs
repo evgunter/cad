@@ -538,7 +538,11 @@ pub struct StableName {
 // that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Speaker::TAG.name(self).fmt(f)
+        write!(
+            f,
+            "{}",
+            crate::sentence!(crate::spoken::Speaker::TAG.name(self))
+        )
     }
 }
 
@@ -1253,6 +1257,20 @@ pub enum RoleSeg {
     /// A vertex of an interior section: the section's id, and the
     /// profile vertex it lies on there.
     LoftSectionVertex(SectionId, ProfileVertexRef),
+    /// **One sub-arc piece of a loft entity**, composed AFTER the
+    /// segment that names the whole (`[LoftWall(..), SubArc(q)]` a face,
+    /// `[RimEdge(..), SubArc(q)]` or `[LoftSectionEdge(..), SubArc(q)]`
+    /// an edge): piece `q`, counting from zero along the segment, of a
+    /// segment the loft cuts at its wall's sub-arc joints
+    /// (`crates/sweep/README.md`, "Walls"). A segment of one piece
+    /// carries none.
+    SubArc(u32),
+    /// **A sub-arc joint of a loft entity**, composed after the segment
+    /// that names the whole, as [`RoleSeg::SubArc`]: the joint between
+    /// pieces `q − 1` and `q`. After `LoftWall` it is the seam edge
+    /// between those two walls, after `RimEdge` the cap vertex, and
+    /// after `LoftSectionEdge` the interior section's vertex.
+    SubArcJoint(u32),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1278,7 +1296,8 @@ pub enum RoleSeg {
     /// **An entity an operation carries in from an input** (DM4; N1):
     /// `read` is the variable the input slot holds and `of` the
     /// entity's name in that variable's table. One segment serves a
-    /// union's and an intersect's members, a subtract's two seats and a
+    /// union's and an intersect's members, a subtract's body kept and
+    /// each of its tools, and a
     /// one-input operation's input (a shell's, a blend's); which seat a
     /// read sits in is the node's to say, never the name's.
     ///
@@ -1606,6 +1625,13 @@ pub enum RoleSeg {
         /// The source pair edge whose band ends at the foot.
         edge: NameRef,
     },
+
+    // ---- Any op (appended: a variant's index feeds a name's hash) ----
+    /// **A closed edge's conventional vertex** (`topo::is_conventional_vertex`),
+    /// named for that edge alone: the vertex has no identity of its own
+    /// (`names/README.md`, "A conventional vertex"), so its name cites
+    /// no member, position or fold step, and it resolves to the edge.
+    ConventionalVertex(NameRef),
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1730,7 +1756,8 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Member { .. } => None,
+        | RoleSeg::Member { .. }
+        | RoleSeg::ConventionalVertex(_) => None,
     }
 }
 
@@ -1739,7 +1766,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// below keeps its original minter. Which edge it is decides which of
 /// the input's names come through.
 #[derive(Debug)]
-pub(crate) enum VerbatimEdge<'a> {
+pub enum VerbatimEdge<'a> {
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
     /// is the geometry's answer, not the recipe's: a walk that holds a
@@ -1776,7 +1803,8 @@ impl VerbatimEdge<'_> {
     /// **The read whose names the edge carries**: the split's target,
     /// the mirror's body, the copy's source; `None` for an instance,
     /// whose names are its part's and are read in no body here.
-    pub(crate) fn carried_read(&self) -> Option<crate::VarId> {
+    #[must_use]
+    pub fn carried_read(&self) -> Option<crate::VarId> {
         match *self {
             Self::Intact { target } => Some(target),
             Self::Reflected { body, .. } => Some(body),
@@ -1809,7 +1837,8 @@ impl VerbatimEdge<'_> {
 /// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
-pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+#[must_use]
+pub fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
@@ -1823,6 +1852,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
             source: Some(source.read),
         }),
         Node::InstantiatePart { .. } => Some(VerbatimEdge::Copied { source: None }),
+        // A datum's frame has no cells to name.
+        Node::Datum { .. } => None,
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -1891,6 +1922,8 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
     };
 }
 
@@ -2339,6 +2372,7 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::ConventionalVertex(n) => R::ConventionalVertex(rewrite_ref(n, w)?),
             R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
             R::TrimEdge { edge, support } => R::TrimEdge {
                 edge: rewrite_ref(edge, w)?,
@@ -2589,6 +2623,17 @@ impl SegRewrite for Locators<'_> {
 }
 
 impl RoleSeg {
+    /// **The profile pieces this segment's own locators rest on**: the
+    /// run a swept wall, rim, meridian or axis edge is built over, the
+    /// piece that starts at a corner it sits at, the pieces a loft
+    /// pairs; none for a segment that carries no locator. The cited
+    /// names a segment carries (a `From`'s, a `Merged` set's) are not
+    /// this segment's locators, and are not walked.
+    #[must_use]
+    pub fn pieces(&self) -> Vec<ProfileEdgeRef> {
+        self.referents().iter().flat_map(Referent::pieces).collect()
+    }
+
     /// **What this segment's own profile locators denote** ([`Referent`]):
     /// a run-carrying segment its run, a vertex an extrude or a revolve
     /// builds only at a corner that corner, a loft's pairings their
@@ -2640,7 +2685,8 @@ impl RoleSeg {
             | R::Inner(_)
             | R::Rim(_)
             | R::HoleRim { .. }
-            | R::Member { .. } => Vec::new(),
+            | R::Member { .. }
+            | R::ConventionalVertex(_) => Vec::new(),
         }
     }
 }
@@ -2681,6 +2727,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
+            | $crate::names::RoleSeg::SubArc(_)
+            | $crate::names::RoleSeg::SubArcJoint(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::Meridian(..)

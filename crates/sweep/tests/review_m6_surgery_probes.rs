@@ -606,7 +606,7 @@ fn p6_reversed_pip_walls_carry_through() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
     let sphere_senses: Vec<(topo::FaceKey, bool)> = pipped
         .faces()
-        .filter(|(fk, _)| matches!(pipped.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(pipped.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.sense))
         .collect();
     assert_eq!(sphere_senses.len(), 1, "one cap face");

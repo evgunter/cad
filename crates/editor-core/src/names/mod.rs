@@ -50,7 +50,7 @@ mod successor;
 mod table;
 pub(crate) mod words;
 
-pub use attribute::{NameOrigin, attribute};
+pub use attribute::{CarriedAs, NameOrigin, SegOrigin, attribute, origin};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
 #[cfg(debug_assertions)]
@@ -60,7 +60,9 @@ pub use emit::{
     SeamVertexShape, UnionNameShape, WayShape,
 };
 pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
-pub(crate) use emit::{check_total, empty, name_family, narrow, to_u32};
+pub(crate) use emit::{
+    binds, empty, finish, finish_shared, name_family, narrow, resolves_as, to_u32,
+};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -89,7 +91,7 @@ pub use role::{
 };
 pub(crate) use role::{Carry, Referent, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
-pub(crate) use role::{VerbatimEdge, verbatim_edge};
+pub use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{
     NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, one_body, select, select_member,
@@ -172,7 +174,7 @@ fn all_of_kind<T: topo::AtRestPolicy + geom_core::Decide>(
     };
     let mut out: Vec<StableName> = table
         .iter()
-        .filter(|(name, _)| name.kind == kind)
+        .filter(|(name, _)| name.kind == kind && binds(name))
         .map(|(name, _)| name.clone())
         .collect();
     out.sort();

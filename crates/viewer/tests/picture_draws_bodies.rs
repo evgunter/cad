@@ -392,14 +392,16 @@ fn reads_by_index(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, k) = crate::fixture::index(doc, name, count);
     let space = crate::fixture::space(&doc, family);
-    crate::fixture::insert(
+    let (doc, reads) = crate::fixture::insert(
         doc,
         Node::place(
             pncad::document::BodyRead::indexed(family, vec![at(k)]),
             pncad::document::Operand::Var(space),
             pncad::document::stand().bundle(),
         ),
-    )
+    );
+    // The reads are their binder's yield (D10 `[repetition]`).
+    (crate::fixture::yielded(doc, reads), reads)
 }
 
 /// The members of `node` the picture draws, as the index holds them.
@@ -512,7 +514,7 @@ fn a_piece_two_unions_draw_stays_until_both_are_hidden() {
     let (doc, other) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
+            members: Bodies::spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
                 a_copy,
             ))]),
         },
@@ -557,7 +559,7 @@ fn the_products_body_is_drawn_whatever_reads_it() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(pncad::document::Operand::Node(a_copy)),
                 BodyRead::plain(pncad::document::Operand::Node(b_copy)),
             ]),
@@ -625,7 +627,7 @@ fn a_gesture_reads_a_copy_through_one_door() {
         "a pick on the row seats it"
     );
     assert_eq!(placed_whole(&doc, row), Some(w_out));
-    assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
+    assert_eq!(doc.placements_of_var(w_out), vec![row]);
 
     // A copy of member 1 of a family, placed into the world.
     let (doc, xs) = row_of(doc, body, "j", 3);
@@ -656,12 +658,15 @@ fn a_gesture_reads_a_copy_through_one_door() {
     );
     let body_out = doc.output(body, 0).expect("a body");
     assert_eq!(
-        world::placements_of_var(&doc, body_out),
+        doc.placements_of_var(body_out),
         vec![w, xs, inside],
         "the row and the copy into the body's own space are copies of the body"
     );
     assert_eq!(world::original_of(&doc, inside), body);
-    assert!(world::is_placed(&doc, body), "the body is badged placed");
+    assert!(
+        !doc.placements_of(body).is_empty(),
+        "the body is badged placed"
+    );
 }
 
 /// The body `copy` places whole, through its source; `None` for a copy

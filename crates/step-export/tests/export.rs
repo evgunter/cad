@@ -473,7 +473,7 @@ fn empty_body_refuses_typed() {
 }
 
 /// mvfs's skeletal body — one face bounded by an empty loop, its
-/// surface the "no description yet" placeholder — is legal only
+/// surface still pending — is legal only
 /// mid-construction, so the at-rest gate refuses it and the writer
 /// never sees it.
 #[test]
@@ -558,6 +558,12 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// Faces `ball` 2 → 1, `cone` 3 → 2, `die_pips` 48 → 27,
 /// `composed_die` 89 → 68, `lily_lantern` 6 → 4; every other fixture is
 /// byte for byte what it was.
+/// **Regenerated when the Rodrigues arm spelled its last term
+/// `k × (k × v)/(1 + c)`** (`least_turn_rodrigues`, so that a pair one
+/// direction turns by the identity through the arithmetic): the same 5
+/// lines in `swept_elbow`, each a 6.1e-17 component moved by an ulp or
+/// two. The arm's former spelling on the same head writes every fixture
+/// back byte for byte.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {
@@ -637,7 +643,7 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
     // (2) first: the chart cannot express any z but the plane's own.
     let tops: Vec<_> = body
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(k, s)| match s {
             geom::Surface::Plane { frame }
                 if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>

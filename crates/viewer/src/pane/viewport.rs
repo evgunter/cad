@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use eframe::egui;
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ProfileProgram};
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
@@ -64,7 +64,13 @@ fn push_loop(
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
-    match polyline.drawn_on(plane).as_slice() {
+    push_points(lane, &polyline.drawn_on(plane));
+}
+
+/// A world polyline appended to a lane: its legs, or its point when it
+/// has one ([`push_loop`]).
+fn push_points(lane: &mut marks::LegLane, points: &[pncad::geom_core::Point3<f64>]) {
+    match points {
         [point] => lane.point(*point),
         points => {
             for leg in points.windows(2) {
@@ -283,21 +289,40 @@ fn push_heading_mark(
 }
 
 /// **The committed profiles, placed and appended to a lane**: every
-/// loop [`sketch::committed`] draws, leaving out `edited` — the node
-/// the edit door is previewing in its place
-/// ([`crate::drafts::Drafts::edited_in_place`]). Answers how many
+/// loop [`sketch::committed`] draws as `display` shows it
+/// ([`DisplayView::outline`]: a hidden one left out, a moved one under
+/// its space's frame), leaving out the node the edit door is previewing
+/// in its place ([`DisplayView::previewed_node`]). Answers how many
 /// profiles could not be drawn.
 pub(crate) fn push_committed(
     lane: &mut marks::LegLane,
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     chord: f64,
-    edited: Option<RecipeNodeId>,
+    display: &DisplayView,
 ) -> usize {
-    let committed = sketch::committed(doc, evaluation, chord, edited);
+    let committed = sketch::committed(doc, evaluation, chord, display.previewed_node());
     for profile in &committed.drawn {
-        for polyline in &profile.loops {
-            push_loop(lane, &profile.plane, polyline);
+        let mut polylines: Vec<_> = profile
+            .loops
+            .iter()
+            .map(|lp| lp.drawn_on(&profile.plane))
+            .collect();
+        // A datum's z axis stands off its plane, so it is no loop on it.
+        if profile.datum {
+            let frame = profile.plane.frame();
+            let origin = frame.origin();
+            polylines.push(vec![
+                origin,
+                origin + frame.w().get() * (2.0 * sketch::DATUM_HALF),
+            ]);
+        }
+        let Some(shown) = display.outline(profile.node, profile.space, profile.copy, &polylines)
+        else {
+            continue;
+        };
+        for polyline in shown.iter() {
+            push_points(lane, polyline);
         }
     }
     committed.undrawn.len()
@@ -1445,7 +1470,7 @@ impl ViewerBehavior<'_> {
                 doc,
                 evaluation,
                 self.delta.get(),
-                self.display.previewed_node(),
+                self.display,
             );
         }
         profiles
@@ -1602,7 +1627,10 @@ mod tests {
         // The end of that frame: the ranking weighs what the frame
         // said against a batch that did nothing, and the winner
         // becomes the line.
-        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        frame::apply(
+            &mut status,
+            frame::frame_status_untargeted(&notices, &[], None),
+        );
         let landed = status.clone().expect("the ranking put the refusal up");
         assert_eq!(
             landed.subject(),
@@ -2321,7 +2349,9 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by)
+                    .sentence()
+                    .to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -2358,7 +2388,7 @@ mod tests {
             said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
-        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
+        let texts: Vec<String> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
             texts,
             [format!(
@@ -4046,7 +4076,9 @@ mod tests {
             };
             let edited = drafts.edited_in_place(previews.edit.as_ref());
             let mut committed = marks::LegLane::default();
-            let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
+            let display = DisplayView::none()
+                .previewing(edited.map(|node| crate::display::PreviewedProfile::of(node, None)));
+            let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, &display);
             assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
             let mut drawn = marks::LegLane::default();
             push_previews(&mut drawn, &previews);
@@ -4054,7 +4086,7 @@ mod tests {
         };
 
         let mut control = marks::LegLane::default();
-        push_committed(&mut control, &doc, &evaluation, chord, None);
+        push_committed(&mut control, &doc, &evaluation, chord, &DisplayView::none());
         let control = segments(&control);
         assert!(
             joins(&control, [0.0, 0.0], [side, 0.0]),
@@ -4225,5 +4257,459 @@ mod tests {
             (none, none, 0, 0),
             "no witness of an older document is drawn over a newer one"
         );
+    }
+
+    /// **A committed outline goes through the display state**: its
+    /// toggle and its space's hide drop it from the outline lane
+    /// ([`push_committed`]) and from the pick, and its space's free-move
+    /// frame carries both, so it is picked where it is drawn and nowhere
+    /// it is not. Each row reads the lane the viewport draws and the
+    /// cursor walk the viewport picks with, over one display view.
+    mod outline_display {
+        use super::{DisplayView, DocSession, FaceSelection, PickIndex, PictureKey, SessionOp};
+        use super::{a_delta, push_committed};
+        use crate::display::{AdmissionFault, DisplayFault};
+        use crate::input::ViewportSize;
+        use crate::pickindex::PickKinds;
+        use crate::session::{Hovered, Refusal};
+        use pncad::document::{Doc, Frame, RecipeNodeId, VarId};
+        use pncad::geom_core::{Point3, Tol};
+        use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+        /// How far the free-move carries the drawn-on space, along `+x`:
+        /// clear of every other drawing.
+        const SHIFT: f64 = 0.2;
+        const ASPECT: f64 = 16.0 / 9.0;
+        const PANE: ViewportSize = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+
+        /// A 20 mm box extruded off a free square (in the extrude's own
+        /// space), a profile drawn on its top cap (in that space), and a
+        /// free profile off to the side (in no space).
+        struct Bench {
+            session: DocSession,
+            cube: RecipeNodeId,
+            drawn: RecipeNodeId,
+            lone: RecipeNodeId,
+        }
+
+        fn made(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+            let outcome = session.perform(op);
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            outcome.made.expect("an authoring op makes a node")
+        }
+
+        fn bench() -> Bench {
+            let tol = Tol::witness();
+            let mut session = DocSession::inline(Doc::empty_derived("outline-display", tol), tol);
+            let base = made(
+                &mut session,
+                SessionOp::AddProfile {
+                    loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
+                },
+            );
+            let cube = made(
+                &mut session,
+                SessionOp::AddExtrude {
+                    profile: base,
+                    distance: crate::test_support::len(0.01),
+                },
+            );
+            session.pump();
+            let top = FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: cube,
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: cube,
+                body: 0,
+            };
+            let drawn = made(
+                &mut session,
+                SessionOp::DrawOnFace {
+                    face: top,
+                    traced: Vec::new(),
+                    chains: vec![crate::test_support::rectangle_chain(
+                        [0.004, 0.004],
+                        0.006,
+                        0.004,
+                    )],
+                },
+            );
+            let lone = made(
+                &mut session,
+                SessionOp::AddProfile {
+                    loops: vec![crate::test_support::rectangle_loop(
+                        [-0.06, 0.0],
+                        0.01,
+                        0.01,
+                    )],
+                },
+            );
+            session.pump();
+            Bench {
+                session,
+                cube,
+                drawn,
+                lone,
+            }
+        }
+
+        fn chord() -> f64 {
+            a_delta(0.05).get()
+        }
+
+        fn index(session: &DocSession) -> PickIndex {
+            let (doc, eval) = session.landed_pair().expect("the bench lands");
+            let generation = session.landed_generation().expect("landed");
+            PickIndex::build(
+                doc,
+                eval,
+                PictureKey::of(generation, a_delta(0.05), crate::world::Shown::none()),
+                session.tol(),
+            )
+            .expect("the bench indexes")
+        }
+
+        /// The legs the viewport's outline lane draws under `view`.
+        fn lane(session: &DocSession, view: &DisplayView) -> Vec<[[f32; 3]; 2]> {
+            let (doc, eval) = session.landed_pair().expect("the bench lands");
+            let mut lane = crate::marks::LegLane::default();
+            push_committed(&mut lane, doc, eval, chord(), view);
+            lane.segments()
+                .chunks_exact(2)
+                .map(|pair| [pair[0], pair[1]])
+                .collect()
+        }
+
+        /// `node`'s committed outline where its value puts it, unmoved.
+        fn outline_of(session: &DocSession, node: RecipeNodeId) -> Vec<Point3<f64>> {
+            let (doc, eval) = session.landed_pair().expect("the bench lands");
+            let drawn = crate::sketch::committed(doc, eval, chord(), None)
+                .drawn
+                .into_iter()
+                .find(|profile| profile.node == node)
+                .expect("the node draws an outline");
+            drawn.loops[0].drawn_on(&drawn.plane)
+        }
+
+        fn shifted(points: &[Point3<f64>], by: f64) -> Vec<Point3<f64>> {
+            points
+                .iter()
+                .map(|p| Point3::new(p.x + by, p.y, p.z))
+                .collect()
+        }
+
+        /// Whether `legs` draws the leg from `a` to `b`.
+        fn draws(legs: &[[[f32; 3]; 2]], a: Point3<f64>, b: Point3<f64>) -> bool {
+            let near = |p: [f32; 3], q: Point3<f64>| {
+                (f64::from(p[0]) - q.x).abs() < 1e-6
+                    && (f64::from(p[1]) - q.y).abs() < 1e-6
+                    && (f64::from(p[2]) - q.z).abs() < 1e-6
+            };
+            legs.iter()
+                .any(|&[p, q]| near(p, a) && near(q, b) || near(p, b) && near(q, a))
+        }
+
+        fn draws_any(legs: &[[[f32; 3]; 2]], outline: &[Point3<f64>]) -> bool {
+            outline.windows(2).any(|leg| draws(legs, leg[0], leg[1]))
+        }
+
+        fn draws_all(legs: &[[[f32; 3]; 2]], outline: &[Point3<f64>]) -> bool {
+            outline.windows(2).all(|leg| draws(legs, leg[0], leg[1]))
+        }
+
+        /// What the cursor walk answers over the midpoint of `outline`'s
+        /// first leg.
+        fn hovered_at(
+            session: &DocSession,
+            index: &PickIndex,
+            view: &DisplayView,
+            outline: &[Point3<f64>],
+        ) -> Option<Hovered> {
+            let (_, eval) = session.landed_pair().expect("the bench lands");
+            let camera = crate::camera::Camera::framing(
+                Some(bvh::Aabb {
+                    min_x: -0.07,
+                    min_y: -0.01,
+                    min_z: 0.0,
+                    max_x: SHIFT + 0.03,
+                    max_y: 0.03,
+                    max_z: 0.02,
+                }),
+                ASPECT,
+            )
+            .expect("the bench frames");
+            let [a, b] = [outline[0], outline[1]];
+            let at = Point3::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, (a.z + b.z) / 2.0);
+            let ndc = camera
+                .project(at, ASPECT)
+                .expect("projects")
+                .expect("in front of the eye");
+            let cursor = PANE.cursor_of([ndc[0], ndc[1]]).expect("the pane has area");
+            index
+                .hovered_for(eval, &camera, PANE, cursor, view, PickKinds::Any)
+                .expect("the cursor walk answers")
+        }
+
+        /// **A hidden profile is drawn and picked nowhere**, by its own
+        /// toggle and by its space's hide; turned back on, it holds
+        /// nothing and is drawn and picked again.
+        #[test]
+        fn a_hidden_profile_is_neither_drawn_nor_picked() {
+            let mut bench = bench();
+            let index = index(&bench.session);
+            let lone = outline_of(&bench.session, bench.lone);
+            let shown = bench.session.display_view();
+            assert!(
+                draws_all(&lane(&bench.session, &shown), &lone),
+                "the premise: the lone profile is drawn"
+            );
+            assert_eq!(
+                hovered_at(&bench.session, &index, &shown, &lone),
+                Some(Hovered::Profile(bench.lone)),
+                "the premise: the lone profile is picked on its outline"
+            );
+            let toggle = bench.session.toggles();
+            let listed = toggle
+                .body(bench.lone)
+                .expect("the View pane lists the profile");
+            assert!(listed.on && listed.drawn_by_default, "{listed:?}");
+            let in_no_space = toggle
+                .groups
+                .iter()
+                .find(|group| group.space.is_none())
+                .expect("a group for what is in no space");
+            assert!(
+                in_no_space
+                    .bodies
+                    .iter()
+                    .any(|body| body.node == bench.lone),
+                "a free profile is listed in no space: {in_no_space:?}"
+            );
+
+            let off = bench.session.perform(SessionOp::SetBodyOn {
+                node: bench.lone,
+                on: false,
+            });
+            assert!(off.refusal.is_none(), "{:?}", off.refusal);
+            assert!(!bench.session.toggles().body_on(bench.lone), "it reads off");
+            let hidden = bench.session.display_view();
+            assert!(
+                !draws_any(&lane(&bench.session, &hidden), &lone),
+                "a hidden profile is not drawn"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &hidden, &lone),
+                Some(Hovered::Profile(bench.lone)),
+                "a hidden profile is not picked"
+            );
+
+            let on = bench.session.perform(SessionOp::SetBodyOn {
+                node: bench.lone,
+                on: true,
+            });
+            assert!(on.refusal.is_none(), "{:?}", on.refusal);
+            assert!(
+                bench.session.display().toggled().is_empty(),
+                "turned back on, the toggle holds nothing"
+            );
+            assert!(
+                draws_all(&lane(&bench.session, &bench.session.display_view()), &lone),
+                "and the profile is drawn again"
+            );
+
+            // The space the drawn-on profile is in, hidden, drops it.
+            let (doc, _) = bench.session.landed_pair().expect("landed");
+            let space = doc
+                .node_space(bench.drawn)
+                .expect("drawn on the box, in its space");
+            let drawn = outline_of(&bench.session, bench.drawn);
+            let hide = bench.session.perform(SessionOp::SetSpaceHidden {
+                space,
+                hidden: true,
+            });
+            assert!(hide.refusal.is_none(), "{:?}", hide.refusal);
+            let hidden = bench.session.display_view();
+            assert!(
+                !draws_any(&lane(&bench.session, &hidden), &drawn),
+                "a profile in a hidden space is not drawn"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &hidden, &drawn),
+                Some(Hovered::Profile(bench.drawn)),
+                "a profile in a hidden space is not picked"
+            );
+        }
+
+        /// **A free-moved profile is drawn and picked at the moved
+        /// place, and at the old place neither.** The probe is opened on
+        /// the profile itself, a handle on the space it is drawn in. The
+        /// box under it is hidden so that only the outline is under the
+        /// cursor at either place: the claim is the outline's.
+        #[test]
+        fn a_free_moved_profile_is_picked_where_it_is_drawn() {
+            let mut bench = bench();
+            let index = index(&bench.session);
+            let (doc, _) = bench.session.landed_pair().expect("landed");
+            let space = doc.node_space(bench.drawn);
+            assert!(
+                space.is_some()
+                    && space == doc.node_space(bench.cube)
+                    && space != Some(VarId::WORLD),
+                "the premise: drawn on the box, in the box's own space: {space:?}"
+            );
+            let off = bench.session.perform(SessionOp::SetBodyOn {
+                node: bench.cube,
+                on: false,
+            });
+            assert!(off.refusal.is_none(), "{:?}", off.refusal);
+            let here = outline_of(&bench.session, bench.drawn);
+            let there = shifted(&here, SHIFT);
+            let unmoved = bench.session.display_view();
+            assert!(
+                draws_all(&lane(&bench.session, &unmoved), &here),
+                "the premise"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &unmoved, &there),
+                Some(Hovered::Profile(bench.drawn)),
+                "the premise: nothing is picked where the move will put it"
+            );
+
+            let frame = Frame::translation([SHIFT, 0.0, 0.0]);
+            for op in [
+                SessionOp::BeginFreeMove { node: bench.drawn },
+                SessionOp::PreviewFreeMove {
+                    node: bench.drawn,
+                    frame,
+                },
+                SessionOp::CommitFreeMove { node: bench.drawn },
+            ] {
+                let outcome = bench.session.perform(op);
+                assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            }
+            let moved = bench.session.display_view();
+            let legs = lane(&bench.session, &moved);
+            assert!(draws_all(&legs, &there), "drawn where the move put it");
+            assert!(!draws_any(&legs, &here), "and not where it was");
+            assert_eq!(
+                hovered_at(&bench.session, &index, &moved, &there),
+                Some(Hovered::Profile(bench.drawn)),
+                "picked where it is drawn"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &moved, &here),
+                Some(Hovered::Profile(bench.drawn)),
+                "and not where it is no longer drawn"
+            );
+
+            // A profile in no space has no space to move.
+            let refused = bench
+                .session
+                .perform(SessionOp::BeginFreeMove { node: bench.lone });
+            assert!(
+                matches!(
+                    &refused.refusal,
+                    Some(Refusal::Display(DisplayFault::Admission(
+                        AdmissionFault::InNoSpace { node }
+                    ))) if node.id() == bench.lone
+                ),
+                "{:?}",
+                refused.refusal
+            );
+        }
+
+        /// **An outline shown through a copy rides the placement
+        /// editor's carry of that copy**, as the copy's body does
+        /// ([`DisplayView::display_map`]): the box is placed into a
+        /// second box's space, so the profile drawn on its cap is drawn
+        /// there through the copy, and a draft standing the copy
+        /// `SHIFT` along `+x` draws and picks the outline there and
+        /// not where the copy stood. The bodies are hidden so that only
+        /// the outline is under the cursor.
+        #[test]
+        fn an_outline_through_a_copy_rides_the_placement_preview() {
+            let mut bench = bench();
+            let other = made(
+                &mut bench.session,
+                SessionOp::AddExtrude {
+                    profile: bench.lone,
+                    distance: crate::test_support::len(0.01),
+                },
+            );
+            bench.session.pump();
+            let there_space = bench
+                .session
+                .committed_doc()
+                .node_space(other)
+                .expect("the extrude's own space");
+            let copy = made(
+                &mut bench.session,
+                SessionOp::Place {
+                    body: bench.cube.into(),
+                    target: pncad::document::Operand::Var(there_space),
+                    name: None,
+                },
+            );
+            bench.session.pump();
+            for node in [copy, other] {
+                let off = bench
+                    .session
+                    .perform(SessionOp::SetBodyOn { node, on: false });
+                assert!(off.refusal.is_none(), "{:?}", off.refusal);
+            }
+            let index = index(&bench.session);
+            let (doc, eval) = bench.session.landed_pair().expect("landed");
+            let through = crate::sketch::committed(doc, eval, chord(), None)
+                .drawn
+                .into_iter()
+                .find(|profile| profile.node == bench.drawn)
+                .expect("the drawn-on profile is drawn");
+            assert_eq!(
+                (through.space, through.copy),
+                (Some(there_space), Some(copy)),
+                "the premise: drawn through the copy, in the second space"
+            );
+            let here = outline_of(&bench.session, bench.drawn);
+            let there = shifted(&here, SHIFT);
+            let carried =
+                bench
+                    .session
+                    .display_view()
+                    .placing(Some(crate::display::PreviewedPlacement {
+                        copies: std::collections::BTreeMap::from([(
+                            copy,
+                            crate::display::PreviewedCopy {
+                                space: there_space,
+                                drawn: Frame::IDENTITY,
+                                stands: Frame::translation([SHIFT, 0.0, 0.0]),
+                            },
+                        )]),
+                    }));
+            assert!(
+                carried.display_map(copy).is_some(),
+                "the premise: the copy's body is carried"
+            );
+            let legs = lane(&bench.session, &carried);
+            assert!(
+                draws_all(&legs, &there),
+                "drawn where the draft stands the copy"
+            );
+            assert!(!draws_any(&legs, &here), "and not where the copy stood");
+            assert_eq!(
+                hovered_at(&bench.session, &index, &carried, &there),
+                Some(Hovered::Profile(bench.drawn)),
+                "picked where it is drawn"
+            );
+            assert_ne!(
+                hovered_at(&bench.session, &index, &carried, &here),
+                Some(Hovered::Profile(bench.drawn)),
+                "and not where it is no longer drawn"
+            );
+        }
     }
 }

@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Decide, Interval, Point2, Point3, Vec2, Vec3};
+use geom_core::{Decide, Interval, Point2, Point3};
 
 use super::Pcurve;
 use super::spline_door_rows::{band, in_band, ring};
@@ -199,9 +199,9 @@ impl Stated {
         let c = T::from_f64;
         match self {
             Self::Iso => Pcurve::IsoLine {
-                p0: Point2::new(c(0.5), c(0.0)),
-                pl: Vec2::new(c(0.0), c(1.0)),
-                ends: None,
+                line: crate::ChartLine::column(c(0.5)),
+                at0: c(0.0),
+                rate: c(1.0),
             },
             Self::General => {
                 let image = NurbsCurve2::new(
@@ -237,7 +237,7 @@ macro_rules! edge_at {
                 spec,
                 start,
                 end,
-                |k| table.get(k).cloned(),
+                |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                 geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
                 band(),
                 NurbsLane::certified(),
@@ -339,7 +339,7 @@ fn on_the_wall<T: Decide>(edge: Edge<T>) {
         let (foot, _) = wall.column_at();
         let line = Curve3::line(
             Point3::new(T::from_f64(foot[0]), T::from_f64(foot[1]), T::zero()),
-            Vec3::new(T::zero(), T::zero(), T::one()),
+            geom_core::UnitVec3::exact_z(),
         );
         let flat = Bump {
             height: 0.0,

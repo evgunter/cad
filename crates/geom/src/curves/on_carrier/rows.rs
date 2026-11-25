@@ -98,7 +98,10 @@ fn a_point_is_on_or_off_every_carrier_by_its_distance() {
             assert_eq!(got, want, "{:?} at {t}, {bands} bands", c.kind());
         }
     }
-    let line = Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.6, 0.0, 0.8));
+    let line = Curve3::line(
+        Point3::new(1.0, 2.0, 3.0),
+        crate::stated_direction(Vec3::new(0.6, 0.0, 0.8)),
+    );
     let q = line.eval(4.0) + Vec3::unit_y() * (0.5 * ZERO);
     assert_eq!(name(line.on_carrier(q, 0.0, band())), "on");
 }
@@ -565,6 +568,18 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
             2,
             "a cell's own `seed()`, not a foot's",
         ),
+        (
+            "viewer/src/session/range.rs",
+            1,
+            "a certified range's own `seed()` (`editor_core::CertifiedRange`, how far \
+             its search looked), not a foot's",
+        ),
+        (
+            "pncad-py/src/py/range.rs",
+            1,
+            "a certified range's own `seed()` (`editor_core::CertifiedRange`, how far \
+             its search looked), not a foot's",
+        ),
     ];
     let crates = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut found: Vec<(String, usize)> = test_utils::source::rust_sources(&crates)
@@ -653,7 +668,7 @@ fn a_points_distance_within_a_span_is_the_dense_walks_least() {
     use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
     let segment = Curve3::Line(crate::Line {
         origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
+        dir: crate::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
     });
     let dense = |c: &Curve3<f64>, q: Point3<f64>, (t0, t1): (f64, f64)| {
         (0..=20_000)

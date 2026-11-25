@@ -75,22 +75,38 @@ fn sole_whole(reads: &[(VarId, bool)]) -> Option<VarId> {
 /// A cut continues its target only once its tool is deleted, which is
 /// the delete's to say ([`splice`]), not the cut's.
 pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> Option<VarId> {
+    // A member read is no variable a reader could read in its place,
+    // except one at its binder's own indices by a node that binder
+    // yields: `{k in xs: fillet(xs[k])}` continues the family `xs` whole
+    // (D10 `[repetition]`).
+    let whole = |body: &crate::BodyRead<VarId>| {
+        if !body.is_indexed() {
+            return Some(body.read);
+        }
+        let binder = doc.yielding(body.read)?;
+        (doc.binder_indices(binder) == body.at
+            && doc
+                .outputs(node)
+                .iter()
+                .any(|&out| doc.yielding(out) == Some(binder)))
+        .then_some(body.read)
+    };
     match doc.node(node)? {
-        // A member read is no variable a reader could read in its place.
         Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => doc
             .selection(*selection)
-            .filter(|select| !select.body.is_indexed())
-            .map(|select| select.body.read),
-        Node::Shell { open, .. } => doc
-            .selection(*open)
-            .filter(|select| !select.body.is_indexed())
-            .map(|select| select.body.read),
+            .and_then(|select| whole(&select.body)),
+        Node::Shell { open, .. } => doc.selection(*open).and_then(|select| whole(&select.body)),
         Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
             match members {
                 Bodies::Spelled(reads) => sole_whole(
                     &reads
                         .iter()
-                        .map(|read| (read.read, read.is_indexed()))
+                        .map(|read| {
+                            (
+                                read.read().read,
+                                read.is_splice() || read.read().is_indexed(),
+                            )
+                        })
                         .collect::<Vec<_>>(),
                 ),
                 Bodies::Family(_) => None,
@@ -107,6 +123,7 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
         | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::InstantiatePart { .. }
@@ -125,7 +142,12 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
 pub fn spelled<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
-) -> Option<Vec<(BodyRead<VarId>, BodyRead<Formula>)>> {
+) -> Option<
+    Vec<(
+        crate::Spell<BodyRead<VarId>>,
+        crate::Spell<BodyRead<Formula>>,
+    )>,
+> {
     let (Node::Union { members } | Node::Intersect { members } | Node::Assemble { members }) =
         doc.node(id)?
     else {
@@ -141,6 +163,36 @@ pub fn spelled<P: crate::ProfilePayload>(
         return None;
     };
     let Bodies::Spelled(written) = written else {
+        return None;
+    };
+    Some(stored.iter().cloned().zip(written).collect())
+}
+
+/// **A subtract's spelled tools, stored and as written**, in list
+/// order, as [`spelled`] gives an operator's operands. `None` for any
+/// other node and for a subtract reading a family whole.
+#[allow(clippy::type_complexity)]
+fn spelled_tools<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+) -> Option<
+    Vec<(
+        crate::Spell<BodyRead<VarId>>,
+        crate::Spell<BodyRead<Formula>>,
+    )>,
+> {
+    let Node::Subtract {
+        tool: Bodies::Spelled(stored),
+        ..
+    } = doc.node(id)?
+    else {
+        return None;
+    };
+    let Node::Subtract {
+        tool: Bodies::Spelled(written),
+        ..
+    } = doc.node(id)?.authored(doc)
+    else {
         return None;
     };
     Some(stored.iter().cloned().zip(written).collect())
@@ -598,7 +650,7 @@ fn hand<P: crate::ProfilePayload>(
                         });
                     }
                     let member = read.is_indexed() || now.is_member();
-                    if member && !matches!(seat, OperandSlot::Member(_)) {
+                    if member && !matches!(seat, OperandSlot::Member(_) | OperandSlot::Cut(_)) {
                         return Err(SpliceFault::MemberAtSeat { reader: n, seat });
                     }
                     Some(Seat {
@@ -656,38 +708,57 @@ fn fate<P: crate::ProfilePayload + Clone>(
         return Ok(Fate::Goes(None));
     }
     let rewritten = |seat: OperandSlot| seats.iter().find(|(s, _)| *s == seat).map(|(_, r)| r);
-    if let Some(members) = spelled(doc, n) {
+    // A subtract keeping its `from` and some of its spelled tools keeps
+    // cutting by those; one losing every tool continues as its `from`,
+    // below.
+    let list = match spelled(doc, n) {
+        Some(members) => Some((members, crate::operand::Seats::MEMBERS, true)),
+        None => spelled_tools(doc, n)
+            .filter(|tools| {
+                !lost.contains(&OperandSlot::From)
+                    && (0..tools.len()).any(|i| !lost.contains(&OperandSlot::Cut(i)))
+            })
+            .map(|tools| (tools, crate::operand::Seats::CUTS, false)),
+    };
+    // An operator left one whole operand continues it; a subtract left
+    // one tool still cuts.
+    if let Some((members, list_seats, collapses)) = list {
+        let seat_of = |i: usize| list_seats.of(OperandSlot::Member(i));
         if lost
             .iter()
-            .any(|seat| !matches!(seat, OperandSlot::Member(_)))
+            .any(|seat| !(0..members.len()).any(|i| seat_of(i) == *seat))
         {
             return Ok(Fate::Goes(None));
         }
         // Each operand kept: its variable, whether it names members,
         // and its read as written.
-        let kept: Vec<(VarId, bool, BodyRead<Formula>)> = members
+        let kept: Vec<(VarId, bool, crate::Spell<BodyRead<Formula>>)> = members
             .into_iter()
             .enumerate()
-            .filter(|(i, _)| !lost.contains(&OperandSlot::Member(*i)))
-            .map(
-                |(i, (stored, written))| match rewritten(OperandSlot::Member(i)) {
-                    Some(Seat {
-                        read: Operand::Var(var),
+            .filter(|(i, _)| !lost.contains(&seat_of(*i)))
+            .map(|(i, (stored, written))| match rewritten(seat_of(i)) {
+                Some(Seat {
+                    read: Operand::Var(var),
+                    at,
+                }) => {
+                    let splice = written.is_splice();
+                    let at = at.clone().unwrap_or(written.read().at.clone());
+                    let read = BodyRead {
+                        read: Operand::Var(*var),
                         at,
-                    }) => {
-                        let at = at.clone().unwrap_or(written.at);
-                        (
-                            *var,
-                            !at.is_empty(),
-                            BodyRead {
-                                read: Operand::Var(*var),
-                                at,
-                            },
-                        )
-                    }
-                    _ => (stored.read, stored.is_indexed(), written),
-                },
-            )
+                    };
+                    (
+                        *var,
+                        splice || !read.at.is_empty(),
+                        crate::Spell::of(read, splice),
+                    )
+                }
+                _ => (
+                    stored.read().read,
+                    stored.is_splice() || stored.read().is_indexed(),
+                    written,
+                ),
+            })
             .collect();
         let census: Vec<(VarId, bool)> = kept
             .iter()
@@ -697,6 +768,7 @@ fn fate<P: crate::ProfilePayload + Clone>(
             return Ok(Fate::Goes(None));
         }
         if !lost.is_empty()
+            && collapses
             && let Some(one) = sole_whole(&census)
         {
             return Ok(Fate::Goes(Some(Continued::whole(one))));
@@ -708,7 +780,9 @@ fn fate<P: crate::ProfilePayload + Clone>(
     }
     if let Node::Subtract { .. } = node
         && !lost.is_empty()
-        && lost.iter().all(|seat| *seat == OperandSlot::Cut)
+        && lost
+            .iter()
+            .all(|seat| matches!(seat, OperandSlot::Cut(_) | OperandSlot::Cuts))
     {
         // As written, so a literal index is minted afresh for its new
         // reader rather than shared unnamed.
@@ -855,12 +929,15 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         .iter()
         .flat_map(|&source| crate::take_over::sources_reading(doc, source).into_keys())
         .collect();
-    handed_sources.extend(doc.placements().into_iter().filter(|&placement| {
-        !dead.contains_key(&placement)
-            && doc
-                .copied_read(placement)
-                .is_some_and(|read| reading.contains(&read))
-    }));
+    let copies: BTreeSet<RecipeNodeId> = sources
+        .iter()
+        .flat_map(|&source| doc.plain_copies_of(source))
+        .collect();
+    handed_sources.extend(
+        copies
+            .into_iter()
+            .filter(|placement| !dead.contains_key(placement)),
+    );
     edits.extend(rebinds(doc, &dead, &handed_sources, &reading));
     Ok(Some(Splice { deleted, edits }))
 }

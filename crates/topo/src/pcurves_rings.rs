@@ -157,10 +157,8 @@ pub enum RingPlacementError {
         /// How far it winds.
         winding: Winding,
     },
-    /// The outer loop is one vertex (`LoopBoundary::Empty`) and the face
-    /// holds rings: there is no region to place them in. Tier 2 admits
-    /// one at rest. A face with no ring is answered its empty lift, which
-    /// a reader walks and finds empty.
+    /// The outer loop is one vertex: the face has no outline
+    /// ([`crate::NoOutline`]), so no region to lift.
     OuterEmpty,
     /// A ring is one vertex (`LoopBoundary::Empty`): it has no edge, so
     /// no lift and no place in the chart, and it bounds no region of the
@@ -233,7 +231,7 @@ impl RingPlacementError {
 /// ([`RingPlacementError::SplineTrimUnread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplineTrimGap {
-    /// The chart is a placeholder, mid-operation.
+    /// The face has no surface yet, mid-operation.
     Placeholder,
     /// The chart has no Bézier cells: a degree of zero, a knot past its
     /// degree's multiplicity or with no value, a weight not shown
@@ -378,20 +376,24 @@ pub(crate) fn face_lift<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<FaceLift<T>, RingPlacementError> {
-    let mut loops = body.proven_face(face).loops().map(|(lk, _, _)| lk);
-    let Some(outer_loop) = loops.next() else {
-        unreachable!("a face's record holds its outer loop")
-    };
-    let rings: Vec<LoopKey> = loops.collect();
+    // A lone ring bounds no area, so it has no lift and no place; a
+    // face with no outline has no region to lift.
+    let area = body
+        .proven_face(face)
+        .area_loops()
+        .map_err(|_| RingPlacementError::OuterEmpty)?;
+    let outer_loop = area.outer().key();
+    let rings: Vec<LoopKey> = area.rings().map(|(_, ring)| ring.key()).collect();
     face_lift_as(body, face, outer_loop, rings, band)
 }
 
 /// [`face_lift`] with the roles given rather than read off the face's
-/// record: `outer_loop` in the outline's role and `rings` in the rings',
+/// area: `outer_loop` in the outline's role and `rings` in the rings',
 /// each a loop of `face`. The output merge asks which of a merged face's
 /// loops is its outline this way, each in that role in turn
 /// (`crate::merge_faces`, the curved role pass), before it sets the
-/// record's roles.
+/// record's roles. A loop given here may be one vertex, which no area
+/// reading would hand over, so each is read for it.
 pub(crate) fn face_lift_as<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -430,11 +432,10 @@ pub(crate) fn face_lift_as<T: Decide>(
             rings: Vec::new(),
         });
     }
-    let surface = view.surface();
-    let decks = if surface.spline_chart().is_some() {
-        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
-        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
-    } else {
+    // A pending face takes the spline arm, whose reader refuses it.
+    let decks = if let Ok(surface) = view.surface()
+        && surface.spline_chart().is_none()
+    {
         let periods = ChartPeriods::of(surface, band);
         let reader = Outer::of(&outer, surface, periods.v());
         let lengths = [periods.u(), periods.v()].map(|p| p.map(|p| p.length().value_channel()));
@@ -460,6 +461,9 @@ pub(crate) fn face_lift_as<T: Decide>(
             decks.push(shift.deck);
         }
         decks
+    } else {
+        let rings: Vec<(LoopKey, &Lift<T>)> = rings.iter().copied().zip(&read).collect();
+        crate::spline_trim::ring_decks(body, face, &outer, &rings, band)?
     };
     // A ring that stays is the lift already read; a moved one is read
     // again in its new gauge, from the stored rows.
@@ -659,7 +663,7 @@ impl<'a, T: Decide> Outer<'a, T> {
         for (i, row) in lift.rows().iter().enumerate() {
             pieces.push(Piece::Image {
                 pcurve: &row.pcurve,
-                span: row.params.ends(),
+                span: row.params(),
             });
             let next = ends[(i + 1) % ends.len()].0;
             pieces.push(Piece::Segment(ends[i].1, next));

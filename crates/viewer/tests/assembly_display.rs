@@ -70,7 +70,7 @@ fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("this document has no file"),
+                message.to_string().contains("this document has no file"),
                 "the refusal names the missing file: {message}"
             ),
             other => panic!("an unresolvable instantiate row must fail typed, got {other:?}"),
@@ -92,7 +92,7 @@ fn a_missing_part_document_refuses_typed_and_badges_the_row() {
     for post in [bench.post_a, bench.post_b] {
         match status_of(post) {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("no document with id"),
+                message.to_string().contains("no document with id"),
                 "the store's own refusal reaches the badge: {message}"
             ),
             other => panic!("a missing part must fail its instance row, got {other:?}"),
@@ -121,7 +121,7 @@ fn the_directory_rule_a_document_never_resolves_against_another_directory() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("no document with id"),
+                message.to_string().contains("no document with id"),
                 "unresolvable — the parts are not beside THIS file: {message}"
             ),
             other => panic!("expected a typed resolution failure, got {other:?}"),
@@ -143,7 +143,7 @@ fn a_directory_that_will_not_scan_refuses_each_resolution_typed() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("junk.pncad"),
+                message.to_string().contains("junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),
             other => panic!("expected a typed store refusal, got {other:?}"),
@@ -270,7 +270,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
     let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Union {
-            members: Bodies::Spelled(members),
+            members: Bodies::spelled(members),
         },
         tol,
     );
@@ -405,56 +405,83 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     );
 }
 
-/// **The body admission answers the two states apart**: an absent id
-/// and a node that builds no body are different news, and a door that
-/// answered `bool` could not say which it had met. Asserted at
-/// `body_check` itself rather than only through the ops above, because
-/// the door is `pub` and the next caller is the one that will need them
-/// apart.
+/// **The drawing admission answers the two states apart**: an absent
+/// id and a node the picture draws nothing of are different news, and
+/// a door that answered `bool` could not say which it had met. Asserted
+/// at `drawing_check` itself rather than only through the ops above,
+/// because the door is `pub` and the next caller is the one that will
+/// need them apart. A profile builds no body and is admitted: the
+/// picture draws its outline.
 #[test]
-fn body_check_tells_an_absent_node_from_one_that_builds_no_body() {
+fn drawing_check_tells_an_absent_node_from_one_that_draws_nothing() {
     let tol = Tol::witness();
     let bench = asm::bench("instcheck", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A node that builds no body, authored through the ordinary door so
-    // the arm is driven by a node a user can really select.
+    // A profile, authored through the ordinary door so the arm is
+    // driven by a node a user can really select.
     let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     session.pump();
     let doc = session.doc();
 
     assert_eq!(
-        display::body_check(doc, bench.post_b),
+        display::drawing_check(doc, bench.post_b),
         Ok(()),
         "an instance builds a body"
     );
     assert_eq!(
-        display::body_check(doc, profile),
-        Err(AdmissionFault::NotABody {
-            node: doc.spoken(profile)
+        display::drawing_check(doc, profile),
+        Ok(()),
+        "a profile builds no body and is drawn as an outline"
+    );
+    // A measure is a node of a document the picture draws nothing of:
+    // it builds a value, neither a body nor an outline.
+    let (mut measured, _, plate) = common::parametric_plate(tol);
+    let cap = |end| {
+        pncad::document::SitedRef::new(
+            plate,
+            pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: plate,
+                path: vec![pncad::prelude::RoleSeg::Cap(end)],
+            },
+        )
+    };
+    let measure = common::insert_into(
+        &mut measured,
+        pncad::document::Node::measure(&pncad::document::MeasurePrimitive::Distance {
+            a: cap(pncad::prelude::CapEnd::Start),
+            b: cap(pncad::prelude::CapEnd::End),
         }),
-        "a node that IS in the document and builds no body names itself"
+        tol,
+    );
+    assert_eq!(
+        display::drawing_check(&measured, measure),
+        Err(AdmissionFault::DrawsNothing {
+            node: measured.spoken(measure)
+        }),
+        "a node that IS in the document and draws nothing names itself"
     );
     let absent = RecipeNodeId::new(0, test_utils::refusal::tagged(9_999));
     assert_eq!(
-        display::body_check(doc, absent),
+        display::drawing_check(doc, absent),
         Err(AdmissionFault::NoSuchNode {
             node: doc.spoken(absent)
         }),
         "an id the document does not hold is the ABSENT refusal"
     );
     assert_eq!(
-        display::body_check(doc, absent)
+        display::drawing_check(doc, absent)
             .expect_err("absent refuses")
             .to_string(),
         "node 00000000270f is not in the document",
     );
     assert_eq!(
-        display::body_check(doc, profile)
-            .expect_err("a profile builds no body")
+        display::drawing_check(&measured, measure)
+            .expect_err("a measure draws nothing")
             .to_string(),
         format!(
-            "{} builds no body, so the picture draws nothing of it",
-            doc.spoken(profile)
+            "{} builds no body and is no outline, so the picture draws nothing of it",
+            viewer::tree::spelled(&measured.spoken(measure))
         ),
     );
 }
@@ -523,7 +550,7 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
         matches!(
             outcome.refusal,
             Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotABody { .. }
+                AdmissionFault::DrawsNothing { .. }
             )))
         ),
         "{:?}",

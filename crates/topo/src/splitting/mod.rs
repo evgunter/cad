@@ -22,7 +22,7 @@
 //!    ([`SplitReduceError::CurvedBooleanUnsupported`]) only when the
 //!    plane may meet its padded reach box; one behind a box that
 //!    clears passes through the split whole. Edge carriers
-//!    `Line`/`Circle`/`Ellipse` pass; `Spiric` and `Nurbs` refuse
+//!    `Line`/`Circle`/`Ellipse`/`Spiric` pass; a spline refuses
 //!    ([`SplitReduceError::CurvedEdgeUnsupported`]) on the same
 //!    reach-scoped terms.
 //! 2. **Vertex sweep (F6)**: every vertex classified against the plane
@@ -76,6 +76,7 @@ pub mod rules;
 mod section;
 mod section_cones;
 mod section_loops;
+pub use section_loops::UnplacedHole;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
@@ -123,13 +124,28 @@ impl<T: Real> SplitPlane<T> {
     /// the plane's own frame ([`geom::cover::BoxAxes::aimed`], the frame
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
+        // The normal is the witness the caller minted, and the seam its
+        // own orthonormal basis's first row: the frame they state
+        // ([`geom_core::RigidMotion::squared`]), its stated-point read at an
+        // enclosure scalar kept, with nothing left to decide.
         geom::Surface::Plane {
-            frame: geom::Frame::new(
+            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared(
                 self.origin,
                 self.normal.get(),
                 geom::cover::BoxAxes::aimed(self.normal).rows()[1],
-            ),
+            )),
         }
+    }
+
+    /// The plane's frame for reading loops in it: its axis the normal,
+    /// bit for bit, and its `u_ref` the one [`Self::surface`] charts
+    /// with.
+    pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.origin,
+            self.normal,
+            geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+        ))
     }
 }
 
@@ -430,9 +446,9 @@ pub enum SplitReduceError {
         /// Its surface kind (the table row).
         kind: geom::SurfaceKind,
     },
-    /// The plane may meet an edge on a `Spiric` or `Nurbs` carrier, which
-    /// no crossing lane reads (`Line`, `Circle` and `Ellipse` carriers
-    /// all pass). An edge clears behind its own reach box or the box of
+    /// The plane may meet an edge on a spline carrier, which no crossing
+    /// lane reads (`Line`, `Circle`, `Ellipse` and `Spiric` carriers all
+    /// pass). An edge clears behind its own reach box or the box of
     /// either face it bounds.
     CurvedEdgeUnsupported {
         /// The offending edge.
@@ -631,6 +647,14 @@ pub enum SplitReduceError {
         /// Why it has no cover.
         why: crate::cover::FaceUncovered,
     },
+    /// A face at the vertex has no surface yet (its slot is pending), so
+    /// its sector has no carrier to read. A finished body carries no
+    /// such face; [`classify_neighborhood`] is public and takes any
+    /// body, and the split's carrier gate reads every face first.
+    PendingFace {
+        /// The face.
+        face: FaceKey,
+    },
     /// `split_edge` refused while inserting the crossing vertex on an
     /// edge whose endpoints straddle the plane — typically the
     /// certification lane's `ResidualExceeded` re-certifying the
@@ -777,7 +801,7 @@ impl SplitReduceError {
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the split plane may meet an edge on a spline (NURBS) or spiric curve, which \
+                "the split plane may meet an edge on a spline (NURBS) curve, which \
                  the split cannot take yet. Recourse: move the split plane clear of the \
                  bounding boxes of that edge and the faces beside it"
             ),
@@ -939,6 +963,13 @@ impl SplitReduceError {
             Self::UncoveredFace { face, why } => write!(
                 f,
                 "face {face:?} has no cover ({why}), so no extent to meter a predicate across"
+            ),
+            Self::PendingFace { .. } => write!(
+                f,
+                "a face of the body has no surface yet, so its sector has no carrier to read: \
+                 {}. {}",
+                geom_brep::PENDING_SURFACE,
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::CrossingInsertion {
                 edge,
@@ -1120,12 +1151,6 @@ pub enum SplitError {
     Join(JoinError),
     /// The finish stage refused (incl. the degenerate-component net).
     Finish(SplitFinishError),
-    /// The pcurve minting pass refused (M5 PR 6): a curved face's
-    /// per-half-edge chart-image cache failed certification, or a
-    /// loop's one-branch chart walk was discontinuous. The split
-    /// itself succeeded topologically; the refusal is loud rather
-    /// than shipping a body whose caches are uncertified (D4 ¶2).
-    Pcurves(crate::pcurves::PcurveMintError),
     /// A side could not be sorted into solids ([`crate::pieces`]): the
     /// piece a shell of it belongs to could not be read.
     Pieces(crate::pieces::PieceSortError),
@@ -1149,12 +1174,6 @@ impl From<SplitFinishError> for SplitError {
     }
 }
 
-impl From<crate::pcurves::PcurveMintError> for SplitError {
-    fn from(e: crate::pcurves::PcurveMintError) -> Self {
-        Self::Pcurves(e)
-    }
-}
-
 impl SplitError {
     /// The knife edge this refusal names, whichever stage raised it.
     #[must_use]
@@ -1170,9 +1189,7 @@ impl SplitError {
 // A stage that names itself is not re-named here: `split_reduce`,
 // `split join` and `split finish` each lead with their own stage, so a
 // prefix would only stutter once this error is forwarded — the node
-// layer prefixes again, and so does the binding. `Pcurves` is the one
-// stage whose error is shared with callers that are not splits, so it
-// is the one arm that says where it ran.
+// layer prefixes again, and so does the binding.
 impl SplitError {
     fn write(
         &self,
@@ -1184,7 +1201,6 @@ impl SplitError {
             Self::Reduce(e) => write!(f, "{}", read_at(e, at)),
             Self::Join(e) => write!(f, "{}", read_at(e, at)),
             Self::Finish(e) => write!(f, "{}", read_at(e, at)),
-            Self::Pcurves(e) => write!(f, "{}", read_at(e, at)),
             Self::Pieces(e) => write!(
                 f,
                 "a side of the split could not be sorted into solids: {}",
@@ -1232,8 +1248,8 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 }
 
 /// **The direct split run through its join**: the scratch body as the
-/// join leaves it, every null edge killed, before the finish and the
-/// closing mint. Test vocabulary (`topo::test_support`), for the rows
+/// join leaves it, every null edge killed, before the finish. Test
+/// vocabulary (`topo::test_support`), for the rows
 /// that read the rows a face carries at that point.
 ///
 /// # Errors
@@ -1326,14 +1342,26 @@ where
     // ([`finish::SplitPart::Body`]).
     let at_rest = |side, part| match part {
         finish::RawPart::Body(mut body) => {
-            crate::pieces::sort_into_pieces(
-                &mut body,
-                band,
-                tol,
-                <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
-                None,
-            )
-            .map_err(SplitError::Pieces)?;
+            // The sort reads stored rows on a spline face, which no
+            // closed-form lift derives, so it reads them completed. A
+            // face completion leaves short is the finish's to report, as
+            // at the Boolean's gate: the side answers with the finish's
+            // finding set, sorted where the sort reads it whole.
+            let not_at_rest =
+                |findings| SplitError::from(SplitFinishError::ResultNotAtRest { side, findings });
+            crate::finish::fed(&mut body, tol, |body| {
+                crate::pieces::sort_into_pieces(
+                    body,
+                    band,
+                    tol,
+                    <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
+                    None,
+                )
+            })
+            .map_err(|fed| match fed {
+                crate::finish::Fed::NotFinished(findings) => not_at_rest(findings),
+                crate::finish::Fed::Read(e) => SplitError::Pieces(e),
+            })?;
             <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
                 .map(finish::SplitPart::Body)
                 .map_err(|findings| {
@@ -1351,13 +1379,6 @@ where
 }
 
 /// One run of the split pipeline over an operand read as one solid.
-///
-/// The pcurve minting pass (M5 PR 6, C4) runs last, on each side that
-/// carries material: this lane is where curved faces are minted, so it
-/// is where their per-half-edge chart-image caches are minted and
-/// certified (spec §1). Planar sides pick up nothing — planar faces
-/// keep M2's derive-on-demand status — so an all-planar split is
-/// bit-identical to before this pass existed.
 fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
@@ -1374,11 +1395,10 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.frame(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
-            crate::pcurves::mint_pcurves(body, tol)?;
         }
     }
     Ok(result)

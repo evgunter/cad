@@ -119,7 +119,7 @@ fn an_unequal_lentil_fillets_to_the_radical_closed_form() {
     let mut spheres: Vec<(f64, f64)> = source
         .faces()
         .filter_map(|(fk, _)| match source.face_surface(fk) {
-            Some(&Surface::Sphere { frame, radius, .. }) => {
+            Ok(&Surface::Sphere { frame, radius, .. }) => {
                 let center = frame.origin();
                 Some((center.y, radius))
             }
@@ -343,7 +343,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let sheet = Meridian {
         axis: geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
+            dir: geom_core::UnitVec3::exact_y(),
         },
         rim: Point3::new(0.8, 0.0, 0.0),
     };
@@ -507,7 +507,7 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     assert!(
         source
             .faces()
-            .any(|(fk, _)| matches!(source.face_surface(fk), Some(&Surface::Torus { .. }))),
+            .any(|(fk, _)| matches!(source.face_surface(fk), Ok(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
     // Two rims share this radius — the barrel's top at y = 0.6 and its

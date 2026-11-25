@@ -25,18 +25,19 @@ pub(crate) fn unencoded(body: &Body<f64>, key: FaceKey, tol: Tol) -> bool {
     let Some((outer, _, _)) = f.loops().next() else {
         return false;
     };
-    let Ok((outer, _)) = topo::props::loop_edges(body, outer) else {
+    let Ok((outer, _)) = topo::props::loop_edges(body.cycle_loop(outer).expect("a cycle loop"))
+    else {
         return false;
     };
     let band = geom_core::Band::linear(tol).unwrap();
     f.loops().count() == 1
-        && geom_brep::props::boundary_material_sign(f.surface(), &outer, band)
+        && geom_brep::props::boundary_material_sign(f.surface().unwrap(), &outer, band)
             == Ok(geom_brep::props::MaterialSign::Unencoded)
 }
 
 pub(crate) fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -46,7 +47,11 @@ fn across(body: &Body<f64>, key: FaceKey) -> Vec<FaceKey> {
     body.face(key)
         .unwrap()
         .loops()
-        .flat_map(|(lk, _, _)| topo::props::loop_edges(body, lk).unwrap().1)
+        .flat_map(|(lk, _, _)| {
+            topo::props::loop_edges(body.cycle_loop(lk).expect("a cycle loop"))
+                .unwrap()
+                .1
+        })
         .map(|h| body.face_of_half_edge(body.mate(h).unwrap()).unwrap())
         .collect()
 }
@@ -150,7 +155,7 @@ pub(crate) fn assert_refused(
 /// The sphere `key` lies on: centre, radius and unit polar axis.
 pub(crate) fn sphere_of(body: &Body<f64>, key: FaceKey) -> (Point3<f64>, f64, Vec3<f64>) {
     match body.face_surface(key) {
-        Some(&Surface::Sphere { frame, radius, .. }) => {
+        Ok(&Surface::Sphere { frame, radius, .. }) => {
             let (center, axis) = (frame.origin(), frame.axis());
             (center, radius, axis.normalize())
         }
@@ -164,7 +169,8 @@ pub(crate) fn sphere_of(body: &Body<f64>, key: FaceKey) -> (Point3<f64>, f64, Ve
 pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f64>, tol: Tol) {
     let f = face(body, key).clone();
     let (center, radius, pole) = sphere_of(body, key);
-    let (_, hes) = topo::props::loop_edges(body, f.outer).unwrap();
+    let (_, hes) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     let points: Vec<_> = body.vertex_points().collect();
     let at = |h: topo::HalfEdgeKey| {
         let v = body.get_half_edge(h).unwrap().start;
@@ -308,7 +314,8 @@ pub(crate) fn split_faces_at_equator(body: &mut Body<f64>, tol: Tol) {
         if !face.rings.is_empty() {
             continue;
         }
-        let (_, hes) = topo::props::loop_edges(body, face.outer).unwrap();
+        let (_, hes) =
+            topo::props::loop_edges(body.cycle_loop(face.outer).expect("a cycle loop")).unwrap();
         let pts = points(body);
         let at = |h: topo::HalfEdgeKey| {
             let v = body.get_half_edge(h).unwrap().start;

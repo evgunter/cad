@@ -30,7 +30,7 @@ fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     CarrierDesc::Cylinder {
         origin: Point3::from_array(o),
-        axis: Vec3::from_array(a),
+        axis: geom::stated_direction(Vec3::from_array(a)),
         radius: r,
         outward,
     }
@@ -47,7 +47,10 @@ fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
 }
 
 fn xline() -> geom::Curve3<f64> {
-    geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
+    geom::Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    )
 }
 
 /// CLAIM 1 — length margins are metered at UNIT arm: the arm must not
@@ -86,7 +89,7 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     let axis = Vec3::new(tilt, 0.0, 1.0).normalize();
     let b = CarrierDesc::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
-        axis,
+        axis: geom::stated_direction(axis),
         radius: 3.0,
         outward: false,
     };
@@ -191,7 +194,7 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let z_face = |z: f64| {
         body.faces()
             .find(|(fk, _)| match body.face_surface(*fk) {
-                Some(&topo::Surface::Plane { frame, .. }) => {
+                Ok(&topo::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
                 }

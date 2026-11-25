@@ -234,7 +234,15 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
                 geom::cover::Unknown::Unbounded,
             ),
         )),
+        ChartRegionError::PendingFace {
+            face: crate::FaceKey::default(),
+        },
         ChartRegionError::Corrupt,
+        ChartRegionError::NoOutline(crate::NoOutline {
+            face: FaceKey::default(),
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
     ];
     v.push(ChartRegionError::ChartDivergence {
         detail: "two descriptions that do not read bit-identical — no one chart holds both",
@@ -276,6 +284,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
     vec![
         S::Escalated { face, diag: diag() },
         S::RayExhausted,
+        S::RegionRayExhausted { face },
         S::ZeroVolumeBody,
         S::Loop(L::Escalated {
             r#loop,
@@ -302,6 +311,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
             cause: OffPlaneCause::NormalNotUnit,
         })),
         S::CorruptFace { face },
+        S::PendingFace { face },
         S::KindUnsupported {
             face,
             kind: geom::SurfaceKind::Nurbs,
@@ -344,7 +354,11 @@ pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     } else {
         [[zero, off], [off, zero]]
     };
-    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps { gaps, band: band() }))
+    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps {
+        edge: crate::entity::EdgeKey::default(),
+        gaps,
+        band: band(),
+    }))
 }
 
 fn contain_errors() -> Vec<ContainError> {
@@ -385,7 +399,7 @@ fn contain_errors() -> Vec<ContainError> {
     v.extend([
         arc_end_clear_of_corners(true),
         arc_end_clear_of_corners(false),
-        ContainError::RayExhausted,
+        ContainError::RayExhausted(LoopKey::default()),
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
         ContainError::LoopUnreadable(LoopKey::default()),
@@ -515,7 +529,6 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
-        PlaneNurbsRefusal::PlaceholderWall,
         PlaneNurbsRefusal::WrongLane {
             expected: "a spline chart as the wall",
         },
@@ -588,6 +601,7 @@ fn certify_errors() -> Vec<CertifyError> {
             Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         )),
         CertifyError::UnresolvedSurface { key },
+        CertifyError::PendingSurface { key },
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
@@ -930,7 +944,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             stored: [Some(1), None],
             derived: [Some(-1), None],
         },
-        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
@@ -985,6 +998,8 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         [
             crate::pcurves::SingularMiss::EdgesCoincide,
             crate::pcurves::SingularMiss::TwoNappes,
+            crate::pcurves::SingularMiss::CuspCrossed,
+            crate::pcurves::SingularMiss::CuspUnsided,
             crate::pcurves::SingularMiss::NoLever,
         ]
         .into_iter()
@@ -1059,6 +1074,14 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
         },
+        MassPropsError::PendingFace {
+            face: FaceKey::default(),
+        },
+        MassPropsError::NoOutline(crate::NoOutline {
+            face,
+            r#loop: crate::entity::LoopKey::default(),
+            vertex: crate::entity::VertexKey::default(),
+        }),
         MassPropsError::ResolutionFinerThanEps {
             resolution: 1e-10,
             eps: 1e-9,
@@ -1487,14 +1510,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             shell_plus: shell,
             shell_minus: shell,
         },
-        ValidationError::ComponentEulerViolation {
-            shell,
-            seed: face,
-            vertices: 2,
-            edges: 2,
-            faces: 1,
-            rings: 0,
-        },
         ValidationError::MissingProvenance {
             entity: EntityId::Face(face),
         },
@@ -1697,42 +1712,35 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        // Every measure at every end, the frame's included: the
-        // renderings differ by measure, so each is budget-checked.
-        for measure in geom::ConventionMeasure::iter() {
-            for end in geom::ConventionEnd::iter() {
-                s.push((
-                    format!(
-                        "{}/{measure:?}",
-                        label("UnrepresentableSurfaceDatum", &datum)
-                    ),
-                    ValidationError::UnrepresentableSurfaceDatum {
-                        face,
-                        kind,
-                        datum,
-                        measure,
-                        end,
-                    },
-                ));
-            }
-            // Undecided: read over a box, and at a point.
-            for verdict in [diags()[1], diags()[0]] {
-                s.push((
-                    format!(
-                        "{}/{measure:?}/{:?}",
-                        label("SurfaceDatumUndecided", &datum),
-                        verdict.margin.kind()
-                    ),
-                    ValidationError::SurfaceDatumUndecided {
-                        face,
-                        kind,
-                        datum,
-                        measure,
-                        end: geom::ConventionEnd::Upper,
-                        verdict,
-                    },
-                ));
-            }
+        // Every end: the renderings differ by end, so each is
+        // budget-checked.
+        for end in geom::ConventionEnd::iter() {
+            s.push((
+                label("UnrepresentableSurfaceDatum", &datum),
+                ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    end,
+                },
+            ));
+        }
+        // Undecided: read over a box, and at a point.
+        for verdict in [diags()[1], diags()[0]] {
+            s.push((
+                format!(
+                    "{}/{:?}",
+                    label("SurfaceDatumUndecided", &datum),
+                    verdict.margin.kind()
+                ),
+                ValidationError::SurfaceDatumUndecided {
+                    face,
+                    kind,
+                    datum,
+                    end: geom::ConventionEnd::Upper,
+                    verdict,
+                },
+            ));
         }
     }
 
@@ -1744,38 +1752,34 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedCurveDatum", &datum),
             ValidationError::PoisonedCurveDatum { edge, kind, datum },
         ));
-        // Every measure at every end, the frame's included: the
-        // renderings differ by measure, so each is budget-checked.
-        for measure in geom::ConventionMeasure::iter() {
-            for end in geom::ConventionEnd::iter() {
-                s.push((
-                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
-                    ValidationError::UnrepresentableCurveDatum {
-                        edge,
-                        kind,
-                        datum,
-                        measure,
-                        end,
-                    },
-                ));
-            }
-            for verdict in [diags()[1], diags()[0]] {
-                s.push((
-                    format!(
-                        "{}/{measure:?}/{:?}",
-                        label("CurveDatumUndecided", &datum),
-                        verdict.margin.kind()
-                    ),
-                    ValidationError::CurveDatumUndecided {
-                        edge,
-                        kind,
-                        datum,
-                        measure,
-                        end: geom::ConventionEnd::Upper,
-                        verdict,
-                    },
-                ));
-            }
+        // Every end: the renderings differ by end, so each is
+        // budget-checked.
+        for end in geom::ConventionEnd::iter() {
+            s.push((
+                label("UnrepresentableCurveDatum", &datum),
+                ValidationError::UnrepresentableCurveDatum {
+                    edge,
+                    kind,
+                    datum,
+                    end,
+                },
+            ));
+        }
+        for verdict in [diags()[1], diags()[0]] {
+            s.push((
+                format!(
+                    "{}/{:?}",
+                    label("CurveDatumUndecided", &datum),
+                    verdict.margin.kind()
+                ),
+                ValidationError::CurveDatumUndecided {
+                    edge,
+                    kind,
+                    datum,
+                    end: geom::ConventionEnd::Upper,
+                    verdict,
+                },
+            ));
         }
     }
 
@@ -2628,7 +2632,6 @@ mod tests {
                         geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE.to_owned()
                     }
                     K::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
-                    K::PlaceholderChart => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
                     K::Band => match &e {
                         C::Band(
                             geom_core::BandError::InvalidValue { .. }
@@ -2838,7 +2841,6 @@ mod tests {
                         P::CarrierDomain(r) => C::CarrierDomain(*r).ending(at),
                         _ => unreachable!("the kind is the arm"),
                     },
-                    PK::PlaceholderWall => C::PlaceholderChart.ending(at),
                     // This door's own checks, by their routing.
                     PK::Limb => match &refusal {
                         P::Limb { limb, margin } => {
@@ -3062,6 +3064,7 @@ mod tests {
             matches!(
                 e,
                 CertifyError::UnresolvedSurface { .. }
+                    | CertifyError::PendingSurface { .. }
                     | CertifyError::Unimplemented
                     | CertifyError::IntersectionSameSurface { .. }
                     | CertifyError::WrapOnNonPeriodic

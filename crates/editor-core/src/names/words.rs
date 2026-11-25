@@ -73,6 +73,7 @@
 //! The sentence is built from an explicit stack, never the call stack,
 //! so a name nested past every thread's stack renders.
 
+use crate::{Sentence, sentence};
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -84,7 +85,7 @@ use crate::names::role::{
 };
 use crate::node::RecipeNodeId;
 use crate::spoken::Carry;
-use crate::spoken::{Said, Say, Speaker};
+use crate::spoken::{Say, Speaker};
 use profile::PieceRole;
 
 /// **A name in words** ([module docs](self)): `the end cap of Extrude
@@ -93,7 +94,7 @@ use profile::PieceRole;
 /// sentence takes it as a noun phrase.
 ///
 /// Its `Display` says each node and profile step by its tag, in full;
-/// said by a [`Speaker`] ([`Said`]), as that speaker's document holds
+/// said by a [`Speaker`] ([`crate::Said`]), as that speaker's document holds
 /// them, at that speaker's detail. The name's own `Display` is this.
 #[derive(Clone, Copy)]
 pub struct LeafRole<'a>(pub &'a StableName);
@@ -105,14 +106,16 @@ pub fn leaf_role(name: &StableName) -> LeafRole<'_> {
 }
 
 impl Say for LeafRole<'_> {
-    fn say(&self, f: &mut fmt::Formatter<'_>, by: Speaker<'_>) -> fmt::Result {
-        f.write_str(&words(self.0, by, &by.detail_of(self.0)))
+    fn say(&self, f: &mut crate::Sentence, by: Speaker<'_>) -> fmt::Result {
+        f.append(words(self.0, by, &by.detail_of(self.0)));
+        Ok(())
     }
 }
 
-impl fmt::Display for LeafRole<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Said(self, Speaker::TAG).fmt(f)
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for LeafRole<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -179,9 +182,9 @@ impl Detail {
 }
 
 /// `name` in words at `detail`, each node and step said by `by`.
-pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> String {
-    let mut out = String::new();
-    say(name, by, detail, |text| out.push_str(text), |_| ());
+pub(crate) fn words(name: &StableName, by: Speaker<'_>, detail: &Detail) -> Sentence {
+    let mut out = Sentence::new();
+    say(name, by, detail, |text| out.append(text), |_| ());
     out
 }
 
@@ -227,7 +230,10 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     let bare = Detail::Open(BTreeSet::new());
     let mut alike: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, name) in names.iter().enumerate() {
-        alike.entry(words(name, by, &bare)).or_default().push(i);
+        alike
+            .entry(words(name, by, &bare).key())
+            .or_default()
+            .push(i);
     }
     let mut details = vec![bare; names.len()];
     for group in alike.values().filter(|group| group.len() > 1) {
@@ -239,7 +245,7 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
     let mut said: Vec<String> = names
         .iter()
         .zip(&details)
-        .map(|(name, detail)| words(name, by, detail))
+        .map(|(name, detail)| words(name, by, detail).key())
         .collect();
     loop {
         let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
@@ -264,7 +270,7 @@ pub(crate) fn table_details(table: &NameTable) -> BTreeMap<NameRef, Detail> {
         }
         for i in opened {
             details[i] = Detail::Full;
-            said[i] = words(names[i], by, &Detail::Full);
+            said[i] = words(names[i], by, &Detail::Full).key();
         }
     }
     names.into_iter().cloned().zip(details).collect()
@@ -296,7 +302,7 @@ impl<'n> Alike<'n> {
             .entry(open.clone())
             .or_insert_with(|| vec![None; len]);
         let name = self.names[i];
-        row[i].get_or_insert_with(|| words(name, Speaker::TAG, &Detail::Open(open.clone())))
+        row[i].get_or_insert_with(|| words(name, Speaker::TAG, &Detail::Open(open.clone())).key())
     }
 
     /// How many of `among` read alike with the `i`th name at `open`.
@@ -386,13 +392,13 @@ fn say(
     name: &StableName,
     by: Speaker<'_>,
     detail: &Detail,
-    mut text: impl FnMut(&str),
+    mut text: impl FnMut(Sentence),
     mut at: impl FnMut(&[u16]),
 ) {
     let mut stack = vec![Item::Name(name, Pos::new(), by)];
     while let Some(item) = stack.pop() {
         match item {
-            Item::Text(words) => text(&words),
+            Item::Text(words) => text(words),
             Item::Name(name, pos, by) => {
                 at(&pos);
                 stack.extend(expand(name, &pos, by, detail).into_iter().rev());
@@ -404,11 +410,11 @@ fn say(
 /// One piece of a sentence under construction: words, or a name to say
 /// at its position.
 enum Item<'n, 's> {
-    Text(String),
+    Text(Sentence),
     Name(&'n StableName, Pos, Speaker<'s>),
 }
 
-fn text<'n, 's>(s: impl Into<String>) -> Item<'n, 's> {
+fn text<'n, 's>(s: impl Into<Sentence>) -> Item<'n, 's> {
     Item::Text(s.into())
 }
 
@@ -427,6 +433,18 @@ struct Cites<'p, 'd, 's> {
 }
 
 impl<'s> Cites<'_, '_, 's> {
+    /// Whether `leaf`'s words end in its node already: a conventional
+    /// vertex cites its closed edge, of the same node, opened in full,
+    /// so saying the node again after it would say it twice.
+    fn said_whole_within(&self, leaf: &StableName) -> bool {
+        let [RoleSeg::ConventionalVertex(edge)] = leaf.path.as_slice() else {
+            return false;
+        };
+        let mut pos = self.pos.to_vec();
+        pos.push(self.next);
+        edge.node == leaf.node && self.detail.opens(&pos)
+    }
+
     fn at(&mut self) -> Pos {
         let mut pos = self.pos.to_vec();
         pos.push(self.next);
@@ -610,8 +628,11 @@ fn expand<'n, 's>(
             items.push(text("("));
         }
     }
+    let said_whole = cites.said_whole_within(leaf);
     items.extend(head(leaf, by, &mut cites));
-    items.push(text(format!(" of {}", by.node(leaf.node))));
+    if !said_whole {
+        items.push(text(sentence!(" of ", by.node(leaf.node))));
+    }
     for (k, (joins, level)) in levels.iter().enumerate().rev() {
         if k < last {
             items.push(text(")"));
@@ -654,27 +675,28 @@ fn expand<'n, 's>(
 /// The words a join says after the name it carried: what the carrying
 /// node made of the read, and nothing where the entity is the body's
 /// own continuation (a target's survivor, a subtract's `from`).
-fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
+fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> Sentence {
     match by.carry(at) {
-        Some(Carry::Continued) => String::new(),
-        Some(Carry::Subtract { from }) if from == read => String::new(),
-        Some(Carry::Subtract { .. }) => format!(", cut in at {}", by.node_as_kind(at, "Subtract")),
-        Some(Carry::Union) => format!(
-            ", joined at {} from {}",
+        Some(Carry::Continued) => Sentence::new(),
+        Some(Carry::Subtract { from }) if from == read => Sentence::new(),
+        Some(Carry::Subtract { .. }) => sentence!(", cut in at ", by.node_as_kind(at, "Subtract")),
+        Some(Carry::Union) => sentence!(
+            ", joined at ",
             by.node_as_kind(at, "Union"),
+            " from ",
             by.read(read)
         ),
-        Some(Carry::Intersect) => format!(
-            ", intersected at {} from {}",
+        Some(Carry::Intersect) => sentence!(
+            ", intersected at ",
             by.node_as_kind(at, "Intersect"),
+            " from ",
             by.read(read)
         ),
         // Whether the carry joins is the document's to say; the read it
         // came through is the name's own, and two carries through two
         // reads are two names.
-        None => format!(
-            ", through {} at {}",
-            crate::spoken::ReadTag(read),
+        None => sentence!(
+            format_args!(", through {} at ", crate::spoken::ReadTag(read)),
             by.node(at)
         ),
     }
@@ -746,7 +768,7 @@ fn role_np(role: PieceRole) -> String {
 /// section, which circle. A leg is its step's only piece, so the step alone says
 /// it (`loop 0 step 2`); a fillet's pieces say which (`the arc of loop
 /// 0 step 2`).
-pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) -> Sentence {
     match e {
         ProfileEdgeRef::Piece { step, role } => {
             let step = match by.step(*step) {
@@ -754,28 +776,28 @@ pub(crate) fn piece(e: &ProfileEdgeRef, feature: RecipeNodeId, by: Speaker<'_>) 
                     if feature == at.profile()
                         || by.sole_profile(feature) == Some(at.profile()) =>
                 {
-                    at.to_string()
+                    Sentence::from(at.to_string())
                 }
-                Some(at) => format!("{at} in {}", by.node(at.profile())),
-                None => format!("the profile step {step}"),
+                Some(at) => sentence!(format_args!("{at} in "), by.node(at.profile())),
+                None => Sentence::from(format!("the profile step {step}")),
             };
             match role {
                 PieceRole::Leg => step,
-                _ => format!("{} of {step}", role_np(*role)),
+                _ => sentence!(format_args!("{} of ", role_np(*role)), step),
             }
         }
-        ProfileEdgeRef::Section { circle, role } => format!(
+        ProfileEdgeRef::Section { circle, role } => Sentence::from(format!(
             "{} of the {} circle",
             role_np(*role),
             match circle {
                 SectionCircle::Outer => "outer",
                 SectionCircle::Bore => "bore",
             }
-        ),
+        )),
     }
 }
 
-fn run(r: &PieceRun, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+fn run(r: &PieceRun, feature: RecipeNodeId, by: Speaker<'_>) -> Sentence {
     pieces(r.pieces().iter().map(|e| piece(e, feature, by)))
 }
 
@@ -803,16 +825,23 @@ fn between(
     }
 }
 
-fn pieces(said: impl Iterator<Item = String>) -> String {
-    said.collect::<Vec<_>>().join(", then ")
+fn pieces(said: impl Iterator<Item = Sentence>) -> Sentence {
+    let mut out = Sentence::new();
+    for (i, piece) in said.enumerate() {
+        if i > 0 {
+            out.append(Sentence::from(", then "));
+        }
+        out.append(piece);
+    }
+    out
 }
 
-fn vertex(v: &ProfileVertexRef, feature: RecipeNodeId, by: Speaker<'_>) -> String {
+fn vertex(v: &ProfileVertexRef, feature: RecipeNodeId, by: Speaker<'_>) -> Sentence {
     let edge = match *v {
         ProfileVertexRef::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
         ProfileVertexRef::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
     };
-    format!("the start of {}", piece(&edge, feature, by))
+    sentence!("the start of ", piece(&edge, feature, by))
 }
 
 /// The role the walk stopped at, in words, before its feature: one
@@ -828,6 +857,14 @@ fn head<'n, 's>(
     let (lead, segs) = match path {
         [] => return vec![text(format!("the {}", leaf.kind.noun()))],
         [seg] => return role(seg, leaf, by, cites),
+        // A sub-arc piece or joint of a loft entity, said before the
+        // whole it cuts.
+        [whole, part @ (RoleSeg::SubArc(_) | RoleSeg::SubArcJoint(_))] => {
+            let mut items = role(part, leaf, by, cites);
+            items.push(text(" "));
+            items.extend(role(whole, leaf, by, cites));
+            return items;
+        }
         many if many.iter().all(|s| matches!(s, RoleSeg::Seam { .. })) => {
             ("the junction of ", many)
         }
@@ -901,53 +938,64 @@ fn role<'n, 's>(
 ) -> Vec<Item<'n, 's>> {
     let f = leaf.node;
     let kind = leaf.kind.noun();
-    let one = |s: String| vec![text(s)];
+    let one = |s: Sentence| vec![text(s)];
     match seg {
-        RoleSeg::OutputBody => one("the output body".to_owned()),
-        RoleSeg::Cap(e) => one(format!("the {} cap", cap(*e))),
-        RoleSeg::Lateral(r) => one(format!("the side wall over {}", run(r, f, by))),
-        RoleSeg::RimEdge(c, r) => one(format!("the {} rim edge over {}", cap(*c), run(r, f, by))),
-        RoleSeg::LateralEdge(v) => one(format!("the lateral edge over {}", vertex(v, f, by))),
-        RoleSeg::CapVertex(c, v) => one(format!(
-            "the {} cap vertex over {}",
-            cap(*c),
-            vertex(v, f, by)
-        )),
-        RoleSeg::LoftWall(at) => one(format!(
-            "the loft wall {}over {}",
-            between(at.iter().map(|&(s, _)| s), f, by),
-            pieces(at.iter().map(|(_, e)| piece(e, f, by)))
-        )),
-        RoleSeg::LoftSeam(at) => one(format!(
-            "the loft seam {}over {}",
-            between(at.iter().map(|&(s, _)| s), f, by),
-            pieces(at.iter().map(|(_, v)| vertex(v, f, by)))
-        )),
-        RoleSeg::LoftSectionEdge(s, e) => one(format!(
-            "the loft section {} edge over {}",
-            by.section_numeral(f, *s),
-            piece(e, f, by)
-        )),
-        RoleSeg::LoftSectionVertex(s, v) => one(format!(
-            "the loft section {} vertex over {}",
-            by.section_numeral(f, *s),
-            vertex(v, f, by)
-        )),
-        RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),
-        RoleSeg::BandRim(v) => one(format!("the band rim over {}", vertex(v, f, by))),
-        RoleSeg::Meridian(m, r) => one(format!(
-            "the {} meridian edge over {}",
-            meridian(*m),
+        RoleSeg::OutputBody => one(Sentence::from("the output body")),
+        RoleSeg::Cap(e) => one(Sentence::from(format!("the {} cap", cap(*e)))),
+        RoleSeg::Lateral(r) => one(sentence!("the side wall over ", run(r, f, by))),
+        RoleSeg::RimEdge(c, r) => one(sentence!(
+            format_args!("the {} rim edge over ", cap(*c)),
             run(r, f, by)
         )),
-        RoleSeg::MeridianVertex(m, v) => one(format!(
-            "the {} meridian vertex over {}",
-            meridian(*m),
+        RoleSeg::LateralEdge(v) => one(sentence!("the lateral edge over ", vertex(v, f, by))),
+        RoleSeg::CapVertex(c, v) => one(sentence!(
+            format_args!("the {} cap vertex over ", cap(*c)),
             vertex(v, f, by)
         )),
-        RoleSeg::RevolveCap(m) => one(format!("the {} wedge cap", meridian(*m))),
-        RoleSeg::Pole(v) => one(format!("the pole over {}", vertex(v, f, by))),
-        RoleSeg::AxisEdge(r) => one(format!("the axis edge over {}", run(r, f, by))),
+        RoleSeg::LoftWall(at) => one(sentence!(
+            format_args!(
+                "the loft wall {}over ",
+                between(at.iter().map(|&(s, _)| s), f, by)
+            ),
+            pieces(at.iter().map(|(_, e)| piece(e, f, by)))
+        )),
+        RoleSeg::LoftSeam(at) => one(sentence!(
+            format_args!(
+                "the loft seam {}over ",
+                between(at.iter().map(|&(s, _)| s), f, by)
+            ),
+            pieces(at.iter().map(|(_, v)| vertex(v, f, by)))
+        )),
+        RoleSeg::LoftSectionEdge(s, e) => one(sentence!(
+            format_args!("the loft section {} edge over ", by.section_numeral(f, *s)),
+            piece(e, f, by)
+        )),
+        RoleSeg::LoftSectionVertex(s, v) => one(sentence!(
+            format_args!(
+                "the loft section {} vertex over ",
+                by.section_numeral(f, *s)
+            ),
+            vertex(v, f, by)
+        )),
+        RoleSeg::SubArc(q) => one(Sentence::from(format!("sub-arc {} of", u64::from(*q) + 1))),
+        RoleSeg::SubArcJoint(q) => one(Sentence::from(format!(
+            "the joint of sub-arcs {} and {} of",
+            q,
+            u64::from(*q) + 1
+        ))),
+        RoleSeg::Band(r) => one(sentence!("the band face over ", run(r, f, by))),
+        RoleSeg::BandRim(v) => one(sentence!("the band rim over ", vertex(v, f, by))),
+        RoleSeg::Meridian(m, r) => one(sentence!(
+            format_args!("the {} meridian edge over ", meridian(*m)),
+            run(r, f, by)
+        )),
+        RoleSeg::MeridianVertex(m, v) => one(sentence!(
+            format_args!("the {} meridian vertex over ", meridian(*m)),
+            vertex(v, f, by)
+        )),
+        RoleSeg::RevolveCap(m) => one(Sentence::from(format!("the {} wedge cap", meridian(*m)))),
+        RoleSeg::Pole(v) => one(sentence!("the pole over ", vertex(v, f, by))),
+        RoleSeg::AxisEdge(r) => one(sentence!("the axis edge over ", run(r, f, by))),
         RoleSeg::Seam { a, b } => vec![
             text(format!("the seam {kind} of ")),
             cites.one(a),
@@ -995,8 +1043,8 @@ fn role<'n, 's>(
             items.extend(cites.list(set));
             items
         }
-        RoleSeg::SplitBody => one("the split's body".to_owned()),
-        RoleSeg::SectionFace => one("the split's section face".to_owned()),
+        RoleSeg::SplitBody => one(Sentence::from("the split's body".to_owned())),
+        RoleSeg::SectionFace => one(Sentence::from("the split's section face".to_owned())),
         RoleSeg::SectionEdge { face } => {
             vec![text("the split's section edge across "), cites.one(face)]
         }
@@ -1027,6 +1075,9 @@ fn role<'n, 's>(
             cites.one(edge),
         ],
         RoleSeg::Mitre { vertex } => vec![text("the mitre at "), cites.one(vertex)],
+        RoleSeg::ConventionalVertex(edge) => {
+            vec![text("the conventional vertex of "), cites.one(edge)]
+        }
         RoleSeg::TurnFoot { vertex } => vec![text("the turn foot at "), cites.one(vertex)],
         RoleSeg::BandSection { vertex } => vec![text("the band section at "), cites.one(vertex)],
         RoleSeg::HostFoot { vertex, edge } => vec![
@@ -1075,7 +1126,7 @@ fn role<'n, 's>(
         // qualifier never ends the head. Each still has words of its
         // own, so such a path reads apart from every other.
         RoleSeg::From { read, of } => {
-            vec![cites.one(of), text(format!(" through {}", by.read(*read)))]
+            vec![cites.one(of), text(sentence!(" through ", by.read(*read)))]
         }
         RoleSeg::SplitFragment { parent } => vec![text("the split's part of "), cites.one(parent)],
         RoleSeg::OnToolVertex { of } => vec![text("the split's copy of "), cites.one(of)],
@@ -1396,12 +1447,12 @@ mod tests {
              of node 000000000003"
         );
         assert_eq!(
-            words(&blend, Speaker::TAG, &open(&[&[0]])),
+            words(&blend, Speaker::TAG, &open(&[&[0]])).to_string(),
             "the blend face over the seam edge of a face and a face of node 000000000002 of node \
              000000000003"
         );
         assert_eq!(
-            words(&blend, Speaker::TAG, &open(&[])),
+            words(&blend, Speaker::TAG, &open(&[])).to_string(),
             "the blend face over an edge of node 000000000003"
         );
         let merged = name(
@@ -1410,11 +1461,13 @@ mod tests {
             vec![RoleSeg::Merged(vec![wall(1), wall(2), wall(3)])],
         );
         assert_eq!(
-            words(&merged, Speaker::TAG, &open(&[])),
+            words(&merged, Speaker::TAG, &open(&[])).to_string(),
             "the merged face of 3 faces of node 000000000003"
         );
         assert!(
-            words(&merged, Speaker::TAG, &open(&[&[0], &[1]])).contains(" and 1 more of node"),
+            words(&merged, Speaker::TAG, &open(&[&[0], &[1]]))
+                .to_string()
+                .contains(" and 1 more of node"),
             "two in full, then how many more"
         );
         // A set on an edge is the edge a join made of its members.
@@ -1424,7 +1477,7 @@ mod tests {
             vec![RoleSeg::Merged(vec![rim(1), rim(2)])],
         );
         assert_eq!(
-            words(&joined, Speaker::TAG, &open(&[])),
+            words(&joined, Speaker::TAG, &open(&[])).to_string(),
             "the joined edge of 2 edges of node 000000000003"
         );
     }
@@ -1489,7 +1542,7 @@ mod tests {
         let details = table_details(&table);
         names
             .iter()
-            .map(|n| words(n, Speaker::TAG, &details[*n]))
+            .map(|n| words(n, Speaker::TAG, &details[*n]).to_string())
             .collect()
     }
 
@@ -1544,7 +1597,7 @@ mod tests {
             "said within the table, two names read alike: {said:#?}"
         );
         assert_eq!(
-            words(&mixed, Speaker::TAG, &open(&[&[0]])),
+            words(&mixed, Speaker::TAG, &open(&[&[0]])).to_string(),
             words(&faces, Speaker::TAG, &open(&[&[0]])),
             "the premise: the opening the first rival asks for makes the second alike"
         );

@@ -49,11 +49,11 @@
 //! Everything is generic over [`geom_core::Real`] with decisions only
 //! through [`geom_core::Decide`]'s trilean door (named predicates, D4
 //! ¶3 escalation); evaluation is comparison-free and total (poison in,
-//! poison out — including the `Nurbs` representable-unimplemented
-//! placeholders, which certification rejects loudly); sampling is
+//! poison out); sampling is
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
@@ -184,10 +184,12 @@ pub use edge_nurbs::{
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
     analytic_rung3, arc_rim_candidates, arc_rim_measured, curved_nurbs_limbs, first_within,
     is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
-    probe_pick, sub_arc_joint,
+    probe_pick, sub_arc_angle_at_fraction, sub_arc_at, sub_arc_fraction_at_angle, sub_arc_joint,
+    sub_arc_tan_quarter,
 };
 pub use edge_wedge::{
     Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    rim_routing_wedge,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -215,7 +217,7 @@ pub use implicit::{
     conic_torus_residual, graph_acceleration, implicit_gradient, implicit_graph_acceleration,
     implicit_hessian, implicit_hessian_form, implicit_max_normal_curvature,
     implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward, ring_floor,
+    min_radius_of_curvature, min_radius_of_curvature_toward, one_sheet_radius, ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConeSphereSection, ConeTorusSection, ConicArcError,
@@ -225,10 +227,10 @@ pub use intersect::{
     cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
     plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
-pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
+pub use keys::{CurveKey, PENDING_SURFACE, PointKey, SurfaceKey, SurfaceMiss, SurfacePair};
 pub use locus::{
     TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
 };
@@ -250,17 +252,19 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, OffsetFitLaneOf, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
-    ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal, CcDecision,
-    CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape,
-    Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
-    CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
-    NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
-    RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
-    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
+    ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
+    CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
+    ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
+    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, HeldRead,
+    KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
+    NodeLine, NodeSet, PadBox, PadsStop, PairPose, PairSection, PairSide, PlaneTorusMeridian,
+    PlaneTorusPose, PoseRefusal, PtCut, PtPinch, PtStance, RaySense, Reached, RegionPlacement,
+    Ring, SectionComponent, SectionDecision, SectionNode, SectionPick, SectionRead, SiteFoot,
+    SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose, SplinePairPose,
+    SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence,
+    TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion,
+    TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose,
+    coaxial_tangent_circle, line_tilt, pair_section, pair_section_held, plane_torus_closed_form,
     spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
@@ -273,16 +277,16 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
-    ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
-    FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal,
-    IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoHeldLine, NoSpeedBound,
+    ChartLine, ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement,
+    EnvelopeTerm, FocalImage, FramedCarrier, HeldLine, ISO_FAMILY_CLAUSE, IncidenceRead,
+    IncidenceRefusal, IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, NoSpeedBound,
     OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
     Period, PoleEnd, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SingularEnds,
-    SpiricImage, StoredSpan, WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family,
+    SpiricImage, WalkStop, WallTorus, angle_rate, azimuth_lever_inf, chart_iso_family,
     chart_pcurve, chart_pcurve_over, chart_pcurve_over_ends, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, harmonic_range,
     incidence_ended_unwitnessed, iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence,
-    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss,
+    read_incidence, read_point_incidence, reads_singular_ends, ruling_miss, spline_net_closes,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use polygon_orientation::PolygonOrientation;
@@ -298,9 +302,10 @@ pub use ssi::{
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
-    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
-    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
+    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cone_torus_ssi,
+    cylinder_sphere_ssi, cylinder_torus_ssi, idealized_trace_r3, march_cone_torus,
+    march_cylinder_torus, march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
+    trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

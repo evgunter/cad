@@ -38,12 +38,11 @@
 
 use std::sync::Arc;
 
-use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
 use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::fate::{Holds, Leaving, corner_holds, departure};
@@ -51,7 +50,6 @@ use crate::body::Body;
 use crate::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::NormalAtError;
-use crate::live::BoundaryMember;
 
 /// **Why [`overlap`] gave no answer.**
 #[derive(Clone, Debug)]
@@ -129,9 +127,6 @@ pub enum OverlapUnread {
     /// Two corner bounds leave along one ray with no bend to part them.
     /// A limit.
     AlongOneRay,
-    /// A region of a face a sphere's re-chart turned, which the
-    /// accumulation lost. A limit.
-    RechartedRegionLost,
     /// A row says the face holds an accumulation face lying elsewhere. A
     /// limit.
     HeldElsewhere,
@@ -159,7 +154,6 @@ impl OverlapUnread {
             | Self::UncertifiedBound
             | Self::UnplacedParameter
             | Self::AlongOneRay
-            | Self::RechartedRegionLost
             | Self::HeldElsewhere
             | Self::HeldCarrierUnread => Ok(Refusal::Limit),
         }
@@ -183,7 +177,6 @@ impl OverlapUnread {
             Self::UnplacedParameter => "a boundary edge whose carrier places no parameter",
             Self::TornBoundary => "a boundary record past a resolved face that does not resolve",
             Self::AlongOneRay => "two corner bounds leave along one ray with no bend to part them",
-            Self::RechartedRegionLost => "a lost region of a face a sphere's re-chart turned",
             Self::HeldElsewhere => "a row says the face holds an accumulation face lying elsewhere",
             Self::HeldCarrierUnread => {
                 "an accumulation face a row says the face holds, on a carrier not read"
@@ -319,7 +312,7 @@ pub(crate) fn overlap_as<T: Decide>(
     for (body, face) in [a, b] {
         let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
         if matches!(
-            f.surface().kind(),
+            f.expect_described().kind(),
             geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
         ) {
             return Err(OverlapRefusal::SplineCarrier { face });
@@ -336,24 +329,34 @@ pub(crate) fn overlap_as<T: Decide>(
 }
 
 /// The middle of `a`'s first boundary edge, and a's and b's outward
-/// normals there, which must face one way.
+/// normals there, which must face one way: their cosine levered at how
+/// far `a`'s boundary reaches from that point, read from below, since a
+/// definite sign is what is acted on.
 fn one_sense<T: Decide>(
     a: (&Body<T>, FaceKey),
     (b, reversed): ((&Body<T>, FaceKey), bool),
     band: Band,
 ) -> Result<(), OverlapRefusal> {
-    let Some(&he) = loops(a)?.iter().flatten().next() else {
+    let boundary = loops(a)?;
+    let Some(&he) = boundary.iter().flatten().next() else {
         return Err(OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge));
     };
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
+    let arm = crate::cover::boundary_reach_below(a.0, a.1, p).map_err(|why| {
+        use crate::cover::BoundaryReachUnread as W;
+        match why {
+            W::StaleFace => OverlapRefusal::StaleFace { face: a.1 },
+            W::LoneVertex => OverlapRefusal::Unread(OverlapUnread::LoneVertex),
+            W::Uncertified => OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge),
+            W::NoEdge => OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge),
+        }
+    })?;
     let na = normal_at(a, p, band)?;
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        // Unsourced lever: the unit normals' cosine is read at a unit arm,
-        // not over the faces' extent; the holdings row owns its source.
-        Margin::levered(na.dot(nb), Lever::unsourced(T::one())),
+        Margin::levered(na.dot(nb), arm),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
@@ -411,25 +414,19 @@ fn place<T: Decide>(
 /// outward normal from its first bound to its second.
 type Corner<T> = (Leaving<T>, Leaving<T>);
 
-/// Each loop of `face`, as its edge half-edges in walk order.
+/// Each loop of `face`, as its edge half-edges in walk order. A face
+/// with no outline, or one holding a lone ring (a boundary point no
+/// corner reading here places), is unread.
 fn loops<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, OverlapRefusal> {
+    let lone = OverlapRefusal::Unread(OverlapUnread::LoneVertex);
     let f = body.face(face).ok_or(OverlapRefusal::StaleFace { face })?;
-    let mut out = Vec::new();
-    for (_, members, _) in f.boundary_by_loop() {
-        let mut cycle = Vec::with_capacity(members.len());
-        for member in members {
-            match member {
-                BoundaryMember::Edge { he, .. } => cycle.push(he),
-                BoundaryMember::Isolated { .. } => {
-                    return Err(OverlapRefusal::Unread(OverlapUnread::LoneVertex));
-                }
-            }
-        }
-        out.push(cycle);
+    let area = f.area_loops().map_err(|_| lone.clone())?;
+    if !area.lone_rings().is_empty() {
+        return Err(lone);
     }
-    Ok(out)
+    Ok(area.cycles().map(|(lp, _)| lp.cycle()).collect())
 }
 
 /// The certified carrier and span of half-edge `he`'s edge.
@@ -461,16 +458,16 @@ fn edge_record<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
 ) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
-    let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
-    let edge = body
-        .get_edge(half_edge(body, he)?.edge)
-        .ok_or(torn.clone())?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .ok_or(torn)?
+    let edge = body.linked_edge(
+        half_edge(body, he)?.edge,
+        crate::entity::EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = edge
+        .curve()
         .certified()
         .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))?;
-    Ok(((curve.carrier(), curve.params()), edge))
+    Ok(((curve.carrier(), curve.params()), edge.record()))
 }
 
 /// The corner of `face` at its vertex `v`: each, where its loops pass `v`
@@ -561,11 +558,8 @@ fn half_plane<T: Decide>(
             .ok_or_else(torn)
     };
     let (at_t0, at_t1) = (vertex(v0)?, vertex(v1)?);
-    let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
-        }
-        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+    let reach = |ta: T, (tb, end): (T, Point3<T>)| {
+        crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p)
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))
@@ -792,7 +786,9 @@ mod piece_ranking {
     use super::{OverlapRefusal, OverlapUnread, keep_piece_refusal};
 
     fn in_band() -> OverlapRefusal {
-        OverlapRefusal::Placement(super::super::ContainError::RayExhausted)
+        OverlapRefusal::Placement(super::super::ContainError::RayExhausted(
+            crate::entity::LoopKey::default(),
+        ))
     }
 
     fn unread() -> OverlapRefusal {

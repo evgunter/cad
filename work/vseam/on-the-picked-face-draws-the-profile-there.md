@@ -2,12 +2,13 @@
 id: on-the-picked-face-draws-the-profile-there
 kind: unit
 title: The add-profile form's "on the picked face" draws the profile on the face, and SketchOnFace retires
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face]
 parent: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
+closed: 2026-11-23
+pr: 7466
 ---
 
 

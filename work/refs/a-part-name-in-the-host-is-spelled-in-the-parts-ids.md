@@ -62,3 +62,28 @@ the head resolves to `a`'s member.
 ## Slate triage (2026-10-28, INTENT)
 
 Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to REFS's charter (names scoped by their read). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
+
+## The viewer reads part levels by site (VGEOM, `vgeom/step-focus`, PR 7766, 2026-11-25)
+
+The collision this row describes needs no coincidence beyond equal
+first edits: a mint chain starts empty in every document
+(`Mint::empty`), so a part and a host that open alike mint the same ids
+throughout their common prefix (the fixture of
+`crates/viewer/tests/focus_highlight.rs`
+`a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids` asserts
+it). `Doc::part_spelled` and `resolve::part_name` ask the mint log,
+which such an id passes.
+
+`marks::step_focus` (`crates/viewer/src/marks.rs`) therefore reads each
+carried level of a drawn name at its site: `swept_by` descends the
+carries (`names::origin`), and `spelled_at` follows a level's site
+through the pass-through edges (`names::verbatim_edge`) to the node that
+spelled it, or to an instance first, which makes the level the part's.
+That is a third answer to "is this level a part's", beside the two
+mint-log ones; the readings above (a sited read, or a re-keying copy)
+would give the three one home.
+
+A further option the readings do not list, for Ev and not decided here:
+seed `Mint::empty` with the `DocumentId`, so two documents' ids cannot
+collide at all. Viability is unknown: ids are persisted (D9) and every
+saved document's ids were drawn from the unseeded chain.

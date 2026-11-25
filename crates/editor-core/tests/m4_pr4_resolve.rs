@@ -170,7 +170,7 @@ fn slide_union(tx: f64) -> Slide {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), placement.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), placement.into()]),
         },
     );
     Slide {
@@ -485,7 +485,7 @@ fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constit
         s.doc.clone(),
         DocEdit::SetMembers {
             node: s.union,
-            members: editor_core::Bodies::Spelled(vec![s.a.into()]),
+            members: editor_core::Bodies::spelled(vec![s.a.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -529,7 +529,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
     let (doc, u2) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![s.union.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![s.union.into(), c.into()]),
         },
     );
     let ev1 = run(&doc, None);
@@ -556,7 +556,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
         doc.clone(),
         DocEdit::SetMembers {
             node: u2,
-            members: editor_core::Bodies::Spelled(vec![s.union.into()]),
+            members: editor_core::Bodies::spelled(vec![s.union.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -728,7 +728,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -906,7 +906,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::BandCut(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
-        | RoleSeg::HoleRim { of: x, .. } => under(x),
+        | RoleSeg::HoleRim { of: x, .. }
+        | RoleSeg::ConventionalVertex(x) => under(x),
         // A crossing: its line, its face, and the things its sense
         // names on the line.
         RoleSeg::CrossingVertex { edge, sense } => under(edge) || sensed(sense, &under),
@@ -943,6 +944,8 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // Segments that embed no name.
         RoleSeg::OutputBody
         | RoleSeg::Cap(_)
+        | RoleSeg::SubArc(_)
+        | RoleSeg::SubArcJoint(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)
         | RoleSeg::LateralEdge(_)
@@ -1131,7 +1134,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let (doc1, bl) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1167,7 +1170,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc1.clone(),
         DocEdit::SetMembers {
             node: bl,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), c.into()]),
         },
     );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
@@ -1246,7 +1249,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![b.into(), d.into()]),
         },
     );
     let (doc1, _, n) = fixture::linear(doc, x, [0.0, 1.0, 0.0], 2.0, 2);
@@ -1255,7 +1258,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc1,
         DocEdit::SetMembers {
             node: x,
-            members: editor_core::Bodies::Spelled(vec![c.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![c.into(), d.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));

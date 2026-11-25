@@ -319,10 +319,12 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                 .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
             let origin = super::slot_point2(&vals, SlotId::Origin);
             let dir = super::axis_heading(&vals);
-            // The sweep's own arithmetic (`sweep::revolve`'s axis frame):
-            // the origin placed as a point, the direction decided in the
-            // sketch and turned by the plane's frame, so the line this
-            // port answers is the one the body turns about.
+            // The sweep's own arithmetic (`sweep::revolve`'s authored
+            // axis frame): the origin placed as a point, the direction
+            // decided in the sketch and turned by the plane's frame, so
+            // the line this port answers, heading included, is the axis
+            // the body's revolution walls carry, whichever side of it the
+            // profile lies on.
             let plane = drawn.validated.plane();
             let sketch = pose_unit(
                 Vec3::new(dir.x, dir.y, T::zero()),
@@ -341,6 +343,11 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                     .map_or(Frame::Own, |d| d.frame().clone()),
             })
         }
+        // A datum's frame: its target's axes where its bundle placed them.
+        (ValuePayload::Datum(frame), Some(Node::Datum { .. })) if port == 0 => Ok(Posed {
+            value: PoseValue::Frame(*frame),
+            frame: Frame::Own,
+        }),
         // A read the door would have refused, in a document built past
         // it: the pose the seat asks for, in the operand door's words.
         _ => {

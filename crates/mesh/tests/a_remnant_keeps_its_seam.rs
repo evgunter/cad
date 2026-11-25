@@ -28,7 +28,8 @@ fn tol() -> Tol {
 fn a_sphere_remnant_walks_its_seam_twice(body: &Body<f64>) -> bool {
     body.faces().any(|(fk, f)| {
         let sphere = body.face_surface(fk).expect("a live face").kind() == SurfaceKind::Sphere;
-        let (_, halves) = topo::props::loop_edges(body, f.outer).expect("a loop");
+        let (_, halves) =
+            topo::props::loop_edges(body.cycle_loop(f.outer).expect("a loop")).expect("a loop");
         let edges: Vec<_> = halves
             .iter()
             .map(|&h| body.get_half_edge(h).expect("a live half-edge").edge)

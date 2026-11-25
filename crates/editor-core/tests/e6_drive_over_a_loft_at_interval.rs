@@ -7,8 +7,8 @@
 //! is no point at `Interval`: its sweep is certified (a full turn, four
 //! sub-arcs) and the carrier's door refuses the weight
 //! (`SplineError::CarrierWeightNotAPoint`, C6's interim until S4/S5) at
-//! every leaf, which a smaller box cannot lift, and the drive bisects
-//! to its leaf budget
+//! every leaf, which a smaller box cannot lift: the loft reads no
+//! variable of the box, so the drive refuses the root for it
 //! (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -126,16 +126,36 @@ fn drive_loft(
     (verdict.receipt(), reasons)
 }
 
-/// Every refused leaf is budget mass, and nothing certified.
-fn assert_bisected_to_budget(label: &str, (receipt, reasons): (Receipt, Vec<RefusalReason>)) {
-    assert_eq!(receipt.certified, 0, "{label}: {receipt:?}");
-    assert_eq!(receipt.refused, 256, "{label}: {receipt:?}");
+/// The root refuses for `node`, which reads no variable of the box.
+fn assert_refused_at_the_root_for(
+    label: &str,
+    node: editor_core::RecipeNodeId,
+    (receipt, reasons): (Receipt, Vec<RefusalReason>),
+) {
+    assert_eq!(
+        receipt,
+        Receipt {
+            certified: 0,
+            refused: 1,
+            splits: 0
+        },
+        "{label}"
+    );
+    // The loft fails (`with_no_box_an_arc_section_refuses_and_a_rotated_copy_places`
+    // names the failure); the refusal says so and does not call it
+    // undecided.
     assert!(
-        reasons
-            .iter()
-            .all(|r| matches!(r, RefusalReason::Budget(_))),
-        "{label}: {:?}",
-        reasons.first()
+        matches!(
+            reasons.as_slice(),
+            [RefusalReason::ReadsNoVariable {
+                node: named,
+                unsettled: editor_core::drive::Unsettled::Failed {
+                    class: editor_core::NodeErrorClass::Skin,
+                    ..
+                },
+            }] if *named == node
+        ),
+        "{label}: {reasons:?}"
     );
 }
 
@@ -160,8 +180,9 @@ fn a_point_polygon_loft_certifies_under_a_box_elsewhere() {
 }
 
 #[test]
-fn an_arc_loft_bisects_to_its_budget_under_a_box_elsewhere() {
-    assert_bisected_to_budget("arc", drive_loft(circle, [1.0, 0.0, 0.0]));
+fn an_arc_loft_refuses_the_root_under_a_box_elsewhere() {
+    let (_, loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
+    assert_refused_at_the_root_for("arc", loft, drive_loft(circle, [1.0, 0.0, 0.0]));
 }
 
 #[test]

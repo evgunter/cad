@@ -90,7 +90,7 @@ pub(super) fn spline_sheet(
         },
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(plane),
-            carrier: Curve3::line(p1, -u_ref),
+            carrier: Curve3::line(p1, geom::stated_direction(-u_ref)),
             param_start: 0.0,
             param_end: (p1 - p0).norm(),
         },
@@ -283,11 +283,11 @@ fn upper_cone() -> (Body<f64>, FaceKey) {
     (b, patch)
 }
 
-/// Puts `face`'s lamina twin, which the wall fixtures leave on the
-/// seed's placeholder, on `face`'s carrier under sense `true`, and
+/// Puts `face`'s lamina twin, which the wall fixtures leave pending,
+/// on `face`'s carrier under sense `true`, and
 /// returns it.
 fn twin_on_the_carrier(b: &mut Body<f64>, face: FaceKey) -> FaceKey {
-    let carrier = b.proven_face(face).surface().clone();
+    let carrier = b.proven_face(face).surface().unwrap().clone();
     let twin = b.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     b.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(

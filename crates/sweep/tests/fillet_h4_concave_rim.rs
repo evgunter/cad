@@ -217,7 +217,7 @@ fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
@@ -343,12 +343,12 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         for f in &around {
             let fd = out.body.get_face(*f).unwrap();
             match out.body.face_surface(*f) {
-                Some(Surface::Plane { .. }) => {
+                Ok(Surface::Plane { .. }) => {
                     planes += 1;
                     assert_eq!(*f, top, "{name}: the plane beside the band is the top face");
                     assert_eq!(fd.rings.len(), 1, "{name}: the top face keeps one ring");
                 }
-                Some(Surface::Sphere { .. }) => {
+                Ok(Surface::Sphere { .. }) => {
                     spheres += 1;
                     assert!(fd.rings.is_empty(), "{name}: the cap is ring-free");
                 }

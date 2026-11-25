@@ -215,7 +215,7 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
     // membrane shared mvfs's surface, so kfmrh kept it).
     assert_eq!(body.points().count(), 16);
     assert_eq!(body.curves().count(), 24);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     assert_eq!(b.plug.killed_surface, None);
 
     // The Euler–Poincaré ledger at genus 1, through the census door:
@@ -225,7 +225,7 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
         (counts.v, counts.e, counts.f, counts.r, counts.s),
         (16, 24, 10, 2, 1)
     );
-    assert_eq!(counts.genus(), Ok(1));
+    assert_eq!(counts.h(), Ok(1));
 
     // Exactly two faces carry rings: the top (the hole's rim ring from
     // kemr's lineage) and the bottom (the demoted membrane loop from
@@ -427,7 +427,7 @@ fn snapshot(body: &Body<f64>) -> Vec<String> {
     for (k, e) in body.curves() {
         lines.push(format!("{k:?}: {e:?}"));
     }
-    for (k, e) in body.surfaces() {
+    for (k, e) in body.described_surfaces() {
         lines.push(format!("{k:?}: {e:?}"));
     }
     lines

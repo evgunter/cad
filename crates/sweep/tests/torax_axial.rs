@@ -679,7 +679,7 @@ fn torax_a_two_arc_lune_re_authors_its_equator_seam_and_hollows() {
     let mut body = body.into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -781,7 +781,8 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the axis edge moved to the caps' meeting line at ρ = t√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
@@ -929,7 +930,7 @@ fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let body = lune(r, core::f64::consts::FRAC_PI_2);
     let caps: Vec<FaceKey> = body
         .faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian caps");
@@ -1035,7 +1036,7 @@ fn torax_the_half_turn_lune_refuses_at_its_axis_edge() {
         "the refused edge lies between two faces of one record"
     );
     assert!(
-        matches!(body.get_surface(a), Some(Surface::Plane { .. })),
+        matches!(body.get_surface(a), Ok(Surface::Plane { .. })),
         "the refused edge lies between the two caps"
     );
     assert!(
@@ -1212,7 +1213,8 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the axis edge moved to the caps' meeting line at ρ = |t|√2, got {rho_l}"
                 );
                 assert!(
-                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    (dir.get().x.abs() + dir.get().z.abs()) <= 1e-15
+                        && (dir.get().y.abs() - 1.0).abs() <= 1e-15,
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }

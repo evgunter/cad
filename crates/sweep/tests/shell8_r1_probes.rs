@@ -359,7 +359,7 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
         .filter(|&f| {
             matches!(
                 pair.face_surface(f),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().x.abs() < 1e-9 && frame.axis().z.abs() < 1e-9
                         && (frame.origin().y - (h - t1)).abs() < 1e-9
             )
@@ -473,7 +473,7 @@ fn r1_e2e_two_parts_one_body() {
         .filter(|&f| {
             matches!(
                 hollow.face_surface(f),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
                         && (frame.origin().z - 4.0).abs() < 1e-9
             )
@@ -564,7 +564,7 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
     // the whole search a user must do to pick "the inner wall".
     let mut rows: Vec<String> = Vec::new();
     for (f, d) in twice.faces() {
-        if let Some(geom::Surface::Plane { frame, .. }) = twice.face_surface(f)
+        if let Ok(geom::Surface::Plane { frame, .. }) = twice.face_surface(f)
             && frame.axis().x.abs() < 1e-9
             && frame.axis().y.abs() < 1e-9
         {

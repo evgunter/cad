@@ -45,7 +45,6 @@ use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use crate::curves::nurbs::NurbsCurve3;
 use crate::curves::{Conic, Curve3};
-use crate::net;
 
 /// A bracket as the certified scalar's enclosure of it. The box doors
 /// read only the result's bounds, never its decoration, so the
@@ -88,6 +87,7 @@ pub struct ArcWindow<T: Real> {
     /// `π − h`: at most zero iff the span covers a full turn.
     turn_left: T,
     ends: [(T, T); 2],
+    span: (T, T),
 }
 
 impl<T: Real> ArcWindow<T> {
@@ -102,7 +102,13 @@ impl<T: Real> ArcWindow<T> {
             cos_h: h.min(T::pi()).cos(),
             turn_left: T::pi() - h,
             ends: [t0.sin_cos(), t1.sin_cos()],
+            span: (t0, t1),
         }
+    }
+
+    /// The span's two ends, as given.
+    pub fn span(&self) -> (T, T) {
+        self.span
     }
 
     /// **Whether the crest of `p·cos t + q·sin t` lies in the span**, as
@@ -140,8 +146,7 @@ fn extent_along<T: Real>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> (T, T) {
-    let (p, q) = conic.along(n);
-    window.extent((conic.frame().origin() - origin).dot(n), p, q)
+    conic.extent_along(window, origin, n)
 }
 
 /// The carrier with every scalar entered as the [`Interval`] of its
@@ -394,13 +399,11 @@ pub fn conic_arc_aabb<T: Bounds>(
 /// later sharpening; a wider box still contains the locus). No
 /// arithmetic — brackets only — so no rounding to pad.
 ///
-/// **A net carrying poison ANYWHERE yields the poison box**, which
-/// overlaps everything, a net poisoned in one channel of one point as
-/// much as an all-poison one. The screen is `net::any_poison`, whose
-/// docs carry why a box asks the wider question than the state
-/// discriminator does.
+/// **A net that is not finite yields the poison box**, which overlaps
+/// everything ([`NurbsCurve3::is_finite`]; the surface box's docs say
+/// why).
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
-    if net::any_poison(curve.control()) {
+    if !curve.is_finite() {
         return Aabb::poison();
     }
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)

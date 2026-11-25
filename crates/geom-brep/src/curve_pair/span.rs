@@ -542,10 +542,10 @@ impl<'a, T: Decide> Span<'a, T> {
         let Curve3::Line(geom::Line { origin, dir }) = self.carrier else {
             return self.pieces_near(cover, (lo, hi), band);
         };
-        let (near, far) = cover.range_along(*dir);
-        let base = (*origin - Point3::origin()).dot(*dir);
-        let reach = T::from_f64(band.escalate()) * dir.norm();
-        let per = dir.norm_squared();
+        let (near, far) = cover.range_along(dir.get());
+        let base = (*origin - Point3::origin()).dot(dir.get());
+        let reach = T::from_f64(band.escalate()) * dir.get().norm();
+        let per = dir.get().norm_squared();
         let within = |t: T| t.max(lo).min(hi);
         (
             within((near - base - reach) / per),

@@ -37,7 +37,8 @@
 //! | arm | trace shape | why |
 //! |---|---|---|
 //! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs (M5 PR 7) |
-//! | [`sphere_torus_ssi`], [`cylinder_torus_ssi`], [`torus_torus_ssi`] | **ℝ³** implicit pair, 2×3 SVD | the torus pairs, each past its pose's critical gap, the torus read through its quartic and converted to metres per span (`certify`'s torus arm) |
+//! | [`cone_ruled_ssi`] | **ℝ³** implicit pair, 2×3 SVD | a cone against an oblique cylinder, another cone or a sphere, past its pose's ruling sweep and closed-form margins, the cone read through its elevation |
+//! | [`sphere_torus_ssi`], [`cylinder_torus_ssi`], [`torus_torus_ssi`], [`cone_torus_ssi`] | **ℝ³** implicit pair, 2×3 SVD | the torus pairs, each past its pose's critical gap, the torus read through its quartic and the cone through its elevation, limb 2 read through the edge certificate's reader |
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
 //! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a plane, cylinder, sphere or ring torus against a NURBS wall: shape (iii)'s substrate (M5 PR 7b, folded onto this trace), and the classification's whole reading where its sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
 //!
@@ -113,7 +114,7 @@ mod implicit_chart;
 pub mod jet;
 pub mod march;
 pub(crate) mod node;
-mod one_arc;
+pub(crate) mod one_arc;
 pub(crate) mod pair;
 mod refine;
 pub(crate) mod residual;
@@ -381,9 +382,10 @@ pub enum SsiError {
         /// The verdict on the gap, with the margin it classified.
         verdict: Refused,
     },
-    /// A cylinder × sphere operand's radius is decided zero or negative:
+    /// A cylinder's or a sphere's radius is decided zero or negative:
     /// refused by the pair's pose before any rung, as the section table
-    /// refuses it ([`crate::CylinderSpherePose`]).
+    /// refuses it ([`crate::CylinderSpherePose`],
+    /// [`crate::pair_section::ConeRuledPose`]).
     RadiusNotPositive {
         /// Whose radius.
         radius: crate::SectionRadius,
@@ -397,6 +399,14 @@ pub enum SsiError {
     /// Two tori decided one surface (`tt_coincident` decided `Zero`): a
     /// coincidence (D10), which no march traces, refused at the door.
     CoincidentTori,
+    /// A cone operand's half-angle is decided at or past an end of its
+    /// convention `0 < α < π/2`: refused by the pair's pose before any
+    /// rung, as the section value refuses it
+    /// ([`crate::ConeTorusPose`]).
+    DegenerateCone {
+        /// Which end, in words.
+        what: &'static str,
+    },
     /// An operand's stored datum is not a finite number, so the operand
     /// describes no surface. Refused at the door, as that operand's own
     /// fault, before any sweep or march reads it.
@@ -866,6 +876,9 @@ impl core::fmt::Display for SsiError {
                 "ssi: the two tori are one surface, a coincidence, so the pair has no section to \
                  trace"
             ),
+            Self::DegenerateCone { what } => {
+                write!(f, "ssi: {what}, so the pair has no section to trace")
+            }
             // The refusal's own words (`TorusRefusal::said`); a torus
             // decided outside the convention adds this door's consequence,
             // which an undecided half does not yet have.
@@ -1394,12 +1407,85 @@ impl SsiError {
                 TorusPair::SphereTorus => TraceDecision::SphereTorusCoaxial,
                 TorusPair::CylinderTorus => TraceDecision::CylinderTorusAxis,
                 TorusPair::TorusTorus => TraceDecision::TorusTorusAxis,
+                TorusPair::PlaneTorus => TraceDecision::PlaneTorusAxis,
             }
             .escalated(diag),
             TorusPoseRefusal::Undecided {
                 question: TorusQuestion::Gap,
                 diag,
             } => pair.tangent().decision().escalated(diag),
+        }
+    }
+
+    /// The march's refusal of a cone × torus pose that was not decided
+    /// ([`crate::ConeTorusRefusal`]): a torus outside its ring
+    /// convention, a cone outside its own, a ruling in the torus's
+    /// tangent plane at the apex, or a pose question in the band.
+    #[must_use]
+    pub fn of_cone_torus_pose(refusal: crate::ConeTorusRefusal) -> Self {
+        use crate::{ConeTorusRefusal, KtQuestion};
+        match refusal {
+            ConeTorusRefusal::Torus(t) => Self::DegenerateTorus(t),
+            ConeTorusRefusal::Aperture { what, .. } => Self::DegenerateCone { what },
+            ConeTorusRefusal::ApexRuling { .. } => Self::UnsupportedCertificate {
+                what: crate::pair_section::cone_torus::APEX_RULING,
+            },
+            ConeTorusRefusal::Undecided { question, diag } => match question {
+                KtQuestion::Aperture => TraceDecision::ConeAperture,
+                KtQuestion::Axis => TraceDecision::ConeTorusAxis,
+                KtQuestion::Apex => TraceDecision::ConeTorusApex,
+                KtQuestion::Gap => TraceDecision::ConeTorusTangency,
+            }
+            .escalated(diag),
+        }
+    }
+
+    /// The march's refusal of a cone pair's pose or section
+    /// ([`crate::pair_section::ConeRuledPose`]) that was not built: a question in the
+    /// band, an operand outside its convention, a pose pinched at the apex
+    /// or along a generator, or readings of the sweep that disagree.
+    #[must_use]
+    pub fn of_cone_section(refusal: crate::SectionError) -> Self {
+        use crate::SectionError as E;
+        use crate::pair_section::ConeDecision;
+        let tangency = [
+            ConeDecision::SphereTangency.name(),
+            ConeDecision::SphereTangency.floor(),
+            crate::pair_section::ruling::TANGENCY,
+        ];
+        match refusal {
+            E::Escalated(diag) if diag.predicate.is_some_and(|p| tangency.contains(&p)) => {
+                TraceDecision::ConeRuledTangency.escalated(diag)
+            }
+            E::Escalated(diag) => TraceDecision::ConeRuledPose.escalated(diag),
+            E::RadiusEscalated { radius, diag } => {
+                TraceDecision::PairRadius(radius).escalated(diag)
+            }
+            E::RadiusNotPositive { radius } => Self::RadiusNotPositive { radius },
+            E::ConeAtTheBand { what } | E::DegenerateOperand { what } => {
+                Self::DegenerateCone { what }
+            }
+            E::Pinched { .. } => Self::UnsupportedCertificate {
+                what: "the cone pair's pose is pinched: a generator along the cylinder's axis, \
+                       both apexes on the other cone, a degenerate form at the apex, or a \
+                       sphere's tangency beside a crossing",
+            },
+            E::Unaccounted { .. } => Self::UnsupportedCertificate {
+                what: "the cone pair's ruling sweep reads disagree, so its section is not \
+                       accounted",
+            },
+            E::WrongLane { .. }
+            | E::RoutesToGeneralRung { .. }
+            | E::NoRegion { .. }
+            | E::BeyondOperandExtent { .. }
+            | E::CoincidentSurfaces
+            | E::DegenerateTorus(_)
+            | E::Carrier(_)
+            | E::Spiric(_)
+            | E::Unordered { .. }
+            | E::NoMarch { .. } => Self::WrongLane {
+                expected: "a cone pair's pose and section, which return none of these",
+            },
         }
     }
 
@@ -1447,6 +1533,9 @@ impl SsiError {
                 .recourse(RefusedArm::SignCertain(None), reading),
             Self::CoincidentTori => {
                 TORI_COINCIDENT.recourse(RefusedArm::SignCertain(None), reading)
+            }
+            Self::DegenerateCone { .. } => {
+                CONE_APERTURE.recourse(RefusedArm::SignCertain(None), reading)
             }
             Self::DegenerateTorus(refusal) => refusal.recourse(reading),
             Self::Escalated { decision, cause } => {
@@ -2527,6 +2616,34 @@ pub enum TraceDecision {
     /// `tt_critical_gap` and the coaxial tube rows: the torus × torus
     /// pose's critical gap ([`SsiError::PairTangent`] is its verdict).
     TorusTorusTangency,
+    /// `kt_critical_gap`: the cone × torus pose's critical gap
+    /// ([`SsiError::PairTangent`] is its verdict).
+    ConeTorusTangency,
+    /// `pt_near_tube`, `pt_far_tube`, `pt_between_tubes`: the plane ×
+    /// torus pose's critical gap ([`SsiError::PairTangent`] is its
+    /// verdict).
+    PlaneTorusTangency,
+    /// The C5 table's plane × torus axis rows: how the plane stands to
+    /// the torus's axis.
+    PlaneTorusAxis,
+    /// The torus pose's lever and pivot margins: how the cone's axis
+    /// stands to the torus's.
+    ConeTorusAxis,
+    /// `kt_apex_on_torus` and `kt_apex_form`: whether the cone's apex lies
+    /// on the torus, and how the torus's tangent plane there meets the
+    /// cone.
+    ConeTorusApex,
+    /// `kt_aperture_sin`, `kt_aperture_cos`: whether the cone's half-angle
+    /// lies inside its convention ([`SsiError::DegenerateCone`] is its
+    /// verdict).
+    ConeAperture,
+    /// The `kc_*` margins of a cone against a cylinder, a cone or a sphere
+    /// ([`crate::pair_section::ConeRuledPose`]): the operands' conventions, the axes,
+    /// the apex on the partner and its form there.
+    ConeRuledPose,
+    /// `kc_sphere_tangency` and the ruling sweep's `ruling_tangency`: a
+    /// cone pair's tangency ([`SsiError::PairTangent`] is its verdict).
+    ConeRuledTangency,
     /// `cs_coaxial`: whether the sphere's centre lies on the cylinder's
     /// axis.
     PairCoaxial,
@@ -2577,6 +2694,22 @@ impl TraceDecision {
             Self::SphereTorusTangency => TangentPair::SphereTorus.question(),
             Self::CylinderTorusTangency => TangentPair::CylinderTorus.question(),
             Self::TorusTorusTangency => TangentPair::TorusTorus.question(),
+            Self::ConeTorusTangency => TangentPair::ConeTorus.question(),
+            Self::PlaneTorusTangency => TangentPair::PlaneTorus.question(),
+            Self::PlaneTorusAxis => {
+                "the plane holds the torus's axis, is square to it, or is parallel to it"
+            }
+            Self::ConeTorusAxis => "the cone's axis lies on the torus's axis",
+            Self::ConeTorusApex => {
+                "the cone's apex lies on the torus, and the torus's tangent plane there holds a \
+                 ruling of the cone"
+            }
+            Self::ConeAperture => "the cone's half-angle lies inside its convention 0 < α < π/2",
+            Self::ConeRuledPose => {
+                "the cone pair's pose is decided: the operands' conventions, the axes, and the \
+                 apex on the other surface"
+            }
+            Self::ConeRuledTangency => TangentPair::ConeRuled.question(),
             Self::PairCoaxial => "the sphere's centre lies on the cylinder's axis",
             Self::SphereTorusCoaxial => "the sphere's centre lies on the torus's axis",
             Self::CylinderTorusAxis => {
@@ -2618,6 +2751,14 @@ impl TraceDecision {
             Self::SphereTorusTangency => TangentPair::SphereTorus.sized().recourse(arm, at),
             Self::CylinderTorusTangency => TangentPair::CylinderTorus.sized().recourse(arm, at),
             Self::TorusTorusTangency => TangentPair::TorusTorus.sized().recourse(arm, at),
+            Self::ConeTorusTangency => TangentPair::ConeTorus.sized().recourse(arm, at),
+            Self::PlaneTorusTangency => TangentPair::PlaneTorus.sized().recourse(arm, at),
+            Self::PlaneTorusAxis => PLANE_TORUS_AXIS.recourse(arm, at),
+            Self::ConeTorusAxis => CONE_TORUS_AXIS.recourse(arm, at),
+            Self::ConeTorusApex => CONE_TORUS_APEX.recourse(arm, at),
+            Self::ConeAperture => CONE_APERTURE.recourse(arm, at),
+            Self::ConeRuledPose => CONE_RULED_POSE.recourse(arm, at),
+            Self::ConeRuledTangency => TangentPair::ConeRuled.sized().recourse(arm, at),
             Self::PairCoaxial => PAIR_COAXIAL.recourse(arm, at),
             Self::SphereTorusCoaxial => SPHERE_TORUS_COAXIAL.recourse(arm, at),
             Self::CylinderTorusAxis => CYLINDER_TORUS_AXIS.recourse(arm, at),
@@ -2841,6 +2982,36 @@ const TORUS_TORUS_TANGENCY: SizedDecision = SizedDecision {
     ..CYLINDER_SPHERE_TANGENCY
 };
 
+/// A cone pair's tangency (`kc_sphere_tangency`, `ruling_tangency`), as
+/// [`CYLINDER_SPHERE_TANGENCY`].
+const CONE_RULED_TANGENCY: SizedDecision = SizedDecision {
+    lever: "separate the cone and the other surface, or move one so they are clearly not \
+            tangent",
+    ..CYLINDER_SPHERE_TANGENCY
+};
+
+/// The cone × torus tangency decision (`kt_critical_gap`), as
+/// [`CYLINDER_SPHERE_TANGENCY`].
+const CONE_TORUS_TANGENCY: SizedDecision = SizedDecision {
+    lever: "separate the cone and the torus, or move one so they are clearly not tangent",
+    ..CYLINDER_SPHERE_TANGENCY
+};
+
+/// The plane × torus tangency decision (`pt_near_tube`, `pt_far_tube`,
+/// `pt_between_tubes`), as [`CYLINDER_SPHERE_TANGENCY`].
+const PLANE_TORUS_TANGENCY: SizedDecision = SizedDecision {
+    lever: "move the plane or the torus so they are clearly not tangent",
+    ..CYLINDER_SPHERE_TANGENCY
+};
+
+/// The plane × torus axis reading (`pt_axis_in_plane`, `pt_axis_normal`
+/// and their offset rows), as [`PAIR_COAXIAL`].
+const PLANE_TORUS_AXIS: SizedDecision = SizedDecision {
+    lever: "turn the plane onto the torus's axis, or clearly off it",
+    size: "axis tilt",
+    ..PAIR_COAXIAL
+};
+
 /// **A pair with a ring torus side**, whose pose
 /// ([`crate::pair_section::torus`]) [`SsiError::of_torus_pose`] reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2851,6 +3022,8 @@ pub enum TorusPair {
     CylinderTorus,
     /// Torus × torus.
     TorusTorus,
+    /// Plane × torus.
+    PlaneTorus,
 }
 
 impl TorusPair {
@@ -2861,6 +3034,7 @@ impl TorusPair {
             Self::SphereTorus => TangentPair::SphereTorus,
             Self::CylinderTorus => TangentPair::CylinderTorus,
             Self::TorusTorus => TangentPair::TorusTorus,
+            Self::PlaneTorus => TangentPair::PlaneTorus,
         }
     }
 }
@@ -2891,6 +3065,18 @@ pub enum TangentPair {
     /// [`crate::TorusTorusPose`]): a critical distance between the two
     /// core circles is `r₁ + r₂` or `|r₁ − r₂|`.
     TorusTorus,
+    /// Cone × torus (`kt_critical_gap`, [`crate::ConeTorusPose`]): a
+    /// critical distance of the core circle from the double cone is `r`.
+    ConeTorus,
+    /// A cone against a cylinder, a cone or a sphere
+    /// ([`crate::pair_section::ConeRuledPose`]): a sphere's centre `R` from one of the
+    /// cone's lines in its meridian plane (`kc_sphere_tangency`), or a
+    /// double root of the ruling sweep's clearance (`ruling_tangency`).
+    ConeRuled,
+    /// Plane × torus (`pt_near_tube`, `pt_far_tube`, `pt_between_tubes`,
+    /// [`crate::PlaneTorusPose`]): the tube circle about a core point of
+    /// extreme height over the plane stands `r` from it.
+    PlaneTorus,
 }
 
 impl TangentPair {
@@ -2901,6 +3087,9 @@ impl TangentPair {
             Self::SphereTorus => "the sphere and the torus",
             Self::CylinderTorus => "the cylinder and the torus",
             Self::TorusTorus => "the two tori",
+            Self::ConeTorus => "the cone and the torus",
+            Self::ConeRuled => "the cone and the other surface",
+            Self::PlaneTorus => "the plane and the torus",
         }
     }
 
@@ -2911,6 +3100,9 @@ impl TangentPair {
             Self::SphereTorus => "the sphere and the torus are tangent",
             Self::CylinderTorus => "the cylinder and the torus are tangent",
             Self::TorusTorus => "the two tori are tangent",
+            Self::ConeTorus => "the cone and the torus are tangent",
+            Self::ConeRuled => "the cone and the other surface are tangent",
+            Self::PlaneTorus => "the plane and the torus are tangent",
         }
     }
 
@@ -2921,6 +3113,9 @@ impl TangentPair {
             Self::SphereTorus => TraceDecision::SphereTorusTangency,
             Self::CylinderTorus => TraceDecision::CylinderTorusTangency,
             Self::TorusTorus => TraceDecision::TorusTorusTangency,
+            Self::ConeTorus => TraceDecision::ConeTorusTangency,
+            Self::ConeRuled => TraceDecision::ConeRuledTangency,
+            Self::PlaneTorus => TraceDecision::PlaneTorusTangency,
         }
     }
 
@@ -2930,6 +3125,9 @@ impl TangentPair {
             Self::SphereTorus => &SPHERE_TORUS_TANGENCY,
             Self::CylinderTorus => &CYLINDER_TORUS_TANGENCY,
             Self::TorusTorus => &TORUS_TORUS_TANGENCY,
+            Self::ConeTorus => &CONE_TORUS_TANGENCY,
+            Self::ConeRuled => &CONE_RULED_TANGENCY,
+            Self::PlaneTorus => &PLANE_TORUS_TANGENCY,
         }
     }
 }
@@ -2964,6 +3162,38 @@ const CYLINDER_TORUS_AXIS: SizedDecision = SizedDecision {
     lever: "turn or move the cylinder's axis onto the torus's, parallel or square to it, or \
             clearly off each",
     size: "axis tilt or offset",
+    ..PAIR_COAXIAL
+};
+
+/// The cone × torus axis pose, as [`PAIR_COAXIAL`].
+const CONE_TORUS_AXIS: SizedDecision = SizedDecision {
+    lever: "move the cone's axis onto the torus's, or clearly off it",
+    size: "axis tilt or offset",
+    ..PAIR_COAXIAL
+};
+
+/// The cone's apex against the torus (`kt_apex_on_torus`,
+/// `kt_apex_form`), as [`PAIR_COAXIAL`].
+const CONE_TORUS_APEX: SizedDecision = SizedDecision {
+    lever: "move the cone's apex clearly off the torus, or turn the cone so no ruling lies in \
+            the torus's tangent plane at its apex",
+    size: "apex offset",
+    ..PAIR_COAXIAL
+};
+
+/// A cone pair's pose (`kc_*`), as [`PAIR_COAXIAL`].
+const CONE_RULED_POSE: SizedDecision = SizedDecision {
+    lever: "move the cone's apex clearly on or off the other surface, and its axis clearly \
+            onto or off the other's",
+    size: "apex or axis offset",
+    ..PAIR_COAXIAL
+};
+
+/// The cone's convention `0 < α < π/2` (`kt_aperture_sin`,
+/// `kt_aperture_cos`), as [`PAIR_COAXIAL`].
+const CONE_APERTURE: SizedDecision = SizedDecision {
+    lever: "open or close the cone so its half-angle lies clearly inside 0 < α < π/2",
+    size: "half-angle",
     ..PAIR_COAXIAL
 };
 
@@ -3252,6 +3482,65 @@ pub fn march_cylinder_torus(
     )
 }
 
+/// The plane × torus march's lane, as its wrong-lane refusal names it.
+const PLANE_TORUS_LANE: &str = "a plane tilted against a torus's axis in ℝ³ on their implicit pair";
+
+/// **plane × torus** — the ℝ³ implicit-pair arm, as
+/// [`sphere_torus_ssi`]: the pose decided once
+/// ([`crate::PlaneTorusPose::decide`]), a plane the closed form serves
+/// refused as the wrong lane, the closed-form critical gap the only
+/// tangency decision, and the march past a transverse gap over the
+/// torus's ball ([`march_plane_torus`]).
+///
+/// # Errors
+///
+/// As [`sphere_torus_ssi`], the pair's tangency being
+/// [`TangentPair::PlaneTorus`]'s; a plane holding the torus's axis,
+/// square to it or parallel to it short of the inner equator refuses
+/// [`SsiError::WrongLane`], the closed form's pose.
+pub fn plane_torus_ssi(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let wrong = || SsiError::WrongLane {
+        expected: PLANE_TORUS_LANE,
+    };
+    let pose = crate::PlaneTorusPose::decide(a, b, band)
+        .ok_or_else(wrong)?
+        .map_err(|e| SsiError::of_torus_pose(TorusPair::PlaneTorus, e))?;
+    march_plane_torus(&pose, domain, band)
+}
+
+/// **The ℝ³ march of a decided plane × torus pose** over `domain`, in
+/// the order the pose was asked of: only a tilted pose, and only past a
+/// transverse gap, a tangent pose refusing before any rung
+/// ([`SsiError::PairTangent`]).
+///
+/// # Errors
+///
+/// [`plane_torus_ssi`]'s, but the pose's own.
+pub fn march_plane_torus(
+    pose: &crate::PlaneTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    if matches!(pose.stance(), crate::PtStance::Closed) {
+        return Err(SsiError::WrongLane {
+            expected: PLANE_TORUS_LANE,
+        });
+    }
+    checked([("plane", pose.plane()), ("torus", pose.torus())], domain)?;
+    past_the_gap(
+        TangentPair::PlaneTorus,
+        pose.operands(),
+        pose.tangency(),
+        domain,
+        band,
+    )
+}
+
 /// **torus × torus** — the ℝ³ implicit-pair arm, as
 /// [`sphere_torus_ssi`]: the pose decided once
 /// ([`crate::TorusTorusPose::decide`]), two tori decided one refused
@@ -3309,6 +3598,218 @@ pub fn march_torus_torus(
         domain,
         band,
     )
+}
+
+/// **cone × torus** — the ℝ³ implicit-pair arm, as
+/// [`sphere_torus_ssi`]: the pose decided once
+/// ([`crate::ConeTorusPose::decide`]), the cone read as the double cone
+/// through its elevation, and the march past a transverse gap
+/// ([`march_cone_torus`]).
+///
+/// # Errors
+///
+/// As [`sphere_torus_ssi`], the pair's tangency being
+/// [`TangentPair::ConeTorus`]'s; a cone outside its convention refuses
+/// [`SsiError::DegenerateCone`]; [`march_cone_torus`]'s for the poses it
+/// does not march.
+pub fn cone_torus_ssi(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let wrong = || SsiError::WrongLane {
+        expected: "a cone and a torus in ℝ³ on their implicit pair",
+    };
+    let (cone, torus) = match (a, b) {
+        (Surface::Cone { .. }, Surface::Torus { .. }) => (a, b),
+        (Surface::Torus { .. }, Surface::Cone { .. }) => (b, a),
+        _ => return Err(wrong()),
+    };
+    checked([("cone", cone), ("torus", torus)], domain)?;
+    let pose = crate::ConeTorusPose::decide(a, b, band)
+        .ok_or_else(wrong)?
+        .map_err(SsiError::of_cone_torus_pose)?;
+    march_decided_cone_torus(&pose, domain, band)
+}
+
+/// **The ℝ³ march of a decided cone × torus pose** over `domain`, in the
+/// order the pose was asked of: only past a transverse gap, a tangent
+/// pose refusing before any rung ([`SsiError::PairTangent`]).
+///
+/// # Errors
+///
+/// [`cone_torus_ssi`]'s, but the pose's own; [`SsiError::WrongLane`] for
+/// a coaxial pose, the closed form's ([`crate::cone_torus_section`]);
+/// [`SsiError::UnsupportedCertificate`] for an apex on the torus, a
+/// node or a touch, at which the march ends no branch.
+pub fn march_cone_torus(
+    pose: &crate::ConeTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    checked([("cone", pose.cone()), ("torus", pose.torus())], domain)?;
+    march_decided_cone_torus(pose, domain, band)
+}
+
+/// [`march_cone_torus`] past the door's own checks: the pose's
+/// [`crate::ConeTorusPose::unmarched`] refused, else the march past the
+/// gap.
+fn march_decided_cone_torus(
+    pose: &crate::ConeTorusPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    use crate::pair_section::cone_torus::Unmarched;
+    match pose.unmarched() {
+        Some(Unmarched::Coaxial(expected)) => Err(SsiError::WrongLane { expected }),
+        Some(Unmarched::Apex(what)) => Err(SsiError::UnsupportedCertificate { what }),
+        None => past_the_gap(
+            TangentPair::ConeTorus,
+            pose.operands(),
+            pose.tangency(),
+            domain,
+            band,
+        ),
+    }
+}
+
+/// **A cone against an oblique cylinder, another cone or a sphere** —
+/// the ℝ³ implicit-pair arm, as [`sphere_torus_ssi`]: the pose decided
+/// once ([`crate::pair_section::ConeRuledPose`], over `region` for a cylinder or
+/// cone partner, which the caller holds as the operation's, the sphere's
+/// own ball for a sphere), its
+/// section classified to read the tangency (the sphere's closed form, or
+/// the ruling sweep's double root), and the march over `domain` past a
+/// transverse pose whose apex is clear of the partner. No production
+/// path reads it: the section value marches the pair from its count's
+/// witnesses ([`march_cone_ruled`]). It is the generic door's test
+/// vehicle for the pair.
+///
+/// # Errors
+///
+/// As [`sphere_torus_ssi`], the pair's tangency being
+/// [`TangentPair::ConeRuled`]'s; a coaxial or common-apex pose, the
+/// closed forms', is [`SsiError::WrongLane`]; an apex on the partner (a
+/// node or a touch) or a pose pinched there or along a generator,
+/// [`SsiError::UnsupportedCertificate`]; an operand outside its
+/// convention, [`SsiError::DegenerateCone`].
+pub fn cone_ruled_ssi(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    region: crate::ExtentBall<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    use crate::pair_section::{ConeRead, ConeRuledPose, ConeStance};
+    let wrong = || SsiError::WrongLane {
+        expected: "a cone against a cylinder, a cone or a sphere in ℝ³ on their implicit pair",
+    };
+    checked([("first operand", a), ("second operand", b)], domain)?;
+    let read = ConeRuledPose::decide(a, b, region, band)
+        .or_else(|| ConeRuledPose::decide_sphere(a, b, band))
+        .ok_or_else(wrong)?
+        .map_err(SsiError::of_cone_section)?;
+    let ConeRead::Pose(pose) = read else {
+        return Err(SsiError::WrongLane {
+            expected: "a cone pair off the closed forms: a sphere off the cone's axis, two \
+                       cones of distinct apexes and not of one aperture on parallel axes",
+        });
+    };
+    if !matches!(pose.stance(), ConeStance::Sheets) {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the cone's apex lies on the other surface, a node or an isolated point of \
+                   the section, at which the ℝ³ march ends no branch",
+        });
+    }
+    // A sphere's tangency is the pose's own, decided before any sweep;
+    // a cylinder's or a cone's is the sweep's.
+    let tangency = match pose.tangency() {
+        Some(zero) => Some(zero),
+        None => crate::pair_section::cones::cone_ruled(pose.clone(), band)
+            .map_err(SsiError::of_cone_section)?
+            .tangency(),
+    };
+    past_the_gap(
+        TangentPair::ConeRuled,
+        pose.operands(),
+        tangency,
+        domain,
+        band,
+    )
+}
+
+/// **The ℝ³ march of a decided cone pair's pose** (a cone against a
+/// cylinder, a cone or a sphere), from the `seeds` its ruling sweep states
+/// (the counted components' witnesses), over `domain`: each branch ends
+/// at the region the sweep cut the section by
+/// ([`crate::pair_section::ConeRuledPose::region`]) for a cylinder or cone partner, and
+/// closes inside a sphere's own ball. No seeding or accounting sweep runs:
+/// the pose counted the section, and the carry matches these branches one
+/// to one to the count's cut ends and witnesses. The section value
+/// marches only a transverse pose clear of the apex (`tangency` the
+/// section's, a node arc or a touch classified and never carried), so
+/// anything else here is the caller's defect.
+///
+/// In a debug build the count is re-derived by the ruling angle's
+/// coverage ([`coverage`](crate::pair_section::ruling::coverage)).
+///
+/// # Errors
+///
+/// [`march_seeds`]'s; [`SsiError::WrongLane`] for a tangent pose or one
+/// whose apex lies on the partner.
+pub(crate) fn march_cone_ruled(
+    pose: &crate::pair_section::ConeRuledPose<f64>,
+    tangency: Option<crate::ZeroVerdict>,
+    seeds: &[Point3<f64>],
+    domain: SsiDomain,
+    band: Band,
+) -> Result<Vec<SsiBranch>, SsiError> {
+    let (a, b) = pose.operands();
+    checked([("first operand", a), ("second operand", b)], domain)?;
+    if tangency.is_some() || !matches!(pose.stance(), crate::pair_section::ConeStance::Sheets) {
+        return Err(SsiError::WrongLane {
+            expected: "a transverse cone pair clear of the apex, whose tangent and apex poses \
+                       are never marched",
+        });
+    }
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
+    let ruled = match pose.ruled_side() {
+        crate::PairSide::First => (a, b),
+        crate::PairSide::Second => (b, a),
+    };
+    let (branches, tubes, ball) = match pose.sphere() {
+        Some(sphere) => {
+            let ball = crate::pair_section::side_ball(sphere);
+            let (br, tu) = march_seeds(a, b, seeds, &march::SlabExit, domain, tol, band)?;
+            (br, tu, ball)
+        }
+        None => {
+            let ball = pose.region();
+            let exit = march::BallExit {
+                center: ball.center(),
+                radius: ball.radius(),
+            };
+            let (br, tu) = march_seeds(a, b, seeds, &exit, domain, tol, band)?;
+            (br, tu, ball)
+        }
+    };
+    // DESIGN's error taxonomy, row 5, as for two cylinders
+    // ([`march_cylinder_cylinder`]): every cell's meetings inside the
+    // ball the march ends at lie in a found branch's tube.
+    #[cfg(debug_assertions)]
+    {
+        let covered = crate::pair_section::ruling::coverage(ruled.0, ruled.1, ball, &tubes);
+        debug_assert!(
+            covered.is_ok(),
+            "the ruling angle's cells {covered:?} hold meetings inside the ball the march ends \
+             at and in no found branch's tube: the count missed a component, or a tube is not \
+             its branch's"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (tubes, ball, ruled);
+    Ok(branches)
 }
 
 /// **The ℝ³ march of a decided cylinder × cylinder pose**, from the
@@ -4110,7 +4611,7 @@ mod ending_tests {
         );
         let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, reach(f64::NAN)).length();
         assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
-        let nurbs = Surface::nurbs_placeholder();
+        let nurbs = geom::test_support::unit_patch();
         let folded = crate::folded_lever_arm(&nurbs, &plane, o, reach(e)).length();
         assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }
@@ -4245,6 +4746,12 @@ mod ending_tests {
             TraceDecision::TorusTorusTangency,
             TraceDecision::CylinderTorusAxis,
             TraceDecision::TorusTorusAxis,
+            TraceDecision::ConeTorusTangency,
+            TraceDecision::ConeTorusAxis,
+            TraceDecision::ConeTorusApex,
+            TraceDecision::ConeAperture,
+            TraceDecision::ConeRuledPose,
+            TraceDecision::ConeRuledTangency,
             TraceDecision::BoundarySection,
         ] {
             let error = escalated(decision);
@@ -4715,7 +5222,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 49;
+    const ARMS: usize = 50;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4771,6 +5278,7 @@ mod ending_tests {
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
+            SsiError::DegenerateCone { .. } => 49,
         }
     }
 
@@ -4837,6 +5345,13 @@ mod ending_tests {
                 )),
             ),
             ("coincident tori", SsiError::CoincidentTori),
+            (
+                "cone",
+                SsiError::DegenerateCone {
+                    what: "the cone's half-angle is past a right angle, outside its convention \
+                           0 < α < π/2",
+                },
+            ),
             (
                 "operand",
                 SsiError::OperandNotFinite {

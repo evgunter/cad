@@ -214,7 +214,8 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Target
         | OperandSlot::Body
         | OperandSlot::From
-        | OperandSlot::Cut
+        | OperandSlot::Cut(_)
+        | OperandSlot::Cuts
         | OperandSlot::Member(_)
         | OperandSlot::Members
         | OperandSlot::Selection
@@ -265,6 +266,46 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
         PortKind::Of(kind) => matches!(kind, VarKind::Body | VarKind::Bodies),
         PortKind::Placed => true,
     })
+}
+
+/// **Which committed outline `node` is drawn as**, if any — the ONE
+/// dispatch [`crate::sketch::committed`] draws by and every display
+/// reader of an outline asks ([`draws_an_outline`]), so a new kind of
+/// outline added here is drawn, toggled, listed and free-moved at
+/// once. Drawn whenever its value landed, whatever reads it.
+pub fn outline_kind(node: &Node<ProfileProgram>) -> Option<OutlineKind> {
+    if node.is_datum() {
+        Some(OutlineKind::Datum)
+    } else if crate::session::refuse::seat_kind(node)
+        == Some(crate::session::refuse::NodeKindWanted::Profile)
+    {
+        Some(OutlineKind::Profile)
+    } else {
+        None
+    }
+}
+
+/// **A kind of committed outline** ([`outline_kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutlineKind {
+    /// A profile's loops.
+    Profile,
+    /// A datum's square ([`crate::sketch::DATUM_HALF`]).
+    Datum,
+}
+
+/// **Whether `node` is drawn as a committed outline**
+/// ([`outline_kind`]): a profile's loops, or a datum's square.
+pub fn draws_an_outline(node: &Node<ProfileProgram>) -> bool {
+    outline_kind(node).is_some()
+}
+
+/// **Whether the picture draws anything of `node`**: a body
+/// ([`builds_a_body`]) or an outline ([`draws_an_outline`]) — what a
+/// display toggle and a free-move are admitted on
+/// ([`crate::display::drawing_check`]).
+pub fn draws_something(node: &Node<ProfileProgram>) -> bool {
+    builds_a_body(node) || draws_an_outline(node)
 }
 
 /// **The bodies the author's toggles show** beyond what the default
@@ -521,7 +562,7 @@ pub struct Source {
 /// `[placement.placement]`: each placement is a copy of its own);
 /// `None` for any other node. A seat never reads through it: a pick on
 /// a copy seats the copy. It is the way from a copy to its original
-/// body, for the placed badge, the placement editor's `on` side and
+/// body, for the placement editor's `on` side and
 /// the re-point offer.
 pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> Option<Source> {
     let Some(Node::Place { source, .. }) = doc.node(node) else {
@@ -555,22 +596,6 @@ pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> 
     })
 }
 
-/// **The copies of `var`**, in document order: every placement whose
-/// source is `var`, reads it down plain reads of sources, or reads a
-/// body `var` is.
-pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
-    copies_where(doc, |copied| copied == var)
-}
-
-/// **The variables a placement's source read passes through**: the
-/// sources it reads down ([`Doc::source_steps`]) and the body read at the
-/// end (`spare`, `bracket`, `B`).
-fn source_chain(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<VarId> {
-    let mut chain: Vec<VarId> = doc.source_steps(var).iter().map(|&(at, _)| at).collect();
-    chain.push(doc.through_sources(var).read);
-    chain
-}
-
 /// **Whether `placement` repeats its source**: it reaches an index its
 /// source does not, so it is a pattern's family and its values are the
 /// pattern's rule.
@@ -580,30 +605,6 @@ pub fn repeats(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
     };
     let own = doc.node_reach(placement);
     !own.is_none() && own != doc.var_reach(source.read)
-}
-
-/// **The copies of any output of `node`**, in document order.
-pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
-    let outputs = doc.outputs(node);
-    copies_where(doc, |copied| outputs.contains(&copied))
-}
-
-/// The placements one of whose source's reads ([`source_chain`])
-/// `copies` accepts, in document order.
-fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Vec<RecipeNodeId> {
-    doc.placements()
-        .into_iter()
-        .filter(|&placement| {
-            doc.copied_read(placement)
-                .is_some_and(|read| source_chain(doc, read).into_iter().any(&copies))
-        })
-        .collect()
-}
-
-/// **Whether a copy copies an output of `node`** — what the feature
-/// tree's placed badge marks.
-pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    !placements_of(doc, node).is_empty()
 }
 
 /// **What `node` is built on**: everything it reads as a body, at any
@@ -676,9 +677,9 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
 /// Read off what `node` is built on ([`built_on`]), which reads bodies
 /// as bodies only. `node` is built on a copy where it reads at least one
 /// copy as a body and reads no other body other than through a copy —
-/// `fillet(C)`, `chamfer(fillet(C))`, `C ∪ mirror(C)`, a sketch fused
-/// onto `C` (whose boss is a copy of the sketch's own extrude, a member
-/// of the union with `C`). A body that reaches `C` only through a plane
+/// `fillet(C)`, `chamfer(fillet(C))`, `C ∪ mirror(C)`, a boss placed
+/// on `C` and fused with it (the boss a copy of its own extrude, a
+/// member of the union with `C`). A body that reaches `C` only through a plane
 /// or a frame — a mirror of another body whose plane is picked on `C`,
 /// an extrude of a profile drawn on `C`'s face — is not on `C`. `∪[B, C]`, which reads the body `B` as
 /// well as a copy of it, is built on no copy, whichever operand comes
@@ -686,15 +687,17 @@ fn built_on(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BuiltOn {
 /// copies are reached, the answer is the one minted first. The original
 /// is the body at the end of that copy's copies ([`original_of`]).
 ///
-/// A profile is asked of the bodies made from it, since what it is
-/// sketched on is read by what places it ([`copy_downstream_of`]).
+/// A profile reads no body as a body — one on its own plane stands
+/// where what places it puts it, and one drawn on a face reads that face
+/// as a frame alone — so a profile is asked of the bodies made from it
+/// ([`copy_downstream_of`]).
 /// `None` for a placement itself, and for a node built on no copy.
 pub fn built_on_copy(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
 ) -> Option<(RecipeNodeId, RecipeNodeId)> {
     match doc.node(node)? {
-        Node::Place { .. } | Node::InstantiatePart { .. } => return None,
+        placement if placement.bundle().is_some() => return None,
         Node::Profile(_) => return copy_downstream_of(doc, node),
         _ => {}
     }
@@ -738,7 +741,7 @@ pub fn placement_reading(
         return Some(on_copy((node, original_of(doc, node))));
     }
     match doc.node(node)? {
-        Node::Place { .. } | Node::InstantiatePart { .. } => None,
+        placement if placement.bundle().is_some() => None,
         Node::Profile(_) => copy_downstream_of(doc, node)
             .map(on_copy)
             .or_else(|| repoint_offer_on(doc, node, None, tol).map(PlacementReading::Offer)),
@@ -754,7 +757,7 @@ pub fn placement_reading(
 
 /// **The copy a profile's sketch is built on**: among the nodes made
 /// from `profile` at any depth, those built on a copy ([`built_on_copy`])
-/// — the union a sketch on a copy's face fuses into the copy — the copy
+/// — the union a boss placed on a copy's face fuses into the copy — the copy
 /// minted first; `None` where none is.
 fn copy_downstream_of(
     doc: &Doc<ProfileProgram>,
@@ -805,7 +808,7 @@ pub fn repoint_targets(
         .into_iter()
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter_map(|source| {
-            let placements = placements_of_var(doc, source);
+            let placements = doc.placements_of_var(source);
             (!placements.is_empty() && repoint_check(doc, source, onto, tol).is_ok()).then_some(
                 RepointRow {
                     body,
@@ -877,7 +880,7 @@ pub fn place_asks(doc: &Doc<ProfileProgram>, body: &Operand) -> PlaceAsks {
     match source_to_place(doc, body) {
         Err(sources) => PlaceAsks::Source(sources),
         Ok(Some(source))
-            if doc.var_name(source).is_none() && !placements_of_var(doc, source).is_empty() =>
+            if doc.var_name(source).is_none() && !doc.placements_of_var(source).is_empty() =>
         {
             PlaceAsks::Name(source)
         }
@@ -937,13 +940,11 @@ fn repoint_offer_on(
     built: Option<BuiltOn>,
     tol: pncad::geom_core::Tol,
 ) -> Option<RepointOffer> {
-    if matches!(
-        doc.node(node)?,
-        Node::Place { .. } | Node::InstantiatePart { .. }
-    ) || !Picture::of(doc)
-        .drawn
-        .iter()
-        .any(|drawn| drawn.of_node(node))
+    if doc.node(node)?.bundle().is_some()
+        || !Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(node))
     {
         return None;
     }
@@ -1006,9 +1007,10 @@ pub fn seat_read(
 }
 
 /// **Whether something reads a body of `node` along a seen path**: a
-/// copy of one of its outputs ([`placements_of`]), a `⊔` operand reading
-/// one whole, or the product slot — the readers a gesture's takeover
-/// re-points (`crate::session`'s `Takeover`).
+/// copy of one of its bodies ([`Doc::placements_of`]; a pick's copy of
+/// one piece is none), a `⊔` operand reading one whole, or the product
+/// slot — the readers a gesture's takeover re-points
+/// (`crate::session`'s `Takeover`).
 pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     let outputs = doc.outputs(node);
     let assembled = doc.ids().into_iter().any(|id| {
@@ -1017,7 +1019,9 @@ pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
             outputs.contains(&read.read) && !read.is_indexed()
         }))
     });
-    is_placed(doc, node) || assembled || product_reads(doc).iter().any(|var| outputs.contains(var))
+    !doc.placements_of(node).is_empty()
+        || assembled
+        || product_reads(doc).iter().any(|var| outputs.contains(var))
 }
 
 /// **The member a pick on body `body` of `node` reaches**: the node the
@@ -1073,7 +1077,7 @@ pub fn read_output(
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
     read_var(doc, read)
-        .map(|var| placements_of_var(doc, var))
+        .map(|var| doc.placements_of_var(var))
         .unwrap_or_default()
 }
 
@@ -1158,10 +1162,7 @@ pub fn body_read(
 /// all the same: the door's target change is then held in its placement
 /// editor ([`crate::session::Refusal::TargetHeld`]).
 pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    if !matches!(
-        doc.node(node),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-    ) || doc.node_space(node) == Some(VarId::WORLD)
+    if !doc.node(node).is_some_and(Node::makes_a_copy) || doc.node_space(node) == Some(VarId::WORLD)
     {
         return None;
     }
@@ -1182,10 +1183,7 @@ pub fn world_copies_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Va
 /// its output where `node` is a `Place` or an instance standing in the
 /// world; `None` for any other node.
 pub fn world_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    if !matches!(
-        doc.node(node),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-    ) {
+    if !doc.node(node).is_some_and(Node::makes_a_copy) {
         return None;
     }
     doc.output(node, 0)
@@ -1210,4 +1208,247 @@ pub fn product_without(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
         .filter(|&read| read != copy)
         .map(Operand::Var)
         .collect()
+}
+
+/// **Why no space is offered to put a new datum in** for a selection
+/// ([`datum_space`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DatumSpaceFault {
+    /// The selected node stands in no space (a measure, say).
+    NoSpace {
+        /// The node, as said.
+        node: String,
+    },
+    /// The selected body's space is shown only through copies standing
+    /// in more than one space, so no one place it is drawn names a space.
+    InSpaces(InSpaces),
+}
+
+impl core::fmt::Display for DatumSpaceFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoSpace { node } => write!(
+                f,
+                "{node} stands in no space to put a datum in: select a body, or nothing for the world"
+            ),
+            Self::InSpaces(in_spaces) => in_spaces.fmt(f),
+        }
+    }
+}
+
+/// **Where the picture shows the space `space`** — the ONE walk of
+/// the copy chain (DI5): `space` itself where the picture shows it (or
+/// where it is `None`), else each copy out of it, carried on through
+/// the copies showing that copy's own space; `space` itself where no
+/// copy shows it, so a drawing in a space no body is drawn in still
+/// stands where its space is. `shown` is [`shown_spaces`], read once
+/// by the caller.
+///
+/// [`crate::sketch::committed`] composes each showing's copies' motions
+/// to place an outline, [`drawn_spaces`] reads where they end, and
+/// [`drawn_space`] and [`datum_space`] read that too.
+///
+/// **A copy chain can cycle through unshown spaces** — a box in S, a
+/// copy of it in T, a copy of that copy back in S, each copy read by a
+/// further placement so neither space holds a drawn body: the recipe
+/// is acyclic as nodes, and nothing about spaces forbids it. A walk
+/// that comes back to a space already on its path is dropped: every
+/// space on it is unshown, so the picture draws nothing along it, and
+/// following it would never end.
+pub fn showings(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: Option<VarId>,
+) -> Vec<Showing> {
+    showings_from(doc, shown, space, &mut Vec::new())
+}
+
+/// [`showings`], with the unshown spaces the walk has come through.
+fn showings_from(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: Option<VarId>,
+    path: &mut Vec<VarId>,
+) -> Vec<Showing> {
+    let Some(unshown) = space.filter(|space| !shown.contains(space)) else {
+        return vec![Showing {
+            space,
+            through: Vec::new(),
+        }];
+    };
+    path.push(unshown);
+    let mut through: Vec<Showing> = Vec::new();
+    for copy in doc.copies() {
+        if doc.copied_read(copy).and_then(|read| doc.space_of(read)) != Some(unshown) {
+            continue;
+        }
+        let into = doc.node_space(copy);
+        if into.is_some_and(|into| path.contains(&into)) {
+            continue;
+        }
+        through.extend(
+            showings_from(doc, shown, into, path)
+                .into_iter()
+                .map(|mut outer| {
+                    outer.through.insert(0, copy);
+                    outer
+                }),
+        );
+    }
+    path.pop();
+    if through.is_empty() {
+        vec![Showing {
+            space: Some(unshown),
+            through: Vec::new(),
+        }]
+    } else {
+        through
+    }
+}
+
+/// **One place the picture shows a space** ([`showings`]): the space
+/// whose picture it is drawn in, and the copies that carry it there,
+/// the one out of the shown space's own first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Showing {
+    /// The space the drawing is in; `None` for a node in no space.
+    pub space: Option<VarId>,
+    /// The copies carrying it, innermost first; empty where the space
+    /// is drawn itself.
+    pub through: Vec<RecipeNodeId>,
+}
+
+/// **The spaces `node` is drawn in** ([`showings`] of its own space),
+/// each once: its own where the picture shows it, else the spaces of
+/// the copies that show it. The key an outline's toggle row, its
+/// space's hide and frame, and a free-move opened on it all read
+/// ([`crate::sketch::CommittedProfile::space`] is one of these).
+pub fn drawn_spaces(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    node: RecipeNodeId,
+) -> BTreeSet<Option<VarId>> {
+    showings(doc, shown, doc.node_space(node))
+        .into_iter()
+        .map(|showing| showing.space)
+        .collect()
+}
+
+/// **The one space `node` is drawn in** ([`drawn_spaces`]): its own
+/// where the picture shows that space, or else the space of the one
+/// copy that shows it — the space a face picked on that copy reads, a
+/// new datum for `node` goes in ([`datum_space`]) and a free-move opened
+/// on an outline moves ([`crate::display::free_move_check`]).
+///
+/// **Two spaces or more is no one space**, the world among them
+/// included: the world's drawing never moves, but it is still a drawing
+/// of `node`, so a free-move opened on `node` would move one of its
+/// drawings and leave the other, and a datum would go with one of two
+/// copies. The copy itself is the handle that names one
+/// ([`InSpaces`]).
+///
+/// # Errors
+///
+/// [`DrawnSpaceFault::NoSpace`] for a node in no space,
+/// [`DrawnSpaceFault::InSpaces`] for one drawn in two spaces or more.
+pub fn drawn_space(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    node: RecipeNodeId,
+) -> Result<VarId, DrawnSpaceFault> {
+    let spaces = drawn_spaces(doc, shown, node);
+    match spaces.iter().collect::<Vec<_>>()[..] {
+        [Some(space)] => Ok(*space),
+        [None] | [] => Err(DrawnSpaceFault::NoSpace),
+        _ => Err(DrawnSpaceFault::InSpaces(InSpaces {
+            node: doc.spoken(node),
+            spaces: spaces
+                .iter()
+                .flatten()
+                .map(|&space| doc.spoken_space(space))
+                .collect(),
+        })),
+    }
+}
+
+/// **Why no one space is the one a node is drawn in** ([`drawn_space`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DrawnSpaceFault {
+    /// It is in no space ([`Doc::node_space`]).
+    NoSpace,
+    /// It is drawn in two spaces or more.
+    InSpaces(InSpaces),
+}
+
+/// **A node drawn through copies in two spaces or more** — the one
+/// refusal a door asking for the space it is drawn in says
+/// ([`drawn_space`]; [`DatumSpaceFault::InSpaces`],
+/// [`crate::display::AdmissionFault::DrawnInSpaces`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct InSpaces {
+    /// The node, as the document held it.
+    pub node: pncad::document::SpokenNode,
+    /// The spaces it is drawn in, in id order, as the document held
+    /// them.
+    pub spaces: Vec<pncad::document::SpokenSpace>,
+}
+
+impl InSpaces {
+    /// This refusal with its node and spaces spoken from `doc`, a later
+    /// version of the document it was raised in.
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            node: self.node.respoken(doc),
+            spaces: self
+                .spaces
+                .iter()
+                .map(|space| doc.spoken_space(space.id()))
+                .collect(),
+        }
+    }
+}
+
+impl core::fmt::Display for InSpaces {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let said: Vec<String> = self
+            .spaces
+            .iter()
+            .map(|space| {
+                pncad::document::Said(space, pncad::document::Speaker::TAG)
+                    .sentence()
+                    .to_string()
+            })
+            .collect();
+        let spaces = match said.split_last() {
+            Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+            _ => said.join(""),
+        };
+        write!(
+            f,
+            "{node} is drawn through copies in {spaces}, so it stands in no one space: pick \
+             the copy you mean",
+            node = crate::tree::spelled(&self.node)
+        )
+    }
+}
+
+/// **The space a new datum goes in for the selected `node`**: the space
+/// it is drawn in ([`drawn_space`]), so the tree's path and the
+/// viewport's agree.
+///
+/// # Errors
+///
+/// [`DatumSpaceFault`]: a node in no space, or one drawn in two spaces
+/// or more through copies.
+pub fn datum_space(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<VarId, DatumSpaceFault> {
+    drawn_space(doc, &shown_spaces(doc), node).map_err(|fault| match fault {
+        DrawnSpaceFault::NoSpace => DatumSpaceFault::NoSpace {
+            node: crate::tree::spelled(&doc.spoken(node)),
+        },
+        DrawnSpaceFault::InSpaces(in_spaces) => DatumSpaceFault::InSpaces(in_spaces),
+    })
 }

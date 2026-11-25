@@ -79,9 +79,9 @@ use crate::entity::{
     ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::EulerOpError;
-use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 use crate::joint::JointElement;
-use crate::live::{Arg, lookup};
+use crate::live::Arg;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -232,7 +232,7 @@ pub struct Body<T: Real> {
     // types since M2 PR 3; see `crate::geometry`).
     pub(crate) points: SlotMap<PointKey, Point3<T>>,
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
-    pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
+    pub(crate) surfaces: SlotMap<SurfaceKey, SurfaceSlot<T>>,
     // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
     // image of an edge's carrier, a function of the edge and the face's
     // chart alone. Parallel to the half-edge arena exactly as
@@ -369,7 +369,33 @@ impl<T: Real> Body<T> {
     ///
     /// Crate-internal raw insertion: no validity promises.
     pub(crate) fn add_surface(&mut self, surface: Surface<T>) -> SurfaceKey {
-        self.surfaces.insert(surface)
+        self.surfaces.insert(SurfaceSlot::Described(surface))
+    }
+
+    /// Inserts a pending surface slot ([`SurfaceSlot::Pending`]),
+    /// returning its key.
+    pub(crate) fn add_pending_surface(&mut self) -> SurfaceKey {
+        self.surfaces.insert(SurfaceSlot::Pending)
+    }
+
+    /// The described surface at `key`, mutably: `None` for a stale key
+    /// or a pending slot. A test's way to restate a surface in place.
+    #[cfg(test)]
+    pub(crate) fn surface_mut(&mut self, key: SurfaceKey) -> Option<&mut Surface<T>> {
+        match self.surfaces.get_mut(key)? {
+            SurfaceSlot::Described(s) => Some(s),
+            SurfaceSlot::Pending => None,
+        }
+    }
+
+    /// Describes the slot at `key` as `surface`, pending or not: a test's
+    /// stand-in for a describing door. Returns whether `key` was live.
+    #[cfg(test)]
+    pub(crate) fn describe_slot_for_tests(&mut self, key: SurfaceKey, surface: Surface<T>) -> bool {
+        self.surfaces
+            .get_mut(key)
+            .map(|slot| *slot = SurfaceSlot::Described(surface))
+            .is_some()
     }
 
     /// Inserts a vertex with its birth provenance (D5), returning its key.
@@ -936,10 +962,10 @@ impl<T: Real> Body<T> {
     /// The bit goes through the production door
     /// ([`Construct::set_face_sense`](crate::construction::Construct::set_face_sense)),
     /// which drops the face's rows where they are about the other side
-    /// of a chart with a singular set, and a face that stored rows is
-    /// minted again at `tol`, as a band door after it would: the rows
-    /// follow the bit, and the bit against the winding is the body's
-    /// one incoherence. A mint that refuses leaves the face without
+    /// of a chart with a singular set, and a face whose rows it dropped
+    /// is completed at `tol`, as the finish would: the rows follow the
+    /// bit, and the bit against the winding is the body's one
+    /// incoherence. A completion that refuses leaves the face without
     /// rows.
     ///
     /// Returns `None` if `face` is stale;
@@ -964,8 +990,15 @@ impl<T: Real> Body<T> {
             .into_iter()
             .all(|he| out.pcurve(he).is_none());
         if stored && dropped {
-            // A refusal leaves the rows dropped, as the door left them.
-            let _ = crate::pcurves::mint_pcurves_of(&mut out, &[face], tol);
+            // Completion's one home, its tiers 1–2 precondition asked
+            // first. Either refusal leaves the face as found, rows
+            // dropped as the door left them, and the flipped body's
+            // finish reports it: a face completion refuses, or a body
+            // tiers 1 and 2 refuse, which completion does not read.
+            match crate::finish::complete_in_place(&mut out, tol) {
+                Ok(_refused) => {}
+                Err(_not_closed) => {}
+            }
         }
         Some(out)
     }
@@ -1002,6 +1035,20 @@ impl<T: Real> Body<T> {
     }
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with curve `curve` removed and every edge that names it
+    /// left naming it, the state [`Self::with_entity_removed_for_tests`]
+    /// cannot reach because a curve is geometry, not an [`EntityId`].
+    ///
+    /// Returns `None` if `curve` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_curve_removed_for_tests(&self, curve: CurveKey) -> Option<Self> {
+        let mut out = self.clone();
+        out.curves.remove(curve).is_some().then_some(out)
+    }
+
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
     /// this body with point `point` removed and every vertex that names
     /// it left naming it, the state [`Self::with_entity_removed_for_tests`]
     /// cannot reach because a point is geometry, not an [`EntityId`].
@@ -1027,7 +1074,7 @@ impl<T: Real> Body<T> {
     #[must_use]
     pub fn with_surface_moved_for_tests(&self, key: SurfaceKey, moved: Surface<T>) -> Option<Self> {
         let mut out = self.clone();
-        *out.surfaces.get_mut(key)? = moved;
+        *out.surfaces.get_mut(key)? = SurfaceSlot::Described(moved);
         Some(out)
     }
 
@@ -1125,35 +1172,60 @@ impl<T: Real> Body<T> {
         edge: EdgeKey,
         from: Arg,
     ) -> Result<&EdgeCurve<T>, EulerOpError> {
-        let data = lookup(&self.edges, edge, EntityId::Edge, from)?;
-        self.edge_curve_linked(edge, data)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
+        let view = self
+            .edge(edge)
+            .ok_or_else(|| from.miss(EntityId::Edge(edge)))?;
+        view.certified().ok_or(EulerOpError::NullScaffoldCurve {
+            curve: view.record().curve,
+        })
     }
 
-    /// The surface geometry at `key`, or `None` if the key is stale;
-    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
-    pub fn get_surface(&self, key: SurfaceKey) -> Option<&Surface<T>> {
+    /// The surface geometry at `key`: [`SurfaceMiss::Stale`] if the key
+    /// is stale, [`SurfaceMiss::Pending`] if its slot has no surface
+    /// yet; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    ///
+    /// # Errors
+    ///
+    /// The two misses above.
+    pub fn get_surface(&self, key: SurfaceKey) -> Result<&Surface<T>, SurfaceMiss> {
+        self.surface_slot(key)
+            .ok_or(SurfaceMiss::Stale)?
+            .described()
+    }
+
+    /// The surface slot at `key`, described or pending, or `None` if the
+    /// key is stale; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    pub fn surface_slot(&self, key: SurfaceKey) -> Option<&SurfaceSlot<T>> {
         self.surfaces.get(key)
     }
 
-    /// **The surface `face` is a region of**, or `None` where `face`
-    /// does not resolve; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    /// The surface at `key` as a resolver closure hands it to geometry
+    /// ([`Body::get_surface`], owned).
+    pub(crate) fn resolve_surface(&self, key: SurfaceKey) -> Result<Surface<T>, SurfaceMiss> {
+        self.get_surface(key).cloned()
+    }
+
+    /// **The surface `face` is a region of**: [`SurfaceMiss::Stale`]
+    /// where `face` does not resolve, [`SurfaceMiss::Pending`] where its
+    /// surface is still pending; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// The public door from a face key to its surface, for a reader
-    /// outside this crate. `None` means exactly that the face key is
-    /// stale, and the caller decides what that means for its own input.
+    /// outside this crate; the caller decides what a miss means for its
+    /// own input.
     /// Inside the crate a face is read through a resolved
     /// `FaceView`, and nothing here calls this.
+    ///
+    /// # Errors
+    ///
+    /// The two misses above.
     ///
     /// # Panics
     ///
     /// Where a live face's surface key does not resolve, which only a
     /// kernel bug reaches (D2 row 4).
-    #[must_use]
     #[track_caller]
-    pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
-        Some(self.face(face)?.surface())
+    pub fn face_surface(&self, face: FaceKey) -> Result<&Surface<T>, SurfaceMiss> {
+        Ok(self.face(face).ok_or(SurfaceMiss::Stale)?.surface()?)
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
@@ -1293,6 +1365,21 @@ impl<T: Real> Body<T> {
         match self.loops.get(r#loop)?.boundary {
             crate::entity::LoopBoundary::Cycle { first } => self.loop_cycle(first),
             crate::entity::LoopBoundary::Empty { .. } => Some(Vec::new()),
+        }
+    }
+
+    /// **A loop's vertices in cycle order, by the loop's key**: each
+    /// half-edge's start along [`Body::loop_cycle`], or a lone-vertex
+    /// loop's one vertex. `None` where the loop, or a link on the walk,
+    /// does not resolve.
+    pub(crate) fn loop_vertices(&self, r#loop: LoopKey) -> Option<Vec<VertexKey>> {
+        match self.loops.get(r#loop)?.boundary {
+            crate::entity::LoopBoundary::Cycle { first } => self
+                .loop_cycle(first)?
+                .into_iter()
+                .map(|he| self.half_edges.get(he).map(|h| h.start))
+                .collect(),
+            crate::entity::LoopBoundary::Empty { vertex } => Some(vec![vertex]),
         }
     }
 
@@ -1748,7 +1835,7 @@ impl<T: Real> Body<T> {
 
     /// **A face's loops in one sheet** ([`crate::pcurves::FaceLift`]):
     /// its outer loop's lift as [`Body::loop_lift`] reads it, and each
-    /// ring's moved by the one whole number of periods per closed
+    /// cycle ring's moved by the one whole number of periods per closed
     /// channel that puts the ring's first point in the region the outer
     /// loop's lift bounds, decided at `band` against the outer loop
     /// alone (`crate::pcurves`' ring rule).
@@ -1756,9 +1843,10 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
-    /// outer loop or a ring does not close in the chart, the outer loop
-    /// of a ringed face or a ring is one vertex, or a ring has no one
-    /// decided place.
+    /// outer loop or a ring does not close in the chart, the face has no
+    /// outline (its outer loop is one vertex), or a ring has no one
+    /// decided place. A lone-vertex ring bounds no area and is no ring
+    /// of the lift.
     ///
     /// # Panics
     ///
@@ -1844,8 +1932,17 @@ impl<T: Real> Body<T> {
         self.null_faces.get(face)
     }
 
-    /// All surface geometry, in slot-index order (deterministic per D9).
-    pub fn surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
+    /// Every DESCRIBED surface, in slot-index order (deterministic per
+    /// D9); a pending slot is skipped — [`Body::surface_slots`] yields
+    /// every slot.
+    pub fn described_surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
+        self.surfaces
+            .iter()
+            .filter_map(|(k, slot)| Some((k, slot.described().ok()?)))
+    }
+
+    /// Every surface slot, described or pending, in slot-index order.
+    pub fn surface_slots(&self) -> impl Iterator<Item = (SurfaceKey, &SurfaceSlot<T>)> {
         self.surfaces.iter()
     }
 }
@@ -1968,7 +2065,7 @@ mod tests {
         assert_eq!(body.vertices().count(), 0);
         assert_eq!(body.points().count(), 0);
         assert_eq!(body.curves().count(), 0);
-        assert_eq!(body.surfaces().count(), 0);
+        assert_eq!(body.surface_slots().count(), 0);
     }
 
     #[test]

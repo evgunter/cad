@@ -276,7 +276,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
 
     let band_face = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
     let flipped = body
@@ -588,7 +588,7 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
-        if !matches!(body.face_surface(fk), Some(Surface::Plane { .. })) {
+        if !matches!(body.face_surface(fk), Ok(Surface::Plane { .. })) {
             continue;
         }
         for (l, _, _) in body.face(fk).expect("a live face").loops() {
@@ -891,7 +891,7 @@ fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
     );
     let planar = |pred: fn(&geom::Curve3<f64>) -> bool| -> Vec<(FaceKey, topo::LoopKey)> {
         body.faces()
-            .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
             .filter(|(_, f)| loop_carriers(&body, f.outer).iter().any(pred))
             .map(|(k, f)| (k, f.outer))
             .collect()
@@ -976,7 +976,7 @@ fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
 fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.face_surface(k) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((k, f.outer, origin.z, normal.z))
             }
@@ -1073,7 +1073,7 @@ fn a_convex_arc_c_shape_partial_revolve_caps_point_out_and_certify() {
     let mut outward: Vec<[f64; 3]> = body
         .faces()
         .filter_map(|(fk, f)| match body.face_surface(fk) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let normal = frame.axis();
                 let n = if f.sense { normal } else { -normal };
                 Some([n.x, n.y, n.z])

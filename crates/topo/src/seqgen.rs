@@ -180,9 +180,9 @@ pub(crate) enum OpChoice {
     Kef(HalfEdgeKey, Door),
     Kvfs(SolidKey),
     /// The non-Euler public mutator (`ring_move(ring, to_face)`).
-    /// ring_move's tier-1 preservation is the demotion claim's least
-    /// obvious case (the separating-curve argument; see its docs in
-    /// `crate::euler_ring`).
+    /// ring_move's tier-1 preservation is by the records (see its docs
+    /// in `crate::euler_ring`); what it leaves χ is the per-component
+    /// theorem's ([`crate::euler_theorem`]).
     RingMove(LoopKey, FaceKey, Door),
     /// `split_edge(edge, t)`. The parameter is derived from the edge's
     /// own certified interval by [`split_site`], not carried here, so
@@ -261,8 +261,7 @@ fn mfkrh_plug_by(
         Door::KeysOnly => body.mfkrh_plug(ring, GENERATOR_SENSE),
         Door::Minting => body.mfkrh_minting(
             ring,
-            crate::euler::FaceSurface::New {
-                surface: geom::Surface::nurbs_placeholder(),
+            crate::euler::FaceSurface::Pending {
                 sense: GENERATOR_SENSE,
             },
             tol,
@@ -514,23 +513,11 @@ impl Ledger {
     /// are the only ops that may move it and a ledger that stopped
     /// saying so would stop noticing.
     ///
-    /// Derived h is NOT required to be non-negative: `mfkrh` applied to
-    /// a ring that never plugged a handle (a kemr-planted floating ring)
-    /// legitimately drives it negative — the promotion disconnects the
-    /// shell's surface into two components while keeping one shell
-    /// entity, so eq. 9.2's h stops meaning "genus of a connected
-    /// closed surface" and starts double-counting components. A legal
-    /// tier-1 intermediate (like empty loops and struts), and one
-    /// `movefac` pays back: distributing the components into real
-    /// shells raises `s`, and eq. 9.2 raises the derived `h` with it
-    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1` for that
-    /// reason). The
-    /// component-aware per-shell form (per component
-    /// v − e + f − r = 2(1 − g), g ∈ ℤ≥0; per shell the sum is
-    /// 2(c − Σgᵢ)) was ratified at M1 PR 5, corrected by PR 4, and
-    /// is implemented as the validator's pass 11
-    /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
-    /// because the generator tracks the operator algebra, not surfaces.
+    /// The derived h may go negative on a tier-1 transient
+    /// ([`EulerCounts::h`]); `movefac` pays it back
+    /// ([`OpChoice::Movefac`]'s vector is `h +1, s +1`). The
+    /// per-component form is the theorem checked last
+    /// ([`crate::euler_theorem`]).
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
         let counts = euler_counts(body);
         let EulerCounts { v, e, f, r, s } = counts;
@@ -543,14 +530,14 @@ impl Ledger {
         }
         // Eq. 9.2 rearranged: h = s − (v − e + f − r) / 2, with the
         // parity checked before the halving by the door itself.
-        let derived_h = counts.genus().map_err(|refusal| refusal.to_string())?;
+        let derived_h = counts.h().map_err(|refusal| refusal.to_string())?;
         if derived_h != self.h {
             return Err(format!(
-                "genus mismatch: derived h = {derived_h}, ledger h = {}",
+                "h mismatch: derived h = {derived_h}, ledger h = {}",
                 self.h
             ));
         }
-        Ok(())
+        crate::euler_theorem::check_component_theorem(body)
     }
 }
 
@@ -1066,11 +1053,10 @@ const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
-    let edge_data = body.get_edge(edge)?;
+    let curve = body.proven_edge(edge).certified()?;
     let (start, end) = body.edge_vertices(edge)?;
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
-    let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
     if let Err(error) = curve.recertify(
         p0,
@@ -1247,9 +1233,8 @@ fn assert_unlisted_members_answer_to_the_gate(
         .filter(|&(i, _)| unlisted(i))
         .map(|(_, m)| m)
         .find(|m| {
-            let curve = body.get_edge(m.edge).expect("a member resolves").curve;
-            body.get_curve_geom(curve)
-                .and_then(crate::null::CurveGeom::certified)
+            body.proven_edge(m.edge)
+                .certified()
                 .expect("the walk mints no null edge")
                 .recertify(
                     m.start,
@@ -1337,7 +1322,7 @@ fn next_point(counter: &mut u32) -> Point3<f64> {
 /// own endpoints — the at-rest question [`split_site`] asks of a split
 /// candidate, asked here of a fan site's moved run.
 fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
-    let Some(edge_data) = body.get_edge(edge) else {
+    let Some(view) = body.edge(edge) else {
         return false;
     };
     let Some((start, end)) = body.edge_vertices(edge) else {
@@ -1349,11 +1334,7 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     ) else {
         return false;
     };
-    let (Some(curve), Ok(band)) = (
-        body.get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified),
-        Band::linear(tol),
-    ) else {
+    let (Some(curve), Ok(band)) = (view.certified(), Band::linear(tol)) else {
         return false;
     };
     let Some(reach) = crate::edge_wedge_reach(body, edge) else {
@@ -1761,7 +1742,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             assert_eq!(body.vertices().count(), 0);
             assert_eq!(body.points().count(), 0);
             assert_eq!(body.curves().count(), 0);
-            assert_eq!(body.surfaces().count(), 0);
+            assert_eq!(body.surface_slots().count(), 0);
             // Kill hygiene, the whole point: no provenance record
             // outlives its entity.
             assert_eq!(body.solid_provenance.len(), 0);

@@ -49,3 +49,23 @@ through `route_pose` over the face's generator span, which escalates
 `pn_conic_type` exactly where the frame does.
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Within one Boolean, the frame and the chords (ORBIT, 2026-11-24)
+
+Found by `orbit/plane-torus-one-lever`'s sweep for pairs whose
+closed-form question is asked at more than one lever, which settled
+the plane × torus case by having every reader take the section value's
+pose (`geom_brep::PlaneTorusPose::closed_form`). Plane × cone has the
+same shape inside one operation: the glue door reads the pair once at
+the surface pair's reach (`boolean::join::surface_pair_reach`, held in
+`SectionTable::plane_cone`), which the germ mint and the join's frame
+take, while each chord reads `plane_cone_section` again at its own
+divided face's reach (`chord_join::section_reach`'s cone arm, then
+`plane_wall_case`'s `SectionReach::Cone` arm; and the planar side's
+`bool_planar_chord_spec`). A pose whose `pn_apex_section` or
+`pn_axis_normal` reads Zero at one of those levers and past the band
+at the other is a line pair to the frame and a conic to the chord, or
+the reverse. Not measured: the straddle wants a cone face whose own
+reach differs from the surface pair's by enough to cross the band. The
+plane × torus fix's shape applies: the chords take the held reading
+instead of asking again.

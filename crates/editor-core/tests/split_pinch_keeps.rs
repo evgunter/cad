@@ -495,7 +495,7 @@ fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
                 key: EntityKey::Face(f),
                 ..
             }) => match body.body().face_surface(*f) {
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.origin().y == 1.0 && frame.axis().y == 1.0 =>
                 {
                     Some(n.clone())
@@ -706,7 +706,7 @@ fn operand_face_on(
                 key: EntityKey::Face(f),
                 ..
             }) => match body.body().face_surface(*f) {
-                Some(geom::Surface::Plane { frame, .. }) => {
+                Ok(geom::Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     let off = (p[0] - origin.x) * normal.x
                         + (p[1] - origin.y) * normal.y
@@ -1610,7 +1610,7 @@ fn the_kite_moats_subtract_names_its_edges_where_its_result_stands() {
     );
     assert_eq!(
         fixture::digest::digest(&ev),
-        0xa4d9_ab2a_eaf0_bd50,
+        0x5533_9c14_5231_454e,
         "the kite moat's evaluation, bodies and name tables"
     );
 }
