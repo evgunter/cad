@@ -235,17 +235,21 @@ fn a_ball_whose_radius_reads_in_band_against_the_reach_refuses() {
 }
 
 /// **A touch whose point is `Out` but whose arc reaches the boundary
-/// refuses.** A touch meeting at a point of the wall at azimuth `0.55`,
-/// past the face's edge, whose in-band arc runs back across the edge at
-/// `½`: its ball holds the edge, so the reading keeps it on the face
-/// (`TouchOnFace`), whatever its point reads.
+/// refuses.** A line touching the unit wall just past the face's edge at
+/// `½`, by half the touch's in-band half-width `w = √(2ε)` (the line's
+/// residual `t²/2` reaches the band's zero there), its touch meeting
+/// carrying the arc `(−w, w)`: the touch point reads `Out`, but the arc
+/// runs back across the edge within the band of the wall, so the piece
+/// there holds the edge and the reading keeps the touch on the face
+/// (`TouchOnFace`).
 ///
 /// Mutant: the touch read at its point (placed alone), red: the point is
 /// `Out`.
 #[test]
 fn a_touch_whose_arc_reaches_the_boundary_is_held() {
     let (y, face) = wall_face();
-    let u = 0.55_f64;
+    let w = (2.0 * band().zero()).sqrt();
+    let u = 0.5 + w / 2.0;
     let normal = Vec3::new(u.cos(), u.sin(), 0.0);
     let line = Curve3::Line(geom::Line {
         origin: Point3::origin() + normal + Vec3::new(0.0, 0.0, 0.5),
@@ -255,7 +259,7 @@ fn a_touch_whose_arc_reaches_the_boundary_is_held() {
     let touch = Meeting {
         point: line.eval(0.0),
         on_span: OnSpan::Inside { t: 0.0 },
-        kind: MeetingKind::Touch { arc: (-0.08, 0.08) },
+        kind: MeetingKind::Touch { arc: (-w, w) },
     };
     let answer = Err(CrossRefusal {
         found: vec![touch],
@@ -289,4 +293,136 @@ fn a_fault_window_fails_loud() {
             what: "a row's fault"
         })
     ));
+}
+
+/// **A whole-span window off the face is read by its pieces** where one
+/// ball cannot hold it: a line beside the wall at azimuth `π`, half the
+/// band outside it, refused over a window four metres long. Its one ball
+/// (radius about 2) passes the wall's reach `ρ = 1`; halved, the pieces
+/// far from the wall hold no meeting (`curve_face_window_piece_clear`)
+/// and those near its touch read off the face by their balls, so the
+/// window is off the face, as `off_face`'s clusters read it.
+///
+/// Mutant: the window read whole (no halving), red.
+#[test]
+fn a_long_window_off_the_face_is_read_by_its_pieces() {
+    let (y, face) = wall_face();
+    let line = line_along_y(-1.0 - band().zero() / 2.0, 0.5);
+    let off = window_off_face(&y, face, &unit_wall(), &line, (-2.0, 2.0), band())
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    assert!(off, "every piece of the window is off the face");
+}
+
+/// **A tiled window one of whose pieces reaches a boundary edge keeps
+/// the window**: a line tangent to the wall at azimuth `0.52`, just past
+/// the face's edge at `½`, read over a window two metres long. Halving
+/// settles the pieces far from the wall, but the piece about the touch
+/// holds the edge however short it gets, so the window is held.
+///
+/// Mutant: a piece past the depth read as off the face, red.
+#[test]
+fn a_tiled_window_whose_piece_reaches_the_boundary_is_held() {
+    let (y, face) = wall_face();
+    let u = 0.52_f64;
+    let normal = Vec3::new(u.cos(), u.sin(), 0.0);
+    let line = Curve3::Line(geom::Line {
+        origin: Point3::origin() + normal * (1.0 + band().zero() / 2.0) + Vec3::new(0.0, 0.0, 0.5),
+        dir: geom::stated_direction(Vec3::new(-u.sin(), u.cos(), 0.0)),
+    });
+    assert!(
+        !window_off_face(&y, face, &unit_wall(), &line, (-1.0, 1.0), band())
+            .unwrap_or_else(|e| panic!("{e:?}")),
+        "the piece about the touch holds the edge at azimuth ½"
+    );
+}
+
+/// The least distance, found by sampling `(lo, hi)` and refining each
+/// sampled minimum by bisection on the slope, from the line `line` to a
+/// point of the wall face over azimuth `[−½, ½]` and height `[0, 1]`: the
+/// nearest point of the unit wall to each line point, its azimuth and
+/// height clamped into the face (a point OF the face, so the distance is
+/// one a face point stands at).
+fn least_to_face(line: &Curve3<f64>, (lo, hi): (f64, f64)) -> f64 {
+    let to_face = |t: f64| {
+        let q = line.eval(t);
+        let az = q.y.atan2(q.x).clamp(-0.5, 0.5);
+        let h = q.z.clamp(0.0, 1.0);
+        (q - Point3::new(az.cos(), az.sin(), h)).norm()
+    };
+    let n = 4000;
+    let at = |k: usize| lo + (hi - lo) * k as f64 / n as f64;
+    let mut least = f64::INFINITY;
+    for k in 0..=n {
+        let here = to_face(at(k));
+        if here < least {
+            least = here;
+            // Refine about this sample by golden section.
+            let (mut a, mut b) = (at(k.saturating_sub(1)), at((k + 1).min(n)));
+            for _ in 0..80 {
+                let (x1, x2) = (b - 0.618 * (b - a), a + 0.618 * (b - a));
+                if to_face(x1) < to_face(x2) {
+                    b = x2;
+                } else {
+                    a = x1;
+                }
+            }
+            least = least.min(to_face(geom::mid_param(a, b)));
+        }
+    }
+    least
+}
+
+/// **The tiled reading never sets aside a window a face point stands
+/// in.** Random lines tangent-ish to the unit wall about the face's
+/// boundary edges and corners (azimuth drawn about `±½`, height about 0
+/// and 1, the touch inside or outside by up to `3ε`), each read over a
+/// random window about the touch. Wherever the reading answers off the
+/// face, no point of the face, sampled and bisected (`least_to_face`),
+/// stands within the band's escalation of the window. At the band rows
+/// the run reads (`CAD_TOLERANCE_EPS`).
+///
+/// Mutant: a piece's clearance read without its reach (`|dist| −
+/// escalate`), red.
+#[test]
+fn the_tiled_reading_never_sets_aside_a_window_a_face_point_stands_in() {
+    let (y, face) = wall_face();
+    let b = band();
+    let mut rng = test_utils::fuzz::start("face-reading-tiling");
+    let (mut off, mut held) = (0, 0);
+    for case in 0..test_utils::fuzz::scaled(300) {
+        let edge = [-0.5, 0.5][case % 2];
+        let u = edge + rng.range(-0.15, 0.15);
+        let z = if case % 3 == 0 {
+            rng.range(-0.2, 1.2)
+        } else {
+            [0.0, 1.0][case % 2] + rng.range(-0.1, 0.1)
+        };
+        let normal = Vec3::new(u.cos(), u.sin(), 0.0);
+        let tilt = rng.range(-1.0, 1.0);
+        let along = (Vec3::new(-u.sin(), u.cos(), 0.0) + Vec3::unit_z() * tilt).normalize();
+        let depth = rng.range(-3.0, 3.0) * b.zero();
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::origin() + normal * (1.0 + depth) + Vec3::unit_z() * z,
+            dir: geom::stated_direction(along),
+        });
+        let half = rng.log_uniform(1e-4, 1.5);
+        let centre = rng.range(-half, half);
+        let window = (centre - half, centre + half);
+        let Ok(read) = window_off_face(&y, face, &unit_wall(), &line, window, b) else {
+            held += 1;
+            continue;
+        };
+        if !read {
+            held += 1;
+            continue;
+        }
+        off += 1;
+        let least = least_to_face(&line, window);
+        assert!(
+            least > b.escalate(),
+            "case {case}: the window {window:?} read off the face, a face point {least:e} from it ({})",
+            test_utils::fuzz::replay()
+        );
+    }
+    assert!(off > 20 && held > 20, "{off} read off, {held} held");
 }

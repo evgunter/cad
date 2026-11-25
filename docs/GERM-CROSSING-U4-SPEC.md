@@ -162,13 +162,19 @@ outside the boolean takes it.
 - **A found meeting** is placed by `contain::placement_on_carrier` (`contain.rs:844`), the one door
   for every face kind (on a plane its arm is `contfp_decided`). On a cone it is told off the far nappe
   first (`place_crossing`, `reduce.rs:5047`).
-- **A window** is read as `off_face` reads a cluster today. Let `m` be the window's middle, `ℓ` its
-  reach along the carrier at the carrier's speed bound (`bisect::reach`), and `(dist, foot)` the
-  surface's distance and foot at `C(m)` (`carrier_touch::distance`). The window's meetings lie within
-  `ℓ + |dist|` of the foot. That radius, widened by `escalate`, must decide below the carrier's reach ρ;
-  `ball_off_face` then needs the foot placed `Out` and every boundary vertex and edge decided clear of
-  the ball. Then the window holds no point of the face. Otherwise the reading refuses with the window's
-  why mapped to its decision: a pose rung to its coincidence lever, a method's fault by
+- **A window** is read piece by piece, halved to a fixed depth of eight (`WINDOW_DEPTH`, the
+  cluster reading's budget), and holds no point of the face only when every piece holds none. Let
+  `m` be a piece's middle, `ℓ` its reach along the carrier at the carrier's speed bound
+  (`bisect::reach`), and `(dist, foot)` the surface's distance and foot at `C(m)`
+  (`face_reading::distance`). A piece with `|dist| − ℓ` decided past `escalate`
+  (`curve_face_window_piece_clear`, in metres) holds no meeting. Any other piece's meetings lie
+  within `ℓ + |dist|` of the foot; that radius, widened by `escalate`, must decide below the
+  carrier's reach ρ, and `ball_off_face` then needs the foot placed `Out` and every boundary vertex
+  and edge decided clear of the ball. A piece whose ball does not clear is halved; one past the depth
+  keeps the window. The pieces are what read a window the arm's method answers whole, a circle ×
+  torus contour rung's whole-span refusal among them (`mate7a_torus_rest`'s G1 chain), as
+  `off_face`'s clusters did. A window a piece keeps refuses the reading with the window's why mapped
+  to its decision: a pose rung to its coincidence lever, a method's fault by
   `MeetFault::kind`, as the trace and census map them. A kind with no distance and foot (a cone, a
   spline face) refuses every window, as `off_face` does today.
 - **A window whose why is a fault** fails loud (`BooleanError::ClassificationInvariant`) and is never

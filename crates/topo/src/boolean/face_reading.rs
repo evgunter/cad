@@ -7,18 +7,20 @@
 //!   (`reduce::place_crossing`: a cone's far nappe told off first, then
 //!   `contain::placement_on_carrier`). One at an end of the span is that
 //!   end's: the vertex rows own it.
-//! - **A window** holds no point of the face when its ball does not
-//!   (`window_off_face`): let `m` be the window's middle, `ℓ` its reach
+//! - **A window** holds no point of the face when none of its pieces
+//!   does (`window_off_face`, halving to a fixed depth); a piece standing
+//!   past its reach from the carrier holds none, and any other holds none
+//!   when its ball does not: let `m` be the piece's middle, `ℓ` its reach
 //!   along the carrier at the carrier's speed bound
 //!   (`geom_core::bisect::reach`), and `(dist, foot)` the surface's signed
-//!   distance and foot at `C(m)` ([`distance`]). Every meeting the window
+//!   distance and foot at `C(m)` ([`distance`]). Every meeting the piece
 //!   can hold lies within `ℓ + |dist|` of the foot (the distance is
 //!   1-Lipschitz). That radius, widened by `escalate`, must decide below
 //!   the carrier's reach ρ ([`reach`]), and then the ball meets the carrier
 //!   in one disc; with every boundary vertex and edge of the face decided
 //!   clear of the ball and its foot placed `Out`, the face holds none of
-//!   that disc ([`ball_off_face`]). Any other window refuses the reading,
-//!   naming the window and its why. A carrier with no distance and foot (a
+//!   that disc ([`ball_off_face`]). A window any piece of which the depth
+//!   leaves held refuses the reading, naming the window and its why. A carrier with no distance and foot (a
 //!   cone, a spline) refuses every window.
 //! - **A window whose why is a fault** fails loud
 //!   ([`BooleanError::ClassificationInvariant`]) and is never set aside.
@@ -195,14 +197,34 @@ pub(super) fn face_crossings<T: Decide + Bounds>(
     })
 }
 
+/// **How many times the face reading halves a window** ([`window_off_face`]):
+/// eight, as the cluster reading it replaces did (`carrier_touch`'s
+/// `CLUSTER_BUDGET`), so at most `2⁸` pieces. A window's piece is short
+/// enough at that depth for its ball to fall below a carrier's reach
+/// wherever the window is a touch or a graze's reach on a carrier of any
+/// size the session box holds; a piece the depth leaves unsettled keeps
+/// the window, and the reading refuses, as the cluster reading did past
+/// its own budget.
+const WINDOW_DEPTH: u32 = 8;
+
 /// **Whether the window `(lo, hi)` of `carrier` holds no point of
-/// `face`** (module docs): its ball, about the foot of its middle, read
-/// against the face. A carrier with no distance and foot here holds the
-/// window (`false`).
+/// `face`** (module docs), read piece by piece. A piece whose middle
+/// stands past its own reach from the carrier by more than the band's
+/// escalation holds no meeting (`curve_face_window_piece_clear`, in
+/// metres: the distance is 1-Lipschitz along the carrier, so no point of
+/// the piece is within the band of the surface); any other piece is read
+/// by its ball ([`ball_off_face`]), and one the ball does not clear is
+/// halved, to [`WINDOW_DEPTH`]. The window holds no point of the face
+/// only when every piece does: the meetings it can hold lie in the union
+/// of the pieces' discs, each off the face. A piece past the depth that
+/// its ball does not clear keeps the window (`false`), whatever another
+/// piece read; one whose reading escalated keeps it too, and its
+/// escalation is the answer only where no piece is kept outright. A
+/// carrier with no distance and foot here holds the window (`false`).
 ///
 /// # Errors
 ///
-/// [`ball_off_face`]'s.
+/// [`ball_off_face`]'s, for a piece past the depth whose ball escalated.
 pub(super) fn window_off_face<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
@@ -215,13 +237,39 @@ pub(super) fn window_off_face<T: Decide + Bounds>(
         return Ok(false);
     };
     let speed = geom::carrier_speed::speed_range(carrier).1;
-    let m = carrier.eval(geom::mid_param(lo, hi));
-    let Some((dist, foot)) = distance(surface, m) else {
-        return Ok(false);
-    };
-    let radius =
-        geom_core::bisect::reach(speed, (lo, hi)) + dist.abs() + T::from_f64(band.escalate());
-    ball_off_face(y, face, foot, radius, rho, band)
+    let escalate = T::from_f64(band.escalate());
+    let mut kept = None;
+    let mut pieces = vec![((lo, hi), 0_u32)];
+    while let Some(((a, b), depth)) = pieces.pop() {
+        let mid = geom::mid_param(a, b);
+        let ell = geom_core::bisect::reach(speed, (a, b));
+        let Some((dist, foot)) = distance(surface, carrier.eval(mid)) else {
+            return Ok(false);
+        };
+        if matches!(
+            decide(
+                "curve_face_window_piece_clear",
+                Margin::of(dist.abs() - ell - escalate),
+                band
+            ),
+            Ok(Sign::Positive)
+        ) {
+            continue;
+        }
+        let read = ball_off_face(y, face, foot, ell + dist.abs() + escalate, rho, band);
+        match read {
+            Ok(true) => {}
+            _ if depth < WINDOW_DEPTH => {
+                pieces.push(((mid, b), depth + 1));
+                pieces.push(((a, mid), depth + 1));
+            }
+            Ok(false) => return Ok(false),
+            Err(e) => {
+                kept.get_or_insert(e);
+            }
+        }
+    }
+    kept.map_or(Ok(true), Err)
 }
 
 /// A carrier's reach, ρ in the module docs.
