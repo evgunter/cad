@@ -509,17 +509,6 @@ pub enum MergeCoplanarError {
         /// The band construction failure.
         error: BandError,
     },
-    /// The staged result's pcurve RE-MINT refused (M6-3: an input that
-    /// carried stored caches re-mints them on the staged clone before
-    /// commit — the `topo::pcurves` module docs' rule for ops that
-    /// mutate minted bodies; the merged loops' one-branch walks are
-    /// derived fresh, never stitched from the absorbed fragments'
-    /// rows). The body is untouched, exactly as on every other
-    /// variant.
-    Pcurve {
-        /// The mint pass's typed refusal.
-        source: crate::pcurves::PcurveMintError,
-    },
     /// The join the public merge door ends with ([`Body::join_edges`](crate::construction::Construct::join_edges))
     /// refused on the merged body: a reading in the band, a carrier the
     /// joined edge cannot be run on, or the kill's own refusal. The
@@ -1177,12 +1166,6 @@ impl MergeCoplanarError {
                 )
             ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
-            Self::Pcurve { source } => write!(
-                f,
-                "merge_coplanar_faces: the staged result's pcurve re-mint refused \
-                 ({}) — the body is untouched",
-                read_at(source, at)
-            ),
             Self::Join { refusal } => {
                 write!(f, "merging coplanar faces: {}", read_at(refusal, at))
             }
@@ -2138,22 +2121,15 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 );
             }
         }
-        // A body that carried stored pcurve caches RE-MINTS them on
-        // the staged result before commit (the `topo::pcurves` module
-        // docs' rule for ops that mutate minted bodies; a body at rest
-        // carries them on every face whose chart mints): the merge
-        // rebuilds face loops, and two absorbed fragments' walks were
-        // branch-anchored independently — the merged loop's one-branch
-        // walk must be derived fresh, never stitched from the
-        // fragments' rows. Still on the staged clone, so a mint
-        // refusal keeps the untouched-on-error contract. A row the mint
-        // has no route to (a `Fitted` row on a class the closed-form
-        // lane does not cover) is carried across, re-certified, not
-        // dropped (`pcurves::carry_rows`).
-        if !self.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work, tol)
-                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
-        }
+        // The merge rebuilds the kept faces' loops from fragments whose
+        // walks were anchored apart, so their rows go, for the finish to
+        // derive on the merged loops.
+        let merged: Vec<crate::entity::HalfEdgeKey> = outcome
+            .groups
+            .iter()
+            .flat_map(|g| work.proven_face(g.kept).half_edges())
+            .collect();
+        work.drop_rows(merged);
         outcome.joins = joined(&mut work)?;
         self.adopt(work);
         Ok(outcome)

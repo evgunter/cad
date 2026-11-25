@@ -14,7 +14,7 @@ use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::RevolveAxis;
 use topo::readback::{EulerCounts, euler_counts};
-use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
+use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed};
 
 pub fn eps() -> f64 {
     Tol::witness().get().eps
@@ -100,7 +100,10 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::test_support::validate_completed(body, Tol::witness()),
+        Ok(())
+    );
 }
 
 /// (v, e, f, r) of a body.

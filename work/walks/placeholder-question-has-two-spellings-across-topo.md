@@ -2,12 +2,13 @@
 id: placeholder-question-has-two-spellings-across-topo
 kind: issue
 title: The placeholder question is asked through two doors across topo: NetState::Placeholder and is_placeholder()
-status: review
+status: closed
 opened: 2026-09-14
 priority: P1
 cost: M
 pr: 7495
 branch: walks/surface-slot
+closed: 2026-11-25
 ---
 
 
@@ -81,3 +82,7 @@ Two designers weighed it independently and converged: the two (in fact four) doo
 "cool. yes it seems good to have some kind of 'in progress surface' enum that can be a real surface or a placeholder." The enum is the body's surface SLOT in `topo` (described `Surface` | pending), not a variant of geom's `Surface`: one typed refusal where a face's surface is handed to geometry; `NetState`, `net_state`, both `is_placeholder`s, `is_placeholder_chart` and the placeholder constructors retire; one finiteness predicate (NaN and ±∞) is the only question asked of a net.
 
 - 2026-11-23 — `walks/curve-placeholder` (PR 7433) takes the curve half: `NurbsCurve3::placeholder`, `NurbsCurve3::is_placeholder` and `Curve3::nurbs_placeholder` are deleted with every reader arm (`topo::transform`'s `map_carrier`, `step-export`'s carrier gate). The surface slot Ev decided above is still to build, so the row stays open for it.
+
+## Closed
+
+2026-11-25: PR 7495 merged — "no surface yet" is a pending tag on topo's surface slot (Ev, PR 7423); `NetState`, `net_state`, both `is_placeholder`s, `is_placeholder_chart` and the placeholder constructors retired; one finiteness predicate; every refusal that meets a pending face names it as pending. The remaining placeholder *names* are `pending-face-refusals-keep-the-placeholder-name`.

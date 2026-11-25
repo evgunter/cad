@@ -568,7 +568,14 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_is_read_as_skew() {
                     );
                 }
                 None => assert!(
-                    matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                    matches!(&res, Err(e) if !matches!(
+                        e,
+                        BooleanError::ResultInvalid { findings }
+                            if findings
+                                .as_slice()
+                                .iter()
+                                .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+                    )),
                     "{} | {op}: {:?}",
                     pose.label,
                     res.map(|_| "a body")
@@ -599,7 +606,14 @@ fn a_tipped_rod_on_the_drums_seam_escalates_its_census_in_band() {
     for (op, res, want) in pose.runs() {
         if tol.eps() != 1e-6 {
             assert!(
-                matches!(&res, Err(e) if !matches!(e, BooleanError::Pcurves { .. })),
+                matches!(&res, Err(e) if !matches!(
+                    e,
+                    BooleanError::ResultInvalid { findings }
+                        if findings
+                            .as_slice()
+                            .iter()
+                            .any(|f| matches!(f, topo::ValidationError::Pcurve { .. }))
+                )),
                 "{} | {op}: {:?}",
                 pose.label,
                 res.map(|_| "a body")
