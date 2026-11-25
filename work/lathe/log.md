@@ -111,3 +111,8 @@ Signed: (CARVE orchestrator)
   - the stored ends come through the refusing door;
   - the fourth site (the face-vertex read through `span_on`) turned no near-vertex crossing into 'apart' at any ε;
   - editor-core's tier-3′ rows pass 110/110.
+- 2026-11-25 — **PR 7774 (import mints the wrap tip) dual review: both APPROVE-WITH-FIXES, one combined fix pass sent.** Both reviewers independently demonstrated the same MAJOR: the both-poles meridian azimuth is a sample centroid weighted by edge count, so a crescent or wider-than-180° hole refuses or imports depending on how the file splits its edges. Base imports all of those files. Ruled: the choice is a function of geometry alone (a meridian that meets the loop), pinned in both splittings. Also from the review:
+  - R1: the seam-region cover census is blind on regions holding a minted wrap tip; filed P1 on its owner, and the test doc's mechanism corrected;
+  - R2: tilted wrap carriers flip a ref direction every re-export hop;
+  - R2: spur caps import only on `u_ref`'s meridian, an arbitrary-frame dependence.
+  No wrong body ships in any finding.
