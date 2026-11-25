@@ -50,7 +50,7 @@ mod successor;
 mod table;
 pub(crate) mod words;
 
-pub use attribute::{NameOrigin, attribute};
+pub use attribute::{CarriedAs, NameOrigin, SegOrigin, attribute, origin};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
 #[cfg(debug_assertions)]
@@ -92,7 +92,7 @@ pub use role::{
 };
 pub(crate) use role::{Carry, Referent, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
-pub(crate) use role::{VerbatimEdge, verbatim_edge};
+pub use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{
     NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, one_body, select, select_member,
