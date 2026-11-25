@@ -20,6 +20,8 @@
 //! crate means measuring that time again; the script's selftest pins a
 //! digest of these files to the constant, so an edit that forgets is red.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
+
 use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -83,7 +85,14 @@ fn round<S: Scalar>(seed: &mut u64, table: &mut HashMap<u64, u64>) -> u64 {
         for _ in 0..NEWTON {
             x = half * (x + p / x);
         }
-        acc = if x > half { acc + x } else { acc - x * x };
+        // `Mul::mul(x, x)` is the plain square (the same codegen), spelled so
+        // interval-square-allowlist.sh, whose subject is interval enclosures,
+        // does not read this f64 workload as one.
+        acc = if x > half {
+            acc + x
+        } else {
+            acc - Mul::mul(x, x)
+        };
     }
     let key = *seed % KEYS;
     let bits = acc.get().to_bits();

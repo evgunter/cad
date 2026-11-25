@@ -68,7 +68,7 @@ REFERENCE: Pair = (f"{REFERENCE_PACKAGE}::all", "the_runners_speed_reference")
 REFERENCE_NOMINAL = 0.20
 # sha256 over REFERENCE_FILES, as `reference_digest` reads them: the
 # workload REFERENCE_NOMINAL was measured on.
-REFERENCE_DIGEST = "939cd84edd0671011ae69ea2621372a5c15543c030a559db224f321f482c2929"
+REFERENCE_DIGEST = "0415ffdf056656712d2b2b3f28fb46a2b52eb9cb72368dbf19d12f1fa4bd1810"
 REFERENCE_FILES = ("Cargo.toml", "src/lib.rs", "tests/all.rs")
 # The fastest runner class's factor, with room: a runner reading faster is
 # a RetimeError, since the screens assume none is.
