@@ -513,7 +513,7 @@ pub fn rim_face_rounds<T: Decide>(
     rounds::<T>(face, CapArea::Plane, band, window, accept)
 }
 
-/// **A cone cap bounded by a rational spline rim**: [`rim_face_rounds`]
+/// **A cone cap bounded by a spiric or a spline rim**: [`rim_face_rounds`]
 /// on `face` read about the apex (`lever` the apex less the centre, every
 /// term about the apex), whose area is `|â·A⃗|/sin α`. On a cone `x − A`
 /// lies along the generator, in the tangent plane, so the position flux

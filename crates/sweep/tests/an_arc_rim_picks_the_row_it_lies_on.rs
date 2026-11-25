@@ -37,8 +37,9 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-/// A prism whose profile's second edge is a semicircle (bulge 1), so
-/// its wall's rims are half-period arcs, `breaks` mirror-symmetric and
+/// A prism whose profile's second edge is a semicircle (bulge 1), which
+/// the loft cuts into two quarter walls, so each wall's rims are
+/// quarter arcs of one sub-arc, `breaks` mirror-symmetric and
 /// the wall reversible in `u` bitwise.
 fn semicircle_prism() -> Body<f64> {
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
@@ -56,21 +57,34 @@ fn semicircle_prism() -> Body<f64> {
         .into_body()
 }
 
-/// The arc wall and its two rim half-edges, `v = 0` first.
+/// The first quarter wall of the arc and its two rim half-edges, `v = 0`
+/// first.
 fn arc_wall(body: &Body<f64>) -> (FaceKey, [HalfEdgeKey; 2]) {
-    let mut rims: Vec<(f64, HalfEdgeKey)> = body
+    let rims: Vec<(f64, HalfEdgeKey)> = body
         .pcurves()
         .filter_map(|(h, c)| match c.pcurve() {
             image @ Pcurve::IsoArc { .. } => image.iso_arc_segment().map(|(p0, _)| (p0.y, h)),
             _ => None,
         })
         .collect();
-    rims.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let [(_, bottom), (_, top)] = rims.as_slice() else {
-        panic!("the arc wall's two rims are its IsoArc rows: {rims:?}")
+    assert_eq!(
+        rims.len(),
+        4,
+        "two quarter walls, each with two IsoArc rows: {rims:?}"
+    );
+    let face = rims
+        .iter()
+        .map(|&(_, h)| body.face_of_half_edge(h).unwrap())
+        .min()
+        .unwrap();
+    let mut own: Vec<(f64, HalfEdgeKey)> = rims
+        .into_iter()
+        .filter(|&(_, h)| body.face_of_half_edge(h) == Some(face))
+        .collect();
+    own.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let [(_, bottom), (_, top)] = own.as_slice() else {
+        panic!("the quarter wall's two rims are its IsoArc rows: {own:?}")
     };
-    let face = body.face_of_half_edge(*bottom).unwrap();
-    assert_eq!(body.face_of_half_edge(*top), Some(face), "one wall");
     (face, [*bottom, *top])
 }
 

@@ -1394,107 +1394,47 @@ fn a_witness_is_read_in_an_arcs_own_window() {
     assert!(got.is_none(), "no witness in the node's box: {got:?}");
 }
 
-/// **Two arcs of one node are held apart outside its box** (`apart`):
-/// two arcs leaving a node at the origin along `+x` and nearly along it,
-/// each read box by box. Where their boxes meet only inside the node's
-/// box, both carry; where they meet again 0.9 from the node, both refuse
-/// `PadsMeet`, as two arcs sharing no node do.
+/// **Two arcs of one node are held apart outside its box**
+/// (`cells::stand`): two arcs leaving a node at the origin along `+x`
+/// and nearly along it. Cells that meet inside the node's box stand at
+/// the node; cells that meet again 0.9 from it meet, as two arcs sharing
+/// no node do; and cells past the reach stand apart.
 ///
-/// Red against: every pair of arcs sharing a node skipped whole (the
-/// far meeting carried, where a site there reads on both and escalates
-/// as if at the node).
+/// Red against: every pair of cells of two arcs sharing a node read as
+/// at the node (the far meeting carried, where a site there reads on
+/// both and escalates as if at the node).
 #[test]
 fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
-    use crate::pair_section::{
-        CarriedComponent, CarryError, CarryRefusal, ClassCarrier, ComponentEnds, NodeEnd, NodeEnds,
-        PadBox, SectionComponent,
+    use super::cells::{Stand, stand};
+    use crate::ssi::enclose::Box3;
+    use geom_core::Interval;
+    let cell = |lo: [f64; 3], hi: [f64; 3]| Box3 {
+        x: Interval::from_bounds(lo[0], hi[0]),
+        y: Interval::from_bounds(lo[1], hi[1]),
+        z: Interval::from_bounds(lo[2], hi[2]),
     };
-    let node_box = PadBox {
-        lo: [-1e-3; 3],
-        hi: [1e-3; 3],
-        pad: 1e-3,
-        node: Some(0),
-    };
-    let arc = |line, far: f64| {
-        let ends = ComponentEnds {
-            nodes: NodeEnds {
-                start: Some(NodeEnd {
-                    node: 0,
-                    line,
-                    sense: RaySense::Along,
-                }),
-                end: None,
-            },
-            ..ComponentEnds::default()
-        };
-        let shape = ComponentShape::Open { ends };
-        let boxes = vec![
-            node_box,
-            PadBox {
-                lo: [5e-4, -2e-4, -1e-4],
-                hi: [0.5, far, 1e-4],
-                pad: 1e-4,
-                node: None,
-            },
-            PadBox {
-                lo: [0.5, -1e-4, -1e-4],
-                hi: [1.0, 1e-4, 1e-4],
-                pad: 1e-4,
-                node: None,
-            },
-        ];
-        SectionComponent {
-            shape,
-            winds: [false, false],
-            witness: None,
-            pad: 0.0,
-            carrier: ClassCarrier::Fitted(Box::new(Ok(CarriedComponent {
-                carrier: geom::Curve3::line(pt(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x()),
-                span: (0.0, 1.0),
-                shape,
-                certificate: None,
-                winds: [false, false],
-                pad: 1e-4,
-                reach: 0.0,
-                witness: pt(0.5, 0.0, 0.0),
-                boxes,
-                runs: Vec::new(),
-            }))),
-            cut_ends: None,
-        }
-    };
-    let carried =
-        |c: &SectionComponent<f64>| matches!(&c.carrier, ClassCarrier::Fitted(f) if f.is_ok());
-    // The second arc's boxes beside the first's: they meet at the node's
-    // box, and again along the far box, 0.9 from the node.
-    let mut meeting = vec![arc(NodeLine::First, 2e-4), arc(NodeLine::Second, 2e-4)];
-    super::apart(&mut meeting, band());
-    assert!(
-        meeting.iter().all(|c| matches!(
-            &c.carrier,
-            ClassCarrier::Fitted(f) if matches!(f.as_ref(), Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })))
-        )),
-        "arcs whose boxes meet far from their node refuse: {:?}",
-        meeting.iter().map(carried).collect::<Vec<_>>()
+    let node = [cell([-1e-3; 3], [1e-3; 3])];
+    let reach = band().escalate();
+    let near = |dy: f64| cell([5e-4, -2e-4 + dy, -1e-4], [0.5, 2e-4 + dy, 1e-4]);
+    let far = |dy: f64| cell([0.5, -1e-4 + dy, -1e-4], [1.0, 1e-4 + dy, 1e-4]);
+    assert_eq!(
+        stand(near(0.0), near(0.0), &node, reach),
+        Stand::AtNode,
+        "cells reaching into their node's box stand at the node"
     );
-    // Moved off along `y` past the far box's reach, they meet only in
-    // the node's box (each first box reaching into it).
-    let mut apart_but_at_node = vec![arc(NodeLine::First, 2e-4), {
-        let mut c = arc(NodeLine::Second, 2e-4);
-        if let ClassCarrier::Fitted(f) = &mut c.carrier
-            && let Ok(a) = f.as_mut()
-        {
-            for b in a.boxes.iter_mut().filter(|b| b.node.is_none()) {
-                b.lo[1] += 0.01;
-                b.hi[1] += 0.01;
-            }
-            a.boxes[1].lo = [5e-4, 5e-4, -1e-4];
-        }
-        c
-    }];
-    super::apart(&mut apart_but_at_node, band());
-    assert!(
-        apart_but_at_node.iter().all(carried),
-        "arcs meeting only at their node's box carry"
+    assert_eq!(
+        stand(far(0.0), far(0.0), &node, reach),
+        Stand::Meet(0.0),
+        "cells meeting 0.9 from their node meet"
+    );
+    assert_eq!(
+        stand(far(0.0), far(0.0), &[], reach),
+        Stand::Meet(0.0),
+        "as two arcs sharing no node do"
+    );
+    assert_eq!(
+        stand(far(0.0), far(0.01), &node, reach),
+        Stand::Apart,
+        "cells past the reach stand apart"
     );
 }

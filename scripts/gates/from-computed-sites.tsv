@@ -39,6 +39,7 @@ crates/geom-brep/src/pair_section/ruling.rs	1	owed(bounds-re-enter-t-through-fro
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(constants-spelled-through-from-computed)	coverage	<fn>	coverage: exact f64 rulings lifted to concrete Interval, a constant embed spelled as computed
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	hi	Cell::new: a cell end read at T (Ruling::reads)
 crates/geom-brep/src/pair_section/ruling.rs	1	owed(a-place-read-inside-a-reading-held-at-t-needs-the-reading-on-the-value-channel)	new	lo	Cell::new: a cell end read at T (Ruling::reads)
+crates/geom-brep/src/pair_section/spline_implicit/cells.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	new	<fn>	Reader::new: an f64 carrier lifted to Interval to read a tube bound, as pad_and_reach lifts it
 crates/geom-brep/src/pair_section/winds.rs	1	owed(constants-spelled-through-from-computed)	lift	v	lift: exact f64 values lifted to concrete Interval, a constant embed spelled as computed
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	axial_floor	abs_z(z).0	axial_floor: a hull bound as a T operand
 crates/geom-brep/src/pcurve_cache/projected.rs	1	owed(projected-hull-bounds-are-operands-of-t-arithmetic)	over_at	at	over_at: a hull height squared at T
@@ -61,7 +62,7 @@ crates/geom-brep/src/props/curved.rs	1	owed(constants-spelled-through-from-compu
 crates/geom-brep/src/ssi/certify.rs	1	owed(a-bound-a-sym-identity-is-proved-over-has-no-allowance-spelling)	image_miss	miss	image_miss: a wall image's measured miss hulled into T for limb 2's decision on it
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	certificate	<fn>	certificate: rung.tube lifted into T
 crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	tube_transversality	clearance	tube_transversality: a clearance bound held as T
-crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	hull.sup	hull_limb: a limb bound held as T
+crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bounds-as-t)	hull_limb	bound	hull_limb: a limb bound held as T, the hull with its knot-rectangle reach
 crates/geom-core/src/dual.rs	1	scalar	from_computed	x	Dual's impl forwards to its base scalar's
 crates/geom-core/src/linalg/rigid_motion.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	least_turn_minted	reach_f	least_turn_minted: an f64 reach in the room's T arithmetic
 crates/geom-core/src/predicate.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	apply	<fn>	Allowance::apply: an allowance's f64 bound formed in T for the Sym reading

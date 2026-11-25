@@ -42,6 +42,6 @@ takes `level_row`: each wall carries its rim as the row
 `IsoLine { p0.y = 0.025, pl = (1, 0) }`, and the rim certifies as the
 moved plane and wall's `Intersection`. `interior_iso_u`'s separability
 test is bitwise, so the net's weights are now equal along `v`
-(`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`).
+(`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row`).
 The weights were not read bit for bit here. Reading them once is all
 that is left before this row closes.

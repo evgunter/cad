@@ -230,7 +230,11 @@ limbs 1–3) is bounded on the certification trait and takes its lane as a
 plain argument. The scalar's policy names what its edges carry: a
 certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
-scalar can call a certifying function. A dual body carries no
+scalar can call a certifying function. A pcurve door is two functions
+in the same way: deriving the image (its class, its coefficients) is
+construction, and the four checks, the envelope, the certificate object
+and the incidence read that ends a door's refusal are certification
+(geom-core DL5.3). A dual body carries no
 certificate: what a dual measures is read against the input-identical
 `f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full, and a
 certificate is read wherever its support is bit-identical. An edge with an operand outside the
@@ -253,8 +257,11 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the widest of the boxes it lies in,
-each the farthest that box's image stands from the carrier. Its
+node, and the pad a site reads is the widest of the cells it lies in
+(the carry's, C5: the boxes' windows cut to the knot rectangle, less
+the cells the partner's form clears of the band, the node's own box
+kept whole), each the farthest that cell's image stands from the
+carrier. Its
 last box holds the node, and the claim over that box is the node's own
 reading: `∇φ`'s one zero there by the Krawczyk operator, within the
 band of the carrier's end, its Hessian indefinite and its value decided
@@ -325,11 +332,12 @@ this function, on one chart operand: limb 3 reads the wall's chart on
 its own cells, and where that refuses, on the certificate's grid
 (`ChartedNurbs::certificate_grid`), the same two steps in a trace and at
 rest. So rest re-derives a trace's certificate bit for bit from the
-carrier alone, and a stored pcurve is the function's value remembered. An image is evidence: inside the wall's knot rectangle limb 2
-bounds its distance from the carrier, and where it leaves the rectangle
-between two nodes limb 2 reads the boundary cell's polynomial extension
-and can pass, and there limb 3 refuses, its boxes cut to the rectangle
-(`SsiError::TubeNotOneArc`). The certificate records the tube
+carrier alone, and a stored pcurve is the function's value remembered. An image is evidence: limb 2 bounds its distance from the
+carrier on the wall's knot rectangle, and holds the image to the
+rectangle, since past it the composite reads the boundary cell's
+polynomial extension (`ssi::certify::chart_domain_limb`: an escape in
+the band is added to the bound, one past it refuses). A pcurve row's
+check 4 holds its fitted image the same way. The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -1141,8 +1149,20 @@ carrier within the band's zero, its along-residual decided zero
 stands past, never a witness the padded band reads on: a reading that
 cannot decide it escalates. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
-rim ends as the reading fitted and certified it, its pad the chart
-tube's windows imaged on the wall by its chart speeds. A pair traced
+rim ends as the reading fitted and certified it, its pad the farthest
+from its carrier that the cells of its chart tube's windows stand, cut
+to the knot rectangle, less those the partner's form clears of the
+band, imaged on the wall, refined until the section's arcs read apart.
+A site is read on the arc whose cells hold it, each cell widened by the
+band's escalation along every axis and read against the whole carrier.
+The cells of two arcs that, widened so, share a point are halved, the
+cleared halves dropped, until none do. The pair has stopped narrowing
+where two cycles of halvings running, one along each chart axis, clear
+no half and part none, or where no cell still meeting can be halved;
+there, or at a work bound that grows with the section's first reading,
+the two arcs carry neither (`CarryRefusal::PadsMeet`, naming the stop).
+An arc with no close neighbour keeps its first reading, cells a rung
+wide. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which

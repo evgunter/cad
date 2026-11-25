@@ -82,6 +82,7 @@ crates/topo/src/chord_join.rs read_paths_from 1 pin a_path_escalating_by_a_corne
 crates/geom-brep/src/props/curved.rs unanimous_rim_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/join.rs seam_germ_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs tangent_lump 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/reduce.rs junction_end_boundary_clear 1 proof decided-members
 crates/topo/src/link/second_order.rs thorns 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/loop_side.rs inside_at_every_vertex 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/offset_nappe.rs group_nappe 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer

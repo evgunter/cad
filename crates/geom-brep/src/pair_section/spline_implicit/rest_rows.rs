@@ -18,7 +18,7 @@ use crate::description::{CurveSelector, EdgeDescriptionSpec, SurfacePair};
 use crate::edge_nurbs::{PXN_FIT_SAMPLES, PlaneNurbsRefusal, curved_nurbs_limbs};
 use crate::keys::SurfaceKey;
 use crate::pair_section::{CarriedComponent, SsiLane};
-use crate::ssi::{OneArcRefusal, PointLever, SsiLimb, SsiTube};
+use crate::ssi::{PointLever, SsiLimb, SsiTube};
 
 /// The cylinder along `x` about `(y, z) = (1.15·s, 1.6·s)` of radius
 /// `0.5·s`: it cuts [`wall`] in one arc from side to side, its upper
@@ -495,29 +495,25 @@ fn the_stand_off_is_decided_on_the_runs_band() {
     }
 }
 
-/// **An arc that dips past the wall's rim never certifies**: the flat
-/// wall `y = 1` over `z ∈ [0, 2]`, and a sphere whose section circle of
-/// radius `0.3` on the wall's plane dips `d` below the rim `z = 0`. The
-/// carrier is `d` off the wall at its lowest point while it stays on the
-/// wall's plane, which the wall's polynomial extension past the rim is.
-/// For `d` from 3 ε up, one of two readings stops it:
+/// **An arc that leaves the wall past its rim between two of the image's
+/// nodes is refused at limb 2**: the flat wall `y = 1` over `z ∈ [0, 2]`,
+/// and a sphere whose section circle of radius `0.3` on the wall's plane
+/// dips `d` below the rim `z = 0`, its lowest point half a node past the
+/// hundredth of the finest image's 256 spans. The carrier is `d` off the
+/// wall there while it stays on the wall's plane, which the wall's
+/// polynomial extension past the rim is; the image follows it out, so
+/// limb 2's composite alone reads nothing, and limb 2's hold of the image
+/// to the knot rectangle (`chart_domain_limb`) escalates a dip in the band
+/// (3 ε) and refuses one past it. Once the dip is wide enough to hold a
+/// node (`d` past `1e-5`, measured), limb 1 or 2's value reads the foot
+/// held at the rim and may refuse first. An arc a micrometre inside the
+/// rim certifies.
 ///
-/// - where the dip falls between the image's readings of its own miss,
-///   the image follows the carrier out through the extension, limbs 1
-///   and 2 read nothing, and limb 3 refuses, its boxes cut to the knot
-///   rectangle: four solutions on their boundary, the arc leaving and
-///   coming back;
-/// - where a reading falls in the dip, the image takes knots there until
-///   it holds the path the rim holds, to its share of the carrier's
-///   standoff, and limb 1 or 2 reads the carrier off the wall, escalating
-///   in the band and refusing past it.
-///
-/// An arc a micrometre inside the rim certifies.
-///
-/// Red against: a certificate that stops at limbs 1 and 2 on an image
-/// that follows the carrier out, which holds the arc `d` off the wall.
+/// Red against: a limb 2 that does not hold the image to the rectangle
+/// (the dip then reaches limb 3, whose boxes are cut to the rectangle,
+/// and refuses `TubeNotOneArc` there).
 #[test]
-fn an_arc_that_dips_past_the_walls_rim_never_certifies() {
+fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_at_limb_2() {
     let eps = band().zero();
     let rho = 0.3_f64;
     let wall = Surface::Nurbs(std::sync::Arc::new(flat()));
@@ -544,27 +540,85 @@ fn an_arc_that_dips_past_the_walls_rim_never_certifies() {
     for k in [3.0, 30.0, 100.0, 400.0] {
         let d = k * eps;
         let read = dipping(d);
-        let by_the_tube = matches!(
-            read,
-            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::TubeNotOneArc {
-                cause: OneArcRefusal::Count { solutions: 4 },
-                ..
-            }))
-        );
-        let on_the_dip = matches!(
-            read,
-            Err(CertifyError::Escalated {
-                check: CertCheck::PlaneNurbsHullValue | CertCheck::PlaneNurbsOnLocus,
-                ..
-            } | CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb {
-                limb: SsiLimb::OnLocus | SsiLimb::HullValueChart | SsiLimb::HullSupChart,
-                ..
-            }))
-        );
+        let held = |cause: &geom_core::Indeterminate| cause.predicate == Some("ssi_chart_domain");
+        let expected = match &read {
+            Err(CertifyError::Escalated { cause, .. }) => k < 10.0 && held(cause),
+            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, .. })) => matches!(
+                limb,
+                SsiLimb::HullSupChart | SsiLimb::OnLocus | SsiLimb::HullValueChart
+            ),
+            _ => false,
+        };
         assert!(
-            by_the_tube || on_the_dip,
-            "an arc dipping {k} ε = {d:e} m past the rim is refused by the tube, or on the \
-             dip itself where the image reads it: {read:?}"
+            expected,
+            "an arc dipping {k} ε = {d:e} m past the rim is refused at limb 2, escalated at \
+             its domain hold in the band: {read:?}"
+        );
+    }
+}
+
+/// **A general row whose image leaves the wall's knot rectangle between
+/// two nodes is not certified**: the dipping arc of the row above, its
+/// image the mint's own (`FittedLane::general_image`), certified alone
+/// through `PcurveCache::certify_general` as an edge that owes no limb
+/// 3 would be. Past the rim the composite reads the wall's polynomial
+/// extension, on which the carrier still lies, so the hull bound alone
+/// holds the carrier `d` off the wall. Check 4 holds the image to the
+/// rectangle (`chart_domain_limb`): a dip of `ε/2` certifies with its
+/// reach in the envelope, one of `3ε` escalates or refuses, and from
+/// `30ε` up it refuses. An arc a
+/// micrometre inside the rim certifies with no reach added.
+///
+/// Red against: a check 4 that does not hold the image to the knot
+/// rectangle (every dip certifies, up to `1e-5` m at ε = 1e-9), and
+/// one that reads the control hull alone (the arc inside the rim
+/// refuses: its lowest control `v` is `−2.2e-5`).
+#[test]
+fn a_general_row_whose_image_leaves_the_knot_rectangle_is_not_certified() {
+    use crate::pcurve_cache::PcurveCertifyError as E;
+    let eps = band().zero();
+    let rho = 0.3_f64;
+    let wall = Surface::Nurbs(std::sync::Arc::new(flat()));
+    let at = 100.5 / 256.0;
+    let span = (-at, 1.0 - at);
+    let row = |d: f64| {
+        let carrier = Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(pt(0.0, 1.0, rho - d), Vec3::unit_y(), -Vec3::unit_z()),
+            rho,
+        ));
+        let lane = crate::FittedLane::<f64>::certified();
+        let image = lane
+            .general_image(&carrier, span, chart(&wall), band())
+            .expect("the mint's image");
+        crate::PcurveCache::certify_general(
+            std::sync::Arc::new(image),
+            span.0,
+            span.1,
+            &carrier,
+            &wall,
+            band(),
+            Some(lane),
+        )
+    };
+    let inside = row(-1e-6).expect("an arc a micrometre inside the rim certifies");
+    let half = row(0.5 * eps).expect("a dip of half the band certifies");
+    assert!(
+        half.certificate().envelope >= 0.5 * eps,
+        "a dip of half the band is in the envelope: {:?} against {:?}",
+        half.certificate(),
+        inside.certificate()
+    );
+    for k in [3.0, 30.0, 400.0] {
+        let d = k * eps;
+        let read = row(d);
+        let refused = matches!(
+            read,
+            Err(E::FittedLimb { .. } | E::FittedCertificate { .. } | E::Incidence(..))
+        );
+        let escalated = matches!(read, Err(E::FittedEscalated { .. }));
+        assert!(
+            refused || (k < 10.0 && escalated),
+            "a row whose image dips {k} ε = {d:e} m past the rim is not certified: {read:?}"
         );
     }
 }

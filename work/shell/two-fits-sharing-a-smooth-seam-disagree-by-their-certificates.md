@@ -61,3 +61,15 @@ The pin is renamed
 Its shell half still refuses at a wall's `Fit { PatchBound(Crease) }`.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
+
+2026-11-22 (LATHE, `lathe/skin-sub-arc-walls`): the loft now cuts the
+vase's walls at their sub-arc joints, so each wall is a quarter turn with
+no C⁰ knot, and its fit no longer refuses `Crease`. At ε 1e-9 and 1e-12
+the shell stops at a quarter wall's fit, `Fit { WallReached }`. At ε 1e-6
+the fits certify, and the shell stops one step later, at this row's
+question: `EdgeSection { kind: Approx, other_kind: Approx, verdict:
+NoBranch }`, two fitted walls that do not meet along the seam at their
+joint (whose wedge is read, not assumed; `crates/sweep/README.md`).
+The pin is renamed
+`shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row`
+and accepts either stop.
