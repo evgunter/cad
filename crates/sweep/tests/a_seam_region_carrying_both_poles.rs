@@ -163,6 +163,7 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
                 "the flipped bit contradicts the side its boundary encodes, and nothing else: \
                  {errs:?}"
             );
+            // Raw door: tier 3 refuses this flip (CurvedSenseInverted).
             let door = topo::test_support::measure_unvalidated(
                 &both,
                 tol,
