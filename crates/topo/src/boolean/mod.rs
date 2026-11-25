@@ -10615,7 +10615,9 @@ mod tests {
         };
         let door = refused(crate::rim_wedge::RimUnread::Unplaced {
             side: geom_brep::PairSide::Second,
-            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted(crate::entity::LoopKey::default())),
+            why: crate::rim_wedge::Unplaced::Door(ContainError::RayExhausted(
+                crate::entity::LoopKey::default(),
+            )),
         });
         assert!(
             matches!(

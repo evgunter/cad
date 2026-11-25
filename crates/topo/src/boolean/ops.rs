@@ -11075,7 +11075,12 @@ mod witness_rows {
             "a trim's verdict"
         );
         assert!(
-            matches!(witness_reads(Err(ContainError::RayExhausted(crate::entity::LoopKey::default()))), Ok(None)),
+            matches!(
+                witness_reads(Err(ContainError::RayExhausted(
+                    crate::entity::LoopKey::default()
+                ))),
+                Ok(None)
+            ),
             "a door's refusal is no verdict"
         );
     }

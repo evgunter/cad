@@ -58,7 +58,10 @@ mod tests {
                 PointInLoopError::CorruptLoop { r#loop: lk },
                 ContainError::LoopUnreadable(lk),
             ),
-            (PointInLoopError::Uncrossable(u), ContainError::Uncrossable(u)),
+            (
+                PointInLoopError::Uncrossable(u),
+                ContainError::Uncrossable(u),
+            ),
         ] {
             let got = ContainError::from(walk.clone());
             assert_eq!(got, door, "{walk:?}: the door's refusal");

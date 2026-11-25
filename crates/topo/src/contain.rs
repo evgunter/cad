@@ -384,7 +384,10 @@ impl ContainError {
                 f,
                 concat!(
                     "contfp: ",
-                    geom_core::undecided!("whether the point lies in loop {:?} of the face", payload)
+                    geom_core::undecided!(
+                        "whether the point lies in loop {:?} of the face",
+                        payload
+                    )
                 ),
                 lp,
                 crate::ray_walk::NoRaySettled
