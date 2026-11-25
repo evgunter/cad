@@ -8,6 +8,8 @@ priority: P1
 cost: M
 closed: 2026-11-25
 refs: [the-half-angle-ladder-certifies-in-band-configurations, line-torus-roots-may-certify-noise-when-the-line-origin-is-far, classification-invariant-family-types-bug-only-states-against-d9-row-4]
+pr: 7754
+branch: inside/quartic-disc-rounding
 ---
 
 
