@@ -19,7 +19,8 @@ Moved from `work/issues/` to `work/shell/` on 2026-11-03, when the `work/issues/
 
 The scene authors its short swept leaf once (`LEAF_B`) and mirrors it
 across the stem (`lily::across_the_stem`: upright, through the foot's
-axis, square to the plant's plane) with `topo::mirror_body`, so
+axis, square to the plant's plane): the finished leaf moved by the
+reflection (`FinishedBody::moved_by`), so
 `lily_leaf_c` is `lily_leaf_b`'s mirror image and the two stand opposite
 each other. `LEAF_C`'s hand-placed numbers are gone; the Pappus and
 quadrature rows hold `lily_leaf_c` to `LEAF_B`'s section and path. The

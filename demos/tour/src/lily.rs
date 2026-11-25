@@ -901,7 +901,8 @@ pub const LEAF_B: SweptLeaf = SweptLeaf {
 /// through the foot's axis, square to the plant's plane (the one the
 /// stem arches in), so `lily_leaf_c` stands opposite `lily_leaf_b`
 /// across the stem. The scene authors [`LEAF_B`] once and mirrors it
-/// (`topo::mirror_body`) rather than placing a second leaf by hand.
+/// (a finished body's `moved_by` under the reflection) rather than
+/// placing a second leaf by hand.
 ///
 /// # Panics
 ///
@@ -1588,10 +1589,13 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     );
     let rootstock = rootstock::<S>(tol);
     // The two short leaves: one authored, one its mirror image across
-    // the stem.
+    // the stem. A finished body mirrors through `moved_by`, which
+    // carries its certificates and derives the image's rows again.
     let leaf_b: Body<S> = LEAF_B.build(tol);
-    let leaf_c = pncad::topo::mirror_body(&leaf_b, &across_the_stem(tol))
-        .expect("the short leaf mirrors across the stem");
+    let leaf_c = crate::booleans::finished("lily_leaf_b", leaf_b.clone(), tol)
+        .moved_by(&pncad::topo::Isometry::Improper(across_the_stem(tol)), tol)
+        .expect("the short leaf mirrors across the stem")
+        .into_body();
 
     let mut pieces = vec![
         Piece {
@@ -1821,8 +1825,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
               u_ref/radii, windowed) tubes; revolve(Full) sphere-zone \
               lantern and revolve(Partial) x3 on a tilted tripod for the \
               bud; sweep_body(lanceolate arc section, arched NURBS \
-              spine) for one short leaf -> mirror_body across the stem for the \
-              other; loft_body(tapering lanceolate \
+              spine) for one short leaf -> moved_by its reflection across the stem \
+              for the other; loft_body(tapering lanceolate \
               sections on rolled placements) for the long leaf and the sepals",
         delta: 5e-3,
         note: Some(note),
