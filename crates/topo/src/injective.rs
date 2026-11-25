@@ -3942,7 +3942,10 @@ fn present_plane<'a>(
         if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
             && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
         {
-            return Err(sgl!());
+            let neg = |x: Interval| interval_sign_as(x, SELF_INTERSECTION_CORNER, band) == Some(Sign::Negative);
+            let reflex = neg(lean(n1, bv)) || neg(lean(n2, a));
+            crate::split_ground::local(if reflex { 13945 } else { 23945 });
+            return Err(Unpresented::Local);
         }
         let det = a[0] * bv[1] - a[1] * bv[0];
         let d = [cell_u - o.x, cell_v - o.y];
@@ -4054,7 +4057,12 @@ fn present_plane<'a>(
             }
             last
         }
-        _ => Err(sgl!()),
+        _ => {
+            crate::split_ground::local(
+                50000 + 100 * edges.len().min(99) as u32 + piece.local.vertices.len().min(99) as u32,
+            );
+            Err(Unpresented::Local)
+        }
     }
 }
 
