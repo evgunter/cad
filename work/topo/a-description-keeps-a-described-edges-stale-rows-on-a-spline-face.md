@@ -43,3 +43,17 @@ unless the description restates the stored carrier and interval
 (`Body::restatement`), whose rows stay current. The finish completes
 them.
 
+
+## Note (2026-11-25, PR 7497)
+
+Reached in the suite once main's single cut landed:
+`two_rims_review_probes::a_ball_segment_inside_its_ball_builds_every_op`'s
+ball ∪ segment goes through the Boolean's fallback, whose
+`finish_output` join stage grows a kept edge through `kev_describing`
+(`crates/topo/src/boolean/edge_join.rs`, `join_one`). The kept edge's
+rows stood over its old interval and tier 3 refused them
+(`LoopDiscontinuity`), where the old closing mint had replaced them.
+The join doors now drop the rows of every face the kept edge bounds
+(`drop_kept_faces_rows`, in `join_all`), so completion derives those
+faces whole. The general door, `kev_describing` / `set_edge_curve`
+keeping a described edge's spline-face rows, stays this row's.

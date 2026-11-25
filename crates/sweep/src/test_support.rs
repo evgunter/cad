@@ -2737,9 +2737,9 @@ pub fn f64_body_held_as_points<T: geom_core::Decide + topo::AtRestPolicy>(
     crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)?.leaf(tol)
 }
 
-/// [`f64_body_held_as_points`] before its finish: the body in
-/// construction state, for the rows that read its walls at an enclosure
-/// scalar whose finish does not run on them.
+/// [`f64_body_held_as_points`] before its verdict: the body with its
+/// rows completed, as its finish completes them, for the rows that read
+/// its walls at an enclosure scalar whose finish does not run on them.
 ///
 /// # Errors
 ///
@@ -2751,6 +2751,7 @@ pub fn f64_body_held_as_points_construction<T: geom_core::Decide + topo::AtRestP
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
     crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)
+        .map(|lofted| completed_loft(lofted, tol))
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].

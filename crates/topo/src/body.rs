@@ -942,8 +942,7 @@ impl<T: Real> Body<T> {
     /// incoherence. A completion that refuses leaves the face without
     /// rows.
     ///
-    /// Returns `None` if `face` is stale, or where the clone is not closed
-    /// (tiers 1 and 2, completion's precondition);
+    /// Returns `None` if `face` is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     #[doc(hidden)]
     #[must_use]
@@ -966,9 +965,14 @@ impl<T: Real> Body<T> {
             .all(|he| out.pcurve(he).is_none());
         if stored && dropped {
             // Completion's one home, its tiers 1–2 precondition asked
-            // first. A refusal leaves the face as found, rows dropped as
-            // the door left them; the flipped body's finish reports it.
-            let _refused = crate::finish::complete_in_place(&mut out, tol).ok()?;
+            // first. Either refusal leaves the face as found, rows
+            // dropped as the door left them, and the flipped body's
+            // finish reports it: a face completion refuses, or a body
+            // tiers 1 and 2 refuse, which completion does not read.
+            match crate::finish::complete_in_place(&mut out, tol) {
+                Ok(_refused) => {}
+                Err(_not_closed) => {}
+            }
         }
         Some(out)
     }

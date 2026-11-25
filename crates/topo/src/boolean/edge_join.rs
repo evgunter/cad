@@ -1085,6 +1085,7 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             dead.extend([gone.he_plus, gone.he_minus]);
         }
         join_one(body, w, &join, band, tol)?;
+        drop_kept_faces_rows(body, join.kept);
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).
         let conventional =
@@ -1096,6 +1097,28 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
             conventional,
         });
     }
+}
+
+/// **The rows of the faces `kept` bounds, dropped** after a join grew
+/// it: the join re-describes `kept` over the two edges' interval
+/// (`kev_describing`), which leaves a described edge's face rows as
+/// found, so each image of `kept`, and every joint element decided
+/// against it, is about the interval it had. Dropped, so the faces hold
+/// no row about the old edge, and the finish's completion derives them
+/// whole (`crate::pcurves`' completion) — current or absent.
+fn drop_kept_faces_rows<T: Decide>(body: &mut Body<T>, kept: EdgeKey) {
+    let Some(edge) = body.get_edge(kept) else {
+        return;
+    };
+    let faces: BTreeSet<_> = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .filter_map(|he| body.face_of_half_edge(he))
+        .collect();
+    let halves: Vec<HalfEdgeKey> = faces
+        .into_iter()
+        .flat_map(|face| body.proven_face(face).half_edges())
+        .collect();
+    body.drop_rows(halves);
 }
 
 /// **`gone`'s far parameter, carried**: where `gone` is `kept`'s carrier
