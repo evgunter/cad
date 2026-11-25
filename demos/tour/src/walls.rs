@@ -147,14 +147,14 @@ pub const CURVED_JOIN_STOPS: &[JoinStop] = &[
             "a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung",
         ],
     },
-    // At the tour's scalar the torus × spline section runs to its cell
-    // budget. The K sweep's scalar, which has no march lane, reads it
-    // one refusal short, and that is the probe's pin, not the scene's
-    // stop.
+    // At the tour's scalar the union gets past its torus × spline
+    // sections and stops at the pierce pass. The K sweep's scalar, which
+    // has no march lane, reads the section one refusal short, and that
+    // is the probe's pin, not the scene's stop.
     JoinStop {
         scene: "lily",
         wall: 8,
-        rows: &["the-chart-accounting-clears-a-thin-torus-only-in-sub-millimetre-cells"],
+        rows: &["lily-wall-8s-leaf-wall-lifts-no-closed-trim-at-the-pierce-pass"],
     },
 ];
 
