@@ -8,7 +8,9 @@
 //! annulus, it runs round both. Split by that plane either way up: with
 //! one end open, each side keeps its volume and passes tier 3, and
 //! `plane_section` reads one region, the 270° annular sector, which the
-//! keel's arc leaves whole; with both ends closed, the split refuses.
+//! keel's arc leaves whole. Either way, the side round the keel holds it
+//! as two coincident arcs, a slit or a zero-area ring, and passes tier 3′
+//! on the edge–edge record the split makes of them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::bores::halves_at_rest;
@@ -137,31 +139,88 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur_row() {
     }
 }
 
-/// **A curved keel closed at both ends refuses, as a construction gap.**
-/// The V turned 60° about `y`, so its 150° lies inside the annulus's
-/// 270° and the material above `y = 1` joins round both ends of its
-/// keel. The ring that side would carry is two coincident arcs, which no
-/// contact record backs and tier 3′ refuses, so the split refuses the
-/// trace instead of shipping it
-/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`):
-/// either way up, with the V's tip on the plane and `0.6 ε` either side.
+/// **A curved keel's slit and ring pass tier 3′ on the split's records.**
+/// The V turned 60° about `y` lies inside the annulus's 270°, so the
+/// material on the walls' side of `y = 1` joins round both ends of its
+/// keel and carries it as a zero-area ring of two coincident arcs; turned
+/// −20°, the keel opens through the end face and the arcs are a slit of
+/// the section's outline. Either way up, with the V's tip on the plane
+/// and `0.6 ε` either side, each side passes tiers 1, 3 and 3′, and the
+/// walls' side holds one
+/// edge–edge record of its two arcs, citing the split's row of the
+/// keel ON the plane (`DecisionSite::SplitOn`, an operand edge and the
+/// plane). *Breaks if* the split mints the arcs unrecorded (3′ refuses an
+/// `EdgeEdgeOverlap`) or records a pair whose interiors do not meet (the
+/// gate refuses it stale).
 #[test]
-fn a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap() {
-    for s in [0.0, 0.6, -0.6] {
-        let body = finished("the body", keeled(s, 60.0), tol());
-        for up in [1.0, -1.0] {
-            let what = format!("the V's tip {s} ε off the plane, the plane's normal {up} y");
-            let plane = topo::test_support::split_plane(
-                Point3::new(0.0, 1.0, 0.0),
-                Vec3::new(0.0, up, 0.0),
-                tol(),
-            );
-            match topo::split(&body, &plane, tol()) {
-                Err(topo::SplitError::Join(topo::JoinError::CurvedSlitTrace { .. })) => {}
-                other => panic!(
-                    "{what}: {:?}, not the curved slit trace's refusal",
-                    other.map(drop)
-                ),
+fn a_curved_keel_slit_or_ring_passes_tier_3_prime_on_its_records() {
+    for turn in [60.0, -20.0] {
+        for s in [0.0, 0.6, -0.6] {
+            let body = finished("the body", keeled(s, turn), tol());
+            for up in [1.0, -1.0] {
+                let what =
+                    format!("the V turned {turn}°, its tip {s} ε off the plane, normal {up} y");
+                let plane = topo::test_support::split_plane(
+                    Point3::new(0.0, 1.0, 0.0),
+                    Vec3::new(0.0, up, 0.0),
+                    tol(),
+                );
+                let cut = topo::split(&body, &plane, tol())
+                    .unwrap_or_else(|e| panic!("{what}: splits: {e:?}"));
+                let mut recorded = Vec::new();
+                for (side, part) in [("above", &cut.above), ("below", &cut.below)] {
+                    let topo::SplitPart::Body(half) = part else {
+                        panic!("{what} {side}: material on both sides");
+                    };
+                    assert_eq!(topo::validate(half), Ok(()), "{what} {side}: tier 1");
+                    assert_eq!(
+                        topo::validate_geometric(half, tol()),
+                        Ok(()),
+                        "{what} {side}: tier 3"
+                    );
+                    assert_eq!(
+                        topo::validate_pseudomanifold(half, half.records(), tol()),
+                        Ok(()),
+                        "{what} {side}: tier 3′ on its records {:?}",
+                        half.records()
+                    );
+                    recorded.extend(half.records().rows().iter().map(|r| (side, r.clone())));
+                }
+                let [(side, record)] = recorded.as_slice() else {
+                    panic!("{what}: records {recorded:?}, not one");
+                };
+                let walls = if up > 0.0 { "above" } else { "below" };
+                assert_eq!(*side, walls, "{what}: the record is on the walls' side");
+                assert!(
+                    matches!(record.kind(), topo::ContactKind::EdgeEdge(..)),
+                    "{what}: {record:?} is no edge–edge record"
+                );
+                let rows: Vec<_> = record
+                    .cites
+                    .iter()
+                    .map(|b| match b {
+                        topo::Backing::Decided(k) => cut.coincidences[k as usize],
+                        other => panic!("{what}: {record:?} cites {other:?}, not the split's row"),
+                    })
+                    .collect();
+                let [row] = rows.as_slice() else {
+                    panic!("{what}: {record:?} cites {rows:?}, not one row");
+                };
+                assert!(
+                    row.site == topo::DecisionSite::SplitOn
+                        && row.relation == topo::Relation::OnCarrier
+                        && matches!(
+                            row.cells,
+                            [
+                                topo::RowCell::Input {
+                                    cell: topo::Cell::Edge(_),
+                                    ..
+                                },
+                                topo::RowCell::Tool
+                            ]
+                        ),
+                    "{what}: {row:?} is not the keel's ON row"
+                );
             }
         }
     }
@@ -282,4 +341,35 @@ fn a_round_keel_in_the_plane_reads_the_side_it_is_read_from_row() {
             );
         }
     }
+}
+
+/// **The curved ring's walls side holds its arcs' record and passes 3′ on
+/// it**, in the fast set: the V turned 60°, its tip on `y = 1`, split by
+/// that plane, normal `+y`. The split's gate reads the side at tier 3
+/// with its records confirmed, so a split that stops recording the arcs
+/// still builds; this row reads the record and tier 3′. Red on a split
+/// that mints the ring's arcs unrecorded.
+#[test]
+fn the_curved_rings_side_holds_its_arcs_record() {
+    let body = finished("the body", keeled(0.0, 60.0), tol());
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        tol(),
+    );
+    let cut = topo::split(&body, &plane, tol()).unwrap();
+    let topo::SplitPart::Body(walls) = &cut.above else {
+        panic!("the walls lie above");
+    };
+    assert_eq!(
+        walls.records().edge_edge().count(),
+        1,
+        "the ring's two arcs are one edge–edge record: {:?}",
+        walls.records()
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(walls, walls.records(), tol()),
+        Ok(()),
+        "the walls side at tier 3′ on its records"
+    );
 }

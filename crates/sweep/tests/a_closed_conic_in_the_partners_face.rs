@@ -1067,7 +1067,7 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 ///   (`work/tang/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 /// - Where a seam ruling lies on the tangent line, `A`'s with its
 ///   vertex at the touch (any other op) or `B`'s with its vertex there
-///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
+///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::Tangent` rather
 ///   than carry the ruling as one edge lying in the partner's wall where
 ///   the crescent's two cusps owe two ([`one_shell_or_gap_at`]).
 ///
@@ -1113,10 +1113,9 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
 
 /// `r` holds its closed form `want` (`differential::outcome`) in one
 /// shell (an empty result where it is empty), or with `gap` refuses
-/// `EdgeInFaceGap::CurvedFace`, the parting declining to build a
-/// crescent's two cusps on a curved face until
-/// `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
-/// builds them.
+/// `EdgeInFaceGap::Tangent`, the parting declining to build a
+/// crescent's two cusps, whose reading on a line of coincident edges is
+/// not built.
 fn one_shell_or_gap_at(
     row: &str,
     r: Result<BooleanResult<f64>, BooleanError>,
@@ -1128,7 +1127,7 @@ fn one_shell_or_gap_at(
         _ => 0,
     };
     let line = outcome(r, want, tol());
-    if gap && line.contains("gap: CurvedFace") {
+    if gap && line.contains("gap: Tangent") {
         return;
     }
     if want == 0.0 {
@@ -1151,16 +1150,15 @@ fn one_shell_or_gap_at(
 /// both one-segment over `z ∈ [0, 1]`, tangent at `(0.3, 0)` where the
 /// boss's vertex lies. Every op in both orders, at its closed form in
 /// one shell, at rest and turned, but that a difference of the second
-/// pose may refuse `EdgeInFaceGap::CurvedFace`, the boss's seam ruling
-/// lying in the hole's wall on the tangent line, until
-/// `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
-/// builds it ([`one_shell_or_gap_at`]).
+/// pose may refuse `EdgeInFaceGap::Tangent`, the boss's seam ruling
+/// lying in the hole's wall on the tangent line, where each of its two
+/// edges would bound a cusp ([`one_shell_or_gap_at`]).
 ///
 /// The first pose's `A ∩ B` is the one that turns on the bend. The
 /// second is the one-segment form of the same contact, the cut's end
 /// the boss's one vertex: it reaches the reading at both of a corner's
 /// bounds, and its cells are read at their closed forms or the
-/// `CurvedFace` limit.
+/// `Tangent` limit.
 #[test]
 fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
     for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {

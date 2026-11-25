@@ -84,12 +84,12 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
         // A conic's frame is carried with each `−0` entry folded: the
-        // stored rotation within one kind, never squared again.
-        Curve3::Circle(circle) => {
-            Curve3::Circle(circle.with_frame(circle.frame.map_scalar(fold_signed_zero)))
-        }
+        // stored rotation within one kind, never squared again. The
+        // placement is the one thing a conic stores of where it is, so
+        // it is re-stated in place and an ellipse stays held as it was.
+        Curve3::Circle(circle) => Curve3::Circle(circle.placed(|f| f.map_scalar(fold_signed_zero))),
         Curve3::Ellipse(ellipse) => {
-            Curve3::Ellipse(ellipse.with_frame(ellipse.frame.map_scalar(fold_signed_zero)))
+            Curve3::Ellipse(ellipse.mapped(|f| f.map_scalar(fold_signed_zero)))
         }
         other => other,
     }
@@ -142,8 +142,8 @@ mod tests {
                 super::plus_zero_curve(Curve3::Ellipse(geom::Ellipse::new(frame, 3.0, 2.0)));
             for c in [circle, ellipse] {
                 let got = match &c {
-                    Curve3::Circle(c) => bits(&c.frame),
-                    Curve3::Ellipse(e) => bits(&e.frame),
+                    Curve3::Circle(c) => bits(&c.frame()),
+                    Curve3::Ellipse(e) => bits(&e.frame()),
                     _ => unreachable!(),
                 };
                 assert_eq!(got, want, "pose {k}: {c:?}");

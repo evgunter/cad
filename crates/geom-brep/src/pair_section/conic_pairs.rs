@@ -309,8 +309,11 @@ pub(super) fn plane_cylinder<T: Decide>(pose: PlaneCylinderPose<T>, band: Band) 
     let spanned = |curve, span| ClassCarrier::Span { curve, span };
     let tangent = |_, _| ClassCarrier::Unminted(NoCarrier::Tangent);
     let loop_of = |c: &Curve3<T>| {
-        (placement(super::cylinders::closed_form_ball(c), pose.region, band)
-            != RegionPlacement::Outside)
+        (placement(
+            super::cylinders::Occupant::ball(super::cylinders::closed_form_ball(c)),
+            pose.region,
+            band,
+        ) != RegionPlacement::Outside)
             .then(|| ring(c.clone(), ordered(pose.plane_first, [false, true]), false))
     };
     let components = match &pose.section {

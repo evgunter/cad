@@ -344,8 +344,10 @@ fn a_keel_wrapped_at_both_ends_splits_with_its_keel_a_ring() {
 /// ring's two edges, into halves of `15.7 / 2` whose copies of the
 /// crossing share one point key; by `x = 1.5` and `x = 2.5` through its
 /// tips, and by `y = 2` and `z = 0` along it. At a tip the section face
-/// wraps a full turn round the ring's two coincident edges, and each
-/// side holds its closed form and passes tier 3′.
+/// wraps a full turn round the ring's two coincident edges, and each side
+/// holds its closed form and passes tier 3′ against its records. By
+/// `y = 2`, upright along it, the cut parts the ring's edge–edge record
+/// onto its two sides, each edge on the cut, and the carry consumes it.
 #[test]
 fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
     let tol = t();
@@ -436,9 +438,9 @@ fn a_later_cut_across_the_ring_builds_and_so_does_one_through_its_tip() {
                 SplitPart::Empty => panic!("{what}: empty, not {volume}"),
             };
             assert_eq!(
-                validate_pseudomanifold(b, &ContactRecords::default(), tol),
+                validate_pseudomanifold(b, topo::FinishedBody::records(b), tol),
                 Ok(()),
-                "{what}: tier 3′"
+                "{what}: tier 3′ against its records"
             );
             let v = topo::test_support::pinned_volume("the measured body", b, tol).volume;
             assert!(

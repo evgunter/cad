@@ -595,22 +595,31 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse(geom::Ellipse { frame, .. }) => { let (center, axis) = (frame.origin(), frame.axis()); Ok(Pose {
-            origin: center,
-            axis,
-            u_ref: ellipse.major_frame().map(|f| f.major_dir),
-            sense: true,
-        }) },
-        Curve3::Circle(geom::Circle { frame, .. })
+        ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+            let frame = the_ellipse.frame();
+            let (center, axis) = (frame.origin(), frame.axis());
+            Ok(Pose {
+                origin: center,
+                axis,
+                u_ref: ellipse.major_frame().map(|f| f.major_dir),
+                sense: true,
+            })
+        }
         // The spiric's frame is a canonical one: the torus centre, its
         // axis and the cutting plane's normal — the frame the model
         // holds, answered as the pose.
-        | Curve3::Spiric { frame, .. } => { let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref()); Ok(Pose {
-            origin: center,
-            axis,
-            u_ref: Some(u_ref),
-            sense: true,
-        }) },
+        curve @ (Curve3::Circle(_) | Curve3::Spiric { .. }) => {
+            let frame = curve
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and a spiric have a frame"));
+            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            Ok(Pose {
+                origin: center,
+                axis,
+                u_ref: Some(u_ref),
+                sense: true,
+            })
+        }
         Curve3::Nurbs(_) | Curve3::Periodic(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs curve",
         }),
@@ -762,7 +771,7 @@ fn side_of<T: Real>(
 /// A count is stored data counted (rule 1: nothing here is decided),
 /// and the identity is exact integer arithmetic on the counts (rule
 /// 2: no measurement, so no pad). The one thing the census can SAY
-/// beyond its numbers is [`EulerCounts::genus`], and it says it typed.
+/// beyond its numbers is [`EulerCounts::h`], and it says it typed.
 ///
 /// - `v`, `e`, `f`: the vertex, edge and face arenas' lengths.
 /// - `r`: the ring count — every face's ring loops, summed. A face's
@@ -791,25 +800,24 @@ pub struct EulerCounts {
 }
 
 impl EulerCounts {
-    /// **The genus** `h` the identity assigns to the census:
-    /// `h = s − (v − e + f − r) / 2`, the number of handles summed over
-    /// the body's shells.
+    /// **The operator coordinate** `h = s − (v − e + f − r) / 2` the
+    /// identity assigns to the census — the `h` the Euler operators
+    /// move.
     ///
-    /// This is the whole-body reading — one number for the body, not
-    /// one per shell or per connected component. A shell whose faces
-    /// have fallen into several components (the state between a plug
-    /// promotion and the shell partition that follows it) still
-    /// contributes one `s`, so the per-body `h` can come back NEGATIVE
-    /// there; that is the identity's honest arithmetic on that census,
-    /// not a refusal, and the door reports it as such. Ask the
-    /// validator's component pass for the per-component statement.
+    /// Wherever every shell is one connected piece, which tier 2
+    /// guarantees, `h` is the body's genus: the handles summed over its
+    /// shells. Otherwise it need not be: a shell whose faces have fallen into
+    /// several components (after `mfkrh` on a detached ring, before the
+    /// shell partition that follows it) still contributes one `s`, so
+    /// `h` can come back NEGATIVE there. That is the identity's honest
+    /// arithmetic on that census, not a refusal.
     ///
     /// # Errors
     ///
     /// [`EulerParityError`] when `v − e + f − r` is odd. The identity's
     /// left side is even on EVERY body it applies to — every operator
     /// moves it by an even amount — so an odd census is not a body with
-    /// a surprising genus, it is a store that is not a B-rep: an entity
+    /// a surprising `h`, it is a store that is not a B-rep: an entity
     /// minted or killed outside the operators. Halving it would turn
     /// that into a plausible number, so the check comes before the
     /// divide and the refusal carries the census that failed it.
@@ -829,16 +837,16 @@ impl EulerCounts {
     /// // One vertex, one face, one shell: v − e + f − r = 2 = 2(1 − 0).
     /// let counts = euler_counts(&body);
     /// assert_eq!((counts.v, counts.e, counts.f, counts.r, counts.s), (1, 0, 1, 0, 1));
-    /// assert_eq!(counts.genus(), Ok(0));
+    /// assert_eq!(counts.h(), Ok(0));
     ///
     /// // A second seed is a second shell, and the identity's `s` counts
-    /// // shells: both seeds together are still genus 0.
+    /// // shells: both seeds together are still h = 0.
     /// body.mvfs(Point3::new(1.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
     /// let counts = euler_counts(&body);
     /// assert_eq!(counts.s, 2);
-    /// assert_eq!(counts.genus(), Ok(0));
+    /// assert_eq!(counts.h(), Ok(0));
     /// ```
-    pub fn genus(self) -> Result<i64, EulerParityError> {
+    pub fn h(self) -> Result<i64, EulerParityError> {
         let chi = self.v - self.e + self.f - self.r;
         if chi.rem_euclid(2) != 0 {
             return Err(EulerParityError { counts: self });
@@ -847,8 +855,8 @@ impl EulerCounts {
     }
 }
 
-/// Typed refusal of [`EulerCounts::genus`]: the census does not satisfy
-/// the Euler–Poincaré identity's parity, so no genus follows from it.
+/// Typed refusal of [`EulerCounts::h`]: the census does not satisfy
+/// the Euler–Poincaré identity's parity, so no `h` follows from it.
 ///
 /// Its own type rather than a [`ReadbackError`] arm: every
 /// `ReadbackError` arm is a refusal about one entity, from a door that
@@ -874,7 +882,7 @@ impl core::fmt::Display for EulerParityError {
             "read-back: the census v={v} e={e} f={faces} r={r} s={s} has odd \
              v − e + f − r = {}, which no Euler–Poincaré body has — the store is \
              torn (an entity was minted or killed outside the operators), so no \
-             genus follows from it",
+             h follows from it",
             v - e + faces - r
         )
     }
@@ -887,7 +895,7 @@ impl std::error::Error for EulerParityError {}
 ///
 /// Infallible: an arena always has a length, and a ring count is a
 /// length summed. What the census then says about itself is
-/// [`EulerCounts::genus`], which is where the identity's one refusal
+/// [`EulerCounts::h`], which is where the identity's one refusal
 /// lives.
 ///
 /// ```
@@ -946,7 +954,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(0));
+        assert_eq!(counts.h(), Ok(0));
     }
 
     #[test]
@@ -965,7 +973,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(1));
+        assert_eq!(counts.h(), Ok(1));
     }
 
     /// The shell term, through the public operators: a planted ring
@@ -1018,7 +1026,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(euler_counts(&body).genus(), Ok(0));
+        assert_eq!(euler_counts(&body).h(), Ok(0));
 
         body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1033,11 +1041,7 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(
-            before.genus(),
-            Ok(-1),
-            "the whole-body reading goes negative"
-        );
+        assert_eq!(before.h(), Ok(-1), "the whole-body reading goes negative");
 
         let shells = body.movefac(seed.shell).unwrap();
         assert_eq!(shells.len(), 2, "the partition minted a second shell");
@@ -1049,7 +1053,7 @@ mod tests {
             "movefac moves no v/e/f/r"
         );
         assert_eq!(after.s, 2, "the door's s is the SHELL count");
-        assert_eq!(after.genus(), Ok(0));
+        assert_eq!(after.h(), Ok(0));
         assert_eq!(validate(&body), Ok(()));
     }
 
@@ -1073,7 +1077,7 @@ mod tests {
         let after = euler_counts(&body);
         assert_eq!(after, before);
         assert_eq!(after.r, 2);
-        assert_eq!(after.genus(), Ok(1));
+        assert_eq!(after.h(), Ok(1));
     }
 
     /// The genus-2 body: `v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2)`.
@@ -1091,11 +1095,11 @@ mod tests {
                 s: 1
             }
         );
-        assert_eq!(counts.genus(), Ok(2));
+        assert_eq!(counts.h(), Ok(2));
     }
 
     /// Red-first: a vertex minted outside the operators tears the
-    /// store's parity, and the genus refuses typed with the census that
+    /// store's parity, and `h` refuses typed with the census that
     /// failed rather than halving an odd number into a plausible one.
     #[test]
     fn torn_store_refuses_typed() {
@@ -1110,7 +1114,7 @@ mod tests {
         );
         let counts = euler_counts(&body);
         assert_eq!(counts.v, 9);
-        let refusal = counts.genus().expect_err("9 − 12 + 6 − 0 = 3 is odd");
+        let refusal = counts.h().expect_err("9 − 12 + 6 − 0 = 3 is odd");
         assert_eq!(refusal, EulerParityError { counts });
         let text = refusal.to_string();
         assert!(text.contains("v=9 e=12 f=6 r=0 s=1"), "{text}");

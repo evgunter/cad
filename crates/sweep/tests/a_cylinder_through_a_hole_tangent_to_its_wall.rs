@@ -32,8 +32,10 @@
 //! With either vertex alone at the ruling, that operand's wrap edge lies
 //! along the other's wall from the top face to the bottom: the op that
 //! keeps both walls would part the other's wall along it, and refuses
-//! `EdgeInFace` with the `CurvedFace` gap, a slit in a curved face that
-//! the chart walk does not mesh nor the curved mass properties measure.
+//! `EdgeInFace` with the `Tangent` gap: the wall the edge bounds is
+//! tangent to the other's along it, so each of the two edges would bound
+//! a cusp, which the reading of a line of coincident edges does not
+//! cover.
 //!
 //! Every op runs in both operand orders, each run read through
 //! `differential::outcome` (tiers 2 and 3′, the certificate, the legal
@@ -125,18 +127,15 @@ enum Vertices {
 }
 
 /// One run's verdict: a body `SOUND` at its closed form that passes
-/// tier 3, or, where `slit` says so, the typed refusal of the cylinder's
-/// wrap edge lying along the hole's wall.
-fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, slit: bool) {
-    if slit {
-        // Pinned red: the `CurvedFace` gap retires when a zero-area ring
-        // in a curved face measures
-        // (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+/// tier 3, or, where `cusp` says so, the typed refusal of a wrap edge
+/// lying along the other operand's wall, tangent to it.
+fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, cusp: bool) {
+    if cusp {
         assert!(
             matches!(
                 r,
                 Err(BooleanError::EdgeInFace {
-                    gap: topo::EdgeInFaceGap::CurvedFace,
+                    gap: topo::EdgeInFaceGap::Tangent,
                     ..
                 })
             ),
@@ -198,9 +197,9 @@ fn through(
     for (op, r, want) in every_op_both_orders(&cylinder, &plate, (va, vb, vab), tol()) {
         // The op that keeps the cylinder's wall along the hole's.
         let both_walls = matches!((inside, op), (false, "B ∖ A") | (true, "A ∩ B" | "B ∩ A"));
-        let slit =
+        let cusp =
             both_walls && matches!(vertices, Vertices::CylindersAlone | Vertices::HolesAlone);
-        holds(&format!("{what}: {op}"), r, want, slit);
+        holds(&format!("{what}: {op}"), r, want, cusp);
     }
 }
 
@@ -208,7 +207,7 @@ fn through(
 /// and inside it, both vertices on the ruling, the cylinder's alone, the
 /// hole's alone, and the two-arc form. Each op builds at its closed
 /// form, but, with the vertex of one alone there, the op keeping both
-/// walls, which refuses the slit its wrap edge would leave in the
+/// walls, which refuses the cusps its wrap edge would leave along the
 /// other's wall.
 #[test]
 fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {

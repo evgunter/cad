@@ -299,7 +299,10 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
+    assert!(
+        matches!(err, EulerOpError::DescriptionUncertified { .. }),
+        "{err:?}"
+    );
     assert_eq!(snapshot(&body), before, "mev cert failure mutated body");
 
     // 2. mef with a stale Shared surface key (the semantic-rewrite
@@ -337,7 +340,10 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
             Tol::witness(),
         )
         .unwrap_err();
-    assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
+    assert!(
+        matches!(err, EulerOpError::DescriptionUncertified { .. }),
+        "{err:?}"
+    );
     assert_eq!(snapshot(&body), before, "mef cert failure mutated body");
 
     // 4. set_edge_curve: non-adjacent Intersection description.
@@ -354,7 +360,8 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
     assert!(
         matches!(
             err,
-            EulerOpError::DescriptionNotAdjacent { .. } | EulerOpError::Certification { .. }
+            EulerOpError::DescriptionNotAdjacent { .. }
+                | EulerOpError::DescriptionUncertified { .. }
         ),
         "{err:?}"
     );
@@ -367,7 +374,10 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         (p1 - p0) / p0.distance(p1),
     );
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
-    assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
+    assert!(
+        matches!(err, EulerOpError::DescriptionUncertified { .. }),
+        "{err:?}"
+    );
     assert_eq!(snapshot(&body), before, "setter cert failure mutated body");
 
     // 6. set_face_surface: stale Shared key.
@@ -783,17 +793,18 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     assert!(matches!(
         body.set_edge_curve(edge, mk(PI + TAU), Tol::witness())
             .unwrap_err(),
-        EulerOpError::Certification { .. }
+        EulerOpError::DescriptionUncertified { .. }
     ));
     // The 8-turn-wrong interval — the exact schedule alias — is now
     // refused by the same typed gate, and the body is untouched.
     assert!(matches!(
         body.set_edge_curve(edge, mk(PI + 8.0 * TAU), Tol::witness())
             .unwrap_err(),
-        EulerOpError::Certification {
+        EulerOpError::DescriptionUncertified {
             error: geom_brep::CertifyError::StatedInterval {
                 refused: geom_brep::StatedSpan::Winding(geom_brep::WindingReading::Exceeded),
-            }
+            },
+            ..
         }
     ));
     // The honest half-circle interval attaches through the gate. (Its

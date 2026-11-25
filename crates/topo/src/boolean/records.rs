@@ -19,8 +19,8 @@ use super::{
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
-use crate::live::{linked, proven};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
+use crate::live::linked;
 
 /// **A contact record's two cells**, in canonical order: the lesser
 /// cell first by [`Cell`]'s order (vertex < edge < face, then key), so
@@ -66,7 +66,11 @@ pub enum CarryRefusal {
         error: ContactPairError,
     },
     /// The op parted input record `record`'s two cells into different
-    /// result bodies, which no one body's records can state.
+    /// result bodies, and a cell does not reach the cut by a decision
+    /// the op made (no image of it holds a vertex of the op's ON set,
+    /// [`crate::Lineage`]'s cut): parted off the cut, a lineage defect.
+    /// A record parted on the cut is consumed, a meeting between two
+    /// bodies no one body's records state.
     Parted {
         /// The record's index in the input's list.
         record: u32,
@@ -112,7 +116,7 @@ impl CarryRefusal {
         match self {
             Self::Unmapped { .. } => "lies on geometry it lost without removing it",
             Self::Pair { .. } => "lands only on cells that are one or adjacent",
-            Self::Parted { .. } => "lands on both sides of the cut away from the cut",
+            Self::Parted { .. } => "lands on two bodies, parted off the cut: a lineage defect",
             Self::Unread { .. } => "could not be read where it divided the touch",
             Self::Stale { .. } => "no longer touches where it put the touch",
             Self::MintedMeeting { .. } => "meets where it minted cells it cannot back",
@@ -177,7 +181,8 @@ impl core::fmt::Display for CarryRefusal {
             ),
             Self::Parted { record } => write!(
                 f,
-                "the op parted record {record}'s two cells into different bodies"
+                "the op parted record {record}'s two cells into different bodies off its cut, \
+                 a lineage defect"
             ),
             Self::Unread { record, cells } => write!(
                 f,
@@ -292,16 +297,9 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
         [Cell::Vertex(v), Cell::Edge(e)] => {
             half_edges(e).is_some_and(|hs| hs.iter().any(|(_, h)| h.start == v))
         }
-        [Cell::Vertex(v), Cell::Face(f)] => body.face(f).is_some_and(|face| {
-            face.loops().any(|(_, l, _)| match l.boundary {
-                LoopBoundary::Empty { vertex } => vertex == v,
-                LoopBoundary::Cycle { first } => body
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .any(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start == v),
-            })
-        }),
+        [Cell::Vertex(v), Cell::Face(f)] => body
+            .face(f)
+            .is_some_and(|face| face.boundary().any(|m| m.vertex() == v)),
         [Cell::Edge(e), Cell::Face(f)] => {
             body.get_face(f).is_some()
                 && half_edges(e)
@@ -570,22 +568,15 @@ impl ContactRecords {
         band: geom_core::Band,
         region: Option<T::RegionLane>,
     ) -> Result<Self, CarryRefusal> {
-        let [out] = <[Self; 1]>::try_from(self.carried_onto(
-            input,
-            lineage,
-            &[result],
-            band,
-            region,
-            None,
-        )?)
-        .unwrap_or_else(|_| unreachable!("one side carries one list"));
+        let [out] =
+            <[Self; 1]>::try_from(self.carried_onto(input, lineage, &[result], band, region)?)
+                .unwrap_or_else(|_| unreachable!("one side carries one list"));
         Ok(out)
     }
 
     /// These records carried onto `sides`, the bodies an op made from
     /// its input `input`, one list per side, as [`Self::carried_through`]
-    /// carries them onto one ([`landings`]); each record the op parts
-    /// onto different sides listed in `parted` where it is given.
+    /// carries them onto one ([`landings`]).
     ///
     /// # Errors
     ///
@@ -598,15 +589,14 @@ impl ContactRecords {
         sides: &[&Body<T>],
         band: geom_core::Band,
         region: Option<T::RegionLane>,
-        parted: Option<&mut Vec<Parting>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
         let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
         let mut confirms = Confirms::new(sides.len());
-        let landed = landings(&rows, lineage, sides, &mut confirms, band, region, parted)?;
+        let landed = landings(&rows, lineage, sides, &mut confirms, band, region)?;
         let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
         for landing in landed {
             let record = super::reduce::index(landing.row);
-            if landing.minted && lineage.meeting() == crate::lineage::MintedBacking::Refused {
+            if landing.minted && lineage.on_the_cut().is_none() {
                 return Err(CarryRefusal::MintedMeeting {
                     record,
                     cells: landing.pair.cells(),
@@ -723,17 +713,6 @@ impl ContactRecords {
     }
 }
 
-/// **A record an op parts** ([`CarryRefusal::Parted`]): different
-/// sides hold its two cells' images and no side holds both.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Parting {
-    /// The record's index among the rows carried.
-    pub(crate) record: u32,
-    /// Each held image of each of the record's two cells, in the
-    /// record's order, with the index of the side that holds it.
-    pub(crate) held: [Vec<(usize, Cell)>; 2],
-}
-
 /// **One record's landing** ([`landings`]): the pair of its two cells'
 /// images on side `side` whose interiors meet.
 #[derive(Clone, Copy, Debug)]
@@ -782,7 +761,12 @@ impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
 /// the op moved), where its
 /// two vertices became one vertex (D1's strict record-drop rule), or,
 /// for an op that glues cells ([`crate::Lineage::glued`]), where every
-/// pair of its images is structure.
+/// pair of its images is structure. A row whose two cells' images are
+/// held by different sides only is consumed where each cell reaches the
+/// cut by a decision the op made: an image of it holds a vertex of the
+/// op's ON set ([`crate::Lineage::on_the_cut`]), so the touch is a
+/// meeting between two bodies across the cut, which no body's records
+/// state (`crates/topo/README.md`, the carry).
 ///
 /// # Errors
 ///
@@ -790,8 +774,8 @@ impl<T: crate::props::AtRestPolicy> Confirms<'_, T> {
 /// row that lands nowhere and is not consumed, [`CarryRefusal::Stale`]
 /// where some pair was read, [`CarryRefusal::Pair`] where every pair is
 /// one cell or incident, [`CarryRefusal::Parted`] where its two cells'
-/// images are held by different sides only (listed in `parted` instead
-/// where it is given), and
+/// images are held by different sides only and a cell does not reach
+/// the cut (a lineage defect), and
 /// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
 pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
     rows: &[[Cell; 2]],
@@ -800,7 +784,6 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
     confirms: &mut Confirms<'b, T>,
     band: geom_core::Band,
     region: Option<T::RegionLane>,
-    mut parted: Option<&mut Vec<Parting>>,
 ) -> Result<Vec<Landing>, CarryRefusal> {
     let mut out = Vec::new();
     for (k, &cells) in rows.iter().enumerate() {
@@ -925,14 +908,13 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
             return Err(CarryRefusal::Pair { record, error });
         }
         if held_by == [true, true] {
-            let Some(parted) = parted.as_deref_mut() else {
-                return Err(CarryRefusal::Parted { record });
-            };
-            parted.push(Parting {
-                record,
-                held: held_at,
-            });
-            continue;
+            if held_at.iter().all(|held| {
+                held.iter()
+                    .any(|&(s, c)| reaches_the_cut(lineage, sides[s], c))
+            }) {
+                continue;
+            }
+            return Err(CarryRefusal::Parted { record });
         }
         // A cell no side holds is covered only by its own removal.
         for i in 0..2 {
@@ -945,6 +927,43 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
         }
     }
     Ok(out)
+}
+
+/// **The edge–edge record of edges `a` and `b` of `body`**, citing row
+/// `row` of the op's own list ([`Backing::Decided`]): two coincident
+/// edges an op minted and decided. `None` where the two are one edge.
+pub(crate) fn decided_edge_pair<T: Real>(
+    body: &Body<T>,
+    [a, b]: [EdgeKey; 2],
+    row: u32,
+) -> Option<Cited<Contact>> {
+    Contact::new(body, Cell::Edge(a), Cell::Edge(b))
+        .ok()
+        .map(|pair| Cited::new(pair, Cites::decided(row)))
+}
+
+/// Whether `cell`, an image `body` holds, reaches the cut by a decision
+/// the op made: it is, or is bounded by, a vertex of the op's ON set
+/// ([`crate::Lineage::on_the_cut`]). Never, for an op with no cut.
+fn reaches_the_cut<T: Real>(lineage: &crate::Lineage, body: &Body<T>, cell: Cell) -> bool {
+    let Some(on) = lineage.on_the_cut() else {
+        return false;
+    };
+    match cell {
+        Cell::Vertex(v) => on.contains(&v),
+        Cell::Edge(e) => body.get_edge(e).is_some_and(|edge| {
+            [edge.he_plus, edge.he_minus]
+                .into_iter()
+                .filter_map(|he| body.get_half_edge(he))
+                .any(|h| on.contains(&h.start))
+        }),
+        Cell::Face(f) => on.iter().any(|&v| {
+            body.get_vertex(v).is_some()
+                && body
+                    .faces_of_vertex(v)
+                    .is_some_and(|faces| faces.contains(&f))
+        }),
+    }
 }
 
 impl Extend<Cited<Contact>> for ContactRecords {

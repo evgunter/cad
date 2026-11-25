@@ -196,7 +196,7 @@ fn meetings<T: Decide>(
             && !matches!(m.on_span, OnSpan::End(end) if skip.contains(&end))
     };
     match found.pose {
-        Pose::Lies => return Err(TraceFault::OnCarrier),
+        Pose::Lies(_) => return Err(TraceFault::OnCarrier),
         Pose::Through(_) => return Err(TraceFault::Apex),
         Pose::Tangent(_) if found.meetings.iter().any(|m| touches(&m)) => {
             return Err(TraceFault::Grazing);

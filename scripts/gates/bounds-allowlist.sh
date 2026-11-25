@@ -729,7 +729,7 @@ BOUNDS_ALLOWLIST=(
   # The lane constructors and the doors that were `Decide +
   # CertifiedBounds` now write `Certifies` or `CertifiedPolicy` in
   # `Decide`'s place, at the same count.
-  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

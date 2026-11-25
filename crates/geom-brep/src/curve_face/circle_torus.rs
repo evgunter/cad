@@ -207,7 +207,7 @@ pub(super) fn torus_wrapper<T: Decide>(
     let span = crate::curve_pair::Span::new(carrier, (t0, t1));
     match super::pose::pose(&span, torus, band) {
         Err(refusal) if let Some(why) = refusal.unsettled() => Ok(Err(why)),
-        Ok(Pose::Lies) => Ok(Ok(Roots::On(OnCarrier))),
+        Ok(Pose::Lies(_)) => Ok(Ok(Roots::On(OnCarrier))),
         Ok(Pose::Apart) => Ok(Ok(Roots::Miss)),
         Ok(Pose::Tangent(_)) => Ok(Err(Unsettled::Tangency)),
         Ok(Pose::Through(_)) => Err(DoorRefusal::Invariant(
@@ -314,12 +314,12 @@ pub(super) fn axes<T: Decide>(
     circle: &geom::Circle<T>,
     (t_center, t_axis): (Point3<T>, Vec3<T>),
 ) -> Axes<T> {
-    let tilt = circle.radius() * circle.frame.axis().cross(t_axis).norm();
+    let tilt = circle.radius() * circle.frame().axis().cross(t_axis).norm();
     let (h0, w_perp) = geom::Line {
         origin: t_center,
         dir: t_axis,
     }
-    .param_and_offset(circle.frame.origin());
+    .param_and_offset(circle.frame().origin());
     Axes {
         tilt,
         h0,
@@ -363,10 +363,10 @@ pub(super) fn meridian<T: Decide>(
 ) -> T {
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
     let rounding = rounding_charge(
-        (circle.frame.origin() - origin).norm() + (t_center - origin).norm() + major_radius,
+        (circle.frame().origin() - origin).norm() + (t_center - origin).norm() + major_radius,
     );
     meridian_deviation(
-        circle.frame.axis(),
+        circle.frame().axis(),
         circle.radius(),
         axes.w_perp,
         axes.offset,
@@ -613,7 +613,7 @@ pub(super) fn contours<T: Decide>(
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let rho_max = radius + offset;
     let middle = geom::mid_param(t0, t1);
-    let (u_ref, v_ref) = (circle.frame.u_ref(), circle.frame.v_ref());
+    let (u_ref, v_ref) = (circle.frame().u_ref(), circle.frame().v_ref());
     Contours {
         depth: (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius),
         charge_h,

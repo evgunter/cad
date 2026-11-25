@@ -732,17 +732,17 @@ impl Mirror {
         match c {
             Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
             Curve3::Circle(k) => Curve3::circle(
-                self.point(k.frame.origin()),
-                -self.vector(k.frame.axis()),
+                self.point(k.frame().origin()),
+                -self.vector(k.frame().axis()),
                 k.radius(),
-                self.vector(k.frame.u_ref()),
+                self.vector(k.frame().u_ref()),
             ),
             Curve3::Ellipse(e) => Curve3::ellipse(
-                self.point(e.frame.origin()),
-                -self.vector(e.frame.axis()),
+                self.point(e.frame().origin()),
+                -self.vector(e.frame().axis()),
                 e.semi_u(),
                 e.semi_v(),
-                self.vector(e.frame.u_ref()),
+                self.vector(e.frame().u_ref()),
                 band(),
             )
             .unwrap(),
@@ -1521,6 +1521,168 @@ fn a_focal_section_whose_beta_is_not_below_one_ends_as_its_defect() {
         }
     }
     assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
+}
+
+/// **A focal section's `|β|` below one by any room is cut-free**: the
+/// true-anomaly map's `atan2` argument keeps `1 − |β|` from the origin,
+/// so the structure check reads that room's sign alone. A cone's section
+/// stated with `|β|` at `1 − 2⁻⁴⁰`, a room far under the band at any
+/// arm, passes it; at `1` it does not. No section in the box has such a
+/// `β` (it needs an eccentricity within about `2·10⁻¹⁶` of one), so a
+/// stated one is the image's defect, and the map, evaluated cut-free,
+/// names it: at every door the image misses its carrier
+/// ([`CertifyError::StatedImageMissed`]) and ends as the kernel
+/// defect.
+#[test]
+fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
+    let mut g = fuzz::start("focal_beta_any_room");
+    let mut seen = 0;
+    for _ in 0..40 {
+        let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) else {
+            continue;
+        };
+        let span = (0.2, 2.0);
+        let Ok(Pcurve::FocalSection(f)) =
+            chart_pcurve_over(&ellipse, span.0, span.1, &cone, band())
+        else {
+            continue;
+        };
+        let beta_refused = |beta: f64| {
+            let image = Pcurve::FocalSection(FocalImage {
+                beta: beta * f.beta.signum(),
+                ..f
+            });
+            matches!(
+                super::focal_section_identity(&image, span, &cone, None, band()),
+                Err(super::PcurveCertifyError::ImageMismatch { why, .. }) if why.contains("|β|")
+            )
+        };
+        assert!(
+            !beta_refused(1.0 - 2f64.powi(-40)),
+            "a room of 2⁻⁴⁰ is cut-free ({})",
+            fuzz::replay()
+        );
+        assert!(beta_refused(1.0), "no room is refused ({})", fuzz::replay());
+        let image = Pcurve::FocalSection(FocalImage {
+            beta: (1.0 - 2f64.powi(-40)) * f.beta.signum(),
+            ..f
+        });
+        for door in DOORS {
+            let got = (door.certify)(&cone, &image, &ellipse, span);
+            assert!(
+                matches!(got, Err(CertifyError::StatedImageMissed { .. })),
+                "{}: the cut-free map misses its carrier ({}): {got:?}",
+                door.name,
+                fuzz::replay()
+            );
+            assert_eq!(
+                got.as_ref()
+                    .err()
+                    .and_then(|e| e.ending(ReadAt::Run(Reading::Build)))
+                    .as_deref(),
+                Some(KERNEL_DEFECT_ENDING),
+                "{}: a stated β in the band is the kernel's defect ({})",
+                door.name,
+                fuzz::replay()
+            );
+        }
+        seen += 1;
+        if seen == 3 {
+            break;
+        }
+    }
+    assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
+}
+
+/// **A genuine needle section of a cone passes with its own `β`.** The
+/// focal image's `1 − |β|` is about the section's projected axis ratio, so
+/// a section thin enough for that room to come near the band has its plane
+/// within the band of a generator's tilt, and the section's classifier
+/// (`intersect::plane_cone_section`) reads every such plane as an open
+/// conic: no ellipse that thin is minted, and a stated `β` closer to one
+/// is never a section's own (the row above). This one, a plane `10⁻³` off
+/// the apex and tilted a thousand of the band's zero short of the
+/// generator, a needle out along it, mints its own focal image with
+/// `1 − |β|` (`2.3·10⁻³` at ε `10⁻⁹`) past a hundred escalations, and its
+/// structure passes at both scalars.
+#[test]
+fn a_needle_cone_section_passes_with_its_own_beta() {
+    let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+    let apex = Point3::new(0.0, 0.0, 0.0);
+    let half_angle = 0.5;
+    let cone = Surface::Cone {
+        frame: geom::Frame::new(apex, axis, u_ref),
+        half_angle,
+    };
+    let tilt = (1.0 - 1e3 * band().zero()) * (core::f64::consts::FRAC_PI_2 - half_angle);
+    let normal = (axis * tilt.cos() + axis.cross(u_ref) * tilt.sin()).normalize();
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(apex + axis * 1e-3, normal, u_ref.cross(normal).normalize()),
+    };
+    let reach = crate::Reach::fixture(apex, 4.0);
+    let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(needle)) =
+        crate::intersect::plane_cone_section(&plane, &cone, &reach, band())
+    else {
+        panic!("the needle plane cuts the cone in an ellipse")
+    };
+    let span = (0.2, 2.0);
+    let image = chart_pcurve_over(&needle, span.0, span.1, &cone, band());
+    let Ok(Pcurve::FocalSection(f)) = image else {
+        panic!("the needle images as a focal section: {image:?}")
+    };
+    let room = 1.0 - f.beta.abs();
+    assert!(
+        room > 1e2 * band().escalate() && room < 0.1,
+        "the needle's own β keeps its room a hundred bands clear: {room:e}"
+    );
+    let iv = Interval::from_f64;
+    let at_interval = Pcurve::FocalSection(FocalImage {
+        u0: iv(f.u0),
+        t0: iv(f.t0),
+        v0: iv(f.v0),
+        va: iv(f.va),
+        vb: iv(f.vb),
+        vl: iv(f.vl),
+        beta: iv(f.beta),
+        sense: iv(f.sense),
+    });
+    let image = Pcurve::FocalSection(f);
+    assert!(
+        super::focal_section_identity(&image, span, &cone, None, band()).is_ok()
+            && super::focal_section_identity(
+                &at_interval,
+                (Interval::from_f64(span.0), Interval::from_f64(span.1)),
+                &cone.map_scalar(Interval::from_f64),
+                None,
+                band(),
+            )
+            .is_ok(),
+        "the needle's structure passes at both scalars"
+    );
+}
+
+/// **A spiric oval on its own torus is served over any span.** The mint's
+/// incidence test reads the oval's whole turn on the torus before the
+/// chart's axis is read, so the axis is the carrier's and the cosine is
+/// `±1`: an orientation, read by its sign, whatever the span. Levered at
+/// the span's own extent, an arc under the band read that cosine in band
+/// and refused the oval as off a "perpendicular" torus. Six ovals, each
+/// over spans from a million of the band's zero down to a tenth of it.
+#[test]
+fn a_spiric_on_its_own_torus_is_served_over_any_span() {
+    let mut g = fuzz::start("spiric_own_torus_any_span");
+    for _ in 0..6 {
+        let (oval, charts) = spiric(&mut g);
+        let t0 = g.range(-3.0, 3.0);
+        for span in [1e6, 1e4, 1e2, 30.0, 10.0, 3.0, 1.0, 0.1].map(|k| k * band().zero()) {
+            let got = chart_pcurve_over(&oval, t0, t0 + span, &charts[0], band());
+            assert!(
+                matches!(got, Ok(Pcurve::Spiric { .. })),
+                "a span of {span:e} on the oval's own torus is imaged ({}): {got:?}",
+                fuzz::replay()
+            );
+        }
+    }
 }
 
 /// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the

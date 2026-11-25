@@ -4,7 +4,7 @@ kind: issue
 title: Two coincident edges between one vertex pair mesh as one segment of four triangles, which check_mesh refuses
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -105,3 +105,40 @@ vertex pair; tier 3 passes, props hold the closed form (55.7168), and at
 δ = 5e-3 the mesh's volume is 55.7347 while `check_mesh` refuses
 `NonManifoldEdge { edge: (16, 18), count: 4 }`, ids 16 and 18 the
 keel's two ends. The throwaway harness is not committed.
+
+## 2026-11-22 — the curved ring builds again (HELDRECORDS split-on)
+
+`heldrecords/split-on` records a slit's two coincident edges and lifts
+the split's `CurvedSlitTrace` and the Boolean's `EdgeInFaceGap::Curved`
+(`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`),
+so the curved ring ships again. Measured on that branch at the default
+ε, `tessellate` then `check_mesh` over each side of
+`crates/sweep/tests/a_curved_keel_in_the_plane.rs`'s `keeled`:
+
+- **The ring (V turned 60°)**: the walls' side meshes `Ok` and
+  `check_mesh` refuses `MismatchedWinding` with the tip on the plane and
+  at `+0.6 ε`, at chordal 1e-2 (and 0.1 at `+0.6 ε`; at the tip on the
+  plane 0.1 refuses `PinchWedge`), either normal; at `−0.6 ε` it meshes
+  clean. The other side meshes clean.
+- **The one-end slit (−20°)**: the walls' side refuses `PinchWedge` at
+  1e-2 and 0.1 with the tip at 0 and `+0.6 ε`, and meshes clean at
+  `−0.6 ε`.
+- **The Boolean's twin**
+  (`crates/sweep/tests/a_curved_keel_on_the_floor_builds_its_slit_form.rs`),
+  both forms: clean at 1e-2 and 0.1, `Triangulation` at 1e-3.
+
+## Re-banded P1 (2026-11-23, HELDRECORDS split-on, on its orchestrator's word)
+
+A silently wrong output is now newly reachable from a shape that used to
+refuse: PR 7481 ships the split's curved ring, where the split refused
+`CurvedSlitTrace` before. The walls' side of
+`crates/sweep/tests/a_curved_keel_in_the_plane.rs`'s `keeled(s, 60°)`
+split by `y = 1` meshes `Ok` from `tessellate` and `check_mesh` refuses
+`MismatchedWinding`, with the tip on the plane and at `+0.6 ε`, either
+normal (measurements in the 2026-11-22 section above). A wrong mesh with
+no refusal is a P1 by `work/README.md` Priority. The split side passes
+tier 3′ on its records, so the defect is the mesher's reading of the two
+coincident arcs, not the body. Making `tessellate` refuse typed on two
+coincident edges between one vertex pair (curved or straight) closes the
+silent half before the mesh itself is built right.
+

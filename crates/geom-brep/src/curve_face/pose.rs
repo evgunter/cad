@@ -32,7 +32,9 @@
 
 use geom::Conic;
 use geom_core::k_stats::{decide, decide_nonzero, straddle};
-use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, Sign};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, MarginDiag, NonzeroSign, Point3, Real, Rounded, Sign,
+};
 
 use super::{Door, Route, route};
 use crate::curve_pair::Span;
@@ -41,8 +43,9 @@ use crate::curve_pair::Span;
 #[derive(Clone, Copy, Debug)]
 pub enum Pose<T: Real> {
     /// The span lies on the surface over its whole length: a reading of
-    /// values only.
-    Lies,
+    /// values only, with the margin of the rung that decided it Zero (the
+    /// worse of a spread's two readings where a spread decided it).
+    Lies(MarginDiag),
     /// The span and the surface do not meet.
     Apart,
     /// The span touches the surface at one nondegenerate double root
@@ -326,8 +329,9 @@ fn axis_offset<T: Decide>(at_mid: T, half_drift: T, band: Band) -> Result<Pose<T
 enum Constant {
     /// Definitely one-signed: the span and the surface do not meet.
     Apart,
-    /// In the zero band all round: the span lies on the surface.
-    Lies,
+    /// In the zero band all round: the span lies on the surface, the
+    /// worse of the two readings' margins.
+    Lies(MarginDiag),
     /// Any other reading, a straddle, with its diagnostics.
     Straddle(Indeterminate),
 }
@@ -344,7 +348,7 @@ fn constant_residual_as<T: Decide>(
         .map_err(PoseRefusal::in_band(rung))?;
     Ok(match (below.sign, above.sign) {
         (Sign::Positive, _) | (_, Sign::Negative) => Constant::Apart,
-        (Sign::Zero, Sign::Zero) => Constant::Lies,
+        (Sign::Zero, Sign::Zero) => Constant::Lies(below.margin.worst(above.margin)),
         _ => Constant::Straddle(straddle(name, below, above, band)),
     })
 }
@@ -354,7 +358,7 @@ impl Constant {
     fn pose<T: Real>(self, rung: PoseRung) -> Result<Pose<T>, PoseRefusal> {
         match self {
             Self::Apart => Ok(Pose::Apart),
-            Self::Lies => Ok(Pose::Lies),
+            Self::Lies(margin) => Ok(Pose::Lies(margin)),
             Self::Straddle(diag) => Err(PoseRefusal::InBand { rung, diag }),
         }
     }
@@ -899,8 +903,9 @@ fn discriminant<T: Decide>(
 /// wrapper reads too.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum ConeRead<T: Real> {
-    /// A generator through the apex: it lies on the cone.
-    Lies,
+    /// A generator through the apex: it lies on the cone, its run's
+    /// reach through the floor decided Zero at this margin.
+    Lies(MarginDiag),
     /// Off the apex, parallel to a generator: the method's own
     /// degenerate form.
     Parallel,
@@ -988,9 +993,7 @@ pub(super) fn line_cone_read<T: Decide>(
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
-    // Unsourced lever: a length read off the parameter run, not the
-    // run's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
     let lead = || {
         decide(
             "curve_face_pose_cone_lead",
@@ -1012,18 +1015,19 @@ pub(super) fn line_cone_read<T: Decide>(
     // from the line's foot. In the zero band the run lies on the cone;
     // past it nothing is decided, and the caller excludes `Lies` by a
     // reading of the residual itself ([`not_lies_over`]).
-    let on_surface = || -> Result<bool, PoseRefusal> {
+    let on_surface = || -> Result<Option<MarginDiag>, PoseRefusal> {
         let star = line.param(apex);
         let e = at(star).norm();
         let far = (lo - star).abs().max((hi - star).abs()) * dir.norm();
         let (sin, cos) = half_angle.sin_cos();
         let reach = e + a2.abs() / dd * far / sin.min(cos);
-        match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band)
-            .map_err(PoseRefusal::in_band(PoseRung::ConeLead))?
-        {
-            Sign::Zero => Ok(true),
-            Sign::Positive | Sign::Negative => Ok(false),
-        }
+        let read = geom_core::k_stats::decide_reported(
+            "curve_face_pose_cone_on_surface",
+            Margin::of(reach),
+            band,
+        )
+        .map_err(PoseRefusal::in_band(PoseRung::ConeLead))?;
+        Ok((read.sign == Sign::Zero).then_some(read.margin))
     };
     match decide("curve_face_pose_cone_apex", Margin::norm3(at(foot)), band)
         .map_err(PoseRefusal::in_band(PoseRung::Apex))?
@@ -1043,8 +1047,10 @@ pub(super) fn line_cone_read<T: Decide>(
                     break;
                 }
             }
-            if lead()? == Sign::Zero && on_surface()? {
-                return Ok(ConeRead::Lies);
+            if lead()? == Sign::Zero
+                && let Some(margin) = on_surface()?
+            {
+                return Ok(ConeRead::Lies(margin));
             }
             not_lies_over((t0, t1), residual, band)?;
             let spread = apex_root_spread(at(at_apex), dir, (axis, half_angle));
@@ -1064,8 +1070,8 @@ pub(super) fn line_cone_read<T: Decide>(
     }
     if lead()? == Sign::Zero {
         // A segment of a generator off the apex lies on the cone too.
-        if on_surface()? {
-            return Ok(ConeRead::Lies);
+        if let Some(margin) = on_surface()? {
+            return Ok(ConeRead::Lies(margin));
         }
         not_lies_over((t0, t1), residual, band)?;
         return Ok(ConeRead::Parallel);
@@ -1130,7 +1136,7 @@ fn line_cone<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
     Ok(match line_cone_read(line, cone, span.params(), band)? {
-        ConeRead::Lies => Pose::Lies,
+        ConeRead::Lies(margin) => Pose::Lies(margin),
         ConeRead::Parallel => Pose::Isolated(Form(Formed::LineCone { parallel: true })),
         ConeRead::Through { at, reach } => Pose::Through(Singular {
             at,
@@ -1188,12 +1194,10 @@ fn conic_quadric<T: Decide>(
             let s_center = sphere_frame.origin();
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.lo,
-                hi: h.hi,
+                lo: h.lo.with_charge(h.frame_error),
+                hi: h.hi.with_charge(h.frame_error),
                 cos_part: h.e_u,
                 sin_part: h.e_v,
-                lo_noise: h.lo_error + h.frame_error,
-                hi_noise: h.hi_error + h.frame_error,
                 phase_noise: h.phase_error,
             };
             first_harmonic(span, &conic, first, None, band)
@@ -1250,13 +1254,15 @@ fn lane<T: Decide>(
     match decide("curve_face_pose_second_harmonic", Margin::of(second), band) {
         Ok(Sign::Zero) if !ladder_lane::forced() => {
             let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+            let extreme = |value| Rounded {
+                value,
+                error: noise,
+            };
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.c0 - a1,
-                hi: h.c0 + a1,
+                lo: extreme(h.c0 - a1),
+                hi: extreme(h.c0 + a1),
                 cos_part: h.c1,
                 sin_part: h.s1,
-                lo_noise: noise,
-                hi_noise: noise,
                 phase_noise: T::zero(),
             };
             first_harmonic(span, conic, first, cone, band)
@@ -1298,7 +1304,7 @@ fn first_harmonic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
     let two = T::from_f64(2.0);
-    let noise = h.lo_noise.max(h.hi_noise);
+    let noise = h.lo.error.max(h.hi.error);
     match decide("curve_face_pose_noise", Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {
@@ -1308,7 +1314,10 @@ fn first_harmonic<T: Decide>(
             });
         }
     }
-    let (c0, a1) = ((h.lo + h.hi) / two, (h.hi - h.lo) / two);
+    let (c0, a1) = (
+        (h.lo.value + h.hi.value) / two,
+        (h.hi.value - h.lo.value) / two,
+    );
     if let Ok(Sign::Zero) = decide("curve_face_pose_coaxial", Margin::of(a1), band) {
         match constant_residual_as(
             "curve_face_pose_constant",
@@ -1317,17 +1326,21 @@ fn first_harmonic<T: Decide>(
             band,
         )? {
             Constant::Apart => return Ok(Pose::Apart),
-            Constant::Lies => {
+            Constant::Lies(margin) => {
                 let Some(floor) = cone else {
-                    return Ok(Pose::Lies);
+                    return Ok(Pose::Lies(margin));
                 };
                 // `|res| ≤ |F| / floor`: a constant `F` in the band is the
                 // carrier on the cone once its reach, read through the
                 // floor, is in the band too.
-                let reach = (h.lo.abs().max(h.hi.abs()) + h.lo_noise) / floor;
-                return match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band) {
-                    Ok(Sign::Zero) => Ok(Pose::Lies),
-                    Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(PoseRefusal::Meter {
+                let reach = h.most() / floor;
+                return match geom_core::k_stats::decide_reported(
+                    "curve_face_pose_cone_on_surface",
+                    Margin::of(reach),
+                    band,
+                ) {
+                    Ok(read) if read.sign == Sign::Zero => Ok(Pose::Lies(read.margin)),
+                    Ok(_) | Err(_) => Err(PoseRefusal::Meter {
                         rung: PoseRung::Coaxial,
                         row: "curve_face_pose_cone_on_surface",
                     }),
@@ -1338,9 +1351,9 @@ fn first_harmonic<T: Decide>(
     }
     // Each extreme read as the interval its noise spans: ends that
     // disagree read zero, and the zero end is kept for a refusal.
-    let extreme = |value, noise| {
+    let extreme = |read: Rounded<T>| {
         let (below, above) =
-            crate::roots::spread_readings("curve_face_pose_extreme", value, noise, band)
+            crate::roots::spread_readings("curve_face_pose_extreme", read.value, read.error, band)
                 .map_err(PoseRefusal::in_band(PoseRung::Extreme))?;
         Ok::<_, PoseRefusal>(if below.sign == above.sign {
             (below.sign, below)
@@ -1350,18 +1363,18 @@ fn first_harmonic<T: Decide>(
             (Sign::Zero, below)
         })
     };
-    let (lo, lo_read) = extreme(h.lo, h.lo_noise)?;
+    let (lo, lo_read) = extreme(h.lo)?;
     if lo == Sign::Positive {
         return Ok(Pose::Apart);
     }
-    let (hi, hi_read) = extreme(h.hi, h.hi_noise)?;
+    let (hi, hi_read) = extreme(h.hi)?;
     if hi == Sign::Negative {
         return Ok(Pose::Apart);
     }
     let near = geom::mid_param(span.params().0, span.params().1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(near);
     let turn = geom_core::period::Period::angle();
-    let graze = |at: T, (value, noise): (T, T), read: geom_core::Decided| {
+    let graze = |at: T, extreme: Rounded<T>, read: geom_core::Decided| {
         // On a cone the extreme is `F`'s, `|res| ≤ |F| / floor`: an `F`
         // in the zero band is the residual's graze only once it reads in
         // the zero band through the floor too
@@ -1371,7 +1384,7 @@ fn first_harmonic<T: Decide>(
         let confirm = cone.map_or(Ok(()), |floor| {
             match decide(
                 "curve_face_pose_cone_graze",
-                Margin::of((value.abs() + noise) / floor),
+                Margin::of(extreme.magnitude() / floor),
                 band,
             ) {
                 Ok(Sign::Zero) => Ok(()),
@@ -1390,8 +1403,8 @@ fn first_harmonic<T: Decide>(
         let at = turn.near(at, near);
         let g = Graze {
             at,
-            value,
-            noise,
+            value: extreme.value,
+            noise: extreme.error,
             bend: a1,
             speed: conic.speed_at(at),
             // The conic's diameter at the touch.
@@ -1403,8 +1416,8 @@ fn first_harmonic<T: Decide>(
     };
     match (lo, hi) {
         (Sign::Negative, Sign::Positive) => Ok(Pose::Isolated(Form(Formed::FirstHarmonic(h)))),
-        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), (h.lo, h.lo_noise), lo_read),
-        (Sign::Negative, Sign::Zero) => graze(phi, (h.hi, h.hi_noise), hi_read),
+        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), h.lo, lo_read),
+        (Sign::Negative, Sign::Zero) => graze(phi, h.hi, hi_read),
         _ => Err(zero_band(
             PoseRung::Extreme,
             "curve_face_pose_extreme",
@@ -1623,10 +1636,14 @@ fn conic_torus<T: Decide>(
         (t_center, t_axis, major_radius, minor_radius),
         &axes,
     );
-    match decide("curve_face_pose_meridian", Margin::of(deviation), band)
-        .map_err(PoseRefusal::in_band(PoseRung::Meridian))?
-    {
-        Sign::Zero => Ok(Pose::Lies),
+    let read = geom_core::k_stats::decide_reported(
+        "curve_face_pose_meridian",
+        Margin::of(deviation),
+        band,
+    )
+    .map_err(PoseRefusal::in_band(PoseRung::Meridian))?;
+    match read.sign {
+        Sign::Zero => Ok(Pose::Lies(read.margin)),
         Sign::Positive => walk(),
         Sign::Negative => Err(PoseRefusal::Fault(
             "a meridian deviation, a sum of lengths, read negative",

@@ -580,7 +580,7 @@ fn run_body(
 
     let counts = euler_counts(&sb.body);
     let genus = counts
-        .genus()
+        .h()
         .unwrap_or_else(|refusal| panic!("{label}: {refusal}"));
     let EulerCounts { v, e, f, r, s } = counts;
     println!(

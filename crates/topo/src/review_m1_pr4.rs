@@ -23,8 +23,8 @@
 //! re-makeable when the survivor is a bare outer — the fix pass encoded
 //! the corrected taxonomy), exhaustive single-op-search proofs for the
 //! two genuinely irreversible kill subcases, the shell-component
-//! Euler–Poincaré formula that PR 5's validator now implements as
-//! pass 11 (this file's derivation was its spec seed), oracle
+//! Euler–Poincaré formula (a theorem of the validator's checks 1–7 and
+//! 10, pinned by `crate::euler_theorem`), oracle
 //! automorphism/degeneracy attacks, a genus-2 teardown, and
 //! release-mode torn-body batteries.
 //!
@@ -824,7 +824,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     body.mfkrh_plug(kill.ring, true).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
     let counts = euler_counts(&body);
-    assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
+    assert_eq!(counts.h(), Ok(-1), "naive derived h = -1 (the finding)");
 
     // ...because the SHELL's surface disconnected: two components, each
     // a genus-0 closed piece (the pillow, and the lone-vertex+disk
@@ -1010,7 +1010,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
             p7,
             tol,
         ),
-        Err(EulerOpError::Certification { .. })
+        Err(EulerOpError::DescriptionUncertified { .. })
     ));
     let a = degenerate_pillow();
     let b = degenerate_pillow();

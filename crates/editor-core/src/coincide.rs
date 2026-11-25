@@ -728,6 +728,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
         topo::DecisionSite::SmoothJoin => "two faces a sweep read joined smoothly, one carrier",
+        topo::DecisionSite::ArcOnFace => "an arc a boolean read lying in a face and parted",
     }
 }
 

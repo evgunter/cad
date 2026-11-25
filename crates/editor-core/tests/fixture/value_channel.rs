@@ -205,8 +205,8 @@ fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
                             d.scalar(v.x);
                             d.scalar(v.y);
                             match s.kind {
-                                profile::SegmentKind::Line => d.u64(0),
-                                profile::SegmentKind::Arc { arc, turn } => {
+                                profile::SegmentKind::Line { .. } => d.u64(0),
+                                profile::SegmentKind::Arc { arc, turn, .. } => {
                                     d.u64(match turn {
                                         geom_core::Sign::Negative => 2,
                                         geom_core::Sign::Zero | geom_core::Sign::Positive => 1,

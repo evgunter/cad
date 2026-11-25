@@ -5,7 +5,8 @@ title: three answers to "is this loop inside that one" with three boundary postu
 status: open
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 Filed by `tier3-accepts-a-ring-outside-its-outer-loop`'s fix pass, from
@@ -106,3 +107,7 @@ reading of every `point_in_loop` caller. It cannot match a containment
 claim made through a helper that already returns a normal, one stated
 only in prose naming none of those symbols, or any site outside
 `crates/topo/src`.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Premise moved; renames: `point_in_carrier_loop` → `splitting::containment::point_in_loop`; `SplitJoinError::RingHomingAmbiguous` → chord_join `JoinError`; `nesting_normal` → `validate::plane_chart_normal`; `Surface::Plane` carries a `frame`, so the row's grep matches nothing. `rehome_rings` no longer reads one point: `ring_side` reads every vertex with `Answering::Any`. `loop_side.rs`'s header now states the posture split (validators read every vertex; construction sites the first, on the operation's premise). Residual drift: on a ring on the boundary at every vertex, `rehome_rings` refuses or defers while `ring_nesting` accepts. Unlisted siblings: section_loops `nest`'s `encloses` closure (one representative point; OnBoundary and Err read as not enclosed), finish `nest_slit`, fate `rehome`, one_region. Chart-normal reads: chord_join `face_plane_normal`, validate `plane_chart_normal`, solid_contain `chart_normal` (via `implicit_gradient`). `ring_nesting`'s stale "first definite verdict" doc is fixed by WALKS's E-bundle. Being weighed as fork F6.

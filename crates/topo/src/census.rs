@@ -391,8 +391,12 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    fn len(&self) -> T {
-        self.at.1 - self.at.0
+    /// The span's extent, read off its line over `at`.
+    fn extent(&self) -> geom_core::Lever<T>
+    where
+        T: geom_core::spline::SpanLocate,
+    {
+        geom_brep::edge_extent_inf(&geom::Curve3::Line(self.line()), self.at.0, self.at.1)
     }
 
     /// The line it is a span of, `s` its parameter.
@@ -2578,6 +2582,21 @@ fn escalation_pushed(errors: Vec<ValidationError>) -> Indeterminate {
 pub(crate) fn segment_key(ends: [PointKey; 2]) -> [PointKey; 2] {
     let [p, q] = ends;
     if p <= q { [p, q] } else { [q, p] }
+}
+
+/// **Edge `e`'s segment key** ([`segment_key`]): its two ends' point keys,
+/// the lesser first.
+///
+/// # Panics
+///
+/// Where `e`, a half of it or an end does not resolve: a torn body.
+pub(crate) fn edge_segment_key<T: Real>(body: &Body<T>, e: EdgeKey) -> [PointKey; 2] {
+    let edge = crate::live::proven(&body.edges, e, crate::entity::EntityId::Edge);
+    segment_key([edge.he_plus, edge.he_minus].map(|he| {
+        let start =
+            crate::live::proven(&body.half_edges, he, crate::entity::EntityId::HalfEdge).start;
+        crate::live::proven(&body.vertices, start, crate::entity::EntityId::Vertex).point
+    }))
 }
 
 /// **Every pair of line edges `body` holds on one segment by structure**:
@@ -4796,8 +4815,8 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
-            // the line edge's chord); the chord's own extent read rounds differently.
+            // Unsourced lever: the wedge's arm, `SectorShape::arm`, the shorter of the two sheets
+            // as scaled by the edge's length; it waits on that record (the metering-arm family).
             Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
@@ -5478,12 +5497,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero_as(
         "pm_census_ee_parallel",
-        Margin::levered(
-            a.dir.cross(b.dir).norm(),
-            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
-            // line; no extent read takes a line's interval, and its chord read rounds differently.
-            geom_core::Lever::unsourced(a.len().min(b.len())),
-        ),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.extent().min(b.extent())),
         band,
         errors,
     )
@@ -6049,14 +6063,13 @@ fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
     }
 }
 
-/// `a` against `b` read past the charge `n` (`name`'s bounds, decided
-/// through the funnel): the verdict where `a − b − n` and `a − b + n`
+/// `a − b`, read with the charge it carries (`name`'s bounds, decided
+/// through the funnel): the verdict where its enclosure's two ends
 /// agree, and the straddle between them ([`SPAN_ROUNDING`]) where they
 /// do not. `None` escalated (pushed).
 fn charged_cmp<T: Decide>(
     name: &'static str,
-    m: T,
-    n: T,
+    m: geom_core::Rounded<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Sign> {
@@ -6065,11 +6078,11 @@ fn charged_cmp<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
         None
     };
-    let lower = match read(m - n) {
+    let lower = match read(m.lower_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
-    let upper = match read(m + n) {
+    let upper = match read(m.upper_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
@@ -6134,7 +6147,15 @@ fn span_cmp<T: Decide>(
         return Some(core::cmp::Ordering::Equal);
     }
     Some(
-        match charged_cmp(SPAN_ORDER_CHARGED, x.at - y.at, n, band, errors)? {
+        match charged_cmp(
+            SPAN_ORDER_CHARGED,
+            geom_core::Rounded {
+                value: x.at - y.at,
+                error: n,
+            },
+            band,
+            errors,
+        )? {
             Sign::Positive => core::cmp::Ordering::Greater,
             Sign::Negative => core::cmp::Ordering::Less,
             Sign::Zero => core::cmp::Ordering::Equal,
@@ -6259,7 +6280,15 @@ fn projected_overlap<T: Decide>(
             if one_point(lo, hi, band, errors)? {
                 Sign::Zero
             } else {
-                charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?
+                charged_cmp(
+                    EE_OVERLAP_CHARGED,
+                    geom_core::Rounded {
+                        value: hi.at - lo.at,
+                        error: n,
+                    },
+                    band,
+                    errors,
+                )?
             }
         }
         None => match decide("pm_census_ee_overlap", Margin::of(hi.at - lo.at), band) {
@@ -18879,13 +18908,10 @@ mod tests {
             (t0, t1): (f64, f64),
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-            let geom::Curve3::Ellipse(geom::Ellipse {
-                frame: carrier_frame,
-                ..
-            }) = carrier
-            else {
+            let geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse carrier")
             };
+            let carrier_frame = the_ellipse.frame();
             let tol = Tol::witness();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
             let mut body = Body::<f64>::new();
@@ -21648,7 +21674,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if circle.frame().origin().z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");

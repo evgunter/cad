@@ -118,7 +118,7 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
         let Curve3::Circle(circle) = *curve.carrier() else {
             continue;
         };
-        let (center, radius) = (circle.frame.origin(), circle.radius());
+        let (center, radius) = (circle.frame().origin(), circle.radius());
         if (center.z - 1.0).abs() > 1e-9 || (radius - 0.5).abs() > 1e-9 {
             continue;
         }

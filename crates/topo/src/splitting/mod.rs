@@ -365,13 +365,140 @@ pub struct SplitReduction<T: Real> {
 
 /// **The reduce's coincidence rows** (D10): what a split records, on the
 /// cut path and the uncut one alike, since the reduce decides each the
-/// same way on either. Its tuple field is private, so it is mintable
+/// same way on either. Its fields are private, so it is mintable
 /// anywhere in `crate::splitting`'s subtree, the same scope as
 /// `finish::RawSplit::from_reduction`; outside tests the reduce is the
 /// one site that mints it. With no `Default` and no `take`, a split's
 /// record moves out of its reduction once, by value.
+///
+/// Beside the rows it holds the decisions an operand edge ON the plane is
+/// read by ([`Self::edge_on`]): the margin each ON vertex was decided on,
+/// and the margin of each curved edge the crossing reading found lying in
+/// the plane (`Pose::Lies`); and the operand's line edges lying in the
+/// plane, read before the null edges re-hang them on copies
+/// ([`on_lines`]).
 #[derive(Debug)]
-pub struct ReducedRows(Vec<crate::Coincidence>);
+pub struct ReducedRows {
+    rows: Vec<crate::Coincidence>,
+    on_margins: SecondaryMap<VertexKey, MarginDiag>,
+    lies: std::collections::BTreeMap<EdgeKey, MarginDiag>,
+    on_lines: Vec<OnLine>,
+}
+
+impl ReducedRows {
+    /// **The row of operand edge `edge` ON the plane**, its ends `ends`,
+    /// a line where `line`, which a slit over it cites
+    /// ([`join::CoincidentPair`]), at the margin of the decision that put
+    /// the edge in the plane ([`edge_in_plane`]). Its index, the edge's
+    /// row once however many slits cite it.
+    ///
+    /// # Errors
+    ///
+    /// [`finish::SplitFinishError::ArcNotReadInPlane`] for a curved edge
+    /// the crossing reading did not read lying in the plane.
+    pub(in crate::splitting) fn edge_on(
+        &mut self,
+        edge: EdgeKey,
+        ends: [VertexKey; 2],
+        line: bool,
+    ) -> Result<u32, finish::SplitFinishError> {
+        let margin = edge_in_plane(edge, ends, line, &self.on_margins, &self.lies)
+            .ok_or(finish::SplitFinishError::ArcNotReadInPlane { edge })?;
+        Ok(split_on_row(
+            &mut self.rows,
+            crate::Cell::Edge(edge),
+            margin,
+        ))
+    }
+}
+
+/// **The margin of the decision that put operand edge `edge` in the
+/// plane**, its ends `ends`: a curved edge's crossing reading, the
+/// carrier decided lying in the plane over its span (`Pose::Lies`,
+/// `lies`); a line's (`line`) two ends' ON verdicts (`margins`), the worse
+/// of the two, since its residual is affine and the crossing reading
+/// takes it as decided by its ends ([`classify::insert_crossings`]).
+/// `None` where that decision was not taken: a curved edge the crossing
+/// reading did not read `Lies` (a window at an end, a touch) though the
+/// neighbourhood put it in the plane, or a line with an end not ON. The
+/// germ reading at a vertex is local to it and decides nothing of the
+/// edge's interior.
+fn edge_in_plane(
+    edge: EdgeKey,
+    ends: [VertexKey; 2],
+    line: bool,
+    margins: &SecondaryMap<VertexKey, MarginDiag>,
+    lies: &std::collections::BTreeMap<EdgeKey, MarginDiag>,
+) -> Option<MarginDiag> {
+    if !line {
+        return lies.get(&edge).copied();
+    }
+    let [a, b] = ends.map(|v| margins.get(v).copied());
+    Some(a?.worst(b?))
+}
+
+/// **Each operand line edge lying in the plane** of `body`, the reduced
+/// clone before null-edge insertion: a line between two operand vertices
+/// the vertex sweep decided ON (`margins`), its segment key, and the
+/// margin of its row ([`edge_in_plane`], with the crossing reading's
+/// `lies`), for a pinch whose two copies run along it.
+fn on_lines<T: Real>(
+    body: &Body<T>,
+    margins: &SecondaryMap<VertexKey, MarginDiag>,
+    lies: &std::collections::BTreeMap<EdgeKey, MarginDiag>,
+) -> Vec<OnLine> {
+    body.edges()
+        .filter(|&(e, _)| crate::census::edge_is_line(body, e))
+        .filter_map(|(e, _)| {
+            let (a, b) = crate::query::edge_ends(body, e);
+            Some(OnLine {
+                edge: e,
+                segment: crate::census::edge_segment_key(body, e),
+                margin: edge_in_plane(e, [a, b], true, margins, lies)?,
+            })
+        })
+        .collect()
+}
+
+/// **An operand line edge lying in the plane** ([`on_lines`]).
+#[derive(Clone, Copy, Debug)]
+pub(in crate::splitting) struct OnLine {
+    pub(in crate::splitting) edge: EdgeKey,
+    pub(in crate::splitting) segment: [crate::PointKey; 2],
+    pub(in crate::splitting) margin: MarginDiag,
+}
+
+/// **The split's `SplitOn` row of operand cell `key` ON the plane**
+/// (the tool), decided at `margin`, in `rows`: a vertex whose
+/// neighbourhood leaves two runs on a side, or an edge lying in the
+/// plane a coincident pair of the split's runs over. Its index, the
+/// cell's row once however many records cite it.
+pub(in crate::splitting) fn split_on_row<K: crate::lineage::LineageKey>(
+    rows: &mut Vec<crate::Coincidence>,
+    key: K,
+    margin: MarginDiag,
+) -> u32 {
+    let cells = [
+        crate::RowCell::Input {
+            input: crate::Operand::A,
+            cell: key.cell(),
+        },
+        crate::RowCell::Tool,
+    ];
+    let at = |k: usize| u32::try_from(k).unwrap_or_else(|_| unreachable!("a row index fits u32"));
+    if let Some(k) = rows.iter().position(|r| r.cells == cells) {
+        return at(k);
+    }
+    rows.push(crate::Coincidence {
+        cells,
+        more: [None; 3],
+        relation: crate::Relation::OnCarrier,
+        site: crate::DecisionSite::SplitOn,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    });
+    at(rows.len() - 1)
+}
 
 /// **A knife edge the split would mint and cannot declare.** The plane
 /// is tangent to a curved wall that bends away from its material (a
@@ -1044,12 +1171,13 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let tips = crate::sector_shape::SlitTips::of(&body);
     let (mut sides, mut on_vertices, on_margins, on_plane) =
         classify::classify_vertices_margined(&body, plane, &tips, band)?;
-    let edge_pieces = classify::insert_crossings(
+    let (edge_pieces, lies) = classify::insert_crossings(
         &mut body,
         plane,
         (&mut sides, &mut on_vertices, &on_plane),
         tol,
     )?;
+    let lines = on_lines(&body, &on_margins, &lies);
 
     let mut null_edges = Vec::new();
     let mut apex_germs = SecondaryMap::new();
@@ -1063,20 +1191,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         // crossing's vertex was minted on the plane, so no margin
         // decided it, and one run is a cut, not a touch.
         if let (true, Some(&margin)) = (runs.len() >= 2, on_margins.get(v)) {
-            coincidences.push(crate::Coincidence {
-                cells: [
-                    crate::RowCell::Input {
-                        input: crate::Operand::A,
-                        cell: crate::Cell::Vertex(v),
-                    },
-                    crate::RowCell::Tool,
-                ],
-                more: [None; 3],
-                relation: crate::Relation::OnCarrier,
-                site: crate::DecisionSite::SplitOn,
-                margin,
-                discharge: crate::Discharge::of(margin),
-            });
+            split_on_row(&mut coincidences, v, margin);
         }
         let hood = insert::Neighborhood {
             vertex: v,
@@ -1103,7 +1218,12 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         on_vertices,
         null_edges,
         apex_germs,
-        coincidences: ReducedRows(coincidences),
+        coincidences: ReducedRows {
+            rows: coincidences,
+            on_margins,
+            lies,
+            on_lines: lines,
+        },
         edge_pieces,
     })
 }
@@ -1298,12 +1418,16 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// solids, finished at its scalar ([`crate::AtRestPolicy::finish`], the
 /// gate the Boolean's result passes; [`SplitFinishError::ResultNotAtRest`]
 /// carries every finding). So at a certifying scalar no side is returned
-/// that [`crate::validate_geometric`] refuses. A pinch side's
-/// touching pieces need no contact record, since their copies of the
-/// pinched vertex share its point key, and the ON verdict that pinched
-/// them is in [`SplitResult::coincidences`]. Where the cut crosses two
-/// line edges that are one segment (their ends on one pair of point
-/// keys), its two crossings share one point key too.
+/// that [`crate::validate_geometric`] refuses. A pinch side's pieces
+/// touching at a vertex need no contact record, since their copies of
+/// the pinched vertex share its point key, and the ON verdict that
+/// pinched them is in [`SplitResult::coincidences`]. Two coincident
+/// edges the split mints over an operand edge lying in the plane, a
+/// slit's (straight or curved) or a straight pinch's, are recorded on
+/// their side, an edge–edge record citing that edge's ON row there
+/// ([`crate::DecisionSite::SplitOn`]). Where the cut
+/// crosses two line edges that are one segment (their ends on one pair
+/// of point keys), its two crossings share one point key too.
 pub fn split<F: crate::FinishedBody>(
     operand: &F,
     plane: &SplitPlane<F::Scalar>,
@@ -1324,7 +1448,8 @@ where
     } else {
         operand
     };
-    let (above, below, naming, coincidences) = split_direct(operand, plane, tol)?.into_parts();
+    let (above, below, naming, mut coincidences, mints) =
+        split_direct(operand, plane, tol)?.into_parts();
     // Each side sorted into its pieces.
     let sorted = |part| match part {
         finish::RawPart::Body(mut body) => {
@@ -1355,9 +1480,18 @@ where
         <F::Scalar as crate::props::AtRestPolicy>::region_lane(),
     )
     .map_err(|refusal| SplitError::from(SplitFinishError::Carry { refusal }))?;
-    let at_rest = |side, part: Option<Body<F::Scalar>>, records| match part {
+    // The coincident edge pairs the split minted, each recorded on the
+    // side holding it, citing the operand edge ON the plane.
+    let minted = finish::Sides {
+        above: above.as_ref(),
+        below: below.as_ref(),
+        naming: &naming,
+    }
+    .minted_contacts(&mints, &mut coincidences)
+    .map_err(|d| SplitError::from(SplitFinishError::Desync(d)))?;
+    let at_rest = |side, part: Option<Body<F::Scalar>>, records, minted| match part {
         Some(body) => <F::Scalar as crate::props::AtRestPolicy>::finish(
-            crate::Built::of(body).recording(records),
+            crate::Built::of(body).recording(records).recording(minted),
             tol,
         )
         .map(finish::SplitPart::Body)
@@ -1365,8 +1499,8 @@ where
         None => Ok(finish::SplitPart::Empty),
     };
     Ok(SplitResult {
-        above: at_rest(PlaneSide::Above, above, carried.above)?,
-        below: at_rest(PlaneSide::Below, below, carried.below)?,
+        above: at_rest(PlaneSide::Above, above, carried.above, minted.above)?,
+        below: at_rest(PlaneSide::Below, below, carried.below, minted.below)?,
         naming,
         coincidences,
     })
@@ -1430,6 +1564,59 @@ mod gate_reads_carried_records {
                 assert!(the_false_record_alone(&findings), "{findings:?}");
             }
             other => panic!("the split refuses at its gate: {:?}", other.map(|_| ())),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_in_plane_rows {
+    use geom_core::{Margin, Tol};
+    use slotmap::{SecondaryMap, SlotMap};
+
+    use super::edge_in_plane;
+    use crate::entity::{EdgeKey, VertexKey};
+
+    /// A margin of `k` of the run's ε, decided Zero at its band.
+    fn read(k: f64) -> geom_core::MarginDiag {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        geom_core::k_stats::decide_reported("edge_in_plane_rows", Margin::of(k * tol.eps()), band)
+            .unwrap()
+            .margin
+    }
+
+    /// **The row of an edge in the plane carries the decision that put
+    /// it there**: an arc's `Lies` margin, whatever its ends read; a
+    /// line's worse end; and none for an arc no `Lies` read. Red on a row
+    /// that reads one end, reads the ends for an arc, or falls back to
+    /// them where the arc was not read in the plane.
+    #[test]
+    fn an_edges_row_reads_its_lies_or_its_worse_end() {
+        let mut vertices: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let (a, b) = (vertices.insert(()), vertices.insert(()));
+        let mut edges: SlotMap<EdgeKey, ()> = SlotMap::with_key();
+        let (arc, unread, line) = (edges.insert(()), edges.insert(()), edges.insert(()));
+        let mut margins = SecondaryMap::new();
+        margins.insert(a, read(0.1));
+        margins.insert(b, read(0.3));
+        let lies = std::collections::BTreeMap::from([(arc, read(0.5))]);
+        assert_eq!(
+            edge_in_plane(arc, [a, b], false, &margins, &lies),
+            Some(read(0.5)),
+            "an arc's row is its Lies reading"
+        );
+        assert_eq!(
+            edge_in_plane(unread, [a, b], false, &margins, &lies),
+            None,
+            "an arc no Lies read has no row, whatever its ends read"
+        );
+        for ends in [[a, b], [b, a]] {
+            assert_eq!(
+                edge_in_plane(line, ends, true, &margins, &lies),
+                Some(read(0.3)),
+                "a line's row is its worse end, {ends:?}"
+            );
         }
     }
 }

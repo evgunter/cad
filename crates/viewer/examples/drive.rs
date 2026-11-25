@@ -282,7 +282,11 @@ fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), S
                     "{} {:?}{}{}",
                     row.spoken,
                     row.status,
-                    if row.placed { " placed" } else { "" },
+                    if row.placements.is_empty() {
+                        ""
+                    } else {
+                        " placed"
+                    },
                     row.readout.map(|r| format!(" — {r:?}")).unwrap_or_default(),
                 );
             }

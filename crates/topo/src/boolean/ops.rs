@@ -1329,7 +1329,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
     coincidences.extend(join_rows(&class_zeros, &ledger, views, [a, b]));
     share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
-    let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+    let (parted, contacts) =
+        super::slit::part_riders(&mut body, &contacts, &mut coincidences, band, tol)?;
     if !parted.is_empty() {
         crate::pcurves::mint_pcurves(&mut body, tol)
             .map_err(|source| BooleanError::Pcurves { source })?;
@@ -4436,7 +4437,6 @@ fn carried<T: Decide + AtRestPolicy>(
             &mut confirms,
             band,
             T::region_lane(),
-            None,
         )
         .map_err(|refusal| {
             // A carried record cites the operand's record it is; a ring
@@ -5646,16 +5646,9 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             what: "the carry refused a row it places by lineage",
         },
     };
-    let landed = super::records::landings(
-        &[row],
-        &lineage,
-        &[body],
-        confirms,
-        band,
-        T::region_lane(),
-        None,
-    )
-    .map_err(refused)?;
+    let landed =
+        super::records::landings(&[row], &lineage, &[body], confirms, band, T::region_lane())
+            .map_err(refused)?;
     landed
         .into_iter()
         .map(|l| {
@@ -6776,16 +6769,11 @@ fn sphere_pair_cut<T: Decide>(
     };
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_21,
-                ..
-            },
-        ))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(circle))) => {
             let (foot, normal, u_ref) = (
-                carrier_frame_21.origin(),
-                carrier_frame_21.axis(),
-                carrier_frame_21.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let rho = circle.radius();
             Ok(SphereCutIn {
@@ -6826,10 +6814,10 @@ fn pair_seam<T: Decide>(
         Operand::B => (y, x),
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame,
-            ..
-        }))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            the_circle @ geom::Circle { .. },
+        ))) => {
+            let frame = the_circle.frame();
             let u_ref = frame.u_ref();
             Ok(u_ref)
         }
@@ -8100,7 +8088,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 [a_pristine, b_pristine],
             ));
             share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
-            let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+            let (parted, contacts) =
+                super::slit::part_riders(&mut body, &contacts, &mut coincidences, band, tol)?;
             if !parted.is_empty() {
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
@@ -10351,7 +10340,8 @@ mod tests {
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Wedge, diag)),
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Bend, diag)),
         ];
-        let residual = crate::euler::EulerOpError::Certification {
+        let residual = crate::euler::EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
             error: geom_brep::CertifyError::ResidualExceeded {
                 check: geom_brep::CertCheck::SurfaceResidual {
                     surface: crate::geometry::SurfaceKey::default(),
@@ -10432,7 +10422,10 @@ mod tests {
             predicate: Some("carrier_on_surface_2"),
             terminal_sliver: false,
         };
-        let certification = |error| EulerOpError::Certification { error };
+        let certification = |error| EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
+            error,
+        };
         let escalated = |check| {
             certification(CertifyError::Escalated {
                 check,

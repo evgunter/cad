@@ -260,7 +260,7 @@ fn assert_absorbed<
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     assert!(!walls.is_empty(), "{what}: the source carries the bar");
     let c0 = topo::readback::euler_counts(body);
-    let g = match (c0.s, c0.genus()) {
+    let g = match (c0.s, c0.h()) {
         (1, Ok(g)) if g > 0 => g,
         got => panic!("{what}: the source is one shell, each bar a handle, got {got:?}"),
     };
@@ -288,7 +288,7 @@ fn assert_absorbed<
     );
     let c1 = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c1.s, c1.genus()),
+        (c1.s, c1.h()),
         (1, Ok(0)),
         "{what}: one genus-0 shell, the handle gone"
     );
@@ -905,7 +905,7 @@ fn a_bump_on_a_bar_inside_the_fill_is_absorbed_with_it() {
             "{verb:?}: the bar's two cycles and the footprint leave"
         );
         let c1 = topo::readback::euler_counts(&out.body);
-        assert_eq!((c1.s, c1.genus()), (1, Ok(0)), "{verb:?}: the handle goes");
+        assert_eq!((c1.s, c1.h()), (1, Ok(0)), "{verb:?}: the handle goes");
         let want = (section(verb, D) - PI * a * a) * 0.5 - 0.1 * (2.0 * c * 0.012 - held);
         let ((v0, _), (v1, _)) = (volume_enclosure(&body), volume_enclosure(&out.body));
         assert!(

@@ -536,7 +536,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     // each of its cap vertices by two joined by a cap arc: +2
     // vertices, +3 edges, +1 face per crease on the plate's 34/51/19.
     assert_eq!(
-        (counts.v, counts.e, counts.f, counts.r, counts.genus()),
+        (counts.v, counts.e, counts.f, counts.r, counts.h()),
         (38, 57, 21, 4, Ok(2)),
         "census: the eye and the keyhole make genus 2"
     );

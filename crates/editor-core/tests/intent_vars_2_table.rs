@@ -527,7 +527,7 @@ fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     );
     // Equal laws, so equal relative widths: the tie goes to the
     // earlier-declared variable, never to the lower digest.
-    assert_eq!(root.split_axis(&root), Some(w));
+    assert_eq!(root.split_axis(&root, |_| true), Some(w));
     let entries = sensitivities(
         &doc,
         measure,

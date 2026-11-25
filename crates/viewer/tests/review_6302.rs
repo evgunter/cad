@@ -84,9 +84,7 @@ fn written_back(
                 }
                 None => view,
             };
-            back[l][r] = step
-                .written(view, &reading, notation, &noted)
-                .expect("finite");
+            back[l][r] = step.written(view, notation, &noted).expect("finite");
         }
     }
     (back, unviewed, changed)
@@ -199,7 +197,7 @@ fn review_6302_a_moved_corner_keeps_every_neighbour_as_written() {
                 };
                 let moved = Step::LineTo(Target::Point(Point2::new(p.x + 1.0e-3, p.y)));
                 back[tl][tr] = held[tl][tr]
-                    .written(moved, &reading, Notation::CANONICAL, &noted)
+                    .written(moved, Notation::CANONICAL, &noted)
                     .expect("finite");
             }
             let mut session = DocSession::inline(doc.doc.clone(), Tol::witness());

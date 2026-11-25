@@ -83,6 +83,12 @@ use geom_core::Tol;
 /// is `√5 − 2 ≈ 0.2361` away, along `(2, 1)/√5`, the direction that
 /// clears the pair with the same gap at every ε.
 ///
+/// Re-blessed at every ε row when PR 7299 placed a plane-cut line's split
+/// vertex at `curve_face::cross`'s root: only `cut_cylinder` moved, in one
+/// `VertexVertex` witness, `z` one ulp up onto the correctly rounded
+/// crossing (`0.6546681248048115` to `0.6546681248048116`). No finding or
+/// count moved.
+///
 /// **PINNED at what main reads at every ε row, and NOT judged**
 /// ([`the_at_rest_census_verdicts_are_goldened_bit_exact`] reads it). Six
 /// solid-pair findings across the corpus changed their sentence at

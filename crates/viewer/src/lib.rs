@@ -84,6 +84,7 @@ pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
+pub mod relations;
 pub mod scene;
 pub mod screen;
 pub mod seats;

@@ -779,7 +779,11 @@ fn nearest<T: Decide>(
 /// their parallelism and coaxial swing act on a Zero and read the bound
 /// from above, their convention guards and station admission act on a
 /// Positive and read the bound from below
-/// ([`geom_brep::intersect::cone_cylinder_section`]).
+/// ([`geom_brep::intersect::cone_cylinder_section`]). The two bounds are
+/// of whatever each was read over: a caller whose `extent` is not the
+/// seed's own (the import's, the seed's two faces' run) can hand a
+/// `below` past this `above`, and a reading taken at both still acts
+/// only where they agree.
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,

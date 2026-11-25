@@ -172,3 +172,7 @@ This design was weighed by two designers and a further designer (`work/offer/log
 - the `[one-way.places]` sentence is signed;
 - Assert ships first, and "make these one variable" follows directly after;
 - a typed act that has no door in this viewer is said in plain words.
+
+## For the offers unit (2026-11-22, from PR #7348's review)
+
+`SessionOp::AddAssertion`'s `AssertedSeat::Read(Operand)` admits any operand. A seat built from a finding's raw `NamedCell` name, `Operand::select(input, [name])`, is accepted at the door and then fails at evaluation (`SelectResolve{Vanished}`). The finding's names are keyed by ⊔ (`at_rest::keyed_by`), so the document gains a broken assertion. The offers unit must therefore fill the op from the kernel-minted value only, and that value comes from `a-check-offers-no-way-to-add-the-assertion-it-asks-for`. The unit should also decide whether the op takes that value directly, which would rule out a hand-built read by type.

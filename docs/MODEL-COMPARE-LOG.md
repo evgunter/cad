@@ -47,3 +47,10 @@ readouts' rulings and the close.
   model was recorded and excluded from the counts (rule 8). The first
   instance prompted it: EXPORT's sitting of 2026-11-17, while the limit
   was exhausted until 2026-11-21 15:00 UTC. Ev said to proceed there.
+- **An Opus-only sitting (Ev, in-chat, 2026-11-22, VSEAM).** Ev said
+  that everything in VSEAM's sitting of 2026-11-22 runs on Opus, with
+  two Opus reviewers or designers where a unit warrants two. That is
+  not a Fable outage, but it has the same effect on the population, so
+  it is handled as rule 12 handles an outage: no draws are taken, and
+  no row is recorded for a unit with an agent dispatched in that
+  sitting.

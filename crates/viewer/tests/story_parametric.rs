@@ -10,8 +10,7 @@
 //! a taken name, `SetVariable` refuses an absent variable — both in the
 //! edit door's words),
 //! expressions driving slots (`SetSlotExpression`) and the
-//! refuse-with-affordance on a numeric write to a driven slot (G4
-//! rules it for a drag; the write follows the same rule), display
+//! refuse-with-affordance on a drag over a driven slot (G4), display
 //! units as a separate door from values (`SetSlotUnit`), slider
 //! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a
@@ -425,16 +424,14 @@ fn the_parametric_living_walk() {
         "every row green: {rows:?}"
     );
 
-    // ── 7. Living in it, first touch: a direct number onto the
-    // tower's driven distance refuses with G4's affordance (ruled for
-    // a drag, applied here to a typed write) —
+    // ── 7. Living in it, first touch: a drag on the tower's driven
+    // distance refuses with G4's affordance —
     // the typed payload names the driving variable and the value the
     // slot has today, and the refusal commits nothing.
     let before = session.history().len();
-    let outcome = session.perform(SessionOp::SetSlot {
+    let outcome = session.perform(SessionOp::BeginGesture {
         node: tower,
         slot: SlotId::Distance,
-        value: SlotValue::Continuous(0.1),
     });
     match outcome.refusal {
         Some(Refusal::DrivenByExpression {
@@ -465,7 +462,7 @@ fn the_parametric_living_walk() {
     // ── 8. About to move `taper`, the user asks how far it can go.
     // The probe targets the VARIABLE, and on a driven slot it must:
     // the probe refuses an expression-driven slot with the same
-    // affordance the numeric write above got, which names the
+    // affordance the drag above got, which names the
     // variable to ask about instead. The probe is explicit, commits
     // nothing,
     // and answers in the session: below, a wall exists (a drum's radius hits zero before

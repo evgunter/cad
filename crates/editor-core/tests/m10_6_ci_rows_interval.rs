@@ -782,6 +782,13 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// of the two it was.
 ///
 /// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when the least turn lost
+/// its identity shortcut and its Rodrigues arm changed spelling: a chart
+/// whose two directions are one decides its pole verdict and
+/// conditioning like any other, and a generic turn's rounding moved, so
+/// the vector's contents moved.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
 /// (`dropped=1` held, `plain_distance` unmoved), when a placement whose
 /// bundle reads a variable came to run its map at the nominal (C-5
 /// narrowed, the orchestrator's ruling): the neck's placed copy is no

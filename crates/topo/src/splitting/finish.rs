@@ -55,6 +55,8 @@
 //! as a ring of the section face of its side containing it
 //! (`nest_slit`), so that side carries each edge as two coincident
 //! distinct edges of a zero-area ring (`crates/topo/README.md`, tier 3).
+//! Every slit's two edges, an area polygon's or a trace's, straight or
+//! curved, are recorded on their side ([`Sides::minted_contacts`]).
 //!
 //! # Maximal faces (F7)
 //!
@@ -158,30 +160,70 @@ mod raw {
         pub(in crate::splitting) below: RawPart<T>,
         pub(in crate::splitting) naming: SplitNaming,
         coincidences: Vec<crate::Coincidence>,
+        mints: super::PlaneMints,
     }
 
     impl<T: Real> RawSplit<T> {
-        /// The split's two sides and naming, recording `rows`.
+        /// The split's two sides and naming, recording `rows`, and the
+        /// coincident edge pairs its slits minted, each citing its row
+        /// there.
         pub(in crate::splitting) fn from_reduction(
             rows: ReducedRows,
             (above, below): (RawPart<T>, RawPart<T>),
             naming: SplitNaming,
+            coincident: Vec<super::Coincident>,
         ) -> Self {
             Self {
                 above,
                 below,
                 naming,
-                coincidences: rows.0,
+                coincidences: rows.rows,
+                mints: super::PlaneMints {
+                    coincident,
+                    on_lines: rows.on_lines,
+                },
             }
         }
 
-        /// Its sides, naming and record.
+        /// Its sides, naming, record and what it minted on the plane.
         pub(in crate::splitting) fn into_parts(
             self,
-        ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
-            (self.above, self.below, self.naming, self.coincidences)
+        ) -> (
+            RawPart<T>,
+            RawPart<T>,
+            SplitNaming,
+            Vec<crate::Coincidence>,
+            super::PlaneMints,
+        ) {
+            (
+                self.above,
+                self.below,
+                self.naming,
+                self.coincidences,
+                self.mints,
+            )
         }
     }
+}
+
+/// **What the split minted on the plane that its records state**: its
+/// slits' coincident edge pairs, and the operand's line edges lying in
+/// the plane, along which a pinch's two copies run
+/// ([`Sides::minted_contacts`]).
+#[derive(Debug)]
+pub(in crate::splitting) struct PlaneMints {
+    pub(in crate::splitting) coincident: Vec<Coincident>,
+    pub(in crate::splitting) on_lines: Vec<super::OnLine>,
+}
+
+/// **Two coincident edges the split minted** (a slit's,
+/// [`super::join::CoincidentPair`]), in the scratch body's keys, which
+/// its sides keep, and the row of the operand edge ON the plane they lie
+/// over ([`super::ReducedRows::edge_on`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::splitting) struct Coincident {
+    pub(in crate::splitting) edges: [EdgeKey; 2],
+    pub(in crate::splitting) row: u32,
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -195,8 +237,9 @@ pub struct SplitResult<T: crate::props::AtRestPolicy> {
     /// wiring facts the naming layer consumes — never reconstructed
     /// by post-hoc inspection.
     pub naming: SplitNaming,
-    /// The coincidences the split decided from values (its pinches), in
-    /// the operand's keys ([`crate::coincidence`]).
+    /// The coincidences the split decided from values (its pinches, and
+    /// the operand edges ON the plane its slits lie over), in the
+    /// operand's keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
 }
 
@@ -223,18 +266,14 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
     /// **`records`, the operand's, carried onto the two sides** through
     /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at
     /// `band` through `region`), each side's records citing the
-    /// operand's, **a record the cut parts across the cut retired**: a
-    /// record whose two cells the cut puts on different sides, each cell
-    /// with an image on the cut, is a touch between the two sides, as
-    /// their meeting across the cut is, and no one side's records state
-    /// it. An image is on the cut where it is a face its side holds of
-    /// the plane ([`SplitNaming::plane_pieces`]) or a cell bounding one.
+    /// operand's. A record the cut parts, each cell reaching the cut by a
+    /// vertex the split decided on it, is consumed by the carry: it is a
+    /// meeting between the two sides across the cut, which no one side's
+    /// records state.
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through`];
-    /// [`CarryRefusal::Parted`] for a parted record a cell of which has
-    /// no image on the cut.
+    /// As [`crate::ContactRecords::carried_through`].
     pub(in crate::splitting) fn carried_across(
         &self,
         records: &crate::boolean::ContactRecords,
@@ -243,40 +282,7 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides = self.listed();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let mut parted = Vec::new();
-        let lists =
-            records.carried_onto(0, &self.lineage(), &bodies, band, region, Some(&mut parted))?;
-        let pieces: Vec<Vec<FaceKey>> = sides
-            .iter()
-            .map(|&(side, body)| self.naming.plane_pieces(side, body).faces)
-            .collect();
-        let on_cut = |s: usize, cell: Cell| {
-            let body = sides[s].1;
-            let piece = |f: FaceKey| pieces[s].contains(&f);
-            match cell {
-                Cell::Face(f) => piece(f),
-                Cell::Edge(e) => body.get_edge(e).is_some_and(|edge| {
-                    [edge.he_plus, edge.he_minus]
-                        .into_iter()
-                        .filter_map(|he| body.face_of_half_edge(he))
-                        .any(piece)
-                }),
-                Cell::Vertex(v) => body
-                    .faces_of_vertex(v)
-                    .is_some_and(|faces| faces.into_iter().any(piece)),
-            }
-        };
-        for parting in parted {
-            if !parting
-                .held
-                .iter()
-                .all(|held| held.iter().any(|&(s, c)| on_cut(s, c)))
-            {
-                return Err(CarryRefusal::Parted {
-                    record: parting.record,
-                });
-            }
-        }
+        let lists = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(lists) {
             match side {
@@ -289,6 +295,93 @@ impl<T: crate::props::AtRestPolicy> Sides<'_, T> {
 }
 
 impl<'a, T: Real> Sides<'a, T> {
+    /// **The records of the coincident edge pairs the split minted**
+    /// (`coincident`, a slit's two edges over an operand edge ON the
+    /// plane): on the side that holds both, each edge read through that
+    /// side's joins, an edge–edge record citing the row of the edge they
+    /// lie over. A pair a side's coplanar merge killed an edge of is no
+    /// pair there. And a pinch's: two line edges of one side on the
+    /// segment of an operand line edge lying in the plane, the two
+    /// pieces' copies of it, recorded citing that edge's row, added to
+    /// `rows` where no slit cited it.
+    ///
+    /// # Errors
+    ///
+    /// [`FinishDesync::CoincidentUnheld`] for a pair no side holds.
+    pub(in crate::splitting) fn minted_contacts(
+        &self,
+        PlaneMints {
+            coincident,
+            on_lines,
+        }: &PlaneMints,
+        rows: &mut Vec<crate::Coincidence>,
+    ) -> Result<SplitContacts, FinishDesync> {
+        let mut out = SplitContacts::default();
+        for (side, body) in self.listed() {
+            for pair in crate::census::shared_segments(body) {
+                let [a, b] = pair.edges;
+                let key = crate::census::edge_segment_key(body, a);
+                let Some(line) = on_lines.iter().find(|l| l.segment == key) else {
+                    continue;
+                };
+                let row = super::split_on_row(rows, line.edge, line.margin);
+                let record = crate::boolean::records::decided_edge_pair(body, [a, b], row)
+                    .ok_or(FinishDesync::CoincidentOneCell { edges: [a, b] })?;
+                let list = match side {
+                    PlaneSide::Above => &mut out.above,
+                    _ => &mut out.below,
+                };
+                list.push(record);
+            }
+        }
+        for pair in coincident {
+            let mut held = false;
+            for (side, body) in self.listed() {
+                // Each edge as the side's joins, in the order made, leave it:
+                // the twin of `boolean::edge_join::joined_edge`, folded here
+                // over the side's own joins, since the engine pin
+                // (`[topo.homes]`) keeps the split from naming the boolean's
+                // join type to call it. A change to one is owed the other.
+                let [a, b] = pair.edges.map(|e| {
+                    self.naming
+                        .edge_joins
+                        .iter()
+                        .filter(|&&(s, _)| s == side)
+                        .fold(e, |at, (_, j)| if j.gone == at { j.kept } else { at })
+                });
+                // A coplanar merge kills only an edge between two faces of
+                // one plane, and a slit's edge bounds a face of the cut and
+                // a wall leaving the plane: one the merge killed leaves its
+                // partner on the merged face's line, a touch no record
+                // states, so it refuses rather than drop the pair.
+                let merged = |e: EdgeKey| {
+                    self.naming
+                        .merge_groups
+                        .iter()
+                        .any(|(s, g)| *s == side && g.killed_edges.contains(&e))
+                };
+                if merged(a) || merged(b) {
+                    return Err(FinishDesync::CoincidentMerged { edges: pair.edges });
+                }
+                if body.get_edge(a).is_none() || body.get_edge(b).is_none() {
+                    continue;
+                }
+                let record = crate::boolean::records::decided_edge_pair(body, [a, b], pair.row)
+                    .ok_or(FinishDesync::CoincidentOneCell { edges: pair.edges })?;
+                let list = match side {
+                    PlaneSide::Above => &mut out.above,
+                    _ => &mut out.below,
+                };
+                list.push(record);
+                held = true;
+            }
+            if !held {
+                return Err(FinishDesync::CoincidentUnheld { edges: pair.edges });
+            }
+        }
+        Ok(out)
+    }
+
     /// The sides that hold material, each with its body.
     fn listed(&self) -> Vec<(PlaneSide, &'a Body<T>)> {
         [
@@ -322,7 +415,7 @@ impl<'a, T: Real> Sides<'a, T> {
             .through_fusions(&self.naming.vertex_fusions)
             .through_merges(merged)
             .through_joins(&joins)
-            .one_cut();
+            .one_cut(self.naming.on_the_cut());
         let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
         for &(copy, original) in &self.naming.vertex_pairs {
             match copies.iter_mut().find(|(o, _)| *o == original) {
@@ -497,6 +590,10 @@ pub struct SplitNaming {
     /// held by the vertex that survives it, a copy as well as an
     /// original ([`Self::vertex_pairs`]).
     pub vertex_fusions: crate::lineage::Fusions,
+    /// The vertices the split decided on the plane: the operand vertices
+    /// it decided ON and the crossings and tangencies it minted there
+    /// ([`super::SplitReduction::on_vertices`]), in discovery order.
+    pub on_vertices: Vec<crate::entity::VertexKey>,
 }
 
 /// A side's faces that hold part of the tool plane
@@ -518,6 +615,26 @@ pub struct PlanePieces {
 }
 
 impl SplitNaming {
+    /// **The split's ON set**: [`Self::on_vertices`] and every copy of
+    /// one a null edge made ([`Self::vertex_pairs`]), the vertices by
+    /// which a cell reaches the cut ([`crate::Lineage::on_the_cut`]).
+    #[must_use]
+    pub fn on_the_cut(&self) -> std::collections::BTreeSet<crate::entity::VertexKey> {
+        let mut on: std::collections::BTreeSet<_> = self.on_vertices.iter().copied().collect();
+        loop {
+            let copies: Vec<_> = self
+                .vertex_pairs
+                .iter()
+                .filter(|(copy, original)| on.contains(original) && !on.contains(copy))
+                .map(|&(copy, _)| copy)
+                .collect();
+            if copies.is_empty() {
+                return on;
+            }
+            on.extend(copies);
+        }
+    }
+
     /// **The operand vertex `v` stands for**: `v` itself, or the end of
     /// its chain of null-pair rows ([`Self::vertex_pairs`]), a copy of a
     /// copy chased to the original.
@@ -752,6 +869,7 @@ impl Default for SplitNaming {
             merge_skipped: Default::default(),
             islands: Default::default(),
             vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
+            on_vertices: Default::default(),
         }
     }
 }
@@ -799,6 +917,24 @@ pub enum FinishDesync {
         /// How many it holds.
         solids: usize,
     },
+    /// No side holds both of a slit's two coincident edges, each read
+    /// through the joins its side ended with.
+    CoincidentUnheld {
+        /// The two edges, in the scratch body's keys.
+        edges: [EdgeKey; 2],
+    },
+    /// A side's coplanar merge killed an edge of a slit's coincident
+    /// pair, which bounds a face of the cut and a wall leaving the plane.
+    CoincidentMerged {
+        /// The two edges, in the scratch body's keys.
+        edges: [EdgeKey; 2],
+    },
+    /// A coincident pair the split minted is one edge on its side, read
+    /// through the side's joins.
+    CoincidentOneCell {
+        /// The two edges, in the side's keys.
+        edges: [EdgeKey; 2],
+    },
 }
 
 impl core::fmt::Display for FinishDesync {
@@ -833,6 +969,18 @@ impl core::fmt::Display for FinishDesync {
                 f,
                 "the body being cut holds {solids} solids where its shells were filed \
                  under one"
+            ),
+            Self::CoincidentUnheld { edges } => write!(
+                f,
+                "no side of the cut holds both of the slit's coincident edges {edges:?}"
+            ),
+            Self::CoincidentMerged { edges } => write!(
+                f,
+                "a merge of coplanar faces killed one of the slit's coincident edges {edges:?}"
+            ),
+            Self::CoincidentOneCell { edges } => write!(
+                f,
+                "the cut's coincident edges {edges:?} are one edge on their side"
             ),
         }
     }
@@ -991,6 +1139,15 @@ pub enum SplitFinishError {
         /// the island's plane piece (in its side's body).
         hole: FaceKey,
     },
+    /// An arc of the operand a slit runs over, read in the plane by its
+    /// ends' neighbourhoods, whose carrier the crossing reading did not
+    /// read lying in the plane (`Pose::Lies`): a window at an end, or a
+    /// touch. The slit's record would cite no decision that puts the arc
+    /// there, so the split refuses rather than read the arc's ends for it.
+    ArcNotReadInPlane {
+        /// The arc (in the operand's keys).
+        edge: EdgeKey,
+    },
     /// A slit trace's slit, read definitely, lies in no section region of
     /// its side: no outline holds a vertex of it, or the innermost one
     /// that does has it in a hole (`in_hole`), whether a ring of its own
@@ -1108,7 +1265,10 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     .map(drop)
     .map_err(|refusal| {
         let edge = match &refusal {
-            EulerOpError::RechartFalsifies { edge, .. } => *edge,
+            EulerOpError::DescriptionUncertified {
+                edge: crate::EdgeSubject::Keyed(edge),
+                ..
+            } => *edge,
             _ => return refusal.into(),
         };
         let carrier = restated
@@ -1311,6 +1471,13 @@ impl SplitFinishError {
                 )?;
                 defect_ended(f, at)
             }
+            Self::ArcNotReadInPlane { .. } => write!(
+                f,
+                "an arc lying in the cut, which the material across it wraps, was not read \
+                 lying in the plane along its whole span, so the two edges the cut leaves \
+                 along it have no decision to record. Recourse: {}",
+                super::SPLIT_COINCIDENCE_RECOURSE
+            ),
             Self::SlitHoming { error, .. } => error.render_as(
                 f,
                 "placing a slit an edge in the cut leaves",
@@ -1396,7 +1563,29 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
-    let rows = red.coincidences;
+    let mut rows = red.coincidences;
+    // A tree edge's end is a copy a null edge made of the operand vertex
+    // the vertex sweep decided ON, or that vertex.
+    let original = |mut v: VertexKey| {
+        while let Some(r) = red
+            .null_edges
+            .iter()
+            .find(|r| r.at_vertex != v && r.attr.copy_at(r.at_vertex) == Some(v))
+        {
+            v = r.at_vertex;
+        }
+        v
+    };
+    let coincident: Vec<Coincident> = completed
+        .iter()
+        .flat_map(|section| &section.coincident)
+        .map(|pair| {
+            Ok(Coincident {
+                edges: pair.edges,
+                row: rows.edge_on(pair.on, pair.ends.map(original), pair.line)?,
+            })
+        })
+        .collect::<Result<_, SplitFinishError>>()?;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = operand_solid(&body)?;
@@ -1413,7 +1602,11 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         return Ok(RawSplit::from_reduction(
             rows,
             sides,
-            SplitNaming::default(),
+            SplitNaming {
+                on_vertices: red.on_vertices.clone(),
+                ..SplitNaming::default()
+            },
+            coincident,
         ));
     }
     let mut naming = SplitNaming {
@@ -1436,6 +1629,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
         islands: Vec::new(),
+        on_vertices: red.on_vertices.clone(),
         vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
     };
 
@@ -1634,6 +1828,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         rows,
         (RawPart::Body(above), RawPart::Body(below)),
         naming,
+        coincident,
     ))
 }
 
@@ -2881,7 +3076,7 @@ mod edge_on_faces_rows {
 
     use super::{SplitFinishError, of_attachment};
     use crate::entity::EdgeKey;
-    use crate::euler::{EulerOpError, RechartDoor};
+    use crate::euler::EulerOpError;
     use crate::geometry::SurfaceKey;
 
     /// **A section-boundary line chord's residual read in band is the
@@ -2908,15 +3103,9 @@ mod edge_on_faces_rows {
             sample: 8,
             cause: in_band(predicate),
         };
-        let at_both_doors = |error: CertifyError| {
-            [
-                EulerOpError::Certification { error },
-                EulerOpError::RechartFalsifies {
-                    door: RechartDoor::SetFaceSurfacesDescribing,
-                    edge,
-                    error,
-                },
-            ]
+        let keyed_or_minted = |error: CertifyError| {
+            [crate::EdgeSubject::Keyed(edge), crate::EdgeSubject::Minted]
+                .map(|edge| EulerOpError::DescriptionUncertified { edge, error })
         };
         for (check, predicate) in [
             (
@@ -2925,7 +3114,7 @@ mod edge_on_faces_rows {
             ),
             (CertCheck::ChartResidual, "pcurve_map_residual"),
         ] {
-            for refusal in at_both_doors(escalated(check, predicate)) {
+            for refusal in keyed_or_minted(escalated(check, predicate)) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(
@@ -2974,7 +3163,7 @@ mod edge_on_faces_rows {
             escalated(CertCheck::Transversality, "dihedral_wedge"),
         ];
         for error in kernels {
-            for refusal in at_both_doors(error) {
+            for refusal in keyed_or_minted(error) {
                 let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),
@@ -3289,6 +3478,7 @@ mod desync_rows {
             above_loop: seed.r#loop,
             below_loop,
             kind: SectionKind::Area { slit: Vec::new() },
+            coincident: Vec::new(),
         };
         let lone = below_chord_frame(&body, &section(seed.r#loop), normal);
         assert!(
@@ -3369,6 +3559,82 @@ mod desync_rows {
         assert!(
             empty.contains("Recourse:") && !empty.contains(defect_ending(Reading::Build)),
             "an empty operand is the caller's: {empty}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod parted_on_the_cut {
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{RawPart, Sides};
+    use crate::body::Body;
+
+    /// **A record the cut parts is consumed only where each cell reaches
+    /// the cut** (`crates/topo/README.md`, the carry). Two bricks united
+    /// along the line `(1, 1, z)`, their pinch's vertex-pair record, split
+    /// by `x = 1`, which puts a brick on each side: carried through the
+    /// split's lineage, the record is consumed, its two cells on vertices
+    /// the split decided ON. The same carry with the ON set emptied, a
+    /// lineage defect, refuses it `Parted`. Red on a carry that consumes
+    /// every parted record, or none.
+    #[test]
+    fn a_parted_record_is_consumed_only_on_the_cut() {
+        let tol = Tol::witness();
+        let brick = |x, y| {
+            crate::test_support::finished(
+                "a brick",
+                crate::test_support_fixtures::brick::<f64>(x, y, (0.0, 1.0), tol),
+                tol,
+            )
+        };
+        let crate::BooleanResult::Body(pinch) = crate::union(
+            &brick((0.0, 1.0), (0.0, 1.0)),
+            &brick((1.0, 2.0), (1.0, 2.0)),
+            tol,
+        )
+        .unwrap() else {
+            panic!("the pinch is empty");
+        };
+        let records = crate::FinishedBody::records(&pinch.body).clone();
+        assert!(!records.is_empty(), "the pinch holds its record");
+        let mut operand = Body::clone(&pinch.body);
+        operand.merge_all_solids().unwrap();
+        let plane = crate::test_support::split_plane(
+            Point3::new(1.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            tol,
+        );
+        let (above, below, mut naming, ..) = super::super::split_direct(&operand, &plane, tol)
+            .unwrap()
+            .into_parts();
+        let body = |p: RawPart<f64>| match p {
+            RawPart::Body(b) => b,
+            RawPart::Empty => panic!("a brick lies on each side"),
+        };
+        let (above, below) = (body(above), body(below));
+        let band = geom_core::Band::linear(tol).unwrap();
+        let carry = |naming: &super::SplitNaming| {
+            Sides {
+                above: Some(&above),
+                below: Some(&below),
+                naming,
+            }
+            .carried_across(&records, band, None)
+        };
+        let on = carry(&naming).expect("the record parted on the cut is consumed");
+        assert!(
+            on.above.is_empty() && on.below.is_empty(),
+            "neither side carries the parted record: {on:?}"
+        );
+        naming.on_vertices.clear();
+        assert!(
+            matches!(
+                carry(&naming),
+                Err(crate::CarryRefusal::Parted { record: 0 })
+            ),
+            "with no vertex on the cut the parted record refuses"
         );
     }
 }

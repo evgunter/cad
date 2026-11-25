@@ -549,8 +549,8 @@ impl BlendTool {
     /// about a split it answers both halves, about a pattern every
     /// instance. Loading that unnarrowed broke this tool's own
     /// one-target rule from the inside — the panel counted 24 edges
-    /// where the picture drew 12, and no `denotes_body` gate applies
-    /// here because that gate is the COMMIT door's.
+    /// where the picture drew 12, and no body-seat gate applies here
+    /// because that gate (`crate::session::admits`) is the COMMIT door's.
     ///
     /// So the door's answer is intersected with the names the index
     /// draws for `(node, body)` — the same narrowing a single
@@ -708,10 +708,12 @@ impl BlendTool {
     /// The membership test is the target NODE's edge names
     /// (`all_edges`), not the drawn body's: a name that survived on
     /// another body of a multi-body node is therefore not flagged
-    /// here. That gap cannot reach a document — the commit door admits
-    /// only single-body targets (`crate::combine::denotes_body`) — and
-    /// closing it would need the pick index, which the survival step
-    /// runs before this frame's is built.
+    /// here. The commit door admits one such target: a pattern, a
+    /// family the body gate takes as a body (`crate::session::admits`),
+    /// whose name table covers every member
+    /// (`work/chrome/blend-reconcile-says-the-commit-door-admits-only-single-body-targets.md`).
+    /// Closing the gap would need the pick index, which the survival
+    /// step runs before this frame's is built.
     ///
     /// The id-reuse hazard it does not cover is the one
     /// [`crate::seats`] states for every tool holding a

@@ -271,7 +271,7 @@ pub(super) fn edge_face<T: Decide>(
                 _ => Touch::Apart,
             },
             Pose::Apart | Pose::Isolated(_) => Touch::Apart,
-            Pose::Lies => {
+            Pose::Lies(_) => {
                 errors.push(refused(
                     subject,
                     "an edge lying on a face's carrier away from a conventional vertex: the \

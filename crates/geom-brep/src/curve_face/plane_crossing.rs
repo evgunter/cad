@@ -36,8 +36,8 @@ pub enum PlaneCrossingLane<T> {
 pub enum ConicPlaneMeet<T> {
     /// The conic lies in the plane: its plane parallel to the query
     /// plane, at an offset the pose read in the zero band all round
-    /// ([`super::pose::Pose::Lies`]).
-    InPlane,
+    /// ([`super::pose::Pose::Lies`]), at that reading's margin.
+    InPlane(geom_core::MarginDiag),
     /// The carrier definitely never meets the plane, wholly on one side
     /// or parallel to it off it.
     Miss,
@@ -156,7 +156,7 @@ fn conic_plane_meet<T: Decide>(
 ) -> ConicPlaneMeet<T> {
     use super::pose::{Formed, Pose, PoseRefusal, PoseRung};
     let roots = match super::pose::plane_conic(span, conic, plane, band) {
-        Ok(Pose::Lies) => return ConicPlaneMeet::InPlane,
+        Ok(Pose::Lies(margin)) => return ConicPlaneMeet::InPlane(margin),
         Ok(Pose::Apart) => return ConicPlaneMeet::Miss,
         Ok(Pose::Tangent(touch)) => vec![touch.at],
         Ok(Pose::Isolated(super::pose::Form(Formed::PlaneConic { roots }))) => roots.to_vec(),
@@ -444,7 +444,7 @@ mod tests {
         let c = circle();
         let plane_z = |z: f64| (Point3::new(0.3, -0.2, z), Vec3::unit_z());
         match on_plane(&c, 0.1, 6.0, &plane_z(0.0), band()) {
-            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => {}
+            PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane(_)) => {}
             other => panic!("in the plane: expected the in-plane arm, got {other:?}"),
         }
         // Wholly on one side, the conic misses before its tilt is read.
@@ -673,7 +673,7 @@ mod tests {
             "parallel off the plane: {off:?}"
         );
         let on = parallel(0.25 * band().zero());
-        assert!(matches!(on, Pose::Lies), "in the plane: {on:?}");
+        assert!(matches!(on, Pose::Lies(_)), "in the plane: {on:?}");
     }
 
     /// **A line clear of a plane is apart whatever its drift reads.** A

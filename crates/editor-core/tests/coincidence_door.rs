@@ -669,7 +669,9 @@ fn a_split_through_a_vertex_that_only_cuts_records_nothing() {
 /// **A split through a pinch records it** (§11 row 6's first half): the
 /// notched prism's tip `(4, 1)` has both neighbours above `y = 1`, so the
 /// split leaves two pieces touching there, one row per tip vertex, each
-/// the operand vertex the split's side verdict read ON the tool.
+/// the operand vertex the split's side verdict read ON the tool, and one
+/// of the tip line between them, the operand edge the two pieces' copies
+/// lie along.
 #[test]
 fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
     let notched = [
@@ -685,22 +687,41 @@ fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
     ];
     let (_, ev, split) = split_prism("coincide-pinch", &notched, 1.0);
     let rows = rows(&ev, split);
-    assert_eq!(rows.len(), 2, "one row per tip vertex: {rows:?}");
+    assert_eq!(
+        rows.len(),
+        3,
+        "one row per tip vertex and the line: {rows:?}"
+    );
+    let kind = |row: &NamedCoincidence| match &row.cells[0] {
+        NamedCell::Entity { name, .. } => Some(name.kind),
+        _ => None,
+    };
     for row in &rows {
         assert_eq!(
             (row.relation, row.site),
             (Relation::OnCarrier, DecisionSite::SplitOn)
         );
         assert!(
-            matches!(
-                (&row.cells[0], &row.cells[1]),
-                (NamedCell::Entity { name, .. }, NamedCell::Tool { .. })
-                    if name.kind == EntityKind::Vertex
-            ),
-            "an operand vertex on the tool: {row:?}"
+            matches!(&row.cells[1], NamedCell::Tool { .. }),
+            "an operand cell on the tool: {row:?}"
         );
     }
-    assert_ne!(rows[0].cells[0], rows[1].cells[0], "the two tip vertices");
+    let vertices: Vec<_> = rows
+        .iter()
+        .filter(|r| kind(r) == Some(EntityKind::Vertex))
+        .collect();
+    assert_eq!(vertices.len(), 2, "two tip vertices: {rows:?}");
+    assert_ne!(
+        vertices[0].cells[0], vertices[1].cells[0],
+        "the two tip vertices"
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|r| kind(r) == Some(EntityKind::Edge))
+            .count(),
+        1,
+        "the tip line: {rows:?}"
+    );
 }
 
 /// **A pinch row's tool cell is the split's tool read, whatever pose
@@ -770,7 +791,11 @@ fn a_pinch_rows_tool_cell_is_the_tool_read_for_every_pose_tool() {
             "{shape}: the premise: the tool is a pose definition, no operation's output"
         );
         let rows = rows(&run(&doc), split);
-        assert_eq!(rows.len(), 2, "{shape}: one row per tip vertex: {rows:?}");
+        assert_eq!(
+            rows.len(),
+            3,
+            "{shape}: one row per tip vertex and one of the tip line: {rows:?}"
+        );
         for row in &rows {
             assert_eq!(
                 row.cells[1],
@@ -1442,11 +1467,12 @@ fn a_profile_junction_on_one_carrier_refuses_at_evaluation() {
         Some(editor_core::NodeErrorKind::ProfileReplay {
             loop_: 0,
             error:
-                profile::ReplayError {
-                    step: 2,
+                error @ profile::ReplayError {
                     kind: profile::ReplayErrorKind::Path(e),
+                    ..
                 },
-        }) if e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
+        }) if error.step() == 2
+            && e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
         other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
     }
 }
@@ -4250,7 +4276,8 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle(geom::Circle { frame, .. }) => {
+                            Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                                let frame = the_circle.frame();
                                 let (center, axis) = (frame.origin(), frame.axis());
                                 line_on(center, Some(axis))
                             }

@@ -16,7 +16,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenSpace, SpokenVar, VarId, VarName,
+    ProfileProgram, RecipeNodeId, SlotId, SlotKind, SpokenNode, SpokenSpace, SpokenVar, VarId,
+    VarKind, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -45,13 +46,12 @@ pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
-    /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set), or a split's half read by its port
+    /// output is a body, or a split's half read by its port
     /// ([`admits_read`]).
     Body,
     /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
     /// node evaluated once per value of the indices it reaches (D10
-    /// `[repetition]`), or one whose output is a `Bodies` variable.
+    /// `[repetition]`).
     Instances,
 }
 
@@ -67,22 +67,31 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
+///
+/// **A body is the edit door's own kind check**: the read a node named
+/// alone takes ([`Doc::read_of_node`]) is a `Body` variable
+/// ([`holds_body`]). A node of several outputs (a split's sides, a
+/// revolve's body beside its axis) has no such read. A family by
+/// repetition — a pattern, or a placement of one — defines a `Body`
+/// variable reaching an index, and the gate admits it. Evaluation then
+/// follows D10 `[repetition]`: an operation reading it is evaluated
+/// once per member, except `union`, `intersect` and `assemble`, which
+/// take the family whole. The answer is about the recipe, not one
+/// evaluation of it: what the read evaluates to under the current
+/// parameters, an empty boolean or a node's own refusal, is that
+/// node's result. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// holds the seat to the edit door, and
+/// `::the_body_seats_admissions_evaluate_as_bodies` to evaluation.
 pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
     let held = doc.node(node);
     match wanted {
-        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Body => holds_body(doc, doc.read_of_node(node)),
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
                     .node_reach(node)
                     .chain()
                     .is_some_and(|chain| !chain.is_empty())
-                || doc
-                    .read_of_node(node)
-                    .and_then(|read| doc.var(read))
-                    .is_some_and(|var| {
-                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-                    })
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
@@ -91,10 +100,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
 /// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
 /// node named alone, and for a port the kind of the variable it names
 /// (a split's half is a body), a family being, as [`admits`] reads it,
-/// a variable evaluated once per member or a `Bodies` one — the gate
-/// every body seat's commit asks of the read it holds.
+/// a variable evaluated once per member — the gate every body seat's
+/// commit asks of the read it holds.
 pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
-    use pncad::document::{SlotKind, VarKind};
     let var = match read {
         Operand::Node(node) => return admits(doc, *node, wanted),
         Operand::Output { node, port } => doc.output(*node, *port),
@@ -104,19 +112,23 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
-    let repeats = |var: pncad::document::VarId| {
-        doc.var_reach(var)
-            .chain()
-            .is_some_and(|chain| !chain.is_empty())
-    };
-    let kind = match wanted {
-        NodeKindWanted::Body => VarKind::Body,
-        NodeKindWanted::Instances if var.is_some_and(repeats) => return true,
-        NodeKindWanted::Instances => VarKind::Bodies,
-        NodeKindWanted::Profile => return false,
-    };
+    match wanted {
+        NodeKindWanted::Body => holds_body(doc, var),
+        NodeKindWanted::Instances => var.is_some_and(|var| {
+            doc.var_reach(var)
+                .chain()
+                .is_some_and(|chain| !chain.is_empty())
+        }),
+        NodeKindWanted::Profile => false,
+    }
+}
+
+/// **Whether `var` is a live `Body` variable**, by the edit door's own
+/// slot check (`SlotKind::admits`) — the one spelling of the body
+/// gate's kind test.
+fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
     var.and_then(|var| doc.var(var))
-        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a
@@ -260,9 +272,10 @@ fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt
 /// failure.
 #[derive(Debug)]
 pub enum Refusal {
-    /// The slot is driven by an expression, so a direct numeric edit
-    /// is refused with the affordance G4 ratifies for a drag, which
-    /// this layer extends to a typed write. The payload is what the
+    /// The slot is driven by an expression, so a drag over it is
+    /// refused with the affordance G4 ratifies, and so is a range probe
+    /// of it. A typed number is not refused: it replaces the expression
+    /// ([`crate::session::SessionOp::SetSlot`]). The payload is what the
     /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
     DrivenByExpression {
@@ -936,10 +949,10 @@ impl Refusal {
         };
         match current {
             Some(value) => format!(
-                "driven by {over} (currently {}) — edit the expression?",
+                "driven by {over} (currently {}) — edit the expression, or type a number over it",
                 props::computed_text(slot.expr_dimension(), value.as_f64(), notation)
             ),
-            None => format!("driven by {over} — edit the expression?"),
+            None => format!("driven by {over} — edit the expression, or type a number over it"),
         }
     }
 

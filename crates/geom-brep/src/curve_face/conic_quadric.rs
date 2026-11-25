@@ -173,7 +173,7 @@
 //! layer places it on the face's apex vertex, the carrier's incidence
 //! with it, which the vertex pair reads.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Rounded, Sign};
 
 use super::circle_roots::{CircleRoots, DoorRefusal, door_half_angle_roots, door_refusal};
 use crate::half_angle::{DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame};
@@ -301,7 +301,7 @@ pub fn conic_quadric_roots<T: Decide>(
         DoorRefusal::Invariant(what) => ConicQuadricRefusal::Invariant(what),
     };
     Ok(match pose {
-        Pose::Lies => Ok(CircleRoots::On(OnCarrier)),
+        Pose::Lies(_) => Ok(CircleRoots::On(OnCarrier)),
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
         Pose::Through(apex) => through_the_apex(&span, surface, apex, band).map(|found| {
@@ -599,8 +599,6 @@ pub(super) fn through_the_apex<T: Decide>(
     let two = T::from_f64(2.0);
     let mid = geom::mid_param(t0, t1);
     let near_mid = |theta: T| geom::conic_period().near(theta, mid);
-    // Past every bound: a reading no bound holds refuses.
-    let unbounded = T::from_f64(f64::INFINITY);
     let theta_a = apex.at;
     let spread_phi = apex.spread.1 - theta_a;
     let (k, r, (rc, rs), _) = deflated(&h, theta_a);
@@ -638,32 +636,10 @@ pub(super) fn through_the_apex<T: Decide>(
             theta,
         )
     };
-    let f = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        let (s2, c2) = (two * theta).sin_cos();
-        h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2
-    };
-    let slope = |theta: T| {
-        let (s, c) = theta.sin_cos();
-        let (s2, c2) = (two * theta).sin_cos();
-        h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2)
-    };
+    let f = |theta: T| deflated_reading(&h, noise, theta).0;
+    let slope = |theta: T| deflated_reading(&h, noise, theta).1;
     let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()
         + T::from_f64(4.0) * (h.c2.powi(2) + h.s2.powi(2)).sqrt();
-    let side = |res: geom_core::Rounded<T>| {
-        let clear = decide(
-            CONE_DEFLATED_SIDE,
-            Margin::of(res.value.abs() - res.error),
-            band,
-        );
-        match (
-            decide(CONE_DEFLATED_SIDE, Margin::of(res.value), band),
-            clear,
-        ) {
-            (Ok(sign @ (Sign::Positive | Sign::Negative)), Ok(Sign::Positive)) => Some(sign),
-            _ => None,
-        }
-    };
     let mut found = [theta_a; 2];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
@@ -676,15 +652,14 @@ pub(super) fn through_the_apex<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(Unsettled::AtApex),
         }
-        match (side(residual(theta - width)), side(residual(theta + width))) {
+        match (
+            side_past_rounding(residual(theta - width), band),
+            side_past_rounding(residual(theta + width), band),
+        ) {
             (Some(a), Some(b)) if a != b => {}
             _ => return Err(Unsettled::Tangency),
         }
-        let least = slope(theta).abs() - two * noise - width * bend;
-        let slack = least.select_le_zero(
-            unbounded,
-            conic.speed_hi() * (f(theta).abs() + noise) / least,
-        );
+        let slack = cone_root_slack(f(theta), slope(theta), width * bend, conic.speed_hi());
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[slot] = theta,
             Ok(Sign::Positive | Sign::Negative) | Err(_) => {
@@ -704,6 +679,50 @@ pub(super) fn through_the_apex<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(Unsettled::Tangency),
     }
     Ok(Roots::<T, 2>::all(found).widen())
+}
+
+/// **`F` and `F′` at `theta` off the rounded harmonics**, each with its
+/// rounding: `F` within `noise`, the bound on the harmonics' error
+/// everywhere, and `F′` within twice it, the derivative's coefficients
+/// being at most twice `F`'s (the second harmonic's turn).
+fn deflated_reading<T: Decide>(
+    h: &crate::ConicHarmonics<T>,
+    noise: T,
+    theta: T,
+) -> (Rounded<T>, Rounded<T>) {
+    let two = T::from_f64(2.0);
+    let (s, c) = theta.sin_cos();
+    let (s2, c2) = (two * theta).sin_cos();
+    (
+        Rounded {
+            value: h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2,
+            error: noise,
+        },
+        Rounded {
+            value: h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2),
+            error: two * noise,
+        },
+    )
+}
+
+/// The side a residual reads past its own rounding
+/// (`bool_conic_cone_deflated_side`), `None` where its rounding or the
+/// band holds it.
+fn side_past_rounding<T: Decide>(res: Rounded<T>, band: Band) -> Option<Sign> {
+    match decide(CONE_DEFLATED_SIDE, Margin::of(res.toward_zero()), band) {
+        Ok(sign @ (Sign::Positive | Sign::Negative)) => Some(sign),
+        _ => None,
+    }
+}
+
+/// **A deflated root's slack**, in metres at the carrier's top speed
+/// `speed`: how far from a root where `F` reads `f` the true root can
+/// lie, `|F|` at most `f`'s magnitude and `|F′|` at least the room of its
+/// reading `slope` less `drift`, its most change across the bracket.
+/// Past every bound where that least slope is not positive.
+fn cone_root_slack<T: Decide>(f: Rounded<T>, slope: Rounded<T>, drift: T, speed: T) -> T {
+    let least = slope.room() - drift;
+    least.select_le_zero(T::from_f64(f64::INFINITY), speed * f.magnitude() / least)
 }
 
 /// **The apex's spread** (module docs, "Through the apex"), in radians

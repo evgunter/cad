@@ -113,7 +113,7 @@ fn two_peg_plate_union_is_exactly_additive() {
     assert_eq!(counts.s, 1, "one shell");
     assert_eq!(counts.r, 0, "the flush peg ends merge into the top face");
     assert_eq!(
-        counts.genus(),
+        counts.h(),
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );
@@ -317,7 +317,7 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     assert_eq!(counts.s, 1, "one shell");
     assert_eq!(counts.r, 0, "no ring loops in the kissing rounds");
     assert_eq!(
-        counts.genus(),
+        counts.h(),
         Ok(0),
         "Euler–Poincaré of a genus-0 single shell"
     );

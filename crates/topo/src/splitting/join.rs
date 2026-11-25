@@ -93,6 +93,25 @@ pub(crate) struct CompletedSection {
     pub(crate) below_loop: LoopKey,
     /// Whether the polygon bounds area or is a slit trace.
     pub(crate) kind: SectionKind,
+    /// The coincident edge pairs its slits hold, in tree order.
+    pub(in crate::splitting) coincident: Vec<CoincidentPair>,
+}
+
+/// **Two coincident edges a slit holds** ([`Tree::slit`]): distinct
+/// edges over one edge of the operand lying in the plane, between copies
+/// of its vertices. The side holding them touches itself along them, so
+/// they are owed an edge–edge record, which cites the operand edge ON
+/// the plane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::splitting) struct CoincidentPair {
+    /// The operand's edge in the plane, in the operand's keys.
+    pub(in crate::splitting) on: EdgeKey,
+    /// Its two ends, in the operand's keys.
+    pub(in crate::splitting) ends: [crate::entity::VertexKey; 2],
+    /// Whether it is a line.
+    pub(in crate::splitting) line: bool,
+    /// The slit's two edges over it.
+    pub(in crate::splitting) edges: [EdgeKey; 2],
 }
 
 /// What a completed section polygon is, read from its topology before
@@ -103,7 +122,7 @@ pub(crate) enum SectionKind {
     /// `slit` is each loop's halves over the other's spurs
     /// ([`Sweep::strip_spurs`]), which lie inside the region.
     Area { slit: Vec<HalfEdgeKey> },
-    /// The trace of a tree of straight edges of the operand lying in the
+    /// The trace of a tree of edges of the operand lying in the
     /// plane, whose other side's material wraps round its every end.
     /// `strut` is the loop of the side that holds the tree, walking round
     /// it along each edge both ways, which bounds nothing on that side
@@ -965,8 +984,10 @@ impl<T: Decide> Sweep<T> {
             CutOutcome::Completed { face, ring } => {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
-                let kind = match self.section_kind(body, face, above_loop, below_loop)? {
-                    Shape::Slit { strut } => SectionKind::Slit { strut },
+                let (kind, coincident) = match self
+                    .section_kind(body, face, above_loop, below_loop)?
+                {
+                    Shape::Slit { strut, coincident } => (SectionKind::Slit { strut }, coincident),
                     Shape::Area { above, below } => {
                         self.certify_section_area(body, face, below_loop)?;
                         self.strip_spurs(body, face, [(above, above_loop), (below, below_loop)])?
@@ -984,6 +1005,7 @@ impl<T: Decide> Sweep<T> {
                     above_loop,
                     below_loop,
                     kind,
+                    coincident,
                 });
                 Ok(())
             }
@@ -1029,14 +1051,9 @@ impl<T: Decide> Sweep<T> {
     /// certified next ([`Self::certify_section_area`]), whose trees are
     /// spurs ([`Self::strip_spurs`]).
     ///
-    /// A tree with an edge that is not a line refuses: its slit would be
-    /// two coincident curved edges, which no contact record backs and
-    /// tier 3′ refuses
-    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
-    ///
     /// # Errors
     ///
-    /// [`JoinError::CurvedSlitTrace`]; corruption on a torn loop.
+    /// Corruption on a torn loop.
     ///
     /// # Panics
     ///
@@ -1055,20 +1072,21 @@ impl<T: Decide> Sweep<T> {
             (false, true) => (below_loop, below, above_loop),
             _ => return Ok(Shape::Area { above, below }),
         };
-        if tree.curved {
-            return Err(JoinError::CurvedSlitTrace { face });
-        }
-        let slit = tree.slit(body, face, slit_loop)?;
+        let coincident: Vec<CoincidentPair> = tree
+            .slit(body, face, slit_loop)?
+            .into_iter()
+            .map(|(pair, _)| pair)
+            .collect();
         let cycle = loop_halves(body, slit_loop)?;
-        if slit.len() != cycle.len() {
+        if 2 * coincident.len() != cycle.len() {
             unreachable!(
                 "section polygon {face:?}: loop {strut:?} walks round the tree {:?}, and its \
                  coincident loop {slit_loop:?} runs along {cycle:?}, more than the tree's slit \
-                 {slit:?}: the two loops of one trace trace one tree",
+                 {coincident:?}: the two loops of one trace trace one tree",
                 tree.edges
             );
         }
-        Ok(Shape::Slit { strut })
+        Ok(Shape::Slit { strut, coincident })
     }
 
     /// Certify the completed polygon's area definitely positive
@@ -1246,9 +1264,12 @@ impl<T: Decide> Sweep<T> {
         body: &mut Body<T>,
         face: FaceKey,
         [above, below]: [(Tree, LoopKey); 2],
-    ) -> Result<SectionKind, JoinError> {
-        let mut slit = above.0.slit(body, face, below.1)?;
-        slit.extend(below.0.slit(body, face, above.1)?);
+    ) -> Result<(SectionKind, Vec<CoincidentPair>), JoinError> {
+        let mut over = above.0.slit(body, face, below.1)?;
+        over.extend(below.0.slit(body, face, above.1)?);
+        let (coincident, halves): (Vec<CoincidentPair>, Vec<[HalfEdgeKey; 2]>) =
+            over.into_iter().unzip();
+        let mut slit: Vec<HalfEdgeKey> = halves.into_iter().flatten().collect();
         slit.extend(above.0.closed.iter().chain(&below.0.closed));
         let mut left: Vec<EdgeKey> = (above.0.edges.iter().chain(&below.0.edges))
             .map(|&(edge, _)| edge)
@@ -1267,14 +1288,18 @@ impl<T: Decide> Sweep<T> {
             body.kev(toward)?;
             left.remove(i);
         }
-        Ok(SectionKind::Area { slit })
+        Ok((SectionKind::Area { slit }, coincident))
     }
 }
 
 /// What [`Sweep::section_kind`] reads a completed polygon as.
 enum Shape {
-    /// A slit trace: the loop `strut` is a tree.
-    Slit { strut: LoopKey },
+    /// A slit trace: the loop `strut` is a tree, and `coincident` its
+    /// slit's pairs.
+    Slit {
+        strut: LoopKey,
+        coincident: Vec<CoincidentPair>,
+    },
     /// An area polygon, with its loops' trees.
     Area { above: Tree, below: Tree },
 }
@@ -1303,9 +1328,6 @@ struct Tree {
     closed: Vec<HalfEdgeKey>,
     /// Whether the tree is the whole loop.
     whole: bool,
-    /// Whether some edge of the tree, or a closed edge the loop runs out
-    /// and back, is not a line.
-    curved: bool,
 }
 
 impl Tree {
@@ -1322,7 +1344,6 @@ impl Tree {
             edges: Vec::new(),
             closed: Vec::new(),
             whole: image.half_edges.is_empty() && !cycle.is_empty(),
-            curved: false,
         };
         for &he in &cycle {
             if image.half_edges.contains(&he) {
@@ -1331,17 +1352,11 @@ impl Tree {
             let (edge, key) = edge_ends(body, he)?;
             if key[0] == key[1] {
                 tree.closed.push(he);
-                tree.curved = true;
                 continue;
             }
             if tree.edges.iter().any(|&(e, _)| e == edge) {
                 continue;
             }
-            let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-            tree.curved |= !matches!(
-                body.edge_curve_linked(edge, data),
-                CurveGeom::Certified(c) if !c.carrier().is_curved()
-            );
             tree.edges.push((edge, key));
         }
         Ok(tree)
@@ -1350,7 +1365,8 @@ impl Tree {
     /// **The tree's slit**: the halves of loop `l`, the polygon's other
     /// loop, over this tree, two distinct edges on each tree edge's
     /// segment by structure ([`crate::census::segment_key`]: copies of a
-    /// vertex share its point key), in the order of the tree's edges.
+    /// vertex share its point key), in the order of the tree's edges,
+    /// each pair with the tree edge it lies over.
     ///
     /// # Errors
     ///
@@ -1368,12 +1384,12 @@ impl Tree {
         body: &Body<T>,
         face: FaceKey,
         l: LoopKey,
-    ) -> Result<Vec<HalfEdgeKey>, JoinError> {
+    ) -> Result<Vec<(CoincidentPair, [HalfEdgeKey; 2])>, JoinError> {
         let mut halves = Vec::new();
         for he in loop_halves(body, l)? {
             halves.push((he, edge_ends(body, he)?));
         }
-        let mut slit = Vec::with_capacity(2 * self.edges.len());
+        let mut slit = Vec::with_capacity(self.edges.len());
         for &(edge, key) in &self.edges {
             let over: Vec<(HalfEdgeKey, (EdgeKey, [crate::PointKey; 2]))> = halves
                 .iter()
@@ -1381,7 +1397,16 @@ impl Tree {
                 .filter(|&(_, (_, k))| k == key)
                 .collect();
             match over.as_slice() {
-                [(a, (ea, _)), (b, (eb, _))] if ea != eb => slit.extend([*a, *b]),
+                [(a, (ea, _)), (b, (eb, _))] if ea != eb => {
+                    let (from, to) = body.edge_vertices(edge).ok_or_else(|| corrupt_edge(edge))?;
+                    let pair = CoincidentPair {
+                        on: edge,
+                        ends: [from, to],
+                        line: crate::census::edge_is_line(body, edge),
+                        edges: [*ea, *eb],
+                    };
+                    slit.push((pair, [*a, *b]));
+                }
                 _ => unreachable!(
                     "section polygon {face:?}: tree edge {edge:?} on segment {key:?} has \
                      {over:?} over it on the coincident loop {l:?}, not two distinct edges: \
@@ -1621,7 +1646,12 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: crate::splitting::ReducedRows(Vec::new()),
+                    coincidences: crate::splitting::ReducedRows {
+                        rows: Vec::new(),
+                        on_margins: SecondaryMap::new(),
+                        lies: std::collections::BTreeMap::new(),
+                        on_lines: Vec::new(),
+                    },
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

@@ -500,16 +500,12 @@ impl HeldStep {
         Ok(step)
     }
 
-    /// **`step` written over this step** — what a row's fields write
-    /// back. Every argument at a role this step also has keeps its
-    /// formula where the view did not move it: a literal whose value is
-    /// `step`'s, or an expression whose `reading` is (a driven field is
-    /// locked, so its number is the reading; with no reading, it is
-    /// kept). The view is a function of the formula, so a number it did
-    /// not move IS the argument as written. Every other argument is a
-    /// literal of `step`'s number, in the unit its field showed it in:
-    /// the unit the literal it replaces is written in, else the one
-    /// `noted` names for its role, else `notation`'s.
+    /// **`step` written over this step** — what a row's fields and
+    /// controls write back. An expression is always kept (only an entry
+    /// typed into its field writes over one), and so is a literal `step`
+    /// did not move; every other argument is a literal of `step`'s
+    /// number, in the unit the literal it replaces is written in, else
+    /// the one `noted` names for its role, else `notation`'s.
     ///
     /// # Errors
     ///
@@ -517,7 +513,6 @@ impl HeldStep {
     pub fn written(
         &self,
         step: Step<f64>,
-        reading: &dyn Fn(StepArg) -> Option<f64>,
         notation: Notation,
         noted: &dyn Fn(StepArg) -> Option<UnitDef>,
     ) -> Result<Self, RecordedProgramError> {
@@ -534,18 +529,16 @@ impl HeldStep {
         };
         let mut now = Self::fresh(step, notation, &shown)?.node();
         for slot in now.slots() {
-            let (SlotId::Profile { arg, .. }, Some(old)) = (slot, was.expr(slot)) else {
+            let (SlotId::Profile { .. }, Some(old)) = (slot, was.expr(slot)) else {
                 continue;
             };
             let Some(new) = now.expr_mut(slot) else {
                 unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
             };
-            let number = new.literal_value().map(f64::to_bits);
-            let unmoved = match old.literal_value() {
-                Some(value) => number == Some(value.to_bits()),
-                None => reading(arg).is_none_or(|value| number == Some(value.to_bits())),
-            };
-            if unmoved {
+            let kept = old
+                .literal_value()
+                .is_none_or(|value| new.literal_value().map(f64::to_bits) == Some(value.to_bits()));
+            if kept {
                 *new = old.clone();
             }
         }
@@ -1392,11 +1385,23 @@ impl Tell for PreviewError {
                 step,
                 rendered,
                 ..
-            } => write!(
-                f,
-                "loop {loop_} step {step}: {}",
-                rendered.told_in(notation)
-            ),
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                let names_its_step = rendered
+                    .told_in(notation)
+                    .to_string()
+                    .starts_with(&format!("step {step}'s "));
+                if names_its_step {
+                    write!(f, "loop {loop_}: {}", rendered.told_in(notation))
+                } else {
+                    write!(
+                        f,
+                        "loop {loop_} step {step}: {}",
+                        rendered.told_in(notation)
+                    )
+                }
+            }
         }
     }
 }
@@ -1540,19 +1545,22 @@ pub fn drawn(
         .iter()
         .filter_map(|replayed| replayed.as_ref().err())
         .flat_map(|refused| match &refused.kind {
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
-                corners, ..
-            }) => corners.iter().map(|c| c.at).collect(),
-            // The turn refusal names its corner where the door derived
-            // one before its turn gate (the arc door).
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerForFillet {
-                reason:
-                    PathNoCornerReason::TurnWithinTolerance {
-                        corner: Some(at), ..
-                    },
-                ..
-            }) => vec![*at],
-            _ => Vec::new(),
+            ReplayErrorKind::Path(source) => match source.refusal() {
+                pncad::profile::PathError::NoCornerOfPair { corners, .. } => {
+                    corners.iter().map(|c| c.at).collect()
+                }
+                // The turn refusal names its corner where the door
+                // derived one before its turn gate (the arc door).
+                pncad::profile::PathError::NoCornerForFillet {
+                    reason:
+                        PathNoCornerReason::TurnWithinTolerance {
+                            corner: Some(at), ..
+                        },
+                    ..
+                } => vec![*at],
+                _ => Vec::new(),
+            },
+            ReplayErrorKind::Transition { .. } => Vec::new(),
         })
         .collect();
     (
@@ -1651,7 +1659,7 @@ fn preview_replayed(
             Some(Err(close)) => Some(close),
             None => None,
         };
-        let drawn = prefix_loop(steps, error.step, tol).map(|prefix| {
+        let drawn = prefix_loop(steps, error.raised_at(), tol).map(|prefix| {
             let own_close = prefix.closes && prefix.steps == steps.len();
             let said = match &close {
                 Some(
@@ -1845,9 +1853,10 @@ fn loop_start(steps: &[Step<f64>]) -> Option<Point2<f64>> {
 ///    against a carrier nobody wrote.
 ///
 /// Walked back one step at a time because the tip a refusal leaves can
-/// be one no close may leave: a fused step's arc arrival is refused AT
+/// be one no close may leave: a fused step's arc arrival is refused by
 /// the binder that completes it, and the prefix up to that binder ends
-/// on an arrival no `line_to` completes.
+/// on an arrival no `line_to` completes. `stop` is the step that raised
+/// the refusal ([`ReplayError::raised_at`]), which the replay reached.
 fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<Prefix> {
     let start = loop_start(steps);
     (1..=stop.min(steps.len())).rev().find_map(|end| {
@@ -2026,7 +2035,7 @@ fn drawing(
         .iter()
         .map(|lp| {
             let arcs = lp.segments().iter().map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
             });
             flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
@@ -2110,11 +2119,10 @@ pub fn tip_state_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Option<TipState
     }
     match replay(prefix, tol) {
         Ok(_) => Some(TipState::Closed),
-        Err(ReplayError {
-            step,
-            kind: ReplayErrorKind::Transition { state, verb: None },
-        }) if step == at => Some(state),
-        Err(_) => None,
+        Err(e) => match e.kind {
+            ReplayErrorKind::Transition { state, verb: None } if e.raised_at() == at => Some(state),
+            _ => None,
+        },
     }
 }
 
@@ -2214,13 +2222,13 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
     match error.kind {
         ReplayErrorKind::Transition { state, verb } => PreviewError::Transition {
             loop_,
-            step: error.step,
+            step: error.step(),
             state,
             verb,
         },
         ReplayErrorKind::Path(ref source) => PreviewError::Geometry {
             loop_,
-            step: error.step,
+            step: error.step(),
             kind: source.kind(),
             rendered: pncad::geom_core::Sentence::new(source.clone()),
         },
@@ -2698,9 +2706,10 @@ mod tests {
 
     /// **A fused step refused at its binder draws the chain before the
     /// fused step.** `fillet_arc` with a radius arrival leaves the tip
-    /// an arrival awaiting its binders, and the refusal lands on the
-    /// second binder (step 5); neither prefix ending on that arrival
-    /// can be closed, so the walk back ends before the fused step.
+    /// an arrival awaiting its binders, and the second binder (step 5)
+    /// raises the refusal, which is the fused step's own (step 3);
+    /// neither prefix ending on that arrival can be closed, so the walk
+    /// back ends before the fused step.
     ///
     /// Red if [`super::prefix_loop`] tries only `steps[..k]`: the
     /// preview is then an `Err` and draws nothing.
@@ -2721,8 +2730,15 @@ mod tests {
         ]);
         let (drawn, refused) = refused_loop(vec![steps]);
         assert!(
-            matches!(refused, PreviewError::Geometry { step: 5, .. }),
-            "the fillet refuses at the binder that completes its arrival: {refused}"
+            matches!(
+                &refused,
+                PreviewError::Geometry { step: 3, rendered, .. }
+                    if rendered
+                        .to_string()
+                        .starts_with("step 3's fillet, not resolved at step 5: ")
+            ),
+            "the fillet refuses at its own step, raised by the binder that completes its \
+             arrival: {refused}"
         );
         assert_eq!(
             vertex_points(&drawn),
@@ -2969,8 +2985,8 @@ mod tests {
     /// A last leg onto the start point is drawn as the close it is and
     /// says the end-of-program refusal: only its spelling is
     /// unfinished. A pending fillet is not drawn against the close,
-    /// and the chain says the close's refusal, of the kind the kernel
-    /// gives it.
+    /// and the chain says the close's refusal of it, of the kind the
+    /// kernel gives it, at the fillet's step.
     ///
     /// Red if the chain draws nothing, draws more or fewer legs than
     /// were written, says another refusal, or says it loud.
@@ -2992,12 +3008,21 @@ mod tests {
                     verb: None,
                     ..
                 } if *step == steps.len() => None,
+                // The close's refusal of the pending fillet, at the
+                // fillet's step, naming the close, not a step number
+                // nobody wrote.
                 PreviewError::Geometry {
                     loop_: 0,
                     step,
                     kind,
-                    ..
-                } if *step == steps.len() => Some(*kind),
+                    rendered,
+                } if *step == steps.len() - 2
+                    && rendered.to_string().starts_with(&format!(
+                        "step {step}'s fillet, not resolved at the close: "
+                    )) =>
+                {
+                    Some(*kind)
+                }
                 other => panic!("{steps:?}: {other}"),
             };
             assert_eq!(said, fixture.said, "{steps:?}");

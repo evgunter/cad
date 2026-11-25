@@ -1206,7 +1206,7 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
         (counts.v, counts.e, counts.f, counts.r, counts.s),
         (22, 33, 13, 4, 1)
     );
-    assert_eq!(counts.genus(), Ok(2), "genus 2");
+    assert_eq!(counts.h(), Ok(2), "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
 }

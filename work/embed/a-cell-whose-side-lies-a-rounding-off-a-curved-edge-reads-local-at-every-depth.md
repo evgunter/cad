@@ -2,11 +2,13 @@
 id: a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth
 kind: issue
 title: A cell whose side lies a rounding off a curved edge it does not hold is read by no presentation at any depth, so the collinear-cap drum's own body runs out of depth at f64
-status: open
+status: dispatched
 opened: 2026-11-17
 priority: P0
 cost: M
 refs: [the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause]
+pr: 7113
+branch: embed/lune
 ---
 
 

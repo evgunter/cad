@@ -337,7 +337,10 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 /// Their verdicts are cached without re-measuring. Returns each piece a
 /// split minted with the edge it was split from, `(new edge,
 /// divided-from edge)` in mint order, each checked as it was minted
-/// ([`SplitReduceError::LineageRow`] where an earlier row names it).
+/// ([`SplitReduceError::LineageRow`] where an earlier row names it), and
+/// each edge the reading found lying in the plane with the margin that
+/// decided it (`Pose::Lies`), which the split's row of the edge carries
+/// (`super::edge_in_plane`).
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
@@ -347,7 +350,14 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
         &SecondaryMap<VertexKey, ()>,
     ),
     tol: Tol,
-) -> Result<crate::lineage::SplitEdgeDivisions, SplitReduceError> {
+) -> Result<
+    (
+        crate::lineage::SplitEdgeDivisions,
+        BTreeMap<crate::entity::EdgeKey, geom_core::MarginDiag>,
+    ),
+    SplitReduceError,
+> {
+    let mut lies = BTreeMap::new();
     let mut pieces =
         crate::lineage::SplitEdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(None));
     let band = geom_core::Band::linear(tol)?;
@@ -399,8 +409,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         let (roots, at_end) = match edge_roots(curve.carrier(), params, &surface, recorded, band) {
-            Ok(None) => continue,
-            Ok(Some(found)) => found,
+            Ok(Err(margin)) => {
+                lies.insert(edge_key, margin);
+                continue;
+            }
+            Ok(Ok(found)) => found,
             Err(fault) => return Err(refused(fault)),
         };
         // Sides decided opposite past the band: both offsets read off the
@@ -462,11 +475,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             target = created.new_edge;
         }
     }
-    Ok(pieces)
+    Ok((pieces, lies))
 }
 
 /// **An edge's meetings with the split plane** ([`insert_crossings`]):
-/// `None` where the carrier lies in the plane or is apart from it; else
+/// `Err` of the deciding margin where the carrier lies in the plane; else
 /// the parameters strictly inside the span, ascending, and whether a
 /// meeting sits at an end. With an end `recorded` on the plane, a
 /// placement window at an end (a root in band of it, or two roots in band
@@ -480,7 +493,7 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
     surface: &geom::Surface<T>,
     recorded: bool,
     band: Band,
-) -> Result<Option<(Vec<T>, bool)>, CrossWhy> {
+) -> Result<Result<(Vec<T>, bool), geom_core::MarginDiag>, CrossWhy> {
     let read = |meetings: Vec<geom_brep::curve_face::Meeting<T>>, at_end: bool| {
         let mut roots = Vec::new();
         let mut at_end = at_end;
@@ -490,13 +503,13 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
                 OnSpan::End(_) => at_end = true,
             }
         }
-        Some((roots, at_end))
+        Ok((roots, at_end))
     };
     match cross(&Span::new(carrier, params), surface, band) {
         Ok(found) => match found.pose {
-            Pose::Lies => Ok(None),
+            Pose::Lies(margin) => Ok(Err(margin)),
             // No meeting: sides decided opposite across it contradict it.
-            Pose::Apart => Ok(Some((Vec::new(), false))),
+            Pose::Apart => Ok(Ok((Vec::new(), false))),
             Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_) => {
                 Ok(read(found.meetings, false))
             }
@@ -534,7 +547,7 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
                 (CrossWhy::Pose(PoseRefusal::Enclosed), geom::Curve3::Nurbs(net)) => {
                     let door = geom_brep::curve_face::Door::SplineComposite;
                     match T::spline_face_crossings(net, params, surface, band) {
-                        Some(Ok(roots)) => Ok(Some((roots, false))),
+                        Some(Ok(roots)) => Ok(Ok((roots, false))),
                         Some(Err(refusal)) => Err(CrossWhy::Method {
                             door,
                             fault: composite_fault(refusal),

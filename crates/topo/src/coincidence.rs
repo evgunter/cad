@@ -183,9 +183,11 @@ pub enum DecisionSite {
     /// radius whose axes meet, cut by each other in the two
     /// bisector-plane ellipses.
     CrossingCylinders,
-    /// A split's ON verdict at a vertex whose neighbourhood leaves it
+    /// A split's ON verdict: at a vertex whose neighbourhood leaves it
     /// with two or more runs on one side, so pieces of one side touch
-    /// there.
+    /// there; or of an operand edge lying in the plane that a slit runs
+    /// over, read at its two ends' verdicts, so one side touches itself
+    /// along the slit's two edges.
     SplitOn,
     /// The blend battery's turn whose two bands' feet on its third edge
     /// are one point (`fillet3_turn_feet_gap` and
@@ -217,6 +219,13 @@ pub enum DecisionSite {
     /// rest (two copies, two imported instances) decided one, or two
     /// placed faces decided one carrier, opposed.
     CensusAtRest,
+    /// A boolean's parting of an arc of its result lying in a face of
+    /// it: the arc's carrier read on the face's surface over its span,
+    /// in its plane by the curve × face pose's `Lies` or on a sphere, a
+    /// cylinder or a torus by the bound between its samples, cells of the
+    /// result ([`RowCell::Result`]). The parting's two coincident edges
+    /// cite it.
+    ArcOnFace,
     /// A sweep's join decided smooth by the dihedral read across it,
     /// between two faces whose carriers that makes one (a half
     /// revolve's two caps across its axis edge,

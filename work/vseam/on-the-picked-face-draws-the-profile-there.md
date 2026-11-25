@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face, doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face]
+blocked_on: [doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face]
 parent: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
 ---
 
@@ -82,3 +82,12 @@ this unit lands. What this unit's build becomes:
 ## 2026-11-18 — the drawn-on-face door has a GUI caller
 
 Evidence from DOCTAIL's `tracing-reads-the-faces-chart-and-traced-frame-retires`. The traced-profile form folded into a **New profile on a face** form (`ViewerBehavior::profile_on_face_ui`, `crates/viewer/src/pane/create.rs`). It commits `SessionOp::DrawOnFace { face, traced, chains }` through `Recording::draw_on_face`. With no face latched to trace, it inserts an empty profile on the latched face's chart at its nearest orientation, and the editor opens on it. That is this unit's "with a face picked, New profile inserts the empty profile on that face's frame", reached through a form's latch rather than the New profile button. What is left here: whether New profile itself takes the picked face, the click's point for slides and spin (a GUI prefill, Ev on 7073), and the retirement of `SessionOp::SketchOnFace` and the fused act.
+
+## 2026-11-22 — scope: the retirement
+
+This unit is now the retirement alone:
+- `SessionOp::SketchOnFace` and `session.rs`'s `sketch_on_face` go;
+- the held-face rows in `app.rs` and `tests/sketch_on_face.rs` move onto `SessionOp::DrawOnFace`;
+- once the Python unit (`doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`) has merged, editor-core's fused act goes too.
+
+The click prefill and the one-door question are now `new-profile-on-a-face-prefills-nothing-from-the-click` (P3, design). They are a GUI feature on top, and the retirement does not depend on them. (VSEAM orchestrator)

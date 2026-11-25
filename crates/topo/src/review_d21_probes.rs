@@ -157,25 +157,25 @@ fn d21_split_edge_refuses_a_stale_edge_typed() {
     );
 }
 
-/// `movefac`'s component walk panics, in its plan phase, at a face of
-/// the shell list that no longer resolves: the shell's `faces` is a
-/// link the body holds, so a dead entry is a torn body. The op's
-/// `face_data.shell = new_shell` write reads its keys out of that
-/// walk's labelling, so the walk's own check is what makes the write's
-/// `unreachable!` sound.
+/// `movefac` panics, in its plan phase, at a face of the shell list
+/// that no longer resolves: the shell's `faces` is a link the body
+/// holds, so a dead entry is a torn body, and the plan's owner pre-pass
+/// resolves every entry through it. The op's `face_data.shell =
+/// new_shell` write reads its keys out of that list, so the pre-pass is
+/// what makes the write's `unreachable!` sound.
 ///
 /// A stale *shell* argument is refused typed and never reaches the
-/// walk; this plants a dead face inside a live shell, which is the
-/// shape the walk is the only guard against.
+/// pre-pass; this plants a dead face inside a live shell, which is the
+/// shape the pre-pass is the only guard against.
 #[test]
-fn d21_movefac_panics_at_a_dead_face_reached_by_the_walk() {
+fn d21_movefac_panics_at_a_dead_listed_face() {
     let tol = Tol::witness();
     let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
     let shell = cube.seed.shell;
     let dead = body.get_shell(shell).unwrap().faces[0];
     // Raw arena removal (crate-internal): the shell's list keeps the
-    // key, so only the walk's own lookup can catch it.
+    // key, so only the pre-pass's own lookup can catch it.
     body.faces.remove(dead);
 
     let named = format!(

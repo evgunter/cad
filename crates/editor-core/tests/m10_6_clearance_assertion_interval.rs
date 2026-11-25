@@ -159,8 +159,12 @@ const SPREAD: f64 = 0.05;
 /// uniform over `±SPREAD`, and one clearance assertion between the two
 /// facing walls per entry of `bounds`, in order.
 fn facing(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
+    facing_in(Recorder::new(), bounds)
+}
+
+/// [`facing`], recorded after whatever `r` already holds.
+fn facing_in(mut r: Recorder, bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
     use crate::m10_5_clearance_interval::{extruded, translated};
-    let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("gap"),
         def: editor_core::VarDecl::Free(FreeVar::Continuous {
@@ -974,4 +978,102 @@ fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
             }
         }
     }
+}
+
+/// **A clearance assertion the box leaves undecided is split on what
+/// its bodies read, and a variable beside it changes nothing.** `≤ 0.42`
+/// over `gap ± 0.05` is box-dependent, the drive's cue; `other`,
+/// declared before `gap` and as wide relative to its own span, feeds a
+/// slab of its own. The op reads its `f64` rebuild through its two
+/// seats alone, so the assertion answers the same over either half of
+/// `other`, and no leaf is cut there.
+///
+/// Red when `drive::bisect` admits every varying axis: the root's tie
+/// goes to `other`.
+#[test]
+fn an_undecided_clearance_is_not_split_on_a_variable_beside_it() {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("other"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: 1.0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(Distribution::Uniform {
+                lo: -half(),
+                hi: half(),
+            }),
+        }),
+    });
+    let f = facing_in(r, &[ClearanceBounds::AtMost(0.42)]);
+    let (doc, square) = fixture::insert(
+        f.doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![crate::m10_3_driver_interval::unit_square()],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, _) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: square.into(),
+            distance: Formula::named(name("other"), Dimension::Length),
+        },
+    );
+    let (other, gap) = (
+        doc.var_named("other").expect("declared"),
+        doc.var_named("gap").expect("declared"),
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let root = ParamBox::of(&analyzed);
+
+    // The assertion's state over each half of `other`, `gap` whole.
+    let (lo, hi) = root.split(other).expect("other splits");
+    let state = |box_: &ParamBox| match editor_core::drive::assertion_at(
+        &doc,
+        f.assertions[0],
+        box_,
+        editor_core::drive::SymbolicDials::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the replay is not stopped")
+    {
+        Some(AssertionVerdict::Clearance(report)) => report.verdict().holds(),
+        other => panic!("a clearance's verdict over the box: {other:?}"),
+    };
+    assert_eq!(
+        (state(&root), state(&lo), state(&hi)),
+        (None, None, None),
+        "undecided over the box and over each half of the variable beside it"
+    );
+
+    let v = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            max_leaves: 4,
+            ..DriveConfig::default()
+        },
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
+    assert!(v.receipt().splits >= 1, "{:?}", v.receipt());
+    let span = |b: &ParamBox, var| b.get(var).expect("an axis").span();
+    let boxes: Vec<&ParamBox> = v
+        .certified()
+        .iter()
+        .map(|l| &l.box_)
+        .chain(v.refused().iter().map(|l| &l.box_))
+        .collect();
+    assert!(
+        boxes.iter().all(|b| span(b, other) == span(&root, other)),
+        "a leaf was split on the variable beside the assertion"
+    );
+    assert!(
+        boxes.iter().any(|b| span(b, gap) != span(&root, gap)),
+        "the splits are on the variable the seats read"
+    );
 }

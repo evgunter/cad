@@ -135,11 +135,12 @@ fn the_certifying_doors_build_a_two_level_rim_row_inside_the_endpoint_band() {
     assert!(
         matches!(
             &escalated,
-            Err(EulerOpError::Certification {
+            Err(EulerOpError::DescriptionUncertified {
                 error: CertifyError::Escalated {
                     check: CertCheck::EndpointStart,
                     ..
-                }
+                },
+                ..
             })
         ),
         "a junction 1.5ε off both carriers is the endpoint pin's to escalate: {escalated:?}"

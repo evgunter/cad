@@ -209,8 +209,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let carriers = loop_carriers(&cup, f.rings[0]);
     for c in &carriers {
         match c {
-            Curve3::Circle(conic_k @ pncad::geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            Curve3::Circle(conic_k) => {
+                let center = conic_k.frame().origin();
                 let radius = conic_k.radius();
                 assert!(
                     center.x.abs() < 1e-9
@@ -264,7 +264,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     // Euler bookkeeping on the returned data reads genus 0 — the census
     // door over the returned arenas, not the scene's helper.
     assert_eq!(
-        euler_counts(&cup).genus(),
+        euler_counts(&cup).h(),
         Ok(0),
         "Euler-Poincare over the returned arenas reads genus 0, as a cup's is"
     );

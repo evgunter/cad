@@ -66,8 +66,8 @@ mod a_blend_reads_the_wedge_through_the_one_fold;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
-#[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
-mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_closed_rider_lying_in_a_face.rs"]
+mod a_closed_rider_lying_in_a_face;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -76,8 +76,8 @@ mod a_corner_cut_on_a_far_wall_reads_its_sections_width;
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
-#[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
-mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_curved_keel_on_the_floor_builds_its_slit_form.rs"]
+mod a_curved_keel_on_the_floor_builds_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
@@ -136,6 +136,8 @@ mod a_plane_through_a_pole_cuts_a_cap;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_profile_touching_its_axis_twice_revolves.rs"]
+mod a_profile_touching_its_axis_twice_revolves;
 #[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
@@ -352,6 +354,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pinned_corners_build.rs"]
+mod pinned_corners_build;
 #[path = "pins_of_todays_blend_refusals.rs"]
 mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
@@ -1430,6 +1434,10 @@ mod review_4737_span_probes;
 mod side_reader_aims_ask_nothing;
 #[path = "sphere_aims_reader_ties.rs"]
 mod sphere_aims_reader_ties;
+#[path = "volume_premises_door_bodies.rs"]
+mod volume_premises_door_bodies;
+#[path = "volume_premises_over_a_box.rs"]
+mod volume_premises_over_a_box;
 
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;

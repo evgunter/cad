@@ -267,10 +267,13 @@ pub struct TreeRow {
     /// `None` is a node kind that has no such sentence, not a sentence
     /// that came out empty.
     pub which: Option<String>,
-    /// Whether a placement places a body this node defines, wherever it
-    /// stands — the placed badge (A10). A placement's own row is an
-    /// ordinary row.
-    pub placed: bool,
+    /// **The placements copying a body this node defines**, wherever
+    /// they stand ([`pncad::document::ReadIndex::placements_of`]): the
+    /// node's readers at the source seat, which its Properties lists,
+    /// and the placed badge (A10) that counts them. A copy of one piece
+    /// of a placement (a pick) reads it, and its Properties list it, but
+    /// it is no copy of it and the badge does not count it.
+    pub placements: Vec<RecipeNodeId>,
     /// What the evaluation said about it.
     pub status: RowStatus,
     /// **Another node whose own slot refused**, when a
@@ -328,18 +331,29 @@ pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
 /// `node`'s constraints as child rows, empty for a node that is no
 /// placement.
 fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<ConstraintRow> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
-            .iter()
-            .enumerate()
-            .map(|(at, constraint)| ConstraintRow {
-                mate: MateRef::new(id, constraint.id),
-                said: constraint_said(at + 1, constraint),
-                is_mate: constraint.mate().is_some(),
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+    numbered_constraints(node)
+        .map(|(at, constraint)| ConstraintRow {
+            mate: MateRef::new(id, constraint.id),
+            said: constraint_said(at, constraint),
+            is_mate: constraint.mate().is_some(),
+        })
+        .collect()
+}
+
+/// **A placement's constraints, each with the number a person finds it
+/// by**: its 1-based position in the bundle, the number its child row
+/// and its seats in the Properties are said by. None for a node that
+/// holds no bundle.
+pub fn numbered_constraints(
+    node: &Node<ProfileProgram>,
+) -> impl Iterator<Item = (usize, &Constraint)> {
+    let bundle = match node {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+            constraints.as_slice()
+        }
+        _ => &[],
+    };
+    bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 
 impl TreeRow {
@@ -1086,6 +1100,7 @@ pub fn rows(
         Some(ev) => ev.order.clone(),
         None => doc.ids().to_vec(),
     };
+    let index = doc.read_index();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
         // The world is no feature: it is in every document, is never
@@ -1114,7 +1129,7 @@ pub fn rows(
             id,
             spoken: doc.spoken(id),
             which: part_file(node, files),
-            placed: crate::world::is_placed(doc, id),
+            placements: index.placements_of(id).to_vec(),
             status,
             repair_at,
             readout,

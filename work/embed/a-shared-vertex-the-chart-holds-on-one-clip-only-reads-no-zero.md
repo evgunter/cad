@@ -2,10 +2,11 @@
 id: a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero
 kind: issue
 title: A cylinder's cell whose shared vertex lies on one clip only (mid-side between two edges of one line, or at a lone clip's end beside a seam) has no zero in zero_of and reads Local at every depth
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
+branch: embed/clip-vertex
 ---
 
 

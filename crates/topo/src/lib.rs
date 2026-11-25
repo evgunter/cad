@@ -168,6 +168,8 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+#[cfg(test)]
+pub(crate) mod euler_theorem;
 pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
@@ -177,6 +179,7 @@ mod finish;
 pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod glue;
 pub(crate) mod injective;
 pub(crate) mod region;
 mod rim_wedge;
@@ -478,12 +481,14 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::props::{
-        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
-        face_reading_structural, fold_order_bound, mass_properties_one_point,
-        mass_properties_with_face_terms, measure_with_unmet_width, quadrature_rounds, read_points,
-        region_carries_of, shell_references,
+        ClosedFormRead, DoorOutcome, DoorRead, FaceReading, FaceTerm, closed_form_reads,
+        every_door, face_reading, face_reading_structural, fold_order_bound,
+        mass_properties_one_point, mass_properties_with_face_terms, measure_with_unmet_width,
+        quadrature_rounds, read_points, region_carries_of, shell_references, volume_role_reading,
     };
     pub use crate::star::with_ring_root;
+    #[cfg(feature = "test-support")]
+    pub use crate::test_support_fixtures::restate_geometry;
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
         RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
@@ -495,6 +500,7 @@ pub mod test_support {
         prism_z, set_sheet_sense, split_plane, straddle_seat, tool_on_a_block_corner,
         wedge_on_a_block_top,
     };
+    pub use crate::test_support_fixtures::{Stored, seamless_drum};
     pub use crate::test_support_impl::ArenaCounts;
 
     /// **A placement the census decided overlaps**: a finding
@@ -1535,7 +1541,7 @@ pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-pub use euler::{BadArgument, EulerOpError, RechartDoor};
+pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
 pub use live::FaceView;
 pub use sweep_trace::SweepPairs;

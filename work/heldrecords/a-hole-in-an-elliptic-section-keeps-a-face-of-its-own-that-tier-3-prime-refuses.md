@@ -2,11 +2,12 @@
 id: a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses
 kind: issue
 title: A hole in an elliptic section keeps a face of its own over the outline's, and tier 3′ refuses the side
-status: dispatched
+status: review
 opened: 2026-10-19
 priority: P1
 cost: M
 branch: heldrecords/nesting
+pr: 7436
 ---
 
 

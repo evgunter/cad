@@ -291,14 +291,6 @@ pub enum JoinError {
         /// The completed null face.
         face: FaceKey,
     },
-    /// A slit trace whose tree holds an edge that is not a line: its
-    /// slit would be two coincident curved edges, which no contact record
-    /// backs and tier 3′ refuses
-    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
-    CurvedSlitTrace {
-        /// The completed null face.
-        face: FaceKey,
-    },
     /// Ring re-homing could not decide: the walk escalated, exhausted
     /// its schedule, or met an edge of the divided face's outline it
     /// cannot cross ([`PointInLoopError::Uncrossable`]).
@@ -664,7 +656,6 @@ impl JoinError {
             | Self::SectionUnresolved { .. }
             | Self::OpenConicChord { .. }
             | Self::RunEdgeCarrierUnsupported { .. }
-            | Self::CurvedSlitTrace { .. }
             | Self::SingleSiteSectionLoop { .. } => Ok(Refusal::Limit),
             // A kernel fault, a corruption, two readings that disagree.
             Self::SectionLoopMixed { .. }
@@ -796,14 +787,6 @@ impl JoinError {
                 "a section is degenerate: it bounds zero area, which no section the \
                  reduction admits does. {}",
                 geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::CurvedSlitTrace { .. } => write!(
-                f,
-                "an arc lying in the cut, wrapped round at both ends by the material \
-                 across it, would leave two coincident arcs that no contact record backs \
-                 (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
-                 {}",
-                geom_core::NOT_YET_ENDING
             ),
             Self::RingHoming(e) => e.render_as(
                 f,
@@ -2299,7 +2282,7 @@ fn section_pin_refusal<T: Decide>(
     band: Band,
 ) -> JoinError {
     use geom_brep::CertCheck as C;
-    let EulerOpError::Certification { error } = &refusal else {
+    let EulerOpError::DescriptionUncertified { error, .. } = &refusal else {
         return refusal.into();
     };
     let Some(rho) =

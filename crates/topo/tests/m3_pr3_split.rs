@@ -451,7 +451,9 @@ fn notched_block_halves_pass_the_pseudomanifold_door_with_no_records() {
 /// (D10; INTENT stage 4 spec §11 row 6). The notch's tip lies ON
 /// `y = 1` with both its neighbours above, so the two wedges above
 /// touch along it: one `OnCarrier` row per tip vertex, the operand's
-/// vertex on the tool, at the Zero margin its side verdict read. The
+/// vertex on the tool, at the Zero margin its side verdict read, and one
+/// of the tip line between them, the operand edge whose two copies the
+/// pinch side holds, which that side's one edge–edge record cites. The
 /// floor's vertices are ON too and leave one run each, so they record
 /// nothing; a block cut through its middle records nothing at all.
 #[test]
@@ -466,11 +468,12 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
     assert_eq!(tips.len(), 2, "the operand's tip vertices");
     assert_eq!(
         result.coincidences.len(),
-        2,
-        "one row per tip vertex: {:?}",
+        3,
+        "one row per tip vertex and one of the tip line: {:?}",
         result.coincidences
     );
-    for row in &result.coincidences {
+    let mut line = None;
+    for (k, row) in result.coincidences.iter().enumerate() {
         assert_eq!(
             (row.relation, row.site, row.cells[1]),
             (
@@ -479,20 +482,40 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
                 topo::RowCell::Tool
             )
         );
-        let topo::RowCell::Input {
-            input: topo::Operand::A,
-            cell: topo::Cell::Vertex(v),
-        } = row.cells[0]
-        else {
-            panic!("a pinch is an operand vertex: {row:?}")
-        };
-        assert!(tips.contains(&v), "{v:?} is a tip vertex of the operand");
+        match row.cells[0] {
+            topo::RowCell::Input {
+                input: topo::Operand::A,
+                cell: topo::Cell::Vertex(v),
+            } => assert!(tips.contains(&v), "{v:?} is a tip vertex of the operand"),
+            topo::RowCell::Input {
+                input: topo::Operand::A,
+                cell: topo::Cell::Edge(e),
+            } => {
+                let (from, to) = fx.body.edge_vertices(e).unwrap();
+                assert!(
+                    tips.contains(&from) && tips.contains(&to),
+                    "{e:?} is the tip line between the tip vertices"
+                );
+                line = Some(k);
+            }
+            _ => panic!("a pinch row is an operand vertex or edge: {row:?}"),
+        }
         assert_eq!(
             row.margin.kind(),
             geom_core::MarginKind::Value,
             "the side verdict's own margin"
         );
     }
+    let line = line.expect("the tip line's row");
+    let SplitPart::Body(above) = &result.above else {
+        panic!("the pinch side holds material");
+    };
+    let records: Vec<_> = topo::FinishedBody::records(above).rows().to_vec();
+    assert!(
+        matches!(records.as_slice(), [r] if matches!(r.kind(), topo::ContactKind::EdgeEdge(..))
+            && r.cites.iter().eq([topo::Backing::Decided(u32::try_from(line).unwrap())])),
+        "the pinch side's one edge–edge record cites the tip line's row: {records:?}"
+    );
     // A plane that misses the tip by a tenth of ε reads it ON all the
     // same (D1 tier 3′ (i): a value coincidence however small), and the
     // pinch it makes is recorded just as one at the tip is.
@@ -504,7 +527,7 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
     .unwrap();
     assert_eq!(
         near.coincidences.len(),
-        2,
+        3,
         "the near pinch is recorded too: {:?}",
         near.coincidences
     );
@@ -561,7 +584,11 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
                         e_at = e.render(geom_brep::recourse::Reading::Build)
                     )
                 });
-                assert_eq!(r.coincidences.len(), 2, "{at}: the pinch is recorded");
+                assert_eq!(
+                    r.coincidences.len(),
+                    3,
+                    "{at}: the pinch is recorded, its two tip vertices and the line"
+                );
                 let mut volume = 0.0;
                 let mut sections = 0;
                 for part in [&r.above, &r.below] {

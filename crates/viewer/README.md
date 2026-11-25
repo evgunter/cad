@@ -79,8 +79,8 @@ one opens an empty name field instead, because a variable two slots
 share has a name. Typing a name and pressing **Name** or Enter names the
 variable and makes the slot read it, as one undo step. **keep
 separate** keeps the typed value distinct. A slot reading a shared
-variable is driven by it: a value typed there is refused, naming the
-variable, and the slot's expression text makes it its own again. A
+variable is driven by it: a drag there is refused, naming the
+variable, and a value typed there makes it its own again. A
 slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
@@ -2262,14 +2262,16 @@ two members, and two seats become a member list of what they hold.
 `BodyRead<Formula>`: a body; a split's half by its port, a tree pick
 of the split waiting for its half; or one member of a family by its
 indices (`pattern[1]`), for a viewport pick on that drawn member. A
-tree pick of a family names the node, so it reads the family whole
-until the panel's member row chooses one. A member read keeps its
-output, so a split of a family reads one half of one member. A family
+tree pick of a family names the node: a list seat (a member, a
+subtract's tool) reads the family whole until the panel's member row
+chooses one, and a one-body seat (a subtract's kept body) offers "each
+member", which writes a binder the tree shows. A member read keeps its
+output, so a pick of a drawn half reads one half of one member. A family
 something reads along a seen path (a copy, a `⊔`, the product) is
 read whole, and the combine takes that reader over: what one member's
-read does to a copy of its family is a takeover not yet ruled. The
-boolean seats are the ones that read members; the other body seats
-read a family whole. The held-picks line says which read it holds
+read does to a copy of its family is a takeover not yet ruled. Every other
+one-body seat handed a family refuses it by kind, and offers "each
+member" the same way. The held-picks line says which read it holds
 (`Pattern 1[1]`, `Pattern 1, every member`, `Split 1[1], above half`).
 
 **A body picked twice is not refused anywhere.** A repeated read
@@ -2411,7 +2413,16 @@ The draft is **mate rows** (`matetool::MateRow`), each a kind of
 frame), a sense of two named values (`matetool::senses`: `opposed` or
 `flush` for a plane, `same` or `reversed` for an axis and a direction,
 `same` or `turned over` for a frame, none for a point) written as the
-flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+flip of `to`, its seats, and a stroke. A plane's and a frame's row also
+has an **offset** (`MateTool::set_offset`, `pane::create::mate_offset_row`):
+a length field taking a number or a formula, which writes `to` slid along
+the outward normal of the face it is read off, a frame's `z`
+(`matetool::offset_side`: one `PoseDef::Slide` under the sense's flip and
+over any slide written elsewhere, its direction read off the face, so a
+positive offset runs out of the face in either sense and however the side
+is spelled); left empty it takes the slide off, and `0` is an offset
+written as zero. It is the standoff DESIGN `[placement.mates]` makes a
+construction on the target, so the copy follows the face. **Picks are seated by body**: a
 pick on the draft's copy fills the active row's `on` seat and any other
 pick its `to` seat; order carries nothing. A frame's side has an axis
 seat an edge fills and a point seat a vertex fills, written
@@ -2563,8 +2574,9 @@ Every placement is a copy to the viewer, wherever its target stands
 one placed in its body's own space or in another construction's
 space, as Place's and a pattern's are, is a copy as one in the world
 is. The body a placement copies (`world::copy_source`, down its source) is
-what the placed badge, the re-point offer and the way to the original
-body read, and the placement editor's `on` side selects in the source
+what the re-point offer and the way to the original body read; the
+placed badge counts a body's readers at the source seat
+(`ReadIndex::placements_of`), and the placement editor's `on` side selects in the source
 the placement reads (`bracket.top`); a pick on a copy seats that copy.
 Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool

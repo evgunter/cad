@@ -33,8 +33,10 @@ pub(crate) enum OrderFault {
     Sense(Indeterminate),
 }
 
-/// **The lever a reading of two directions' sides carries, given their
-/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
+/// **A reading of two directions' sides, foreshortened by their leans**:
+/// `x · min(lean₀, lean₁)` ([`Leaned`]), a pure number. Its caller
+/// levers it at the sector's arm, which is the metering arm, not a read
+/// of anything this factor changes.
 ///
 /// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
 /// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
@@ -49,10 +51,8 @@ pub(crate) enum OrderFault {
 /// lying in the reading's plane, the reading is the edge's far end's
 /// offset from the face line's other face; an edge off that plane adds
 /// its own departure, foreshortened by `cos φ` (`boolean::sectors::rays_within`).
-pub(crate) fn leaned_lever<T: geom_core::Real>(lever: Lever<T>, (l0, l1): (T, T)) -> Lever<T> {
-    // Unsourced lever: an arm scaled by a sine (the directions' lean),
-    // a length no source reads.
-    Lever::unsourced(lever.length() * l0.min(l1))
+pub(crate) fn leaned<T: geom_core::Real>(x: T, (l0, l1): (T, T)) -> T {
+    x * l0.min(l1)
 }
 
 /// Whether two directions read parallel point the same way (`true`) or
@@ -82,7 +82,7 @@ enum Reading {
 }
 
 /// **The order's one sine**: `(g × h)·n` under `reading`'s name, levered at `arm`
-/// and the two directions' smaller lean ([`leaned_lever`]). Its sign where
+/// and the two directions' smaller lean ([`leaned`]). Its sign where
 /// definite; `Err(diag)` inside it where it decides the two on one line.
 ///
 /// # Errors
@@ -96,8 +96,8 @@ fn order_sine<T: Decide>(
     band: Band,
 ) -> Result<Result<NonzeroSign, Indeterminate>, OrderFault> {
     let leaned = Margin::levered(
-        g.dir.cross(h.dir).dot(normal),
-        leaned_lever(arm, (g.lean, h.lean)),
+        leaned(g.dir.cross(h.dir).dot(normal), (g.lean, h.lean)),
+        arm,
     );
     let decided = match reading {
         Reading::Side => crate::validate::decide_nonzero(GERM_SIDE, leaned, band),
@@ -365,8 +365,7 @@ mod tests {
                     dir: Vec3::new(t.cos(), t.sin(), 0.0),
                     lean,
                 },
-                // Unsourced lever: the probe's hand-stated arm.
-                Lever::unsourced(1e-3),
+                geom_core::test_support::fixture_lever(1e-3),
             )
         };
         for lean in [1e-7, 1e-6] {
