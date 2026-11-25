@@ -61,13 +61,13 @@ BAR = 0.25
 Pair = tuple[str, str]
 
 # The speed reference, and its fastest reading alone on the median hosted
-# runner class (calibrated on PR NNNN's drift dispatches; see the row above).
+# runner class (calibrated on PR 7739's drift dispatches; see the row above).
 REFERENCE_PACKAGE = "speed-reference"
 REFERENCE: Pair = (f"{REFERENCE_PACKAGE}::all", "the_runners_speed_reference")
-REFERENCE_NOMINAL = 0.15
+REFERENCE_NOMINAL = 0.20
 # sha256 over REFERENCE_FILES, as `reference_digest` reads them: the
 # workload REFERENCE_NOMINAL was measured on.
-REFERENCE_DIGEST = "f553be9cb2ab36d0a03e06058524f0031786fbc40c2b27539c9ee1c1de71fb59"
+REFERENCE_DIGEST = "939cd84edd0671011ae69ea2621372a5c15543c030a559db224f321f482c2929"
 REFERENCE_FILES = ("Cargo.toml", "src/lib.rs", "tests/all.rs")
 # The fastest runner class's factor, with room: a runner reading faster is
 # a RetimeError, since the screens assume none is.

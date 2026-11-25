@@ -52,8 +52,8 @@ impl Scalar for Local {
     }
 }
 
-const SHARED_ROUNDS: u32 = 23_000;
-const LOCAL_ROUNDS: u32 = 2_000;
+const SHARED_ROUNDS: u32 = 184_000;
+const LOCAL_ROUNDS: u32 = 16_000;
 
 #[test]
 #[ignore = "the runner's speed reference: scripts/fast_set_alone.py times it alone; it asserts nothing"]
