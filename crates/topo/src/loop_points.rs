@@ -299,4 +299,56 @@ mod tests {
             "a torn cycle"
         );
     }
+
+    /// **Props' vertex tags read the pinch as this module does**: the
+    /// flattening props measures ([`crate::props::loop_edges`]) tags each
+    /// corner by its vertex, so the corners of a point group carry two
+    /// tags exactly where the group pinches. Props' cone apex reads a
+    /// loop passing the apex point twice through those tags
+    /// (`props_cone_apex_vertices`), measuring one vertex met twice and
+    /// refusing a pinch.
+    #[test]
+    fn the_props_tags_part_a_group_exactly_where_it_pinches() {
+        let tol = Tol::witness();
+        let p = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0, tol);
+        let mut strut = p.body;
+        let outer = strut.faces[p.bottom_face].outer;
+        let he = strut.loop_halves(outer).expect("the cap's cycle")[0];
+        strut
+            .mev_line(
+                MevSite::Fan { he1: he, he2: he },
+                Point3::new(1.0, 1.0, 0.0),
+                tol,
+            )
+            .expect("a strut into the cap");
+        let pinched = {
+            let p = prism::<f64>(&NOTCHED, 1.0, tol);
+            let mut body = p.body;
+            let keep = body.vertices[p.bottom[2]].point;
+            body.vertices.get_mut(p.bottom[5]).unwrap().point = keep;
+            (body, p.bottom_face)
+        };
+        for (what, body, face, pinches) in [
+            ("one vertex met twice", &strut, p.bottom_face, false),
+            ("two vertices on one key", &pinched.0, pinched.1, true),
+        ] {
+            let outer = body.faces[face].outer;
+            let corners = loop_corners(body, outer).expect("the cap's loop resolves");
+            let (edges, cycle) = crate::props::loop_edges(body, outer).expect("it flattens");
+            assert_eq!(cycle, corners.cycle(), "{what}: one walk");
+            assert_eq!(
+                corners.groups().len(),
+                1,
+                "{what}: one point passed twice: {corners:?}"
+            );
+            let group = &corners.groups()[0];
+            let tags: Vec<u32> = group.corners().iter().map(|&i| edges[i].start).collect();
+            assert_eq!(
+                tags.iter().any(|&t| t != tags[0]),
+                pinches,
+                "{what}: tags {tags:?}"
+            );
+            assert_eq!(group.pinches(), pinches, "{what}");
+        }
+    }
 }

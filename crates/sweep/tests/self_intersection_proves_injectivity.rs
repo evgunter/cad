@@ -1812,29 +1812,18 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
     assert_eq!(report.receipt.refused, 0, "{:?}", report.receipt);
 }
 
-/// **The drum the cavity above is cut from refuses, out of depth**: its
-/// half-annulus cells a rounding off the disc's half-circle are read by no
-/// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
-/// Red when the drum holds, and that row's reading has landed. The
-/// refused cells are 210: the drum's stored frames read at `Interval` by
-/// their polar enclosure summed exactly, about an ulp of each entry
-/// (282 with the enclosure's sums in interval arithmetic, and 282 read as
-/// points, as at the base).
+/// **The drum the cavity above is cut from holds**: a full revolve, its
+/// wall one band and its caps whole discs, so it has no half-annulus
+/// cells beside a half-circle for the walk to run out of depth on, the
+/// case `work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`
+/// is about (its witness is the radius-0.7 drum below, whose half-circles
+/// are drawn by hand). Red if the drum refuses.
 #[test]
 fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
     let report = injective(&drum, None, BUDGET);
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
-        ),
-        "the drum runs out of depth: {:?} {:?}",
-        report.verdict,
-        report.receipt
-    );
-    assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
+    assert_holds("the collinear-cap drum", &report, &drum);
 }
 
 /// **A drum whose splits fall a rounding off its half-circle runs out of

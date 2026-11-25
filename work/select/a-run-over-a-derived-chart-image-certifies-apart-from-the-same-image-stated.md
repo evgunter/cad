@@ -33,15 +33,18 @@ a body whose certificate is not the one re-certification mints.
 
 ## Where it is worked around
 
-`sweep::swept::describe_wrap_edge` restates the wrap edge once more from
-what it stores, so every sweep wrap edge (a full revolve's meridian, a
-one-segment loop's strut, extrude's and revolve's) stores the fresh
-run's certificate (`one_segment_loop::every_wrap_edge_stores_the_certificate_a_fresh_run_mints`).
-Other restatements that derive an image and keep the derived run's
-certificate, not checked against a fresh run:
+`sweep::swept::describe_wrap_edge_fresh` restates a revolve's wrap edge
+(the full revolve's meridian, the full-turn torus's latitude) once more
+from what it stores, so it stores the fresh run's certificate
+(`one_segment_loop::a_revolves_wrap_edges_store_the_certificate_a_fresh_run_mints`).
+It is applied only where the review measured the difference (each
+restatement is a second certification run). Other restatements that
+derive an image and keep the derived run's certificate, not checked
+against a fresh run:
 
-- `crates/sweep/src/extrude.rs` (the strut and smooth-join
-  restatements, ~1253 and ~1533, past `describe_wrap_edge`);
+- `crates/sweep/src/swept.rs` `describe_wrap_edge` itself (extrude's,
+  and a loft's, one-segment strut), and `crates/sweep/src/extrude.rs`
+  (the strut and smooth-join restatements, ~1253 and ~1533);
 - `crates/step-import/src/normalize/adopt.rs`;
 - `crates/sweep/src/blend/surgery.rs` (the band's `wrap` restatement,
   ~6236);
