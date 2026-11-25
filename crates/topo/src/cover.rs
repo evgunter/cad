@@ -1031,6 +1031,33 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         self.ok = false;
     }
 
+    /// **The `v` window alone on a spindle sheet**, widened by its own
+    /// slack: the type docs' superset argument on the sheet's meridian
+    /// arc `v ↦ (R + r·cos v, r·sin v)`. `u` is not read: a turn of `u`
+    /// moves an apex by nothing, so no slack bounds it there.
+    ///
+    /// A point of the sheet the true boundary pulls back to lies within
+    /// `2·envelope` of the image's (the type docs' projection). Two
+    /// points of the sheet are at least their meridian chord
+    /// `2r·sin(δ/2)` apart, `δ ≤ π` their angle on the meridian circle,
+    /// and that chord is at least `(2/π)·r·δ`, so the two `v`s differ
+    /// by at most `π·envelope/r` modulo a turn. Where the widened window
+    /// lies strictly inside `(−π, π)`, as the caller decides, no
+    /// representative but the near one is a sheet parameter, so the
+    /// window holds the face's `v`.
+    pub(crate) fn finish_latitude(self, minor: T) -> Option<(T, T)> {
+        if !self.ok {
+            return None;
+        }
+        let v = self.v?;
+        let sv = T::from_f64(core::f64::consts::PI) * self.envelope / minor;
+        let v = (v.0 - sv, v.1 + sv);
+        if not_finite(v.0) || not_finite(v.1) {
+            return None;
+        }
+        Some(v)
+    }
+
     /// The window, widened by the certificate slack — see the type
     /// docs. `None` whenever any guard fired, and the arm then keeps
     /// the whole tube: no window widens, never narrows.
@@ -1114,16 +1141,17 @@ pub(crate) fn face_window_steps<T: Decide>(
         .collect()
 }
 
-/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
-/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
-/// no branch. A loop that yields NO half-edge (a lone
-/// vertex) abandons the window: it carries no chart image, so the walk
-/// cannot see what bounds the face's chart region.
-pub(crate) fn torus_chart_window<T: SpanLocate>(
+/// **A spindle sheet face's `v` window**, folded over its loops as
+/// [`torus_chart_window`] folds a torus face's, under the same guards
+/// ([`TorusChartWindow::finish_latitude`]).
+pub(crate) fn sheet_chart_latitude<T: SpanLocate>(
     loops: &[WindowLoop<'_, T>],
-    major: T,
     minor: T,
-) -> Option<TorusWindowPair<T>> {
+) -> Option<(T, T)> {
+    fold_window(loops).finish_latitude(minor)
+}
+
+fn fold_window<T: SpanLocate>(loops: &[WindowLoop<'_, T>]) -> TorusChartWindow<T> {
     let mut acc = TorusChartWindow::new();
     for lp in loops {
         acc.open_loop();
@@ -1136,7 +1164,20 @@ pub(crate) fn torus_chart_window<T: SpanLocate>(
             acc.close_loop(lp.closes);
         }
     }
-    acc.finish(major, minor)
+    acc
+}
+
+/// **The torus window, folded** over a face's loops ([`WindowLoop`]) —
+/// see [`TorusChartWindow`]. It reads the loops' stored lift and decides
+/// no branch. A loop that yields NO half-edge (a lone
+/// vertex) abandons the window: it carries no chart image, so the walk
+/// cannot see what bounds the face's chart region.
+pub(crate) fn torus_chart_window<T: SpanLocate>(
+    loops: &[WindowLoop<'_, T>],
+    major: T,
+    minor: T,
+) -> Option<TorusWindowPair<T>> {
+    fold_window(loops).finish(major, minor)
 }
 
 /// **Topo's reading of the region an edge can occupy** (DESIGN
