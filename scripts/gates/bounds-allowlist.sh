@@ -485,18 +485,22 @@ BOUNDS_ALLOWLIST=(
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
   'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
-  # carrier_touch.rs's four are the crossing layer's touch reading:
+  # carrier_touch.rs's two and face_reading.rs's four are the crossing
+  # layer's touch reading (GERM U4b moved the ball rule into the face
+  # reading; the cluster reading stays for the spline composite alone):
   # `clusters`, the subdivision driver (a piece's half-length bracket
-  # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
+  # stops the bisection), and `off_face`, which carries the bound to call
+  # it and `ball_off_face`; `edge_clear_of_ball`, which prunes a boundary
   # edge by its certified box against the touch's ball before deciding a
   # distance bound (a box miss is a terminal clear, the disjointness
-  # direction #571 allows); and `off_face` and `ball_off_face`, which
-  # carry the bound to call those two and read no bracket themselves.
-  # The bound is not a certifying one: the public boolean builds at a
-  # dual (`crates/topo/tests/inside_out_operand.rs`), where these reads
-  # prune and stop a bisection on the base scalar's brackets (`real.rs`'s
-  # entry).
-  'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
+  # direction #571 allows); and `ball_off_face`, `window_off_face` and
+  # `face_crossings`, which carry the bound to call it and read no
+  # bracket themselves. The bound is not a certifying one: the public
+  # boolean builds at a dual (`crates/topo/tests/inside_out_operand.rs`),
+  # where these reads prune and stop a bisection on the base scalar's
+  # brackets (`real.rs`'s entry).
+  'crates/topo/src/boolean/carrier_touch.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/face_reading.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # mod.rs's four are the reduction's doors: `boolean_reduce`, the
   # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
   # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).
@@ -558,11 +562,12 @@ BOUNDS_ALLOWLIST=(
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
   # and rides the same seam: it forwards to `sweep_direction` twice and
   # reads no bracket of its own (`Decide` alone does not compile there).
-  # Six more ride to `carrier_touch::off_face` the same way:
-  # `curved_face_arm`, `wall_crossing`, `settle_deferred`, and the spline
-  # span's `composite_count` and its two lanes, `spline_plane_crossings`
-  # and `spline_wall_event`, none of which reads a bracket of its own
-  # (without `Bounds` the call to `off_face` does not compile). 5 + 6 = 11.
+  # Six more ride to the touch reading the same way: `curved_face_arm`,
+  # `wall_crossing` and `settle_deferred` to `face_reading::face_crossings`,
+  # and the spline span's `composite_count` and its two lanes,
+  # `spline_plane_crossings` and `spline_wall_event`, to
+  # `carrier_touch::off_face`; none reads a bracket of its own (without
+  # `Bounds` those calls do not compile). 5 + 6 = 11.
   'crates/topo/src/boolean/reduce.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
   # nary.rs's two are `nary_boolean`, the n-ary union and intersect,
   # and `run_members`, its body: it reads each member's box through

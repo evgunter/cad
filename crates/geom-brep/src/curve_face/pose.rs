@@ -380,7 +380,7 @@ fn culled<T: Decide>(
     let at = geom::mid_param(t0, t1);
     let half_turn = geom::conic_period::<T>().length() / T::from_f64(2.0);
     let (p, q) = (conic.point_at(at), conic.point_at(at + half_turn));
-    let m = p + (q - p) * T::from_f64(0.5);
+    let m = p.mid(q);
     // `m`'s height along the unit axis `n` and its distance from the axis
     // line, `|e × n|`.
     let split = |origin: Point3<T>, n: geom_core::UnitVec3<T>| {
