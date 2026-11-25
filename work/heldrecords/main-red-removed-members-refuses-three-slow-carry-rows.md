@@ -22,3 +22,28 @@ All three are in the slow set, which PR 7745's evidence did not cover: that was 
 ## Done when
 
 All three build as they did on the parent, with no record dropped, or a move is argued against the ratified carry clause. Also, the full default profile of topo and sweep (the slow set included) on main is compared per test against the parent of `0ac627ec92`, and any further moved row is fixed or listed here.
+
+## 2026-11-25 — fixed (`heldrecords/removed-members-red`)
+
+- **`union_flush` ×2.** The record is edge–edge. A piece of one edge's
+  division is the other edge's own image, because the glue made one
+  edge of two that overlapped. Glued structure is now an image of one
+  record cell that is itself an image of the other (`OneCell`), piece or
+  minted; incidence still counts for nothing.
+- **`face_face_touch`.** The removed fragment is read in the clones'
+  joint body, which holds two whole overlapping solids, and there the
+  census contradicted the record's tangent class. A removed-member read
+  takes `ContactContradicted` as touched. Only that read does: a kept
+  pair contradicted is still `Unread`.
+- **The per-test comparison** of the full default profile (topo + sweep,
+  slow set included, release profile with debug assertions) between
+  `cc90e26a` and the fix turned up one more row,
+  `a_pierce_held_in_a_curved_face::a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`
+  (`JoinDesync`). A minted meeting at a point, of a split vertex and a
+  section edge, is not two vertices, and no door decides it. Ruled (C):
+  it is set aside where the record also lands on a pair the op did not
+  mint. As the record's only landing it still refuses. Tier 3′ passes on
+  that body. The door decision is filed as
+  `the-boolean-door-decides-no-minted-vertex-on-edge-meeting` (P2).
+- **After the fix**, the same comparison moves no row from PASS to FAIL.
+  The head's six failures all fail on the parent too.
