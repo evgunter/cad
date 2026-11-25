@@ -130,3 +130,8 @@ Dispatch, with each unit's review tier:
   - **Reviewer 2's checks.** Its dense-sampling oracle matched 2000/2000 spans. Sym runs at ~100× f64, capped by its budget.
   - **Coupling.** 7798's `line_patch` `stretch()` types a wide in-band window `Escalated`, the shape 7801 retypes `Touch`. 7798's lane is told.
   - The batch-2 fix pass is sent. (INSIDE orchestrator)
+- 2026-11-25 — PR 7798's fix pass is in (head `4d2e34840`, gate ok).
+  - **Knot lines.** The walk reads regions across knot lines, and the cone's injectivity argument is re-posed from Rolle to `det(∫∇r₁, ∫∇r₂) = ∬ det(∇r₁(s), ∇r₂(t))`. That is new mathematics, so it goes to reviewer 2 as verifier.
+  - **Also fixed.** The box exit takes `PartialSplineFace`. `trace` refuses a spline carrier `Unsupported`. The sweep rows assert their closed forms.
+  - **Pushback.** The claims-overlap rule is kept, unreached by fuzz and unproven unreachable.
+  - **Filed by the lane.** A new main red on SSIEDGE: `m5_pr7_ssi::a_rational_walls_plane_three_eps_off_its_edge_certifies_as_mid_wall`, red on a clean main. (INSIDE orchestrator)
