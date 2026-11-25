@@ -916,11 +916,67 @@ fn bodies_on_a_spindle_sheet_hold_by_kind_at_both_scalars() {
     }
 }
 
+/// **The point door places a sheet face's interior**, at both scalars:
+/// on the lemon and the apple, whose two sheet faces are each half a turn
+/// from apex to apex on one carrier, a station short of the seams and of
+/// the apexes is `In` on one face and `Out` on the other, and the face
+/// that holds it is the one whose half-turn holds its azimuth. Red if a
+/// sheet's interior is unplaced, placed on both faces or on neither, or
+/// split across a half-turn.
+#[test]
+fn the_point_door_places_a_sheet_faces_interior_at_both_scalars() {
+    fn placed<T: Scalar>(what: &str, big: f64) {
+        let body = football::<T>(big, 0.0);
+        let sheets: Vec<FaceKey> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| matches!(surface(&body, k), Surface::Spindle { .. }))
+            .collect();
+        let [a, b] = sheets[..] else {
+            panic!("{what}: two sheet faces, not {}", sheets.len());
+        };
+        let point = |k, uv: (f64, f64)| surface(&body, k).eval_at(uv.0, uv.1);
+        let one = |p: Point3<T>, q: Point3<T>| (p - q).norm().hi() < 1e-12;
+        let apex = geom::sheet_apex(big, 1.0).v;
+        let mut holder = [None, None];
+        for u in [0.4, 1.5, 2.7, 3.6, 4.7, 5.9] {
+            for v in [-0.95, -0.5, 0.0, 0.5, 0.95].map(|f| f * apex) {
+                assert!(
+                    one(point(a, (u, v)), point(b, (u, v))),
+                    "{what}: both sheet faces chart ({u}, {v}) as one point"
+                );
+                let at = |k| topo::cell_region::station_region(&body, k, (u, v), band());
+                let got = (at(a), at(b));
+                let holds = match got {
+                    (Some(topo::FaceContainment::In), Some(topo::FaceContainment::Out)) => a,
+                    (Some(topo::FaceContainment::Out), Some(topo::FaceContainment::In)) => b,
+                    _ => panic!("{what}: ({u}, {v}) is in exactly one sheet face: {got:?}"),
+                };
+                let half = &mut holder[usize::from(u > core::f64::consts::PI)];
+                assert_eq!(
+                    *half.get_or_insert(holds),
+                    holds,
+                    "{what}: ({u}, {v}) is in the face holding its half-turn"
+                );
+            }
+        }
+        assert_ne!(
+            holder[0], holder[1],
+            "{what}: each half-turn is its own face"
+        );
+    }
+    for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
+        placed::<f64>(&format!("{what} at f64"), big);
+        placed::<Interval>(&format!("{what} at Interval"), big);
+    }
+}
+
 /// `body`'s verdict door within a small budget, at `T`: a crossing
 /// read `Crosses` where `crosses`, and never `Embedded` in any case.
-/// Where the walk reaches no station pair on both faces it refuses on
-/// its budget: the point door places a sheet station on its boundary
-/// alone (`work/inside/the-point-door-places-no-point-on-a-spindle-sheet-face.md`).
+/// Where the walk offers no pair whose stations coincide it refuses on
+/// its budget: it probes a straddling pair only at a candidate's root
+/// and at the depth floor
+/// (`work/embedwalk/the-verdict-door-probes-a-crossing-only-at-a-candidates-root-and-the-depth-floor.md`).
 fn crosses_at_both(what: &str, crosses: bool, float: &Body<f64>, interval: &Body<Interval>) {
     let budgets = Budgets {
         max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
