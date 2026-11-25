@@ -34,7 +34,7 @@ test_utils::gated_to![
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use super::*;
-use crate::curve_face::conic_oracle::exact;
+use crate::curve_face::conic_oracle::{ArcTruth, arc_truth, exact};
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
 
@@ -120,19 +120,26 @@ fn arc(c: &geom::Curve3<f64>, a: f64, b: f64) -> f64 {
 /// at `eps` (module docs), or `None`.
 fn contradiction(
     got: &Result<Result<CircleRoots<f64>, Unsettled>, ConicQuadricRefusal>,
-    truth: &exact::Truth,
-    c: &geom::Curve3<f64>,
-    (nearest, farthest): (f64, f64),
+    on_arc: &ArcTruth,
+    (c, span): (&geom::Curve3<f64>, (f64, f64)),
+    (_, farthest): (f64, f64),
     eps: f64,
 ) -> Option<&'static str> {
     let escalate = 10.0 * eps;
-    // The oracle's depth at the residual's extremes, or with none (a
-    // constant residual) the sampled one, which a crossing carrier's
-    // samples would read at its crossing.
-    let nearest = if truth.residual_depth.is_finite() {
-        truth.residual_depth
-    } else {
-        nearest
+    // The oracle's depth at the residual's extremes on the arc and its
+    // ends. An arc whose end stands in band is the end's to read, and is
+    // set aside.
+    if on_arc.at_an_end {
+        return None;
+    }
+    let nearest = on_arc.least;
+    let truth = &on_arc.roots;
+    let placed = |found: &[f64]| {
+        found
+            .iter()
+            .copied()
+            .filter(|&t| crate::curve_face::conic_oracle::on_arc(span, t))
+            .collect::<Vec<_>>()
     };
     match got {
         Ok(Err(_)) | Err(ConicQuadricRefusal::Sphere(_) | ConicQuadricRefusal::Cylinder(_)) => None,
@@ -142,7 +149,7 @@ fn contradiction(
             (farthest > escalate).then_some("On, off the surface past the band")
         }
         Ok(Ok(CircleRoots::Miss)) => {
-            if !truth.roots.is_empty() {
+            if !truth.is_empty() {
                 Some("a Miss on a true crossing")
             } else if nearest < eps {
                 Some("a Miss on an extreme in the zero band")
@@ -153,14 +160,12 @@ fn contradiction(
         Ok(Ok(CircleRoots::Certified(found))) => {
             if nearest < eps {
                 Some("a count on an extreme in the zero band")
-            } else if found.count() != truth.roots.len() {
+            } else if placed(found.roots()).len() != truth.len() {
                 Some("a count the oracle does not hold")
-            } else if found.roots().iter().any(|&t| {
-                truth
-                    .roots
-                    .iter()
-                    .all(|&truth_t| arc(c, t, truth_t) > escalate)
-            }) {
+            } else if placed(found.roots())
+                .iter()
+                .any(|&t| truth.iter().all(|&truth_t| arc(c, t, truth_t) > escalate))
+            {
                 Some("a root past the band of every true one")
             } else {
                 None
@@ -189,7 +194,13 @@ fn judge(
     if matches!(got, Ok(Ok(CircleRoots::Miss | CircleRoots::Certified(_)))) {
         *definite += 1;
     }
-    let why = contradiction(&got, &truth, c, (nearest, farthest), eps)?;
+    let on_arc = arc_truth(
+        |t| crate::implicit_residual(s, c.eval(t)),
+        (m - h, m + h),
+        &truth.roots,
+        10.0 * eps,
+    );
+    let why = contradiction(&got, &on_arc, (c, (m - h, m + h)), (nearest, farthest), eps)?;
     Some(format!(
         "{what}, ε {eps:e}: {why}: {got:?}\n  truth: {} roots {:?}, depth {:.3e}, \
          residual depth {:.3e}, sampled {nearest:.3e} to {farthest:.3e}\n  {c:?}\n  {s:?}",
