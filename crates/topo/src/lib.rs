@@ -726,7 +726,10 @@ pub mod test_support {
         key: crate::SurfaceKey,
         surface: geom::Surface<T>,
     ) -> bool {
-        body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+        body.surfaces
+            .get_mut(key)
+            .map(|s| *s = surface.into())
+            .is_some()
     }
 
     /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
@@ -888,6 +891,45 @@ pub mod test_support {
         body.finished(what, tol)
     }
 
+    /// **`body`'s finish, its findings as [`crate::validate_geometric`]
+    /// spells them**: a construction door leaves each row current or
+    /// absent, and that check, a pure one, reads an absent one as
+    /// missing, where the finish ([`crate::AtRestPolicy::finish`])
+    /// completes it first.
+    ///
+    /// # Errors
+    ///
+    /// The finish's findings.
+    pub fn validate_completed<T: crate::AtRestPolicy>(
+        body: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<(), Vec<crate::ValidationError>> {
+        crate::finish(body.clone(), tol)
+            .map(drop)
+            .map_err(|e| e.as_slice().to_vec())
+    }
+
+    /// **`body` with its rows completed**, the finish's first act
+    /// ([`crate::AtRestPolicy::finish`]) without its verdict: for a row
+    /// that reads the rows a construction door left for the finish on a
+    /// body the verdict refuses for another reason.
+    ///
+    /// # Errors
+    ///
+    /// Tiers 1 and 2's findings, or completion's.
+    pub fn completed<T: crate::AtRestPolicy>(
+        mut body: Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, Vec<crate::ValidationError>> {
+        let refused =
+            crate::finish::complete_in_place(&mut body, tol).map_err(|e| e.as_slice().to_vec())?;
+        if refused.is_empty() {
+            Ok(body)
+        } else {
+            Err(refused)
+        }
+    }
+
     /// **What of `body` lies along a line**: the line through `origin`
     /// along the unit `dir`, and each edge both of whose ends lie on it
     /// (within 1e-9) as their parameters along it, the lesser first, and
@@ -1017,7 +1059,7 @@ pub mod test_support {
     }
 
     /// The boolean pipeline through its join: both operand clones with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`boolean::through_the_join`). `None` where the pipeline answers
     /// without a join to stop at.
     ///
@@ -1082,7 +1124,7 @@ pub mod test_support {
     }
 
     /// The direct split run through its join: the scratch body with
-    /// every null edge killed, before the finish and the closing mint
+    /// every null edge killed, before the finish
     /// (`splitting::through_the_join`).
     ///
     /// # Errors
@@ -1431,7 +1473,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.face(face).map(|f| f.surface()) else {
+        let Some(Ok(surface)) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1478,7 +1520,8 @@ pub mod test_support {
     /// # Errors
     ///
     /// The walk's own [`crate::PointInSolidError`]; a face that is not
-    /// planar is `KindUnsupported`.
+    /// planar is `KindUnsupported`, and one with no surface yet
+    /// `PendingFace`.
     pub fn point_in_face<T: geom_core::Decide>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -1487,10 +1530,12 @@ pub mod test_support {
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
         else {
-            let f = body.proven_face(face);
+            let Ok(surface) = body.proven_face(face).surface() else {
+                return Err(crate::PointInSolidError::PendingFace { face });
+            };
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: f.surface().kind(),
+                kind: surface.kind(),
             });
         };
         crate::solid_contain::point_in_face(body, face, normal, p, band)
@@ -1604,7 +1649,7 @@ pub use geom_brep::{
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
     Structural, SurfacePair,
 };
-pub use geometry::{CurveKey, PointKey, SurfaceKey};
+pub use geometry::{CurveKey, Pending, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
@@ -1620,10 +1665,39 @@ pub use offset_derive::{
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{
-    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
-    pcurve_of,
-};
+pub use pcurves::{LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, pcurve_of};
+
+/// **The minting pass, for a test** (`test-support` only): every curved
+/// face's rows cleared and minted again. Crate-private otherwise — no
+/// production door closes with it: the finish completes a body's rows,
+/// keeping every stored row, so a stale one is refused rather than
+/// replaced.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: geom_core::Tol,
+) -> Result<(), PcurveMintError> {
+    pcurves::mint_pcurves(body, tol)
+}
+
+/// **The minting pass over `faces`, for a test** (`test-support` only):
+/// [`mint_pcurves`] restricted to those faces.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves_of<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: geom_core::Tol,
+) -> Result<usize, PcurveMintError> {
+    pcurves::mint_pcurves_of(body, faces, tol)
+}
 pub use props::{
     AtRestPolicy, CertifiedPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane,
     QuadLaneOf, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
@@ -1644,8 +1718,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
-    session_box_at, take,
+    Completed, FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay,
+    finish, session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
@@ -1690,3 +1764,5 @@ pub use validate::{
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
+#[cfg(test)]
+mod pending_face_rows;

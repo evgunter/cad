@@ -82,7 +82,7 @@ fn caps_face_alike(what: &str, body: &Body<f64>) {
     let normals: Vec<f64> = body
         .faces()
         .filter_map(|(fk, _)| match body.face_surface(fk) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let normal = frame.axis();
                 Some(normal.y)
             }
@@ -159,7 +159,7 @@ fn a_cap_tilted_between_its_scopes_two_reaches_escalates_at_the_gate() {
         tol,
     );
     let (key, cap) = drum
-        .surfaces()
+        .described_surfaces()
         .find_map(|(k, s)| match s {
             Surface::Plane { frame } if frame.origin().y == 0.0 => Some((k, *frame)),
             _ => None,

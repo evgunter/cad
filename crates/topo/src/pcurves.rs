@@ -71,15 +71,15 @@
 //!   escalation, as does a line or ellipse whose class reading is in
 //!   band; on a cone every circle the chart holds is a rim, so a circle
 //!   that is none is off the chart or in that band. Each refusal is owed
-//!   like any other: the producer refuses, and at rest it is a check-8
+//!   like any other: the finish refuses, and at rest it is a check-8
 //!   finding, never excused ([`not_owed`] excuses only a scalar with no
 //!   fitted door refusing a fitted image; `odd_cone_circle` pins the
 //!   cone's).
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
-//!   (`Pcurve::IsoArc`). Only the mvfs placeholder mints nothing: it
-//!   is not a described surface.
+//!   (`Pcurve::IsoArc`). A pending face mints nothing: it has no
+//!   surface.
 //!
 //! # The loop walk: images and joint elements (spec §3)
 //!
@@ -154,11 +154,14 @@
 //!
 //! ## Stale rows: which ops maintain this map, and which do not
 //!
-//! Read this before storing a cache from a new call site. Four
-//! postures exist, and they classify **the op a consumer calls**, not
-//! every primitive that op uses internally: an op may drive `split_edge`
-//! or a bare Euler run in its own interior and still MAINTAIN, so long
-//! as it re-mints before it hands the body back.
+//! A door in construction state keeps each stored row current or drops
+//! it, and the finish completes the rest (`docs/DESIGN.md`,
+//! `[one-way.places]`): it drops the rows on dead half-edges, keeps
+//! every stored row and derives each missing one, so a row a door left
+//! stale is refused there rather than replaced. Read this before storing
+//! a cache from a new call site. Each `&mut Body` door declares which of
+//! four postures it holds (`staleness_posture::DECLARED`, checked by
+//! `every_mutation_door_declares_its_pcurve_posture`).
 //!
 //! **`mev`, `mef` and `mekr` leave no complete face half-minted.**
 //! These operators, with their sugar, add half-edges to an existing
@@ -187,39 +190,15 @@
 //! leaves the face as found.
 //! A face half-minted any other way is left as found. Other doors still
 //! produce a half-minted face
-//! ([`PcurveMintError::MissingCache`] lists them), so a producer's final
-//! pass is still what mints the faces the producer BUILT — which its
-//! operators leave unminted by design — and re-derives what its other
-//! doors staled, dropped or left incomplete.
+//! ([`PcurveMintError::MissingCache`] lists them), so the finish is what
+//! completes the faces a producer BUILT — which its operators leave
+//! unminted by design — and what its other doors dropped.
 //!
-//! **Maintains the map** — runs [`mint_pcurves`] on the result, and
-//! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
-//! the same posture over a SUBSET, **sound once no row of a dead
-//! half-edge remains** (no half-edge died, or `drop_rows` disposed of
-//! the dead ones' rows first): it re-derives the rows of exactly the
-//! faces it wrote and leaves the rest as found, so no row it could have
-//! staled survives its return. It does NOT discharge the whole-body
-//! claim by itself — a row on a dead half-edge is reachable from no
-//! face, so it survives that pass over every face of the body (the
-//! entry's own docs carry the case, pinned in `sweep`'s SHELL-10
-//! probes). Its callers: the two simultaneous offset doors, which
-//! perform no surgery, and
-//! [`crate::Body::join_edges_within`](crate::construction::Construct::join_edges_within),
-//! which drops its dead half-edges' rows first. In this crate: the
-//! splitting lane (on each side it produces), the boolean pipeline (on
-//! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
-//! staged result before commit, when the input carried rows — as an
-//! input at rest does on every face whose chart mints),
-//! [`crate::mirror_body`] (on the same terms;
-//! [`crate::transform_rigid`] carries rows unchanged instead),
-//! [`crate::shell`](mod@crate::shell) (on the assembled thin solid),
-//! [`crate::Body::join_edges`](crate::construction::Construct::join_edges)
-//! (on the staged body, when the input carried rows), and
-//! `replace_face::offset_charts_staged`, behind
-//! [`crate::offset_surfaces_together`] (on the whole staged body). **Downstream crates hold the same posture and
-//! are part of the list**: `sweep`'s extrude, revolve and tube, loft,
-//! fillet build and fillet surgery, and `step_import`'s assembly all
-//! re-mint on the body they return.
+//! **Maintains the map** — the pass itself ([`mint_pcurves`], which
+//! clears the map before it re-mints, and [`mint_pcurves_of`] over a
+//! subset), the fixture builders that call it, and the Euler operators'
+//! site mint above. No producer closes with the pass: its clearing would
+//! replace a stale row rather than refuse it.
 //!
 //! **Transfers the map** — the graft (`boolean::combine`, and
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
@@ -235,12 +214,12 @@
 //! the parent halves and the two new halves, minting nothing where
 //! there was nothing. The carry is exact on every chart; two readers of
 //! the split body are narrower, both stated at [`split_cache`]. On a
-//! described-NURBS wall [`mint_pcurves`] — the recovery step this
-//! module's caveats name for a face left rowless — refuses, because
+//! described-NURBS wall [`mint_pcurves`] refuses, because
 //! `nurbs_iso_derive`'s rim arms map an edge's whole carrier
 //! interval onto the chart's whole `u` domain, which a sub-edge no
-//! longer spans; so the claim that a carried row is the row the pass
-//! would derive does not reach the iso rows there (it does reach a
+//! longer spans; completion keeps those rows as carried, so the claim
+//! that a carried row is the row the pass would derive does not reach
+//! the iso rows there (it does reach a
 //! carried `General` row, which the pass re-derives bit for bit). And
 //! the trimmed quadrature lane refuses a carried `General` child's
 //! sub-range typed.
@@ -248,8 +227,8 @@
 //! **[`crate::Body::revert`] carries the map, re-stated with the
 //! frames.** Not a fifth posture: the four this section names classify the
 //! `&mut Body` doors the guard walks, and `revert` is a `&self ->
-//! Self` producer outside that walk (the guard's "does NOT establish"
-//! list below), so this is a prose position with nothing checking it.
+//! Self` producer outside that walk, so this is a prose position with
+//! nothing checking it.
 //! Every row keeps its key, its interval and its certificate: the
 //! curved charts' frames do not move under a reversal (those faces
 //! flip their `sense` bit), so their rows are the rows; a `Plane`'s
@@ -261,8 +240,8 @@
 //! whose half-edge no longer resolves (the stale-row consequence
 //! below) is on no face, so it is on no plane face, and it travels as
 //! found — not a refusal, because the boolean's `revert` of a split
-//! operand carries such rows routinely, and the graft or the
-//! producer's closing mint disposes of them. Each joint element moves
+//! operand carries such rows routinely, and the graft or the finish
+//! disposes of them. Each joint element moves
 //! onto its source predecessor, inverted — the same joint read from
 //! the other side — and no loop's `first` moves (the joint bullet in
 //! `revert`'s module docs). Tier 3 of a reverted body whose faces
@@ -291,9 +270,7 @@
 //! leaves complete, or storing nothing where the closed-form lane
 //! cannot mint it. On a spline
 //! chart, or a destination that was unminted or half-minted, the drop
-//! is the whole answer, and the producer's closing mint re-derives the
-//! destination; a body left at rest without it reads loud at tier 3,
-//! which re-derives a face that stores no row ([`validate_pcurves`]).
+//! is the whole answer, and the finish completes the destination.
 //! Their old `Neither` reading was the one the guard's table could not see: no posture
 //! makes a claim about what a row MEANS, and these doors changed
 //! nothing else. Two more doors move a RUN of half-edges between two
@@ -308,8 +285,8 @@
 //! chart and drops them on any other ([`crate::Body::drop_rows`], over
 //! the loops [`crate::Body::half_edges_proven_whole`] proves), which is what makes its own
 //! declaration below true as written — a swap onto a plane or a
-//! placeholder used to leave a COMPLETE row set stated in the chart
-//! the face left, and this pass skips exactly that face.
+//! pending slot leaves a COMPLETE row set stated in the chart the face
+//! left, and this pass skips exactly that face.
 //!
 //! **Completes the map** — [`crate::Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) and
 //! [`crate::Body::kev_describing`](crate::construction::Construct::kev_describing)'s listed members. A carrier swap is
@@ -365,59 +342,31 @@
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). What bounds it is the backstop, the
-//! tier-3 pcurve pass: it reports a face that stores none of its rows
-//! or misses some, saying why by re-deriving it, and a stored row that
-//! no longer certifies against the current carrier and surface or
-//! breaks its loop's branch or winding. It says nothing about the two shapes
-//! outside that — a COMPLETE face whose rows were stated in another
-//! chart and certify against this one anyway, and a face on a chart
-//! `chart_mints` refuses, which the pass skips entirely. So the
-//! posture is fail-loud where the pass looks, and an op that mutates
-//! an already-minted body must either clear the map or re-mint before
-//! returning, and must say which.
-//!
-//! **Where it says which, and what checks it.** For a `&mut Body` door
-//! in this crate, in
-//! `staleness_posture::every_mutation_door_declares_its_pcurve_posture`
-//! — a walk of `topo/src` requiring every such door to either call the
-//! pass in its own body, in either of its two spellings
-//! ([`mint_pcurves`] whole-body, [`mint_pcurves_of`] over a subset), or
-//! carry a declared posture. It goes red the day a door is added and
-//! nobody says which bucket it is in, and red the day a door whose
-//! entry says it does not re-mint starts calling the pass directly.
-//!
-//! **What the guard does NOT establish**, so that nothing above reads
-//! as more than it is:
-//!
-//! - **It checks that an entry exists, not that it is true.** A door
-//!   declared `Maintains` is taken at its word: no walk can see that a
-//!   delegate re-mints, and `mint_pcurves`'s own entry is a claim
-//!   about the pass this module defines. Only the
-//!   not-`Maintains`-but-minting direction is mechanical.
-//! - **Delegation is invisible to it.** The one entry that rotted
-//!   historically — an op that started re-minting through a helper
-//!   while its bucket entry stayed put — is caught here only if the
-//!   helper is itself a `&mut Body` door on this surface, which for
-//!   [`crate::Body::merge_coplanar_faces`] it happens to be. A private
-//!   delegate would be a green guard over the same rot.
-//! - **It reads `topo/src` only.** The pipelines that take a body and
-//!   return one rather than taking `&mut Body` (the splitting lane, the
-//!   boolean pipeline, [`crate::transform`]) and every downstream crate
-//!   are outside the walk; over that remainder the buckets above are a
-//!   survey, checked by nothing.
+//! different half-edge entirely). The finish drops a row whose
+//! half-edge is dead; what bounds the rest is the tier-3 pcurve pass,
+//! which reads every row the finish kept: a stored row that no longer
+//! certifies against the current carrier and surface or breaks its
+//! loop's branch or winding is a finding. It says nothing about the
+//! two shapes outside that — a COMPLETE face whose rows were stated in
+//! another chart and certify against this one anyway, and a face on a
+//! chart `chart_mints` refuses, which the pass skips entirely. So the
+//! posture is fail-loud where the pass looks, and a door that mutates a
+//! minted body keeps each row current or drops it, and says which
+//! posture it holds.
 //!
 //! [`JointElement::then`]: crate::joint::JointElement::then
 //! [`PcurveCertifyError::Incidence`]: geom_brep::PcurveCertifyError::Incidence
 //! [`Winding`]: crate::joint::Winding
 //! [`Winding::closes`]: crate::joint::Winding::closes
 
+mod complete;
 mod decision;
 mod lift;
 mod mint;
 mod site;
 mod tier3;
 
+pub(crate) use complete::{complete_faces, complete_pcurves};
 pub use decision::*;
 pub use lift::*;
 pub use mint::*;

@@ -203,7 +203,7 @@ fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
 /// The edge posture is read by the first-order passes PR 4575 leaves in
 /// place, with the arc tied `On`: it answers there, and descending the
 /// arc's side in `side_code` too (as
-/// `work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`
+/// `work/tang/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`
 /// would) refused it, measured, `ClassificationInvariant "germ record
 /// without a clean In/Out transition after rewrite"`.
 #[test]

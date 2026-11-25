@@ -67,7 +67,6 @@
 //! | `Sphere` | `SPHERICAL_SURFACE` | yes, identity |
 //! | `Torus` | `TOROIDAL_SURFACE` | yes, identity |
 //! | `Nurbs` (described) | `B_SPLINE_SURFACE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_SURFACE` complex instance when any weight ≠ 1 | yes, structure for structure |
-//! | `Nurbs` (mvfs placeholder) | — | refuses (see below) |
 //! | `Approx` | — | refuses (see below) |
 //!
 //! | kernel `Curve3` | AP214 entity | exact? |
@@ -96,9 +95,9 @@
 //! rungs is everywhere.
 //!
 //! **What still refuses**, typed and named, never silently degraded,
-//! both through [`StepExportError::UnsupportedSurface`]: the mvfs "no
-//! description yet" NURBS placeholder — a mid-surgery fact, never
-//! exportable — and an approximating surface (`Surface::Approx`),
+//! both through [`StepExportError::UnsupportedSurface`]: a face whose
+//! surface is still pending — a mid-surgery fact, never exportable —
+//! and an approximating surface (`Surface::Approx`),
 //! which refuses rather than printing its fit as though it were the
 //! described geometry (AP214 cannot carry "this B-spline stands in
 //! for an offset, to within ε", so the certificate that makes the fit
@@ -262,8 +261,8 @@ pub enum StepExportError {
     /// A face's surface has no printer. Since M5 PR 13 every
     /// ELEMENTARY_SURFACE prints (plane, cylinder, cone, sphere,
     /// torus) and since M6-3 described NURBS surfaces print as
-    /// `B_SPLINE_SURFACE_WITH_KNOTS`, so the one live case is the
-    /// mvfs "no description yet" NURBS placeholder — joined by the
+    /// `B_SPLINE_SURFACE_WITH_KNOTS`, so the live cases are a face
+    /// whose surface is still pending (`kind` "pending") and the
     /// approximating surface, which refuses rather than print its fit
     /// as though it were the described geometry (the file has no place
     /// to carry the certificate that makes the fit honest). Typed
@@ -352,7 +351,7 @@ impl StepExportError {
                 "step export: face {face:?}'s surface ({kind}) has no printer in the \
                  analytic subset (every elementary surface prints, and a DESCRIBED \
                  NURBS surface prints as B_SPLINE_SURFACE_WITH_KNOTS; what refuses \
-                 is the no-description-yet placeholder, which is a mid-surgery fact, \
+                 is a face whose surface is still pending, a mid-surgery fact, \
                  and an approximating surface, which refuses rather than printing \
                  its fit as though it were the described geometry)"
             ),

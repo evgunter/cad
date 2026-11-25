@@ -298,7 +298,7 @@ pub fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
             let surface = body.face_surface(k);
             matches!(
                 surface,
-                Some(pncad::geom::Surface::Cylinder { frame, .. })
+                Ok(pncad::geom::Surface::Cylinder { frame, .. })
                     if PEG_X.iter().any(|&x| (frame.origin().x.f() - x).abs() < 1e-9)
                         && (frame.origin().y.f() - PEG_Y).abs() < 1e-9
             )

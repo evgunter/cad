@@ -152,7 +152,7 @@ fn independent_cube_full_verification() {
     assert!(euler_poincare_holds(&body, 1, 0));
 
     // ---- Surface-sharing rule: ONE surface, shared by all six faces. ----
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     for (_, face) in body.faces() {
         assert_eq!(face.surface, seed.surface, "face split shares the surface");
         assert!(face.rings.is_empty());
