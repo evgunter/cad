@@ -1334,29 +1334,19 @@ where
             // finding set, sorted where the sort reads it whole.
             let not_at_rest =
                 |findings| SplitError::from(SplitFinishError::ResultNotAtRest { side, findings });
-            let refused = crate::finish::complete_in_place(&mut body, tol).map_err(not_at_rest)?;
-            let unsorted = (!refused.is_empty()).then(|| body.clone());
-            let sorted = crate::pieces::sort_into_pieces(
-                &mut body,
-                band,
-                tol,
-                <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
-                None,
-            );
-            match (sorted, unsorted) {
-                (Ok(()), None) => {}
-                (Ok(()), Some(_)) => {
-                    return Err(not_at_rest(crate::finish::refused_finding_set(
-                        body, tol, refused,
-                    )));
-                }
-                (Err(_), Some(unsorted)) => {
-                    return Err(not_at_rest(crate::finish::refused_finding_set(
-                        unsorted, tol, refused,
-                    )));
-                }
-                (Err(e), None) => return Err(SplitError::Pieces(e)),
-            }
+            crate::finish::fed(&mut body, tol, |body| {
+                crate::pieces::sort_into_pieces(
+                    body,
+                    band,
+                    tol,
+                    <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
+                    None,
+                )
+            })
+            .map_err(|fed| match fed {
+                crate::finish::Fed::NotFinished(findings) => not_at_rest(findings),
+                crate::finish::Fed::Read(e) => SplitError::Pieces(e),
+            })?;
             <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
                 .map(finish::SplitPart::Body)
                 .map_err(|findings| {

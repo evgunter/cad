@@ -1,12 +1,12 @@
-//! Re-review probes for PR 7497 (claim 2): a body whose completion
-//! refuses, fed to the Boolean's gate, answers the same finding set as
-//! `finish` on that body, and never `Ok`.
+//! **The Boolean's gate answers the finish's finding set where
+//! completion refuses** (`crate::finish::fed`): a body whose completion
+//! refuses, fed to the gate, answers the same findings as `finish` on
+//! that body, and never `Ok` — one body, one finding set at every door.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
 
 use crate::body::Body;
-use crate::construction::Construct;
 use crate::entity::HalfEdgeKey;
 
 fn set(r: Vec<crate::ValidationError>) -> Vec<String> {
@@ -24,7 +24,11 @@ fn r2_gate_answers_the_finish_set_where_completion_refuses() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let mut base: Body<f64> = crate::test_support_fixtures::seamless_drum(1.0, 2.0, tol);
-    assert!(crate::finish::complete_in_place(&mut base, tol).unwrap().is_empty());
+    assert!(
+        crate::finish::complete_in_place(&mut base, tol)
+            .unwrap()
+            .is_empty()
+    );
     crate::finish(base.clone(), tol).expect("the drum finishes");
     let jointed: Vec<HalfEdgeKey> = base
         .half_edges
@@ -44,11 +48,16 @@ fn r2_gate_answers_the_finish_set_where_completion_refuses() {
             let el = body.joint(he).unwrap().deck();
             body.attach_joint(
                 he,
-                crate::joint::JointElement(crate::joint::Deck { u: el.u + shift, ..el }),
+                crate::joint::JointElement(crate::joint::Deck {
+                    u: el.u + shift,
+                    ..el
+                }),
             );
             let mut probe = body.clone();
             let refused = crate::finish::complete_in_place(&mut probe, tol).unwrap();
-            let finish = crate::finish(body.clone(), tol).map(drop).map_err(|e| e.as_slice().to_vec());
+            let finish = crate::finish(body.clone(), tol)
+                .map(drop)
+                .map_err(|e| e.as_slice().to_vec());
             let gate = super::gate(body.clone(), &super::Held::nothing(), band, tol);
             let gate = match gate {
                 Ok(_) => Ok(()),
@@ -73,5 +82,9 @@ fn r2_gate_answers_the_finish_set_where_completion_refuses() {
         }
     }
     println!("{}", report.join("\n"));
-    assert!(exercised > 0, "no plant made completion refuse:\n{}", report.join("\n"));
+    assert!(
+        exercised > 0,
+        "no plant made completion refuse:\n{}",
+        report.join("\n")
+    );
 }

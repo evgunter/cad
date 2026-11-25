@@ -1,4 +1,10 @@
-//! Review probes for PR 7497 (the finish completes rows). Not for merge.
+//! **Completion refuses a stale row rather than replacing it**: swapped
+//! rows, a wrong row beside a gap, a stale element on an imageless
+//! face and wrong rows on a spline chart are each refused at the
+//! finish; rows over another support whose images are current finish;
+//! and a filled face is the whole derivation's, bit for bit. A
+//! clear-first completion (deriving every face whole) turns the refusal
+//! rows red.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -43,12 +49,12 @@ fn face_rows(body: &Body<f64>, f: FaceKey) -> Vec<String> {
 fn verdict(label: &str, body: Body<f64>) -> Result<Body<f64>, String> {
     match topo::finish(body, tol()) {
         Ok(f) => {
-            println!("[probe] {label}: FINISHED");
+            println!("[row] {label}: FINISHED");
             Ok((*f).clone())
         }
         Err(e) => {
             let s = format!("{:?}", e.as_slice());
-            println!("[probe] {label}: REFUSED {}", &s[..s.len().min(300)]);
+            println!("[row] {label}: REFUSED {}", &s[..s.len().min(300)]);
             Err(s)
         }
     }
@@ -61,10 +67,10 @@ fn curved_face(body: &Body<f64>) -> (FaceKey, Vec<HalfEdgeKey>) {
         .expect("a curved face with two rows")
 }
 
-/// Claim 1a: two rows of one face swapped (each a row of the wrong
+/// Two rows of one face swapped (each a row of the wrong
 /// half-edge), nothing missing.
 #[test]
-fn p1a_swapped_rows_are_refused() {
+fn swapped_rows_are_refused() {
     let mut b = vessel(1.0, 2.0);
     let (_, hes) = curved_face(&b);
     let (a, c) = (hes[0], hes[1]);
@@ -72,36 +78,36 @@ fn p1a_swapped_rows_are_refused() {
     let rc = b.pcurve(c).unwrap().clone();
     b.attach_pcurve(a, rc);
     b.attach_pcurve(c, ra);
-    assert!(verdict("p1a swapped", b).is_err(), "laundered");
+    assert!(verdict("swapped", b).is_err(), "laundered");
 }
 
-/// Claim 1b: a wrong-half-edge row kept beside a gap completion fills.
+/// A wrong-half-edge row kept beside a gap completion fills.
 #[test]
-fn p1b_wrong_row_beside_a_gap_is_refused() {
+fn a_wrong_row_beside_a_gap_is_refused() {
     let mut b = vessel(1.0, 2.0);
     let (_, hes) = curved_face(&b);
     let (a, c) = (hes[0], hes[1]);
     let rc = b.pcurve(c).unwrap().clone();
     b.attach_pcurve(a, rc);
     b.detach_pcurve(c);
-    assert!(verdict("p1b wrong+gap", b).is_err(), "laundered");
+    assert!(verdict("wrong+gap", b).is_err(), "laundered");
 }
 
-/// Claim 1c: every row of the r=1 vessel replaced by the r=1.1
+/// Every row of the r=1 vessel replaced by the r=1.1
 /// vessel's (same build, same keys): rows whose recorded support is
 /// another carrier. The gate reads a row by its support and certifies
 /// it anew where the support moved, so the transplanted rows — whose
 /// images are the current edges' (a chart image here does not read the
 /// radius) — are current, and the body finishes, whole and with a gap.
-/// A row whose image is NOT the current edge's is refused: p1a, p1b,
-/// and `review_7497_probes::p1c_rows_over_a_moved_support_are_refused`'s
+/// A row whose image is NOT the current edge's is refused: `swapped_rows_are_refused`,
+/// `a_wrong_row_beside_a_gap_is_refused` and `completion_keeps_what_a_face_stores::rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_where_not`'s
 /// cone.
 #[test]
-fn p1c_rows_of_another_support_whose_images_are_current_finish() {
+fn rows_of_another_support_whose_images_are_current_finish() {
     let mut b = sweep::test_support::lofted_cylinder(2.0, tol());
     let other = sweep::test_support::lofted_cylinder(2.2, tol());
     let (f, hes) = curved_face(&b);
-    println!("[probe] p1c face kind {}", kind(&b, f));
+    println!("[row] face kind {}", kind(&b, f));
     assert_eq!(
         row_faces(&other).iter().find(|(g, _)| *g == f).unwrap().1,
         hes
@@ -116,22 +122,22 @@ fn p1c_rows_of_another_support_whose_images_are_current_finish() {
     }
     let mut gap = b.clone();
     assert!(
-        verdict("p1c support moved, complete", b).is_ok(),
+        verdict("support moved, complete", b).is_ok(),
         "a current image refused"
     );
     gap.detach_pcurve(hes[0]);
     assert!(
-        verdict("p1c support moved, one gap", gap).is_ok(),
+        verdict("support moved, one gap", gap).is_ok(),
         "a current image refused"
     );
 }
 
-/// Claim 1d: a face whose images are all off but whose joint elements
+/// A face whose images are all off but whose joint elements
 /// stay, one of them made stale (a period off). The contract keeps
 /// every stored element; the derive-whole arm (`!rows.stores`) writes
 /// the mint's elements over them.
 #[test]
-fn p1d_stale_element_on_an_imageless_face() {
+fn a_stale_element_on_an_imageless_face_is_refused() {
     let base = vessel(1.0, 2.0);
     let (_, hes) = curved_face(&base);
     let mut clean = base.clone();
@@ -146,11 +152,11 @@ fn p1d_stale_element_on_an_imageless_face() {
         .expect("a joint");
     let el = b.joint(he).unwrap().deck();
     b.attach_joint(he, topo::JointElement(topo::Deck { u: el.u + 1, ..el }));
-    let _ = verdict("p1d imageless, elements kept", clean);
-    let r = verdict("p1d imageless, stale element", b.clone());
+    let _ = verdict("imageless, elements kept", clean);
+    let r = verdict("imageless, stale element", b.clone());
     if let Ok(done) = &r {
         println!(
-            "[probe] p1d stale element {:?} -> finished element {:?}",
+            "[row] stale element {:?} -> finished element {:?}",
             b.joint(he),
             done.joint(he)
         );
@@ -161,18 +167,18 @@ fn p1d_stale_element_on_an_imageless_face() {
         half.detach_pcurve(h);
     }
     half.attach_joint(he, topo::JointElement(topo::Deck { u: el.u + 1, ..el }));
-    let _ = verdict("p1d one image kept, stale element", half);
+    let _ = verdict("one image kept, stale element", half);
     assert!(
         r.is_err(),
         "stale element laundered by the derive-whole arm"
     );
 }
 
-/// Claim 2: per face, half the rows off (every other one, joints kept)
+/// Per face, half the rows off (every other one, joints kept)
 /// against all of them off (the mint's derive_face), compared bit for
 /// bit, certificates included.
 #[test]
-fn p2_fill_matches_whole_derivation() {
+fn a_fill_matches_the_whole_derivation() {
     let bodies: Vec<(&str, Body<f64>)> = vec![
         ("vessel", vessel(1.0, 2.0)),
         ("frustum", frustum(0.5, 1.0)),
@@ -233,49 +239,10 @@ fn p2_fill_matches_whole_derivation() {
     assert!(differ.is_empty(), "{differ:?}");
 }
 
-/// Claim 5: wall time of the finish on complete bodies, against the
-/// pure tier-3 check (`validate_geometric`) the verdict runs. Prints;
-/// asserts nothing. Run with --release-like care: debug numbers are
-/// relative only.
-#[test]
-fn p5_finish_cost() {
-    let bodies: Vec<(&str, Body<f64>)> = vec![
-        ("vessel", vessel(1.0, 2.0)),
-        ("frustum", frustum(0.5, 1.0)),
-        ("torus_barrel", torus_barrel()),
-        ("two_arc_sphere", two_arc_sphere()),
-        (
-            "lofted_cylinder",
-            sweep::test_support::lofted_cylinder(2.0, tol()),
-        ),
-    ];
-    for (name, body) in bodies {
-        let n = 5;
-        let t = std::time::Instant::now();
-        for _ in 0..n {
-            topo::validate_geometric(&body, tol()).unwrap();
-        }
-        let check = t.elapsed() / n;
-        let t = std::time::Instant::now();
-        for _ in 0..n {
-            topo::finish(body.clone(), tol()).unwrap();
-        }
-        let fin = t.elapsed() / n;
-        let t = std::time::Instant::now();
-        for _ in 0..n {
-            topo::test_support::completed(body.clone(), tol()).unwrap();
-        }
-        let comp = t.elapsed() / n;
-        println!(
-            "[p5] {name}: tier3 check {check:?} finish {fin:?} (tiers1-2 + completion alone {comp:?})"
-        );
-    }
-}
-
-/// Claim 1e: the spline face (fitted/iso rows): two rows swapped, and a
+/// The spline face (fitted/iso rows): two rows swapped, and a
 /// wrong row beside a gap.
 #[test]
-fn p1e_spline_wrong_rows_are_refused() {
+fn wrong_rows_on_a_spline_chart_are_refused() {
     let base = sweep::test_support::lofted_cylinder(2.0, tol());
     let (f, hes) = curved_face(&base);
     assert_eq!(kind(&base, f), "Nurbs");
@@ -288,7 +255,7 @@ fn p1e_spline_wrong_rows_are_refused() {
     let mut gap = base.clone();
     gap.attach_pcurve(a, rc);
     gap.detach_pcurve(c);
-    let s = verdict("p1e spline swapped", swapped);
-    let g = verdict("p1e spline wrong+gap", gap);
+    let s = verdict("spline swapped", swapped);
+    let g = verdict("spline wrong+gap", gap);
     assert!(s.is_err() && g.is_err(), "laundered");
 }

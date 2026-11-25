@@ -1,5 +1,10 @@
-//! Review probes for PR 7497 (the finish completes a body's pcurve
-//! rows). Reviewer-owned; not for merge.
+//! **Completion keeps what a face stores** (`topo::pcurves`'
+//! completion, run by the finish): a half-minted face fills as the
+//! whole derivation would, and every stored image and element stands
+//! as found — so a row on the wrong half-edge, an element kept without
+//! its images, or an image over a support that moved it is refused at
+//! the finish, never replaced. A clear-first completion (deriving every
+//! face whole) turns these rows red.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec3};
@@ -99,11 +104,11 @@ fn fixtures() -> Vec<(&'static str, Body<f64>)> {
     out
 }
 
-/// Claim 2: a half-minted face filled by completion equals the whole
+/// A half-minted face filled by completion equals the whole
 /// derivation (the old clearing mint's rows), images, certificates and
 /// elements, wherever both succeed.
 #[test]
-fn p2_a_half_minted_face_fills_as_the_whole_derivation() {
+fn a_half_minted_face_fills_as_the_whole_derivation() {
     let mut report = Vec::new();
     for (name, reference) in fixtures() {
         let want = rows(&reference);
@@ -171,11 +176,11 @@ fn p2_a_half_minted_face_fills_as_the_whole_derivation() {
     assert!(!text.contains("does not finish"), "{text}");
 }
 
-/// Claim 1(a): a stored row moved onto the wrong half-edge is refused
+/// A stored row moved onto the wrong half-edge is refused
 /// by the finish, and `complete_in_place` (via `completed`) keeps it
 /// bit for bit.
 #[test]
-fn p1a_a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
+fn a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
     for (name, reference) in fixtures() {
         let faces: Vec<_> = reference.faces().map(|(f, _)| f).collect();
         let mut tried = 0;
@@ -223,11 +228,11 @@ fn p1a_a_row_on_the_wrong_half_edge_is_refused_not_laundered() {
     }
 }
 
-/// Claim 1(b): a stale joint element kept on a face that stores no
+/// A stale joint element kept on a face that stores no
 /// image (`stores == false`) — does completion's whole derivation
 /// overwrite it?
 #[test]
-fn p1b_an_element_kept_without_its_images_is_not_replaced() {
+fn an_element_kept_without_its_images_is_not_replaced() {
     let mut laundered = Vec::new();
     for (name, reference) in fixtures() {
         let faces: Vec<_> = reference.faces().map(|(f, _)| f).collect();
@@ -262,7 +267,7 @@ fn p1b_an_element_kept_without_its_images_is_not_replaced() {
     assert!(laundered.is_empty(), "{}", laundered.join("\n"));
 }
 
-/// Claim 1(c): rows whose support changed — the rows of a same-keyed
+/// Rows whose support changed — the rows of a same-keyed
 /// body with a different carrier (radius / twist) transplanted — are
 /// read by their support at the gate: a row whose recorded support is
 /// not the edge's current one is certified anew against the current
@@ -273,7 +278,7 @@ fn p1b_an_element_kept_without_its_images_is_not_replaced() {
 /// cylinder's or torus's, whose chart image does not read the radius,
 /// and the twisted loft's — is current, and the body finishes.
 #[test]
-fn p1c_rows_over_a_moved_support_are_refused() {
+fn rows_over_a_moved_support_finish_where_their_images_are_current_and_refuse_where_not() {
     let t = tol();
     let rev = |v: Vec<(Point2<f64>, f64)>| {
         let b = sweep::test_support::revolved_about_y(v, sweep::Revolution::Full, t);

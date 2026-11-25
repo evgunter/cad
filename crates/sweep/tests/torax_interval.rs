@@ -416,7 +416,9 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
         // pcurve envelope of a spiric rim, whose enclosure is wider than
         // the band, where the finish completes the rows. The finding
         // names a half-edge of a body the refusal does not carry, so
-        // which edge escalated is not read here.
+        // which edge escalated is not read here: a loosened pin, any
+        // `pcurve_envelope` escalation stands down, not a derived rim's
+        // alone (`work/walks/not-valids-pcurve-finding-names-no-edge-so-the-klein-elbow-stand-down-reads-any-rim.md`).
         Err(ShellError::Face { ref error, .. })
             if tol.eps() < DEFAULT_EPS
                 && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>

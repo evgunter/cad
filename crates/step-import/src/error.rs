@@ -983,70 +983,60 @@ mod nested_at_the_door {
         );
     }
 
-    /// RE-REVIEW PROBE (PR 7497): the deleted row's second margin
-    /// (`OffMargin::Past`, within ε_in) through `TierInvalid`, the
-    /// ending's position, and the words it refused.
-    #[test]
-    fn r2_probe_the_past_margin_through_tier_invalid() {
-        for margin in [
-            None,
-            Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(5e-7))),
-        ] {
-            let text = StepImportError::TierInvalid {
-                solid: None,
-                errors: vec![topo::ValidationError::Pcurve {
-                    finding: topo::PcurveMintError::Certify {
-                        half_edge: topo::HalfEdgeKey::default(),
-                        error: geom_brep::PcurveCertifyError::Incidence(
-                            geom_brep::IncidenceRefusal::off_chart(
-                                geom::SurfaceKind::Cone,
-                                geom::CurveKind::Circle,
-                                "the circle dips below the apex",
-                                margin,
-                            ),
-                        ),
-                    },
-                }],
-                file: FileCoincidence::new(1e-6),
-            }
-            .render();
-            println!("[probe] {margin:?}: {text}");
-            assert!(text.contains(DAMAGED_FILE_ENDING), "{margin:?}: ends: {text}");
-            for word in ["ε_in", "declared", "kernel defect"] {
-                assert!(!text.contains(word), "{margin:?}: {word}: {text}");
-            }
-        }
-    }
-
     /// **A pcurve finding at the at-rest gate is the file's** (D4 ¶1
     /// (iv)): a row is derived from the file's own curves and surfaces,
-    /// so at the import door its refusal names the file — a definite
-    /// incidence miss ends in the damaged file, with no ε_in offer, and
-    /// an undecided reading on the file's door as rest reads it (the last
-    /// resort, not the damaged file). Every other verdict reads as at
+    /// so at the import door its refusal names the file. A definite
+    /// incidence miss — with no margin, or with the pose height it may
+    /// quote (`OffMargin::Past`, within ε_in here) — ends in the damaged
+    /// file, whoever declared the curve, with no ε_in offer: its margin
+    /// is no reading of the miss. An undecided reading ends on the file's
+    /// door as rest reads it (the last resort, not the damaged file).
+    /// Each ending stands at the end of its verdict, just before
+    /// `TierInvalid`'s own fixed tail. Every other verdict reads as at
     /// rest.
     #[test]
     fn a_pcurve_finding_at_the_gate_names_the_file() {
-        let tier = |finding| StepImportError::TierInvalid {
-            solid: None,
-            errors: vec![topo::ValidationError::Pcurve { finding }],
-            file: FileCoincidence::new(1e-6),
+        // `TierInvalid`'s sentence after its verdicts.
+        const TAIL: &str = " — every imported solid is held to the same tiers";
+        let tier = |finding| {
+            StepImportError::TierInvalid {
+                solid: None,
+                errors: vec![topo::ValidationError::Pcurve { finding }],
+                file: FileCoincidence::new(1e-6),
+            }
+            .render()
         };
-        let off = tier(topo::PcurveMintError::Certify {
-            half_edge: topo::HalfEdgeKey::default(),
-            error: geom_brep::PcurveCertifyError::Incidence(
-                geom_brep::IncidenceRefusal::off_chart(
-                    geom::SurfaceKind::Cone,
-                    geom::CurveKind::Circle,
-                    "the circle dips below the apex",
-                    None,
+        // The one verdict's text, the fixed tail cut off.
+        let verdict = |text: &str| -> String {
+            let (verdict, _) = text
+                .rsplit_once(TAIL)
+                .unwrap_or_else(|| panic!("TierInvalid's tail: {text}"));
+            verdict.to_owned()
+        };
+        for margin in [
+            None,
+            Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
+                5e-7,
+            ))),
+        ] {
+            let off = tier(topo::PcurveMintError::Certify {
+                half_edge: topo::HalfEdgeKey::default(),
+                error: geom_brep::PcurveCertifyError::Incidence(
+                    geom_brep::IncidenceRefusal::off_chart(
+                        geom::SurfaceKind::Cone,
+                        geom::CurveKind::Circle,
+                        "the circle dips below the apex",
+                        margin,
+                    ),
                 ),
-            ),
-        })
-        .render();
-        assert!(off.contains(DAMAGED_FILE_ENDING), "{off}");
-        for word in ["ε_in", "kernel defect"] {
-            assert!(!off.contains(word), "{word}: {off}");
+            });
+            assert!(
+                verdict(&off).ends_with(DAMAGED_FILE_ENDING),
+                "{margin:?}: {off}"
+            );
+            for word in ["ε_in", "declared", "kernel defect"] {
+                assert!(!off.contains(word), "{margin:?}: {word}: {off}");
+            }
         }
         let undecided = tier(topo::PcurveMintError::Certify {
             half_edge: topo::HalfEdgeKey::default(),
@@ -1060,10 +1050,9 @@ mod nested_at_the_door {
                     terminal_sliver: false,
                 },
             },
-        })
-        .render();
+        });
         assert!(
-            undecided.contains(geom_core::KERNEL_LIMIT_RECOURSE),
+            verdict(&undecided).ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
             "{undecided}"
         );
     }

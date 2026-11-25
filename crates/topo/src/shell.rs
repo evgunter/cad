@@ -1803,14 +1803,15 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
     // leaves short has no rows to read, and is the finish's to report:
     // the door answers with the cavity's finish finding set, the
     // refusals beside every other finding.
-    let refused = crate::finish::complete_in_place(&mut cavity, tol)
-        .map_err(|findings| ShellError::NotValid { findings })?;
-    if !refused.is_empty() {
-        cavity.sweep_and_close();
-        return Err(ShellError::NotValid {
-            findings: crate::finish::refused_finding_set(cavity_body, tol, refused),
-        });
-    }
+    crate::finish::fed(
+        &mut cavity,
+        tol,
+        |_| Ok::<(), core::convert::Infallible>(()),
+    )
+    .map_err(|fed| match fed {
+        crate::finish::Fed::NotFinished(findings) => ShellError::NotValid { findings },
+        crate::finish::Fed::Read(never) => match never {},
+    })?;
 
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;

@@ -288,6 +288,50 @@ pub(crate) fn refused_finding_set<T: AtRestPolicy>(
     }
 }
 
+/// What [`fed`] refused: the body's finding set where its completion
+/// refused or tiers 1 and 2 did, or the reader's own refusal on a body
+/// whose rows completed.
+#[derive(Debug)]
+pub(crate) enum Fed<E> {
+    /// The finding set ([`refused_finding_set`]), or tiers 1 and 2's.
+    NotFinished(NotFinished),
+    /// The reader refused a body whose rows completed.
+    Read(E),
+}
+
+/// **A reader inside the pipeline, fed `body`'s rows completed**
+/// ([`complete_in_place`]): the result sort at the Boolean's gate and a
+/// split's sides, and the shell's cavity questions. Where completion
+/// refused, the door answers the body's finding set — the finish's
+/// findings with the refusals beside them — whatever `read` answers: a
+/// reader that meets an unfilled face reads no rows there (the sort's
+/// probe crossing it refuses, naming one face and hiding the rest), so
+/// the set is read off the body `read` left where it read it whole, and
+/// off the body as completion left it where `read` refused.
+///
+/// # Errors
+///
+/// [`Fed::NotFinished`] holding the finding set, or tiers 1 and 2's;
+/// [`Fed::Read`] holding `read`'s refusal of a completed body.
+pub(crate) fn fed<T: AtRestPolicy, E>(
+    body: &mut Body<T>,
+    tol: Tol,
+    read: impl FnOnce(&mut Body<T>) -> Result<(), E>,
+) -> Result<(), Fed<E>> {
+    let refused = complete_in_place(body, tol).map_err(Fed::NotFinished)?;
+    if refused.is_empty() {
+        return read(body).map_err(Fed::Read);
+    }
+    let unread = body.clone();
+    let answered = match read(body) {
+        Ok(()) => body.clone(),
+        Err(_) => unread,
+    };
+    Err(Fed::NotFinished(refused_finding_set(
+        answered, tol, refused,
+    )))
+}
+
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
 /// and carries no verdict.
 ///
