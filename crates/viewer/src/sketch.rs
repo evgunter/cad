@@ -1970,6 +1970,11 @@ pub struct CommittedProfile {
     /// Whether this is a datum's square rather than a profile's loops:
     /// what a pick of it is ([`crate::pickindex::PickedKind::Datum`]).
     pub datum: bool,
+    /// The space whose picture this drawing is in — the node's own, or
+    /// the one a copy showing it is drawn in — `None` for a node in no
+    /// space: what its display frame and a space's hide are read off
+    /// ([`crate::display::DisplayView::outline`]).
+    pub space: Option<pncad::document::VarId>,
 }
 
 /// **What the landed evaluation's profiles came to as drawings**: the
@@ -2036,12 +2041,13 @@ pub fn committed(
                 None => continue,
             },
         };
-        for placing in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
+        for (space, placing) in shown_placings(doc, evaluation, &shown, doc.node_space(node)) {
             let Ok(frame) = placing.compose(drawn.plane.frame()) else {
                 continue;
             };
             out.drawn.push(CommittedProfile {
                 plane: SketchPlane::from_frame(frame),
+                space,
                 ..drawn.clone()
             });
         }
@@ -2049,7 +2055,8 @@ pub fn committed(
     out
 }
 
-/// **Where the picture shows the space `space`**: the identity where it
+/// **Where the picture shows the space `space`**, each with the space
+/// whose picture it is drawn in: the identity, in `space`, where it
 /// shows the space itself (or the node stands in none), else each
 /// copy out of it, carried on through the copies showing the copy's own
 /// space; the identity where nothing shows it, so a drawing in a space
@@ -2059,11 +2066,15 @@ fn shown_placings(
     evaluation: &Evaluation<f64>,
     shown: &std::collections::BTreeSet<pncad::document::VarId>,
     space: Option<pncad::document::VarId>,
-) -> Vec<pncad::geom_core::RigidMotion<f64>> {
+) -> Vec<(
+    Option<pncad::document::VarId>,
+    pncad::geom_core::RigidMotion<f64>,
+)> {
     let identity = pncad::geom_core::RigidMotion::identity;
-    let Some(space) = space.filter(|space| !shown.contains(space)) else {
-        return vec![identity()];
+    let Some(unshown) = space.filter(|space| !shown.contains(space)) else {
+        return vec![(space, identity())];
     };
+    let space = unshown;
     let through: Vec<_> = doc
         .copies()
         .into_iter()
@@ -2075,11 +2086,11 @@ fn shown_placings(
                 .unwrap_or_else(identity);
             shown_placings(doc, evaluation, shown, doc.node_space(copy))
                 .into_iter()
-                .filter_map(move |outer| outer.compose(motion).ok())
+                .filter_map(move |(at, outer)| Some((at, outer.compose(motion).ok()?)))
         })
         .collect();
     if through.is_empty() {
-        vec![identity()]
+        vec![(Some(space), identity())]
     } else {
         through
     }
@@ -2125,6 +2136,7 @@ fn datum_drawing(
             open(vec![[0.0, 0.0], [0.0, h]]),
         ],
         datum: true,
+        space: doc.node_space(node),
     })
 }
 
@@ -2165,6 +2177,7 @@ fn drawing(
                 plane: *profile.validated.plane(),
                 loops,
                 datum: false,
+                space: doc.node_space(node),
             })
             .map_err(|_| ()),
     )

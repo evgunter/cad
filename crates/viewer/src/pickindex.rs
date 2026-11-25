@@ -70,6 +70,7 @@
 //! boundaries). It names no driver type and no `app`-only crate.
 
 use pncad::document::say;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::resolve::RimNameFault;
@@ -1121,8 +1122,9 @@ impl Rims {
 }
 
 /// **One outline the picture draws**: its node, whether it is a datum's
-/// square, and its loops in world coordinates.
-type DrawnOutline<'a> = (RecipeNodeId, bool, &'a [Vec<Point3<f64>>]);
+/// square, and its loops in world coordinates, where the display view
+/// draws them.
+type DrawnOutline<'a> = (RecipeNodeId, bool, Cow<'a, [Vec<Point3<f64>>]>);
 
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
@@ -1140,6 +1142,9 @@ struct Outline {
     /// Whether the outline is a datum's square ([`PickedKind::Datum`])
     /// rather than a profile's.
     datum: bool,
+    /// The space whose picture it is drawn in
+    /// ([`crate::sketch::CommittedProfile::space`]).
+    space: Option<VarId>,
 }
 
 impl Outline {
@@ -1153,6 +1158,7 @@ impl Outline {
             node: profile.node,
             loops,
             datum: profile.datum,
+            space: profile.space,
         }
     }
 }
@@ -2498,8 +2504,8 @@ impl PickIndex {
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
         if lines.outlines || lines.datums {
-            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
-                if !(if datum { lines.datums } else { lines.outlines }) {
+            for (rank, (_, datum, loops)) in outlines.iter().enumerate() {
+                if !(if *datum { lines.datums } else { lines.outlines }) {
                     continue;
                 }
                 let mut best: Option<Candidate> = None;
@@ -2623,9 +2629,9 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => match outlines[rank] {
-                    (node, true, _) => Near::Datum(node),
-                    (node, false, _) => Near::Profile(node),
+                Line::Outline(rank) => match &outlines[rank] {
+                    (node, true, _) => Near::Datum(*node),
+                    (node, false, _) => Near::Profile(*node),
                 },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
@@ -2667,17 +2673,19 @@ impl PickIndex {
     /// **The outline the picture draws of profile `node`**: the edit
     /// preview's where `display` says the node is drawn by one
     /// ([`DisplayView::previewed_profile`]), else its committed
-    /// outline ([`PickIndex::profile_outline`]). What the pick measures
-    /// a cursor against and what the profile marks light.
+    /// outline as `display` shows it ([`DisplayView::outline`]: none
+    /// where it is hidden, under its space's frame where that is
+    /// moved). What the pick measures a cursor against and what the
+    /// profile marks light.
     pub fn drawn_outline<'a>(
         &'a self,
         node: RecipeNodeId,
         display: &'a DisplayView,
-    ) -> &'a [Vec<Point3<f64>>] {
-        match &display.previewed_profile {
-            Some(previewed) if previewed.node == node => &previewed.outline,
-            _ => self.profile_outline(node),
-        }
+    ) -> Cow<'a, [Vec<Point3<f64>>]> {
+        self.drawn_outlines(display)
+            .into_iter()
+            .find(|(drawn, _, _)| *drawn == node)
+            .map_or(Cow::Borrowed(&[][..]), |(_, _, loops)| loops)
     }
 
     /// **Every profile outline the picture draws**, by node
@@ -2687,21 +2695,28 @@ impl PickIndex {
     fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
         // Each committed outline is its own drawing: a profile or datum
         // shown through two copies is drawn, and picked, at both.
+        // The edit preview is drawn by the preview lane, as it stands.
         let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| {
+            .filter_map(|outline| {
                 let loops = match &display.previewed_profile {
-                    Some(previewed) if previewed.node == outline.node => &previewed.outline,
-                    _ => &outline.loops,
+                    Some(previewed) if previewed.node == outline.node => {
+                        Cow::Borrowed(previewed.outline.as_slice())
+                    }
+                    _ => display.outline(outline.node, outline.space, &outline.loops)?,
                 };
-                (outline.node, outline.datum, loops.as_slice())
+                Some((outline.node, outline.datum, loops))
             })
             .collect();
         if let Some(previewed) = &display.previewed_profile
             && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, false, previewed.outline.as_slice()));
+            drawn.push((
+                previewed.node,
+                false,
+                Cow::Borrowed(previewed.outline.as_slice()),
+            ));
         }
         drawn
     }

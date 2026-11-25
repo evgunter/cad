@@ -268,6 +268,21 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     })
 }
 
+/// **Whether `node` is drawn as a committed outline**
+/// ([`crate::sketch::committed`]): a profile's loops, or a datum's
+/// square. Drawn whenever its value landed, whatever reads it.
+pub fn draws_an_outline(node: &Node<ProfileProgram>) -> bool {
+    matches!(node, Node::Profile(_)) || node.is_datum()
+}
+
+/// **Whether the picture draws anything of `node`**: a body
+/// ([`builds_a_body`]) or an outline ([`draws_an_outline`]) — what a
+/// display toggle and a free-move are admitted on
+/// ([`crate::display::drawing_check`]).
+pub fn draws_something(node: &Node<ProfileProgram>) -> bool {
+    builds_a_body(node) || draws_an_outline(node)
+}
+
 /// **The bodies the author's toggles show** beyond what the default
 /// draws ([`Picture::showing`]): display state, and the third part of
 /// the picture's key ([`crate::pickindex::PictureKey`]), compared by

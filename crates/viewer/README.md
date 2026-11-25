@@ -2344,7 +2344,13 @@ over, a fillet's input) can be shown, and any drawn one hidden (Ev, PR
 6209: "all bodies should be viewable by toggle in the view pane"). A
 body's toggle is decided against what it reads now: off where the
 picture draws the body is a hide, on where it leaves it out is a show,
-and either turned back holds nothing.
+and either turned back holds nothing. A committed outline, a profile's
+loops or a datum's square, is drawn whatever reads it, and is listed
+with its own toggle in the space it is in (a free profile in no space)
+and offered one in the Properties pane, as a body is (Ev, 2026-11-22:
+"profiles should be able to have their display toggled in the view
+pane, like actual parts"). Off, it is drawn and picked nowhere; its
+space's hide drops it with the bodies (`DisplayView::outline`).
 A drawn body the product slot does not reach is tinted as outside the
 product. Every shown space stands at the identity, so a body is drawn
 where it was written; where a space is drawn otherwise is held in one
@@ -2372,7 +2378,9 @@ file's layout in place, and the next open restores it by the same rule.
 Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
-variable and moves every body drawn in it; it is dropped when the space
+variable and moves every body and outline drawn in it, the outline
+drawn and picked under the one map (`DisplayView::outline`); it is
+dropped when the space
 is no longer shown or is gone (`display::space_check`, IDENTITY DI5).
 The frame the "Add part…" gesture writes belongs to that gesture's
 history step: it is measured once the evaluation answering the insert
@@ -2382,7 +2390,9 @@ space it mints. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is
-admitted, whatever kind of node drew it.
+admitted, whatever kind of node drew it, an outline in it included. A
+free profile is in no space and refuses
+(`AdmissionFault::InNoSpace`).
 
 ### The placement editor commits a placement's whole bundle
 

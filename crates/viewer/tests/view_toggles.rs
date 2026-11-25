@@ -99,15 +99,16 @@ fn row(session: &DocSession, node: RecipeNodeId) -> (BodyToggle, bool) {
 /// Whether the picture draws some body of `node` — itself, or for a
 /// `⊔` a piece of it — under `view`, as the scene and the pick read it:
 /// a part of the index that no hide drops and a shown drawing of `node`
-/// covers.
+/// covers; or, for a profile or a datum, an outline the pick measures.
 fn visible(index: &PickIndex, view: &DisplayView, node: RecipeNodeId) -> bool {
-    index.parts().iter().any(|part| {
-        !view.hides(part.node(), part.body())
-            && view
-                .shown_drawn
-                .iter()
-                .any(|drawn| drawn.of_node(node) && drawn.draws(part.node(), part.body()))
-    })
+    !index.drawn_outline(node, view).is_empty()
+        || index.parts().iter().any(|part| {
+            !view.hides(part.node(), part.body())
+                && view
+                    .shown_drawn
+                    .iter()
+                    .any(|drawn| drawn.of_node(node) && drawn.draws(part.node(), part.body()))
+        })
 }
 
 /// **Every toggle says what the picture does**: a body whose own toggle

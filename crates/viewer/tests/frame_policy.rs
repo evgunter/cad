@@ -354,15 +354,16 @@ fn the_boundary_mark_belongs_to_the_boundary_alone() {
 fn cause_ordinal(cause: &AdmissionFault) -> usize {
     match cause {
         AdmissionFault::NoSuchNode { .. } => 0,
-        AdmissionFault::NotABody { .. } => 1,
+        AdmissionFault::DrawsNothing { .. } => 1,
         AdmissionFault::NotASpace { .. } => 2,
         AdmissionFault::NotDrawn { .. } => 3,
         AdmissionFault::InTheWorld { .. } => 4,
         AdmissionFault::NotEvaluated { .. } => 5,
-        AdmissionFault::NoSpace { .. } => 6,
-        AdmissionFault::MovedSpace { .. } => 7,
-        AdmissionFault::NoSuchSpace { .. } => 8,
-        AdmissionFault::NotShown { .. } => 9,
+        AdmissionFault::InNoSpace { .. } => 6,
+        AdmissionFault::NoSpace { .. } => 7,
+        AdmissionFault::MovedSpace { .. } => 8,
+        AdmissionFault::NoSuchSpace { .. } => 9,
+        AdmissionFault::NotShown { .. } => 10,
     }
 }
 
@@ -381,7 +382,7 @@ fn every_cause() -> Vec<AdmissionFault> {
         AdmissionFault::NoSuchNode {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
         },
-        AdmissionFault::NotABody {
+        AdmissionFault::DrawsNothing {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
         AdmissionFault::NotASpace {
@@ -395,6 +396,9 @@ fn every_cause() -> Vec<AdmissionFault> {
         },
         AdmissionFault::NotEvaluated {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+        },
+        AdmissionFault::InNoSpace {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(21))),
         },
         AdmissionFault::NoSpace {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),

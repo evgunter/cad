@@ -39,16 +39,26 @@
 //! which draws the body whole where it stands
 //! ([`crate::world::Picture::showing`]). A toggle turned back to what
 //! the rest of the picture reads holds nothing, so the body follows it
-//! again. A space's hide drops every body drawn in the space. Each is
-//! admitted on any live body or space ([`body_check`],
-//! [`space_hide_check`]), and the View pane lists every toggle
-//! ([`DisplayState::toggles`]).
+//! again. A space's hide drops every body drawn in the space.
+//!
+//! A committed outline — a profile's loops or a datum's square
+//! ([`crate::world::draws_an_outline`]) — has a toggle too, read by the
+//! same key: the picture draws every outline whose value landed, so its
+//! toggle reads on until the author turns it off, and a hide drops its
+//! drawings from the outline lane and from the pick
+//! ([`DisplayView::outline`]). A space's hide drops the outlines drawn
+//! in it with its bodies. Each toggle is admitted on any live node the
+//! picture draws something of, and each space's hide on any live space
+//! ([`drawing_check`], [`space_hide_check`]), and the View pane lists
+//! every toggle ([`DisplayState::toggles`]).
 //!
 //! # Free-move admits any shown space but the world's
 //!
-//! Free-move is opened on a node whose body is drawn in a space, and
+//! Free-move is opened on a node the picture draws in a space, and
 //! moves that space: read off the recipe ([`Doc::node_space`]), every
-//! body drawn in it moves with it, whatever kind of node drew it. A body
+//! body and outline drawn in it moves with it, whatever kind of node
+//! drew it. A node in no space — a free profile — has no space to move
+//! and refuses ([`AdmissionFault::InNoSpace`]). A node
 //! in the world refuses ([`AdmissionFault::InTheWorld`]): the world is
 //! the frame the other spaces move against. The test also asks an
 //! evaluation that answers the document whether the body evaluated, and
@@ -157,21 +167,21 @@ pub enum AdmissionFault {
     /// The document holds no node with this id at all — it was
     /// deleted, or an undo stepped back past the edit that made it.
     ///
-    /// **Spelled apart from [`AdmissionFault::NotABody`]** because
+    /// **Spelled apart from [`AdmissionFault::DrawsNothing`]** because
     /// the two are different news to a user holding display state on
-    /// the id: a node that builds no body is a mis-aimed operation, and an
-    /// absent one is the thing they were looking at being gone. The
+    /// the id: a node the picture draws nothing of is a mis-aimed
+    /// operation, and an absent one is the thing they were looking at being gone. The
     /// reconciliation in [`DisplayState::prune`] reports the fault it
     /// discards on, so the difference is the whole content of the
     /// sentence the status line then shows.
     ///
-    /// **It is decided in [`body_check`]**, which every body's
-    /// OPERATION runs first and not only the prune:
+    /// **It is decided in [`drawing_check`]**, which every display
+    /// OPERATION on a node runs first and not only the prune:
     /// [`DisplayState::set_body_on`] and the free-move admission
     /// ([`free_move_check`], and so [`DisplayState::begin_free_move`]).
     /// At those doors a user who aims a display operation at an id the
     /// document does not hold reads *node N is not in the document*
-    /// where they would read *node N builds no body* — the better
+    /// where they would read *node N draws nothing* — the better
     /// sentence, because the id denotes nothing.
     ///
     /// **The properties panel runs the same test and renders neither
@@ -192,9 +202,10 @@ pub enum AdmissionFault {
         /// when spoken again ([`AdmissionFault::respoken`]).
         node: SpokenNode,
     },
-    /// The node builds no body (a profile, a measure, a space), so the
-    /// picture has nothing of it to hide or move.
-    NotABody {
+    /// The picture draws nothing of the node — it builds no body and
+    /// is no outline (a measure, a mate, a space) — so there is nothing
+    /// of it to hide or move.
+    DrawsNothing {
         /// The node named, as the document held it.
         node: SpokenNode,
     },
@@ -227,9 +238,16 @@ pub enum AdmissionFault {
         /// The node, as the document held it.
         node: SpokenNode,
     },
-    /// The node's body has no picture: it is in no live space, or its
-    /// value did not evaluate (it refused, or an input it reads failed),
-    /// so there is nothing of it to move.
+    /// The node is in no space ([`Doc::node_space`]): a profile drawn
+    /// on no frame, whose outline is drawn where its plane is. A
+    /// free-move moves a space (DI5), so it has nothing to move.
+    InNoSpace {
+        /// The node, as the document held it.
+        node: SpokenNode,
+    },
+    /// The node's body has no picture: its value did not evaluate (it
+    /// refused, or an input it reads failed), so there is nothing of it
+    /// to move.
     NoSpace {
         /// The node, as the document held it.
         node: SpokenNode,
@@ -279,10 +297,11 @@ impl core::fmt::Display for AdmissionFault {
                     node = crate::tree::spelled(node)
                 )
             }
-            Self::NotABody { node } => {
+            Self::DrawsNothing { node } => {
                 write!(
                     f,
-                    "{node} builds no body, so the picture draws nothing of it",
+                    "{node} builds no body and is no outline, so the picture draws nothing \
+                     of it",
                     node = crate::tree::spelled(node)
                 )
             }
@@ -309,6 +328,11 @@ impl core::fmt::Display for AdmissionFault {
                 f,
                 "{node} has no picture yet: no evaluation of the current document has \
                  landed",
+                node = crate::tree::spelled(node)
+            ),
+            Self::InNoSpace { node } => write!(
+                f,
+                "{node} is in no space, so the free-move probe has no space to move",
                 node = crate::tree::spelled(node)
             ),
             Self::NoSpace { node } => write!(
@@ -356,10 +380,11 @@ impl AdmissionFault {
             // said from a version that holds it again, it would
             // contradict itself.
             unspoken @ (Self::NoSuchNode { .. } | Self::NotASpace { .. }) => unspoken,
-            Self::NotABody { node } => Self::NotABody { node: again(node) },
+            Self::DrawsNothing { node } => Self::DrawsNothing { node: again(node) },
             Self::NotDrawn { node } => Self::NotDrawn { node: again(node) },
             Self::InTheWorld { node } => Self::InTheWorld { node: again(node) },
             Self::NotEvaluated { node } => Self::NotEvaluated { node: again(node) },
+            Self::InNoSpace { node } => Self::InNoSpace { node: again(node) },
             Self::NoSpace { node } => Self::NoSpace { node: again(node) },
             Self::MovedSpace { node, into } => Self::MovedSpace {
                 node: again(node),
@@ -408,14 +433,14 @@ impl From<AdmissionFault> for DisplayFault {
 ///
 /// [`DisplayFault::Admission`] carries the faults that say a node
 /// cannot hold display state — the answers of the tests
-/// [`body_check`], [`space_hide_check`], [`free_move_check`] and
+/// [`drawing_check`], [`space_hide_check`], [`free_move_check`] and
 /// [`space_check`], each
 /// naming the id it is about. The four arms beside it are about a
 /// gesture or a frame and name no id at all.
 ///
 /// The families are apart because one of them is joined into a list
 /// and the other is not: [`DisplayState::prune`] fills every
-/// [`Withdrawn`] from [`body_check`], [`space_hide_check`],
+/// [`Withdrawn`] from [`drawing_check`], [`space_hide_check`],
 /// [`space_check`] and the
 /// gesture's own check, so a
 /// withdrawal's cause is an [`AdmissionFault`] by signature rather than
@@ -477,8 +502,9 @@ impl core::fmt::Display for DisplayFault {
 
 impl core::error::Error for DisplayFault {}
 
-/// **`node` is a live node that builds a body**, or the typed refusal
-/// that says which of the two ways it is not — the admission a body's
+/// **`node` is a live node the picture draws something of** — a body
+/// or an outline ([`crate::world::draws_something`]) — or the typed
+/// refusal that says which of the two ways it is not: the admission a
 /// toggle asks ([`DisplayState::set_body_on`]) and the first half of
 /// the free-move's ([`free_move_check`]).
 ///
@@ -488,16 +514,16 @@ impl core::error::Error for DisplayFault {}
 ///
 /// **The two refusals are spelled apart** for
 /// [`AdmissionFault::NoSuchNode`]'s reason: an absent id and a node
-/// that builds no body are different news at the doors that ANSWER a
+/// that draws nothing are different news at the doors that ANSWER a
 /// user's operation.
 ///
 /// # Errors
 ///
-/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotABody`].
-pub fn body_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
+/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::DrawsNothing`].
+pub fn drawing_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
     match doc.node(node) {
-        Some(built) if crate::world::builds_a_body(built) => Ok(()),
-        Some(_) => Err(AdmissionFault::NotABody {
+        Some(built) if crate::world::draws_something(built) => Ok(()),
+        Some(_) => Err(AdmissionFault::DrawsNothing {
             node: doc.spoken(node),
         }),
         None => Err(AdmissionFault::NoSuchNode {
@@ -508,7 +534,7 @@ pub fn body_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), A
 
 /// **`space` is a live space of the document** — the admission a
 /// space's hide asks ([`DisplayState::set_space_hidden`]). Any space is
-/// admitted, shown or not, for [`body_check`]'s reason.
+/// admitted, shown or not, for [`drawing_check`]'s reason.
 ///
 /// # Errors
 ///
@@ -610,7 +636,9 @@ pub fn drawn_deriving_from(
 /// The node is a handle on its space: a body the picture does not draw
 /// (one an operation reads as a body) is no handle on anything drawn,
 /// and refuses ([`AdmissionFault::NotDrawn`]) even where its space is
-/// shown by other bodies.
+/// shown by other bodies. An outline is drawn whatever reads it, so it
+/// is a handle on the space it is in; a free profile is in none and
+/// refuses ([`AdmissionFault::InNoSpace`]).
 ///
 /// A body with no value has no picture to move, so the test also asks
 /// an evaluation (DI3): `eval` answers `doc`, the session's
@@ -619,18 +647,19 @@ pub fn drawn_deriving_from(
 ///
 /// # Errors
 ///
-/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotABody`],
+/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::DrawsNothing`],
 /// [`AdmissionFault::NotDrawn`], [`AdmissionFault::NotEvaluated`],
-/// [`AdmissionFault::NoSpace`], [`AdmissionFault::InTheWorld`],
-/// [`AdmissionFault::NotShown`].
+/// [`AdmissionFault::InNoSpace`], [`AdmissionFault::NoSpace`],
+/// [`AdmissionFault::InTheWorld`], [`AdmissionFault::NotShown`].
 pub fn free_move_check(
     doc: &Doc<ProfileProgram>,
     eval: Option<&Evaluation<f64>>,
     node: RecipeNodeId,
 ) -> Result<VarId, AdmissionFault> {
-    body_check(doc, node)?;
+    drawing_check(doc, node)?;
     let picture = crate::world::Picture::of(doc);
-    if !picture.is_drawn(node) {
+    let outline = doc.node(node).is_some_and(crate::world::draws_an_outline);
+    if !outline && !picture.is_drawn(node) {
         return Err(AdmissionFault::NotDrawn {
             node: doc.spoken(node),
         });
@@ -641,6 +670,9 @@ pub fn free_move_check(
     match probe_space_of(doc, Some(eval), node) {
         // A space no picture shows has nothing to move.
         Ok(space) => shown_check(doc, &picture.shown_spaces(doc), space, node).map(|()| space),
+        Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
+            node: doc.spoken(node),
+        }),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
         }),
@@ -800,6 +832,9 @@ fn gesture_check(
             node: doc.spoken(node),
             into: Box::new(doc.spoken_space(VarId::WORLD)),
         }),
+        Err(Unplaced::Nowhere) => Err(AdmissionFault::InNoSpace {
+            node: doc.spoken(node),
+        }),
         Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
@@ -828,8 +863,9 @@ enum Answers {
 enum Unplaced {
     /// It is in the world's space.
     World,
-    /// It is in no live space, or `eval` gave it no value, so it has no
-    /// picture.
+    /// It is in no space ([`Doc::node_space`]).
+    Nowhere,
+    /// `eval` gave it no value, so it has no picture.
     Refused,
 }
 
@@ -841,7 +877,7 @@ fn probe_space_of(
     eval: Option<&Evaluation<f64>>,
     node: RecipeNodeId,
 ) -> Result<VarId, Unplaced> {
-    let space = doc.node_space(node).ok_or(Unplaced::Refused)?;
+    let space = doc.node_space(node).ok_or(Unplaced::Nowhere)?;
     if eval.is_some_and(|eval| eval.value(node).is_none()) {
         return Err(Unplaced::Refused);
     }
@@ -895,6 +931,13 @@ pub struct DisplayView {
     /// ([`DisplayView::space_frame`]); every reader of where a node is
     /// drawn reads [`DisplayView::display_map`].
     pub moved_nodes: BTreeMap<RecipeNodeId, Frame>,
+    /// The outline nodes whose toggle is off
+    /// ([`crate::world::draws_an_outline`]).
+    pub hidden_outlines: BTreeSet<RecipeNodeId>,
+    /// The spaces the author hid: what draws in one is dropped
+    /// ([`DisplayView::outline`]; a body's drawings are in
+    /// [`DisplayView::hidden_drawn`]).
+    pub hidden_spaces: BTreeSet<VarId>,
     /// **The committed profile drawn by its edit preview instead**
     /// ([`DisplayView::previewing`]): the committed-profile lane leaves
     /// its committed outline out, and the pick and the selection marks
@@ -1035,6 +1078,38 @@ impl DisplayView {
         self.previewed_profile.as_ref().map(|profile| profile.node)
     }
 
+    /// **A committed outline of `node` as the picture draws it**, from
+    /// its world polylines: `None` where it is hidden — its toggle off,
+    /// or `space`, the space whose picture it is drawn in
+    /// ([`crate::sketch::CommittedProfile::space`]), hidden — else each
+    /// polyline under that space's display frame. The one rule the
+    /// outline lane draws by and the pick index measures by, so an
+    /// outline is picked where it is drawn and nowhere it is not.
+    pub fn outline<'a>(
+        &self,
+        node: RecipeNodeId,
+        space: Option<VarId>,
+        loops: &'a [Vec<pncad::geom_core::Point3<f64>>],
+    ) -> Option<std::borrow::Cow<'a, [Vec<pncad::geom_core::Point3<f64>>]>> {
+        if self.hidden_outlines.contains(&node)
+            || space.is_some_and(|space| self.hidden_spaces.contains(&space))
+        {
+            return None;
+        }
+        Some(match space.and_then(|space| self.moved.get(&space)) {
+            None => std::borrow::Cow::Borrowed(loops),
+            Some(frame) => {
+                let map = frame.affine();
+                std::borrow::Cow::Owned(
+                    loops
+                        .iter()
+                        .map(|lp| lp.iter().map(|&p| map.transform_point(p)).collect())
+                        .collect(),
+                )
+            }
+        })
+    }
+
     /// Whether the picture drops body `body` of `node`: a hidden
     /// drawing covers it and no shown one does.
     pub fn hides(&self, node: RecipeNodeId, body: u32) -> bool {
@@ -1131,7 +1206,7 @@ pub struct Withdrawn {
     ///
     /// **[`AdmissionFault`] and not [`DisplayFault`]**, because the
     /// causes a prune can withdraw on are exactly what its tests
-    /// ([`body_check`], [`space_hide_check`], [`space_check`] and the
+    /// ([`drawing_check`], [`space_hide_check`], [`space_check`] and the
     /// gesture's, which asks its own body the same space question)
     /// answer — and because [`crate::frame::Withdrawal`] joins several
     /// of these into one sentence with
@@ -1180,10 +1255,10 @@ pub struct PruneReport {
     /// is not a supersession.
     pub superseded: Vec<Withdrawn>,
     /// Bodies and spaces whose HIDE was dropped, each with the
-    /// [`body_check`] or [`space_hide_check`] fault that dropped it:
+    /// [`drawing_check`] or [`space_hide_check`] fault that dropped it:
     /// the document no longer holds what was hidden.
     pub dropped_hides: Vec<Withdrawn>,
-    /// Bodies whose SHOW was dropped, each with the [`body_check`]
+    /// Bodies whose SHOW was dropped, each with the [`drawing_check`]
     /// fault that dropped it: the document no longer holds what was
     /// shown. Apart from the hides because the two are different news:
     /// a hide dropped is a body the author put away gone, a show
@@ -1260,8 +1335,18 @@ fn drawing_off(toggled: &Toggled, drawn: &Drawn) -> bool {
 
 /// **Whether `node`'s toggle reads on under `toggled`**, over the
 /// picture it shows: some drawing is of `node`'s body and no toggle
-/// turned off reaches it — the one rule every toggle is read by.
-fn on_in(toggled: &Toggled, picture: &crate::world::Picture, node: RecipeNodeId) -> bool {
+/// turned off reaches it — the one rule every toggle is read by. An
+/// outline is drawn whatever reads it, so its own toggle is the only
+/// one that reaches it.
+fn on_in(
+    doc: &Doc<ProfileProgram>,
+    toggled: &Toggled,
+    picture: &crate::world::Picture,
+    node: RecipeNodeId,
+) -> bool {
+    if doc.node(node).is_some_and(crate::world::draws_an_outline) {
+        return toggled.get(&node) != Some(&false);
+    }
     picture
         .drawn
         .iter()
@@ -1363,14 +1448,17 @@ impl DisplayState {
             bodies: Vec::new(),
         }];
         for node in doc.ids() {
-            if !doc.node(node).is_some_and(crate::world::builds_a_body) {
+            let Some(built) = doc
+                .node(node)
+                .filter(|built| crate::world::draws_something(built))
+            else {
                 continue;
-            }
+            };
             let space = doc.node_space(node);
             let body = BodyToggle {
                 node,
-                on: on_in(&self.toggled, &picture, node),
-                drawn_by_default: default.draws_node(node),
+                on: on_in(doc, &self.toggled, &picture, node),
+                drawn_by_default: crate::world::draws_an_outline(built) || default.draws_node(node),
             };
             match groups.iter_mut().find(|group| group.space == space) {
                 Some(group) => group.bodies.push(body),
@@ -1430,11 +1518,21 @@ impl DisplayState {
                 shown_drawn.push(drawn);
             }
         }
+        let hidden_outlines = self
+            .toggled
+            .iter()
+            .filter(|&(&node, &on)| {
+                !on && doc.node(node).is_some_and(crate::world::draws_an_outline)
+            })
+            .map(|(&node, _)| node)
+            .collect();
         DisplayView {
             moved,
             hidden_drawn,
             shown_drawn,
             moved_nodes,
+            hidden_outlines,
+            hidden_spaces: self.hidden_spaces.clone(),
             previewed_profile: None,
             previewed_placement: None,
         }
@@ -1551,19 +1649,19 @@ impl DisplayState {
     ///
     /// # Errors
     ///
-    /// [`body_check`]'s: [`AdmissionFault::NoSuchNode`] and
-    /// [`AdmissionFault::NotABody`].
+    /// [`drawing_check`]'s: [`AdmissionFault::NoSuchNode`] and
+    /// [`AdmissionFault::DrawsNothing`].
     pub fn set_body_on(
         &mut self,
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
         on: bool,
     ) -> Result<(), DisplayFault> {
-        body_check(doc, node)?;
+        drawing_check(doc, node)?;
         let mut without = self.toggled.clone();
         without.remove(&node);
         let picture = crate::world::Picture::showing(doc, &shown_of(&without));
-        let changed = if on_in(&without, &picture, node) == on {
+        let changed = if on_in(doc, &without, &picture, node) == on {
             self.toggled.remove(&node).is_some()
         } else {
             self.toggled.insert(node, on) != Some(on)
@@ -1802,7 +1900,7 @@ impl DisplayState {
                 .iter()
                 .filter(move |&(_, &held)| held == on)
                 .filter_map(|(&node, _)| {
-                    body_check(doc, node).err().map(|cause| Withdrawn {
+                    drawing_check(doc, node).err().map(|cause| Withdrawn {
                         held: Held::Node(node),
                         cause,
                     })

@@ -616,7 +616,8 @@ pub fn edge_overlay(
                 .map(|vertex| vertex_segments(index, display, vertex))
                 .unwrap_or_default(),
         );
-        for polyline in profile.map_or(&[][..], |node| index.drawn_outline(node, display)) {
+        let outline = profile.map(|node| index.drawn_outline(node, display));
+        for polyline in outline.iter().flat_map(|outline| outline.iter()) {
             // The seam's undrawn count is dropped here as the edge
             // mark's is (`edge_segments`): the profile lane carries the
             // same legs, and its count is the VNEWS badge row's.

@@ -405,56 +405,64 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     );
 }
 
-/// **The body admission answers the two states apart**: an absent id
-/// and a node that builds no body are different news, and a door that
-/// answered `bool` could not say which it had met. Asserted at
-/// `body_check` itself rather than only through the ops above, because
-/// the door is `pub` and the next caller is the one that will need them
-/// apart.
+/// **The drawing admission answers the two states apart**: an absent
+/// id and a node the picture draws nothing of are different news, and
+/// a door that answered `bool` could not say which it had met. Asserted
+/// at `drawing_check` itself rather than only through the ops above,
+/// because the door is `pub` and the next caller is the one that will
+/// need them apart. A profile builds no body and is admitted: the
+/// picture draws its outline.
 #[test]
-fn body_check_tells_an_absent_node_from_one_that_builds_no_body() {
+fn drawing_check_tells_an_absent_node_from_one_that_draws_nothing() {
     let tol = Tol::witness();
     let bench = asm::bench("instcheck", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A node that builds no body, authored through the ordinary door so
-    // the arm is driven by a node a user can really select.
+    // A profile, authored through the ordinary door so the arm is
+    // driven by a node a user can really select.
     let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     session.pump();
     let doc = session.doc();
 
     assert_eq!(
-        display::body_check(doc, bench.post_b),
+        display::drawing_check(doc, bench.post_b),
         Ok(()),
         "an instance builds a body"
     );
     assert_eq!(
-        display::body_check(doc, profile),
-        Err(AdmissionFault::NotABody {
-            node: doc.spoken(profile)
+        display::drawing_check(doc, profile),
+        Ok(()),
+        "a profile builds no body and is drawn as an outline"
+    );
+    // The world is a node of the document the picture draws nothing of.
+    let world = RecipeNodeId::WORLD;
+    assert_eq!(
+        display::drawing_check(doc, world),
+        Err(AdmissionFault::DrawsNothing {
+            node: doc.spoken(world)
         }),
-        "a node that IS in the document and builds no body names itself"
+        "a node that IS in the document and draws nothing names itself"
     );
     let absent = RecipeNodeId::new(0, test_utils::refusal::tagged(9_999));
     assert_eq!(
-        display::body_check(doc, absent),
+        display::drawing_check(doc, absent),
         Err(AdmissionFault::NoSuchNode {
             node: doc.spoken(absent)
         }),
         "an id the document does not hold is the ABSENT refusal"
     );
     assert_eq!(
-        display::body_check(doc, absent)
+        display::drawing_check(doc, absent)
             .expect_err("absent refuses")
             .to_string(),
         "node 00000000270f is not in the document",
     );
     assert_eq!(
-        display::body_check(doc, profile)
-            .expect_err("a profile builds no body")
+        display::drawing_check(doc, world)
+            .expect_err("the world draws nothing")
             .to_string(),
         format!(
-            "{} builds no body, so the picture draws nothing of it",
-            viewer::tree::spelled(&doc.spoken(profile))
+            "{} builds no body and is no outline, so the picture draws nothing of it",
+            viewer::tree::spelled(&doc.spoken(world))
         ),
     );
 }
@@ -523,7 +531,7 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
         matches!(
             outcome.refusal,
             Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotABody { .. }
+                AdmissionFault::DrawsNothing { .. }
             )))
         ),
         "{:?}",
