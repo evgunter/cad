@@ -360,55 +360,40 @@ pub fn pose<T: Decide>(
 ///   a tube radius at or below zero breaks the factor's sign, and the
 ///   doors read no torus but a ring.
 ///
-/// **Re-posed** (standing claim 1): `m` is read through the conic's
-/// running points ([`Conic::running_point`]), the midpoint of two
+/// **Re-posed** (standing claim 1, `[simple.conditioned]`): `m` is read
+/// through the conic's points ([`Conic::point_at`]), the midpoint of two
 /// antipodal ones (`P(θ) + P(θ + π) = 2c` on a circle and an ellipse
-/// alike), never its stored or derived centre, and every quantity is
-/// carried from `m − origin`, the surface's stored
-/// origin taken exact, as running [`Rounded`] values, with no `c₀ ± A`
-/// extremes and no charge: a far-centred pair keeps the digits of its
-/// gap that the stored data has, and the reading's own rounding is the
-/// spread the band reads (`spread_readings`), so a gap inside it hands
-/// on.
+/// alike), never its stored or derived centre; `g(m)` is read from
+/// `e = m − origin`, the surface's stored origin, never as harmonic
+/// extremes `c₀ ± A` (which cancel for a far-centred pair at `u·|e|²/2R`):
+/// an axis's offset as `|e × n|`, never `e − (e·n)n`, which cancels far
+/// along it. So posed, the margin is decided as exact; it charges nothing.
 fn culled<T: Decide>(
     span: &Span<'_, T>,
     conic: &dyn Conic<T>,
     surface: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    use geom_core::running::{cross, dot, exact_vec};
     let (t0, t1) = span.params();
     let (a, b) = conic.semi_axes();
     let reach = a.abs().max(b.abs());
     let at = geom::mid_param(t0, t1);
-    let (p, q) = (
-        conic.running_point(at),
-        conic.running_point(at + geom::conic_period::<T>().length() / T::from_f64(2.0)),
-    );
-    let half = Rounded::exact(T::from_f64(0.5));
-    let m = [0, 1, 2].map(|i| (p[i] + q[i]) * half);
-    let from = |origin: Point3<T>| {
-        let o = exact_vec(geom_core::Vec3::new(origin.x, origin.y, origin.z));
-        [m[0] - o[0], m[1] - o[1], m[2] - o[2]]
-    };
-    let length = |v: [Rounded<T>; 3]| v[0].hypot(v[1]).hypot(v[2]);
+    let half_turn = geom::conic_period::<T>().length() / T::from_f64(2.0);
+    let (p, q) = (conic.point_at(at), conic.point_at(at + half_turn));
+    let m = p + (q - p) * T::from_f64(0.5);
     // `m`'s height along the unit axis `n` and its distance from the axis
-    // line, `|e × n|`: no `e − (e·n)n`, which cancels far along the axis.
+    // line, `|e × n|`.
     let split = |origin: Point3<T>, n: geom_core::UnitVec3<T>| {
-        let e = from(origin);
-        let n = exact_vec(n.get());
-        (dot(e, n), length(cross(e, n)))
+        let e = m - origin;
+        (e.dot(n.get()), e.cross(n.get()).norm())
     };
-    let magnitude = |v: Rounded<T>| Rounded::select_le_zero(v.value, -v, v);
-    let exact = Rounded::exact;
-    let one = exact(T::one());
     let (g, lipschitz) = match *surface {
         geom::Surface::Sphere { frame, radius, .. } => {
-            (length(from(frame.origin())) - exact(radius), one)
+            ((m - frame.origin()).norm() - radius, T::one())
         }
         geom::Surface::Cylinder { frame, radius, .. } => {
             let (_, rho) = split(frame.origin(), frame.axis_unit());
-            (rho - exact(radius), one)
+            (rho - radius, T::one())
         }
         geom::Surface::Cone {
             frame, half_angle, ..
@@ -416,8 +401,8 @@ fn culled<T: Decide>(
             let (h, rho) = split(frame.origin(), frame.axis_unit());
             let (sin, cos) = half_angle.sin_cos();
             (
-                rho * exact(cos) - magnitude(h) * exact(sin),
-                exact(sin).hypot(exact(cos)),
+                rho * cos - h.abs() * sin,
+                (sin.powi(2) + cos.powi(2)).sqrt(),
             )
         }
         geom::Surface::Torus {
@@ -434,16 +419,19 @@ fn culled<T: Decide>(
         } => {
             let (h, rho) = split(frame.origin(), frame.axis_unit());
             (
-                (rho - exact(major_radius)).hypot(h) - exact(minor_radius),
-                one,
+                ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius,
+                T::one(),
             )
         }
         _ => return false,
     };
-    let margin = magnitude(g) - exact(reach) * lipschitz;
     matches!(
-        crate::roots::spread_readings("curve_face_pose_clearance", margin.value, margin.error, band),
-        Ok((below, _)) if below.sign == Sign::Positive
+        decide(
+            "curve_face_pose_clearance",
+            Margin::of(g.abs() - reach * lipschitz),
+            band
+        ),
+        Ok(Sign::Positive)
     )
 }
 
@@ -2272,3 +2260,7 @@ fn torus_parallel<T: Decide>(
         Pose::Apart
     })
 }
+
+#[cfg(test)]
+#[path = "cull_rows.rs"]
+mod cull_rows;

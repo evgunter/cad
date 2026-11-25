@@ -241,20 +241,30 @@ window. Dual: it fixes the answer shape U4b–U4d and U5 build on, which is hard
 - `face_crossings` (§2.3) is built from `off_face`'s ball rule, and `clusters` goes.
 - `wall_crossing` reads `cross` on the edge's span and `face_crossings`. `SpanVerdict` becomes a
   reading of that answer: `Pierce`, `NoInterior`, `Elsewhere`, `LiesOn` (`Lies`), `Miss` (`Apart`),
-  `AtApex` (`Through`, or an apex window), and `OffFace` (every window read off the face).
+  `AtApex` (an apex window: a spread or an apex the band cannot call), and `OffFace` (every window
+  read off the face). A `Through` pose's apex is a meeting like any other: `face_crossings` places it
+  first, as the root doors did, so a span through a cone's apex pierces the face there or crosses
+  off it, and is not refused.
 - The covered arms keep their posture. A covered span whose windows the face reading refuses is
   `Deferred` where today an unsettled root set is.
 - The cull moves into the pose as `Apart`'s first stage on the conic arms
   (`curve_face_pose_clearance`), re-posed as standing claim 1 requires. In band it hands on and never
-  refuses alone, and `conic_clearance` goes.
+  refuses alone, and `conic_clearance` goes. The re-posed cull is a ball's: the whole conic lies in
+  the ball about its centre `m` (the midpoint of two antipodal running points) of its larger
+  semi-axis `ℓ`, and each kind has a signed function `g`, `L`-Lipschitz with the residual's sign
+  (`|p − S| − R`, `ρ − R`, `ρ cos α − |h| sin α`, `√((ρ − R)² + h²) − r`), so `|g(m)| − L·ℓ`
+  decided past the band is `Apart`. It reads no harmonic extremes and charges nothing: `g(m)` is read
+  from `m − origin` (an axis's offset as `|e × n|`), posed so it is decided as exact. The torus arm
+  asks the ring convention before it.
 - `bool_line_cylinder_clearance` goes: the pose's discriminant decides that line's class exactly.
 - The straddle arm's `NoInterior` with no window becomes `Contradiction` (§2.3).
-- Whether the walk drops a piece wholly off the arc at its split, unwalked (§2.2), is decided here. U4a
-  walks such a piece until it settles or refuses, because the wrappers' `CircleRoots` report the roots
-  round the whole turn; once the wrappers retire, nothing reads the count off the arc.
+- The walk does not drop a piece wholly off the arc at its split (§2.2): it walks such a piece until
+  it settles or refuses, as U4a does. `cross` reads only the meetings and windows on the span
+  (`on_span`), so a piece off the arc costs its walk and never its answer; dropping it unwalked would
+  move the walk's refusals with no reader to gain.
 
 **Retires**: `line_quadric_roots`, `conic_quadric_roots`, `circle_torus_roots`, `ellipse_torus_roots`
-and their only-a-wrapper doc lines; `carrier_touch::off_face` and `clusters`; `composite_count`'s and
+from the API (each stays the door rows' test reader, `cfg(test)`); `carrier_touch::off_face` and `clusters`; `composite_count`'s and
 `wall_crossing`'s `off_face` hooks; `conic_clearance`; `bool_conic_curved_clearance`;
 `bool_line_cylinder_clearance`; `of_line_quadric_refusal`, `of_conic_quadric_refusal` and
 `of_torus_door_refusal`, replaced by one map from `CrossWhy`; the test rows' direct wrapper calls,

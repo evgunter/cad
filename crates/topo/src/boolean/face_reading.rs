@@ -41,7 +41,7 @@ use geom_brep::curve_face::{
 };
 use geom_brep::curve_pair::Span;
 use geom_core::ladder::{Answering, Climb, Rung, climb};
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Rounded, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::BooleanError;
 use super::{BooleanDecision, reduce};
@@ -220,7 +220,7 @@ pub(super) fn window_off_face<T: Decide + Bounds>(
         return Ok(false);
     };
     let radius =
-        geom_core::bisect::reach(speed, (lo, hi)) + dist.magnitude() + T::from_f64(band.escalate());
+        geom_core::bisect::reach(speed, (lo, hi)) + dist.abs() + T::from_f64(band.escalate());
     ball_off_face(y, face, foot, radius, rho, band)
 }
 
@@ -256,44 +256,30 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistanc
     }
 }
 
-/// **A point's signed distance from the carrier, carried with its
-/// rounding, and its foot on it** (standing claim 1: re-posed, not
-/// charged). Every quantity is read from `q − origin`, the surface's
-/// stored origin taken exact, as running [`Rounded`] values: an axis's
-/// offset as `|e × n|`, never `e − (e·n)n`, which cancels far along it;
-/// and the foot from `q` itself, `q − n̂·dist`, never `centre + w·(R/|w|)`,
-/// which rounds at the centre's scale however near `q` lies. The ball
-/// reads the distance's upper end (`Rounded::magnitude`), so a gap inside
-/// its own rounding widens the ball rather than being read away.
+/// **A point's signed distance from the carrier, and its foot on it**,
+/// posed well-conditioned (standing claim 1, `[simple.conditioned]`) and
+/// then read as exact: every quantity from `q − origin`, the surface's
+/// stored origin; an axis's offset as `|e × n|` and its direction as
+/// `n × (e × n)`, never `e − (e·n)n`, which cancels far along it; and the
+/// foot from `q` itself, `q − n̂·dist`, never `centre + w·(R/|w|)`, which
+/// rounds at the centre's scale however near `q` lies.
 pub(super) fn distance<T: Real>(
     surface: &geom::Surface<T>,
     q: Point3<T>,
-) -> Option<(Rounded<T>, Point3<T>)> {
-    use geom_core::running::{cross, dot, exact_vec};
-    let from = |origin: Point3<T>| {
-        let (qv, o) = (
-            exact_vec(Vec3::new(q.x, q.y, q.z)),
-            exact_vec(Vec3::new(origin.x, origin.y, origin.z)),
-        );
-        [qv[0] - o[0], qv[1] - o[1], qv[2] - o[2]]
-    };
-    let length = |v: [Rounded<T>; 3]| v[0].hypot(v[1]).hypot(v[2]);
-    let plain = |v: [Rounded<T>; 3]| Vec3::new(v[0].value, v[1].value, v[2].value);
-    let exact = Rounded::exact;
-    // The unit normal at the foot, `n̂`, from a vector along it.
-    let foot = |along: Vec3<T>, dist: Rounded<T>| q - along.normalize() * dist.value;
+) -> Option<(T, Point3<T>)> {
+    // The foot along the unit normal through `q`, from a vector along it.
+    let foot = |along: Vec3<T>, dist: T| q - along.normalize() * dist;
     match *surface {
         geom::Surface::Sphere { frame, radius, .. } => {
-            let w = from(frame.origin());
-            let dist = length(w) - exact(radius);
-            Some((dist, foot(plain(w), dist)))
+            let w = q - frame.origin();
+            let dist = w.norm() - radius;
+            Some((dist, foot(w, dist)))
         }
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let e = from(frame.origin());
-            let n = exact_vec(frame.axis_unit().get());
-            let off = cross(n, cross(e, n));
-            let dist = length(cross(e, n)) - exact(radius);
-            Some((dist, foot(plain(off), dist)))
+            let (e, n) = (q - frame.origin(), frame.axis_unit().get());
+            let across = e.cross(n);
+            let dist = across.norm() - radius;
+            Some((dist, foot(n.cross(across), dist)))
         }
         geom::Surface::Torus {
             frame,
@@ -301,20 +287,18 @@ pub(super) fn distance<T: Real>(
             minor_radius,
             ..
         } => {
-            let e = from(frame.origin());
-            let n = exact_vec(frame.axis_unit().get());
-            let (h, off) = (dot(e, n), cross(n, cross(e, n)));
-            let rho = length(cross(e, n));
-            let dist = (rho - exact(major_radius)).hypot(h) - exact(minor_radius);
+            let (e, n) = (q - frame.origin(), frame.axis_unit().get());
+            let (h, across) = (e.dot(n), e.cross(n));
+            let rho = across.norm();
+            let dist = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
             // Along `(ρ − R)·ô + h·n`, `ô` the axis offset's direction.
-            let along =
-                plain(off).normalize() * (rho - exact(major_radius)).value + plain(n) * h.value;
+            let along = n.cross(across).normalize() * (rho - major_radius) + n * h;
             Some((dist, foot(along, dist)))
         }
         geom::Surface::Plane { frame, .. } => {
-            let n = exact_vec(frame.axis_unit().get());
-            let dist = dot(from(frame.origin()), n);
-            Some((dist, foot(plain(n), dist)))
+            let n = frame.axis_unit().get();
+            let dist = (q - frame.origin()).dot(n);
+            Some((dist, foot(n, dist)))
         }
         geom::Surface::Cone { .. }
         | geom::Surface::Spindle { .. }
@@ -460,3 +444,7 @@ pub(super) fn arc_clear_of_ball<T: Decide>(
     crate::splitting::containment::arc_distance_floor(carrier, span, at)
         .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band)))
 }
+
+#[cfg(test)]
+#[path = "face_reading_rows.rs"]
+mod face_reading_rows;

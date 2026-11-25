@@ -3075,32 +3075,28 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     return lying_on(&arc, y, contacts)?.ok_or_else(frontier);
                 }
             }
-            // **The covered arc's posture, read off its pose**
-            // ([`geom_brep::curve_face::pose()`], whose first stage on
-            // the conic arms is the clearance cull): `Apart` is clear,
-            // no event; a decided touch (`Tangent`) or the span on the
-            // carrier (`Lies`) is the zero posture below; isolated
-            // meetings, or a cone's apex on the carrier (`Through`),
-            // cross the carrier, which the cover rules out, so the
-            // frontier; a rung in band is the coincidence the cover's
-            // posture cannot call; any other refusal keeps the door.
-            // An uncovered arc reads no posture here: the root lanes
-            // below decide it, and the pose's `Apart` is their miss.
+            // **The covered arc's posture, read off its crossing
+            // reading** ([`covered_posture`]): clear is no event; the
+            // zero posture is the covered rung below; a crossing, which
+            // the cover rules out, the frontier; a sign in band the
+            // coincidence the cover's posture cannot call; any other
+            // refusal keeps the door. An uncovered arc reads no posture
+            // here: the root lanes below decide it, and the pose's
+            // `Apart` is their miss.
             let clearance = if on_carrier {
                 Some(Ok(Sign::Zero))
             } else if covered {
-                use geom_brep::curve_face::{Pose, PoseRefusal};
                 let span = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params());
-                Some(match geom_brep::curve_face::pose(&span, &surface, band) {
-                    Ok(Pose::Apart) => Ok(Sign::Positive),
-                    Ok(Pose::Tangent(_) | Pose::Lies) => Ok(Sign::Zero),
-                    Ok(Pose::Isolated(_) | Pose::Through(_)) => Ok(Sign::Negative),
-                    Err(geom_brep::curve_face::Undecided {
-                        why: PoseRefusal::InBand { diag, .. },
-                        ..
-                    }) => Err(diag),
-                    Err(_) => return Err(frontier()),
-                })
+                Some(
+                    match covered_posture(geom_brep::curve_face::cross(&span, &surface, band)) {
+                        CoveredPosture::Sign(sign) => Ok(sign),
+                        CoveredPosture::InBand(diag) => Err(diag),
+                        CoveredPosture::Frontier => return Err(frontier()),
+                        CoveredPosture::Fault(what) => {
+                            return Err(BooleanError::ClassificationInvariant { what });
+                        }
+                    },
+                )
             } else {
                 None
             };
@@ -3639,13 +3635,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // straddle off this face ([`SpanVerdict::Elsewhere`]) is no
         // event here; a `NoInterior` that does not — no root inside the
         // span, or one at an end the endpoint signs call definite —
-        // CONTRADICTS the straddle, so it keeps the door rather than
-        // reporting no event: a contradiction between two certified
-        // predicates is exactly what must not be resolved by picking
-        // one.
+        // CONTRADICTS the straddle and fails loud ([`straddle_event`]).
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(
+            let verdict = wall_crossing(
                 y,
                 face,
                 x_is.other(),
@@ -3655,58 +3648,8 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 t1,
                 band,
                 &escalate,
-            )? {
-                SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
-                    t,
-                    p,
-                    at,
-                    on,
-                    plane: None,
-                    chart: None,
-                    on_edge: None,
-                }),
-                // The straddle's crossing, found and certified OFF this
-                // face: every root inside the span is on the carrier
-                // outside the trim, and both ends are definitely off the
-                // carrier, so the span meets this face nowhere. Where the
-                // crossing's incidence lives — a sibling face on the same
-                // carrier, or no face of this operand — is that face's
-                // pair, not this one.
-                SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
-                // Every window the answer left was read off this face
-                // (`face_crossings`): the straddle's crossing, which
-                // the certified meetings did not place inside the span,
-                // lies in one of them, and so off this face.
-                SpanVerdict::OffFace => Ok(CurvedEvent::None),
-                SpanVerdict::AtApex => Err(at_apex()),
-                // **A straddle the answer says has no crossing fails
-                // loud** (U4 §2.3). What reaches this arm is three
-                // certified readings that cannot all hold: both
-                // endpoint residuals decided definitely past the band on
-                // OPPOSITE sides (the match above), so the residual,
-                // continuous along the span, has a zero strictly inside
-                // it; and `cross` answered with no window at all
-                // (`wall_crossing` turns a windowed `NoInterior` into
-                // `OffFace`), so its meetings are the whole of its
-                // claim, and they place no crossing strictly inside the
-                // span (`NoInterior`: none, or only one at an end the
-                // endpoint signs put past the band), or none at all
-                // (`Miss`, `Apart`), or the span on the carrier
-                // (`LiesOn`, `Lies`, which the definite endpoint
-                // residuals rule out). An uncertain reading never
-                // reaches here: it is a window (`OffFace` above, or a
-                // refusal `wall_crossing` returned as `Err`) or
-                // `Unsettled`, which keeps the door below. So this is a
-                // contradiction between certified predicates, which
-                // must not be resolved by picking one.
-                SpanVerdict::NoInterior | SpanVerdict::Miss | SpanVerdict::LiesOn => {
-                    Err(BooleanError::ClassificationInvariant {
-                        what: "a span whose endpoints straddle a curved face's carrier was \
-                               answered with no crossing strictly inside it and no window",
-                    })
-                }
-                SpanVerdict::Unsettled => Err(frontier()),
-            }
+            )?;
+            straddle_event(verdict, frontier, at_apex)
         }
         // **Both endpoints on one side of a TORUS or a CONE, or of
         // anything along a CIRCLE: the roots decide, with no endpoint
@@ -5644,23 +5587,11 @@ fn wall_crossing<T: Decide + Bounds>(
         geom_core::Indeterminate,
     ) -> Result<SpanVerdict<T>, BooleanError>,
 ) -> Result<SpanVerdict<T>, BooleanError> {
-    // A root's distance from an end of the span is metered as a length:
-    // the parameter gap times the carrier's speed AT that end, so that
-    // `Zero` means the root sits at the end's own point. A `Line`'s
-    // parameter runs `|dir|` metres per unit, a `Circle`'s `radius`, an
-    // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom::Conic`).
-    // `None`: a kind pair with no root lane (a spiric or a spline
-    // against any carrier), which takes the refusals' path below, as a
-    // door's refusal does.
+    // A carrier with no root lane against the surface (a spiric, a
+    // spline) is `cross`'s whole-span window (`PoseRefusal::Enclosed` or
+    // `Unbuilt`), which the face reading reads off the face like any
+    // other window, and which keeps the door where the face may hold it.
     use super::face_reading::{FaceCrossings, FaceMeeting, face_crossings};
-    // A carrier with no root lane against these kinds (a spiric, a
-    // spline) never reaches here: the arm routes it first.
-    if !matches!(
-        carrier,
-        geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..)
-    ) {
-        return Ok(SpanVerdict::Unsettled);
-    }
     let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
     let answer = geom_brep::curve_face::cross(&span, surface, band);
     let meetings = match face_crossings(y, face, surface, &span, answer, band)? {
@@ -5715,13 +5646,14 @@ fn wall_crossing<T: Decide + Bounds>(
 /// caller's frontier door ([`SpanVerdict::Unsettled`]); a reading at a
 /// cone's apex is [`SpanVerdict::AtApex`]; a torus outside its ring
 /// convention is the face's ([`BooleanError::of_torus_refusal`]); a pair
-/// the table has no door for is the dispatch's desync. A fault never
-/// reaches here (the face reading fails loud on it).
+/// with no lane keeps the door; a method the table names for no pair is
+/// the dispatch's desync. A fault never reaches here (the face reading
+/// fails loud on it).
 ///
 /// # Errors
 ///
-/// `escalate`'s, the torus convention's, and the desync's
-/// [`BooleanError::ClassificationInvariant`].
+/// `escalate`'s, the torus convention's, and the desync's or a
+/// contradiction's [`BooleanError::ClassificationInvariant`].
 fn crossing_refused<T: Decide>(
     why: geom_brep::curve_face::CrossWhy,
     carrier: &geom::Curve3<T>,
@@ -5764,15 +5696,11 @@ fn crossing_refused<T: Decide>(
         CrossWhy::Pose(PoseRefusal::Torus(torus)) if !line => {
             Err(BooleanError::of_torus_refusal(torus, at))
         }
-        // A line's pair with no lane here keeps the door, as an unbuilt
-        // one does.
-        CrossWhy::Pose(PoseRefusal::Torus(_) | PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_))
-            if line =>
-        {
-            Ok(SpanVerdict::Unsettled)
-        }
+        // A pair with no lane here (a spiric's or a spline's, or a line's
+        // against a torus outside the convention) keeps the door, as an
+        // unbuilt one does.
         CrossWhy::Pose(PoseRefusal::Torus(_) | PoseRefusal::Enclosed | PoseRefusal::Unbuilt(_)) => {
-            Err(desync())
+            Ok(SpanVerdict::Unsettled)
         }
         CrossWhy::Pose(PoseRefusal::Fault(what)) => {
             Err(BooleanError::ClassificationInvariant { what })
@@ -5790,6 +5718,138 @@ fn crossing_refused<T: Decide>(
                 Err(desync())
             }
         },
+    }
+}
+
+/// **A covered arc's posture, read off its crossing reading**
+/// ([`curved_face_arm`]'s covered rung, [`geom_brep::curve_face::cross()`]
+/// on the arc's span, whose pose's first stage on the conic arms is the
+/// clearance cull).
+#[derive(Debug)]
+enum CoveredPosture {
+    /// `Positive`: clear, no event (`Apart`, or no meeting on the span);
+    /// `Zero`: the zero posture (the span on the carrier, a touch, or a
+    /// meeting at an end); `Negative`: a crossing strictly inside the
+    /// span, or a cone's apex on it, which the cover rules out.
+    Sign(Sign),
+    /// A rung's or a method's sign in the band: the coincidence the
+    /// cover's posture cannot call.
+    InBand(geom_core::Indeterminate),
+    /// Any other refusal (a meter, a limit): the frontier.
+    Frontier,
+    /// A fault: the kernel's, failing loud.
+    Fault(&'static str),
+}
+
+/// [`CoveredPosture`] of `cross`'s answer. The pose's `Isolated` carries
+/// no class on its own (on the ladder lane it says only that the method
+/// reads the meetings), so the meetings decide it.
+fn covered_posture<T: geom_core::Real>(
+    answer: Result<geom_brep::curve_face::Crossings<T>, geom_brep::curve_face::CrossRefusal<T>>,
+) -> CoveredPosture {
+    use geom_brep::curve_face::{CrossWhy, Crossings, MeetingKind, OnSpan, Pose, PoseRefusal};
+    use geom_brep::curve_pair::MeetFault;
+    match answer {
+        Ok(Crossings {
+            pose: Pose::Apart, ..
+        }) => CoveredPosture::Sign(Sign::Positive),
+        Ok(Crossings {
+            pose: Pose::Lies, ..
+        }) => CoveredPosture::Sign(Sign::Zero),
+        Ok(Crossings {
+            pose: Pose::Through(_),
+            ..
+        }) => CoveredPosture::Sign(Sign::Negative),
+        Ok(Crossings { meetings, .. }) => {
+            let crosses = |m: &geom_brep::curve_face::Meeting<T>| {
+                matches!(
+                    (m.on_span, m.kind),
+                    (OnSpan::Inside { .. }, MeetingKind::Cross)
+                )
+            };
+            CoveredPosture::Sign(if meetings.iter().any(crosses) {
+                Sign::Negative
+            } else if meetings.is_empty() {
+                Sign::Positive
+            } else {
+                Sign::Zero
+            })
+        }
+        Err(refusal) => {
+            if let Some(what) = refusal.windows.iter().find_map(|w| w.why.fault()) {
+                return CoveredPosture::Fault(what);
+            }
+            match refusal.leading().why {
+                CrossWhy::Pose(PoseRefusal::InBand { diag, .. })
+                | CrossWhy::Method {
+                    fault: MeetFault::Escalated(diag) | MeetFault::Touch(diag),
+                    ..
+                } => CoveredPosture::InBand(diag),
+                _ => CoveredPosture::Frontier,
+            }
+        }
+    }
+}
+
+/// **A straddling span's event, from its verdict** ([`curved_face_arm`]'s
+/// straddle arm): its endpoints decided definitely on opposite sides of
+/// the carrier, so the residual has a zero strictly inside the span.
+///
+/// # Errors
+///
+/// `frontier` and `at_apex`'s; [`BooleanError::ClassificationInvariant`]
+/// where the verdict says no crossing (below).
+fn straddle_event<T: geom_core::Real>(
+    verdict: SpanVerdict<T>,
+    frontier: impl Fn() -> BooleanError,
+    at_apex: impl Fn() -> BooleanError,
+) -> Result<CurvedEvent<T>, BooleanError> {
+    match verdict {
+        SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
+            t,
+            p,
+            at,
+            on,
+            plane: None,
+            chart: None,
+            on_edge: None,
+        }),
+        // The straddle's crossing, found and certified OFF this face:
+        // every root inside the span is on the carrier outside the trim,
+        // and both ends are definitely off the carrier, so the span meets
+        // this face nowhere. Where the crossing's incidence lives — a
+        // sibling face on the same carrier, or no face of this operand —
+        // is that face's pair, not this one.
+        SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
+        // Every window the answer left was read off this face
+        // (`face_crossings`): the straddle's crossing, which the certified
+        // meetings did not place inside the span, lies in one of them, and
+        // so off this face.
+        SpanVerdict::OffFace => Ok(CurvedEvent::None),
+        SpanVerdict::AtApex => Err(at_apex()),
+        // **A straddle the answer says has no crossing fails loud** (U4
+        // §2.3). What reaches this arm is three certified readings that
+        // cannot all hold: both endpoint residuals decided definitely past
+        // the band on OPPOSITE sides (the caller's match), so the residual,
+        // continuous along the span, has a zero strictly inside it; and
+        // `cross` answered with no window at all (`wall_crossing` turns a
+        // windowed `NoInterior` into `OffFace`), so its meetings are the
+        // whole of its claim, and they place no crossing strictly inside
+        // the span (`NoInterior`: none, or only one at an end the endpoint
+        // signs put past the band), or none at all (`Miss`, `Apart`), or the
+        // span on the carrier (`LiesOn`, `Lies`, which the definite
+        // endpoint residuals rule out). An uncertain reading never reaches
+        // here: it is a window (`OffFace` above, or a refusal `wall_crossing`
+        // returned as `Err`) or `Unsettled`, which keeps the door below. So
+        // this is a contradiction between certified predicates, which must
+        // not be resolved by picking one.
+        SpanVerdict::NoInterior | SpanVerdict::Miss | SpanVerdict::LiesOn => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "a span whose endpoints straddle a curved face's carrier was answered \
+                       with no crossing strictly inside it and no window",
+            })
+        }
+        SpanVerdict::Unsettled => Err(frontier()),
     }
 }
 
@@ -5888,7 +5948,7 @@ pub(super) fn cone_nappe<T: Decide>(
 /// trim AND no root sits at an end — the one case that accounts for a
 /// straddle's crossing. A root set with no interior root (or with one at
 /// an end) is `NoInterior`, which the straddle arm reads as a
-/// contradiction and keeps the door on.
+/// contradiction and fails loud on ([`straddle_event`]).
 fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) -> SpanVerdict<T> {
     if crossed_elsewhere && !at_end {
         SpanVerdict::Elsewhere
@@ -7326,6 +7386,9 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
+        // The face holds the patch it bounds (`cyl_wall_sheet` leaves the
+        // sense `mef` put, which holds the rest of the turn).
+        crate::test_support_fixtures::set_sheet_sense(&mut y, wall, true, tol);
         let decls = Glue {
             pairs: class
                 .map(|class| vec![GluedPair::new(prism.side_faces[3], wall, class)])
@@ -7393,14 +7456,15 @@ mod declaration_order_rows {
         }
     }
 
-    /// **The `(Positive, Positive)` line-clearance arm**: a line clear of
-    /// the wall by an in-band distance, both ends definitely outside, so
-    /// the clearance bound escalates before any declaration is read.
-    /// The declaration door takes none at this pose (a plane an in-band
-    /// gap off the wall escalates `Tangent`, and `Rest` names two kinds
-    /// of surface), so the declared run is built past the door and shows
-    /// only that the arm reads none. Before the review's fix it offered
-    /// "declare the coincidence".
+    /// **The `(Positive, Positive)` line arm**: a line clear of the wall
+    /// by an in-band distance, both ends definitely outside, so the
+    /// crossing reading's discriminant escalates (`WallRoots`, the
+    /// graze's own question: crosses, grazes or misses) before any
+    /// declaration is read. The declaration door takes none at this pose
+    /// (a plane an in-band gap off the wall escalates `Tangent`, and
+    /// `Rest` names two kinds of surface), so the declared run is built
+    /// past the door and shows only that the arm reads none. Before the
+    /// review's fix it offered "declare the coincidence".
     #[test]
     fn an_in_band_line_clearance_offers_no_declaration() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
@@ -7414,11 +7478,31 @@ mod declaration_order_rows {
             .into_iter()
             .map(|class| (class, run(class, profile, 0.25)))
             .collect();
-        same_refusal_without_declare(
-            &runs,
-            Coincide::EdgeOnCurvedFace,
-            "whether an edge of one solid clears a curved face of the other or lies on it",
-        );
+        for (class, got) in &runs {
+            let Err(err @ BooleanError::CurvedPierceEscalated { decision, .. }) = got else {
+                panic!("{class:?}: the in-band arm escalates: {got:?}");
+            };
+            assert_eq!(
+                *decision,
+                BooleanDecision::WallRoots(crate::boolean::WallRung::Discriminant),
+                "{class:?}"
+            );
+            let text = err.render(geom_brep::recourse::Reading::Build);
+            assert!(
+                text.contains("whether an edge crosses a cylinder wall, grazes it or misses it")
+                    && !text.contains("declare"),
+                "{class:?}: no declaration settles the question, so none is offered: {text}"
+            );
+            assert_eq!(
+                text,
+                runs[0]
+                    .1
+                    .as_ref()
+                    .expect_err("the undeclared run refuses")
+                    .render(geom_brep::recourse::Reading::Build),
+                "{class:?}: a declaration changes nothing here"
+            );
+        }
     }
 
     /// **The curved arm's endpoint side**: a line in the plane `x = 1`
@@ -10695,3 +10779,7 @@ mod junction_end_rows {
         assert_eq!(end_on_touch(OnTouch::Off, || Ok(true)), Ok(None));
     }
 }
+
+#[cfg(test)]
+#[path = "curved_posture_rows.rs"]
+mod curved_posture_rows;

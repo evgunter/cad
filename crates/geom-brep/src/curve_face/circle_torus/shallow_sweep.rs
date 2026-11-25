@@ -100,6 +100,21 @@ impl Pose {
     }
 }
 
+impl Pose {
+    /// The production reading, `cross` ([`crate::curve_face::conic_oracle::cross_reading`]),
+    /// in [`Pose::door`]'s shape: its roots on the arc, a `Miss` for none, a
+    /// refusal (a window, a touch) refused.
+    fn cross_lane(&self, band: Band) -> Result<Vec<(f64, f64)>, String> {
+        use crate::curve_face::conic_oracle::{CrossReading, cross_reading};
+        match cross_reading(&self.carrier(), (self.t0, self.t1), &self.torus(), band) {
+            CrossReading::Roots(roots) if roots.is_empty() => Err("Miss".to_string()),
+            CrossReading::Roots(roots) => Ok(roots.iter().map(|&t| (t, t)).collect()),
+            CrossReading::Lies => Err("On".to_string()),
+            CrossReading::Refused => Err("refused: cross".to_string()),
+        }
+    }
+}
+
 fn arc(rng: &mut Rng) -> (f64, f64) {
     let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
     (m - h, m + h)
@@ -289,6 +304,7 @@ fn no_certified_root_of_a_shallow_crossing_is_placed_past_the_band() {
             for (lane, got) in [
                 ("f64", pose.door(band, |t: f64| (t, t))),
                 ("Interval", pose.door(band, |t: Interval| (t.lo(), t.hi()))),
+                ("cross", pose.cross_lane(band)),
             ] {
                 judged += 1;
                 refused += usize::from(matches!(&got, Err(w) if !w.starts_with("Miss")));
