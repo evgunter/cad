@@ -2073,3 +2073,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The composite rescues exist, so `off_face` stays for `composite_count` until U4d.
   - **Q2 refined:** the covered posture reads `cross`'s answer, since a ladder lane's `Isolated` carries no class.
   - C's conditions are done: each of the six fuzzes has a `cross` leg, and the P3 row `the-door-rows-read-the-wrappers-not-cross` is filed.
+- 2026-11-25 17:35 — **U4b lost rescue** (mate7a torus rest: the circle × torus `Contour` rung refuses the whole span; `off_face`'s clusters rescued it on main).
+  - The spec's [ev] trigger is a change to the arm's method; this fix stays in the face reading, so it is ruled by the orchestrator.
+  - **Ruling:** the face reading tiles a window to a fixed budget (8 levels); the window is off the face only if every piece is. A reported deviation, with §2.3 updated in the PR.
+  - Conditions: an oracle soundness row; the budget argued; the piece decision named and levered.
+  - Also agreed: a method sign in band under cover is the zero posture (8 sweep rows back to main's `Zero`); the line × wall drift reads `Apart` past `half_drift`.
