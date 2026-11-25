@@ -413,8 +413,8 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
         .collect();
     let l = loft_body::<f64>(&[vec![lp.clone()], vec![lp]], &places, 1, t).unwrap();
     let (w0, w1) = (
-        l.side_faces[0][0][0].unwrap(),
-        l.side_faces[0][1][0].unwrap(),
+        l.side_faces[0][0][0][0].unwrap(),
+        l.side_faces[0][1][0][0].unwrap(),
     );
     assert_ne!(key_of(&l.body, w0), key_of(&l.body, w1));
     assert!(matches!(
