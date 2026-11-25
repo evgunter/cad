@@ -1313,9 +1313,8 @@ fn pole_beyond<T: Decide>(
             continue;
         }
         let Some(geom::Curve3::Circle(circle)) = body
-            .get_edge(e)
-            .and_then(|d| body.curves.get(d.curve))
-            .and_then(crate::null::CurveGeom::certified)
+            .edge(e)
+            .and_then(|view| view.certified())
             .map(|c| c.carrier().clone())
         else {
             continue;
