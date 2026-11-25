@@ -11,7 +11,9 @@
 //! - **The chain.** A spline carrier's knot vector, its node grading
 //!   included, at the carrier's degree and no lower than
 //!   [`IMAGE_DEGREE`]; a knot of a lower-degree carrier keeps its
-//!   continuity. Any other carrier has no knots, and its chain is
+//!   continuity; a periodic spline's knots are its clamped view's over
+//!   the span, the net the edge certificate reads. A closed form (a
+//!   line, a conic, a spiric) has no knots, and its chain is
 //!   [`CLOSED_FORM_SPANS`] uniform spans of its interval.
 //! - **The feet.** One at each Greville abscissa of the chain, so the
 //!   interpolant is on the chain's knots exactly. They are found by
@@ -43,7 +45,12 @@
 //!   one in or past it is refused on that reading
 //!   ([`ImageRefusal::Miss`]).
 //!
-//! Everything here is the `f64` structure lane (C6): the image is
+//! Everything here is the `f64` structure lane (C6): the feet, the
+//! knots and the miss are read at the middles of the caller's scalar's
+//! brackets. The carrier and the wall are still evaluated at that
+//! scalar, so the image is one per scalar: at `f64` and at `Interval`
+//! the middles differ in the last places, and an image can take a knot
+//! at one that it does not at the other. The image is
 //! evidence, and what makes it sound is that its consumer bounds
 //! `sup_t |S(P(t)) − C(t)|` over the whole span.
 
@@ -289,7 +296,7 @@ where
         ends,
     };
     let degree = chain_degree(carrier);
-    let mut chain = chain(carrier, domain).ok_or(ImageRefusal::Fit)?;
+    let mut chain = chain(carrier, params, domain).ok_or(ImageRefusal::Fit)?;
     let chain_knots = chain.len();
     let tol = IMAGE_MISS * band.zero();
     // The first foot, from the chain's own first step.
@@ -373,8 +380,8 @@ where
         }
         add.sort_by(f64::total_cmp);
         add.dedup();
-        // A crease's knot at the multiplicity that gives the image the
-        // wall's continuity there, less what the chain holds of it.
+        // A crease's knot at the image's degree, a break (`KnotLine`),
+        // less what the chain holds of it.
         for (k, multiplicity, axis, line) in creases {
             // A break found again beside the knot it already has is that
             // knot's: two knots a rounding apart solve no collocation.
@@ -492,24 +499,32 @@ where
 fn chain_degree<T: geom_core::Real>(carrier: &Curve3<T>) -> usize {
     match carrier {
         Curve3::Nurbs(net) => net.degree().max(IMAGE_DEGREE),
+        // A periodic carrier is a cubic, as its clamped view is.
         _ => IMAGE_DEGREE,
     }
 }
 
-/// The chain's clamped knots on the unit interval: a spline's own, each
-/// interior knot at the multiplicity that keeps its continuity at the
-/// image's degree, and any other carrier's uniform spans. `None` where a
-/// spline's domain has no width.
-fn chain<T: Decide + Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Option<Vec<f64>> {
+/// The chain's clamped knots on the unit interval: a spline's own (a
+/// periodic spline's clamped view's over the span), each interior knot
+/// at the multiplicity that keeps its continuity at the image's degree,
+/// and a closed form's uniform spans. `None` where a spline's domain has
+/// no width or a periodic one has no view over the span.
+fn chain<T>(carrier: &Curve3<T>, params: (T, T), (t0, t1): (f64, f64)) -> Option<Vec<f64>>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
     let degree = chain_degree(carrier);
     let mut knots = vec![0.0; degree + 1];
-    match carrier {
-        Curve3::Nurbs(net) => {
+    // A spline's net over the span: a clamped spline's own, a periodic
+    // one's clamped view, which the edge certificate reads too.
+    match carrier.clamped_net(params) {
+        Some(net) => {
+            let net = net.ok()?;
             let width = t1 - t0;
             if width.is_nan() || width <= 0.0 {
                 return None;
             }
-            let raise = degree - net.degree();
+            let raise = degree.checked_sub(net.degree())?;
             for (k, m) in interior(net.knot_values()) {
                 let at = (k - t0) / width;
                 if at > 0.0 && at < 1.0 {
@@ -517,7 +532,7 @@ fn chain<T: Decide + Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Optio
                 }
             }
         }
-        _ => {
+        None => {
             #[allow(clippy::cast_precision_loss)]
             knots.extend((1..CLOSED_FORM_SPANS).map(|i| i as f64 / CLOSED_FORM_SPANS as f64));
         }

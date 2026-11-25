@@ -2814,7 +2814,22 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
                 }
             }
-            tube(&on_grid(a, grid_a.as_ref())?, &on_grid(b, grid_b.as_ref())?)?
+            match tube(&on_grid(a, grid_a.as_ref())?, &on_grid(b, grid_b.as_ref())?) {
+                Ok(three) => three,
+                // A straddle on either step is the certificate's straddle:
+                // a node end's grading climbs on it (`ends::Ends::finish`),
+                // whichever cells read it.
+                Err(grid) => {
+                    return Err(match (&own, &grid) {
+                        (SsiError::TubeStraddles { .. }, g)
+                            if !matches!(g, SsiError::TubeStraddles { .. }) =>
+                        {
+                            own
+                        }
+                        _ => grid,
+                    });
+                }
+            }
         }
     };
     Ok(certificate((on_locus, hull_sup), three))
@@ -4381,8 +4396,10 @@ mod tests {
             "the ladder probed {rungs} rungs: the row reads nothing"
         );
         let cells = crate::edge_nurbs::PXN_WALL_SPANS.pow(2);
+        // More than the wall's own cell at its two readings: the grid's
+        // cells were read, each at most once.
         assert!(
-            (1..=cells + 2).contains(&built),
+            (3..=cells + 2).contains(&built),
             "the one-cell wall's net and its {cells} grid cells were built {built} times over \
              {rungs} rungs"
         );
