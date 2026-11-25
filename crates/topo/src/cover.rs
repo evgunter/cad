@@ -401,9 +401,7 @@ fn face_cover_in<T: Decide>(
                     .ok_or(())
             });
             let rect = ring
-                .and_then(|()| {
-                    torus_chart_window(&face_window_steps(body, face), *major_radius, *minor_radius)
-                })
+                .and_then(|()| bounded_torus_window(body, face))
                 .and_then(|(u, v)| Cover::patch(frame, (*major_radius, *minor_radius), Some(u), v));
             and_proven(carrier, rect)
         }
@@ -877,18 +875,27 @@ pub(crate) struct WindowLoop<'a, T: Real> {
 /// pcurves — one fold of its loops' lift, for every lane.**
 ///
 /// The caller hands over its own arena traversal as loops of
-/// [`WindowStep`]s and nothing else: the face cover's torus arm and the
-/// construction rows both enter here.
+/// [`WindowStep`]s and nothing else. The face cover's torus arm and the
+/// embedding walk's torus and sheet windows enter through
+/// [`bounded_torus_window`] and [`bounded_sheet_latitude`]; the
+/// construction rows enter here directly.
 ///
 /// # Why the window is a superset of the face's chart region
 ///
-/// The face's region is the planar region its loops' chart images
-/// bound, in the lift the pcurve mint certified closed, and a region
-/// lies inside the bounding rectangle of its own boundary.
+/// Where the face is the region its loops' chart images bound, in the
+/// lift the pcurve mint certified closed, it lies inside the bounding
+/// rectangle of its own boundary.
 ///
 /// **That argument needs the boundary to SAY which side is material,
-/// and two guards are what make it hold:
+/// and three guards are what make it hold:
 ///
+/// - **The face must be its loop's bounded side.** One loop that closes
+///   in the chart is the boundary of two regions of the tube, the one it
+///   bounds in the chart and its complement, and the hull holds only the
+///   first. The two doors read the loop's signed chart area against the
+///   face's sense ([`bounded_side_loops`]) and give the complement no
+///   window. Folding loops without that reading, as a construction row
+///   does, is sound only on a face known to be the bounded side.
 /// - **A face with a RING gets no window.** Two loops can be pinned on
 ///   different branches, and their hull is then a rectangle neither
 ///   bounds.
@@ -915,21 +922,22 @@ pub(crate) struct WindowLoop<'a, T: Real> {
 ///
 /// A cache certifies `sup |S(P(t)) − C(t)| ≤ envelope` in METRES
 /// ([`geom_brep::PcurveCertificate::envelope`]), so the carrier can
-/// sit up to `envelope` off the chart image's surface points. Pulling
-/// that back through the chart costs the inverse's Lipschitz
-/// constants: one radian of `u` moves a surface point by at least
-/// `R − r` (the tube's nearest approach to the axis) and one radian of
-/// `v` by exactly `r`.
+/// sit up to `envelope` off the chart image's surface points. The
+/// boundary point `C(t)` pulls back through its nearest point `q` of
+/// the surface, no farther from it than `S(P(t))` is, so `q` and
+/// `S(P(t))` are two surface points at most `2·envelope` apart.
 ///
-/// **The factor of two is not "one for each end"**: the slack widens
-/// both ends already. It is the price of the segment between
-/// `S(P(t))` and `C(t)` LEAVING the surface: the chart inverse is
-/// Lipschitz on the surface, and a point `envelope` off it is pulled
-/// back only after being projected there, which can cost as much
-/// again. That argument holds while the displacement stays inside the
-/// tube's own scale — `envelope ≤ (R − r)/2` and `envelope ≤ r/2` —
-/// so [`torus_window_slack`] GUARDS both, and a cache whose envelope
-/// exceeds either gets no window at all.
+/// Two surface points are at least their CHORD apart in each channel:
+/// `2r·sin(δv/2)` on the meridian circle, and `2(R − r)·sin(δu/2)` about
+/// the axis, `R − r` the tube's nearest approach to it (`δ ≤ π`, each
+/// angle taken modulo a turn). A chord is at least `(2/π)` of its arc,
+/// so `δv ≤ π·envelope/r` and `δu ≤ π·envelope/(R − r)` ([`chord_slack`]),
+/// at any envelope. The arc length alone, `r·δ`, would claim `2·envelope/r`,
+/// which is short of the chord's `2·asin(envelope/r)`.
+///
+/// [`torus_window_slack`] still refuses an envelope past `(R − r)/2` or
+/// `r/2`: a window that loose is no narrower than the tube's own scale,
+/// and it keeps the ring guard (`R − r` positive).
 pub(crate) struct TorusChartWindow<T: Real> {
     u: Option<(T, T)>,
     v: Option<(T, T)>,
@@ -960,8 +968,7 @@ pub(crate) fn torus_window_slack<T: Real>(envelope: T, major: T, minor: T) -> Op
     if exceeded(tube) || exceeded(ring) {
         return None;
     }
-    let two = T::from_f64(2.0);
-    Some((two * envelope / ring, two * envelope / tube))
+    Some((chord_slack(envelope, ring), chord_slack(envelope, tube)))
 }
 
 /// A value that is not a bounded number for every value it stands for
@@ -1031,31 +1038,19 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         self.ok = false;
     }
 
-    /// **The `v` window alone on a spindle sheet**, widened by its own
+    /// **The `v` window alone on a spindle sheet**, widened by its
     /// slack: the type docs' superset argument on the sheet's meridian
     /// arc `v ↦ (R + r·cos v, r·sin v)`. `u` is not read: a turn of `u`
-    /// moves an apex by nothing, so no slack bounds it there.
-    ///
-    /// A point of the sheet the true boundary pulls back to lies within
-    /// `2·envelope` of the image's (the type docs' projection). Two
-    /// points of the sheet are at least their meridian chord
-    /// `2r·sin(δ/2)` apart, `δ ≤ π` their angle on the meridian circle,
-    /// and that chord is at least `(2/π)·r·δ`, so the two `v`s differ
-    /// by at most `π·envelope/r` modulo a turn. Where the widened window
-    /// lies strictly inside `(−π, π)`, as the caller decides, no
-    /// representative but the near one is a sheet parameter, so the
-    /// window holds the face's `v`.
+    /// moves an apex by nothing, so no slack bounds it there. The slack
+    /// is the type docs' chord bound on the meridian circle, `π·envelope/r`
+    /// modulo a turn; where the widened window lies strictly inside
+    /// `(−π, π)`, as the caller decides, no representative but the near
+    /// one is a sheet parameter, so the window holds the face's `v`.
     pub(crate) fn finish_latitude(self, minor: T) -> Option<(T, T)> {
         if !self.ok {
             return None;
         }
-        let v = self.v?;
-        let sv = T::from_f64(core::f64::consts::PI) * self.envelope / minor;
-        let v = (v.0 - sv, v.1 + sv);
-        if not_finite(v.0) || not_finite(v.1) {
-            return None;
-        }
-        Some(v)
+        widened(self.v?, chord_slack(self.envelope, minor))
     }
 
     /// The window, widened by the certificate slack — see the type
@@ -1065,14 +1060,24 @@ impl<T: SpanLocate> TorusChartWindow<T> {
         if !self.ok {
             return None;
         }
-        let (u, v) = (self.u?, self.v?);
         let (su, sv) = torus_window_slack(self.envelope, major, minor)?;
-        let (u, v) = ((u.0 - su, u.1 + su), (v.0 - sv, v.1 + sv));
-        if [u.0, u.1, v.0, v.1].into_iter().any(not_finite) {
-            return None;
-        }
+        let (u, v) = (widened(self.u?, su)?, widened(self.v?, sv)?);
         Some((ParamWindow::new(u.0, u.1), ParamWindow::new(v.0, v.1)))
     }
+}
+
+/// `(lo, hi)` widened by `slack` on each end, `None` where an end is not
+/// a bounded number.
+fn widened<T: Real>((lo, hi): (T, T), slack: T) -> Option<(T, T)> {
+    let w = (lo - slack, hi + slack);
+    (!(not_finite(w.0) || not_finite(w.1))).then_some(w)
+}
+
+/// **The chord slack**: how far in angle a point of a circle of radius
+/// `radius` can move while staying within `2·envelope` of where it was
+/// — `π·envelope/radius` (the type docs, "the slack").
+fn chord_slack<T: Real>(envelope: T, radius: T) -> T {
+    T::from_f64(core::f64::consts::PI) * envelope / radius
 }
 
 /// **The face's loops, as [`WindowLoop`]s**, read a loop at a time
@@ -1141,34 +1146,94 @@ pub(crate) fn face_window_steps<T: Decide>(
         .collect()
 }
 
-/// **A spindle sheet face's `v` window**, folded over its loops as
-/// [`torus_chart_window`] folds a torus face's, under the same guards
-/// ([`TorusChartWindow::finish_latitude`]). `None` on any other carrier.
-pub(crate) fn sheet_chart_latitude<T: SpanLocate>(
-    loops: &[WindowLoop<'_, T>],
-    carrier: &Surface<T>,
-) -> Option<(T, T)> {
-    let Surface::Spindle { minor_radius, .. } = *carrier else {
+/// **A face's window loops, where the face is the side of its one loop
+/// that the loop bounds in the chart** — the requirement the window's
+/// superset argument names ([`TorusChartWindow`]). A loop that closes in
+/// the chart also bounds its complement, and the hull of its images
+/// holds only the bounded side. Material lies to the left of the loop
+/// seen from the face's normal, so the face is the bounded side exactly
+/// where the loop's signed chart area has the sign of its sense
+/// (positive with the chart normal, negative against it).
+///
+/// The area is the shoelace of the polygon the images' ends make, taken
+/// in the loop's order and round. It is the region's own area where
+/// every image is a straight chart segment (an iso line, an iso rim, or
+/// a harmonic image with no cosine or sine term) and every gap between
+/// one image's end and the next one's start is straight too: a joint,
+/// where the gap is nothing, and the run a sheet face's lift makes along
+/// an apex's latitude between two meridians, which no row stores. Its
+/// sign is decided band-free ([`SpanLocate::structure_positive`]): at an
+/// enclosure scalar over the whole enclosure of the polygon's area, at a
+/// point scalar on the area of the polygon its ends round to.
+///
+/// `None` for a face with a ring, a loop that does not close, an image
+/// that is not straight, an area whose sign is not decided, and a face
+/// on the complement's side: each leaves the window the whole tube or
+/// sheet, which only costs cells.
+fn bounded_side_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<WindowLoop<'_, T>>> {
+    let loops = face_window_steps(body, face);
+    let [only] = loops.as_slice() else {
         return None;
     };
-    fold_window(loops).finish_latitude(minor_radius)
+    if !only.closes {
+        return None;
+    }
+    let zero = |x: T| x.structure_bracket() == Some((0.0, 0.0));
+    let mut ends = Vec::with_capacity(2 * only.steps.len());
+    for step in &only.steps {
+        let (cache, image, forward) = step.as_ref()?;
+        let straight = image.iso_line_form().is_some()
+            || image.iso_arc_segment().is_some()
+            || image
+                .harmonic_form()
+                .is_some_and(|(_, a, b, _)| zero(a.x) && zero(a.y) && zero(b.x) && zero(b.y));
+        if !straight {
+            return None;
+        }
+        let (t0, t1) = cache.params();
+        let (a, b) = (image.eval(t0), image.eval(t1));
+        ends.extend(if *forward { [a, b] } else { [b, a] });
+    }
+    let twice = ends
+        .iter()
+        .zip(ends.iter().cycle().skip(1))
+        .fold(T::zero(), |acc, (p, q)| acc + (p.x * q.y - q.x * p.y));
+    let along_sense = if body.proven_face(face).sense() {
+        twice
+    } else {
+        T::zero() - twice
+    };
+    along_sense.structure_positive().then_some(loops)
 }
 
-/// [`torus_chart_window`] of a face on `carrier`, its radii read off it;
-/// `None` on any other carrier.
-pub(crate) fn torus_carrier_window<T: SpanLocate>(
-    loops: &[WindowLoop<'_, T>],
-    carrier: &Surface<T>,
+/// **A torus face's chart window** ([`torus_chart_window`]), read only
+/// where the face is its loop's bounded side ([`bounded_side_loops`]).
+/// `None` for a face off a torus and for every face that guard refuses.
+pub(crate) fn bounded_torus_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
 ) -> Option<TorusWindowPair<T>> {
-    let Surface::Torus {
+    let Ok(&Surface::Torus {
         major_radius,
         minor_radius,
         ..
-    } = *carrier
+    }) = body.proven_face(face).surface()
     else {
         return None;
     };
-    torus_chart_window(loops, major_radius, minor_radius)
+    torus_chart_window(&bounded_side_loops(body, face)?, major_radius, minor_radius)
+}
+
+/// **A spindle sheet face's `v` window**, folded over its loops as
+/// [`torus_chart_window`] folds a torus face's
+/// ([`TorusChartWindow::finish_latitude`]), and read only where the face
+/// is its loop's bounded side ([`bounded_side_loops`]). `None` for a face
+/// off a sheet and for every face that guard refuses.
+pub(crate) fn bounded_sheet_latitude<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(T, T)> {
+    let Ok(&Surface::Spindle { minor_radius, .. }) = body.proven_face(face).surface() else {
+        return None;
+    };
+    fold_window(&bounded_side_loops(body, face)?).finish_latitude(minor_radius)
 }
 
 fn fold_window<T: SpanLocate>(loops: &[WindowLoop<'_, T>]) -> TorusChartWindow<T> {

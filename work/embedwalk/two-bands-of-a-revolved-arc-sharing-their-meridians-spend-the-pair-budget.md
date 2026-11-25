@@ -77,8 +77,8 @@ not committed). The spindle receipt reproduces the finding's exactly.
   the budget. At `d = 1e-3` the same pair already held (1653 pairs).
 - **So the cause is the walk's window** (`clearance::window_of`), not a
   reading in `injective.rs`. The fix gives a torus band the chart
-  rectangle its boundary's pcurves span (`cover::torus_chart_window`)
+  rectangle its boundary's pcurves span (`cover::bounded_torus_window`)
   and a sheet band the latitude they span
-  (`cover::sheet_chart_latitude`). Measured with it: the bool3 spindle
+  (`cover::bounded_sheet_latitude`). Measured with it: the bool3 spindle
   `Embedded` in 18 pairs (0.05 s); the near-horn ladder's torus, horn
   and sheet rungs `Embedded` in about 600 pairs each.

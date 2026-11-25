@@ -2,10 +2,13 @@
 id: the-torus-face-cover-takes-its-loops-rectangle-without-reading-which-side-the-face-is
 kind: issue
 title: The torus face cover takes its loop's chart rectangle without reading which side of the loop the face lies on
-status: open
+status: closed
 opened: 2026-11-25
 priority: P2
 cost: C
+branch: embedwalk/two-bands
+pr: 7786
+closed: 2026-11-25
 ---
 
 
@@ -31,3 +34,14 @@ sense). The embedding walk's window guards it band-free
 its sign against the sense). The torus cover arm should take one of the
 two. No kernel door mints a torus face on the complement's side today,
 because every torus constructor seams its walls, so the hole is latent.
+
+## Closed
+
+Closed by PR 7786 (`embedwalk/two-bands`). It is the same question as the
+embedding walk's: one closing loop bounds the rectangle's side and its
+complement. Both readers now take one test, `cover::bounded_side_loops`
+(the loop's signed chart area against the face's sense, band-free), through
+`cover::bounded_torus_window`, which the face cover's torus arm reads.
+`clearance::seated_windows::a_torus_windows_side_reads_alike_reverted_and_across_the_seam`
+pins the four sense-and-direction quadrants and a lift across the seam;
+the complement keeps the whole tube.

@@ -3682,75 +3682,18 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
-/// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
-/// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
-/// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
-/// past an apex lands a hair from it, on the torus's other sheet: the
-/// widening can only ADD points to an enclosure.
-/// **A face's window loops, where the face is the side of its one loop
-/// that loop bounds in the chart.** A loop that closes in the chart is
-/// also the boundary of its complement, and the hull of its images
-/// holds only the bounded side. The side the face lies on is read off
-/// the loop's traversal against its sense: material lies to the left of
-/// the loop seen from the face's normal, so the face is the bounded
-/// side exactly where the loop's signed chart area has the sign of its
-/// sense (positive with the chart normal, negative against it). The
-/// area is the shoelace of the images' ends, exact where every image is
-/// a straight chart segment (an iso line, an iso rim, or a harmonic
-/// image with no cosine or sine term), and enclosed
-/// at [`Interval`], so the sign is decided with no band. `None` for a
-/// face with a ring, a loop that does not close, an image that is not
-/// straight, an area whose sign is not certified, and a face on the
-/// complement's side.
-fn bounded_side_steps<'b, T: Decide + CertifiedBounds>(
-    body: &'b Body<T>,
-    f: FaceView<'b, T>,
-) -> Option<Vec<crate::cover::WindowLoop<'b, T>>> {
-    let loops = crate::cover::face_window_steps(body, f.key());
-    let [only] = loops.as_slice() else {
-        return None;
-    };
-    if !only.closes {
-        return None;
-    }
-    let lift =
-        |p: geom_core::Point2<T>| (Interval::from_certified(p.x), Interval::from_certified(p.y));
-    let mut area = Interval::from_f64(0.0);
-    for step in &only.steps {
-        let (cache, image, forward) = step.as_ref()?;
-        let zero = |x: T| {
-            let x = Interval::from_certified(x);
-            x.lo() == 0.0 && x.hi() == 0.0
-        };
-        let straight = image.iso_line_form().is_some()
-            || image.iso_arc_segment().is_some()
-            || image
-                .harmonic_form()
-                .is_some_and(|(_, a, b, _)| zero(a.x) && zero(a.y) && zero(b.x) && zero(b.y));
-        if !straight {
-            return None;
-        }
-        let (t0, t1) = cache.params();
-        let (a, b) = (lift(image.eval(t0)), lift(image.eval(t1)));
-        let ((xa, ya), (xb, yb)) = if *forward { (a, b) } else { (b, a) };
-        area = area + (xa * yb - xb * ya);
-    }
-    let bounded = area.is_certified()
-        && if f.sense() {
-            area.lo() > 0.0
-        } else {
-            area.hi() < 0.0
-        };
-    bounded.then_some(loops)
+/// A certified pair of ends, as the `f64` range their enclosures span.
+fn lifted_ends<T: CertifiedBounds>((lo, hi): (T, T)) -> (f64, f64) {
+    (
+        Interval::from_certified(lo).lo(),
+        Interval::from_certified(hi).hi(),
+    )
 }
 
 /// A periodic channel's window from its certified ends: the ends'
 /// enclosure, or the whole turn where that reaches a period.
 fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
-    let (lo, hi) = (
-        Interval::from_certified(lo).lo(),
-        Interval::from_certified(hi).hi(),
-    );
+    let (lo, hi) = lifted_ends((lo, hi));
     let turn = full_turn();
     if hi - lo < turn.1 - turn.0 {
         (lo, hi)
@@ -3759,6 +3702,11 @@ fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
     }
 }
 
+/// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
+/// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
+/// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
+/// past an apex lands a hair from it, on the torus's other sheet: the
+/// widening can only ADD points to an enclosure.
 fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) {
     let apex = geom::sheet_apex(major_radius, minor_radius)
         .v
@@ -3797,14 +3745,14 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 ///   take their canonical ranges.
 /// - **Torus**: both coordinates are periodic, so no box bounds either.
 ///   The boundary's stored chart images do, where the face is the side
-///   of its one loop that the loop bounds in the chart
-///   ([`bounded_side_steps`]): the window is their rectangle, widened by
-///   its certificate slack ([`crate::cover::torus_chart_window`]), each
-///   channel the whole turn where that spans a period. Any other face
-///   takes the whole tube.
+///   of its one loop that the loop bounds in the chart: the window is
+///   their rectangle, widened by its certificate slack
+///   ([`crate::cover::bounded_torus_window`]), each channel the whole
+///   turn where that spans a period. Any other face takes the whole
+///   tube.
 /// - **Spindle sheet**: `u` takes the whole turn. `v` takes the latitude
 ///   its boundary's chart images span, on the same terms
-///   ([`crate::cover::sheet_chart_latitude`]) and strictly inside
+///   ([`crate::cover::bounded_sheet_latitude`]) and strictly inside
 ///   `(−π, π)`, met with the canonical range between the apexes
 ///   ([`sheet_latitude`]); any other face takes that canonical range, as
 ///   the sphere does, since a cap's boundary is one circle while it
@@ -3867,14 +3815,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let superset = |u, v| (u, v, Region::Trimmed);
     // The chart windows a torus or sheet face's boundary reads, each
     // `None` off its own carrier.
-    let torus_rect = || {
-        bounded_side_steps(body, f)
-            .and_then(|steps| crate::cover::torus_carrier_window(&steps, stored))
-    };
-    let sheet_lat = || {
-        bounded_side_steps(body, f)
-            .and_then(|steps| crate::cover::sheet_chart_latitude(&steps, stored))
-    };
+    let torus_rect = || crate::cover::bounded_torus_window(body, face);
+    let sheet_lat = || crate::cover::bounded_sheet_latitude(body, face);
     let (u, v, region) = match &charted {
         Surface::Plane { frame } => {
             let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -3920,12 +3862,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         } => {
             let sheet = sheet_latitude(*major_radius, *minor_radius);
             let v = sheet_lat()
-                .map(|(lo, hi)| {
-                    (
-                        Interval::from_certified(lo).lo(),
-                        Interval::from_certified(hi).hi(),
-                    )
-                })
+                .map(lifted_ends)
                 .filter(|&(lo, hi)| -core::f64::consts::PI < lo && hi < core::f64::consts::PI)
                 .map_or(sheet, |(lo, hi)| (lo.max(sheet.0), hi.min(sheet.1)));
             superset(full_turn(), v)
@@ -7674,6 +7611,95 @@ mod seated_windows {
             (crate::injective::full_turn(), crate::injective::full_turn()),
             "the complement's window is the whole tube"
         );
+    }
+
+    /// **A torus window's side reads alike reverted and across the
+    /// seam.** The patch and its complement, each as built and reverted
+    /// (all four sense-and-direction quadrants), on a patch inside the
+    /// chart, one past the turn and one straddling `u = 0`: the patch's
+    /// window spans it (modulo a turn), the complement's is the whole
+    /// tube. Red if the side reads the sense alone or the direction
+    /// alone (`bounded = !sense` passes the as-built pair only), or if a
+    /// lift past the seam reads the wrong side.
+    #[test]
+    fn a_torus_windows_side_reads_alike_reverted_and_across_the_seam() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let full = (crate::injective::full_turn(), crate::injective::full_turn());
+        let turn = core::f64::consts::TAU;
+        for us in [(0.3, 1.9), (5.8, 6.9), (-0.4, 0.4)] {
+            let vs = (-0.7, 0.8);
+            let patch = crate::boxes::tests::torus_wall(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            let comp =
+                crate::boxes::tests::torus_wall_clockwise(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            for ((body, face), is_patch) in [(patch, true), (comp, false)] {
+                for rev in [false, true] {
+                    let b = if rev {
+                        body.revert().unwrap()
+                    } else {
+                        body.clone()
+                    };
+                    let w = super::window_of(&b, face, Which::First, None).unwrap();
+                    if is_patch {
+                        let k = |lo: f64, a: f64| ((a - lo) / turn).round() * turn;
+                        let span = |(lo, hi): (f64, f64), (a, b): (f64, f64)| {
+                            lo + k(lo, a) <= a && b <= hi + k(lo, a)
+                        };
+                        assert!(
+                            span(w.u, us) && span(w.v, vs),
+                            "patch {us:?} rev={rev}: {:?}x{:?}",
+                            w.u,
+                            w.v
+                        );
+                    } else {
+                        assert_eq!((w.u, w.v), full, "complement {us:?} rev={rev}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A sheet window's side reads alike reverted**: the sheet's patch
+    /// `[0.3, 1.9] × [−0.7, 0.8]` (`R = 0.5`, `r = 1`, apexes at
+    /// `v* ≈ 2.09`) windows to its latitude, and the sheet with that
+    /// patch cut out keeps the whole sheet, each as built and reverted.
+    /// Red if the sheet's latitude is read without the side.
+    #[test]
+    fn a_sheet_windows_side_reads_alike_reverted() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let patch = crate::boxes::tests::sheet_wall(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let hole = crate::boxes::tests::sheet_wall_clockwise(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let sheet = super::sheet_latitude(
+            geom_core::interval::Interval::from_bounds(0.5, 0.5),
+            geom_core::interval::Interval::from_bounds(1.0, 1.0),
+        );
+        for ((body, face), is_patch) in [(patch, true), (hole, false)] {
+            for rev in [false, true] {
+                let b = if rev {
+                    body.revert().unwrap()
+                } else {
+                    body.clone()
+                };
+                let w = super::window_of(&b, face, Which::First, None).unwrap();
+                assert_eq!(
+                    w.u,
+                    crate::injective::full_turn(),
+                    "rev={rev}: the whole turn"
+                );
+                if is_patch {
+                    assert!(
+                        w.v.0 <= vs.0
+                            && vs.1 <= w.v.1
+                            && vs.0 - w.v.0 < 1e-9
+                            && w.v.1 - vs.1 < 1e-9,
+                        "patch rev={rev}: {:?}",
+                        w.v
+                    );
+                } else {
+                    assert_eq!(w.v, sheet, "the holed sheet rev={rev}: the whole sheet");
+                }
+            }
+        }
     }
 
     /// **A trimmed face read across a turn sweeps as the placed face does**

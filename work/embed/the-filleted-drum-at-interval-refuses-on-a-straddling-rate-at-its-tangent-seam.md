@@ -206,7 +206,7 @@ With PR 7329 in the second landing branch, three valid bodies in three units ref
 
 Measured on the EMBEDWALK branch `embedwalk/two-bands`, which gives a torus
 face the chart rectangle its boundary's pcurves span as its walk window
-(`clearance::window_of`, through `cover::torus_chart_window`, on the loop's
+(`clearance::window_of`, through `cover::bounded_torus_window`, on the loop's
 bounded side only) instead of the whole tube. Nothing in `injective.rs`
 changed. At `Interval`: the drum holds; every plane against a torus patch of the rounded plate across
 their arc is `Embedded`; the three-arc disc's top plane against its band

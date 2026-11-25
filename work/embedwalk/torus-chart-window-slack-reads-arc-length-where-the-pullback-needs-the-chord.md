@@ -2,10 +2,13 @@
 id: torus-chart-window-slack-reads-arc-length-where-the-pullback-needs-the-chord
 kind: issue
 title: The torus chart window's v slack 2·envelope/r is argued from arc length, where the pull-back between two surface points needs the chord
-status: open
+status: closed
 opened: 2026-11-25
 priority: P3
 cost: C
+branch: embedwalk/two-bands
+pr: 7786
+closed: 2026-11-25
 ---
 
 
@@ -28,3 +31,13 @@ shape, against `R − r`.
 takes `π·envelope/r`, from the chord bound `2r·sin(δ/2) ≥ (2/π)·r·δ`
 on `δ ≤ π`. The torus arm could take the same constant, or keep its own
 with its guard tightened until `asin(x)/x` is covered.
+
+## Closed
+
+Closed by PR 7786 (`embedwalk/two-bands`). `cover::torus_window_slack`
+now takes the chord bound, `π·envelope/(R − r)` in `u` and
+`π·envelope/r` in `v` (`cover::chord_slack`, shared with the sheet's
+latitude), which holds at any envelope.
+`boxes::tests::a_torus_windows_slack_is_guarded_by_the_bound_it_rests_on`
+plants an envelope at the guard's edge and asserts each slack holds the
+chord's angle `2·asin(envelope/ρ)`; the arc-length slack fails it.
