@@ -247,7 +247,8 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
 /// on the 50 m and 500 m walls, `Unsettled`: there the `f64`
 /// residual's rounding places the shallow roots up to 3.1e-10 and
 /// 4.5e-9 m from the true ones (the exact oracle), and the root slack,
-/// which must read inside the zero band, refuses them. The half-angle
+/// which must read inside the zero band, refuses them; on the 500 m one
+/// the half-angle ladder, its discriminant read exactly, escalates first. The half-angle
 /// ladder alone certified a `Miss` at −1e-9 m on a 5 m wall and
 /// answered `CountDisagrees` at 1e-8 m on a 50 m wall and at 2e-8 m on
 /// a 500 m one.
@@ -279,8 +280,18 @@ fn a_graze_is_read_by_its_depth() {
             continue;
         }
         if !placed {
+            // On the 500 m wall the ladder's quartic has `Δ/L¹¹` 3.9e-9
+            // exactly, in the band's gap of its own root variable: it
+            // escalates there before the slack refuses
+            // (`work/hone/half-angle-ladder-escalates-in-its-own-metric.md`).
+            let ladder_escalates = r == 500.0
+                && matches!(
+                    &got,
+                    Err(ConicQuadricRefusal::Cylinder(diag))
+                        if diag.predicate == Some("conic_quadric_disc")
+                );
             assert!(
-                matches!(got, Ok(Err(_))),
+                matches!(got, Ok(Err(_))) || ladder_escalates,
                 "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;

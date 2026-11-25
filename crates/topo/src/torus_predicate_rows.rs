@@ -172,8 +172,8 @@ fn both_closed_forms_are_selected_and_both_answer() {
 /// CERTIFIED one; at this scale neither review lane's oracle reached a
 /// disagreement (1310 rays geometrically counted, 3000+ independently
 /// bisected), and nothing here does. At a large torus a ray once did,
-/// on `Δ`'s rounding, and reads uncertain now
-/// ([`a_far_rays_count_on_rounding_reads_uncertain`]).
+/// on the plain formula's rounding of `Δ`, and escalates now
+/// ([`a_far_rays_in_band_discriminant_escalates`]).
 ///
 /// What this row pins is the invariant that would have to break for it
 /// to fire here: every certified answer carries exactly `count` roots,
@@ -244,13 +244,13 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
 /// `ellipse_rows`' `a_graze_is_read_by_its_depth` (a circle crossing a
 /// 500 m wall by 1e-8 m; ellipses on 50 m and 500 m walls), at their
 /// band. Counted exactly on their `f64` coefficients they have 2, 4, 4
-/// and 4 real roots, and two of the four are in band; `Δ/L¹¹` evaluated
-/// in `f64` rounds by 3e-7 to 6e-6, far past the band, and read without
-/// that rounding rung 1 certified the wrong count on every one, which
-/// the factorization then contradicted. Held to it, each reads in band
-/// or within its rounding: never a count, never a contradiction.
+/// and 4 real roots, and two of the four are in band. Read off the plain
+/// formula, `Δ/L¹¹` rounds by 3e-7 to 6e-6, far past the band, and rung 1
+/// certified the wrong count on every one, which the factorization then
+/// contradicted. Read exactly, each certifies its own count or reads in
+/// band: never another count, never a contradiction.
 #[test]
-fn a_lanes_coefficients_certify_no_count_on_rounding() {
+fn a_lanes_coefficients_certify_their_exact_count_or_none() {
     let band = Band::new(1e-9, 1e-8).unwrap();
     for (p, q, s, lever, exact) in [
         (
@@ -289,25 +289,25 @@ fn a_lanes_coefficients_certify_no_count_on_rounding() {
             "{at}: the fixture's exact count"
         );
         let answer = depressed_quartic_roots(p, q, s, lever, &geom_brep::rows::LINE_TORUS, band);
-        assert!(
-            matches!(
-                answer,
-                Err(RootRefusal::Escalated(_) | RootRefusal::Unsettled(Unsettled::Tangency))
-            ),
-            "{at}: a count read on rounding, {answer:?}"
-        );
+        let read = match &answer {
+            Ok(QuarticRoots::Certified(found)) => found.count() == exact,
+            Ok(QuarticRoots::Miss) => exact == 0,
+            Err(RootRefusal::Escalated(_) | RootRefusal::Unsettled(Unsettled::Tangency)) => true,
+            _ => false,
+        };
+        assert!(read, "{at}: not its count, {answer:?}");
     }
 }
 
-/// **A ray at a large torus whose count is its quartic's rounding reads
-/// uncertain.** Probed by the review of PR 4607 among 400k near-tangent
-/// rays at `R = 1e6`, `r = 1e4`: this ray's quartic has four real roots
-/// (exactly, on the kernel's own coefficients and on the geometry), and
-/// read without its rounding rung 1 certified two, which the
-/// factorization contradicted (`CountDisagrees`). Held to its rounding,
-/// `Δ` reads Zero.
+/// **A ray at a large torus whose discriminant is in band escalates.**
+/// Probed by the review of PR 4607 among 400k near-tangent rays at
+/// `R = 1e6`, `r = 1e4`: this ray's quartic has four real roots (exactly,
+/// on the kernel's own coefficients and on the geometry). Read off the
+/// plain formula, rung 1 certified two, which the factorization
+/// contradicted (`CountDisagrees`); read exactly, `Δ/L¹¹` is 6.5e-9, in
+/// the band's gap.
 #[test]
-fn a_far_rays_count_on_rounding_reads_uncertain() {
+fn a_far_rays_in_band_discriminant_escalates() {
     let q = Point3::new(
         -191_510.386_776_324_04,
         7_625.099_170_928_492,
@@ -320,7 +320,11 @@ fn a_far_rays_count_on_rounding_reads_uncertain() {
     );
     let answer = far_ray(q, d);
     assert!(
-        matches!(answer, Err(RootRefusal::Unsettled(Unsettled::Tangency))),
+        matches!(
+            &answer,
+            Err(RootRefusal::Escalated(diag))
+                if diag.predicate == Some("line_quadric_torus_disc")
+        ),
         "{answer:?}"
     );
 }
@@ -348,12 +352,12 @@ fn far_ray(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, RootRefusa
 /// each aimed `depth` inside the tube at its tangent point (`depth` 3.4e-8
 /// to 6.4e-7 m, past the rounding of placing it): each one's quartic, on
 /// the coefficients [`line_torus_roots`] forms (recomputed here as it
-/// forms them), has exactly two real roots, and read without `Δ`'s
-/// rounding rung 1 certified [`QuarticRoots::Miss`] for every one — a
-/// silent wrong answer, since a miss folds as no crossing. Each must now
-/// answer two crossings or no count.
+/// forms them), has exactly two real roots, and read off the plain
+/// formula for `Δ` rung 1 certified [`QuarticRoots::Miss`] for every one
+/// — a silent wrong answer, since a miss folds as no crossing. Each must
+/// now answer two crossings or no count.
 #[test]
-fn a_crossing_ray_is_no_miss_on_rounding() {
+fn a_crossing_ray_is_no_miss_on_its_quartics_rounding() {
     for (depth, q, d) in [
         (
             6.45e-7,

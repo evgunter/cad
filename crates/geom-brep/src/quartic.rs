@@ -6,7 +6,7 @@
 
 pub use crate::rows::QuarticRows;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Rounded, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::roots::{RootRefusal, Roots, Unsettled};
 
@@ -74,8 +74,8 @@ pub type QuarticRoots<T> = Roots<T, 4>;
 /// the coarsest shipped row and six at the finest.
 ///
 /// **And the certified COUNT never touches this function.** The count is
-/// read off `Δ`, `p` and `D` — sign algebra on the coefficients, each
-/// held to its own rounding —
+/// read off `Δ`, `p` and `D` — sign algebra on the coefficients, read
+/// exactly —
 /// before any root is constructed, so the truncation can perturb a root
 /// VALUE and can never move the count the arm answers on. What a
 /// perturbed root value can do is shift a hit by that relative gap,
@@ -229,34 +229,6 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
     (d.powi(3) - c0) / (d.powi(2) + pair)
 }
 
-/// **The count's two evaluated quantities, each with its rounding**:
-/// the discriminant `Δ` and the depth `D = 64s − 16p²` of
-/// `y⁴ + p y² + q̂ y + s`, evaluated on the coefficients as given, with a
-/// first-order bound on each evaluation's own rounding
-/// ([`geom_core::Rounded`]).
-///
-/// Near a repeated root `Δ` is a sum of terms each far larger than it
-/// (two roots `δ` apart put `Δ ≈ δ²·lever¹⁰`, while `p⁴s` is
-/// `lever¹²` and more), so its rounding, a few units of roundoff of
-/// those terms, can be orders past the band it is decided at: a sign
-/// read off the bare value is the rounding's there. `D` cancels in the
-/// same way where `16s ≈ 4p²`. The count decides each moved toward zero
-/// by its bound ([`geom_core::Rounded::toward_zero`]), so a reading
-/// within its own rounding is the same Zero as a reading within the
-/// band. The coefficients are taken as exact: what their formation lost
-/// is the caller's to charge.
-fn sign_algebra<T: geom_core::Real>(p: T, q_hat: T, s: T) -> (Rounded<T>, Rounded<T>) {
-    let k = |c: f64| Rounded::exact(T::from_f64(c));
-    let (p, q, s) = (Rounded::exact(p), Rounded::exact(q_hat), Rounded::exact(s));
-    let (p2, q2, s2) = (p.square(), q.square(), s.square());
-    let disc = k(256.0) * s2 * s - k(128.0) * p2 * s2 + k(144.0) * p * q2 * s
-        - k(27.0) * q2.square()
-        + k(16.0) * p2.square() * s
-        - k(4.0) * p2 * p * q2;
-    let depth = k(64.0) * s - k(16.0) * p2;
-    (disc, depth)
-}
-
 /// **The certified real roots of the depressed monic quartic**
 /// `y⁴ + p y² + q̂ y + s`: the count read off sign algebra (`Δ`,
 /// then `p` and `D = 64s − 16p²` on the positive branch), the
@@ -289,14 +261,13 @@ fn sign_algebra<T: geom_core::Real>(p: T, q_hat: T, s: T) -> (Rounded<T>, Rounde
 /// root, not at one**, and the band is as wide as `√(K·ε·lever)` in root
 /// separation.
 ///
-/// **And `Δ` and `D` are decided held to their own rounding**
-/// (`sign_algebra`): near a repeated root `Δ`'s terms are orders larger
-/// than it, and on a kilometre-scale lever their rounding alone is past
-/// the band. A reading within that rounding is the same Zero as one
-/// within the band, so the band widens by the rounding's reach, and the
-/// count a definite sign certifies is the coefficients' own. `p` is a
-/// coefficient, decided as given. What the coefficients' formation lost
-/// is the caller's
+/// **`Δ` and `D` are read to their own digits**
+/// ([`geom_core::Real::quartic_sign_algebra`]): near a repeated root
+/// `Δ`'s terms are orders larger than it, and on a kilometre-scale lever
+/// the plain formula's rounding alone is past the band, so a sign read
+/// off it would be the rounding's. Read exactly, the count a definite
+/// sign certifies is the coefficients' own. What the coefficients'
+/// formation lost is the caller's
 /// (`work/inside/line-torus-coefficients-lose-a-shallow-crossing-to-their-formation.md`).
 ///
 /// # The ladder, rung by rung
@@ -306,8 +277,8 @@ fn sign_algebra<T: geom_core::Real>(p: T, q_hat: T, s: T) -> (Rounded<T>, Rounde
 /// degrades is its ROOT STRUCTURE, and each rung of that is typed, by
 /// its row in [`QuarticRows`]:
 ///
-/// 1. **`disc` Zero**: the quartic has a repeated real root, to within
-///    the band and `Δ`'s rounding. [`Unsettled::Tangency`].
+/// 1. **`disc` Zero**: the quartic has a repeated real root.
+///    [`Unsettled::Tangency`].
 /// 2. **`odd` Zero**: `q̂` is in band and the quartic is BIQUADRATIC.
 ///    Not a degeneracy but a different closed form: `y²` solves a
 ///    quadratic and the roots come out of two square roots, which is also
@@ -354,22 +325,14 @@ pub fn depressed_quartic_roots<T: Decide>(
 ) -> Result<QuarticRoots<T>, RootRefusal> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
-    let (disc, depth) = sign_algebra(p, q_hat, s);
-    let disc_sign = decide(
-        rows.disc(),
-        Margin::over_lever(disc.toward_zero(), lever.powi(11)),
-        band,
-    )?;
+    let [disc, depth] = T::quartic_sign_algebra(p, q_hat, s);
+    let disc_sign = decide(rows.disc(), Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Err(Unsettled::Tangency.into()),
         Sign::Positive => {
             let shape = decide(rows.shape(), Margin::over_lever(p, lever), band)?;
-            let depth = decide(
-                rows.depth(),
-                Margin::over_lever(depth.toward_zero(), lever.powi(3)),
-                band,
-            )?;
+            let depth = decide(rows.depth(), Margin::over_lever(depth, lever.powi(3)), band)?;
             match (shape, depth) {
                 (Sign::Negative, Sign::Negative) => 4,
                 (Sign::Positive, _) | (_, Sign::Positive) => 0,
@@ -393,11 +356,9 @@ pub fn depressed_quartic_roots<T: Decide>(
             // `X² − pX + s`. Those are the NEGATIVES of the roots of the
             // quadratic in `y²`, which is the sign this arm is easy to get
             // backwards and which no in-band case would have caught.
-            // `p² − 4s` is `−D/16`, and cancels as `D` does: decided held
-            // to its rounding, as `D` is.
-            let inner = Rounded::exact(p).square() - Rounded::exact(four * s);
-            let split = Margin::over_lever(inner.toward_zero(), lever.powi(3));
-            let inner = inner.value;
+            // `p² − 4s` is `−D/16`, and cancels as `D` does: read from it.
+            let inner = T::zero() - depth / T::from_f64(16.0);
+            let split = Margin::over_lever(inner, lever.powi(3));
             match decide(rows.split(), split, band)? {
                 Sign::Positive => {}
                 // A repeated `y²`, or none at all with a count that says
@@ -468,44 +429,16 @@ pub fn depressed_quartic_roots<T: Decide>(
         .unwrap_or_else(|| unreachable!("two factors make at most four roots")))
 }
 
-/// **`Δ` and `D` of `y⁴ + p y² + q̂ y + s` exactly** on its `f64`
-/// coefficients: what `sign_algebra` evaluates, as exact expansions.
-#[cfg(any(test, feature = "test-support"))]
-#[must_use]
-pub fn exact_sign_algebra(
-    p: f64,
-    q_hat: f64,
-    s: f64,
-) -> (geom_core::exact::Expansion, geom_core::exact::Expansion) {
-    use geom_core::exact::Expansion;
-    let (p2, q2, s2) = (
-        Expansion::product(p, p),
-        Expansion::product(q_hat, q_hat),
-        Expansion::product(s, s),
-    );
-    let mut disc = s2.scaled(s).scaled(256.0);
-    for term in [
-        p2.times(&s2).scaled(-128.0),
-        q2.scaled(p).scaled(s).scaled(144.0),
-        q2.times(&q2).scaled(-27.0),
-        p2.times(&p2).scaled(s).scaled(16.0),
-        p2.times(&q2).scaled(p).scaled(-4.0),
-    ] {
-        disc.add_expansion(&term);
-    }
-    let mut depth = p2.scaled(-16.0);
-    depth.add_expansion(&Expansion::product(s, 64.0));
-    (disc, depth)
-}
-
 /// **The exact real-root count of `y⁴ + p y² + q̂ y + s`** on its `f64`
 /// coefficients, by the rule [`depressed_quartic_roots`] certifies on
-/// (its docs) read on [`exact_sign_algebra`]: `None` where `Δ` is
-/// exactly zero, or `p` or `D` is on the positive branch.
+/// (its docs) read on the exact `Δ` and `D`
+/// ([`geom_core::exact::quartic_sign_algebra`]): `None` where `Δ` is
+/// exactly zero, `p` or `D` is on the positive branch, or the
+/// coefficients do not fit an exact expansion.
 #[cfg(any(test, feature = "test-support"))]
 #[must_use]
 pub fn exact_root_count(p: f64, q_hat: f64, s: f64) -> Option<usize> {
-    let (disc, depth) = exact_sign_algebra(p, q_hat, s);
+    let [disc, depth] = geom_core::exact::quartic_sign_algebra(p, q_hat, s)?;
     let (disc, depth) = (disc.estimate(), depth.estimate());
     if disc < 0.0 {
         Some(2)
@@ -515,79 +448,6 @@ pub fn exact_root_count(p: f64, q_hat: f64, s: f64) -> Option<usize> {
         Some(4)
     } else {
         Some(0)
-    }
-}
-
-#[cfg(test)]
-mod sign_algebra_rows {
-    //! [`super::sign_algebra`]'s rounding bound against the exact
-    //! evaluation, on quartics built near a repeated root.
-
-    use super::{exact_sign_algebra, sign_algebra};
-    use geom_core::exact::Expansion;
-
-    /// `|value − exact| / bound`, the share of its bound an evaluation's
-    /// rounding uses.
-    fn share(r: geom_core::Rounded<f64>, exact: &Expansion) -> f64 {
-        let mut gap = exact.clone();
-        gap.add(-r.value);
-        let gap = gap.estimate().abs();
-        if gap == 0.0 { 0.0 } else { gap / r.error }
-    }
-
-    /// **The bound holds `Δ`'s and `D`'s rounding, and is not vacuous.**
-    /// Each fixture is `(y² − 2a y + a² ± δ²)(y² + 2a y + c)`: a pair `δ`
-    /// apart (or `δ` off the real line) at `a`, and two more, at a lever
-    /// of 1 m to 1000 km, `δ` from a millionth of the lever down to the
-    /// coefficients' own resolution. Every evaluation's rounding is
-    /// within its bound; and the largest share is past a sixteenth, so
-    /// the bound is a statement about the rounding rather than a margin
-    /// so wide it would hold anything. A bound that dropped a term (or a
-    /// term's `u`) goes red on the first; one that charged in `ε` or a
-    /// fixed number of ulps of the wrong magnitude goes red on one of the
-    /// two.
-    #[test]
-    fn the_bound_holds_the_sign_algebras_rounding() {
-        let mut worst = (0.0f64, 0.0f64);
-        let mut evaluations = 0;
-        for lever in [1.0, 1e3, 1e6] {
-            for gap in [1e-3, 1e-6, 1e-9, 1e-12] {
-                for (a, c) in [(0.31, -0.57), (-0.12, 0.08), (0.45, 0.2)] {
-                    for real_pair in [1.0, -1.0] {
-                        let (a, c, delta) = (a * lever, c * lever * lever, gap * lever);
-                        let m = a * a + real_pair * delta * delta;
-                        let p = c + m - 4.0 * a * a;
-                        let q = 2.0 * a * (m - c);
-                        let s = m * c;
-                        let (disc, depth) = sign_algebra(p, q, s);
-                        let (exact_disc, exact_depth) = exact_sign_algebra(p, q, s);
-                        for (label, r, exact, slot) in [
-                            ("Δ", disc, &exact_disc, &mut worst.0),
-                            ("D", depth, &exact_depth, &mut worst.1),
-                        ] {
-                            let used = share(r, exact);
-                            assert!(
-                                used <= 1.0,
-                                "{label} at ({p:e}, {q:e}, {s:e}): rounding {used} of its bound"
-                            );
-                            *slot = slot.max(used);
-                            evaluations += 1;
-                        }
-                    }
-                }
-            }
-        }
-        assert_eq!(evaluations, 144, "every fixture evaluated");
-        println!(
-            "sign algebra: worst share of the bound, Δ {} and D {}",
-            worst.0, worst.1
-        );
-        for (label, used) in [("Δ", worst.0), ("D", worst.1)] {
-            assert!(
-                used > 1.0 / 16.0,
-                "{label}'s rounding uses at most {used} of its bound: vacuous"
-            );
-        }
     }
 }
 

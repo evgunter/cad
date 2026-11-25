@@ -255,6 +255,20 @@ pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
     (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
 }
 
+/// **The plain formulas for a depressed quartic's `Δ` and
+/// `D = 64s − 16p²`**: [`Real::quartic_sign_algebra`]'s default, and the
+/// reading every scalar falls back to where its posed one does not apply.
+#[must_use]
+pub fn plain_quartic_sign_algebra<T: Real>(p: T, q_hat: T, s: T) -> [T; 2] {
+    let (p2, q2, s2) = (p.powi(2), q_hat.powi(2), s.powi(2));
+    let disc = T::from_f64(256.0) * s2 * s - T::from_f64(128.0) * p2 * s2
+        + T::from_f64(144.0) * p * q2 * s
+        - T::from_f64(27.0) * q2.powi(2)
+        + T::from_f64(16.0) * p2.powi(2) * s
+        - T::from_f64(4.0) * p2 * p * q2;
+    [disc, T::from_f64(64.0) * s - T::from_f64(16.0) * p2]
+}
+
 /// **A first harmonic's curve as it is stored**: the point `at` it
 /// stores, its unit `axis` and seam `u_ref`, its semi-axes `(a, b)`, and
 /// the phase `(c₀, s₀)` at which `at` lies on it, so that its point at
@@ -649,6 +663,30 @@ pub trait Real:
     #[must_use]
     fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
         plain_harmonic_belly(curve, o, n)
+    }
+
+    /// **The discriminant `Δ` and the depth `D = 64s − 16p²` of the
+    /// depressed monic quartic `y⁴ + p y² + q̂ y + s`, posed so their
+    /// digits are their own**: the two signs its real-root count is read
+    /// off. Near a repeated root `Δ` is a sum of terms orders larger than
+    /// it (two roots `δ` apart put `Δ ≈ δ²·L¹⁰` beside terms of `L¹²` and
+    /// more, `L` the roots' spread), and `D` cancels where `16s ≈ 4p²`,
+    /// so the plain formulas keep only their terms' rounding there.
+    ///
+    /// **At a value scalar** each is its exact expansion over the stored
+    /// coefficients ([`crate::exact::quartic_sign_algebra`]) rounded once,
+    /// within `2u` of itself whatever the cancellation; poison where the
+    /// coefficients' digits do not fit an exact expansion (a monomial's
+    /// lowest bit below the least subnormal, or an overflow), so a
+    /// decision on it escalates rather than answering on a plain reading.
+    /// **At an enclosure** stated at points, the exact expansions
+    /// enclosed; anywhere else the plain enclosure, which is sound. The
+    /// default is the plain formulas ([`plain_quartic_sign_algebra`]); a
+    /// scalar that carries `T`'s value channel computes it through `T`'s
+    /// own.
+    #[must_use]
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        plain_quartic_sign_algebra(p, q_hat, s)
     }
 
     /// **The `f64` this value states**, where it is a plain enclosure
@@ -2631,6 +2669,13 @@ impl Real for f64 {
             return 0.0;
         }
         squares.estimate() / rise
+    }
+
+    /// The exact expansions, each rounded once; poison where they cannot
+    /// be exact (the trait's docs).
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
+        crate::exact::quartic_sign_algebra(p, q_hat, s)
+            .map_or([f64::NAN; 2], |parts| parts.map(|e| e.estimate()))
     }
 
     /// The identity — every `f64` embeds as itself, exactly.

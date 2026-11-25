@@ -298,6 +298,64 @@ pub(crate) fn kept_exactly(curve: crate::StoredHarmonic<f64>, o: [f64; 3], n: [f
     !deepest.is_some_and(|d| d < -1074)
 }
 
+/// **The discriminant `Δ` and the depth `D = 64s − 16p²` of the
+/// depressed monic quartic `y⁴ + p y² + q̂ y + s`, exactly**, as
+/// expansions of the stored coefficients
+/// ([`crate::Real::quartic_sign_algebra`]):
+///
+/// ```text
+/// Δ = 256s³ − 128p²s² + 144pq̂²s − 27q̂⁴ + 16p⁴s − 4p³q̂²
+/// ```
+///
+/// Every monomial is a product of the coefficients, so its exact value
+/// is a multiple of `2` to the sum of their lowest bits ([`low_bit`]);
+/// where that sum is at least `−1074` for every monomial present, each
+/// error-free product is exact and so is the expansion. `None` where it
+/// is not, or where a term overflows.
+#[must_use]
+pub fn quartic_sign_algebra(p: f64, q_hat: f64, s: f64) -> Option<[Expansion; 2]> {
+    let (lp, lq, ls) = (low_bit(p), low_bit(q_hat), low_bit(s));
+    // A monomial's lowest bit, `None` where a factor is zero (it is
+    // absent).
+    let monomial = |factors: &[(Option<i32>, i32)]| {
+        factors
+            .iter()
+            .try_fold(0i32, |acc, &(bit, k)| bit.map(|b| acc + k * b))
+    };
+    let deepest = [
+        &[(ls, 3)][..],
+        &[(lp, 2), (ls, 2)],
+        &[(lp, 1), (lq, 2), (ls, 1)],
+        &[(lq, 4)],
+        &[(lp, 4), (ls, 1)],
+        &[(lp, 3), (lq, 2)],
+    ]
+    .into_iter()
+    .filter_map(monomial)
+    .min();
+    if deepest.is_some_and(|d| d < -1074) {
+        return None;
+    }
+    let (p2, q2, s2) = (
+        Expansion::product(p, p),
+        Expansion::product(q_hat, q_hat),
+        Expansion::product(s, s),
+    );
+    let mut disc = s2.scaled(s).scaled(256.0);
+    for term in [
+        p2.times(&s2).scaled(-128.0),
+        q2.scaled(p).scaled(s).scaled(144.0),
+        q2.times(&q2).scaled(-27.0),
+        p2.times(&p2).scaled(s).scaled(16.0),
+        p2.times(&q2).scaled(p).scaled(-4.0),
+    ] {
+        disc.add_expansion(&term.compressed());
+    }
+    let mut depth = p2.scaled(-16.0);
+    depth.add_expansion(&Expansion::product(s, 64.0));
+    (disc.is_finite() && depth.is_finite()).then(|| [disc.compressed(), depth.compressed()])
+}
+
 /// A double-double `hi + lo`, its parts formed by error-free transforms.
 #[derive(Clone, Copy)]
 struct Dd {
@@ -587,6 +645,76 @@ mod tests {
         assert!(
             flat.components().iter().all(|c| c.abs() < 1e-17),
             "two parallel rows: zero up to their own rounded inputs, {flat:?}"
+        );
+    }
+
+    /// **A depressed quartic's `Δ` and `D` are read to their own
+    /// digits** ([`crate::Real::quartic_sign_algebra`]). Each fixture is
+    /// `(y² − 2a y + a² ± δ²)(y² + 2a y + c)`: a pair `δ` apart (or `δ`
+    /// off the real line) at `a`, and two more, at a spread of 1 m to
+    /// 1000 km, `δ` from a millionth of it down to a trillionth. At `f64`
+    /// each value is the exact one's rounding, within `2u` of it; the
+    /// plain formula, on the same coefficients, is off by more than a
+    /// thousandth of `Δ` itself somewhere, and with the wrong sign
+    /// somewhere, so a value read off it would fail the first assertion
+    /// and certify a count the coefficients do not have. At `Interval`,
+    /// stated points enclose the exact value.
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_quartics_sign_algebra_keeps_its_digits() {
+        use crate::real::Bounds;
+        use crate::{Interval, Real};
+        let u = f64::EPSILON / 2.0;
+        let (mut plain_worst, mut plain_flips, mut fixtures) = (0.0f64, 0, 0);
+        for spread in [1.0, 1e3, 1e6] {
+            for gap in [1e-6, 1e-9, 1e-12] {
+                for (a, c) in [(0.31, -0.57), (-0.12, 0.08), (0.45, 0.2)] {
+                    for pair in [1.0, -1.0] {
+                        let (a, c, delta) = (a * spread, c * spread * spread, gap * spread);
+                        let m = a * a + pair * delta * delta;
+                        let (p, q, s) = (c + m - 4.0 * a * a, 2.0 * a * (m - c), m * c);
+                        let Some([disc, depth]) = super::quartic_sign_algebra(p, q, s) else {
+                            panic!("({p:e}, {q:e}, {s:e}): its digits fit an expansion");
+                        };
+                        let got = f64::quartic_sign_algebra(p, q, s);
+                        let plain = crate::real::plain_quartic_sign_algebra(p, q, s);
+                        let enclosed = Interval::quartic_sign_algebra(
+                            Interval::from_f64(p),
+                            Interval::from_f64(q),
+                            Interval::from_f64(s),
+                        );
+                        for (i, exact) in [disc, depth].iter().enumerate() {
+                            let want = exact.estimate();
+                            let off = |x: f64| {
+                                let mut gap = exact.clone();
+                                gap.add(-x);
+                                gap.estimate().abs()
+                            };
+                            assert!(
+                                off(got[i]) <= 2.0 * u * want.abs(),
+                                "({p:e}, {q:e}, {s:e}) part {i}: {} for exact {want:e}",
+                                got[i]
+                            );
+                            assert!(
+                                enclosed[i].lo() <= want && want <= enclosed[i].hi(),
+                                "({p:e}, {q:e}, {s:e}) part {i}: {:?} misses {want:e}",
+                                enclosed[i]
+                            );
+                            if i == 0 && want != 0.0 {
+                                plain_worst = plain_worst.max(off(plain[0]) / want.abs());
+                                plain_flips += usize::from(plain[0].signum() != want.signum());
+                            }
+                        }
+                        fixtures += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(fixtures, 54, "every fixture read");
+        assert!(
+            plain_worst > 1e-3 && plain_flips > 0,
+            "the plain formula is off by {plain_worst:e} of Δ with {plain_flips} sign flips: \
+             the fixtures do not cancel"
         );
     }
 }

@@ -145,9 +145,9 @@
 //!   local radius — the cone's analogue of the plane arm's `denom`.
 //! - **`line_quadric_torus_disc`**: the ray×torus QUARTIC's discriminant,
 //!   metered over `(R + r)¹¹` (a length: for a monic quartic the
-//!   discriminant is the squared product of root gaps), and held to its
-//!   own evaluation rounding. Zero ⇒ a repeated root, to within the band
-//!   or that rounding — graze, retry. Its two companions
+//!   discriminant is the squared product of root gaps), read exactly on
+//!   the coefficients. Zero ⇒ a repeated root — graze, retry. Its two
+//!   companions
 //!   **`line_quadric_torus_shape`** and **`line_quadric_torus_depth`** split the
 //!   positive-discriminant case into four real roots and none; a Zero on
 //!   either leaves the count uncertain, which this door never answers
@@ -427,9 +427,9 @@ pub enum PointInSolidError {
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
     /// certify ([`Unsettled::CountDisagrees`]). The certified count is
-    /// the quartic's own, read held to its rounding; the factorization
-    /// rounds again where no decision charges it, so a disagreement is a
-    /// kernel defect. Another ray's quartic is another computation, so it
+    /// the quartic's own, read exactly on its coefficients; the
+    /// factorization rounds again, so a disagreement is a kernel
+    /// defect. Another ray's quartic is another computation, so it
     /// blocks this ray only.
     RootCountDisagrees {
         /// The torus face.
