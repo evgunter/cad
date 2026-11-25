@@ -148,3 +148,18 @@ Signed: (CARVE orchestrator)
   - step-import's singularity normalizer: the import lane, porting main's half-turn-pair extensions back as wrap-tip cases;
   - mesh `trimmed.rs`: the mesh-budget lane, composing main's `pole_side_columns` with `reach_graded`.
   The merge commit resolves the latter two to the stack's side so the tree compiles, and records main's dropped intents in a P0 row, each with its commit and pinning rows. Ruled: main's two-half-form extensions are superseded by the wrap tip (Ev, `[ev]` PR 6014) and are re-expressed as wrap-tip cases. Main's centroid azimuth for both-poles faces is not carried; PR 7774's dual review rejected it as edge-splitting-dependent.
+- 2026-11-25 — **The one-band stack now carries main; the `ops.rs` port is done (3a0f5b84aa).** ORBIT's closed cut is the spine. The stack's semantics carried onto it:
+  - 7440's crossings-path interior-loop cut-in, through `reenter_cut_in`;
+  - 7575's no-crossings loops (`NoCrossings::CutIn{otherwise}`);
+  - `CutSection::{Circle,Loop}`;
+  - the meridian-plane no-hit.
+
+  The stack's `surviving_cut` refusal is dropped as decided by `slit::close_cuts`. No semantic fork was found. The ci profile is green on every crate. Main's two-π-band rows are re-baselined with causes.
+
+  **Dual review of the port dispatched** (`session_01VyvYnLdwxdhHYAxauWnVBd`, `session_01VyvYnK3hQSTMA869WVAX2B`). It centres on whether `close_cuts` really decides what `surviving_cut` did; no body may ship carrying a cut.
+
+  **Ruled, the shell6 cone offset.** Main's offset door now builds this operand at both signs, where both parents refused. A valid offset at either sign builds, and refusing a valid body would be a false refusal. Each sign is pinned by validity at every tier and by its volume's direction.
+
+  The P0 row of dropped main intents measured down to one live item, `pole_side_columns`, sent to the mesh-budget lane. The rest is superseded by the wrap tip or already carried. The 1e-6 wrap-tip witness pin is sent to the import lane.
+
+  Filed on INSIDE (PR 7800): a main red at every ε whose cited row is closed, `a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge`.
