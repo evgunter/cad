@@ -585,10 +585,10 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The selected body's display controls: the hide toggle and the
+    /// The selected node's display controls: the hide toggle and the
     /// free-move probe. Draws nothing for a node the document does not
-    /// admit display state on — one that builds no body, or an id the
-    /// document no longer holds.
+    /// admit display state on — one the picture draws nothing of, or an
+    /// id the document no longer holds.
     ///
     /// **Silence is the whole answer for both refusals, and for the
     /// absent id it is half of a rule rather than a discard.** A
@@ -603,7 +603,7 @@ impl ViewerBehavior<'_> {
     /// this panel does nowhere.
     ///
     /// The body's toggle pushes [`SessionOp::SetBodyOn`], whose door
-    /// runs [`crate::display::body_check`] — the test that gates this
+    /// runs [`crate::display::drawing_check`] — the test that gates this
     /// section — so the toggle is offered exactly where the op accepts.
     pub(crate) fn display_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // **The COMMITTED document, because that is the one the doors
@@ -617,7 +617,7 @@ impl ViewerBehavior<'_> {
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
         // answered a `bool` and could not have offered anything else.
-        if crate::display::body_check(doc, node).is_err() {
+        if crate::display::drawing_check(doc, node).is_err() {
             return;
         }
         ui.separator();

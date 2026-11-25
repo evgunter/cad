@@ -838,10 +838,12 @@ impl Refusal {
                 DisplayFault::Admission(fault) => match fault {
                     AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
-                    | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::DrawsNothing { .. }
                     | AdmissionFault::NotDrawn { .. }
                     | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
+                    | AdmissionFault::InNoSpace { .. }
+                    | AdmissionFault::DrawnInSpaces(_)
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
                     | AdmissionFault::NoSuchSpace { .. }

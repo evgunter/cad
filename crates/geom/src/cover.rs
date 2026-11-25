@@ -35,7 +35,7 @@
 //! curve over a span. They are the only kind matches.
 
 use bvh::Aabb;
-use geom_core::{Bounds, Point3, Real, UnitVec3, Vec3};
+use geom_core::{Bounds, Point3, Real, RigidMotion, UnitVec3, Vec3};
 
 use crate::curves::boxes::ArcWindow;
 use crate::{Conic, CurveKind, Ellipse, Frame, Line, SurfaceKind};
@@ -130,6 +130,30 @@ pub enum Around<T: Real> {
     Point(Point3<T>),
     /// A circle: a torus's core.
     Circle(Core<T>),
+}
+
+impl<T: Real> Around<T> {
+    /// **The site read through a rigid motion**: a point, a line's
+    /// origin and a core's centre mapped, a line's and a core's axis
+    /// turned ([`RigidMotion::turn`]), a core's radius kept. A rigid
+    /// motion keeps every distance, so a region's range about the image
+    /// is its preimage's range about the site; at `Interval` the image
+    /// encloses each enclosed motion's.
+    #[must_use]
+    pub fn moved(self, motion: &RigidMotion<T>) -> Self {
+        let line = |Line { origin, dir }: Line<T>| Line {
+            origin: motion.transform_point(origin),
+            dir: motion.turn(dir),
+        };
+        match self {
+            Self::Line(l) => Self::Line(line(l)),
+            Self::Point(p) => Self::Point(motion.transform_point(p)),
+            Self::Circle(Core { axis, radius }) => Self::Circle(Core {
+                axis: line(axis),
+                radius,
+            }),
+        }
+    }
 }
 
 impl<T: Real> From<Site<T>> for Around<T> {
@@ -1014,7 +1038,6 @@ impl<T: Real> Cover<T> {
 }
 
 impl<T: Real> Core<T> {
-    /// The axis line.
     /// The circle's distance range over a region read through its range
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
