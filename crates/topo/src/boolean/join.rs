@@ -458,7 +458,7 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
-    /// A cylinder, sphere, torus or spline face closed by a carried chord,
+    /// A cylinder, sphere, cone, torus or spline face closed by a carried chord,
     /// whose run may hold earlier carried chords: closed by the chord's arc with its
     /// evidence of lying on the face
     /// ([`crate::chord_join::path_island_winding_closed_by`]).
@@ -4776,18 +4776,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             crate::ring_path::Carrier::of(surface()),
         ) {
             (Some(normal), _) => RingFace::Plane(normal.vec()),
-            (
-                None,
-                Some(
-                    crate::ring_path::Carrier::Quadric(
-                        crate::ring_path::Quadric::Cylinder { .. }
-                        | crate::ring_path::Quadric::Sphere { .. }
-                        | crate::ring_path::Quadric::Torus { .. },
-                    )
-                    | crate::ring_path::Carrier::Wall(_),
-                ),
-            ) => RingFace::Carried,
-            _ => {
+            (None, Some(_)) => RingFace::Carried,
+            (None, None) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -4875,8 +4865,8 @@ enum RoleLane<T: geom_core::Real> {
     Ring { face: FaceKey, normal: Vec3<T> },
     /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
-    /// A ring of the cylinder, sphere, torus or spline `face` a carried
-    /// chord closes.
+    /// A ring of the cylinder, sphere, cone, torus or spline `face` a
+    /// carried chord closes.
     CarriedRing { face: FaceKey },
 }
 
@@ -4984,7 +4974,7 @@ fn ring_order<T: Decide>(
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve, and
-/// a carried chord's cylinder, sphere, torus or spline face
+/// a carried chord's cylinder, sphere, cone, torus or spline face
 /// ([`IslandClosing::Carried`]) the same, closed by the chord's arc.
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),

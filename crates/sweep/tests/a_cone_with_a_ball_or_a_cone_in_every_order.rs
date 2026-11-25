@@ -88,8 +88,9 @@ fn volume(body: &AtRestBody<f64>, tol: Tol) -> (f64, f64) {
 }
 
 /// A run's outcome: its measured volume and pad (zero for an empty
-/// result) and `built`, or the refusal whole (its operand, face and kind). A desync or a broken
-/// invariant is a defect, and red.
+/// result) and `built`, the body valid at tier 3, or the refusal whole
+/// (its operand, face and kind). A desync, a broken invariant or an
+/// invalid body is a defect, and red.
 fn outcome(
     label: &str,
     got: Result<topo::BooleanResult<f64>, topo::BooleanError>,
@@ -97,7 +98,11 @@ fn outcome(
 ) -> (Option<(f64, f64)>, String) {
     match got {
         Ok(got) => (
-            Some(got.body().map_or((0.0, 0.0), |b| volume(&b.body, tol))),
+            Some(got.body().map_or((0.0, 0.0), |b| {
+                topo::validate_geometric(&b.body, tol)
+                    .unwrap_or_else(|e| panic!("{label}: the built body is invalid: {e:?}"));
+                volume(&b.body, tol)
+            })),
             "built".to_owned(),
         ),
         Err(

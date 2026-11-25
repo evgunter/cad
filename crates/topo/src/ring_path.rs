@@ -797,7 +797,7 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// **A spline arc on a cylinder, a sphere, a cone, a torus or a spline face,
 /// with the evidence that it lies on the face's surface to within the
 /// band.**
 ///
@@ -818,10 +818,11 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere, a torus or a spline face: the
-/// faces a carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
-/// pieces are its own iso curves, which lie on it. Every piece of a
+/// Both are read on a cylinder, a sphere, a cone, a torus or a spline
+/// face: the faces a carried chord bounds, which the ring lane's rows
+/// read (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline
+/// wall's pieces are its own iso curves, which lie on it, and a cone's
+/// are its parallels and rulings, off its apex. Every piece of a
 /// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
