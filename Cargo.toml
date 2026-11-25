@@ -32,6 +32,7 @@ members = [
     "crates/profile",
     "crates/quantity",
     "crates/source-scope",
+    "crates/speed-reference",
     "crates/step-export",
     "crates/step-import",
     "crates/stl",
