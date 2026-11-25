@@ -5511,7 +5511,8 @@ pub(super) mod tests {
             nu
         };
         let pole = |u: f64, at: f64| [(u, at, 7u32)];
-        let cases: Vec<(&str, (f64, f64), Vec<(f64, f64, u32)>)> = vec![
+        type Case = (&'static str, (f64, f64), Vec<(f64, f64, u32)>);
+        let cases: Vec<Case> = vec![
             (
                 "one narrow pole side",
                 (0.0, 1.0),
