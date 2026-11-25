@@ -125,7 +125,7 @@ fn fill_face<T: AtRestPolicy>(
             .loops
             .iter()
             .any(|(_, cycle)| cycle.iter().any(|&he| body.joint(he).is_some()));
-    if true || !keeps {
+    if !keeps {
         return match derive_face(body, face, band) {
             Ok(derived) => {
                 out.extend(
