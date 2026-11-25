@@ -71,3 +71,26 @@ one-band shapes, and the four rulings are recorded at their sites. That
 means `pole_side_columns` with `reach_graded`, and seam-twice as it
 reads a wrap edge. Main's dropped rows are restated or pinned, and the
 re-measured counts are cited.
+
+## Item 3, measured (LATHE mesh lane, 2026-11-25)
+
+Subsumed, not composed. `pole_side_columns` decides columns: it doubles
+`nu` until no pole side (two copies of one singular vertex at two `u`s)
+has exactly one lattice column between its ends. The stack's
+`repeat_columns` (`990d0c42bc`, before PR 7556) reads the same doubling
+over every mesh id the polygon holds at two UV locations, and a pole
+side's two ends are one such id. Its spans are a superset of the pole
+sides, so its count is never below the pole-side rule's and leaves no
+pole side one column. `reach_graded` decides rows only (a cone face's `v`
+gaps past a quarter turn) and never reads or moves `nu`, so there is
+nothing to compose. Main's row's witness stands verbatim in
+`repeat_columns_doubles_past_one_column_between`, and
+`trimmed::tests::repeat_columns_holds_every_pole_side` measures the
+superset with the pole-side rule as its oracle: four polygons (a narrow
+side, one at each end of the box, two of one pole, one beside a seam a
+period apart), every starting count from 1 to 16. Main's mesh rows that
+reach pole sides (`mesh7r1_probes`, `mesh8r1_probes`, `mesh8r2_probes`,
+`mesh11_arc_branch`, `issue896_pole_guard`, `loops_with_no_rim`,
+`meridian_free_face`, `reach_probes`' poled balls) are unchanged from the
+merge base on main and pass on the stack under `--features budget`.
+
