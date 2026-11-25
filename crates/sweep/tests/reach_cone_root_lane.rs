@@ -476,16 +476,30 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     for (op_label, got, op, x, y, v) in ops {
         let label = format!("the tilted rod across the narrowing wall, {op_label}");
         let truth = |q| op.depth(x, y, q);
-        solid_truth::assert_is(&label, &got, Want::Body(v, 1e-5), &truth, &[], &[]);
-        let Ok(topo::BooleanResult::Body(bb)) = &got else {
-            unreachable!("assert_is held a body")
+        let body: &Body<f64> = match &got {
+            Ok(topo::BooleanResult::Body(bb)) => &bb.body,
+            other => panic!(
+                "{label}: wanted a body, got {:?}",
+                other.as_ref().map(|_| "Empty")
+            ),
         };
-        let read = membership_off_the_cone_face(&label, &bb.body, &truth, &points);
+        let got_v = topo::test_support::pinned_volume(
+            "the measured body",
+            &topo::test_support::finished("the measured body", Body::clone(body), tol),
+            tol,
+        )
+        .volume;
+        assert!(
+            (got_v - v).abs() <= 1e-5,
+            "{label}: volume {got_v} against {v}"
+        );
+        topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+        let read = membership_off_the_cone_face(&label, body, &truth, &points);
         eprintln!("{label}: membership {read:?} (agreed, PartialConeFace)");
     }
 }
 
-/// [`solid_truth::assert_is`]'s membership check, less the points
+/// [`solid_truth::assert_body_is`]'s membership check, less the points
 /// `point_in_solid` refuses `PartialConeFace` at: a cone face bounded by
 /// the marched section's spline edge has no region reading
 /// (`work/inside/point-in-solid-refuses-a-cone-face-a-spline-bounds.md`).
