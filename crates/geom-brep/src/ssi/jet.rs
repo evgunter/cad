@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn a_nurbs_operand_yields_poison_never_a_number() {
-        let s = Surface::nurbs_placeholder();
+        let s = geom::test_support::unit_patch();
         let j = implicit_path_jet(&s, Point3::new(0.0, 0.0, 0.0), Vec3::zero(), Vec3::zero());
         assert!(j.value().is_nan() && j.d3().is_nan());
     }

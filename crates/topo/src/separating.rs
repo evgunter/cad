@@ -437,7 +437,7 @@ mod tests {
             .map(|(k, _)| k)
             .find(|&k| {
                 matches!(body.proven_face(k).surface(),
-                    Surface::Plane { frame } if frame.axis().z > 0.5)
+                    Ok(Surface::Plane { frame }) if frame.axis().z > 0.5)
             })
             .unwrap();
         let arm = crate::cover::face_extent_below(&body, top)

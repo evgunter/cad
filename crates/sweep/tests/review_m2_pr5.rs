@@ -286,7 +286,7 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 1);
     // Exactly 4 surfaces: each curved segment's band pair shares ONE key.
-    assert_eq!(t.body.surfaces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
     let RevolvedKind::Full {
         meridians,
         pi_walls,
@@ -429,7 +429,7 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     // two whole discs and two cylinder bands.
     assert_eq!(counts(&t.body), (4, 6, 4, 0));
     // plane + ONE cylinder + plane.
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let RevolvedKind::Full {
         pi_walls, pi_rims, ..
     } = &t.kind
@@ -648,7 +648,11 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert_all_tiers(&t.body);
     // V4 E8 F4 R0: E–P = 0 ⇒ g = 1.
     assert_eq!(counts(&t.body), (4, 8, 4, 0));
-    assert_eq!(t.body.surfaces().count(), 1, "one torus for all four walls");
+    assert_eq!(
+        t.body.described_surfaces().count(),
+        1,
+        "one torus for all four walls"
+    );
     let keys: Vec<_> = t.walls()[0]
         .iter()
         .map(|w| wall_key(&t.body, w.unwrap()))
@@ -656,7 +660,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert!(keys.windows(2).all(|w| w[0] == w[1]), "{keys:?}");
     assert!(matches!(
         t.body.get_surface(keys[0]),
-        Some(Surface::Torus { .. })
+        Ok(Surface::Torus { .. })
     ));
     // All rims conventional — one torus on both sides under-determines
     // the locus, so each rim is an image in that chart declared by the
@@ -1096,7 +1100,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
         .filter(|w| {
             matches!(
                 t.body.get_surface(wall_key(&t.body, w.unwrap())),
-                Some(Surface::Torus { .. })
+                Ok(Surface::Torus { .. })
             )
         })
         .count();
@@ -1420,7 +1424,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     let plane_key = wall_key(&body, annulus);
     assert!(matches!(
         body.get_surface(plane_key),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     // The annulus's outer circle: its whole outer cycle.
     let face = body.get_face(annulus).unwrap();
@@ -1471,7 +1475,7 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     // whole (no pole): V = 1 + 2 = 3; E = 2 + 2 = 4; F = 2 + 1 = 3.
     assert_eq!(counts(&t.body), (3, 4, 3, 0));
     // Surfaces: ONE cone + one plane.
-    assert_eq!(t.body.surfaces().count(), 2);
+    assert_eq!(t.body.described_surfaces().count(), 2);
     let RevolvedKind::Full {
         pi_walls, pi_rims, ..
     } = &t.kind
@@ -1483,7 +1487,7 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     assert_eq!(pi_walls[0], pi_walls[1], "one band-2 wall over the run");
     let k0 = wall_key(&t.body, walls[0][0].unwrap());
     assert_eq!(wall_key(&t.body, pi_walls[0].unwrap()), k0);
-    assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Cone { .. })));
     assert!(
         t.rims[0][1].is_none() && pi_rims[1].is_none(),
         "the split vertex has no rim"
@@ -1571,7 +1575,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // disc is built whole (no pole, no meridian): V5 E8 F5 R0, 3
     // surfaces.
     assert_eq!(counts(&t.body), (5, 8, 5, 0));
-    assert_eq!(t.body.surfaces().count(), 3);
+    assert_eq!(t.body.described_surfaces().count(), 3);
     let RevolvedKind::Full {
         meridians,
         pi_walls,
@@ -1585,7 +1589,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
-        Some(Surface::Sphere { .. })
+        Ok(Surface::Sphere { .. })
     ));
     assert_eq!(wall_key(&t.body, pi_walls[2].unwrap()), sphere_key);
     // Transverse base join: Intersection in both bands.

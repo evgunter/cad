@@ -4,7 +4,7 @@ kind: issue
 title: A sphere or torus arc on a spline wall refuses at rest at 1e-12 and on a ten-metre wall: the lane's image of the arc is the pcurve mint's finest rung, which misses its foot path by about 5e-10 of the wall's size
 status: open
 opened: 2026-11-12
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -111,3 +111,11 @@ climb too, so whichever is chosen should serve both.
 ## Decided (Ev, PR 7032, 2026-11-17)
 
 Decided with `a-node-arcs-chord-misses-its-at-rest-chart-image`, whose "Decided" section holds the answer: one partner-blind image function of the carrier, the wall and the band, on the carrier's own knots, called by the trace, the mint and rest, with a continuation projection and no stored-fit fallback.
+
+## Re-banded P0 (2026-11-25)
+
+This is teapot wall 3's stop at ε 1e-12: a chord of the belly's sphere
+on a spout wall escalates `Escalated { check: PlaneNurbsHullValue }`,
+missing by 1.01e-12 m (`demos/tour/src/teapot.rs`, `wall3_pinned`). It
+is therefore a blocker of the P0 umbrella `splice/curved-demo-joins-build`
+and carries its band.

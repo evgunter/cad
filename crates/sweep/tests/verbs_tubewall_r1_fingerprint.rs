@@ -59,7 +59,7 @@ fn solid_door_fingerprint() {
         for (fk, _) in b.faces() {
             let mut row = Vec::new();
             match b.face_surface(fk) {
-                Some(Surface::Torus {
+                Ok(Surface::Torus {
                     frame,
                     major_radius,
                     minor_radius,
@@ -82,7 +82,7 @@ fn solid_door_fingerprint() {
                         row.push(v.to_bits());
                     }
                 }
-                Some(Surface::Plane { frame }) => {
+                Ok(Surface::Plane { frame }) => {
                     let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
                     row.push(2u64);
                     for v in [

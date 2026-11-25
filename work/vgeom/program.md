@@ -2,7 +2,7 @@
 id: vgeom
 kind: program
 title: VGEOM — the viewer's geometry, camera and numeric renders, and what it decides to show: the display budget and the pick index
-status: ready
+status: active
 opened: 2026-09-17
 group: gui/viewer
 prefix: vgeom/

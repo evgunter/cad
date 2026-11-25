@@ -49,14 +49,11 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - a `Nurbs` carrier, and a DESCRIBED `Nurbs` surface, maps by its
-//!   CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
+//! - a `Nurbs` carrier or surface maps by its CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
 //!   is affine, and the Euclidean-storage section of `geom`'s
 //!   `curves::nurbs` data model is where the commutation that makes
 //!   the mapped net the exact IMAGE — never a re-fit — is argued;
-//! - the `Nurbs` surface PLACEHOLDER — and only it — is refused typed (its
-//!   evaluation is all-poison; transforming one would launder poison
-//!   as geometry);
+//! - a pending surface slot has no geometry and stays pending;
 //! - approximating surfaces: the offset description's base net and the
 //!   fit net by the full affine map, `d` negated under a reflection,
 //!   the window and the certificate carried (`map_approx`).
@@ -71,7 +68,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::EdgeKey;
-use crate::geometry::CurveKey;
+use crate::geometry::{CurveKey, SurfaceSlot};
 use crate::null::CurveGeom;
 
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
@@ -96,11 +93,6 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface — the "no description yet" net,
-    /// whose control points are all-poison, so transforming it would
-    /// launder poison as geometry. A DESCRIBED net is not this arm: it
-    /// maps, by its control points.
-    NurbsPlaceholder,
     /// The body is corrupt (the validators would refuse it too): a
     /// reference that does not resolve, an arena entry nothing
     /// references, or an image no door builds.
@@ -144,11 +136,6 @@ impl TransformError {
                      cannot move"
                 ),
             },
-            Self::NurbsPlaceholder => write!(
-                f,
-                "a spline (NURBS) surface cannot be transformed yet. {}",
-                geom_core::NOT_YET_ENDING
-            ),
             Self::Corrupt { found } => {
                 write!(f, "the body is corrupt: {found}{}", ended(defect))
             }
@@ -344,19 +331,11 @@ fn map_surface<T: Real>(
             major_radius,
             minor_radius,
         },
-        // A DESCRIBED net maps by its control points, weights and
-        // knots untouched — the exact image, not a re-fit, so there is
-        // no certificate to re-derive and no fit door to reach
+        // A net maps by its control points, weights and knots
+        // untouched — the exact image, not a re-fit, so there is no
+        // certificate to re-derive and no fit door to reach
         // (`NurbsSurface::map_points` states what the caller owes).
-        // The PLACEHOLDER is the state this refusal's text describes
-        // and the only state it refuses: its net is all-poison, so
-        // mapping it would launder poison as geometry.
-        Surface::Nurbs(ref n) => {
-            if n.is_placeholder() {
-                return Err(TransformError::NurbsPlaceholder);
-            }
-            Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
+        Surface::Nurbs(ref n) => Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p)))),
         Surface::Approx(ref a) => Surface::Approx(Arc::new(map_approx(map, hand, a))),
     })
 }
@@ -557,11 +536,18 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
-                TransformError::Corrupt {
-                    found: "a chart image lies on a missing surface",
-                },
-            )?;
+            let class = match body.get_surface(surface) {
+                Ok(s) => OrientationClass::of(s),
+                Err(crate::SurfaceMiss::Stale) => {
+                    return Err(TransformError::Corrupt {
+                        found: "a chart image lies on a missing surface",
+                    });
+                }
+                Err(crate::SurfaceMiss::Pending) => unreachable!(
+                    "{surface:?} is pending under a chart image: certification refuses a \
+                     pending key"
+                ),
+            };
             reflected_image(image, class)
         }
     }
@@ -693,8 +679,12 @@ pub(crate) fn map_isometry<T: Decide>(
         *p = map.transform_point(*p);
     }
     let mut mapped_surfaces = Vec::new();
-    for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, iso.motion(), s)?));
+    for (k, slot) in &out.surfaces {
+        // A pending slot has no geometry to move.
+        if let SurfaceSlot::Described(s) = slot {
+            let moved = map_surface(map, hand, iso.motion(), s)?;
+            mapped_surfaces.push((k, SurfaceSlot::Described(moved)));
+        }
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -823,9 +813,8 @@ pub(crate) fn map_isometry<T: Decide>(
             .faces
             .iter()
             .filter(|(_, f)| {
-                out.surfaces
-                    .get(f.surface)
-                    .is_some_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
+                out.get_surface(f.surface)
+                    .is_ok_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
             })
             .map(|(k, _)| k)
             .collect();
@@ -880,11 +869,8 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    //! The NURBS gate: the discriminator is the placeholder STATE, not
-    //! the `Nurbs` variant. These rows pin both directions, so the gate
-    //! cannot silently invert — a described net refusing and a
-    //! placeholder mapping are each one edit away from each other, and
-    //! only one of them is loud on its own.
+    //! The rigid map's rows: each surface and carrier kind maps to its
+    //! exact image.
 
     use super::*;
     use geom::{NurbsCurve3, NurbsSurface};
@@ -979,14 +965,6 @@ mod tests {
     }
 
     #[test]
-    fn the_surface_placeholder_is_what_refuses() {
-        assert!(matches!(
-            map_surface(&aside(), Hand::Proper, None, &Surface::nurbs_placeholder()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
-    }
-
-    #[test]
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
@@ -1032,18 +1010,16 @@ mod tests {
         }
     }
 
-    /// **Known defect, pinned as it stands**: an all-poison carrier net
-    /// is MAPPED, not refused — the curve has no placeholder, and this
-    /// arm reads no poison. SHELL's
-    /// `transform-rigid-maps-a-poisoned-net-into-the-placeholder` owns
-    /// the refusal; the day it lands this row goes red, and the fix
-    /// replaces it with the typed-refusal row.
+    /// **A carrier net that is not finite is mapped as found**: the map
+    /// reads no geometry, and the poison travels to the image, where the
+    /// at-rest check refuses it (`PoisonedCurveDatum`). Whether the map
+    /// should refuse it up front is SHELL's call.
     #[test]
-    fn a_poisoned_carrier_net_is_still_mapped_until_shell_refuses_it() {
+    fn a_poisoned_carrier_net_is_mapped_as_found() {
         let poisoned: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
         let mapped = map_carrier(&Isometry::Proper(aside_motion()), &poisoned);
         let Ok(Curve3::Nurbs(n)) = mapped else {
-            panic!("expected today's mapped poisoned net, got {mapped:?}");
+            panic!("expected the mapped poisoned net, got {mapped:?}");
         };
         assert!(
             n.control()
@@ -1211,17 +1187,18 @@ mod tests {
         }
     }
 
-    /// The gate as the public door reports it: a body whose only
-    /// geometry is a placeholder surface refuses, and the same body
-    /// carrying a described patch instead maps.
+    /// The public door on a body whose only surface slot is pending:
+    /// the slot has no geometry to move and stays pending, and the same
+    /// body carrying a described patch instead maps.
     #[test]
-    fn the_body_door_refuses_the_placeholder_and_admits_the_description() {
-        let mut placeheld: Body<f64> = Body::new();
-        placeheld.add_surface(Surface::nurbs_placeholder());
-        assert!(matches!(
-            transform_rigid(&placeheld, &aside_motion()),
-            Err(TransformError::NurbsPlaceholder)
-        ));
+    fn the_body_door_keeps_a_pending_slot_pending_and_maps_the_description() {
+        let mut pending: Body<f64> = Body::new();
+        let key = pending.add_pending_surface();
+        let moved = transform_rigid(&pending, &aside_motion()).expect("a pending slot maps");
+        assert!(
+            moved.surface_slot(key).is_some_and(SurfaceSlot::is_pending),
+            "the slot is still pending"
+        );
 
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
@@ -1417,7 +1394,7 @@ mod chain_rows {
         for _ in 0..1000 {
             body = transform_rigid(&body, &motion).expect("a brick moves");
         }
-        for (_, s) in body.surfaces.iter() {
+        for (_, s) in body.described_surfaces() {
             if let Some(frame) = s.frame() {
                 assert!(
                     RigidMotion::check_rigid(&frame.motion().to_affine()).is_ok(),

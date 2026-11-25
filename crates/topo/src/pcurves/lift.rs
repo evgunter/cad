@@ -743,11 +743,12 @@ impl<T: Decide> Lift<T> {
     ) -> Result<Self, LiftGap> {
         let cycle = loop_rows(body, r#loop);
         let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-        let surface = body.proven_face(face).surface();
+        // A row on a pending chart lifts nowhere: it is a gap.
+        let surface = body.proven_face(face).surface().ok();
         // No band is at hand, so the periods are the chart's as stated:
         // on every element a door wrote they are the decided ones
         // ([`ChartPeriods::stated`]).
-        let periods = ChartPeriods::stated(surface);
+        let periods = surface.map(ChartPeriods::stated);
         let mut stored = Vec::with_capacity(cycle.len());
         let mut elements = Vec::with_capacity(cycle.len());
         for &half_edge in &cycle {
@@ -770,8 +771,9 @@ impl<T: Decide> Lift<T> {
             .zip(lift_decks(&elements))
             .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, start.compose(lift))))
             .map(|(half_edge, row, lift)| {
-                let pcurve = lift
-                    .apply(row.pcurve(), surface, periods)
+                let pcurve = surface
+                    .zip(periods)
+                    .and_then(|(surface, periods)| lift.apply(row.pcurve(), surface, periods))
                     .ok_or(LiftGap { half_edge })?;
                 Ok(LiftedRow {
                     half_edge,
@@ -820,9 +822,7 @@ impl<T: Decide> Lift<T> {
         closes: bool,
         band: Band,
     ) -> Result<Self, LiftRefusal> {
-        let Some(chart) = DescribedChart::of(surface) else {
-            return Err(LiftRefusal::Placeholder);
-        };
+        let chart = DescribedChart::of(surface);
         let sense = proven(&body.faces, face, EntityId::Face).sense;
         // Each half's carrier and its window, from one read of the edge's
         // certified curve.
@@ -902,9 +902,6 @@ impl<T: Decide> Lift<T> {
 /// Why [`Lift::decided`] decided no lift.
 #[derive(Debug)]
 pub(crate) enum LiftRefusal {
-    /// The chart is the placeholder: it has no lever to decide a joint
-    /// by.
-    Placeholder,
     /// A half-edge's closed-form image refused.
     Image(PcurveCertifyError),
     /// A joint of the chain decided no element.

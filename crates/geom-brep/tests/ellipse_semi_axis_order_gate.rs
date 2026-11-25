@@ -55,7 +55,12 @@ fn the_gate_meters_either_order() {
             spec,
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
-            |k| surfaces.get(k).cloned(),
+            |k| {
+                surfaces
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),

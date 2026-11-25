@@ -584,7 +584,7 @@ mod tests {
         let mut body = crate::fixtures::ops_genus2(geom_core::Tol::witness());
         let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
         let (f, g) = (faces[0], faces[1]);
-        let other = body.add_surface(crate::fixtures::test_surface(geom_core::Point3::origin()));
+        let other = body.add_pending_surface();
         body.get_face_mut(g).expect("a face of the body").surface = other;
         (body, f, g)
     }

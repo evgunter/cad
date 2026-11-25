@@ -50,10 +50,9 @@ pub trait Construct<T: geom_core::Real> {
     /// boolean leaves a void shell — [`crate::Solid`].)
     ///
     /// **Minting order** (D9, exact): point, surface, vertex, solid,
-    /// shell, loop, face. The seed face's surface is the
-    /// [`Surface::Nurbs`](geom::Surface::Nurbs) representable-unimplemented placeholder —
-    /// the honest "no description yet" state (module docs, geometry
-    /// policy): a construction attaches the real surface via
+    /// shell, loop, face. The seed face's surface slot is pending
+    /// ([`crate::SurfaceSlot::Pending`]) — "no description yet" (module
+    /// docs, geometry policy): a construction attaches the real surface via
     /// [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) once it exists; a body reaching rest
     /// with it fails tier 3.
     ///
@@ -692,22 +691,20 @@ pub trait Construct<T: geom_core::Real> {
     ) -> Result<MfkrhCreated, EulerOpError>
     where
         T: Decide;
-    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh) with [`FaceSurface::New`] holding the
-    /// `Surface::Nurbs` placeholder — the new face is born with the
-    /// honest "no description yet" surface (`crate::euler`'s geometry
-    /// policy; replace it via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest).
-    /// Mirrors the M1 fresh-surface semantics for the migrated suites
-    /// and for promotions whose real surface is not yet known.
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh) with [`FaceSurface::Pending`]:
+    /// the new face is born with no surface yet (`crate::euler`'s geometry
+    /// policy; describe it via [`Body::set_face_surface`](crate::construction::Construct::set_face_surface) before rest),
+    /// for promotions whose real surface is not yet known.
     ///
-    /// The placeholder is a fresh payload, so it is never the demoting
-    /// face's chart: `mfkrh` writes `sense`, the caller's provisional
+    /// The pending slot is fresh, so it is never the demoting face's
+    /// chart: `mfkrh` writes `sense`, the caller's provisional
     /// bit, as stated, and drops the promoted ring's rows — a spline
     /// chart, so none is owed there and this keys-only door never
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
     ///
     /// **The new face is chartless.** No description names the
-    /// placeholder's fresh key and no certificate vouches on it, so of
+    /// pending slot's fresh key and no certificate vouches on it, so of
     /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s questions ([`Body::vouch_move`]) it asks only
     /// the strand, as [`RechartDoor::MfkrhPlug`](crate::RechartDoor::MfkrhPlug): a ring with an edge
     /// whose description would name no key its faces wear is refused.
@@ -1011,7 +1008,7 @@ pub trait Construct<T: geom_core::Real> {
     /// described against a key neither of its faces wears, then a
     /// certified edge landing on a chart its description does not name,
     /// unless the two keys share one payload or the surviving face
-    /// wears the "no chart yet" placeholder. [`Body::kef_describing`](crate::construction::Construct::kef_describing)
+    /// is pending. [`Body::kef_describing`](crate::construction::Construct::kef_describing)
     /// takes the move with its re-descriptions under a band.
     ///
     /// # Precondition check order

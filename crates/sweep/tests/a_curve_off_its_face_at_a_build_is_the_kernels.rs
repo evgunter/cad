@@ -78,7 +78,7 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
 fn sphere<T: Decide>(body: &Body<T>) -> geom_brep::SurfaceKey {
     body.faces()
         .map(|(_, f)| f.surface)
-        .find(|&k| matches!(body.get_surface(k), Some(Surface::Sphere { .. })))
+        .find(|&k| matches!(body.get_surface(k), Ok(Surface::Sphere { .. })))
         .expect("the hemisphere's sphere")
 }
 

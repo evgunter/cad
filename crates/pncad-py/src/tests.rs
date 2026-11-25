@@ -2177,8 +2177,10 @@ fn inner_arm_tags_are_stable() {
         ("extrude", Some("oblique_extrusion"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Transform(TransformError::NurbsPlaceholder)),
-        ("transform", Some("nurbs_placeholder"))
+        pair(&NodeErrorKind::Transform(TransformError::NullScaffold {
+            edge: pncad::prelude::EdgeKey::default()
+        })),
+        ("transform", Some("null_scaffold"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Shell(Box::new(ShellError::Thickness {
@@ -5132,10 +5134,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
+            "joint_escalated",
             "not_finished",
             "pcurve",
             "pinned_corner",
-            "pinned_corner_unsupported",
             "placement_not_finite",
             "reversed_stacking",
             "seam_structure",
@@ -5182,6 +5184,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face",
             "no_outline",
             "null_scaffold_edge",
+            "pending_face",
             "poisoned",
             "resolution_finer_than_eps",
             "ring_on_curved_face",
@@ -5687,6 +5690,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "reach_refusal_tag",
         values: &[
+            "face_pending",
             "face_unbounded",
             "malformed_body",
             "no_extent",
@@ -5697,7 +5701,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "readback_error_tag",
-        values: &["dangling_entity", "no_canonical_frame", "no_carrier"],
+        values: &[
+            "dangling_entity",
+            "no_canonical_frame",
+            "no_carrier",
+            "pending_surface",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6240,7 +6249,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &["corrupt", "null_scaffold", "nurbs_placeholder", "pcurve"],
+        values: &["corrupt", "null_scaffold", "pcurve"],
         delegates: &[],
     },
     TagEntry {

@@ -251,7 +251,7 @@ fn mouth_ball_centre() -> (f64, f64) {
 /// The `(major, minor)` radii of a band face's torus.
 fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
     match body.face_surface(face) {
-        Some(Surface::Torus {
+        Ok(Surface::Torus {
             major_radius,
             minor_radius,
             ..
@@ -399,7 +399,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let bands: Vec<pncad::topo::FaceKey> = rolled
         .body
         .faces()
-        .filter(|(fk, _)| matches!(rolled.body.face_surface(*fk), Some(Surface::Torus { .. })))
+        .filter(|(fk, _)| matches!(rolled.body.face_surface(*fk), Ok(Surface::Torus { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 3, "one torus band per rim");
@@ -442,7 +442,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "the mouth band's spine radius is the ball centre's own radial coordinate \
          {cx}, got {mouth_major}"
     );
-    let Some(&Surface::Torus { frame, .. }) = rolled.body.get_surface(
+    let Ok(&Surface::Torus { frame, .. }) = rolled.body.get_surface(
         rolled
             .body
             .get_face(mouth_face)

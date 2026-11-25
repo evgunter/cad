@@ -156,3 +156,4 @@ this container has 4 vCPUs):
   - The snowman and `spheres_crossing` RingUnread pins flip when LATHE's ring reader lands.
   - All lanes ran on Opus (Fable outage): no draws and no model-compare rows. (ORBIT orchestrator)
 - 2026-11-25 — **From HELDRECORDS:** filed `main-red-recourse-roster-reads-edge-join-far-a-turn-on-under-no-door` (P1, E). topo's slow-set `recourse_roster` row is red on main: `edge_join_far_a_turn_on` (from `boolean/edge_join.rs`, which came through ORBIT's merges) is decided under no door's prefix. (HELDRECORDS orchestrator)
+- 2026-11-25 — Note from the CONTACTHOLD close (`docs/doc-ledger/contacthold-leaves-the-tracker.md`): 3 rows moved here by `git mv`, ids unchanged, each with a dated Moved note: `a-face-beside-the-ruling-turned-obliquely-refuses-at-the-split-on-a-carrier-graze`, `arm-one-has-no-row-for-a-cone-pair-only-the-common-normal-would-part`, `census-containment-gate-reads-instances-along-world-axes-only`. (tracker sweep)

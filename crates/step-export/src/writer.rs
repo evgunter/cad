@@ -20,7 +20,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use topo::{
     AtRestBody, Body, EdgeCurve, EdgeKey, EdgeView, FaceKey, LoopBoundary, LoopKey, ShellKey,
-    ShellRole, VertexKey, classify_shells_of,
+    ShellRole, SurfaceMiss, VertexKey, classify_shells_of,
 };
 
 use crate::real::fmt_real;
@@ -42,18 +42,6 @@ const SPIRIC_MAX_NODES: usize = 1024;
 /// because the floor's own bound is what a very loose `uncertainty_m`
 /// buys (`Writer::spiric_spline`'s docs).
 const SPIRIC_MIN_NODES: usize = 4;
-
-/// The surface's name, for typed refusals: the kind's own name
-/// ([`geom::SurfaceKind::name`]), except that the mvfs "no description
-/// yet" NURBS placeholder (the shared `is_placeholder` discriminator)
-/// is named apart — it is a mid-surgery fact and refuses, where a
-/// described NURBS surface exports natively.
-fn surface_kind(surface: &Surface<f64>) -> &'static str {
-    match surface {
-        Surface::Nurbs(payload) if payload.is_placeholder() => "nurbs placeholder",
-        _ => surface.kind().name(),
-    }
-}
 
 /// The certified curve of `edge`, refusing null scaffolding with the
 /// typed mid-surgery error.
@@ -740,8 +728,15 @@ impl<'a> Writer<'a> {
         let surface = self
             .body
             .face_surface(face_key)
-            .ok_or(StepExportError::Corrupt {
-                what: "face key does not resolve",
+            .map_err(|miss| match miss {
+                SurfaceMiss::Stale => StepExportError::Corrupt {
+                    what: "face key does not resolve",
+                },
+                // A mid-surgery fact, never exportable.
+                SurfaceMiss::Pending => StepExportError::UnsupportedSurface {
+                    face: face_key,
+                    kind: "pending",
+                },
             })?;
         // The surface printers: every ELEMENTARY_SURFACE of the
         // kernel's closed enum maps to its exact AP214 twin, the
@@ -749,8 +744,7 @@ impl<'a> Writer<'a> {
         // [`Self::axis2_placement`]) — never a B-spline approximation
         // of an analytic kind (crate docs). A DESCRIBED NURBS surface
         // prints natively since M6-3 (`Self::b_spline_surface`, the
-        // loft walls); the one refusal left is the mvfs placeholder,
-        // a mid-surgery fact rather than a frontier.
+        // loft walls).
         // The analytic arms' placement is the surface's own frame.
         let frame = || {
             surface.frame().ok_or(StepExportError::Corrupt {
@@ -834,17 +828,8 @@ impl<'a> Writer<'a> {
             // described NURBS surface exports natively, mirroring the
             // curve writer arm for arm — the non-rational simple
             // entity when every weight is exactly 1.0, otherwise the
-            // `RATIONAL_B_SPLINE_SURFACE` complex instance. The mvfs
-            // PLACEHOLDER keeps refusing (`surface_kind` names it).
-            Surface::Nurbs(ref payload) => {
-                if payload.is_placeholder() {
-                    return Err(StepExportError::UnsupportedSurface {
-                        face: face_key,
-                        kind: surface_kind(surface),
-                    });
-                }
-                self.b_spline_surface(payload)?
-            }
+            // `RATIONAL_B_SPLINE_SURFACE` complex instance.
+            Surface::Nurbs(ref payload) => self.b_spline_surface(payload)?,
             // An approximating surface refuses TYPED, and does not
             // print its fit. Printing the fit would be a lie of
             // omission in the file: AP214 has no way to carry "this
@@ -858,7 +843,7 @@ impl<'a> Writer<'a> {
             Surface::Approx(_) => {
                 return Err(StepExportError::UnsupportedSurface {
                     face: face_key,
-                    kind: surface_kind(surface),
+                    kind: surface.kind().name(),
                 });
             }
             // AP214's twin is `DEGENERATE_TOROIDAL_SURFACE`, whose
@@ -866,7 +851,7 @@ impl<'a> Writer<'a> {
             Surface::Spindle { .. } => {
                 return Err(StepExportError::UnsupportedSurface {
                     face: face_key,
-                    kind: surface_kind(surface),
+                    kind: surface.kind().name(),
                 });
             }
         };
@@ -1224,17 +1209,13 @@ mod tests {
         assert_eq!(rebuilt, flat);
     }
 
-    /// **The two `Surface::Nurbs` states are told apart.** This row
-    /// pins the surface records at byte level exactly as the curve
-    /// rows above pin theirs — both arms, the non-rational simple
+    /// **The `Surface::Nurbs` arms emit.** This row pins the surface
+    /// records at byte level exactly as the curve rows above pin theirs — both arms, the non-rational simple
     /// entity and the RATIONAL complex instance, even though the first
     /// corpus body is non-rational: cheap, and it keeps the arm from
     /// being dead code.
     #[test]
-    fn the_nurbs_surface_arms_emit_and_the_placeholder_refuses() {
-        let placeholder = Surface::<f64>::nurbs_placeholder();
-        assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
-
+    fn the_nurbs_surface_arms_emit() {
         let patch = geom::NurbsSurface::new(
             KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
             KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
@@ -1247,8 +1228,6 @@ mod tests {
             vec![1.0; 4],
         )
         .expect("a validated bilinear patch");
-        assert_eq!(surface_kind(&Surface::Nurbs(patch.clone().into())), "nurbs");
-
         // Record pins, both arms (the curve pins' idiom).
         let body = Body::<f64>::new();
         let mut w = Writer::new(&body, geom_core::Tol::witness().eps());

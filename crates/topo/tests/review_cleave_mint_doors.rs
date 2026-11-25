@@ -57,7 +57,7 @@ where
     assert_ne!(nface.surface, wall);
     assert!(matches!(
         body.face_surface(neighbour),
-        Some(geom::Surface::Plane { .. })
+        Ok(geom::Surface::Plane { .. })
     ));
     let point = |he| {
         let v = body.get_half_edge(he).unwrap().start;
