@@ -1179,6 +1179,21 @@ for its boundary pre-pass:
 They pool with nothing: the region is read by the point doors at points
 on a torus.
 
+**Roster addition (EMBEDWALK): a torus face's spline edges.** Four names
+from `topo/src/torus_region.rs`, read where the region's builder hands
+it the scalar's spline reader: an `ArcRows` value (`SPLINE`) its
+boundary pre-pass reads each spline edge through piece by piece. A
+spline edge's crossings of a leg's plane, ends included, are the ring
+composite's (`spline_composite_*`). They pool with the torus region's
+other names:
+
+| name | carrier |
+|---|---|
+| `bool_torus_region_spline_end` | `ArcRows` field (`SPLINE`): the distance to either end of a spline arc |
+| `bool_torus_region_spline_clear` | `ArcRows` field (`SPLINE`): a piece's ball's clearance from the point |
+| `bool_torus_region_spline_on` | `ArcRows` field (`SPLINE`): the distance to a point of the arc |
+| `bool_torus_region_spline_leaf` | `ArcRows` field (`SPLINE`): a piece's ball's radius |
+
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
 the crate scan — the same carrier shape `chart_bound_gap` has):

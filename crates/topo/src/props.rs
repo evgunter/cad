@@ -7611,6 +7611,26 @@ impl<T> CertifiedPolicy for T where
 {
 }
 
+/// **A spline span's crossings of an analytic face's carrier at a
+/// certifying scalar**: the curve × face table's ring-composite arm
+/// ([`geom_brep::NurbsLane::surface_crossings`]). It is the reader every
+/// certifying [`AtRestPolicy::spline_face_reader`] hands over, and the
+/// one a door bound on certification rights rather than on the policy
+/// hands its regions ([`crate::cell_region`]).
+pub(crate) fn certified_spline_face_crossings<
+    T: geom_core::Certifies + geom_core::CertifiedBounds,
+>(
+    net: &geom::NurbsCurve3<T>,
+    params: (T, T),
+    surface: &geom::Surface<T>,
+    band: geom_core::Band,
+) -> Result<
+    geom_brep::curve_face::SpanCrossings<T>,
+    geom_brep::curve_face::composite::CompositeRefusal,
+> {
+    geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
+}
+
 impl AtRestPolicy for f64 {
     type OffsetFitLane = geom_brep::OffsetFitLane<Self>;
 
@@ -7664,9 +7684,7 @@ impl AtRestPolicy for f64 {
     }
 
     fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
-        Some(|net, params, surface, band| {
-            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
-        })
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -7845,9 +7863,7 @@ impl AtRestPolicy for geom_core::Probe {
     }
 
     fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
-        Some(|net, params, surface, band| {
-            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
-        })
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -8024,9 +8040,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
     }
 
     fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
-        Some(|net, params, surface, band| {
-            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
-        })
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
@@ -8199,9 +8213,7 @@ where
     }
 
     fn spline_face_reader() -> Option<crate::region::SplineCrossings<Self>> {
-        Some(|net, params, surface, band| {
-            geom_brep::NurbsLane::certified().surface_crossings(net, params, surface, band)
-        })
+        Some(certified_spline_face_crossings::<Self>)
     }
 
     fn spline_chart_meetings(
