@@ -3682,6 +3682,26 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
+/// A certified pair of ends, as the `f64` range their enclosures span.
+fn lifted_ends<T: CertifiedBounds>((lo, hi): (T, T)) -> (f64, f64) {
+    (
+        Interval::from_certified(lo).lo(),
+        Interval::from_certified(hi).hi(),
+    )
+}
+
+/// A periodic channel's window from its certified ends: the ends'
+/// enclosure, or the whole turn where that reaches a period.
+fn within_turn<T: CertifiedBounds>(lo: T, hi: T) -> (f64, f64) {
+    let (lo, hi) = lifted_ends((lo, hi));
+    let turn = full_turn();
+    if hi - lo < turn.1 - turn.0 {
+        (lo, hi)
+    } else {
+        full_turn()
+    }
+}
+
 /// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
 /// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
 /// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
@@ -3723,10 +3743,20 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 /// - **Sphere**: latitude has an interior extremum (a cap's boundary is
 ///   one circle while the region reaches the pole), so both coordinates
 ///   take their canonical ranges.
-/// - **Torus**: both coordinates are periodic and no boundary bounds
-///   either.
-/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
-///   its canonical range between the apexes ([`sheet_latitude`]).
+/// - **Torus**: both coordinates are periodic, so no box bounds either.
+///   The boundary's stored chart images do, where the face is the side
+///   of its one loop that the loop bounds in the chart: the window is
+///   their rectangle, widened by its certificate slack
+///   ([`crate::cover::bounded_torus_window`]), each channel the whole
+///   turn where that spans a period. Any other face takes the whole
+///   tube.
+/// - **Spindle sheet**: `u` takes the whole turn. `v` takes the latitude
+///   its boundary's chart images span, on the same terms
+///   ([`crate::cover::bounded_sheet_latitude`]) and strictly inside
+///   `(−π, π)`, met with the canonical range between the apexes
+///   ([`sheet_latitude`]); any other face takes that canonical range, as
+///   the sphere does, since a cap's boundary is one circle while it
+///   reaches an apex.
 /// - **NURBS**: a face whose boundary is its chart's own isos, run
 ///   once around the knot domain — every loft and sweep wall — is the
 ///   whole patch, and its window is that domain
@@ -3783,6 +3813,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         return unsupported("a face whose carrier does not certify");
     };
     let superset = |u, v| (u, v, Region::Trimmed);
+    // The chart windows a torus or sheet face's boundary reads, each
+    // `None` off its own carrier.
+    let torus_rect = || crate::cover::bounded_torus_window(body, face);
+    let sheet_lat = || crate::cover::bounded_sheet_latitude(body, face);
     let (u, v, region) = match &charted {
         Surface::Plane { frame } => {
             let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
@@ -3815,12 +3849,24 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             superset(full_turn(), v)
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
-        Surface::Torus { .. } => superset(full_turn(), full_turn()),
+        Surface::Torus { .. } => {
+            let (u, v) = torus_rect().map_or((full_turn(), full_turn()), |(u, v)| {
+                (within_turn(u.lo, u.hi), within_turn(v.lo, v.hi))
+            });
+            superset(u, v)
+        }
         Surface::Spindle {
             major_radius,
             minor_radius,
             ..
-        } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
+        } => {
+            let sheet = sheet_latitude(*major_radius, *minor_radius);
+            let v = sheet_lat()
+                .map(lifted_ends)
+                .filter(|&(lo, hi)| -core::f64::consts::PI < lo && hi < core::f64::consts::PI)
+                .map_or(sheet, |(lo, hi)| (lo.max(sheet.0), hi.min(sheet.1)));
+            superset(full_turn(), v)
+        }
         Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
@@ -7521,10 +7567,145 @@ mod seated_windows {
 
     use super::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
 
+    /// **A torus face's window is its loop's chart rectangle only on the
+    /// loop's bounded side.** The patch `[0.3, 1.9] × [−0.7, 0.8]` and its
+    /// complement have one loop and the same images; the patch's window
+    /// is that rectangle, widened by its slack alone, and the
+    /// complement's is the whole tube. Red if the window is read off the
+    /// images without the side (the complement's would be the patch's,
+    /// missing every point of the complement), or if a torus window is
+    /// the whole tube again.
+    #[test]
+    fn a_torus_window_is_its_loops_rectangle_on_the_bounded_side_alone() {
+        let patch = |clockwise: bool| {
+            let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+            if clockwise {
+                crate::boxes::tests::torus_wall_clockwise(
+                    at.0,
+                    at.1,
+                    at.2,
+                    2.0,
+                    0.5,
+                    (0.3, 1.9),
+                    (-0.7, 0.8),
+                )
+            } else {
+                crate::boxes::tests::torus_wall(at.0, at.1, at.2, 2.0, 0.5, (0.3, 1.9), (-0.7, 0.8))
+            }
+        };
+        let (body, face) = patch(false);
+        let w = super::window_of(&body, face, Which::First, None).unwrap();
+        let near = |(lo, hi): (f64, f64), (a, b): (f64, f64)| {
+            lo <= a && b <= hi && a - lo < 1e-9 && hi - b < 1e-9
+        };
+        assert!(
+            near(w.u, (0.3, 1.9)) && near(w.v, (-0.7, 0.8)),
+            "the patch's window is its rectangle: {:?} × {:?}",
+            w.u,
+            w.v
+        );
+        let (body, face) = patch(true);
+        let w = super::window_of(&body, face, Which::First, None).unwrap();
+        assert_eq!(
+            (w.u, w.v),
+            (crate::injective::full_turn(), crate::injective::full_turn()),
+            "the complement's window is the whole tube"
+        );
+    }
+
+    /// **A torus window's side reads alike reverted and across the
+    /// seam.** The patch and its complement, each as built and reverted
+    /// (all four sense-and-direction quadrants), on a patch inside the
+    /// chart, one past the turn and one straddling `u = 0`: the patch's
+    /// window spans it (modulo a turn), the complement's is the whole
+    /// tube. Red if the side reads the sense alone or the direction
+    /// alone (`bounded = !sense` passes the as-built pair only), or if a
+    /// lift past the seam reads the wrong side.
+    #[test]
+    fn a_torus_windows_side_reads_alike_reverted_and_across_the_seam() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let full = (crate::injective::full_turn(), crate::injective::full_turn());
+        let turn = core::f64::consts::TAU;
+        for us in [(0.3, 1.9), (5.8, 6.9), (-0.4, 0.4)] {
+            let vs = (-0.7, 0.8);
+            let patch = crate::boxes::tests::torus_wall(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            let comp =
+                crate::boxes::tests::torus_wall_clockwise(at.0, at.1, at.2, 2.0, 0.5, us, vs);
+            for ((body, face), is_patch) in [(patch, true), (comp, false)] {
+                for rev in [false, true] {
+                    let b = if rev {
+                        body.revert().unwrap()
+                    } else {
+                        body.clone()
+                    };
+                    let w = super::window_of(&b, face, Which::First, None).unwrap();
+                    if is_patch {
+                        let k = |lo: f64, a: f64| ((a - lo) / turn).round() * turn;
+                        let span = |(lo, hi): (f64, f64), (a, b): (f64, f64)| {
+                            lo + k(lo, a) <= a && b <= hi + k(lo, a)
+                        };
+                        assert!(
+                            span(w.u, us) && span(w.v, vs),
+                            "patch {us:?} rev={rev}: {:?}x{:?}",
+                            w.u,
+                            w.v
+                        );
+                    } else {
+                        assert_eq!((w.u, w.v), full, "complement {us:?} rev={rev}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// **A sheet window's side reads alike reverted**: the sheet's patch
+    /// `[0.3, 1.9] × [−0.7, 0.8]` (`R = 0.5`, `r = 1`, apexes at
+    /// `v* ≈ 2.09`) windows to its latitude, and the sheet with that
+    /// patch cut out keeps the whole sheet, each as built and reverted.
+    /// Red if the sheet's latitude is read without the side.
+    #[test]
+    fn a_sheet_windows_side_reads_alike_reverted() {
+        let at = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
+        let patch = crate::boxes::tests::sheet_wall(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let hole = crate::boxes::tests::sheet_wall_clockwise(at.0, at.1, at.2, 0.5, 1.0, us, vs);
+        let sheet = super::sheet_latitude(
+            geom_core::interval::Interval::from_bounds(0.5, 0.5),
+            geom_core::interval::Interval::from_bounds(1.0, 1.0),
+        );
+        for ((body, face), is_patch) in [(patch, true), (hole, false)] {
+            for rev in [false, true] {
+                let b = if rev {
+                    body.revert().unwrap()
+                } else {
+                    body.clone()
+                };
+                let w = super::window_of(&b, face, Which::First, None).unwrap();
+                assert_eq!(
+                    w.u,
+                    crate::injective::full_turn(),
+                    "rev={rev}: the whole turn"
+                );
+                if is_patch {
+                    assert!(
+                        w.v.0 <= vs.0
+                            && vs.1 <= w.v.1
+                            && vs.0 - w.v.0 < 1e-9
+                            && w.v.1 - vs.1 < 1e-9,
+                        "patch rev={rev}: {:?}",
+                        w.v
+                    );
+                } else {
+                    assert_eq!(w.v, sheet, "the holed sheet rev={rev}: the whole sheet");
+                }
+            }
+        }
+    }
+
     /// **A trimmed face read across a turn sweeps as the placed face does**
-    /// (`[placement.frame]`; [`Side::windows_at`]). A torus patch, its
-    /// window the whole torus and its face a quarter of it, against a
-    /// brick that cuts the torus away from the patch, so the only cells
+    /// (`[placement.frame]`; [`Side::windows_at`]). A sphere zone, its
+    /// window the whole sphere and its face a quarter of it, against a
+    /// brick that cuts the sphere away from the zone, so the only cells
     /// of the window near the brick hold none of the face, and the sweep
     /// holds only by reading them off it.
     /// Read with the patch built where a skew motion puts it, and with the
@@ -7537,13 +7718,13 @@ mod seated_windows {
     /// the Holds and Violated asserts pass under that mutant, the region
     /// assert does not.
     ///
-    /// A second brick stands 0.1 off the patch's middle, and `≥ 0.3` is
+    /// A second brick stands 0.1 off the zone's middle, and `≥ 0.3` is
     /// violated in both frames: the cells there read on the face.
     ///
     /// *Breaks if* a cell's region is read against the placed carrier and
     /// the face's own boundary together (the window's own lift dropped):
     /// the two frames disagree, every cell reads clear of the boundary, and
-    /// a cell straddling the patch's edge reads by its centre alone.
+    /// a cell straddling the zone's edge reads by its centre alone.
     #[test]
     fn a_trimmed_face_read_across_a_turn_sweeps_as_the_placed_face() {
         let tol = Tol::witness();
@@ -7553,26 +7734,11 @@ mod seated_windows {
             .unwrap()
             .compose(RigidMotion::rotation(axis, 0.9).unwrap())
             .unwrap();
-        let (patch, face) = crate::boxes::tests::torus_wall(
-            Point3::origin(),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
-            2.0,
-            0.5,
-            (0.3, 1.9),
-            (-0.7, 0.8),
-        );
-        let (moved, moved_face) = crate::boxes::tests::torus_wall(
-            m.transform_point(Point3::origin()),
-            m.transform_vec(Vec3::unit_z()),
-            m.transform_vec(Vec3::unit_x()),
-            2.0,
-            0.5,
-            (0.3, 1.9),
-            (-0.7, 0.8),
-        );
+        let (patch, face) =
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet((0.3, 1.9), (-0.6, 0.7), tol);
+        let (moved, moved_face) = (crate::transform_rigid(&patch, &m).unwrap(), face);
         let brick: crate::Body<f64> = crate::transform_rigid(
-            &crate::test_support_fixtures::brick((2.0, 2.6), (-1.5, -0.9), (-0.3, 0.3), tol),
+            &crate::test_support_fixtures::brick((0.7, 1.1), (-0.7, -0.3), (-0.2, 0.2), tol),
             &m,
         )
         .unwrap();
@@ -7613,7 +7779,7 @@ mod seated_windows {
             assert_eq!(
                 report.verdict,
                 super::BoundVerdict::Holds,
-                "{what}: the brick cuts the torus off the patch, so only cells off the face \
+                "{what}: the brick cuts the sphere off the zone, so only cells off the face \
                  come near it: {:?}",
                 report.receipt
             );
@@ -7623,11 +7789,11 @@ mod seated_windows {
                 report.receipt
             );
         }
-        // A second brick, 0.1 past the patch's middle along its outward
+        // A second brick, 0.1 past the zone's middle along its outward
         // radial: the cells there hold the face, so `≥ 0.3` is violated,
         // and the sweep sees it only if it reads those cells on the face.
         let radial = Vec3::new(1.1f64.cos(), 1.1f64.sin(), 0.0);
-        let at = Point3::origin() + radial * 2.6;
+        let at = Point3::origin() + radial * 1.1;
         let near: crate::Body<f64> = crate::transform_rigid(
             &crate::test_support_fixtures::brick(
                 (at.x - 0.02, at.x + 0.02),
