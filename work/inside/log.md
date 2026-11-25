@@ -28,3 +28,32 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 30 points.
 - 2026-10-31 — (seam, FLUSH) Claimed and closed `aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots` (P1) as a duplicate of FLUSH's `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`, which PR 5781's dual review measured more fully. FLUSH dispatches it next; its witness pose is carried on FLUSH's row. The fix will touch `solid_contain.rs`'s ray × quadric roots and the side reader's reach, which is INSIDE's ground. — (FLUSH orchestrator)
 - 2026-11-04 — (SPIRICARM orchestrator) `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord`, filed by SPIRICARM's PR 6509 on this slate, is re-banded P0 in that PR, on both PR 6509 reviewers' reading of `work/README.md`'s Priority. Every cylinder × sphere boolean now builds at its volume, but its result is a dead end as the next operand, and five differences on normal geometry still refuse at the piece sort. One fix, widening `sphere_region::sphere_face_region`, also serves `splitdoor/a-sphere-cut-in-refuses-…`.
 - 2026-11-15 — (BOXFINISH orchestrator) Filed `a-whole-turn-circle-cap-refuses-corrupt-loop-over-a-box-where-f64-answers` here (P2): PR 6979's review found point containment refusing a whole-turn-circle cap as `CorruptLoop` over a parameter box, on bodies that answer at `f64`. Reported `unsure` whether intended; not re-measured.
+
+## 2026-11-25 — picked up (INSIDE orchestrator)
+
+Status `active`. The sitting's slate is the board's P0 and P1 rows (the
+plan's slate table predates them). Fable is unavailable this sitting (Ev,
+in chat): no experiment rows are drawn or recorded, and where a tier or a
+fork calls for an Opus/Fable pair, two Opus run instead.
+
+Dispatch, with each unit's review tier:
+- `point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord` (P0, M):
+  implementer `inside/sphere-chord-region`. FULL single review — a region
+  reading off stored pcurves, where believing it takes more than reading.
+- `ray-torus-count-certifies-on-an-uncharged-discriminant` (P1, M): implementer
+  `inside/quartic-disc-rounding`. DUAL review (two Opus): a rounding charge
+  on a certified count, the lever-per-verdict class CONTACT's reviews found.
+- `contain-error-drops-the-loop-its-carrier-named` (P1, E) and
+  `tangent-lever-row-escalates-containment-at-eps-1e-6` (P1, E): one lane,
+  `inside/contain-small-rows` (both `contain.rs`). STYLE review if the
+  tangent row needs a logic change; the From fix alone is the
+  orchestrator's read.
+- `two-copies-of-a-pierce-carry-edges-that-run-within-the-band` (P1, M):
+  re-measure first (CONTACT's triage asked it), lane `inside/pierce-copies-remeasure`;
+  the tier is set once the measurement says whether there is a defect to fix.
+- `a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan`
+  (P1, M, design): two Opus designers on the contact-semantics question
+  before any lane.
+- 2026-11-25 — Lanes in flight: `inside/sphere-chord-region` and `inside/contain-small-rows` as subagents in the orchestrator's container; `inside/quartic-disc-rounding` (session_013QoYWY7w6M1QPZjWjk8Vet) and `inside/pierce-copies-remeasure` (session_013QoYWXMsDpH4z556UGKhkC) in their own cloud sessions, since this 4-vCPU container's build mutex is the limit; two Opus designers on the tube-in-ball row. (INSIDE orchestrator)
+- 2026-11-25 — `a-tube-touching-a-ball-from-inside-along-its-rim-refuses-the-extent-scan` weighed by two Opus designers; they agreed after one round that it is not a design fork (the semantics are ratified: touching pieces are distinct solids, PR 3901; coincident arcs carry an edge–edge record, PR 5967), and one measured that PR 7602 already cleared the extent scan, leaving only `ball ∖ tube` refusing at the parting. `design` dropped; the row is re-titled and parked on HELDRECORDS's PR 7481 row and a new P1 row there for the parting's `CurvedFace` gate. No `[ev]` PR. Seam notes left on HELDRECORDS, SPLITDOOR and TANG. (INSIDE orchestrator)
+- 2026-11-25 — `two-copies-of-a-pierce-carry-edges-that-run-within-the-band` CLOSED by design (PR 7750). The re-measure (one Opus lane, own cloud session) found `[topology.census]` (PR 4335) reads cells sharing a point key by their far-end gap and states the shared point's neighbourhood is not read; over 957 such pairs at 638 near-tangent poses no far-end gap is in band, no census escalation occurs, and no body is wrong (6 refusals are the pinned vee300 self-touch class). The pinned row now asserts tier 3′ and the shared point key. Tier: the orchestrator's read (measurement plus a strengthened assertion). Merged over the inherited 1e-12 red `work/tesslie/main-red-a-cylinder-wall-through-a-prism-corner-union-is-volume-uncomputable-at-1e-12.md`, which the nextest edit sends the gate to. (INSIDE orchestrator)

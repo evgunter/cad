@@ -234,9 +234,34 @@ stored parameter reads one way on an analytic carrier and the other
 on a spline.
 
 **DL5.3 — where a dual is admitted.** A dual belongs where the build
-and its measurements run, and passes through decisions on its value
-alone (DL1, DL3). Code that certifies is closed to it by type, on its
-interior as well as at its doors:
+and its measurements run. Whether it reaches a read is said by what the
+read's verdict ends in:
+
+- **A certificate the body holds, or a finding** (the build refuses).
+  This is certification. It is closed to a dual by type, on its
+  interior as well as at its doors, and on the dual's value as well as
+  its tangent: the finding is the base evaluation's (DL3), and a dual
+  pass does not make it again.
+- **A selection** (a side, a sign, a count, which of two constructions
+  is built). This is a decision, and a dual takes the one its base
+  build took, on its value alone (DL1, DL3). A selection is piecewise
+  constant in the inputs, so it has no tangent to get wrong. Code a
+  dual reaches through its value view returns a selection and nothing
+  else, by its return type: no `T` comes back, since a number solved on
+  the value and re-entered as a `T` would claim a zero tangent.
+
+A certificate's verdict never selects a construction: its refusal is a
+finding, or the gap of its lane. A door that both builds and certifies
+is two functions (derive, generic over every deciding scalar; certify,
+over `Certifies`), so a dual derives what the model determines and
+holds no certificate. A proposal (DL5.2) has no derivative the model
+determines, so the variants that hold one have no values at a dual, and
+nothing at run time says so. A solved value the model does determine (a
+crossing parameter a body stores) is owed to a dual with the tangent of
+the equation it solves; where that construction is not built, the dual
+build refuses there as not implemented.
+
+Code that certifies is closed to a dual by these:
 
 - `Certifies` is the bound that says a scalar certifies and nothing
   else. It grants no bracket read, so it is free to write: no list,
