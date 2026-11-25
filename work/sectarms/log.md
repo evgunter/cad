@@ -1036,3 +1036,9 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - The rim-pad lane hit the Fable limit at the very end of PR 7499's fix pass. Its code fixes are pushed (head `1baa24a5b9`, CI running). Only the PR body's "Fix pass" section and the CI report remain, so it resumes as the same agent after the reset.
 - The image-function lane opened PR 7537 (head `68e8d3c249`) before the overloads. It still needs its dual review, which needs a Fable reviewer.
 - Following Ev's PR 7061 ruling (no unmatched rows), the paired work waits for the reset. Two retry reminders fired today; none is left armed.
+
+## 2026-11-25 — Fable back (Ev); both lanes resumed as the same agents
+
+- Rim pad (PR 7499): finish the fix-pass body and the CI report, merging main if it has moved.
+- Image function (PR 7537): head `68e8d3c249` is red on lint and `test (kernel)` (run 45132499832), and the lane never sent its hand-back. It is fixing the reds that are its own, then hands back. The dual review starts on the green head that follows.
+- Deleted the image lane's idle 11 GB target dir; disk is at 58%.
