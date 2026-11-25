@@ -2,10 +2,13 @@
 id: a-cone-against-a-ball-or-a-cone-refuses-at-the-cone-face
 kind: issue
 title: A cone against a ball or another cone in general pose refuses CurvedBooleanUnsupported at the cone face before its marched section is read
-status: open
+status: closed
 opened: 2026-11-24
 priority: P0
 cost: M
+branch: sectcone/cone-face-refusal
+closed: 2026-11-24
+pr: 7733
 ---
 
 
@@ -56,7 +59,14 @@ and conics alone, and a polynomial spline rim on a cone did not take
 the quadrature (`topo::props` `takes_quadrature`). It now does: the
 cone cap lane (`quad_lane` `rim_face`, `spiric::cone_cap_rounds`)
 already read a rational rim on a cone, and reads a polynomial one's
-vector area exactly (`cap_about`'s `loop_vector_area`).
+vector area through the certified spline lane (`rational_rim`), which
+encloses a polynomial spline as it does a rational one; the closed
+form's Gauss rule is rounded at the interval scalar, not an enclosure.
+Before the cap lane reads a cone face, `geom_brep::props::require_cone_cap`
+holds the closed form's gates where they apply: lines and conics on the
+cone with their spans decided, every edge's slant bounded (a spline's by
+its control hull) on one nappe. A spline's distance off the cone is not
+charged: `the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone.md`.
 
 **Seam with U3** (`the-join-reads-the-cone-pairs-on-the-value.md`): the
 cause is the join's ring lane, not `rides_carried`, which already carries
