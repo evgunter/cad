@@ -507,10 +507,14 @@ failure-output = "immediate-final"
 # Timed alone by the gate on PR 7750, which edits their file:
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds
 #    0.27 s  sweep::all join_pierce_runs_sweep::a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders
+# An approximated cap read three ways through a skew motion, each swept
+# against a moved brick under two clearance bounds (a local run, alone):
+#    2.35 s  sweep::all review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap
 # A test in a file PR 7748 edits, timed by its gate (hosted runner, alone):
 #    0.31 s  topo solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh
 default-filter = """
 not (
+  (binary_id(sweep::all) & test(=review_approx_through_a_motion::an_approximated_cap_read_through_its_motion_sweeps_as_the_moved_cap)) |
   (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
   (binary_id(topo) & (test(=pcurves::staleness_posture::no_production_code_in_any_crate_calls_the_minting_pass) | test(=finish::tests::no_at_rest_policy_impl_writes_its_own_finish_or_leaf))) |
   (binary_id(sweep::all) & test(=completion_refuses_a_stale_row::a_fill_matches_the_whole_derivation)) |
