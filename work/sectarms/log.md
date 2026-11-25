@@ -1047,3 +1047,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 
 - PR 7499 merged at `6617da35a4`. The fix pass took every adjudicated item, CI was green at `83438bdb9a`, and the row and the item's close are its last two commits. A PR comment explains why the C2/C5 rewrite did not wait for Ev: it is the text the PR 7045 decision directed.
 - Next unit: the PR 7056 decision on `a-sliver-loop-that-carried-as-a-clamped-fit-…`. It covers the one-point graph reading on quadric pairs, limb 3 halving its own cover, `refine_for_tube` retiring, and a pad read as the narrowest proving rung's reach box by box. It is **letter H, tier dual**: it changes limb 3's certificate on every ℝ³ pair and rewrites C2's limb-3, pad and node-end text and C3's tube-rounds paragraph.
+
+## 2026-11-25 — PR 7537 handed back; dual review dispatched; cover lane resumed
+
+- The image-function lane fixed its four reds: three ε 1e-12 rows (the foot polish restored, and a knot-line foot put exactly on the line) and one moved shell row. The head is `0933dcce6b`.
+- The one remaining red is `bounds_census` on two doors absent from main's roster (`reach.rs: crossing`, `separation.rs: misses`). I checked: neither is on main's roster. The lane filed it to GREEN.
+- PR 7065's three parked rows stay open, re-measured.
+- Slot-order byte 205 (odd), so R1 = Fable and R2 = Opus. Both reviews of the frozen head are running concurrently.
+- The cover-halving lane (Fable, byte 215) was resumed after a 529 overload.
