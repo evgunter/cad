@@ -286,7 +286,7 @@ fn every_start(edges: &[LoopEdge<f64>]) -> impl Iterator<Item = (usize, Vec<Loop
 
 /// **Each pair of wedge sides is read where both its rulings reach**: a
 /// thin sector of width `δ` at depth `1`, beside a sector a whole radian
-/// wide whose rulings reach only depth `d`. Wound with the thin one it
+/// wide whose rulings reach only depth `d` (both scaled with the band). Wound with the thin one it
 /// is a face, and measures; wound against it, a notch outside it, it is
 /// none, and refuses (`props_cone_apex_lobes`, or degenerate where its
 /// area is none). Read at the short
@@ -294,8 +294,16 @@ fn every_start(edges: &[LoopEdge<f64>]) -> impl Iterator<Item = (usize, Vec<Loop
 /// a whole turn, and the two verdicts swap.
 #[test]
 fn a_thin_sector_beside_a_short_lobe_reads_at_each_pairs_own_reach() {
-    for delta in [1e-5, 1e-6, 1e-7] {
-        for d in [1e-6, 1e-5, 1e-4, 1e-3, 1e-2] {
+    // Posed at the band of `1e-9`, and scaled with the run's: the widths
+    // and the short reach move with it, and a reach past `1e-2` is no
+    // longer short.
+    let k = band().zero() / 1e-9;
+    for delta in [1e-5, 1e-6, 1e-7].map(|x| x * k) {
+        for d in [1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+            .map(|x| x * k)
+            .into_iter()
+            .filter(|&d| d <= 1e-2)
+        {
             let thin = || sector(1.0, 0.3, 0.3 + delta, (1, 2));
             let face = chain(thin(), sector(d, 2.0, 3.0, (3, 4)));
             let notch = chain(thin(), sector(d, 3.0, 2.0, (3, 4)));
@@ -303,8 +311,10 @@ fn a_thin_sector_beside_a_short_lobe_reads_at_each_pairs_own_reach() {
             for (start, turned) in every_start(&face) {
                 let area = measured(&turned)
                     .unwrap_or_else(|e| panic!("δ {delta}, d {d}, start {start}: {e:?}"));
+                // The vector area sums terms the size of the unit
+                // sector's, so its rounding is theirs.
                 assert!(
-                    (area - want).abs() <= 1e-9 * want,
+                    (area - want).abs() <= 1e-14,
                     "δ {delta}, d {d}, start {start}: {area} against {want}"
                 );
             }
@@ -328,10 +338,11 @@ fn a_thin_sector_beside_a_short_lobe_reads_at_each_pairs_own_reach() {
 
 /// **Lobes whose scales differ by a thousand and more measure**: sectors
 /// side by side at depths `1` and `d`, and the whole turn less a notch at
-/// depth `d`, from every start.
+/// depth `d`, from every start, at every `d` a hundred bands and more.
 #[test]
 fn lobes_of_scales_a_thousand_apart_measure() {
-    for d in [1e-3, 1e-4, 1e-5] {
+    let floor = 100.0 * band().zero();
+    for d in [1e-3, 1e-4, 1e-5].into_iter().filter(|&d| d >= floor) {
         let sectors = chain(
             sector(1.0, 0.0, FRAC_PI_2, (1, 2)),
             sector(d, PI, 1.5 * PI, (3, 4)),
