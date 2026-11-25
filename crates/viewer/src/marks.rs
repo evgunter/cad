@@ -582,8 +582,11 @@ impl EdgeOverlay {
 /// outline ([`PickIndex::drawn_outline`]), its edit preview's while one
 /// draws it in place: hovered where the cursor
 /// is over it, selected where its node is the selection, from the tree
-/// or the viewport alike. A profile is never free-moved, so its marks
-/// are never probed.
+/// or the viewport alike. Its marks are
+/// never probed: the probe flag says the mark composites over a
+/// probe-tinted body base, and an outline has no body base — the
+/// outline lane draws a moved outline untinted too (filed as
+/// `a-free-moved-outline-is-drawn-untinted-and-marked-at-its-first-drawing`).
 pub fn edge_overlay(
     index: &PickIndex,
     display: &DisplayView,
@@ -619,7 +622,8 @@ pub fn edge_overlay(
                 .map(|vertex| vertex_segments(index, display, vertex))
                 .unwrap_or_default(),
         );
-        for polyline in profile.map_or(&[][..], |node| index.drawn_outline(node, display)) {
+        let outline = profile.map(|node| index.drawn_outline(node, display));
+        for polyline in outline.iter().flat_map(|outline| outline.iter()) {
             // The seam's undrawn count is dropped here as the edge
             // mark's is (`edge_segments`): the profile lane carries the
             // same legs, and its count is the VNEWS badge row's.
@@ -1511,12 +1515,12 @@ mod tests {
         let profile = *doc
             .ids()
             .iter()
-            .find(|node| !index.profile_outline(**node).is_empty())
+            .find(|node| !index.drawn_outline(**node, &DisplayView::none()).is_empty())
             .expect("the plate draws a profile");
         let selected = Selection::Node(profile);
         let committed = super::edge_overlay(&index, &DisplayView::none(), &selected, None).selected;
         let outline: Vec<Vec<Point3<f64>>> = index
-            .profile_outline(profile)
+            .drawn_outline(profile, &DisplayView::none())
             .iter()
             .map(|lp| {
                 lp.iter()
