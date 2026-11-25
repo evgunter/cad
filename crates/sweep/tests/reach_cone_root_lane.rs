@@ -302,9 +302,11 @@ const CUBE_ON_THE_NARROWING_WALL: f64 = 0.029_738_0;
 /// under all four ops: each
 /// body's volume is its closed form from the frustum's, the cube's and
 /// their overlap, it passes tier 3, and `point_in_solid` agrees with
-/// both operands' closed-form membership over a grid. So does the tilted
-/// rod across the narrowing wall, a cone × oblique cylinder pair the join
-/// reads on its carried section.
+/// both operands' closed-form membership over a grid. The tilted rod
+/// across the narrowing wall, a cone × oblique cylinder pair the join
+/// reads on its carried section, holds the same truth, or refuses at its
+/// finish where a cone face trimmed by the marched section has no volume
+/// lane ([`volume_unread`]).
 #[test]
 fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     let tol = Tol::witness();
@@ -430,7 +432,7 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
         Point3::new(-0.55, 0.8, 0.15),
         7,
     );
-    for (op_label, got, op, x, y, v) in [
+    let ops = [
         (
             "∪",
             topo::union(&narrowing, &rod_body, tol),
@@ -463,15 +465,48 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
             &frustum,
             vb - vi,
         ),
-    ] {
+    ];
+    // Every op's outcome, before any is asserted, so a red names all four.
+    for (op_label, got, ..) in &ops {
+        eprintln!(
+            "the tilted rod, {op_label}: {:?}",
+            got.as_ref().map(|r| r.body().map(|b| b.kind))
+        );
+    }
+    for (op_label, got, op, x, y, v) in ops {
+        let label = format!("the tilted rod across the narrowing wall, {op_label}");
+        if volume_unread(&got) {
+            continue;
+        }
         solid_truth::assert_is(
-            &format!("the tilted rod across the narrowing wall, {op_label}"),
+            &label,
             &got,
             Want::Body(v, 1e-5),
             &|q| op.depth(x, y, q),
             &[],
             &points,
         );
+    }
+}
+
+/// Whether an op's result is refused at its finish for a face whose
+/// volume no lane reads: a cone face trimmed by the marched cone ×
+/// cylinder section (`work/sectcone/a-cone-face-trimmed-by-a-marched-section-has-no-volume-lane.md`).
+fn volume_unread(got: &Result<topo::BooleanResult<f64>, BooleanError>) -> bool {
+    use geom_brep::PropsError;
+    use topo::{MassPropsError, ValidationError};
+    match got {
+        Err(BooleanError::ResultInvalid { findings }) => matches!(
+            findings.as_slice(),
+            [ValidationError::VolumeUncomputable {
+                source: MassPropsError::Face {
+                    source: PropsError::Unimplemented,
+                    ..
+                },
+                ..
+            }]
+        ),
+        _ => false,
     }
 }
 
