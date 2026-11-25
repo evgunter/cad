@@ -1069,7 +1069,7 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{Cell, Contact, ContactKind, ContactPairError, ContactRecords};
     use crate::boolean::{CarriedRecord, EfContact, FfContact};
