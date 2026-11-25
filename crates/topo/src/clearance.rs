@@ -3758,10 +3758,20 @@ fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) 
 /// - **Sphere**: latitude has an interior extremum (a cap's boundary is
 ///   one circle while the region reaches the pole), so both coordinates
 ///   take their canonical ranges.
-/// - **Torus**: both coordinates are periodic and no boundary bounds
-///   either.
-/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
-///   its canonical range between the apexes ([`sheet_latitude`]).
+/// - **Torus**: both coordinates are periodic, so no box bounds either.
+///   The boundary's stored chart images do, where the face is the side
+///   of its one loop that the loop bounds in the chart
+///   ([`bounded_side_steps`]): the window is their rectangle, widened by
+///   its certificate slack ([`crate::cover::torus_chart_window`]), each
+///   channel the whole turn where that spans a period. Any other face
+///   takes the whole tube.
+/// - **Spindle sheet**: `u` takes the whole turn. `v` takes the latitude
+///   its boundary's chart images span, on the same terms
+///   ([`crate::cover::sheet_chart_latitude`]) and strictly inside
+///   `(−π, π)`, met with the canonical range between the apexes
+///   ([`sheet_latitude`]); any other face takes that canonical range, as
+///   the sphere does, since a cap's boundary is one circle while it
+///   reaches an apex.
 /// - **NURBS**: a face whose boundary is its chart's own isos, run
 ///   once around the knot domain — every loft and sweep wall — is the
 ///   whole patch, and its window is that domain
