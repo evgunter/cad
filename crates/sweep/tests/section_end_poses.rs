@@ -485,15 +485,21 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             // A frame squared at f64 from stated directions (fork 274).
             let pinned = matches!(
                 &got,
-                Err(SplitError::Pcurves(topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::MapResidual, cause, .. },
-                    ..
-                })) if crate::common::frame_cost::escalated(cause, "pcurve_map_residual", (3.5e-12, 3.8e-12))
+                Err(SplitError::Finish(topo::SplitFinishError::ResultNotAtRest { findings, .. }))
+                    if findings.as_slice().iter().any(|f| matches!(
+                        f,
+                        topo::ValidationError::Pcurve {
+                            finding: topo::PcurveMintError::Certify {
+                                error: geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::MapResidual, cause, .. },
+                                ..
+                            },
+                        } if crate::common::frame_cost::escalated(cause, "pcurve_map_residual", (3.5e-12, 3.8e-12))
+                    ))
             );
             if !pinned {
                 wrong.push(format!(
-                    "{pose:?}: pinned to escalate pcurve_map_residual in (3.5e-12, 3.8e-12] at the \
-                     pcurve pass: {:?}",
+                    "{pose:?}: pinned to escalate pcurve_map_residual in (3.5e-12, 3.8e-12] where the \
+                     finish completes the rows: {:?}",
                     got.as_ref().err()
                 ));
             }

@@ -258,9 +258,10 @@ pub enum ChartRegionError {
         /// The image's incidence read.
         read: geom_brep::IncidenceRead,
     },
-    /// A minting chart's stored cache is absent — the body must
-    /// re-mint before region queries (the `props.rs` posture); only
-    /// plane charts are derive-on-demand.
+    /// A minting chart's stored cache is absent — the body's rows must
+    /// be completed before region queries (the finish completes them,
+    /// `crate::finish::complete_in_place`); only plane charts are
+    /// derive-on-demand.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -526,7 +527,8 @@ impl ChartRegionError {
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
-                 a minting chart — re-mint pcurves before region queries"
+                 a minting chart — complete the body's rows (finish it) before region \
+                 queries"
             ),
             Self::ArmUnbounded { chart } => write!(
                 f,
@@ -581,14 +583,14 @@ impl ChartRegionError {
                 "chart-region: loop {loop:?} of face {face:?} images to {vertices} straight \
                  chart segment(s), too few to bound a polygon the area test reads. Repair \
                  the loop so its chart image is three or more straight segments, or \
-                 re-mint its pcurves"
+                 drop its rows for the finish to derive again"
             ),
             Self::DegenerateLoop { face, r#loop } => write!(
                 f,
                 "chart-region: loop {loop:?} of face {face:?} has no definite chart \
                  orientation (degenerate polygon at this ε). Repair the loop so its \
                  chart image encloses area — collapsed or collinear runs are the \
-                 usual cause — or re-mint its pcurves"
+                 usual cause — or drop its rows for the finish to derive again"
             ),
             // A poisoned margin is reached by no declaration or move.
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
@@ -4230,7 +4232,8 @@ mod tests {
             "bring",
             "repair",
             "restrict",
-            "re-mint",
+            "complete",
+            "drop",
             "simplify",
             "rebuild",
             "split",

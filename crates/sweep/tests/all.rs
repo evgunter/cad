@@ -1513,5 +1513,9 @@ mod a_rest_on_a_cut_in_piece_lands_on_it;
 mod a_station_frame_is_minted_to_its_floor;
 #[path = "check_1_reads_no_frame_on_a_turned_disc.rs"]
 mod check_1_reads_no_frame_on_a_turned_disc;
+#[path = "completion_keeps_what_a_face_stores.rs"]
+mod completion_keeps_what_a_face_stores;
+#[path = "completion_refuses_a_stale_row.rs"]
+mod completion_refuses_a_stale_row;
 #[path = "separation_reads_turned_directions.rs"]
 mod separation_reads_turned_directions;

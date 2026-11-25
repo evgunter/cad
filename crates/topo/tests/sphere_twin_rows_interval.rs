@@ -77,7 +77,7 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
         tol,
     )
     .map_err(|e| format!("mef {e:?}"))?;
-    topo::pcurves::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
+    topo::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
     Ok(body)
 }
 

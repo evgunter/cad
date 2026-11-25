@@ -87,8 +87,11 @@ pub trait FinishedBody:
     ///
     /// # Errors
     ///
-    /// [`MoveError::Map`] where a re-minted row refuses ([`crate::mirror`]);
-    /// [`MoveError::NotFinished`] holding the session box's finding.
+    /// [`MoveError::Map`] where the data map refuses;
+    /// [`MoveError::NotFinished`] holding the session box's finding, and
+    /// completion's refusal of a row the image derives again
+    /// ([`crate::mirror`] drops the rows, [`complete_in_place`] derives
+    /// them).
     fn mirrored(
         &self,
         reflection: &crate::Reflection<Self::Scalar>,
@@ -102,9 +105,8 @@ pub trait FinishedBody:
 /// finding where the move asks one ([`FinishedBody::moved_by`]).
 #[derive(Debug)]
 pub enum MoveError {
-    /// The data map refused ([`moved_body`]): under a reflection, a
-    /// re-minted row ([`crate::mirror`]); otherwise a state a finished
-    /// body or a leaf never holds.
+    /// The data map refused ([`moved_body`]): a state a finished body or
+    /// a leaf never holds.
     Map(crate::TransformError),
     /// The image's finding: the session box, or a leaf's finish.
     NotFinished(NotFinished),
@@ -120,7 +122,6 @@ impl MoveError {
         use crate::transform::TransformError as E;
         let found = match self {
             Self::NotFinished(findings) => return findings,
-            Self::Map(E::Pcurve { .. }) => "a re-minted pcurve row",
             Self::Map(E::NullScaffold { .. }) => "a null-scaffold edge",
             Self::Map(E::Corrupt { found }) => found,
         };
@@ -150,6 +151,184 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         AtRestBody::moved_by(self, iso, tol)
     }
+}
+
+/// **A body whose pcurve rows are complete**: the argument of a
+/// scalar's verdict ([`AtRestPolicy::finish_completed`],
+/// [`AtRestPolicy::leaf_completed`]), constructed only by the completion
+/// [`AtRestPolicy::finish`] and [`AtRestPolicy::leaf`] run first. It
+/// drops the rows on dead half-edges, keeps every stored row and derives
+/// each missing one (`crate::pcurves`' completion), so no producer mints
+/// to close and a stale row reaches the verdict to be refused. A face
+/// whose rows do not complete is left as found, its refusal held for the
+/// door to report beside the verdict's findings.
+#[derive(Debug)]
+pub struct Completed<T: Real> {
+    body: Body<T>,
+    refused: Vec<ValidationError>,
+}
+
+impl<T: Real> Completed<T> {
+    /// The body, its rows complete.
+    #[must_use]
+    pub fn into_body(self) -> Body<T> {
+        self.body
+    }
+
+    /// Completion's refusals, taken for the door to report.
+    pub(crate) fn take_refused(&mut self) -> Vec<ValidationError> {
+        core::mem::take(&mut self.refused)
+    }
+}
+
+/// **`body` completed** ([`Completed`]): [`complete_in_place`], its
+/// refusals held beside the body. Its derivations are a build's, not the
+/// verdict's: they run before, and outside, the checking scope.
+///
+/// # Errors
+///
+/// [`NotFinished`] holding tiers 1 and 2's findings.
+pub(crate) fn complete<T: AtRestPolicy>(
+    mut body: Body<T>,
+    tol: Tol,
+) -> Result<Completed<T>, NotFinished> {
+    let refused = complete_in_place(&mut body, tol)?;
+    Ok(Completed { body, refused })
+}
+
+/// **A verdict with completion's refusals beside it**: each refusal the
+/// verdict's own findings do not already hold, so a face tier 3 derives
+/// again and refuses alike is reported once; at a replay, which runs no
+/// tier 3, the refusals alone.
+///
+/// # Errors
+///
+/// `verdict`'s findings and the refusals, or the refusals alone.
+pub(crate) fn with_refusals<F>(
+    verdict: Result<F, NotFinished>,
+    refused: Vec<ValidationError>,
+) -> Result<F, NotFinished> {
+    if refused.is_empty() {
+        return verdict;
+    }
+    match verdict {
+        Ok(_) => Err(NotFinished::new(refused)),
+        Err(mut found) => {
+            for r in refused {
+                if !found.findings.contains(&r) {
+                    found.findings.push(r);
+                }
+            }
+            Err(found)
+        }
+    }
+}
+
+/// Tiers 1 and 2 over `body`, as a check.
+fn closed<T: Real>(body: &Body<T>) -> Result<(), NotFinished> {
+    geom_core::k_stats::checking(|| crate::validate::validate_closed(body))
+        .map_err(NotFinished::new)
+}
+
+/// Completion's refusals as findings.
+fn refusals(completed: Result<(), Vec<crate::pcurves::PcurveMintError>>) -> Vec<ValidationError> {
+    completed
+        .err()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|finding| ValidationError::Pcurve { finding })
+        .collect()
+}
+
+/// **`body`'s rows completed in place**: the one home of completion
+/// (`crate::pcurves`' completion), which [`complete`] — the finish's and
+/// the leaf's — runs, and which runs early where a reader inside the
+/// pipeline needs the rows: the result sort's ray probes
+/// (`crate::pieces`, at the Boolean's gate and a split's sides), the
+/// shell's cavity questions, and a mirror's image
+/// ([`moved_and_asked`]). It keeps every stored row, so it launders
+/// none, and the finish that follows finds nothing more to fill.
+///
+/// Tiers 1 and 2 are asked first, the one precondition: completion
+/// walks every face's loops and derives from every edge's carrier, which
+/// only a closed body of resolving records holds, and the verdict's own
+/// first act would report the same findings.
+///
+/// Completion is lenient: a face whose rows do not complete is left as
+/// found and its refusal returned, never thrown alone, so the door
+/// reports it beside every other finding of the body
+/// ([`with_refusals`], [`refused_finding_set`]).
+///
+/// # Errors
+///
+/// Tiers 1 and 2's findings.
+pub(crate) fn complete_in_place<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+) -> Result<Vec<ValidationError>, NotFinished> {
+    closed(body)?;
+    Ok(refusals(crate::pcurves::complete_pcurves(body, tol)))
+}
+
+/// **The finding set of a body whose completion refused**, for a door
+/// that completed it early ([`complete_in_place`]): its finish's
+/// findings, which hold `refused` beside the verdict's own, so the door
+/// reports what the finish would of the same body. A reader that would
+/// meet an unfilled face — the sort's probe crossing it reads no chart
+/// polygon there, and its cavity questions no rows — is not asked it.
+pub(crate) fn refused_finding_set<T: AtRestPolicy>(
+    body: Body<T>,
+    tol: Tol,
+    refused: Vec<ValidationError>,
+) -> NotFinished {
+    match with_refusals(T::finish(body, tol).map(drop), refused.clone()) {
+        Err(found) => found,
+        Ok(()) => NotFinished::new(refused),
+    }
+}
+
+/// What [`fed`] refused: the body's finding set where its completion
+/// refused or tiers 1 and 2 did, or the reader's own refusal on a body
+/// whose rows completed.
+#[derive(Debug)]
+pub(crate) enum Fed<E> {
+    /// The finding set ([`refused_finding_set`]), or tiers 1 and 2's.
+    NotFinished(NotFinished),
+    /// The reader refused a body whose rows completed.
+    Read(E),
+}
+
+/// **A reader inside the pipeline, fed `body`'s rows completed**
+/// ([`complete_in_place`]): the result sort at the Boolean's gate and a
+/// split's sides, and the shell's cavity questions. Where completion
+/// refused, the door answers the body's finding set — the finish's
+/// findings with the refusals beside them — whatever `read` answers: a
+/// reader that meets an unfilled face reads no rows there (the sort's
+/// probe crossing it refuses, naming one face and hiding the rest), so
+/// the set is read off the body `read` left where it read it whole, and
+/// off the body as completion left it where `read` refused.
+///
+/// # Errors
+///
+/// [`Fed::NotFinished`] holding the finding set, or tiers 1 and 2's;
+/// [`Fed::Read`] holding `read`'s refusal of a completed body.
+pub(crate) fn fed<T: AtRestPolicy, E>(
+    body: &mut Body<T>,
+    tol: Tol,
+    read: impl FnOnce(&mut Body<T>) -> Result<(), E>,
+) -> Result<(), Fed<E>> {
+    let refused = complete_in_place(body, tol).map_err(Fed::NotFinished)?;
+    if refused.is_empty() {
+        return read(body).map_err(Fed::Read);
+    }
+    let unread = body.clone();
+    let answered = match read(body) {
+        Ok(()) => body.clone(),
+        Err(_) => unread,
+    };
+    Err(Fed::NotFinished(refused_finding_set(
+        answered, tol, refused,
+    )))
 }
 
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
@@ -286,14 +465,20 @@ pub(crate) fn moved_and_asked<T: AtRestPolicy>(
     logged: bool,
     tol: Tol,
 ) -> Result<Body<T>, MoveError> {
-    let body = moved_body(body, iso, tol).map_err(MoveError::Map)?;
+    let mut body = moved_body(body, iso).map_err(MoveError::Map)?;
+    let refused = match iso {
+        crate::Isometry::Improper(_) => {
+            complete_in_place(&mut body, tol).map_err(MoveError::NotFinished)?
+        }
+        crate::Isometry::Proper(_) => Vec::new(),
+    };
     let scope = geom_core::k_stats::Bracket::open();
     let asked = asked_after_isometry(&body, tol);
     let record = scope.finish();
-    if asked.is_err() || logged {
+    if asked.is_err() || !refused.is_empty() || logged {
         geom_core::k_stats::relog(&record);
     }
-    asked.map_err(MoveError::NotFinished)?;
+    with_refusals(asked, refused).map_err(MoveError::NotFinished)?;
     Ok(body)
 }
 
@@ -356,22 +541,22 @@ pub fn session_box_at<T: geom_core::Decide>(
     }
 }
 
-/// **`body` under `iso`**, the reflection's reversal and re-minted rows
-/// included ([`crate::mirror`]): the data map behind every `moved` door.
+/// **`body` under `iso`**, the reflection's reversal included and its
+/// rows dropped ([`crate::mirror`]): the data map behind every `moved`
+/// door. A reflected image's rows are derived again by the door that
+/// takes it ([`moved_and_asked`], a leaf's finish).
 ///
 /// # Errors
 ///
-/// The map's own refusal: under a reflection a re-minted row's
-/// ([`crate::TransformError::Pcurve`]); otherwise a state the gate
-/// refuses, which a finished body or a leaf never holds.
+/// The map's own refusal: a state the gate refuses, which a finished
+/// body or a leaf never holds.
 pub(crate) fn moved_body<T: AtRestPolicy>(
     body: &Body<T>,
     iso: &crate::Isometry<T>,
-    tol: Tol,
 ) -> Result<Body<T>, crate::TransformError> {
     match iso {
         crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso),
-        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol),
+        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r),
     }
 }
 
@@ -471,8 +656,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     /// decisions off the log as the leaf's rule says
     /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
-            .map_err(MoveError::NotFinished)
+        T::leaf(moved_body(self, iso).map_err(MoveError::Map)?, tol).map_err(MoveError::NotFinished)
     }
 }
 
@@ -1025,5 +1209,107 @@ mod tests {
             .filter(|family| !family.up_to_isometry())
             .collect();
         assert_eq!(asked, [FindingFamily::SessionBox]);
+    }
+
+    /// The `fn finish` / `fn leaf` items written inside an
+    /// `impl … AtRestPolicy for …` in `code` (a `code_only` view), each
+    /// as the impl's self type and the item's name; and how many such
+    /// impls `code` holds.
+    fn overrides(code: &str) -> (Vec<(String, &'static str)>, usize) {
+        use test_utils::source::{balanced_end, impl_head, word_at};
+        let mut found = Vec::new();
+        let mut impls = 0;
+        for (at, _) in code.match_indices("impl") {
+            if !word_at(code, at, "impl") {
+                continue;
+            }
+            let Some(open) = code[at..].find('{').map(|o| at + o) else {
+                continue;
+            };
+            let Some(head) = impl_head(code, at, open) else {
+                continue;
+            };
+            let names_the_trait = head
+                .trait_path
+                .as_deref()
+                .is_some_and(|t| t.rsplit("::").next() == Some("AtRestPolicy"));
+            if !names_the_trait {
+                continue;
+            }
+            impls += 1;
+            let end = balanced_end(code, open).unwrap_or(code.len());
+            let body = &code[open..end];
+            for name in ["finish", "leaf"] {
+                let spelled = body.match_indices("fn").any(|(f, _)| {
+                    word_at(body, f, "fn") && {
+                        let rest = body[f + 2..].trim_start();
+                        rest.starts_with(name)
+                            && rest[name.len()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+                    }
+                });
+                if spelled {
+                    found.push((head.self_type.clone(), name));
+                }
+            }
+        }
+        (found, impls)
+    }
+
+    /// **No scalar overrides the completing finish**: `AtRestPolicy::finish`
+    /// and `::leaf` are provided methods that complete the body and then
+    /// ask the required `finish_completed` / `leaf_completed`, and only
+    /// completion constructs their `Completed` argument — but a provided
+    /// method is overridable, so an impl that wrote its own `fn finish`
+    /// would hand its verdict an uncompleted body. This row refuses one,
+    /// in every crate's `src/` (the trait is public).
+    #[test]
+    #[allow(clippy::expect_used)] // a guard's failure mechanism
+    fn no_at_rest_policy_impl_writes_its_own_finish_or_leaf() {
+        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
+        let mut found = Vec::new();
+        let mut impls = 0;
+        for krate in std::fs::read_dir(&root).expect("the crates directory") {
+            let src = krate.expect("a crate entry").path().join("src");
+            if !src.is_dir() {
+                continue;
+            }
+            for file in test_utils::source::rust_sources(&src) {
+                let text = std::fs::read_to_string(&file).expect("a readable source file");
+                let code = test_utils::source::code_only(&text);
+                let (here, n) = overrides(&code);
+                impls += n;
+                found.extend(
+                    here.into_iter()
+                        .map(|(ty, name)| format!("{file:?}: {ty}::{name}")),
+                );
+            }
+        }
+        // f64, Probe, Interval, Sym and Dual: a walk that finds fewer
+        // read the wrong tree.
+        assert!(impls >= 5, "found {impls} impl(s) of AtRestPolicy");
+        assert!(
+            found.is_empty(),
+            "an impl overrides the completing finish: {found:?}"
+        );
+    }
+
+    /// The row's reader goes red on an override and stays green on the
+    /// `_completed` pair and on another trait's `finish`.
+    #[test]
+    fn the_override_reader_reads_an_override() {
+        let code = test_utils::source::code_only(
+            "impl AtRestPolicy for f64 { fn finish_completed() {} fn leaf (b: B) {} }\n\
+             impl crate::props::AtRestPolicy for Probe { fn finish<'a>() {} }\n\
+             impl Other for f64 { fn finish() {} }",
+        );
+        let (found, impls) = overrides(&code);
+        assert_eq!(impls, 2);
+        assert_eq!(
+            found,
+            [("f64".to_string(), "leaf"), ("Probe".to_string(), "finish")]
+        );
     }
 }

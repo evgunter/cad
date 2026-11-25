@@ -250,7 +250,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::OpenFaceRimNotExpressible { face, what } => E::OpenFaceRimNotExpressible { face, what },
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
-        E::Pcurve { source } => E::Pcurve { source },
         E::RimSeamMixed { edge, stations } => E::RimSeamMixed { edge, stations },
         E::Join { refusal } => E::Join { refusal },
         E::NotValid { findings: errors } => E::NotValid { findings: errors },
@@ -410,7 +409,6 @@ fn fold_replace_face_error<T: Real>(
         R::DegenerateTorus { edge, refusal } => R::DegenerateTorus { edge, refusal },
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
-        R::Pcurve { source } => R::Pcurve { source },
         R::Join { refusal } => R::Join { refusal },
         R::ResultNotClosed { errors } => R::ResultNotClosed { errors },
     }
