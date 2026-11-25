@@ -896,19 +896,22 @@ fn interior(
 }
 
 /// The azimuth of the wrap edge to the singular point `x` of `chart`
-/// on face `fi`: that of the face's boundary point nearest `x`. Along a
-/// meridian from `x` (a sphere's meridian from its pole, a cone's
-/// generator from its apex) the distance from `x` only grows, so the
-/// meridian through the nearest boundary point meets the boundary there
-/// first, and meets no other singular point before it. The choice reads
-/// the boundary's geometry alone, not how the file splits it into
-/// edges: each edge offers the nearest point of its own span (a line's
-/// foot, a circle's closest point, or an end), and points within the
-/// band of the nearest tie, broken by the least turn from the
-/// surface's `u_ref` (either way; the positive turn first). An arc every point of which lies at one distance
-/// from `x` (a rim coaxial with the surface) offers the point at the
-/// `u_ref` azimuth where its span holds one, and its ends otherwise.
-/// Answers the unit radial direction of the chosen point.
+/// on face `fi`: that of the face's boundary point nearest `x`. Answers
+/// the unit radial direction of the chosen point.
+///
+/// Along a meridian from `x` (a sphere's meridian from its pole, a
+/// cone's generator from its apex) the distance from `x` only grows, so
+/// the meridian through the nearest boundary point meets the boundary
+/// there first, and meets no other singular point before it.
+///
+/// The choice reads the boundary's geometry alone, not how the file
+/// splits it into edges. Each edge offers the nearest point of its own
+/// span: a line's foot, a circle's closest point, or an end. An arc
+/// every point of which lies at one distance from `x` (a rim coaxial
+/// with the surface) offers its point at the `u_ref` azimuth where its
+/// span holds one, and its ends otherwise. Offered points within the
+/// band of the nearest one tie, and the tie goes to the least turn from
+/// the surface's `u_ref`, either way round, the positive turn first.
 fn wrap_azimuth(
     solid: &SolidSpec,
     fi: usize,

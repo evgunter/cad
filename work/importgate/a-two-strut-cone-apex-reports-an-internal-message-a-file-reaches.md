@@ -29,3 +29,13 @@ The scan (`normalize/singularity.rs`, `scan`) or the face gate names a
 singular vertex reached by more than one edge the face walks out and
 back, and refuses it typed, without `internal:`. A row pins it on the
 reviewers' two-strut file, committed beside the rim-only caps.
+
+- 2026-11-25 — witness committed: `crates/step-import/tests/fixtures/wrap-tip-review/cone_with_two_struts_to_its_apex.step`
+  (apex at the origin, axis +z, half-angle 0.5, rim at z = 10 split at
+  azimuths 0 and π, each rim vertex joined to the apex by a generator the
+  face walks out and back). Both the one-band stack and `lathe/import-wrap-tip`
+  refuse it with "entity #133: internal: a built vertex with no built fan
+  anchor", at the build (`build.rs`), before the chart-singularity pass
+  reads it; azimuths {0, 0.3} give the same. Pinned red at every ε by
+  `crates/step-import/tests/wrap_tip_review_witnesses.rs`,
+  `a_cone_with_two_struts_to_its_apex_refuses_typed`.

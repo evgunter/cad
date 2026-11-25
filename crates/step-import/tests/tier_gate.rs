@@ -777,6 +777,25 @@ const CORPUS: &[(&str, Disposition)] = &[
         "tests/fixtures/seam-region/side_cut_meridian_split.step",
         Pass(1, 1, 4, 9, 7),
     ),
+    // -- tests/fixtures/wrap-tip-review/ (PR 7774's review witnesses,
+    // `wrap_tip_review_witnesses.rs`): a cap cut from a ball on a tilted
+    // chart, refused on a NaN distance
+    // (`work/importgate/a-nan-distance-reaches-a-band-read-on-a-tilted-axis-sphere.md`);
+    // a cone walking two struts to its apex, refused `internal:`
+    // (`work/importgate/a-two-strut-cone-apex-reports-an-internal-message-a-file-reaches.md`);
+    // and a hole a micrometre from a pole, each pole a wrap tip.
+    (
+        "tests/fixtures/wrap-tip-review/hole_on_a_tilted_axis_sphere.step",
+        Refused("the distance NaN m (step_built_sense)"),
+    ),
+    (
+        "tests/fixtures/wrap-tip-review/cone_with_two_struts_to_its_apex.step",
+        Refused("internal: a built vertex with no built fan anchor"),
+    ),
+    (
+        "tests/fixtures/wrap-tip-review/hole_grazing_the_pole.step",
+        Pass(1, 1, 2, 4, 4),
+    ),
     // A ball stated as two lunes of one sphere, its poles each where
     // the two meridians meet (`records_follow_the_file.rs`'s pinch).
     (
