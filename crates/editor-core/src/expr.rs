@@ -1824,9 +1824,13 @@ pub struct ExprPath {
 /// **The document's parameter door** (`geom-core`'s README, DL5.2): a
 /// number the document's author wrote, at the scalar a run evaluates
 /// at. The one step by which an authored `f64` (a free variable's
-/// nominal, a quantity literal of an expression, a stated motion of a
-/// test-facing option) becomes a `T`; the count and the ratio an author
-/// writes are integers and enter as counts.
+/// nominal, a quantity literal of an expression) becomes a `T`; the
+/// count and the ratio an author writes are integers and enter as
+/// counts.
+///
+/// It takes an `f64` and checks nothing. What holds it is its callers:
+/// each file's count is pinned in `scripts/gates/from-f64-sites.tsv`,
+/// so a new caller reds the gate until it is read.
 ///
 /// What it is at each scalar: the number at `f64`; its point at an
 /// enclosure scalar; a literal at [`geom_core::Sym`], the nominal as

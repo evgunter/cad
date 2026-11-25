@@ -11,8 +11,10 @@
 //! door a programmatic author's number enters by — an *exact*
 //! embedding for every implementor, so nothing here can change a
 //! number. What enters is a number the author wrote: a literal at
-//! the symbolic scalar and a zero tangent at a dual. A value the
-//! kernel computed does not come back through here. Five of the seven are one kernel constructor
+//! the symbolic scalar and a zero tangent at a dual. [`real`] takes an
+//! `f64` and checks nothing: that its argument is the author's number
+//! is the caller's, and the callers inside this workspace are a pinned
+//! list (`scripts/gates/from-f64-allowlist.sh`). Five of the seven are one kernel constructor
 //! call; the other two are the seam's fallible pair — [`validated`]
 //! is `ConstructedProfile::new` + its `validate`, and [`polygon`] is the
 //! lattice chain a coordinate table lowers to. There is no

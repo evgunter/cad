@@ -27,3 +27,7 @@ None of the four, and on no other row:
 - `geom::curves::banded::solve` (`l`): a dropped term's signed zero, an `f64` read off the pivot on the value channel and re-entered so the product keeps its sign.
 
 Cost: M. No site here is a known wrong answer; each is a constant the list holds by a reviewer's word where a signature could.
+
+## A run option's derived frame (PR 7721's fix pass)
+
+`editor-core/src/eval/mod.rs` `ComputingTwist::at` (four sites: an axis's three components and an angle; the translation goes through the same `lift`): the frame `ComputingTwist::for_node` computes at run time from a node's ordinal and mint digest. The PR first moved them onto `expr::authored`; both reviews read them as not authored, and they are back on the bare door, `owed` here. They are a constant of the run and not of the document, so a literal at `Sym` is true of them; which class that is, is question 5 of `the-from-f64-split-leaves-five-questions-dl5-2-does-not-settle`.

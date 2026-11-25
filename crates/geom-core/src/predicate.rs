@@ -464,9 +464,11 @@ pub struct Band {
 /// escalation ([`Band::zero_width`], [`Band::escalate_width`]), the
 /// run's ε ([`BandWidth::of_eps`]), or a combination of those with
 /// numbers the source wrote. The door a band enters a scalar by
-/// (the crate README, DL5.2): it is made of a [`Band`] or a
-/// [`Tol`] and never of an `f64`, so a width the kernel computed from
-/// geometry cannot be handed to it.
+/// (the crate README, DL5.2). By type it is made only of a [`Band`]
+/// or a [`Tol`], and its one scale is a [`crate::Lit`]. That is all the
+/// type holds: a `Band` built or padded from a computed `f64`
+/// ([`Band::new`], [`Band::padded`]) has that number as its width, and
+/// nothing checks where a band's thresholds came from.
 ///
 /// Its arithmetic is `f64`'s, in the order written, so a combination
 /// has the bits the same expression over `f64` thresholds has.
@@ -516,12 +518,6 @@ impl BandWidth {
     #[must_use]
     pub fn times(self, k: crate::Lit) -> Self {
         Self(k.get() * self.0)
-    }
-
-    /// The width over `k`.
-    #[must_use]
-    pub fn over(self, k: crate::Lit) -> Self {
-        Self(self.0 / k.get())
     }
 
     /// The width at the scalar `T`.
@@ -3849,8 +3845,6 @@ mod tests {
             room.get().to_bits(),
             (band.escalate() - band.zero()).to_bits()
         );
-        let over = band.escalate_width().over(lit!(3.0));
-        assert_eq!(over.get().to_bits(), (band.escalate() / 3.0).to_bits());
         assert_eq!(
             BandWidth::of_eps(Tol::witness()).get(),
             Tol::witness().eps()

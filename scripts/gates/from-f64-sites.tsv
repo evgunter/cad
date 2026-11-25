@@ -1,7 +1,15 @@
 # The from_f64 sites of scripts/gates/from-f64-allowlist.sh: one row per
 # (file, fn, argument), tab-separated: file, count, class, fn, argument,
 # reason. The classes and where each may stand are in the gate's header.
+crates/editor-core/src/analysis.rs	4	caller	-	<call authored>	var_env_over (3) and var_env_symbolic_pinned: a free variable's authored nominal, beside the axis the box adds
 crates/editor-core/src/coincide/replay.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	swept_along	geom_core::Bounds::hi(arm.length()).log2().ceil().exp2()	a bound: the power of two at or above a decided pair's reach, a lever's scale: a positive constant factor, so the margin it levers is zero as a polynomial exactly where its sine is
+crates/editor-core/src/doc.rs	1	caller	-	<call authored>	Doc::var_env: a free variable's authored nominal, bound unvaried
+crates/editor-core/src/eval/mod.rs	1	caller	-	<call authored>	probe_env: a free variable a probe minted, at its authored nominal
+crates/editor-core/src/eval/mod.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	at	self.angle	a run option's derived angle (ComputingTwist::for_node): a constant of the run, not of the document; its class is an open question
+crates/editor-core/src/eval/mod.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	at	v[0]	a run option's derived frame (ComputingTwist::for_node computes it from a node's ordinal and digest): a constant of the run, not of the document; its class is an open question
+crates/editor-core/src/eval/mod.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	at	v[1]	a run option's derived frame (ComputingTwist::for_node): a constant of the run, not of the document; its class is an open question
+crates/editor-core/src/eval/mod.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	at	v[2]	a run option's derived frame (ComputingTwist::for_node): a constant of the run, not of the document; its class is an open question
+crates/editor-core/src/expr.rs	1	caller	-	<call authored>	AuthoredLeaf::value: an authored quantity literal of an expression
 crates/editor-core/src/expr.rs	1	door	authored	value	the document's parameter door: an authored nominal, a quantity literal, a stated option
 crates/geom-brep/src/carrier_net.rs	1	concrete	enclosing_net	t	a line net's break, f64 structure, entered at the concrete Interval (never Sym)
 crates/geom-brep/src/carrier_net.rs	1	concrete	span_basis_of	a	a span's start break, f64 structure, entered at the concrete Interval (never Sym)
@@ -64,6 +72,7 @@ crates/geom/src/surfaces/nurbs.rs	1	owed(an-edges-parameter-ends-enter-a-carrier
 crates/geom/src/surfaces/nurbs.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	placeholder	<fn>	a constant (unit knots lifted through a function): the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support.rs	1	fixture	segment	<fn>	the fixture NURBS segments' unit knots lifted into T (Knots::lift)
 crates/pncad/src/authoring.rs	1	door	real	x	the programmatic author's door: a number the caller's program wrote
+crates/pncad/src/authoring.rs	12	caller	-	<call real>	p2, p3, v2, v3 and polygon: the coordinates their caller hands them, entered through real
 crates/profile/src/seg.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	read_back	ulps * f64::EPSILON	a constant (an ulp count held as f64): an ulp count's relative rounding, scaling a read's magnitude to the resolution its refusal reports
 crates/profile/src/seg.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	resolution_headroom	band.escalate() / (ulps * f64::EPSILON)	a constant (an ulp count held as f64): a resolution threshold from the band and an ulp count
 crates/profile/src/validate.rs	1	owed(from-f64-sites-the-split-left-on-the-bare-door)	point_in_loop	angle	a constant (a schedule computed at run time): a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)

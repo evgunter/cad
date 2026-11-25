@@ -372,7 +372,7 @@ pub fn end_window<T: Decide>(
     // Every term a window drops is charged at its value plus the zero
     // band's width at its power: the most a coefficient read at its value
     // admits, whatever verdict was read on it.
-    let zero = T::from_f64(band.zero());
+    let zero = band.zero_width().at::<T>();
     let charge: Vec<T> = n
         .iter()
         .enumerate()

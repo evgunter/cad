@@ -9543,7 +9543,6 @@ fn run_iso_arc_checks<T: Decide>(
     // The column's knots as the chart holds them, against the uniform
     // sub-arc breaks over the chart's own held domain, both in `T`.
     let kn = b.knot_values().values();
-    #[allow(clippy::cast_precision_loss)]
     let expected: Vec<T> = {
         let m = T::count(spans);
         let mut v = vec![cu0, cu0, cu0];

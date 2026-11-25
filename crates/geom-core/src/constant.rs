@@ -5,10 +5,20 @@
 //! [`BandWidth`](crate::BandWidth), on the tolerance type, and an
 //! authored value through the document's parameter door.
 //!
-//! None of them takes a bare `f64`, so a value the kernel computed
-//! cannot be handed to one: a [`Lit`] is built only from a
-//! [`Constant`]'s associated `const`, and a [`Count`] only from an
-//! integer.
+//! What each holds by type, and what it does not:
+//!
+//! - a [`Lit`] is built only from a [`Constant`]'s associated `const`
+//!   and has no arithmetic, so a run can pick one and cannot make one;
+//! - a [`Count`] is an integer type and nothing else. An integer cast
+//!   from a computed float is still an integer: the type does not see
+//!   that, and no gate does;
+//! - a [`BandWidth`](crate::BandWidth) is built only from a
+//!   [`Band`](crate::Band) or the run's tolerance, and a `Band` built
+//!   or padded from a computed `f64` (`Band::new`, `Band::padded`)
+//!   yields a width of that number: nothing holds that;
+//! - the authored doors (`editor_core::expr::authored`,
+//!   `pncad::authoring::real`) take an `f64` and check nothing. Their
+//!   callers are a pinned list (`scripts/gates/from-f64-allowlist.sh`).
 //!
 //! What each is at every scalar ([`Real::lit`], [`Real::count`],
 //! [`Real::count_ratio`]):
@@ -60,12 +70,25 @@
 //! assert_eq!(f64::count_ratio(1_u32, 4_u32), 0.25);
 //! ```
 //!
-//! What the type does not hold, so the reader does: a `const fn` of any
-//! shape is a constant; an immutable `static` reads as one; a marker
-//! generic over a `const` parameter is a constant per instantiation, so
-//! a runtime integer can pick among finitely many of them, as it can
-//! index a table of [`Lit`]s. Each is a selection among numbers the
-//! source wrote, never a number the run computed.
+//! The seal on [`Count`] and the outer generic `lit!` cannot name:
+//!
+//! ```compile_fail,E0277
+//! struct Mine;
+//! impl geom_core::Count for Mine {}
+//! ```
+//!
+//! ```compile_fail,E0401
+//! fn of<const N: usize>() -> geom_core::Lit {
+//!     geom_core::lit!(N as f64)
+//! }
+//! ```
+//!
+//! What a `Lit` admits beyond a literal: a `const fn` of any shape; an
+//! immutable `static`; a marker generic over a `const` parameter, one
+//! constant per instantiation; a hand-written [`Constant`] whose value
+//! reads the build environment (`env!`), a number the build wrote
+//! rather than the source. A run can index a table of `Lit`s or pick
+//! an instantiation, which selects among those numbers.
 
 use crate::Real;
 
@@ -76,10 +99,11 @@ pub trait Constant {
     const VALUE: f64;
 }
 
-/// **A number the source wrote**: a literal, a `const`, a `const fn` of
-/// them. It has no constructor that takes a value, so a run cannot make
-/// one of a number it computed; it is `Copy` and can sit in a `const`
-/// table, which a run may index.
+/// **A number fixed when the crate is compiled**: a literal, a `const`,
+/// a `const fn` of them. It has no constructor that takes a value and
+/// no arithmetic (a product of constants is `lit!(a * b)`), so a run
+/// can select one and cannot compose one; it is `Copy` and can sit in
+/// a `const` table, which a run may index.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Lit(f64);
 
@@ -95,18 +119,6 @@ impl Lit {
     #[must_use]
     pub const fn get(self) -> f64 {
         self.0
-    }
-
-    /// The product of two constants, rounded as `f64` rounds it.
-    #[must_use]
-    pub const fn times(self, other: Self) -> Self {
-        Self(self.0 * other.0)
-    }
-
-    /// The negation, exact.
-    #[must_use]
-    pub const fn neg(self) -> Self {
-        Self(-self.0)
     }
 }
 
@@ -200,11 +212,7 @@ mod tests {
         let i = Interval::lit(lit!(0.1));
         assert_eq!((crate::Bounds::lo(i), crate::Bounds::hi(i)), (0.1, 0.1));
         assert_eq!(f64::lit(SHARES[1]), 0.75);
-        assert_eq!(
-            lit!(3.0).times(lit!(f64::EPSILON)).get(),
-            3.0 * f64::EPSILON
-        );
-        assert_eq!(lit!(1.0).neg().get(), -1.0);
+        assert_eq!(lit!(3.0 * f64::EPSILON).get(), 3.0 * f64::EPSILON);
     }
 
     #[test]

@@ -17,3 +17,7 @@ Each is a number the demo's author wrote or computed at `f64` from ones they wro
 Not this row: the frames and points `lily.rs`, `klein.rs` and `projectbox.rs` enter through `from_computed` (`f64-data-left-lifted-when-the-built-at-t-unit-closed`, `the-tour-enters-computed-frame-inputs-through-from-computed`).
 
 Cost: E.
+
+## From PR 7721's reviews
+
+Not every one of the 35 is authored, and `real` must not become the way an owed site clears its row by a rename. `klein::lever_arm`'s `f64::from(i) / f64::from(n - 1)` is a count ratio, and `((m.ro - m.g_out.0) / m.dir.0).abs()` and its like are expressions the demo computes: do not route either through `real`. A new use of `real` is a listed caller now (`scripts/gates/from-f64-allowlist.sh`, `<call real>`), so each move is read.

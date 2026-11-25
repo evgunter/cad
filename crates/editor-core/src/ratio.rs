@@ -182,7 +182,6 @@ impl Ratio {
     /// parse gives), an outward-rounded enclosure at an interval, a
     /// zero tangent at a dual and the exact rational at the symbolic
     /// tier. An integer skips the division.
-    #[allow(clippy::cast_precision_loss)]
     pub fn eval<T: Real>(self) -> T {
         // Exact: both operands are at most 2^53 in magnitude.
         let num = T::count(self.num);
