@@ -313,8 +313,9 @@ def report_rows(
     print(
         f"check-fast-set-times [{label}]: {timed} passing tests timed; {len(rows)} read at or "
         f"over their bar times {alone.FASTEST} in the parallel pass ({BAR} s added or edited, "
-        f"{CEILING} s any) and were re-run alone (up to {alone.RUNS} passes) in {spent:.1f} s, "
-        f"on a runner at {factor:.3f}x the median one; {len(over)} cost their bar or more"
+        f"{CEILING} s any) and were re-run alone (up to {alone.RUNS} passes) in {spent:.1f} s"
+        + (f", on a runner at {factor:.3f}x the median one" if rows else "")
+        + f"; {len(over)} cost their bar or more"
     )
     for v in under:
         (binary, name, secs, touched), readings, cost = v

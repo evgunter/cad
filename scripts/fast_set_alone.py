@@ -61,7 +61,8 @@ BAR = 0.25
 Pair = tuple[str, str]
 
 # The speed reference, and its fastest reading alone on the median hosted
-# runner class (calibrated on PR 7739's drift dispatches; see the row above).
+# runner class, calibrated on PR 7739's drift dispatches
+# (work/green/a-test-timed-alone-still-reads-the-runners-speed-class.md).
 REFERENCE_PACKAGE = "speed-reference"
 REFERENCE: Pair = (f"{REFERENCE_PACKAGE}::all", "the_runners_speed_reference")
 REFERENCE_NOMINAL = 0.20
