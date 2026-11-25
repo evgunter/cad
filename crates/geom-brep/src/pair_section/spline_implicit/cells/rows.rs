@@ -719,8 +719,11 @@ fn two_arcs_a_rung_and_a_tenth_apart_are_carried_each_point_on_its_own() {
                 for i in 0..=40 {
                     let u = f64::from(i) / 40.0;
                     let q: Point3<f64> = pt(u, y + slope * u, 0.0);
+                    // Which arc the point lies on is the witness read's
+                    // (`CarriedComponent::witness`); its place along a
+                    // carrier of straight spans is not this row's.
                     let on = |c: &CarriedComponent<f64>| {
-                        c.reads(q, band()).expect("the point reads").is_some()
+                        c.witness(q, band()).expect("the point reads").is_some()
                     };
                     assert!(on(&comps[k]), "{what}: {q:?} reads on its own arc");
                     assert!(
