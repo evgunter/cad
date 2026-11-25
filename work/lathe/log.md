@@ -122,3 +122,4 @@ Signed: (CARVE orchestrator)
   - `RadiusEscalated` escalates;
   - the lens oracle's rule is cut at the tube's ends, and its error is called an estimate.
   PR 7581 now carries the `curved_outline_ring` composition.
+- 2026-11-25 — **Merged PR 7581 (the ring reader decides a sphere face's rings, so the merge takes the outline by decision) into the one-band stack** at 5ab7e764d1. Re-review APPROVE. It carries the `curved_outline_ring` composition with 7575 (`read` kept, the rule as `face_lift_as(read, ..).is_ok()`): 146 rows pass across both units' suites, 7575's donut rows included, and no minted face reaches `surviving_cut`. Filed P2: the Interval ring door reads its shifts off point values, so it places no ring (the `sheet_v` class). With this, every stacked consumer unit except import (7774) and the flipped sphere face (7736) is in the stack.
