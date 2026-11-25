@@ -63,10 +63,11 @@ The shared quartic ladder (`solid_contain.rs` `depressed_quartic_roots`)
 reads its count off `Δ`'s sign, and `Δ`'s `f64` rounding (3e-7 to 6e-6 in
 `Δ/L¹¹`, against a 1e-8 band) is charged to no decision. Counted exactly,
 the four quartics the half-angle lane hands it
-(`torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`)
+(`torus_predicate_rows::a_lanes_coefficients_certify_no_count_on_rounding`)
 have 2, 4, 4 and 4 real roots. The factorization builds those counts; the
 sign ladder certified 4, 2, 2, 2. A ray at `R = 1e6`, `r = 1e4` reaches it
-too (`a_far_ray_reaches_the_count_disagreement`). The same defect also
+too (`a_far_rays_count_on_rounding_reads_uncertain`). Rung 1 now
+holds `Δ` to its rounding, and each of these reads uncertain instead. The same defect also
 gives silent wrong `Miss` answers that no rung sees. INSIDE's P1
 `ray-torus-count-certifies-on-an-uncharged-discriminant` owns the fix.
 
