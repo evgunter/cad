@@ -108,7 +108,7 @@ pub const END_ROOT_SPREAD: &str = "curve_face_end_root_spread";
 /// Whether a circle's span is at most the quarter turn its window
 /// starts from; anything short of proven reads as longer.
 pub const END_ROOT_RUN: &str = "curve_face_end_root_run";
-/// The window's tail: the terms past the order at most half its term.
+/// The window's tail: the terms past the pivot at most half its term.
 pub const END_ROOT_TAIL: &str = "curve_face_end_root_tail";
 /// The window's far end, off the surface.
 pub const END_ROOT_WINDOW_CLEAR: &str = "curve_face_end_root_window_clear";
