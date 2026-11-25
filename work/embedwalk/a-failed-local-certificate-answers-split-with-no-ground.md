@@ -2,11 +2,12 @@
 id: a-failed-local-certificate-answers-split-with-no-ground
 kind: issue
 title: A local certificate that fails answers Split with no ground, so the engine learns that no cell of any size will certify only by reaching the depth floor or the budget: where a refusing ask's seconds go
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: H
 refs: [a-refusing-ask-runs-on-to-its-whole-budget-looking-for-a-verified-crossing]
+branch: embedwalk/split-ground-measure
 ---
 
 
