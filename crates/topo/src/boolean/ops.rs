@@ -1260,7 +1260,7 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         connected.completed.iter().map(|p| p.a_face).collect(),
         connected.completed.iter().map(|p| p.b_face).collect(),
     ];
-    let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
+    let ledger = ledger(&red, decls, ([&scaffold[0], &scaffold[1]], [a, b]))?;
     let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
@@ -4087,7 +4087,7 @@ const PIECE_OFF_CARRIER: &str = "a piece of an edge reads off the curved face's 
 pub(super) fn ledger<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     decls: &Glue<T>,
-    scaffold: [&BTreeSet<FaceKey>; 2],
+    (scaffold, cut): ([&BTreeSet<FaceKey>; 2], [&Body<T>; 2]),
 ) -> Result<Ledger, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut carried = [
@@ -4137,8 +4137,8 @@ pub(super) fn ledger<T: crate::props::AtRestPolicy>(
         recorded: red.coincidences.clone(),
         glued: red.glued.clone(),
         incidence: [
-            Incidence::of(&red.a, scaffold[0]),
-            Incidence::of(&red.b, scaffold[1]),
+            Incidence::of(&red.a, scaffold[0], cut[0]),
+            Incidence::of(&red.b, scaffold[1], cut[1]),
         ],
         copies: red.copies.clone(),
     })
@@ -4248,7 +4248,8 @@ pub(super) struct Ledger {
 pub(super) struct Incidence {
     vertex: BTreeMap<VertexKey, Vec<FaceKey>>,
     edge: BTreeMap<EdgeKey, Vec<FaceKey>>,
-    /// The cells beside a null face: the section the join cut along.
+    /// The cells the cut minted beside a null face: the section the join
+    /// cut along.
     section: BTreeSet<Cell>,
     /// The join's null faces: a division's fragment that became one
     /// holds none of the divided face's region.
@@ -4281,7 +4282,10 @@ impl Incidence {
             .map(|(c, _)| c)
     }
 
-    fn of<T: Real>(clone: &Body<T>, scaffold: &BTreeSet<FaceKey>) -> Self {
+    /// The incidence of `clone`, the operand `cut` as the cut left it.
+    /// A cell `cut` holds is the operand's own, never section, even
+    /// where a null face lies beside it.
+    fn of<T: Real>(clone: &Body<T>, scaffold: &BTreeSet<FaceKey>, cut: &Body<T>) -> Self {
         let real = |fs: Vec<FaceKey>| -> Vec<FaceKey> {
             fs.into_iter().filter(|f| !scaffold.contains(f)).collect()
         };
@@ -4290,7 +4294,7 @@ impl Incidence {
             .edges()
             .filter_map(|(e, _)| {
                 let (f0, f1) = crate::readback::edge_sides(clone, e).ok()?.faces();
-                if scaffold.contains(&f0) || scaffold.contains(&f1) {
+                if (scaffold.contains(&f0) || scaffold.contains(&f1)) && cut.get_edge(e).is_none() {
                     section.insert(Cell::Edge(e));
                 }
                 Some((e, real(vec![f0, f1])))
@@ -4299,7 +4303,7 @@ impl Incidence {
         let vertex = faces_by_vertex(clone)
             .into_iter()
             .map(|(v, fs)| {
-                if fs.iter().any(|f| scaffold.contains(f)) {
+                if fs.iter().any(|f| scaffold.contains(f)) && cut.get_vertex(v).is_none() {
                     section.insert(Cell::Vertex(v));
                 }
                 (v, real(fs))
@@ -5455,8 +5459,8 @@ pub(super) fn carry_in_place<T: Decide + AtRestPolicy>(
         })
         .collect();
     let incidence = [
-        Incidence::of(body, &BTreeSet::new()),
-        Incidence::of(body, &BTreeSet::new()),
+        Incidence::of(body, &BTreeSet::new(), body),
+        Incidence::of(body, &BTreeSet::new(), body),
     ];
     let none_discarded = BTreeSet::new();
     carry_rows(
@@ -7866,7 +7870,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (&desc, &graft),
             )?;
             let none = BTreeSet::new();
-            let ledger = ledger(red, decls, [&none, &none])?;
+            let ledger = ledger(red, decls, ([&none, &none], [&red.a, &red.b]))?;
             let views = [&KeyView::Direct, &KeyView::Graft(&graft)];
             let discarded = [
                 faces_outside(&red.a, &a_keep),
@@ -8220,7 +8224,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let none = BTreeSet::new();
-    let ledger = ledger(red, decls, [&none, &none])?;
+    let ledger = ledger(red, decls, ([&none, &none], [&red.a, &red.b]))?;
     let discarded = match kind {
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
@@ -11111,7 +11115,7 @@ mod join_row_rows {
             mints,
             recorded: Vec::new(),
             glued: Vec::new(),
-            incidence: [Incidence::of(a, &BTreeSet::new()), Incidence::default()],
+            incidence: [Incidence::of(a, &BTreeSet::new(), a), Incidence::default()],
             copies: Operand::BOTH.map(|o| Minted::new(LineageRows::NullEdgeCopies(o))),
         }
     }
@@ -11228,7 +11232,7 @@ mod join_row_rows {
             connected.completed.iter().map(|p| p.a_face).collect(),
             connected.completed.iter().map(|p| p.b_face).collect(),
         ];
-        let ledger = super::ledger(&red, &decls, [&scaffold[0], &scaffold[1]]).unwrap();
+        let ledger = super::ledger(&red, &decls, ([&scaffold[0], &scaffold[1]], [&a, &b])).unwrap();
         let views = [&KeyView::Direct, &KeyView::Absent];
         let (mut chords, mut read) = (0, 0);
         for (e, _) in red.a.edges() {

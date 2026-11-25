@@ -1220,4 +1220,66 @@ mod tests {
             "the vertex record stays filed as before"
         );
     }
+
+    /// **Structure consumes a glued record only where a cell the op
+    /// minted in one record cell is an image of the other.** A
+    /// bookkeeping vertex–face record (the prism's top corner against
+    /// its bottom, no touch) through glued hand lineages that keep the
+    /// corner and divide the bottom into itself and one minted cell. The
+    /// minted cell the corner's strut, incident to the corner: no
+    /// structure holds the touch, and the record refuses `Stale`. Red
+    /// where any incident pair consumes. The minted cell the corner
+    /// itself: the record's vertex now lies in the division as one of
+    /// its cells, and the record is consumed. Red where structure never
+    /// consumes.
+    #[test]
+    fn structure_consumes_only_on_a_minted_image_of_the_other_cell() {
+        use crate::props::AtRestPolicy;
+        let p = prism();
+        let corner = Cell::Vertex(p.top[0]);
+        let strut = p
+            .body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                p.body.edge_vertices(e).is_some_and(|(a, b)| {
+                    [a, b] == [p.bottom[0], p.top[0]] || [a, b] == [p.top[0], p.bottom[0]]
+                })
+            })
+            .expect("the corner's strut");
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let carry = |minted: Cell| {
+            let lineage = crate::Lineage::new()
+                .glued()
+                .with(
+                    Cell::Face(p.bottom_face),
+                    crate::Fate::Divided(crate::Division {
+                        pieces: vec![Cell::Face(p.bottom_face)],
+                        minted: vec![minted],
+                        removed: vec![],
+                    }),
+                )
+                .unwrap();
+            super::landings(
+                &[[corner, Cell::Face(p.bottom_face)]],
+                &lineage,
+                (&[&p.body], None),
+                &mut super::Confirms::new(1),
+                band,
+                <f64 as AtRestPolicy>::region_lane(),
+                None,
+            )
+            .map(|landed| landed.len())
+        };
+        assert_eq!(
+            carry(Cell::Edge(strut)),
+            Err(super::CarryRefusal::Stale { record: 0 }),
+            "a minted cell incident to the corner holds nothing"
+        );
+        assert_eq!(
+            carry(corner),
+            Ok(0),
+            "the corner, minted in the bottom's division, is structure"
+        );
+    }
 }
