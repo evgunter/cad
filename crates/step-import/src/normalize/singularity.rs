@@ -911,7 +911,7 @@ fn interior(
 /// with the surface) offers its point at the `u_ref` azimuth where its
 /// span holds one, and its ends otherwise. Offered points within the
 /// band of the nearest one tie, and the tie goes to the least turn from
-/// the surface's `u_ref`, either way round, the positive turn first.
+/// the surface's `u_ref`, either way round, the negative turn first.
 fn wrap_azimuth(
     solid: &SolidSpec,
     fi: usize,
@@ -927,8 +927,8 @@ fn wrap_azimuth(
     };
     let radial = |p: Point3<f64>| geom::Line { origin, dir: axis }.offset(p);
     // How far round the axis `p` lies from `u_ref`: the turn's size,
-    // then its sign, so a point a rounding either side of `u_ref` reads
-    // as at it.
+    // then the turn itself, so the least turn wins and an exact tie
+    // goes to the negative one.
     let turn = |p: Point3<f64>| {
         let a = frame.azimuth(p).near(0.0);
         (a.abs(), a)
