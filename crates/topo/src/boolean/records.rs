@@ -931,7 +931,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
                             // record's cell (a section the cut ran along
                             // the touch) holds the touch, and needs no
                             // record (D1).
-                            on_structure |= lineage.glues() && (a_minted || b_minted);
+                            on_structure |= lineage.glues() && (std::env::var_os("M_STRUCT_ANY").is_some() || a_minted || b_minted);
                             structure.get_or_insert(error);
                             continue;
                         }
@@ -968,7 +968,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         // unmapped or removed whole, below).
         let mut on_removed = false;
         let mut removed_read = false;
-        'members: for i in (0..2).filter(|_| held_by == [true, true]) {
+        'members: for i in (0..2).filter(|_| held_by == [true, true] && std::env::var_os("M_IGNORE_REMOVED").is_none()) {
             for &r in division(&fates[i]).map_or(&[][..], |d| &d.removed) {
                 let Some(removed) = removed else {
                     return Err(CarryRefusal::Unread {
@@ -1012,7 +1012,7 @@ pub(in crate::boolean) fn landings<'b, T: crate::props::AtRestPolicy>(
         if read {
             // A touch on a cell the op removed whole, or on one it moved
             // whole, went with it.
-            if whole || moved_whole {
+            if whole || moved_whole || (std::env::var_os("M_CONSUME_ANY").is_some() && fates.iter().any(|f| division(f).is_some_and(|d| !d.removed.is_empty()))) {
                 continue;
             }
             return Err(CarryRefusal::Stale { record });

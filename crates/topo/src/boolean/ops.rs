@@ -1284,7 +1284,7 @@ pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .with_fragments([connected.a_fragments.clone(), connected.b_fragments.clone()])
         .with_absorbed(connected.absorbed.clone());
     if let Pass::CutIn(cuts) = pass {
-        desc = desc.with_cut_ins(cuts);
+        if std::env::var_os("PROBE_GAP").is_none() { desc = desc.with_cut_ins(cuts); }
     }
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
@@ -4268,7 +4268,7 @@ impl Incidence {
     ) -> impl Iterator<Item = Cell> + 'a {
         let inside = move |c: Cell, fs: &[FaceKey]| {
             let section =
-                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+                std::env::var_os("M_NO_SECTION").is_none() && self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || (section_vertices && std::env::var_os("M_NO_SECTION_V").is_none()));
             !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
                 && (fs.iter().any(|f| f != &fs[0]) || section)

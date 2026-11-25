@@ -915,3 +915,82 @@ fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
     }
     assert!(substituted > 0, "one cut absorbs the corner's half");
 }
+
+// ---- review probes (R2) ----
+
+fn probe_carry(
+    one: &ContactRecords,
+    lineage: &topo::Lineage,
+    base: &BooleanBody<f64>,
+) -> Result<usize, topo::CarryRefusal> {
+    one.carried_through_removing(
+        0,
+        lineage,
+        &base.body,
+        &base.body,
+        band(),
+        Some(topo::RegionLane::certified()),
+    )
+    .map(|r| r.len())
+}
+
+/// Probe A: a gap on one cell, an unrelated removal on the OTHER cell.
+#[test]
+fn probe_a_gap_beside_a_removal_on_the_other_cell_refuses_stale() {
+    let (base, ee) = edge_kiss();
+    let [x, y] = base.contacts.rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+        .into_iter()
+        .collect();
+    let bottom = edge_at(&base.body, Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    let far = edge_at(&base.body, Point3::new(2.0, 2.0, 0.0), Point3::new(2.0, 2.0, 1.0));
+    let lineage = topo::Lineage::new()
+        .with(x, divided(vec![bottom], vec![]))
+        .and_then(|l| l.with(y, divided(vec![y], vec![far])))
+        .unwrap();
+    assert_eq!(probe_carry(&one, &lineage, &base), Err(topo::CarryRefusal::Stale { record: 0 }));
+}
+
+/// Probe B: the PR 7593 shape by hand on a vertex-face rest: the face's
+/// one piece is another face, its removed member an unrelated face.
+#[test]
+fn probe_b_rest_gap_with_unrelated_removed_face_refuses_stale() {
+    let base = corner_on_slab();
+    let one: ContactRecords = [base.contacts.rows()[0].clone()].into_iter().collect();
+    let [v, f] = base.contacts.rows()[0].cells();
+    let (v, f) = if matches!(v, Cell::Vertex(_)) { (v, f) } else { (f, v) };
+    let bottom = Cell::Face(face_on(&base.body, 2, 0.0));
+    let side = Cell::Face(face_on(&base.body, 0, 0.0));
+    let lineage = topo::Lineage::new()
+        .with(f, divided(vec![bottom], vec![side]))
+        .unwrap();
+    let _ = v;
+    assert_eq!(probe_carry(&one, &lineage, &base), Err(topo::CarryRefusal::Stale { record: 0 }));
+}
+
+/// Probe C: the removed member only touches the record's cell at a
+/// corner point (b's bottom edge from (1,1,0)), not along the kiss.
+#[test]
+fn probe_c_removed_member_meeting_the_cell_only_at_an_end_point() {
+    let (base, ee) = edge_kiss();
+    let [x, y] = base.contacts.rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+        .into_iter()
+        .collect();
+    let bottom = edge_at(&base.body, Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    // b's bottom edge leaving the kiss corner (1,1,0) toward (2,1,0).
+    let pt = |v: topo::VertexKey| *base.body.get_point(base.body.get_vertex(v).unwrap().point).unwrap();
+    let near = |p: Point3<f64>, q: Point3<f64>| (p - q).norm() < 1e-9;
+    let b_bottom = base.body.edges().find(|(e, _)| base.body.edge_vertices(*e).is_some_and(|(u, w)| {
+        let (u, w) = (pt(u), pt(w));
+        let (p, q) = (Point3::new(1.0, 1.0, 0.0), Point3::new(2.0, 1.0, 0.0));
+        (near(u, p) && near(w, q)) || (near(u, q) && near(w, p))
+    })).map(|(k, _)| Cell::Edge(k)).expect("b's bottom edge");
+    let far = edge_at(&base.body, Point3::new(2.0, 2.0, 0.0), Point3::new(2.0, 2.0, 1.0));
+    let lineage = topo::Lineage::new()
+        .with(y, divided(vec![far], vec![b_bottom]))
+        .and_then(|l| l.with(x, divided(vec![bottom], vec![])))
+        .unwrap();
+    eprintln!("probe C: {:?}", probe_carry(&one, &lineage, &base));
+    assert_eq!(probe_carry(&one, &lineage, &base), Err(topo::CarryRefusal::Stale { record: 0 }));
+}
