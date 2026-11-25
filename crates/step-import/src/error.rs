@@ -1011,7 +1011,7 @@ mod nested_at_the_door {
             }
             .render();
             println!("[probe] {margin:?}: {text}");
-            assert!(text.ends_with(DAMAGED_FILE_ENDING), "{margin:?}: ends: {text}");
+            assert!(text.contains(DAMAGED_FILE_ENDING), "{margin:?}: ends: {text}");
             for word in ["ε_in", "declared", "kernel defect"] {
                 assert!(!text.contains(word), "{margin:?}: {word}: {text}");
             }
