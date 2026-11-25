@@ -2078,3 +2078,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Ruling:** the face reading tiles a window to a fixed budget (8 levels); the window is off the face only if every piece is. A reported deviation, with §2.3 updated in the PR.
   - Conditions: an oracle soundness row; the budget argued; the piece decision named and levered.
   - Also agreed: a method sign in band under cover is the zero posture (8 sweep rows back to main's `Zero`); the line × wall drift reads `Apart` past `half_drift`.
+- 2026-11-25 17:40 — **U4b, four sweep rows re-judged, all agreed.**
+  - A pi_seam escalation is now located.
+  - The snowman pole and the two-arc-hole rim: an end-touch now goes to the vertex rows (§2.3), and the refusal moves to a later typed door.
+  - The dodge plate: a main refusal now builds, verified by tiers 3/3′, inclusion–exclusion and a grid-volume oracle. It is a separate claim for the reviewers.
