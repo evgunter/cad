@@ -2246,6 +2246,60 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     Ok(Some((end, window)))
 }
 
+/// **Whether an edge of the target face leaving the end holds the
+/// target's own side of the rim within the spread**: one of its ends
+/// decided at the end (`junction_end_boundary_at_end`); out to arc
+/// `NEAR_PIECE·σ`, by its carrier's top speed and bend, the side margin
+/// read with its departure toward the target (`junction_end_side`, under
+/// its premises); past that, its carrier's distance floor clearing `σ`
+/// (`junction_end_boundary_clear`).
+fn leaves_on_its_side<T: Decide>(
+    q: &JunctionEnd<'_, T>,
+    conormal: Vec3<T>,
+    (carrier, (t0, t1)): (&geom::Curve3<T>, (T, T)),
+    spread: T,
+    band: Band,
+) -> bool {
+    let (rim, p) = (q.rim, q.p);
+
+    let at_end = |t: T| {
+        geom_core::k_stats::decide(
+            "junction_end_boundary_at_end",
+            Margin::of((carrier.eval(t) - p).norm()),
+            band,
+        ) == Ok(Sign::Zero)
+    };
+    let (t_end, t_far, forward) = if at_end(t0) {
+        (t0, t1, true)
+    } else if at_end(t1) {
+        (t1, t0, false)
+    } else {
+        return false;
+    };
+    let Some(speed) = geom::carrier_speed::speed_hi(carrier) else {
+        return false;
+    };
+    let bend = geom::carrier_speed::curvature_hi(carrier);
+    let toward = if forward { T::one() } else { -T::one() };
+    let near = spread * T::from_f64(NEAR_PIECE);
+    let reach = geom_brep::one_sheet_radius(q.surface, p, near);
+    let (_, d) = carrier.ders1(t_end);
+    let into = -(d * toward).normalize().dot(conormal);
+    let held = junction_side_premises(near, rim.radius, reach)
+        && junction_side(into, bend, rim.radius, near, band) == Ok(Sign::Positive);
+    let split = t_end + toward * near / speed;
+    let rest_left = geom_core::k_stats::prove(
+        "junction_end_boundary_split",
+        Margin::sign_of((t_far - split) * toward),
+    ) == Ok(Sign::Positive);
+    let rest = if forward {
+        (split, t_far)
+    } else {
+        (t_far, split)
+    };
+    held && (!rest_left || super::carrier_touch::arc_clear_of_ball(carrier, rest, p, spread, band))
+}
+
 /// How far along an edge leaving the end, in spreads, its own side is
 /// read before its carrier's distance floor takes over: far enough that
 /// the floor of the rest clears the spread on a gently bent edge, near
@@ -2298,45 +2352,6 @@ fn junction_end_boundary_clear<T: Decide>(
             band,
         ) == Ok(Sign::Positive)
     };
-    let leaves_on_its_side = |carrier: &geom::Curve3<T>, (t0, t1): (T, T)| -> bool {
-        let at_end = |t: T| {
-            geom_core::k_stats::decide(
-                "junction_end_boundary_at_end",
-                Margin::of((carrier.eval(t) - p).norm()),
-                band,
-            ) == Ok(Sign::Zero)
-        };
-        let (t_end, t_far, forward) = if at_end(t0) {
-            (t0, t1, true)
-        } else if at_end(t1) {
-            (t1, t0, false)
-        } else {
-            return false;
-        };
-        let Some(speed) = geom::carrier_speed::speed_hi(carrier) else {
-            return false;
-        };
-        let bend = geom::carrier_speed::curvature_hi(carrier);
-        let toward = if forward { T::one() } else { -T::one() };
-        let near = spread * T::from_f64(NEAR_PIECE);
-        let reach = geom_brep::one_sheet_radius(q.surface, p, near);
-        let (_, d) = carrier.ders1(t_end);
-        let into = -(d * toward).normalize().dot(conormal);
-        let held = junction_side_premises(near, rim.radius, reach)
-            && junction_side(into, bend, rim.radius, near, band) == Ok(Sign::Positive);
-        let split = t_end + toward * near / speed;
-        let rest_left = geom_core::k_stats::prove(
-            "junction_end_boundary_split",
-            Margin::sign_of((t_far - split) * toward),
-        ) == Ok(Sign::Positive);
-        let rest = if forward {
-            (split, t_far)
-        } else {
-            (t_far, split)
-        };
-        held && (!rest_left
-            || super::carrier_touch::arc_clear_of_ball(carrier, rest, p, spread, band))
-    };
     let rim_circle = (rim.center, rim.axis.get(), rim.radius);
     // Every boundary member clear, an identity: any member not clear
     // answers `false`, whatever an earlier member read ([`climb`],
@@ -2352,7 +2367,7 @@ fn junction_end_boundary_clear<T: Decide>(
             crate::live::BoundaryMember::Edge { edge, .. } => certified(edge).map(|curve| {
                 let (carrier, span) = (curve.carrier(), curve.params());
                 geom_brep::curve_face::end_root::is_the_circle(carrier, rim_circle, band)
-                    || leaves_on_its_side(carrier, span)
+                    || leaves_on_its_side(q, conormal, (carrier, span), spread, band)
                     || super::carrier_touch::arc_clear_of_ball(carrier, span, p, spread, band)
             }),
         };
@@ -10654,6 +10669,69 @@ mod junction_end_rows {
             junction_side(0.2678, 0.0, 0.2, 0.1, b),
             Ok(Sign::Negative),
             "the rim's offset outruns the departure"
+        );
+    }
+
+    /// **An edge of the target leaving the end is read in two pieces.**
+    /// At the elbow's ruling end `(1, 0, 2)`, its face the pipe, the bend
+    /// lies above the cap. The bend's sweep arc leaving the end upward
+    /// holds the bend's side; a line leaving it downward, into the pipe's
+    /// side, does not; a circle of radius 0.2 leaving it upward, which
+    /// holds the bend's side out to `1.25σ` but comes round to within
+    /// 0.002 of the end, is not clear past that piece. `σ = 0.02`.
+    #[test]
+    fn an_edge_leaving_the_end_holds_the_targets_side_or_is_near() {
+        let ruling = geom::Curve3::Line(geom::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: geom_core::UnitVec3::exact_z(),
+        });
+        let bend = geom::Surface::Torus {
+            frame: geom::Frame::new(
+                Point3::new(3.0, 0.0, 2.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let q = JunctionEnd {
+            carrier: &ruling,
+            span: (0.0, 2.0),
+            end: SpanEnd::End,
+            p: Point3::new(1.0, 0.0, 2.0),
+            surface: &bend,
+            rim: rim(Point3::new(0.0, 0.0, 2.0), 1.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            rides: Sign::Negative,
+        };
+        let conormal = junction_conormal(&q).expect("a ride");
+        let read = |carrier: &geom::Curve3<f64>, span| {
+            leaves_on_its_side(&q, conormal, (carrier, span), 0.02, band())
+        };
+        let sweep = geom::Curve3::circle(
+            Point3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            2.0,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        assert!(
+            read(&sweep, (0.0, core::f64::consts::FRAC_PI_2)),
+            "the sweep arc holds the bend's side"
+        );
+        let down = geom::Curve3::Line(geom::Line {
+            origin: Point3::new(1.0, 0.0, 2.0),
+            dir: geom_core::UnitVec3::exact_z(),
+        });
+        assert!(!read(&down, (-1.0, 0.0)), "a line into the pipe's side");
+        let round = geom::Curve3::circle(
+            Point3::new(1.2, 0.0, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.2,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        assert!(
+            !read(&round, (0.0, core::f64::consts::TAU - 0.01)),
+            "a circle coming round to the end"
         );
     }
 
