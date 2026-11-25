@@ -4564,7 +4564,11 @@ fn rounded_plate_drawn_turned<T: Scalar>() -> Option<topo::AtRestBody<T>> {
 fn a_support_face_c1_through_a_vertex_is_embedded_at_its_tangent_joints() {
     door_reads::<f64>("the inset corner", inset_filleted(), "Embedded");
     door_reads::<f64>("the rounded plate", rounded_plate(), "Embedded");
-    door_reads::<f64>("the plate drawn turned", rounded_plate_drawn_turned(), "Embedded");
+    door_reads::<f64>(
+        "the plate drawn turned",
+        rounded_plate_drawn_turned(),
+        "Embedded",
+    );
 }
 
 /// The edges of `f`'s loops.

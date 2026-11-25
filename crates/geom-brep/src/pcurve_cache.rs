@@ -5012,25 +5012,23 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         band,
     );
     let stopped = stopped.map_err(ssi_refusal)?;
-    let hull = hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)?;
     // The hull bound holds on the chart's knot rectangle only.
-    match rectangle {
-        Some(chart) => {
-            let reach = crate::ssi::certify::chart_domain_limb(
-                image,
-                (lo, hi),
-                chart,
-                &CHART_HULL,
-                band,
-                &mut Refused::default(),
-            )
-            .map_err(ssi_refusal)?;
-            Ok(hull + reach)
-        }
-        None => Ok(hull),
-    }
+    let mut at = Refused::default();
+    let reach = match rectangle {
+        Some(chart) => crate::ssi::certify::chart_domain_limb(
+            pimage,
+            (lo, hi),
+            (schart.0, schart.1),
+            chart,
+            &CHART_HULL,
+            band,
+            &mut at,
+        )
+        .map_err(ssi_refusal)?,
+        None => 0.0,
+    };
+    hull_limb(&CHART_HULL, stopped, reach, band, &mut at).map_err(ssi_refusal)
 }
-
 
 /// The hull limb's refusal, reduced to the parts this module's closed
 /// enum carries: the limb, the reason, the offending margin, and the
