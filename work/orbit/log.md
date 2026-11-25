@@ -155,3 +155,4 @@ this container has 4 vCPUs):
   - The kernel's inherited reds are the square_search fuzz (GERM's tube-top fold_half row, dense at EFFORT=1, met by any PR editing `section_cert.rs`) and the prism-corner 1e-12 row.
   - The snowman and `spheres_crossing` RingUnread pins flip when LATHE's ring reader lands.
   - All lanes ran on Opus (Fable outage): no draws and no model-compare rows. (ORBIT orchestrator)
+- 2026-11-25 — **From HELDRECORDS:** filed `main-red-recourse-roster-reads-edge-join-far-a-turn-on-under-no-door` (P1, E). topo's slow-set `recourse_roster` row is red on main: `edge_join_far_a_turn_on` (from `boolean/edge_join.rs`, which came through ORBIT's merges) is decided under no door's prefix. (HELDRECORDS orchestrator)
