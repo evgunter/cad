@@ -74,7 +74,8 @@
 //! straddling the boundary, within `K · ε` of it, or one whose station
 //! the point door does not place, is kept: the set the sweep covers
 //! still contains the face. A NURBS face's window is exact rather than
-//! a superset: it is admitted only where the face is the whole patch
+//! a superset, and an approximated face's is its fit's, the fit being
+//! its geometry: it is admitted only where the face is the whole patch
 //! (`iso_bounded_domain`), so its cells read `Inside` and its stations
 //! are admitted with neither door asked (`Region::Whole`).
 //!
@@ -3682,7 +3683,8 @@ fn full_latitude() -> (f64, f64) {
 ///   ([`iso_bounded_domain`]). A trimmed face, one with a boundary edge
 ///   that is not an iso, and one whose isos do not cover the domain's
 ///   boundary refuse [`EngineRefusal::Unsupported`] naming which.
-/// - **A fitted approximation** refuses, named.
+/// - **An approximated face** is its fit, a NURBS face, and takes the
+///   NURBS window.
 ///
 /// The carrier is read in its STORED chart, for every carrier kind, and
 /// lifted to the interval scalar ([`Interval::from_certified`]): a
@@ -3706,7 +3708,20 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = f.surface();
+    // An approximated face's geometry IS its fit (OFFSET-DESIGN O2): its
+    // edges are sections of the fit and its chart images are on the
+    // fit's chart, so the boundary the question asks embedded is the
+    // fit's. The certified distance bounds the fit from the surface it
+    // stands in for, the face's claim, which tier 3 re-derives (O5); it
+    // states nothing about where the boundary is.
+    let fitted;
+    let stored = match f.surface() {
+        Surface::Approx(approx) => {
+            fitted = Surface::Nurbs(std::sync::Arc::new(approx.fit().clone()));
+            &fitted
+        }
+        stored => stored,
+    };
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3723,12 +3738,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    match stored {
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
-        Surface::Nurbs(net) if net.is_placeholder() => {
-            return unsupported("the placeholder free-form face");
-        }
-        _ => {}
+    if let Surface::Nurbs(net) = stored
+        && net.is_placeholder()
+    {
+        return unsupported("the placeholder free-form face");
     }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
         return unsupported("a face whose carrier does not certify");
@@ -3772,7 +3785,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
         },
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
+        Surface::Approx(_) => unreachable!("an approximated face is read as its fit"),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
@@ -3891,9 +3904,6 @@ mod lift {
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.
 type ParamRect = ((f64, f64), (f64, f64));
-
-/// The refusal of a fitted approximation's face.
-const APPROXIMATED: &str = "an approximated face";
 
 /// **The window of a NURBS face bounded by its chart's own isos**: the
 /// whole knot domain `[u0, u1] × [v0, v1]`, admitted only where the

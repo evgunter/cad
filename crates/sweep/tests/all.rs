@@ -226,6 +226,8 @@ mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 mod an_annular_tube_through_a_plate;
 #[path = "an_apex_lying_in_a_partners_face.rs"]
 mod an_apex_lying_in_a_partners_face;
+#[path = "an_approximated_face_is_embedded_as_its_fit.rs"]
+mod an_approximated_face_is_embedded_as_its_fit;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read.rs"]

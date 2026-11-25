@@ -57,3 +57,13 @@ Two units, not one:
 - **The approximated face:** a window on its fit's knot domain, the
   NURBS face's iso-bounded window (`iso_bounded_domain`), and a reading
   of the face through its fit and its distance certificate.
+
+## The approximated half, measured (lane `embedwalk-approx`, 2026-11-25)
+
+An approximated face is read as its fit, a NURBS face, and takes the
+NURBS window (`window_of`). On `embed/gate-measure` (`6eb881a63`), the
+seven `sweep::all` reproducers refusing "an approximated face": six
+pass with the window; the seventh,
+`encl_curved_loft_shell::a_moved_plane_meets_a_fitted_cap_along_their_certified_section`,
+now refuses at the NURBS window's trimmed-face test, filed as
+`a-trimmed-free-form-face-has-no-window-in-the-injectivity-engine`.
