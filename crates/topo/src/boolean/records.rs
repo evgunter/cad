@@ -235,7 +235,7 @@ impl Contact {
     /// Where the carry takes this record's kind among the others:
     /// vertex pairs, then vertex–face, vertex–edge, edge pairs,
     /// edge–face and face pairs ([`file_by_kind`]).
-    pub(crate) fn carry_order(self) -> u8 {
+    pub(in crate::boolean) fn carry_order(self) -> u8 {
         match self.kind() {
             ContactKind::VertexVertex(..) => 0,
             ContactKind::VertexFace(..) => 1,
@@ -249,7 +249,11 @@ impl Contact {
 
 /// Files `row` into `list`, kept in [`Contact::carry_order`], after the
 /// rows of its kind.
-pub(crate) fn file_by_kind<R>(list: &mut Vec<R>, row: R, contact: impl Fn(&R) -> Contact) {
+pub(in crate::boolean) fn file_by_kind<R>(
+    list: &mut Vec<R>,
+    row: R,
+    contact: impl Fn(&R) -> Contact,
+) {
     let order = contact(&row).carry_order();
     let at = list.partition_point(|r| contact(r).carry_order() <= order);
     list.insert(at, row);

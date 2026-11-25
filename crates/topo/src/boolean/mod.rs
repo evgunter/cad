@@ -1136,7 +1136,7 @@ impl ReductionContacts {
     }
 
     /// Adds `row`. Each writer keeps its own kind deduplicated.
-    pub(crate) fn push(&mut self, row: Cited<[(Operand, Cell); 2]>) {
+    pub(in crate::boolean) fn push(&mut self, row: Cited<[(Operand, Cell); 2]>) {
         let _ = row_kind(row.record);
         self.rows.push(row);
     }
@@ -1189,12 +1189,12 @@ impl ReductionContacts {
     }
 
     /// The citations of the row at `index` in discovery order.
-    pub(crate) fn cites_at(&self, index: usize) -> &Cites {
+    pub(in crate::boolean) fn cites_at(&self, index: usize) -> &Cites {
         &self.rows[index].cites
     }
 
     /// The citations of the row at `index` in discovery order, to add to.
-    pub(crate) fn cites_at_mut(&mut self, index: usize) -> &mut Cites {
+    pub(in crate::boolean) fn cites_at_mut(&mut self, index: usize) -> &mut Cites {
         &mut self.rows[index].cites
     }
 
@@ -1206,7 +1206,11 @@ impl ReductionContacts {
 
     /// Every cell of `operand` re-keyed through `key`, which keeps each
     /// cell's kind.
-    pub(crate) fn rekey(&mut self, operand: Operand, mut key: impl FnMut(Cell) -> Cell) {
+    pub(in crate::boolean) fn rekey(
+        &mut self,
+        operand: Operand,
+        mut key: impl FnMut(Cell) -> Cell,
+    ) {
         for row in &mut self.rows {
             for (o, cell) in &mut row.record {
                 if *o == operand {
@@ -1280,7 +1284,7 @@ impl OperandRecords {
     }
 
     /// Files `row` after the records of its kind.
-    pub(crate) fn push(&mut self, row: CarriedRecord) {
+    pub(in crate::boolean) fn push(&mut self, row: CarriedRecord) {
         records::file_by_kind(&mut self.rows, row, |r| r.contact);
     }
 }
