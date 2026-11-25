@@ -72,3 +72,4 @@ main at `fa4e9ba921`: the same failure (run).
 release-profile corrupt-input job the same way
 (`pcurves/site.rs`: "HalfEdgeKey(4v1) is a member of its own loop"), on
 a branch that does not touch the pcurve sites.
+A second seed on the next head: `CAD_FUZZ_SEED=0xccd85e4535544fc8`, the same panic.

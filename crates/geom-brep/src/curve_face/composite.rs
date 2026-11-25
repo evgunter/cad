@@ -77,18 +77,18 @@ impl CompositeRefusal {
     /// window ([`super::CrossWhy::Method`]).
     ///
     /// - [`Self::Escalated`] is a band reading where the carrier comes
-    ///   within the band of the surface: [`MeetFault::Touch`], a meeting
+    ///   within the band of the surface: [`MeetFault::Touch`](crate::curve_pair::MeetFault::Touch), a meeting
     ///   in band, ranked by its margin, which a finer tolerance can
     ///   settle. It is no placement's escalation about a root (which a
     ///   reader may read off its window's centre): the window is the whole
     ///   span;
     /// - [`Self::Unsettled`] is the walk's limit or a reading it has no
     ///   arm for (a tangency, a crease, the floor, the budget):
-    ///   [`MeetFault::Unsettled`], with no margin;
+    ///   [`MeetFault::Unsettled`](crate::curve_pair::MeetFault::Unsettled), with no margin;
     /// - [`Self::FaceDegenerate`] and [`Self::Unread`] are inputs the arm
     ///   cannot form a composite from (a frame or a meter that does not
     ///   read, a weight not shown positive, a carrier that does not cut to
-    ///   Bézier pieces): [`MeetFault::Unsupported`], a limit. Neither is a
+    ///   Bézier pieces): [`MeetFault::Unsupported`](crate::curve_pair::MeetFault::Unsupported), a limit. Neither is a
     ///   kernel fault: the table routes only analytic faces here, and a
     ///   poisoned or degenerate input is the input's, not the reading's.
     #[must_use]
