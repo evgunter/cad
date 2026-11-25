@@ -166,8 +166,13 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         v.sort();
         v
     };
-    let surfaces =
-        |b: &topo::Body<f64>| sorted(b.surfaces().map(|(_, s)| format!("{s:?}")).collect());
+    let surfaces = |b: &topo::Body<f64>| {
+        sorted(
+            b.described_surfaces()
+                .map(|(_, s)| format!("{s:?}"))
+                .collect(),
+        )
+    };
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
@@ -854,8 +859,13 @@ fn the_dies_union_is_the_chain_it_replaced() {
         v.sort();
         v
     };
-    let surfaces =
-        |b: &topo::Body<f64>| sorted(b.surfaces().map(|(_, s)| format!("{s:?}")).collect());
+    let surfaces = |b: &topo::Body<f64>| {
+        sorted(
+            b.described_surfaces()
+                .map(|(_, s)| format!("{s:?}"))
+                .collect(),
+        )
+    };
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(

@@ -173,7 +173,7 @@ macro_rules! door_at {
                     },
                     start,
                     end,
-                    |k| table.get(k).cloned(),
+                    |k| table.get(k).cloned().ok_or(crate::SurfaceMiss::Stale),
                     geom_core::test_support::fixture_lever(<$t as Real>::one()),
                     band(),
                     NurbsLane::certified(),

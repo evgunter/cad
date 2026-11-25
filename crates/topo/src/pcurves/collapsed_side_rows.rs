@@ -28,7 +28,7 @@ fn triangle(pole: Point3<f64>, top: Point3<f64>) -> Surface<f64> {
 fn joint(surface: &Surface<f64>, pole: Point3<f64>) -> Result<JointElement, PinMiss> {
     let image = Pcurve::iso_line_for_tests([0.0, 0.0], [1.0, 0.0]).unwrap();
     decide_plain_joint(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         &image,
         0.0,
         Point2::new(0.0, 1.0),
@@ -106,7 +106,7 @@ fn joint_at(
 ) -> Result<JointElement, PinMiss> {
     let image = Pcurve::iso_line_for_tests([entry.0, entry.1], [0.0, 1.0]).unwrap();
     decide_plain_joint(
-        DescribedChart::of(surface).unwrap(),
+        DescribedChart::of(surface),
         &image,
         0.0,
         Point2::new(prev.0, prev.1),

@@ -145,7 +145,7 @@ reverted after each. Verbatim results:
 | --- | --- | --- |
 | `Frame::linear` (`editor-core/src/placement.rs`) | A | `warning: method 'linear' is never used` — **no errors at all**. Zero consumers outside its own test module. |
 | `Frame::affine` (control) | A | `error[E0624]` ×3 — `eval/wire.rs` ×2, `mate/solve.rs`. Live. |
-| `Curve3::map_scalar` (`geom/src/scalar_lift.rs`) | A, B | `warning: method 'map_scalar' is never used` **both times**; every `E0624` is in `geom`'s own `tests/` (`curves/n1r1_lift_probes.rs`, `curves/n1r2_lift_probes.rs`, `net_placeholder_width.rs`). **Zero non-test consumers anywhere.** |
+| `Curve3::map_scalar` (`geom/src/scalar_lift.rs`) | A, B | `warning: method 'map_scalar' is never used` **both times**; every `E0624` is in `geom`'s own `tests/` (`curves/n1r1_lift_probes.rs`, `curves/n1r2_lift_probes.rs`, `net_finiteness.rs`). **Zero non-test consumers anywhere.** |
 | `Surface::map_scalar` (same file) | A, B | identical shape — `warning: method 'map_scalar' is never used`, errors only in `geom`'s own `tests/`. **Zero non-test consumers anywhere.** |
 | `NurbsCurve2`/`NurbsCurve3::map_scalar` (`geom/src/curves/nurbs.rs`, one macro) | B | `warning: method 'map_scalar' is never used` + `E0624` only in `geom`'s `tests/`. Dead **because** the rung above it is: its one lib caller is `Curve3::map_scalar`. |
 | `NurbsSurface::map_scalar` (`geom/src/surfaces/nurbs.rs`) | B | `error[E0624]: crates/sweep/src/loft.rs:328`. **The one rung with a production consumer outside its crate.** |

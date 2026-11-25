@@ -187,7 +187,7 @@ fn standing<T: Decide>(
     band: Band,
 ) -> bool {
     let face = x.proven_face(a);
-    let geom::Surface::Plane { frame, .. } = *face.surface() else {
+    let Ok(&geom::Surface::Plane { frame, .. }) = face.surface() else {
         return false;
     };
     let origin = frame.origin();

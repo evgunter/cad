@@ -207,7 +207,12 @@ fn certify<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         spec,
         p0,
         p1,
-        |k| surfaces.get(k).cloned(),
+        |k| {
+            surfaces
+                .get(k)
+                .cloned()
+                .ok_or(geom_brep::SurfaceMiss::Stale)
+        },
         geom_core::test_support::fixture_lever(T::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),

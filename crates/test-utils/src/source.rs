@@ -2569,6 +2569,52 @@ fn under_module(rel: &str, module: &str) -> bool {
     path == module || path.starts_with(&format!("{module}/"))
 }
 
+/// **Where production code under `src` names one of `words`**: each
+/// whole-word occurrence in code — comments and literals blanked ([`code_only`]) —
+/// outside a file a test-only `mod` mounts and outside a `#[cfg(test)]`
+/// or `#[cfg(any(test, …))]` item ([`cfg_test_extents`]), as
+/// `<rel>:<line>`, `rel` relative to `src`. A guard that a name is
+/// reached only by tests reads this over every crate's `src/`.
+#[must_use]
+pub fn production_sites(src: &std::path::Path, words: &[&str]) -> Vec<String> {
+    let files: Vec<(String, String)> = rust_sources(src)
+        .into_iter()
+        .map(|path| {
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+            let rel = path
+                .strip_prefix(src)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            (rel, text)
+        })
+        .collect();
+    let spelled = |text: &str| words.iter().any(|word| text.contains(word));
+    // Blanking every file is the cost; a tree that spells none of the
+    // words anywhere has no site to read.
+    if !files.iter().any(|(_, text)| spelled(text)) {
+        return Vec::new();
+    }
+    let mounted = test_mounted(&files);
+    let mut out = Vec::new();
+    for (rel, text) in &files {
+        if !spelled(text) || mounted.iter().any(|dir| under_module(rel, dir)) {
+            continue;
+        }
+        let bare = code_only(text);
+        let extents = cfg_test_extents(&bare);
+        for word in words {
+            for (at, _) in bare.match_indices(word) {
+                if word_at(&bare, at, word) && !extents.iter().any(|e| e.contains(&at)) {
+                    out.push(format!("{rel}:{}", line(text, at)));
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Whether `dir` is a directory holding a `.rs` file at any depth —
 /// what a walk that refuses an empty tree ([`rust_sources`]) needs to
 /// know of a directory that may hold none (a crate's `tests/` of data).
@@ -3127,6 +3173,27 @@ mod tests {
                 "`{vis}mod rows;`"
             );
         }
+    }
+
+    /// A production site is read; a test-mounted file, a `cfg(test)`
+    /// item, a comment, a literal and a longer identifier are not.
+    #[test]
+    fn production_sites_reads_only_production_code() {
+        let dir = std::env::temp_dir().join(format!("production_sites_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::write(
+            dir.join("lib.rs"),
+            "mod a;\n#[cfg(test)]\nmod rows;\nfn f() { mint(); mint_more(); }\n\
+             // mint()\nfn g() { let _ = \"mint()\"; }\n\
+             #[cfg(any(test, feature = \"t\"))]\nfn h() { mint(); }\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("a.rs"), "fn k() {\n    mint();\n}\n").unwrap();
+        std::fs::write(dir.join("rows.rs"), "fn t() { mint(); }\n").unwrap();
+        let sites = super::production_sites(&dir, &["mint"]);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(sites, ["a.rs:2", "lib.rs:4"]);
     }
 
     /// The keyword, not the letters: an identifier that contains
