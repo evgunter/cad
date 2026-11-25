@@ -294,11 +294,13 @@ pub(crate) fn kept_exactly(curve: crate::StoredHarmonic<f64>, o: [f64; 3], n: [f
     .into_iter()
     .flatten()
     .min();
-    // Each square's factors; and `u_ref·n`, the product `A` and `B` are
-    // both built through before their semi-axis scales it, which is
-    // deeper than half of `A²` where `a`'s lowest bit is high.
+    // Each square's factors; and the prefixes `A` and `B` are built
+    // through before their semi-axis scales them, `u_ref·n` and (in
+    // `triple_product`) `axis·(u_ref·n)`, deeper than half of `A²` or `B²`
+    // where `a`'s or `b`'s lowest bit is high.
     let squares = [t_a, t_b, t_d].into_iter().flatten().map(|t| 2 * t);
-    let deepest = squares.chain(sum(&[lb_u, lb_n])).min();
+    let prefixes = [sum(&[lb_u, lb_n]), sum(&[lb_w, lb_u, lb_n])];
+    let deepest = squares.chain(prefixes.into_iter().flatten()).min();
     !deepest.is_some_and(|d| d < -1074)
 }
 
@@ -763,6 +765,23 @@ mod tests {
             !super::kept_exactly(curve, [0.0; 3], [fine, 0.0, 1.0]),
             "u_ref·n's lowest bit is 2⁻¹²⁰⁰"
         );
+    }
+
+    /// **`B`'s prefix `axis·(u_ref·n)` below the least subnormal is not
+    /// kept**: `triple_product` forms it before `b` scales it, and only
+    /// `B²` and `u_ref·n` were checked otherwise.
+    #[test]
+    fn a_triple_prefix_below_the_least_subnormal_is_not_kept() {
+        let t = 3.0 * 2f64.powi(-500);
+        let curve = crate::StoredHarmonic {
+            at: [0.0; 3],
+            axis: [3.0 * 2f64.powi(-100), 0.0, 1.0],
+            u_ref: [0.0, t, 0.0],
+            semi: (2f64.powi(700), 2f64.powi(700)),
+            phase: (0.0, 0.0),
+        };
+        // w·(u·n) = 27·2⁻¹¹⁰⁰ rounds to nothing; B's exact value is 27·2⁻⁴⁰⁰.
+        assert!(!super::kept_exactly(curve, [0.0; 3], [0.0, 0.0, t]));
     }
 
     /// **A quartic reading past the subnormals, or overflowing, is
