@@ -2,10 +2,12 @@
 id: placeholder-question-has-two-spellings-across-topo
 kind: issue
 title: The placeholder question is asked through two doors across topo: NetState::Placeholder and is_placeholder()
-status: open
+status: review
 opened: 2026-09-14
 priority: P1
 cost: M
+pr: 7495
+branch: walks/surface-slot
 ---
 
 

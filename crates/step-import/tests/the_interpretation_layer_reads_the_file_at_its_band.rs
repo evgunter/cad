@@ -70,7 +70,7 @@ fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
         panic!("a solid")
     };
     let (axis, u_ref) = body
-        .surfaces()
+        .described_surfaces()
         .find_map(|(_, s)| match s {
             geom::Surface::Cylinder { frame, .. } => Some((frame.axis(), frame.u_ref())),
             _ => None,
@@ -191,7 +191,7 @@ fn two_records_of_one_plane_become_one() {
     for (_, face) in body.faces() {
         if matches!(
             body.get_surface(face.surface),
-            Some(geom::Surface::Plane { .. })
+            Ok(geom::Surface::Plane { .. })
         ) {
             planes.insert(face.surface);
         }

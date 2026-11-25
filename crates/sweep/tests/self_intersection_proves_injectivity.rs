@@ -1188,7 +1188,7 @@ fn two_arc_lune<T: Scalar>(phi: f64, thick: Option<f64>) -> Body<T> {
     .into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -1246,7 +1246,7 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
     .into_body();
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere wall")
         .1
         .surface;
@@ -1265,7 +1265,7 @@ fn a_two_arc_lunes_hollow_holds_its_cavity_read_in_its_caps_poses() {
     .body;
     let spheres = hollow
         .faces()
-        .filter(|(k, _)| matches!(hollow.face_surface(*k), Some(Surface::Sphere { .. })))
+        .filter(|(k, _)| matches!(hollow.face_surface(*k), Ok(Surface::Sphere { .. })))
         .count();
     assert_eq!(spheres, 4, "two sphere halves outside, two in the cavity");
     let report = injective(&hollow, None, BUDGET);
@@ -1337,7 +1337,7 @@ fn a_lunes_hollow_with_its_seam_off_the_equator_refuses_across_the_seam() {
             .filter(|&(ek, _)| {
                 topo::edge_faces(&hollow, ek)
                     .iter()
-                    .all(|&f| matches!(hollow.face_surface(f), Some(Surface::Sphere { .. })))
+                    .all(|&f| matches!(hollow.face_surface(f), Ok(Surface::Sphere { .. })))
             })
             .map(|(ek, _)| ek)
             .collect();
@@ -1471,7 +1471,7 @@ fn a_ball_less_two_tilted_half_spaces_holds_its_larger_cap_read_in_a_pose() {
     }
     let cap = body
         .faces()
-        .find(|(k, _)| matches!(body.face_surface(*k), Some(Surface::Sphere { .. })))
+        .find(|(k, _)| matches!(body.face_surface(*k), Ok(Surface::Sphere { .. })))
         .expect("the sphere face")
         .0;
     let poses = topo::test_support::posed_extents_holding(&body, cap, [1.0, 0.0, 0.0], band())
@@ -1659,7 +1659,7 @@ fn lune_moved(body: &Body<f64>, axis: [f64; 3], angle: f64, by: [f64; 3]) -> Bod
 fn posed_extents_hold_its_points(what: &str, body: &Body<f64>) -> usize {
     let mut read = 0;
     for (fk, _) in body.faces() {
-        let Some(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
+        let Ok(Surface::Sphere { frame, radius }) = body.face_surface(fk) else {
             continue;
         };
         let center = frame.origin();

@@ -29,7 +29,7 @@ values, outside `[coincidence.door]`.
 reduction's edge-face records rather than the midpoint. A circle
 (`closed_reach`) and an arc have no record yet: the sweep keeps a conic
 lying in a plane out until the census reads that record
-(`work/contacthold/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`),
+(`work/censusread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`),
 so those keep their reading until then. `sectors.rs` is shared ground
 (CLEAVE's PR 6177 edits it); filed here because it is the parting's
 question.

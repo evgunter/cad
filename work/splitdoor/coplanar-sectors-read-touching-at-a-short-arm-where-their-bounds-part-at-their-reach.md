@@ -69,7 +69,7 @@ shorter of two, where each direction's own reach is known:
 - `boolean/recl.rs` `resolve_edge_sector`: the arm goes to the tangent
   side reading, which reads each bound over its own reach
   (`reached_bounds`) and only the bisector at the arm (the bisector's
-  lever is `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`),
+  lever is `work/germ/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`),
   and to `require_same` (normals): not the shape.
 - `boolean/insert.rs` `germ_dir` / `bool_germ_line`: the two faces'
   normals' cross at the pair's shorter arm, `pair_search`'s own margin

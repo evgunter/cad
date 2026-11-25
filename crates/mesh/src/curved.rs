@@ -1443,7 +1443,7 @@ mod tests {
         let (fk, surface) = body
             .faces()
             .find(|(_, f)| !f.rings.is_empty())
-            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk).ok()?)))
             .expect("the wall holds a ring");
         assert!(
             matches!(surface, Surface::Cylinder { .. }),
@@ -1575,8 +1575,8 @@ mod tests {
         .unwrap();
         let (fk, surface) = body
             .faces()
-            .find(|&(fk, _)| matches!(body.face_surface(fk), Some(Surface::Cylinder { .. })))
-            .and_then(|(fk, _)| Some((fk, body.face_surface(fk)?)))
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Ok(Surface::Cylinder { .. })))
+            .and_then(|(fk, _)| Some((fk, body.face_surface(fk).ok()?)))
             .expect("the bore");
         let outer = body.get_face(fk).unwrap().outer;
         assert!(
@@ -2792,6 +2792,7 @@ mod tests {
                 let (_, _, v0, v1) = bbox(&poly);
                 let charted = body
                     .face_surface(fk)
+                    .ok()
                     .and_then(Chart::of)
                     .is_some_and(|c| !c.poles().is_empty());
                 for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {

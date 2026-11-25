@@ -168,8 +168,6 @@ pub enum FaceSide {
 /// Why [`dihedral_side`] read no side.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SideEscalation {
-    /// A spline face is the empty placeholder, which has no chart.
-    Placeholder(SideRole),
     /// A spline face, at a scalar with no certified NURBS lane: the foot
     /// is a bracket read such a scalar may not mint.
     NoLane(SideRole),
@@ -273,9 +271,6 @@ fn normal_at<T: Decide>(
         )),
         Some(chart) => {
             let lane = lane.ok_or(SideEscalation::NoLane(role))?;
-            if chart.is_placeholder() {
-                return Err(SideEscalation::Placeholder(role));
-            }
             let foot = lane.surface_foot(chart, p);
             foot_normal(chart, face.sense, role, p, reach, foot, band)
         }
