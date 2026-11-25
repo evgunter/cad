@@ -1043,16 +1043,16 @@ pub fn step_focus(
     let mut lit = BTreeSet::new();
     let mut unread = 0;
     for &id in &built {
-        match index
-            .name_of(id)
-            .ok()
-            .map(|name| swept_by(name, edited.step))
-        {
-            Some(Some(true)) => {
+        let read = index.name_of(id).ok().zip(index.ids().key_of(id));
+        match read.and_then(|(name, patch)| {
+            attribute(name).minted_by()?;
+            swept_by(doc, patch.node, name, edited.step)
+        }) {
+            Some(true) => {
                 lit.insert(id);
             }
-            Some(Some(false)) => {}
-            None | Some(None) => unread += 1,
+            Some(false) => {}
+            None => unread += 1,
         }
     }
     if unread == 0 {
@@ -1065,26 +1065,86 @@ pub fn step_focus(
     }
 }
 
-/// Whether the face `name` denotes is a wall over a piece of `step`
-/// (see [`step_focus`]); `None` where the walk cannot classify the
-/// name, or a face a merged one retired.
-fn swept_by(name: &StableName, step: StepId) -> Option<bool> {
-    attribute(name).minted_by()?;
-    match pncad::select::role_leaf(name).path.first() {
-        Some(RoleSeg::Merged(retired)) => {
+/// **Whether the face `name`, read at the node `site`, is a wall over a
+/// piece of `step`** (see [`step_focus`]), or `None` where that cannot
+/// be read: a level whose site does not reach the node that spelled it,
+/// or a merged face retiring such a face.
+///
+/// The name is walked down its carried levels, each read at its own
+/// site: a `From`'s at the body its read names, any other carry's at
+/// the node that spelled the level carrying it. A level whose site
+/// reaches an instance before the node that spelled it is the part's,
+/// spelled in the part's ids ([`spelled_at`]), and is no wall of this
+/// document's step whatever its ids say: a part's mint chain draws the
+/// ids the host's does wherever the two documents' first edits are
+/// alike, so the ids alone cannot tell a part's wall from the host's.
+fn swept_by(
+    doc: &Doc<ProfileProgram>,
+    mut site: RecipeNodeId,
+    mut level: &StableName,
+    step: StepId,
+) -> Option<bool> {
+    loop {
+        if spelled_at(doc, site, level.node)? == Spelled::Part {
+            return Some(false);
+        }
+        let (next, inner) = match level.path.first() {
+            Some(RoleSeg::From { read, of }) => (doc.operation_of(*read)?, of),
+            Some(
+                RoleSeg::SplitFragment { parent: inner }
+                | RoleSeg::OnToolVertex { of: inner }
+                | RoleSeg::Member { of: inner, .. }
+                | RoleSeg::BandCut(inner),
+            ) => (level.node, inner),
+            _ => break,
+        };
+        site = next;
+        level = inner.name();
+    }
+    match level.path.first()? {
+        RoleSeg::Merged(retired) => {
             let mut any = false;
             for face in retired {
-                any |= swept_by(face, step)?;
+                any |= swept_by(doc, level.node, face, step)?;
             }
             Some(any)
         }
-        Some(own) => {
-            Some(own.pieces().iter().any(
-                |piece| matches!(piece, ProfileEdgeRef::Piece { step: of, .. } if *of == step),
-            ))
-        }
-        None => None,
+        own => Some(own.pieces().iter().any(
+            |piece| matches!(piece, ProfileEdgeRef::Piece { step: of, .. } if *of == step),
+        )),
     }
+}
+
+/// Whose ids a name level read at a site is spelled in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Spelled {
+    /// This document's.
+    Here,
+    /// A part's: the site's copy carries the part's names verbatim.
+    Part,
+}
+
+/// **Whose ids the level spelled at `minter` is in, read at `site`**:
+/// `site` followed through the nodes that pass their input's names on
+/// unchanged (a placement's copy, a split's intact entities, a mirror's
+/// image) reaches `minter`, and the level is this document's, or
+/// reaches an instance first, and the level is the part's. `None` where
+/// it reaches neither — a node that spells nothing it carries.
+fn spelled_at(doc: &Doc<ProfileProgram>, site: RecipeNodeId, minter: RecipeNodeId) -> Option<Spelled> {
+    let mut at = site;
+    let mut seen = BTreeSet::new();
+    while seen.insert(at) {
+        let input = match doc.node(at)? {
+            Node::InstantiatePart { .. } => return Some(Spelled::Part),
+            _ if at == minter => return Some(Spelled::Here),
+            Node::Place { source, .. } => source.read,
+            Node::Split { target, .. } => target.read,
+            Node::Mirror { body, .. } => body.read,
+            _ => return None,
+        };
+        at = doc.operation_of(input)?;
+    }
+    None
 }
 
 /// **What the picture marks for the side panel** ([`focus`]), narrowed

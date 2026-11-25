@@ -834,3 +834,104 @@ fn a_step_that_swept_nothing_drawn_lights_nothing() {
         "a step of a node the panel is not showing narrows nothing"
     );
 }
+
+/// **A part's wall is no wall of the host's step, whatever its ids.**
+///
+/// A mint chain starts empty in every document, so a part and a host
+/// that open with the same profile and extrude mint the same ids for
+/// them, step ids included. The host unions its block with an
+/// instance's copy of the part, standing half a block over: the copy's
+/// walls enter the union spelled in the part's ids, which are the
+/// host's own, and only where the walk reads them — through the
+/// instance — tells them apart. Each host step lights only the host
+/// block's wall on that step's leg.
+#[test]
+fn a_parts_wall_is_no_wall_of_the_hosts_step_whatever_its_ids() {
+    use pncad::document::{BodyRead, Bodies, DocEdit, DocumentId, Operand, ProfileDoc};
+
+    let tol = Tol::witness();
+    let (w, d) = (0.04, 0.03);
+    let corners = [[0.0, 0.0], [w, 0.0], [w, d], [0.0, d]];
+    let block = |label: &str| {
+        let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
+        let profile = common::insert_into(&mut doc, common::rectangle([0.0, 0.0], w, d), tol);
+        let extrude = common::insert_into(
+            &mut doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: common::len(DEPTH),
+            },
+            tol,
+        );
+        (doc, profile, extrude)
+    };
+    let (part, part_profile, part_extrude) = block("focus-part");
+    let (mut host, profile, extrude) = block("focus-host");
+    let ids = |doc: &ProfileDoc, node| match doc.node(node) {
+        Some(Node::Profile(program)) => program.ids.clone(),
+        other => panic!("a profile: {other:?}"),
+    };
+    assert_eq!(
+        (profile, extrude, ids(&host, profile)),
+        (part_profile, part_extrude, ids(&part, part_profile)),
+        "the fixture's two documents mint the same ids"
+    );
+    let part = common::placed(&part, part_extrude, tol).0;
+    let mut store = crate::fixture::resolver::PartStore::new();
+    let part_ref = store.insert(part, tol);
+    let opts = crate::fixture::resolver::with_resolver(store);
+    let instance =
+        common::asm::instance_at(&mut host, part_ref, [w / 2.0, d / 2.0, 0.0], &opts, tol);
+    let (mut host, placed) = common::placed(&host, extrude, tol);
+    let union = common::insert_into(
+        &mut host,
+        Node::Union {
+            members: Bodies::spelled(vec![
+                BodyRead::plain(Operand::Node(instance)),
+                BodyRead::plain(Operand::Node(placed)),
+            ]),
+        },
+        tol,
+    );
+    common::edit_into(
+        &mut host,
+        DocEdit::SetProduct {
+            product: Some(Operand::from(union)),
+        },
+        tol,
+    );
+    let eval = pncad::document::evaluate(
+        &host,
+        None,
+        &pncad::document::CancelToken::new(),
+        &opts,
+        tol,
+    );
+    let index = PickIndex::build(
+        &host,
+        &eval,
+        viewer::pickindex::PictureKey::of(
+            viewer::generation::Generation::FIRST,
+            delta(),
+            viewer::world::Shown::none(),
+        ),
+        tol,
+    )
+    .expect("the host indexes");
+    let program = ids(&host, profile);
+    for k in 1..=4 {
+        let edited = marks::EditedStep {
+            profile,
+            step: program[0][k],
+        };
+        let walls = marks::step_focus(&index, &host, edited).expect("every face is named");
+        let (from, to) = (corners[k - 1], corners[k % 4]);
+        assert!(!walls.is_empty(), "step {k} lights the host's wall: {walls:?}");
+        for &wall in &walls {
+            assert!(
+                on_wall(&index, wall, from, to),
+                "step {k} lights only walls on {from:?} -> {to:?}, not the part's: {walls:?}"
+            );
+        }
+    }
+}
