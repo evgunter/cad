@@ -89,3 +89,15 @@ The first shape is unchanged. At v-degree 2 with bulges `tan(π/8)`,
 `HalfEdgeKey(20v1)`. Its row is refined at non-uniform breaks
 (`⅓, ½, ⅔`), which the arc-rim class does not describe.
 
+## The first shape lofts (2026-11-22, LATHE `lathe/skin-sub-arc-walls`)
+
+The loft now cuts a segment's wall at every sub-arc joint its sections
+put in it (`work/lathe/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint.md`).
+The first shape's arc wall is cut at `⅓`, `½` and `⅔` into four walls,
+each one rational-quadratic span in `u`. Its cap rims are those spans,
+refined at end weights that are not one value, which the arc rim's image
+states (`ends`). At v-degree 2 with bulges `tan(π/8)`, `tan 50°` and
+`tan 30°` at z = `[0, 1, 2]`, it builds, is at rest, and meshes to its
+integrated volume (2.1e-5 relative at δ 2e-3). Pinned by
+`sweep::all degree1_loft_slabs::an_arc_refined_at_non_uniform_breaks_lofts_at_degree_two`.
+Every case this row names now builds.

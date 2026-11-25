@@ -120,12 +120,12 @@ pub const CURVED_JOIN_STOPS: &[JoinStop] = &[
     JoinStop {
         scene: "bottle",
         wall: 3,
-        rows: &["a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm"],
+        rows: &["a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band"],
     },
     JoinStop {
         scene: "bottle",
         wall: 4,
-        rows: &["a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm"],
+        rows: &["a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band"],
     },
     // At ε 1e-6 and 1e-9 the union stops at containment; at 1e-12, in
     // the join (`teapot::wall3_pinned`).

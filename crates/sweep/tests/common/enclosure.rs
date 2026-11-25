@@ -49,7 +49,14 @@ fn wall_values<T: topo::AtRestPolicy + SpanLocate, R, B: LoftedBody<T>>(
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     let mut out = Vec::new();
-    for face in lofted.side_faces.iter().flatten().flatten().flatten() {
+    for face in lofted
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .flatten()
+        .flatten()
+    {
         match lofted
             .body
             .body_of()

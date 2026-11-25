@@ -123,9 +123,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::NurbsCurve3;
+use geom::{NurbsCurve3, NurbsSurface};
 use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use std::sync::Arc;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LeafBody as _, LoopBoundary};
 
@@ -1400,23 +1401,36 @@ pub fn loft_prism(tol: Tol) -> Body<f64> {
 /// at `z = 0` and `z = h`, skinned straight at degree 1 — π·h m³.
 ///
 /// Each semicircle is two rational quarter arcs joined at a knot of
-/// multiplicity two ([`segment_curve`]), so each of the two lateral
-/// walls carries a C⁰ crease in `u`, at `x = 0`: the class the mesher's
-/// crease lines exist for, and the first corpus body with a crease.
+/// multiplicity two ([`segment_curve`]), and the loft cuts each wall at
+/// that joint, so the body has four quarter walls and none carries a
+/// crease ([`lofted_cylinder_walls`] keeps the creased surfaces).
 pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
+    let (sections, places) = lofted_cylinder_sections(h);
+    crate::loft_body::<f64>(&sections, &places, 1, tol)
+        .expect("the circle lofts")
+        .body
+        .into_body()
+}
+
+/// **[`lofted_cylinder`]'s two skinned surfaces, uncut**
+/// ([`crate::loft_geometry`]): each semicircle's surface carries a C⁰
+/// crease in `u` at `x = 0`, the sub-arc joint the body is cut at. A
+/// creased net for the readers whose crease arms no built face reaches.
+pub fn lofted_cylinder_walls(h: f64, tol: Tol) -> Vec<Arc<NurbsSurface<f64>>> {
+    let (sections, places) = lofted_cylinder_sections(h);
+    crate::loft_geometry(&sections, &places, 1, &[0.0, 1.0], tol)
+        .expect("the circle skins")
+        .walls
+        .remove(0)
+}
+
+/// The unit circle as two semicircles at `z = 0` and `z = h`.
+fn lofted_cylinder_sections(h: f64) -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     let lp = bulge_loop(vec![
         (Point2::new(1.0, 0.0), 1.0),
         (Point2::new(-1.0, 0.0), 1.0),
     ]);
-    crate::loft_body::<f64>(
-        &[vec![lp.clone()], vec![lp]],
-        &stacked_at(&[0.0, h]),
-        1,
-        tol,
-    )
-    .expect("the circle lofts")
-    .body
-    .into_body()
+    (vec![vec![lp.clone()], vec![lp]], stacked_at(&[0.0, h]))
 }
 
 // ------------------------------------------------------------------

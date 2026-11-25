@@ -2190,8 +2190,9 @@ pub(crate) mod tests {
     }
 
     /// **The lofted circle's straddler, read for its true deviation.**
-    /// The wall of `sweep::test_support::lofted_cylinder` carries the
-    /// crease `u = ½` (two quarter arcs at a double knot), and a
+    /// The skinned surface of `sweep::test_support::lofted_cylinder`,
+    /// uncut (`lofted_cylinder_walls`: the body itself is cut there),
+    /// carries the crease `u = ½` (two quarter arcs at a double knot), and a
     /// triangle across it has no certificate. Its true deviation (the
     /// wall against the linear interpolant of its corners, densely
     /// sampled) is read beside two certificates: the one `cert` answers
@@ -2215,12 +2216,9 @@ pub(crate) mod tests {
     /// it does not claim every inequality.
     #[test]
     fn a_lofted_circle_straddler_reads_its_true_deviation() {
-        let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
+        let fk = FaceKey::default();
         let mut walls = 0;
-        for (fk, _) in body.faces() {
-            let Some(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
-                continue;
-            };
+        for wall in &sweep::test_support::lofted_cylinder_walls(1.0, Tol::witness()) {
             walls += 1;
             let grid = nurbs_cell_grid(wall, fk).expect("the creased wall is covered");
             assert_eq!(grid.creases(), (&[0.5][..], &[][..]));
