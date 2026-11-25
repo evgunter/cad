@@ -23,7 +23,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp};
+use topo::{AtRestBody, Body, BooleanError};
 
 /// A solid of revolution about `y` whose lateral face is one cone: the
 /// radius is `r0 + k·(y − y0)` over `y ∈ [y0, y1]`, with a cap at each
@@ -302,9 +302,9 @@ const CUBE_ON_THE_NARROWING_WALL: f64 = 0.029_738_0;
 /// under all four ops: each
 /// body's volume is its closed form from the frustum's, the cube's and
 /// their overlap, it passes tier 3, and `point_in_solid` agrees with
-/// both operands' closed-form membership over a grid. The tilted rod
-/// across the narrowing wall is a cone × oblique cylinder pair, which
-/// has no germ frame: every op refuses there, naming the pair.
+/// both operands' closed-form membership over a grid. So does the tilted
+/// rod across the narrowing wall, a cone × oblique cylinder pair the join
+/// reads on its carried section.
 #[test]
 fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
     let tol = Tol::witness();
@@ -403,33 +403,86 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
         }
     }
     let narrowing = NARROWING.body();
-    let rod = rod(0.12, 0.5, 0.3, [-0.75, 0.5, 0.0]);
-    for (op_label, op, a, b) in [
-        ("∪", BooleanOp::Union, &narrowing, &rod),
-        ("∩", BooleanOp::Intersect, &narrowing, &rod),
-        ("A ∖ B", BooleanOp::Subtract, &narrowing, &rod),
-        ("B ∖ A", BooleanOp::Subtract, &rod, &narrowing),
+    let (rod_c, tilt) = ([-0.75, 0.5, 0.0], 0.3);
+    let rod_body = rod(0.12, 0.5, tilt, rod_c);
+    let frustum = Solid::Revolved {
+        y0: NARROWING.y0,
+        y1: NARROWING.y1,
+        r0: NARROWING.r0,
+        k: NARROWING.k,
+        window: None,
+    };
+    let rod_truth = Solid::Revolved {
+        y0: -0.25,
+        y1: 0.25,
+        r0: 0.12,
+        k: 0.0,
+        window: None,
+    }
+    .posed(
+        Affine3::translation(Vec3::new(rod_c[0], rod_c[1], rod_c[2]))
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), tilt),
+    );
+    let va = PI / 3.0 * (1.0 + 0.5 + 0.25);
+    let (vb, vi) = (PI * 0.12f64.powi(2) * 0.5, ROD_ON_THE_NARROWING_WALL);
+    let points = solid_truth::grid(
+        Point3::new(-0.95, 0.2, -0.15),
+        Point3::new(-0.55, 0.8, 0.15),
+        7,
+    );
+    for (op_label, got, op, x, y, v) in [
+        (
+            "∪",
+            topo::union(&narrowing, &rod_body, tol),
+            Op::Union,
+            &frustum,
+            &rod_truth,
+            va + vb - vi,
+        ),
+        (
+            "∩",
+            topo::intersect(&narrowing, &rod_body, tol),
+            Op::Intersect,
+            &frustum,
+            &rod_truth,
+            vi,
+        ),
+        (
+            "A ∖ B",
+            topo::subtract(&narrowing, &rod_body, tol),
+            Op::Subtract,
+            &frustum,
+            &rod_truth,
+            va - vi,
+        ),
+        (
+            "B ∖ A",
+            topo::subtract(&rod_body, &narrowing, tol),
+            Op::Subtract,
+            &rod_truth,
+            &frustum,
+            vb - vi,
+        ),
     ] {
-        let got = match op {
-            BooleanOp::Union => topo::boolean::union(a, b, tol),
-            BooleanOp::Intersect => topo::boolean::intersect(a, b, tol),
-            BooleanOp::Subtract => topo::boolean::subtract(a, b, tol),
-        };
-        assert!(
-            matches!(
-                got,
-                Err(BooleanError::GermFrameUnsupported { a_kind, b_kind, .. })
-                    if matches!(
-                        [a_kind, b_kind],
-                        [geom::SurfaceKind::Cone, geom::SurfaceKind::Cylinder]
-                            | [geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cone]
-                    )
-            ),
-            "the tilted rod, {op_label}: got {:?}",
-            got.map(|r| r.body().map(|b| b.kind))
+        solid_truth::assert_is(
+            &format!("the tilted rod across the narrowing wall, {op_label}"),
+            &got,
+            Want::Body(v, 1e-5),
+            &|q| op.depth(x, y, q),
+            &[],
+            &points,
         );
     }
 }
+
+/// The overlap of the tilted rod (`r = 0.12`, `h = 0.5`, its axis `y`
+/// turned `0.3` about `z`, centred at `(−0.75, 0.5, 0)`) with
+/// [`NARROWING`]: over the rod's disc, each axial chord's length inside
+/// the frustum in closed form (the cone's quadratic along it and the two
+/// cap planes), integrated by Gauss–Legendre in the radius and the
+/// midpoint rule in the angle outside the kernel, the same to 1e-15 at
+/// 200 × 800 and 400 × 1600 nodes.
+const ROD_ON_THE_NARROWING_WALL: f64 = 0.011_169_165_5;
 
 /// **Lines crossing a cone wall**: a cube turned so no face of it is a
 /// ruling's plane, straddling the wall of each nappe's frustum. Its
