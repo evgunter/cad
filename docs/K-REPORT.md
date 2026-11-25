@@ -1162,7 +1162,7 @@ for its boundary pre-pass:
 | `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
 | `bool_torus_region_span` | a bare literal: a crossing's parameter against its edge's span ends, at the circle's radius or the tube's; where that is in band, the cosine of its angle from the span's middle against the half-span's, at the same lever |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
-| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
+| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner; on a spindle sheet, a meridian's crossing or corner against its apex |
 | `bool_torus_region_order` | a bare literal: two crossings' places along the path |
 | `bool_torus_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the tube's radius |
 | `bool_torus_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |

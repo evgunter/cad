@@ -730,10 +730,12 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 ///
 /// Neither is measured here, and neither should be read as covered by
 /// the row below. What IS closed regardless of the door is the concrete
-/// hazard: a spindle reaching the torus region's legs would divide by a
-/// vanishing radial, so the region decides the ring convention when it
-/// is read (`geom::require_ring_torus`, in `torus_face_region`) and takes
-/// a typed refusal instead of a poison frame. On a ring torus it never
+/// hazard: a torus RECORD whose radii are a spindle's would send the
+/// region's legs across the axis, so the region decides the ring
+/// convention of a torus record when it is read
+/// (`geom::require_ring_torus`, in `TorusFaceRegion::contains`) and takes
+/// a typed refusal instead. A spindle sheet record is read by the
+/// sheet's own legs, which stop at its apexes. On a ring torus neither
 /// fires.
 #[test]
 fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
