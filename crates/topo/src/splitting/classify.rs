@@ -493,23 +493,9 @@ fn edge_roots<T: Decide>(
             }
         },
         Err(refusal) => {
-            // A placement window, a root in band of an end or two roots in
-            // band of each other, whose centre the span reads at an end or
-            // in band of one: the recorded vertex's.
             let span = Span::new(carrier, params);
             let at_an_end = |w: &geom_brep::curve_face::Undecided<T, CrossWhy>| {
-                matches!(
-                    w.why,
-                    CrossWhy::Method {
-                        fault: MeetFault::Escalated(_)
-                            | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
-                        door: geom_brep::curve_face::Door::PlaneCrossing
-                            | geom_brep::curve_face::Door::SplineComposite,
-                    }
-                ) && !matches!(
-                    span.place_param(geom::mid_param(w.window.0, w.window.1), band),
-                    Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::Past)
-                )
+                window_at_an_end(&span, w, band)
             };
             if recorded && refusal.windows.iter().all(&at_an_end) {
                 return Ok(read(refusal.found, true));
@@ -527,6 +513,46 @@ fn edge_roots<T: Decide>(
     }
 }
 
+/// **Whether a crossing window is the recorded end's** ([`edge_roots`]):
+/// a placement window, a root in band of an end or two roots in band of
+/// each other, whose centre the span reads at an end or in band of one.
+/// The plane-crossing door's windows are a band's reach about a root, so
+/// their centre places them. The ring composite's are stretches, which
+/// can run from an end into the span or be the whole span, so each of
+/// its windows must be read about one end throughout: its ends and
+/// centre none inside the span or past it, and those that place at an
+/// end all at the same one. A stretch that reaches inside the span, or
+/// from one end to the other, is a meeting the record does not read.
+fn window_at_an_end<T: Decide>(
+    span: &Span<'_, T>,
+    w: &geom_brep::curve_face::Undecided<T, CrossWhy>,
+    band: Band,
+) -> bool {
+    use geom_brep::curve_face::Door;
+    use geom_brep::curve_pair::Place;
+    let CrossWhy::Method { door, fault } = w.why else {
+        return false;
+    };
+    if !matches!(
+        fault,
+        MeetFault::Escalated(_) | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency)
+    ) {
+        return false;
+    }
+    let centre = geom::mid_param(w.window.0, w.window.1);
+    let read: &[T] = match door {
+        Door::PlaneCrossing => &[centre],
+        Door::SplineComposite => &[w.window.0, centre, w.window.1],
+        _ => return false,
+    };
+    let mut end = None;
+    read.iter().all(|&t| match span.place_param(t, band) {
+        Ok(Place::Inside | Place::Past) => false,
+        Ok(Place::End(which)) => *end.get_or_insert(which) == which,
+        Err(_) => true,
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -534,6 +560,47 @@ mod tests {
     use geom_brep::curve_face::{CrossWhy, PoseRefusal, PoseRung, cross};
     use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Vec3};
+
+    /// **A composite window is the recorded end's only when it is read
+    /// about that end throughout** ([`super::window_at_an_end`]). On a unit
+    /// segment, a tangency window reaching from before the start to
+    /// `0.6` has its centre at the start: the plane-crossing door's
+    /// window, a band's reach about a root, is the start's, but the
+    /// composite's, a stretch, reaches inside the span and is not. A
+    /// stretch in band of the start is the start's at either door, and
+    /// one from end to end is neither end's.
+    #[test]
+    fn a_composite_stretch_into_the_span_is_no_ends_window() {
+        use geom_brep::curve_face::{Door, Undecided};
+        let carrier = geom::Curve3::Line(geom::Line {
+            origin: Point3::origin(),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        });
+        let span = Span::new(&carrier, (0.0, 1.0));
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let at = |door, window| {
+            super::window_at_an_end(
+                &span,
+                &Undecided {
+                    window,
+                    why: CrossWhy::Method {
+                        door,
+                        fault: geom_brep::curve_pair::MeetFault::Unsettled(
+                            geom_brep::roots::Unsettled::Tangency,
+                        ),
+                    },
+                },
+                band,
+            )
+        };
+        let reach = (-0.6, 0.6);
+        assert!(at(Door::PlaneCrossing, reach), "the placement's window is the start's");
+        assert!(!at(Door::SplineComposite, reach), "the stretch reaches inside the span");
+        let near = (0.0, 1e-12);
+        assert!(at(Door::PlaneCrossing, near) && at(Door::SplineComposite, near));
+        let whole = (0.0, 1.0);
+        assert!(!at(Door::PlaneCrossing, whole) && !at(Door::SplineComposite, whole));
+    }
 
     /// **Vertex sides decided opposite where the carrier meets the plane
     /// nowhere contradict.** A unit cube with one top corner's point moved
