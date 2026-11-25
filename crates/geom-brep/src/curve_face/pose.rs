@@ -328,14 +328,14 @@ pub fn pose<T: Decide>(
 /// apart from `surface` past the band; `false` hands on to the arm's
 /// rungs, in band and short of clear alike, never refusing alone.
 ///
-/// The span lies in the ball about its middle point `m` whose radius `ℓ`
-/// is the span's metered reach ([`geom_core::bisect::reach`]), capped at
-/// the conic's diameter (any two of its points lie within twice its
-/// larger semi-axis). Each kind has a signed function `g`, 1-Lipschitz
-/// in space up to the stated constant `L`, whose sign is the residual's
-/// ([`crate::implicit_residual`]), so over the ball `g` keeps the sign of
-/// `g(m)` wherever `|g(m)| > L·ℓ`, and the span meets no point of the
-/// surface. The decision reads `|g(m)| − L·ℓ`, in metres:
+/// The whole conic lies in the ball about its centre `m` whose radius
+/// `ℓ` is its larger semi-axis, so the cull is the carrier's, sound for
+/// any span of it, and a span's `Apart` is the turn's (the closed rungs
+/// behind it read the turn too). Each kind has a signed function `g`,
+/// 1-Lipschitz in space up to the stated constant `L`, whose sign is the
+/// residual's ([`crate::implicit_residual`]), so over the ball `g` keeps
+/// the sign of `g(m)` wherever `|g(m)| > L·ℓ`, and the conic meets no
+/// point of the surface. The decision reads `|g(m)| − L·ℓ`, in metres:
 ///
 /// - **sphere**: `|p − S| − R`, the distance to the centre less a
 ///   constant: 1-Lipschitz, and the residual `(|p − S|² − R²)/2R` is it
@@ -353,12 +353,18 @@ pub fn pose<T: Decide>(
 /// - **torus**: `√((ρ − R)² + h²) − r`, the distance to the spine circle
 ///   less the tube radius: 1-Lipschitz as a distance to a set, and the
 ///   residual `((ρ − R)² + h² − r²)/2r` is it times the positive
-///   `(√(·) + r)/2r`. Nothing reads `R > r`, so a spindle (`r ≥ R`,
-///   whose zero set is the same `√(·) = r`) is culled the same way.
+///   `(√(·) + r)/2r` for `r > 0`. Nothing in that reads `R > r`: a
+///   spindle's zero set is the same `√(·) = r`, and its `g` the same.
+///   The cull runs past the ring convention all the same
+///   ([`crate::TorusRefusal::require`]), which the torus arm asks first:
+///   a tube radius at or below zero breaks the factor's sign, and the
+///   doors read no torus but a ring.
 ///
-/// **Re-posed** (standing claim 1): `m` is the conic's running point at
-/// the span's middle ([`Conic::running_point`]), never its centre, and
-/// every quantity is carried from `m − origin`, the surface's stored
+/// **Re-posed** (standing claim 1): `m` is read through the conic's
+/// running points ([`Conic::running_point`]), the midpoint of two
+/// antipodal ones (`P(θ) + P(θ + π) = 2c` on a circle and an ellipse
+/// alike), never its stored or derived centre, and every quantity is
+/// carried from `m − origin`, the surface's stored
 /// origin taken exact, as running [`Rounded`] values, with no `c₀ ± A`
 /// extremes and no charge: a far-centred pair keeps the digits of its
 /// gap that the stored data has, and the reading's own rounding is the
@@ -372,11 +378,15 @@ fn culled<T: Decide>(
 ) -> bool {
     use geom_core::running::{cross, dot, exact_vec};
     let (t0, t1) = span.params();
-    let speed = geom::carrier_speed::speed_range(span.carrier()).1;
     let (a, b) = conic.semi_axes();
-    let diameter = T::from_f64(2.0) * a.abs().max(b.abs());
-    let reach = geom_core::bisect::reach(speed, (t0, t1)).min(diameter);
-    let m = conic.running_point(geom::mid_param(t0, t1));
+    let reach = a.abs().max(b.abs());
+    let at = geom::mid_param(t0, t1);
+    let (p, q) = (
+        conic.running_point(at),
+        conic.running_point(at + geom::conic_period::<T>().length() / T::from_f64(2.0)),
+    );
+    let half = Rounded::exact(T::from_f64(0.5));
+    let m = [0, 1, 2].map(|i| (p[i] + q[i]) * half);
     let from = |origin: Point3<T>| {
         let o = exact_vec(geom_core::Vec3::new(origin.x, origin.y, origin.z));
         [m[0] - o[0], m[1] - o[1], m[2] - o[2]]
@@ -2095,18 +2105,18 @@ fn conic_torus<T: Decide>(
             "the conic × torus arm was handed a surface that is not a torus",
         ));
     };
+    let (t_center, t_axis) = (frame.origin(), frame.axis_unit());
+    // The doors read only a ring, asked of the convention before any
+    // pose, the cull included: their harmonics take the witness, whose floor on `|F|` per
+    // metre and whose meridian bound lean on `R − r > 0`.
+    let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
+        .map_err(PoseRefusal::Torus)?;
     let conic = span.carrier().conic().ok_or(PoseRefusal::Fault(
         "the conic × torus arm was handed a carrier that is not a conic",
     ))?;
     if culled(span, conic, surface, band) {
         return Ok(Pose::Apart);
     }
-    let (t_center, t_axis) = (frame.origin(), frame.axis_unit());
-    // The doors read only a ring, asked of the convention past the cull,
-    // before any other pose: their harmonics take the witness, whose floor on `|F|` per
-    // metre and whose meridian bound lean on `R − r > 0`.
-    let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
-        .map_err(PoseRefusal::Torus)?;
     let floor = crate::ring_floor(ring);
     let walk = || -> Result<Pose<T>, PoseRefusal> {
         not_lies(span, surface, band)?;
