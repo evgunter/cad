@@ -33,3 +33,12 @@ crates/topo/src/census.rs 1
 # offset_derive: a net with no interior iso column is no planar-offset
 # candidate; a structural refusal, not an escalation.
 crates/topo/src/offset_derive.rs 1
+# validate check 6, curved arm (not counted: the gate does not see an
+# `Err(_) => None` arm). `lane_side` drops the rotational lane's refusal or
+# escalation of a face's side, and the arm drops the closed form's refusal
+# whenever the lane refuses too: the face is then exempt from the sense
+# cross-check, the arm's posture (only a definite disagreement refuses).
+# A cause the volume needs refuses again at check 7, which reports it
+# cause-carrying (`VolumeUncomputable { source }`); a side read in band of
+# zero (a face of chart area within the band) is the one exempt residue,
+# listed on `ValidationError::CurvedSenseInverted`.

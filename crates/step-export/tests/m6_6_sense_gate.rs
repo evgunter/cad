@@ -474,10 +474,10 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
 /// chart area, as it does `cut_cylinder`'s. No second wall shares either
 /// cylinder, so the wedge arm has no lamina to see; the lone flip is
 /// named by the curved arm (`CurvedSenseInverted`), and may also
-/// refuse by check 7 (`NegativeVolume`) on the outer wall, at the bore's
-/// pinch corners (`PinchCornerCrossed`), and on either wall by the region
-/// arm (`CycleOffFaceSide`): a flipped face's two rims each lie off its
-/// side of the other.
+/// refuse at the bore's pinch corners (`PinchCornerCrossed`) and on
+/// either wall by the region arm (`CycleOffFaceSide`): a flipped face's
+/// two rims each lie off its side of the other. Check 7 does not run:
+/// it reads the volume only of a body check 6 passes.
 #[test]
 fn a_one_face_conic_trimmed_wall_flip_refuses() {
     use topo::splitting::{SplitPart, split};
@@ -514,7 +514,6 @@ fn a_one_face_conic_trimmed_wall_flip_refuses() {
                 errs.iter().all(|e| match e {
                     ValidationError::CycleOffFaceSide { face, .. }
                     | ValidationError::CurvedSenseInverted { face } => *face == k,
-                    _ if sense => matches!(e, ValidationError::NegativeVolume { .. }),
                     _ => {
                         matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == k)
                     }
