@@ -66,30 +66,17 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// pose's own `Cylinder`s carried as its bodies are.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
-    // Pinned red off the witness band. At 1e-6 the perpendicular pair's
-    // union holds its closed form in an enclosure wider than the row's
-    // ceiling
+    // Pinned red at 1e-6: the perpendicular pair's union holds its closed
+    // form in an enclosure wider than the row's ceiling
     // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
-    // At 1e-12 the skew pair's intersection rebases an edge onto a
-    // periodic chord whose view is asked past its window
-    // (`work/sectarms/main-red-the-tilted-rods-other-spins-row-asks-a-periodic-view-past-its-window.md`).
     let eps = Tol::witness().eps();
-    let (stops_at, says): (&[f64], &[&str]) = if test_utils::kernel_limit::at_row(eps, &[1e-12]) {
-        (
-            &[1e-12],
-            &[
-                "skew axes, crossing walls/intersect: ERR Euler(DescriptionUncertified",
-                "error: PeriodicView(Span { asked:",
-            ],
-        )
-    } else {
-        (
-            &[1e-6],
-            &[
-                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534547 pad=6.7e-6 want=81.651534544",
-            ],
-        )
-    };
+    let (stops_at, says): (&[f64], &[&str]) = (
+        &[1e-6],
+        &[
+            "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true",
+            "want=81.651534544",
+        ],
+    );
     test_utils::pinned_red::row(
         eps,
         stops_at,
@@ -660,4 +647,3 @@ fn the_no_edge_event_pair_refuses_at_the_gate_not_the_frame() {
         "got {err:?}"
     );
 }
-

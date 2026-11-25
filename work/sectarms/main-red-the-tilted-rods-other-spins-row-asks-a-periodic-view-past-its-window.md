@@ -85,6 +85,8 @@ ERR Euler(DescriptionUncertified { edge: Keyed(EdgeKey(17v1)), error:
 PeriodicView(Span { asked: (-0.98875…, …) … }) })`, nightly of main
 `6a680cb845` (run 45332993102). The view is asked past its window as
 in the poses above, raised through an edge's description rather than a
-rebase. The row is pinned on it at 1e-12 (`ssiarith/tall-thin-limb-2`);
-take the pin off with the fix. — (SSIARITH orchestrator)
+rebase. On main `6003877ad8` the same row passes whole at 1e-12
+(release, 361 s), so this pose no longer reaches it there; the merge
+between was not named. Recorded as one more pose the class reached,
+not as a live stop. — (SSIARITH orchestrator)
 
