@@ -1590,7 +1590,7 @@ pub use geom_brep::rest_locus;
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
-    Minted, Remainder, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
+    Minted, RowDefect, RowRefusal, SourceGeometry, SplitEdgeDivisions, Substitutions,
 };
 pub use side_reader::{SIDE as SIDE_AT_INFINITY, SetAside, SetAsideWhy};
 pub use solid_contain::{
