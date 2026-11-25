@@ -52,7 +52,7 @@ crates/step-export 9
 # (records follow the file, EXPORT).
 crates/step-import 25
 crates/sweep 137
-crates/topo 36
+crates/topo 34
 demos/tour 2
 # Fields holding f64 knots or weights, by crate (src/ outside test modules):
 # the copies an interim read leaves behind. A ratchet too; S5 states where

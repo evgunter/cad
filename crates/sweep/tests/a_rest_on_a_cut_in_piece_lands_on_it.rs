@@ -187,10 +187,8 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
             // The output stage closes the cut again, so the half-band is
             // one face across it, and the record lands on that face.
             assert!(
-                matches!(
-                    r.body.face_surface(face),
-                    Some(topo::Surface::Sphere { .. })
-                ) && face_xs(&r.body, face).iter().any(|&x| x * n.x > 0.0),
+                matches!(r.body.face_surface(face), Ok(topo::Surface::Sphere { .. }))
+                    && face_xs(&r.body, face).iter().any(|&x| x * n.x > 0.0),
                 "{what}: the record lands on the half-band's face, x {:?}",
                 face_xs(&r.body, face)
             );

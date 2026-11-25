@@ -575,7 +575,7 @@ mod tests {
     #[test]
     fn r3_curvature_with_a_nurbs_operand_is_poison() {
         use super::super::march::TransversalityData;
-        let (s, n) = (sphere(), Surface::nurbs_placeholder());
+        let (s, n) = (sphere(), geom::test_support::unit_patch());
         let x = [0.8, 0.3, 0.2];
         for (a, b) in [(&s, &n), (&n, &s)] {
             let kappa = ImplicitPairR3 { a, b }.max_curvature(&x);

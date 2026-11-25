@@ -158,7 +158,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();
@@ -196,7 +196,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(cup.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();
@@ -254,7 +254,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
         .faces()
         .filter(|(fk, _)| {
             matches!(cup.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(_, f)| f.rings.len())
         .sum();

@@ -252,14 +252,6 @@ pub enum PlaneNurbsRefusal {
     /// of its interval: the carrier-enclosure door's refusal, naming
     /// the carrier's kind and the span.
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
-    /// The wall is the placeholder ([`geom::PLACEHOLDER_SURFACE`]): it
-    /// has no description to project onto, so the lane derives no foot
-    /// path. Told apart from [`Unsupported`](Self::Unsupported) because
-    /// describing the surface is a way through
-    /// ([`crate::pcurve_cache::PLACEHOLDER_RECOURSE`], the pcurve door's
-    /// lever for the same wall), where a shape outside the inventory
-    /// has none yet.
-    PlaceholderWall,
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly ([`SsiError::UnsupportedCertificate`]).
     Unsupported {
@@ -657,7 +649,6 @@ impl PlaneNurbsRefusal {
             Self::FootPointInconclusive { .. } => Decision::Fitted(FittedEnding::FootUnsettled),
             Self::PcurveFit => Decision::Fitted(FittedEnding::Defect),
             Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
-            Self::PlaceholderWall => Decision::Lever(Lever::Placeholder),
             // The SSI door's refusals the lane carries, ended there.
             Self::CarrierEnclosure(r) => Decision::Ssi(SsiError::CarrierEnclosure(*r)),
             Self::Unsupported { what } => Decision::Ssi(SsiError::UnsupportedCertificate { what }),
@@ -803,11 +794,6 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::CarrierEnclosure(r) => write!(
                 f,
                 "limb 2 could not enclose the declared carrier between samples: {r}"
-            ),
-            Self::PlaceholderWall => write!(
-                f,
-                "{}, so the lane has no described wall to project the carrier onto",
-                geom::PLACEHOLDER_SURFACE
             ),
             Self::Unsupported { what } => {
                 write!(f, "outside the spline Intersection lane: {what}")
@@ -1092,9 +1078,8 @@ pub fn curved_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::WrongLane`] for any other partner,
-/// [`PlaneNurbsRefusal::PlaceholderWall`] for a wall that is not
-/// described, and otherwise as its two doors.
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner, and
+/// otherwise as its two doors.
 pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -1108,7 +1093,6 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
             expected: "a plane, sphere, cylinder or torus as the analytic operand",
         });
     };
-    described(wall)?;
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -1221,14 +1205,6 @@ fn plane_partner<T: Real>(plane: &Surface<T>) -> Result<(), PlaneNurbsRefusal> {
             expected: "a plane as the analytic operand",
         }),
     }
-}
-
-/// A wall the lanes read: a described surface, never the placeholder.
-fn described<T: Real>(wall: &NurbsSurface<T>) -> Result<(), PlaneNurbsRefusal> {
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
-    Ok(())
 }
 
 /// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
@@ -1662,8 +1638,8 @@ pub fn first_within<C, T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a placeholder
-/// or non-spline wall, a foot that will not converge, an image that will
+/// [`PlaneNurbsRefusal`]: the analytic side not a plane, a non-spline
+/// wall, a foot that will not converge, an image that will
 /// not fit, and either limb's refusal with its measured bound;
 /// [`PlaneNurbsRefusal::ArcRim`] for a circle carrier whose exact image
 /// refused definitely and whose fitted path refused at a limb.
@@ -1682,7 +1658,6 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
         });
     };
     plane_partner(plane)?;
-    described(chart)?;
     let exact = match carrier {
         Curve3::Circle(..) => Some(exact_arc_rim(carrier, params, wall, stated, band)),
         _ => None,
@@ -1832,8 +1807,6 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    described(a)?;
-    described(b)?;
     // Each chart localized on its own cell grid, as the plane lane's wall.
     let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
     let op_a = match &grid_a {
@@ -2881,7 +2854,6 @@ impl AnalyticRung3Refusal {
             | crate::PcurveCertifyError::ChartWindingUnsupported
             | crate::PcurveCertifyError::ChannelKindMismatch { .. }
             | crate::PcurveCertifyError::WindingMismatch { .. }
-            | crate::PcurveCertifyError::PlaceholderChart
             | crate::PcurveCertifyError::AzimuthPeriodExceeded
             | crate::PcurveCertifyError::PlacementTurnsExceeded
             | crate::PcurveCertifyError::TubePeriodExceeded
@@ -3191,8 +3163,7 @@ impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
 /// fit when the image's knots collapse on it;
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
 /// whose projection does not converge (never a best-effort foot);
-/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses;
-/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder; or
+/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
 /// whatever `per_sample` returns.
 ///
 /// The carrier enters as its [`Schedule`]: `net_schedule` for a
@@ -3211,14 +3182,6 @@ where
         domain: (t0, t1),
         ends: (h0, h1),
     } = schedule;
-    if wall.is_placeholder() {
-        // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
-        // the producer too: the placeholder has no description
-        // yet, and projecting onto it would return
-        // feet of a surface that does not exist. `plane_nurbs_limbs`
-        // still checks first, so its own refusal ORDER is unchanged.
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
     let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
     // The domain door, asked first on a vector with no interior knots
     // (so only the interval itself can refuse): a domain whose width
@@ -3281,8 +3244,7 @@ where
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
-/// will not converge (never a best-effort foot), or
-/// [`PlaneNurbsRefusal::PlaceholderWall`] on the placeholder.
+/// will not converge (never a best-effort foot).
 pub(crate) fn chart_foot<T>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,
@@ -3290,9 +3252,6 @@ pub(crate) fn chart_foot<T>(
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    if wall.is_placeholder() {
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
     let proj = wall
         .project(point)
         .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {

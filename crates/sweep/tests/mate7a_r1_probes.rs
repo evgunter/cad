@@ -125,7 +125,7 @@ pub(crate) fn arch_joints() -> (Point3<f64>, Point3<f64>) {
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
     body.faces()
         .filter_map(|(k, _)| match body.face_surface(k) {
-            Some(&geom::Surface::Plane { frame, .. }) => {
+            Ok(&geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((k, origin, normal))
             }
@@ -319,7 +319,7 @@ fn p1_wall1_glues_the_stem_into_one_body() {
     // there are concentric. Sampled on both walls within 1° of the weld.
     let assert_minor = |body: &Body<f64>, want: f64| {
         for (fk, _) in body.faces() {
-            if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.face_surface(fk) {
+            if let Ok(&geom::Surface::Torus { minor_radius, .. }) = body.face_surface(fk) {
                 assert!((minor_radius - want).abs() < 1e-12, "minor radius {want}");
             }
         }

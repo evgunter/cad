@@ -128,7 +128,7 @@ fn key_of(body: &Body<f64>, f: FaceKey) -> topo::SurfaceKey {
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
     matches!(
         body.get_surface(key_of(body, f)),
-        Some(geom::Surface::Plane { .. })
+        Ok(geom::Surface::Plane { .. })
     )
 }
 
@@ -419,7 +419,7 @@ fn lofted_continuation_walls_carry_one_key_per_segment() {
     assert_ne!(key_of(&l.body, w0), key_of(&l.body, w1));
     assert!(matches!(
         l.body.get_surface(key_of(&l.body, w0)),
-        Some(geom::Surface::Nurbs(_))
+        Ok(geom::Surface::Nurbs(_))
     ));
     assert_eq!(topo::validate_geometric(&l.body, t), Ok(()), "tier 3");
     let mut m = l.body.clone().into_body();

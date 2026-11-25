@@ -247,7 +247,7 @@ fn mirror_identity_scenario<
         ] {
             let mut found = 0;
             for (fk, _) in part.faces() {
-                let Some(topo::Surface::Plane { frame, .. }) = part.face_surface(fk) else {
+                let Ok(topo::Surface::Plane { frame, .. }) = part.face_surface(fk) else {
                     continue;
                 };
                 let (origin, normal) = (frame.origin(), frame.axis());

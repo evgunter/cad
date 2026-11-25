@@ -153,8 +153,8 @@ fn shared(k: f64, g: f64) -> f64 {
         .sum()
 }
 
-/// **Where a run that does not build may stop, by `k`: the coplanar
-/// merge's pcurve span check** (`pcurve_interval_forward`), which meters
+/// **Where a run that does not build may stop, by `k`: the finish's
+/// pcurve span check on the merged result** (`pcurve_interval_forward`), which meters
 /// the finger's arc span at the ellipse's global speed floor, its minor
 /// semi-axis 1, where the arc's own speed there is about `k/√2`
 /// (`work/hone/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
@@ -167,27 +167,26 @@ fn shared(k: f64, g: f64) -> f64 {
 /// that moves with the speed floor, not a guess
 /// (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
-    match e {
-        BooleanError::Merge(merge) if k == 10.0 => matches!(
-            merge.error(),
-            topo::MergeCoplanarError::Pcurve {
-                source: topo::PcurveMintError::Certify {
+    let BooleanError::ResultInvalid { findings } = e else {
+        return false;
+    };
+    findings.as_slice().iter().any(|finding| match finding {
+        topo::ValidationError::Pcurve {
+            finding:
+                topo::PcurveMintError::Certify {
                     error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
                     ..
                 },
-            } if cause.predicate == Some("pcurve_interval_forward")
-        ),
-        BooleanError::Merge(merge) if k == 60.0 => matches!(
-            merge.error(),
-            topo::MergeCoplanarError::Pcurve {
-                source: topo::PcurveMintError::Certify {
+        } => k == 10.0 && cause.predicate == Some("pcurve_interval_forward"),
+        topo::ValidationError::Pcurve {
+            finding:
+                topo::PcurveMintError::Certify {
                     error: geom_brep::PcurveCertifyError::IntervalNotForward,
                     ..
                 },
-            }
-        ),
+        } => k == 60.0,
         _ => false,
-    }
+    })
 }
 
 /// **Every op on two partners `2g` apart along a steep ellipse's flank

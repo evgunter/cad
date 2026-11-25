@@ -946,8 +946,6 @@ pub(crate) enum Lever {
     /// A fitted-grade image certifies at its own doors, not the
     /// closed-form one.
     FittedGradeDoor,
-    /// The chart is the placeholder.
-    Placeholder,
     /// The run's tolerance forms no band.
     Tolerance,
     /// A band its caller built is refused: its own recourse.
@@ -960,7 +958,6 @@ impl Lever {
             Self::CarrierDomain => CARRIER_DOMAIN_RECOURSE.to_owned(),
             Self::FittedDoor => fitted_door_recourse(at),
             Self::FittedGradeDoor => FITTED_GRADE_DOOR_RECOURSE.to_owned(),
-            Self::Placeholder => PLACEHOLDER_RECOURSE.to_owned(),
             Self::Tolerance => BAND_TOLERANCE_RECOURSE.to_owned(),
             Self::Band(recourse) => recourse.to_owned(),
         }
@@ -994,8 +991,8 @@ pub fn fitted_door_recourse(at: impl Into<ReadAt>) -> String {
 pub const FITTED_GRADE_DOOR_RECOURSE: &str =
     "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
 
-/// The recourse for a chart that is still the placeholder
-/// ([`Surface::is_placeholder_chart`](geom::Surface::is_placeholder_chart)).
+/// The recourse for a face whose surface is still pending
+/// ([`crate::SurfaceMiss::Pending`]).
 pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
 
 /// The one recourse for a carrier whose parameter domain its chart

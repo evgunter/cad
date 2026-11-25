@@ -1597,3 +1597,43 @@ row's last section says what moved.
 
 - 2026-11-22 — (FORMWORDS orchestrator) Note on `two-viewer-docs-cite-a-drag-clause-for-a-typed-value`: FORMWORDS PR 7378 (`formwords/refused-entry`) makes a typed number write over an expression, with only drags and probes refused (G4). That resolves the item's `props.rs` half, the "ratified micro-decision" sentence. Its `widgets.rs` half still stands.
 - 2026-11-22 — **From VSEAM:** `SessionOp::SketchOnFace` retires in PR 7466 (`vseam/sketch-on-face-retires`). The viewer's on-face act is now `SessionOp::DrawOnFace`, followed by the ordinary extrude and union. Rows here that cite `SketchOnFace` as evidence keep their history, but its code citation goes stale at that merge. The affected rows are `doors/a-held-face-stays-marked-while-its-form-is-collapsed`, `doors/a-seated-tools-held-node-is-drawn-nowhere`, `formwords/a-plane-other-than-a-face-cannot-be-authored-in-the-viewer` and `vgeom/a-profile-drawn-on-a-frame-is-drawn-at-the-worlds-xy`. (VSEAM orchestrator)
+
+## 2026-11-25 — (VGEOM orchestrator) opened; no split; the sitting's dispatch
+
+**Opened, and not split.** `plan.md` asked the orchestrator that opens
+this track to split it first (34/30 at the time of reading). 9 of those
+points were the three unbanded rows charged as medium. Banded on their
+bodies: `cursor-projection-row-misses-its-tolerance-on-a-seed` P4 E (a
+fuzz row whose seed reds CI: tooling whose payoff is CI going red less
+often), `field-texts-literal-arm-is-unreachable-from-both-call-sites`
+P4 E (a deletion), `pick-ambiguity-lists-groups-in-id-order` P3 M (a
+refusal's readability; its row is the hard part). The two legacy `D`
+rows at P1 are re-priced: `focus-marking-is-per-node-not-per-segment`
+H (a viewer consumer of a door with no caller yet, and the carry may be
+a decision), `viewer-substituted-value-class-is-crate-wide` M (seven
+sites, each read and weighed). The track measures 30/30, within
+budget, so the split's reason is gone. Alternative: split anyway along
+the P1/P3 seam; not taken, since the tail does not count against the
+budget and a split would charter a P2-P4 track nobody will sit.
+
+**Process note.** Fable usage is out for this sitting (Ev, in chat,
+2026-11-25): every lane runs on Opus 5.5, where a dual is indicated it
+is two Opus, and no experiment rows are recorded.
+
+**Dispatched together** (files part by question; each brief names the
+others' ground):
+
+| unit | rows | tier, and why |
+|---|---|---|
+| `vgeom/profile-display` | `a-profile-has-no-display-toggle`, `a-profile-has-no-free-move` | single FULL: committed outlines move onto the display state, and drawn-vs-picked can disagree silently |
+| `vgeom/field-seed` | `an-editable-fields-seed-is-scientific-below-a-ten-thousandth-of-its-unit` (Ev ruled, PR 7261), `field-texts-literal-arm-is-unreachable-from-both-call-sites` | single FULL: every field's keyboard seed moves, and the round trip is the claim |
+| `vgeom/project-refuses` | `camera-project-answers-with-a-screen-position-for-a-projection-that-overflowed`, `a-moved-copys-pick-span-crosses-its-frame-unconverted`, `cursor-projection-row-misses-its-tolerance-on-a-seed` | single STYLE: three E rows, each readable; the fuzz row's diagnosis is the one question |
+| `vgeom/step-focus` | `focus-marking-is-per-node-not-per-segment` | single FULL: a confidently wrong lit wall is the failure mode the row names |
+| `vgeom/substitution-sweep` | `viewer-substituted-value-class-is-crate-wide` | single FULL: per-site dispositions, some close by argument |
+
+`a-failed-boolean-hides-its-operands-and-marks-no-failure-site` (P1 H)
+carries a design question (what a failed node's picture is), so it goes
+to two Opus designers before any lane.
+- 2026-11-25 — (VGEOM orchestrator) `vgeom/project-refuses` (PR 7763) lands. Single STYLE review (Opus 5.5) tried four claims and all held (affine maps keep a ray's parameter; the f32 bound holds and catches; whole-pick refusal is the right direction; no caller relied on `None` for NaN). Fix pass took the stale rigid-frame prose (five passages, two on other crates' ground, doc-only), an occlusion probe that blamed the cursor, distinct check labels plus a row reaching the screen-coordinate check, and an owner on the refusal. Closed `camera-project-…` and `cursor-projection-row-…`. `a-moved-copys-pick-span-crosses-its-frame-unconverted` was narrowed, not closed: its premise was false (no conversion owed, point now read off the caller's ray), and what remains is the certificate ordered across carried and caller rays. It stays P1 on the reviewer's argument (every moved-copy edge hover compares the two, and the failure is a silent self-occlusion); next is a witness, and it drops to P3 if none flips.
+- 2026-11-25 — (VGEOM orchestrator) `vgeom/substitution-sweep` (PR 7764) lands. Single FULL review (Opus 5.5): mergeable, no MAJOR; five MINORs (the arc cap's nominal-seat argument, radii called widths, reachability-only acceptances claimed closed at the site, a stale PR line) and a Q1 parallel (`combine.rs` `measured_at_scale` vs `scene::extent`), all taken in a fix pass. `viewer-substituted-value-class-is-crate-wide` re-scoped to its residue at P3 (accepted). Filed: `a-capped-arc-sags-past-a-pixel-from-a-stale-fit` (here), `chrome/a-measures-scale-probe-drops-a-nan-point-the-fits-extent-refuses`, `doors/a-sketch-traces-window-is-a-metre-when-its-body-has-no-vertex`; the "+inf" status phrase noted to VNEWS. Merged over one INHERITED red, `display_budget::no_delta_renders_as_a_number_a_delta_cannot_be`, red on main and filed as `a-subnormal-delta-renders-further-from-itself-than-its-grid`.
+- 2026-11-25 — (VGEOM orchestrator) friction: this container (4 vCPU, ~250 GB) ran its disk to 100% with three lanes and two reviewers building at once; one review (PR 7766) could not build at all and reviewed by reading. Review-lane targets are now reclaimed the moment a report is in.

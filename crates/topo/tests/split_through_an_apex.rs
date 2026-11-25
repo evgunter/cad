@@ -592,9 +592,8 @@ fn a_split_merges_a_section_flush_with_a_base_face() {
                     "{}, up {up}: the {side:?} half merges the flush pair",
                     pose.label
                 );
-                let plane = |f: topo::FaceKey| {
-                    matches!(b.face_surface(f), Some(geom::Surface::Plane { .. }))
-                };
+                let plane =
+                    |f: topo::FaceKey| matches!(b.face_surface(f), Ok(geom::Surface::Plane { .. }));
                 for (edge, e) in b.edges() {
                     let Some(c) = b
                         .get_curve_geom(e.curve)

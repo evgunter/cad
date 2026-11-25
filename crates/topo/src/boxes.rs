@@ -975,7 +975,7 @@ pub(crate) mod tests {
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
         let (body, face, _) = nurbs_bulge_face();
-        let surface = body.proven_face(face).surface().clone();
+        let surface = body.proven_face(face).surface().unwrap().clone();
         // The lifted interior, on the surface itself — its boundary
         // curves all lie in `z = 0`, so no hull of the BOUNDARY can
         // contain this point.
@@ -1192,7 +1192,7 @@ pub(crate) mod tests {
         let with_axis = |axis: Vec3<f64>| {
             let mut body = unit.clone();
             let key = body.get_face(face).unwrap().surface;
-            let Surface::Cylinder { frame, .. } = &mut body.surfaces[key] else {
+            let Some(Surface::Cylinder { frame, .. }) = body.surface_mut(key) else {
                 panic!("cyl_wall's face carries a cylinder")
             };
             *frame = geom::Frame::new(frame.origin(), axis, frame.u_ref());
@@ -1201,7 +1201,12 @@ pub(crate) mod tests {
         let want = face_box(&unit, face, pad(), witness_band());
         let long = with_axis(Vec3::new(0.0, 0.0, 2.0));
         let key = long.get_face(face).unwrap().surface;
-        let stored = long.surfaces[key].frame().map(|f| f.axis()).unwrap();
+        let stored = long
+            .get_surface(key)
+            .unwrap()
+            .frame()
+            .map(|f| f.axis())
+            .unwrap();
         assert_eq!(
             [stored.x, stored.y, stored.z].map(f64::to_bits),
             [0.0, 0.0, 1.0].map(f64::to_bits),
@@ -1262,7 +1267,7 @@ pub(crate) mod tests {
             let (body, face) = cyl_wall(1.0, u0, u1, z0, z1);
             let f = body.proven_face(face);
             assert!(
-                matches!(f.surface(), Surface::Cylinder { .. }),
+                matches!(f.surface().unwrap(), Surface::Cylinder { .. }),
                 "the fixture's face carries a cylinder"
             );
             for (what, band) in [
@@ -4202,7 +4207,7 @@ pub(crate) mod sphere_rect_rows {
     /// The unit ball cut by the rim `z = h0` into a north cap and a
     /// south remainder, the north cap carrying a strut meridian at
     /// azimuth 0 from the rim up to `z = hc`, each face on `senses`'
-    /// side. `(body, north, south)`, or the closing mint's refusal.
+    /// side. `(body, north, south)`, or the mint's refusal.
     fn strut_cap_ball(
         h0: f64,
         hc: f64,

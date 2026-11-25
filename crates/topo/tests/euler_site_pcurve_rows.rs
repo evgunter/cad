@@ -228,7 +228,7 @@ fn a_mekr_on_a_minted_wall_leaves_the_face_complete() {
 
 /// **The op mints nothing onto an unminted face.** A wall whose rows
 /// are detached stores none, and the op mints none onto it: an unminted
-/// face is the producer's closing mint's, and a row minted onto it would
+/// face is the finish's to complete, and a row minted onto it would
 /// half-mint it the other way.
 /// The seed face on the same cylinder keeps its rows, so the op's plan
 /// runs; it reads the face it touches, not the body, and the seed
@@ -662,7 +662,7 @@ fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
 /// re-mints a face that stores nothing. While the strut stands, the
 /// at-rest validation names the strut by its tip; once it is gone,
 /// tier 3 names the rowless wall `Unminted`, its rows derivable. The
-/// producer's closing mint is what restores them.
+/// finish's completion is what derives them.
 #[test]
 fn a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass() {
     for kill in ["kemr", "kev"] {

@@ -1388,7 +1388,6 @@ impl<'a> Resolver<'a> {
         // patch's collapsed side as its pole.
         let mut healed = Vec::new();
         if let Surface::Nurbs(ref patch) = surface
-            && !patch.is_placeholder()
             && let Some((made_one, sides)) =
                 recognize::heal_collapsed_sides(patch.as_ref(), self.budget)
                     .map_err(|refusal| self.budget.refused(face, refusal))?
@@ -1402,9 +1401,7 @@ impl<'a> Resolver<'a> {
             promoted: None,
             ill_conditioned: None,
         };
-        if let Surface::Nurbs(ref patch) = read.surface
-            && !patch.is_placeholder()
-        {
+        if let Surface::Nurbs(ref patch) = read.surface {
             match recognize::recognize(patch.as_ref(), self.budget) {
                 recognize::Recognition::Promoted {
                     surface: promoted,

@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{NetState, NurbsSurface, Surface};
+use geom::{NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
@@ -168,10 +168,10 @@ fn the_scaffolding_door_still_passes_mid_construction() {
 }
 
 // ----------------------------------------------------------------------
-// Tier 3, check 1: a `Nurbs` face surface's `NetState`. The
-// placeholder's own verdict row is `tests/geometric_cube.rs`'s
+// Tier 3, check 1: a `Nurbs` face surface's net. The pending slot's
+// own verdict row is `tests/geometric_cube.rs`'s
 // `without_the_top_cap_tier3_rejects_the_nurbs_seed`; the ladder below
-// covers all three states and where their boundaries lie.
+// covers where a net stops being finite.
 // ----------------------------------------------------------------------
 
 /// A bilinear net over the given control points, on the pillow's face.
@@ -187,7 +187,7 @@ fn finite_point(i: i32) -> Point3<f64> {
     Point3::new(f64::from(i % 2), f64::from(i / 2), 0.0)
 }
 
-/// `NetState::Poisoned`: every control point carries poison in `x` over
+/// A net that is not finite: every control point carries poison in `x` over
 /// finite `y`/`z`.
 fn poisoned_net() -> Surface<f64> {
     bilinear_net(
@@ -197,7 +197,7 @@ fn poisoned_net() -> Surface<f64> {
     )
 }
 
-/// `NetState::Described`: the same knots and weights over finite
+/// A finite net: the same knots and weights over finite
 /// control points.
 fn finite_net() -> Surface<f64> {
     bilinear_net((0..4).map(finite_point).collect())
@@ -237,9 +237,8 @@ fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::e
     )
 }
 
-/// A face carrying a described net that is poisoned in one channel is
-/// named by check 1 ITSELF, and named as the state it is in: not the
-/// placeholder's verdict, which is the benign "no description yet".
+/// A face carrying a net that is poisoned in one channel is named by
+/// check 1 ITSELF, as corrupt: not the pending slot's verdict.
 #[test]
 fn a_described_net_carrying_poison_is_named_by_the_surface_check() {
     let tol = Tol::witness();
@@ -252,7 +251,7 @@ fn a_described_net_carrying_poison_is_named_by_the_surface_check() {
         !errs
             .iter()
             .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
-        "the placeholder's verdict is a different state's answer: {errs:?}",
+        "the pending slot's verdict is a different answer: {errs:?}",
     );
 }
 
@@ -270,25 +269,15 @@ fn a_finite_described_net_draws_no_surface_verdict() {
     );
 }
 
-/// **Where the state boundaries lie**, on one body per rung: the state
-/// `geom` reports for a net decides the verdict check 1 gives it — with
-/// one further read inside `Described` — each face draws at most one
-/// surface verdict, and the face named is the swapped one.
-///
-/// The rungs that carry the argument are the near misses. Poison in
-/// EVERY channel of every point is the placeholder however the net was
-/// built, so a hand-built all-poison net is `Placeholder` and not
-/// `Poisoned`; poison in every channel of ONE point is not, because the
-/// width rule quantifies over points as well as channels; and `±∞` is
-/// not `f64` poison at all, so a net carrying an infinity is
-/// `Described` — and check 1 refuses it anyway, as the poisoned net it
-/// is, because an infinite control point describes no locus exactly as
-/// an infinite radius does not.
+/// **Where a net stops being finite**, on one body per rung: check 1
+/// refuses a net exactly when some channel of some control point is not
+/// a finite number (NaN or `±∞`), each face draws at most one surface
+/// verdict, and the face named is the swapped one. A net is never the
+/// pending slot's verdict, however much of it is poison.
 #[test]
-fn the_net_state_ladder_decides_check_1s_verdict() {
+fn the_finiteness_ladder_decides_check_1s_verdict() {
     let tol = Tol::witness();
     let cases: Vec<(&str, Surface<f64>)> = vec![
-        ("the mvfs placeholder", Surface::nurbs_placeholder()),
         (
             "all channels of all points, hand-built",
             bilinear_net(
@@ -364,22 +353,22 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
         let Surface::Nurbs(payload) = &surface else {
             unreachable!("every rung is a Nurbs surface")
         };
-        let state = payload.net_state();
         let finite = payload
             .control()
             .iter()
             .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
+        assert_eq!(
+            payload.is_finite(),
+            finite,
+            "{name}: the predicate reads every channel"
+        );
         let (errs, face) = pillow_on(surface.clone(), tol);
-        let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
+        let pending = errs.contains(&ValidationError::UncertifiableSurface { face });
         let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });
         assert_eq!(
-            (placeholder, poisoned),
-            match state {
-                NetState::Placeholder => (true, false),
-                NetState::Poisoned => (false, true),
-                NetState::Described => (false, !finite),
-            },
-            "{name}: the state is {state:?} (finite: {finite}) and check 1 answered {errs:?}",
+            (pending, poisoned),
+            (false, !finite),
+            "{name}: finite: {finite}, and check 1 answered {errs:?}",
         );
         // No other face is named by a surface verdict, ever.
         for e in &errs {
@@ -1223,7 +1212,7 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest() {
         spec,
         start,
         end,
-        |_| None,
+        |_| Err(crate::SurfaceMiss::Stale),
         geom_core::test_support::fixture_lever(1.0),
         coarse,
         geom_brep::NurbsLane::certified(),
@@ -1283,7 +1272,7 @@ fn pillow_with_an_arc_past_a_turn_in(
     let (chart, wrap) = match named {
         ArcChart::Face | ArcChart::Pair => (face_chart, false),
         ArcChart::Wrap => {
-            *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
+            *body.surface_mut(face_chart).unwrap() = Surface::Cylinder {
                 frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 1.0,
             };
@@ -1291,7 +1280,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         }
         ArcChart::Unworn => {
             let plane = body.get_surface(face_chart).unwrap().clone();
-            (body.surfaces.insert(plane), false)
+            (body.add_surface(plane), false)
         }
     };
     let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
@@ -1419,7 +1408,7 @@ fn tilted_pillow_with_an_arc_past_a_turn(
     let other = other_face(&body, &split);
     let key = body.get_face(other).unwrap().surface;
     let theta: f64 = 0.5;
-    *body.surfaces.get_mut(key).unwrap() = Surface::Plane {
+    *body.surface_mut(key).unwrap() = Surface::Plane {
         frame: geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, theta.sin(), theta.cos()),
@@ -1548,11 +1537,11 @@ fn a_seam_tangency_on_an_arc_past_a_turn_is_a_kernel_bug() {
     let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
     let own = body.get_face(split.face).unwrap().surface;
     let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
-    body.surfaces[own] = Surface::Cylinder {
+    *body.surface_mut(own).unwrap() = Surface::Cylinder {
         frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
     };
-    body.surfaces[theirs] = Surface::Sphere {
+    *body.surface_mut(theirs).unwrap() = Surface::Sphere {
         frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         radius: 1.0,
     };
@@ -1644,7 +1633,7 @@ fn offset_plane_at_rest_fails_planar_residuals() {
     let (mut body, split) = coplanar_pillow(tol);
     let eps = tol.eps();
     let surface_key = body.get_face(split.face).unwrap().surface;
-    *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
+    *body.surface_mut(surface_key).unwrap() = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 100.0 * eps),
             Vec3::unit_z(),
@@ -1670,7 +1659,7 @@ fn sliver_dihedral_at_rest_is_rejected() {
     let eps = tol.eps();
     let theta = 3.0 * eps;
     let surface_key = body.get_face(split.face).unwrap().surface;
-    *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
+    *body.surface_mut(surface_key).unwrap() = Surface::Plane {
         frame: geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, theta.sin(), theta.cos()),
@@ -1708,7 +1697,7 @@ fn dangling_description_is_a_tier1_error() {
     };
     // NB: coincident planes would fail transversality — so tilt the
     // split face definitively first (a legal corner), then upgrade.
-    *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
+    *body.surface_mut(s_plus).unwrap() = Surface::Plane {
         frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -1734,7 +1723,7 @@ fn description_references_keep_a_surface_alive() {
     let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
     let s_seed = body.get_face(seed_face).unwrap().surface;
     // Make the corner genuine, then describe the edge intrinsically.
-    *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
+    *body.surface_mut(s_plus).unwrap() = Surface::Plane {
         frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x()),
     };
     let mut spec =
@@ -1757,7 +1746,7 @@ fn description_references_keep_a_surface_alive() {
         },
     )
     .unwrap();
-    assert!(body.get_surface(s_plus).is_some(), "kept alive");
+    assert!(body.get_surface(s_plus).is_ok(), "kept alive");
     assert_eq!(validate(&body), Ok(()), "no OrphanGeometry");
     // (Tier 3 now reports the adjacency incoherence — the description
     // names a surface that is no longer the face's — which is exactly
@@ -1854,9 +1843,9 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
         let spec = edge_spec(&p.body, e, kind);
         p.body.set_edge_curve(e, spec, tol).unwrap();
     }
-    // The assembly's closing mint: its two cylinder walls store their
-    // rows at rest (C4).
-    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
+    // The assembly's rows completed, as its finish would: its two
+    // cylinder walls store their rows at rest (C4).
+    crate::pcurves::complete_pcurves(&mut p.body, tol).unwrap();
     p
 }
 
@@ -1949,7 +1938,7 @@ fn adjacent_are_the_two_cylinders(body: &Body<f64>, edge: crate::entity::EdgeKey
     let (s1, s2) = adjacent_surfaces(body, edge);
     [s1, s2]
         .iter()
-        .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })))
+        .all(|&k| matches!(body.get_surface(k), Ok(geom::Surface::Cylinder { .. })))
 }
 
 // ------------------------------------------------------------------
@@ -3307,7 +3296,7 @@ fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
     let mut body = crate::test_support::brick::<f64>((x0, x0 + w), (0.0, w), (0.0, t), tol);
     let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
     for key in surfaces {
-        let surface = body.surfaces.get_mut(key).unwrap();
+        let surface = body.surface_mut(key).unwrap();
         let Surface::Plane {
             frame: carrier_frame,
         } = *surface
@@ -3640,7 +3629,7 @@ mod line_conic_review {
             .iter()
             .find(|(_, f)| {
                 matches!(
-                    body.surfaces.get(f.surface),
+                    body.get_surface(f.surface).ok(),
                     Some(Surface::Plane { frame, .. })
                         if frame.axis().z == 1.0 && frame.origin().z == 0.5
                 )
@@ -3983,7 +3972,7 @@ mod a_tangent_record_off_the_cusp {
         let top = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
-                Some(Surface::Plane { frame, .. }) => {
+                Ok(Surface::Plane { frame, .. }) => {
                     let (origin, normal) = (frame.origin(), frame.axis());
                     normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
                 }

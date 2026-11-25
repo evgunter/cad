@@ -52,7 +52,11 @@ pub(super) fn carrier_gate<T: Decide>(
 ) -> Result<(), SplitReduceError> {
     for face in body.face_views() {
         let face_key = face.key();
-        let surface = face.surface();
+        // The split's one read of every face's surface: a pending slot
+        // is refused here, so no reader past the gate meets one.
+        let surface = face
+            .surface()
+            .map_err(|crate::Pending| SplitReduceError::PendingFace { face: face_key })?;
         let kind = surface.kind();
         match kind {
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}

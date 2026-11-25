@@ -574,7 +574,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let first = *m.faces.first().ok_or(ReplaceFaceError::EmptyGroup)?;
         let first_data = body.proven_face(first);
         let d = match first_data.surface() {
-            Surface::Cone { .. } => {
+            Ok(Surface::Cone { .. }) => {
                 crate::offset_nappe::group_nappe(body, &m.faces, band)?.turn(m.distance)
             }
             _ => m.distance,
@@ -583,7 +583,10 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let old = data.surface().clone();
+            let old = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?
+                .clone();
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
             let constraint = classify(face, &new, &frame, band)?;
@@ -937,17 +940,6 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     }
     crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)
         .map_err(|error| uncertified_arc(error, &conic_arcs))?;
-    // Every edge OF THE SCOPE was re-described, and the charts here DO
-    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
-    // pass is load-bearing rather than the planar door's inert one. It
-    // runs over the scope's faces alone: an out-of-scope row belongs to
-    // an edge this door did not touch and stays exactly as it was found.
-    let minting = scope.faces_in_scope();
-    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol).map_err(|source| {
-        ReplaceFaceError::Pcurve {
-            source: source.for_driver(),
-        }
-    })?;
     // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
     // carry the account of what stays linear in the body).
     work.close_gated("offset_charts_together")
@@ -1036,7 +1028,10 @@ pub(crate) fn is_axial_in<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let surface = f.surface();
+        // A pending face is no axial chart, as a spline one is not.
+        let Ok(surface) = f.surface() else {
+            return Ok(false);
+        };
         match classify(face, surface, &frame, band) {
             Ok(_) => {}
             // The gate's own definite verdicts: this body is not
@@ -1072,7 +1067,10 @@ fn axial_frame<T: Decide>(
         if !scope.holds_face(face) {
             continue;
         }
-        let found = match f.surface() {
+        let Ok(surface) = f.surface() else {
+            return Err(ReplaceFaceError::PlaceholderSurface { face });
+        };
+        let found = match surface {
             // A torus carries `center` + `axis` exactly as a sphere
             // does: the centre is the tube midplane's own point on the
             // axis, and the axis is the revolution axis itself.
@@ -3973,7 +3971,7 @@ mod tests {
         let mut body = wedge;
         let (face, f) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. })))
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Ok(Surface::Cylinder { .. })))
             .map(|(k, f)| (k, f.surface))
             .expect("a wall on the cylinder");
         let dead = body.add_surface(Surface::Plane {

@@ -19,9 +19,8 @@
 //! centre/radius are the exact intent values) instead of a validated
 //! profile. Classification, sense derivation, seam placement, the
 //! reading of each arc against the axis (a tube whose circle reaches
-//! the axis has an arc across it, or ends one at its cusp) and the
-//! final whole-body pcurve mint are all the revolve's own code, not
-//! copies.
+//! the axis has an arc across it, or ends one at its cusp) are all the
+//! revolve's own code, not copies.
 //!
 //! **No cross-door bit-identity contract**: a tube-door body and a
 //! revolve-door body of the same torus may differ by ulps (the
@@ -567,16 +566,12 @@ fn build<T: Decide + topo::AtRestPolicy>(
         );
     }
 
-    let mut out = if full {
+    let out = if full {
         full::build_full(&sketch_frame, &loops, &classes, theta, band, tol)
     } else {
         partial::build_partial(&sketch_frame, &loops, &classes, theta, true, band, tol)
     }
     .map_err(TubeError::Revolve)?;
-    // The same final pass as every constructor since M6-3: stored
-    // certified pcurves at rest.
-    topo::mint_pcurves(&mut out.body, tol)
-        .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
     out.leaf(tol)
         .map_err(|findings| TubeError::Revolve(RevolveError::NotFinished { findings }))
 }

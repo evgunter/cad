@@ -23,12 +23,22 @@ use crate::live::{BoundaryMember, EdgeView, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
 /// refusal (a plane, a cylinder and a cone are unbounded whole; a net
-/// can carry poison), and each boundary entity whose refusal left the
-/// boundary unread where the arm reads it.
+/// can carry poison) or the face's having no surface yet, and each
+/// boundary entity whose refusal left the boundary unread where the arm
+/// reads it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FaceUncovered {
-    carrier: Uncovered,
+    carrier: CarrierUnread,
     boundary: Vec<BoundaryUnknown>,
+}
+
+/// Why a face's carrier read no cover.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CarrierUnread {
+    /// The face's surface slot is pending ([`crate::SurfaceMiss::Pending`]).
+    Pending,
+    /// The carrier's own refusal.
+    Uncovered(Uncovered),
 }
 
 /// **A boundary entity a face reading could not cover**.
@@ -41,10 +51,20 @@ pub enum BoundaryUnknown {
 }
 
 impl FaceUncovered {
-    /// The carrier's own refusal.
+    /// The carrier's own refusal; `None` for a face whose surface is
+    /// still pending ([`Self::is_pending`]), which has no carrier.
     #[must_use]
-    pub fn carrier(&self) -> &Uncovered {
-        &self.carrier
+    pub fn carrier(&self) -> Option<&Uncovered> {
+        match &self.carrier {
+            CarrierUnread::Uncovered(why) => Some(why),
+            CarrierUnread::Pending => None,
+        }
+    }
+
+    /// Whether the face has no surface yet.
+    #[must_use]
+    pub fn is_pending(&self) -> bool {
+        self.carrier == CarrierUnread::Pending
     }
 
     /// Each boundary entity that left the boundary unread, in boundary
@@ -58,7 +78,15 @@ impl FaceUncovered {
     /// boundary.
     pub fn of_carrier(carrier: Uncovered) -> Self {
         Self {
-            carrier,
+            carrier: CarrierUnread::Uncovered(carrier),
+            boundary: Vec::new(),
+        }
+    }
+
+    /// The refusal of a face whose surface is still pending.
+    pub fn pending() -> Self {
+        Self {
+            carrier: CarrierUnread::Pending,
             boundary: Vec::new(),
         }
     }
@@ -66,7 +94,10 @@ impl FaceUncovered {
 
 impl core::fmt::Display for FaceUncovered {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "the face's carrier has {}", self.carrier)?;
+        match &self.carrier {
+            CarrierUnread::Uncovered(why) => write!(f, "the face's carrier has {why}")?,
+            CarrierUnread::Pending => write!(f, "{}", geom_brep::PENDING_SURFACE)?,
+        }
         for unknown in &self.boundary {
             match unknown {
                 BoundaryUnknown::Edge(ek, why) => write!(f, " and its edge {ek:?}: {why}")?,
@@ -159,7 +190,7 @@ pub fn face_nearest<T: Decide>(
 ) -> T {
     let near = cover.distance_range(site).0;
     let f = body.proven_face(face);
-    let Surface::Plane { frame, .. } = *f.surface() else {
+    let Ok(&Surface::Plane { frame, .. }) = f.surface() else {
         return near;
     };
     let (origin, normal) = (frame.origin(), frame.axis_unit());
@@ -312,7 +343,9 @@ fn face_cover_in<T: Decide>(
     aim: Option<UnitVec3<T>>,
 ) -> FaceCovered<T> {
     let f = body.proven_face(face);
-    let surface = f.surface();
+    let Ok(surface) = f.surface() else {
+        return Err(FaceUncovered::pending());
+    };
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
     // A face with no outline bounds no region: no hull of its boundary
     // holds it, and its carrier's cover is the one that does.
@@ -798,7 +831,7 @@ fn torn_outer_loop<T: Decide>(
     f: FaceView<'_, T>,
     refusal: impl core::fmt::Debug,
 ) -> ! {
-    f.surface();
+    f.slot();
     let (outer, outer_loop) = f.outer();
     for member in body.loop_members_linked(outer, outer_loop) {
         if let BoundaryMember::Edge { he, half, edge, .. } = member {
