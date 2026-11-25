@@ -188,3 +188,9 @@ within rounding. On the review sweep's 68 turned cases at f64
 `review_probe_far_witnesses`' one refuser is still `Budget(Depth { 40 })`,
 at 908 / 1 / 924 (1,040 / 1 / 1,065). The reading's exits A to D are
 not touched: the two small cavities are what remains here.
+
+**Still open on this row:** why a cell that straddles the apex reads
+`Local` in `zero_of` where a cell that ends at the apex does not. The
+window no longer makes such cells by overshoot, but a face whose
+boundary meets both nappes, which `window_of`'s own argument allows for,
+has a window across the apex and so straddling cells without any.

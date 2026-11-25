@@ -137,3 +137,7 @@ Every other pose of `a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex`
 is embedded too, and the test now asks `Embedded` of every pose. Its
 exit was not traced cell by cell: what is demonstrated is that the
 window reading alone moves it. The ε 1e-6 and 1e-12 rows are CI's.
+
+The "same row pins it as that refusal" above no longer holds: that pin
+is gone, and every pose, the turned `−5.5` one included, is asked
+`Embedded` and is. The row looks answered; closing it is EMBED's call.

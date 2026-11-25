@@ -486,6 +486,11 @@ pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
 }
 
+/// A face's window rectangle, `(face, u, v)` ([`Windows::rects`]).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub type WindowRect = (FaceKey, (f64, f64), (f64, f64));
+
 #[cfg(any(test, feature = "test-support"))]
 impl<T: Real> Windows<'_, T> {
     /// **How many posed boundaries each face built in this ask**
@@ -520,6 +525,12 @@ impl<T: Real> Windows<'_, T> {
             })
             .collect();
         (charts, edges)
+    }
+
+    /// **Each window's parameter rectangle**, by face: `(face, u, v)`.
+    #[doc(hidden)]
+    pub fn rects(&self) -> Vec<WindowRect> {
+        self.of.iter().map(|w| (w.face, w.u, w.v)).collect()
     }
 }
 
@@ -3730,9 +3741,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some((cover, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
-    // The boundary's range of `(x − origin)·dir`, each piece's support
-    // along `dir`. Read off the boundary's world box it would reach past
-    // the boundary wherever `dir` is off the world's axes.
+    // The boundary's range of `(x − origin)·dir`: the hull of each
+    // piece's support along `dir`, which holds the boundary and is tight
+    // in any frame.
     let offset = |origin: Point3<Interval>, dir: Vec3<Interval>| -> Interval {
         let (lo, hi) = cover.range_along(dir);
         Interval::from_bounds(lo.lo(), hi.hi()) - (origin - Point3::origin()).dot(dir)
@@ -5844,33 +5855,6 @@ mod cone_window {
                 w.v
             );
         }
-    }
-
-    /// **A cone face's window ends where its boundary does in a turned
-    /// frame too**: the cap above, turned about a generic axis and
-    /// moved. Its `v` window runs from the apex's `0` to its rim's slant.
-    /// Red if the window is read off a box of the boundary in world
-    /// axes, which reaches past the rim along an axis off the world's.
-    #[test]
-    fn a_cone_window_ends_at_its_boundary_in_a_turned_frame() {
-        use geom_core::{Affine3, Point3, Vec3};
-        let turn = Affine3::rotation_about_axis(
-            Point3::new(0.3, -1.1, 2.9),
-            Vec3::new(1.0, 2.0, 3.0),
-            0.7,
-        );
-        let (cap, face) = cone_cap(1.0);
-        let cap = crate::transform::transform_rigid(
-            &cap,
-            &geom_core::test_support::rigid(&turn, Tol::witness()),
-        )
-        .unwrap();
-        let w = window_of(&cap, face, Which::First, None).unwrap();
-        assert!(
-            w.v.0 == 0.0 && (w.v.1 - slant(1.0)).abs() < 1e-12,
-            "the turned cap's window runs from the apex to its rim: {:?}",
-            w.v
-        );
     }
 }
 
