@@ -46,8 +46,9 @@ U3 of `cone-germ-pairs-against-a-curved-face-have-no-section-frame`.
   (no pad for the fit's distance from the cone) is
   `the-cone-cap-lane-charges-no-pad-for-a-fitted-edge-off-the-cone`. With
   it every op builds at its volume through tier 3; `point_in_solid`
-  refuses `PartialConeFace` near the spline-bounded cone face, filed as
-  `inside/point-in-solid-refuses-a-cone-face-a-spline-bounds`, and the row
+  refuses `PartialConeFace` and `WallOutlineUnsupported` near the
+  spline-bounded cone and wall faces, filed as
+  `inside/point-in-solid-refuses-a-ruled-face-a-spline-bounds`, and the row
   reads membership wherever the door answers.
 - **Coverage's row:** `coverage`'s cone side has a caller but no row in
   the default set; a row holds it to its quadratic on closed-form rings,

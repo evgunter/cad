@@ -495,14 +495,15 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
         );
         topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
         let read = membership_off_the_cone_face(&label, body, &truth, &points);
-        eprintln!("{label}: membership {read:?} (agreed, PartialConeFace)");
+        eprintln!("{label}: membership {read:?} (agreed, refused)");
     }
 }
 
 /// [`solid_truth::assert_body_is`]'s membership check, less the points
-/// `point_in_solid` refuses `PartialConeFace` at: a cone face bounded by
-/// the marched section's spline edge has no region reading
-/// (`work/inside/point-in-solid-refuses-a-cone-face-a-spline-bounds.md`).
+/// `point_in_solid` refuses at for a face the marched section's spline
+/// edge bounds, which has no region reading (`PartialConeFace` on the
+/// cone, `WallOutlineUnsupported` on the rod's wall)
+/// (`work/inside/point-in-solid-refuses-a-ruled-face-a-spline-bounds.md`).
 /// Every point it answers agrees with `truth`, and at least one is
 /// answered. Returns the points agreed and refused.
 fn membership_off_the_cone_face(
@@ -532,7 +533,10 @@ fn membership_off_the_cone_face(
                 );
                 agreed += 1;
             }
-            Err(topo::PointInSolidError::PartialConeFace { .. }) => refused += 1,
+            Err(
+                topo::PointInSolidError::PartialConeFace { .. }
+                | topo::PointInSolidError::WallOutlineUnsupported { .. },
+            ) => refused += 1,
             Err(e) => panic!("{label}: point_in_solid at {q:?} refused {e:?}"),
         }
     }
