@@ -48,19 +48,6 @@
 //! budget met ([`ResidualTrend`]). Each round's time is
 //! linear in the samples, and only the wall bounds the rounds
 //! (`work/ssiarith/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
-//!
-//! **The tube rounds.** A certified ℝ³ branch is refined again where its
-//! uniqueness tube is held narrow by its samples ([`refine_for_tube`]):
-//! limb 3 takes one rung for the whole chain, so a box whose span is long
-//! against the locus's turning sets the tube everywhere, and the
-//! accounting pays for it over the whole domain. Those rounds are not
-//! the refusal rounds above and do not stop on a refusal: each keeps a
-//! certified carrier, and stops, naming nothing, where no span holds the
-//! tube, nothing halves, the step budget would be passed, the finer
-//! carrier's tube is no wider, or halving or the finer carrier's
-//! certificate refuses. A round is kept only where the tube moves up the
-//! ladder, so they number at most its rungs
-//! ([`super::certify::SSI_TUBE_RUNGS`]), each a refinement as above.
 
 use geom::NurbsCurve3;
 use geom_core::linalg::svd::Svd;
@@ -194,23 +181,8 @@ pub(crate) fn refine_by_certificate<const M: usize, const N: usize, S, C>(
     states: Vec<[f64; N]>,
     ctx: &MarchContext<N>,
     band: Band,
-    certify: impl FnMut(&[[f64; N]], Limbs) -> Result<C, Located>,
-) -> Result<C, SsiError>
-where
-    S: LocalSystem<M, N> + TransversalityData<N>,
-{
-    certified_states(sys, states, ctx, band, certify).map(|(certified, _)| certified)
-}
-
-/// [`refine_by_certificate`], beside the states the certified carrier was
-/// fitted through.
-fn certified_states<const M: usize, const N: usize, S, C>(
-    sys: &S,
-    states: Vec<[f64; N]>,
-    ctx: &MarchContext<N>,
-    band: Band,
     mut certify: impl FnMut(&[[f64; N]], Limbs) -> Result<C, Located>,
-) -> Result<(C, Vec<[f64; N]>), SsiError>
+) -> Result<C, SsiError>
 where
     S: LocalSystem<M, N> + TransversalityData<N>,
 {
@@ -220,7 +192,7 @@ where
     let mut tube_asked = false;
     loop {
         let (error, at) = match certify(&states, Limbs::All) {
-            Ok(certified) => return Ok((certified, states)),
+            Ok(certified) => return Ok(certified),
             Err(Located {
                 error,
                 at: Some(at),
@@ -341,76 +313,6 @@ where
         unsettled,
         off_domain,
     }))
-}
-
-/// **Refinement for the tube** (C3): `states` refined by
-/// [`refine_by_certificate`], then again where the certificate's
-/// uniqueness tube is held narrow by the samples rather than the locus.
-///
-/// Limb 3 takes the widest ladder rung over which every box of the
-/// carrier's chain is a graph, so one box whose span is long against the
-/// locus's turning holds the whole tube to its rung, and the
-/// exhaustiveness accounting then subdivides the whole shell to that
-/// rung. `coarse` reads a certified carrier's tube radius and the spans
-/// whose boxes hold it there (for the ℝ³ lane,
-/// [`super::certify::coarse_tube_spans`]); their gaps are halved, one gap
-/// on each side with them, and the branch is refined and certified again.
-/// The finer carrier replaces the kept one only where its tube is wider,
-/// so the rounds climb the tube ladder and are at most its rung count.
-///
-/// The rounds stop on the kept carrier, which is certified, and name no
-/// refusal: where `coarse` names nothing; where nothing halves or the
-/// step budget would be passed; where the finer carrier's tube is no
-/// wider; and where halving or the finer carrier's certificate refuses.
-/// That refusal is about a finer carrier this door was free not to
-/// build; the kept one answers for the branch.
-///
-/// # Errors
-///
-/// [`refine_by_certificate`]'s, on `states`.
-pub(crate) fn refine_for_tube<const M: usize, const N: usize, S, C>(
-    sys: &S,
-    states: Vec<[f64; N]>,
-    ctx: &MarchContext<N>,
-    band: Band,
-    mut certify: impl FnMut(&[[f64; N]], Limbs) -> Result<C, Located>,
-    coarse: impl Fn(&C) -> Option<(f64, Vec<RefusedSpan>)>,
-) -> Result<C, SsiError>
-where
-    S: LocalSystem<M, N> + TransversalityData<N>,
-{
-    let (mut kept, mut fitted) = certified_states(sys, states, ctx, band, &mut certify)?;
-    let mut reading = coarse(&kept);
-    loop {
-        let Some((radius, spans)) = reading else {
-            return Ok(kept);
-        };
-        if spans.is_empty() {
-            return Ok(kept);
-        }
-        // A midpoint near tangent refuses a finer carrier, not the kept
-        // one (doc above).
-        let Ok(Some(Halved { finer, .. })) = halve_spans(sys, &fitted, &spans, ctx, band) else {
-            return Ok(kept);
-        };
-        if finer.len() == fitted.len() || finer.len() - 1 > ctx.max_steps {
-            return Ok(kept);
-        }
-        // As is a finer carrier that does not certify.
-        let Ok((next, refit)) = certified_states(sys, finer, ctx, band, &mut certify) else {
-            return Ok(kept);
-        };
-        let next_reading = coarse(&next);
-        if !next_reading
-            .as_ref()
-            .is_some_and(|(wider, _)| *wider > radius)
-        {
-            return Ok(kept);
-        }
-        kept = next;
-        fitted = refit;
-        reading = next_reading;
-    }
 }
 
 /// **The fit's minimum** (C3): `states` given the cubic's
@@ -584,7 +486,7 @@ mod tests {
 
     use super::{
         BranchBound, Limbs, Located, RefineStop, RefusedResidual, RefusedRound, ResidualTrend,
-        RoundMargin, SsiError, SsiLimb, refine_by_certificate, refine_for_tube, stopped_falling,
+        RoundMargin, SsiError, SsiLimb, refine_by_certificate, stopped_falling,
     };
     use crate::ssi::SSI_MAX_STEPS;
     use crate::ssi::certify::{LimbRefusal, RefusedSpan, Spans};
@@ -659,99 +561,6 @@ mod tests {
         MarchContext {
             max_steps: SSI_MAX_STEPS,
             ..unit_ctx(band)
-        }
-    }
-
-    /// A tube reading stand-in over the `x` axis: the tube radius is the
-    /// inverse of the longest gap meeting `|x| ≤ 0.05`, which it names
-    /// while that gap is longer than 0.1.
-    fn held_near_zero(states: &[[f64; 3]]) -> Option<(f64, Vec<RefusedSpan>)> {
-        let widest = states
-            .windows(2)
-            .filter(|g| g[1][0] >= -0.05 && g[0][0] <= 0.05)
-            .map(|g| g[1][0] - g[0][0])
-            .fold(0.0, f64::max);
-        let spans = if widest > 0.1 {
-            vec![RefusedSpan {
-                lo: t(-0.05),
-                hi: t(0.05),
-            }]
-        } else {
-            Vec::new()
-        };
-        Some((1.0 / widest, spans))
-    }
-
-    /// **The tube rounds halve the gaps that hold the tube until none
-    /// does**, keeping each finer carrier because its tube is wider: the
-    /// gaps about 0 end no longer than 0.1, and the outer gaps, never
-    /// named, are halved only as neighbours.
-    #[test]
-    fn the_tube_rounds_halve_the_gaps_that_hold_the_tube() {
-        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
-        let sys = FixedSpeedR3::at_speed(1.0);
-        let ctx = kernel_ctx(band);
-        let out = refine_for_tube(
-            &sys,
-            axis_states(),
-            &ctx,
-            band,
-            |s, _| Ok(s.to_vec()),
-            |s: &Vec<[f64; 3]>| held_near_zero(s),
-        )
-        .unwrap();
-        let want = [
-            -0.8, -0.6, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8,
-        ];
-        let got = xs(&out);
-        assert!(
-            got.len() == want.len() && got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12),
-            "{got:?}"
-        );
-    }
-
-    /// **A finer carrier whose tube is no wider, or that does not
-    /// certify, leaves the kept carrier as it was**: the marched states,
-    /// certified, unchanged.
-    #[test]
-    fn a_tube_round_that_does_not_widen_keeps_the_carrier() {
-        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
-        let sys = FixedSpeedR3::at_speed(1.0);
-        let ctx = kernel_ctx(band);
-        let named = || {
-            vec![RefusedSpan {
-                lo: t(-0.05),
-                hi: t(0.05),
-            }]
-        };
-        let flat = refine_for_tube(
-            &sys,
-            axis_states(),
-            &ctx,
-            band,
-            |s, _| Ok(s.to_vec()),
-            |_: &Vec<[f64; 3]>| Some((1.0, named())),
-        )
-        .unwrap();
-        let refused = refine_for_tube(
-            &sys,
-            axis_states(),
-            &ctx,
-            band,
-            |s, _| {
-                if s.len() > 5 {
-                    Err(Located::from(SsiError::UnsupportedCertificate {
-                        what: "a stand-in that refuses every finer carrier",
-                    }))
-                } else {
-                    Ok(s.to_vec())
-                }
-            },
-            |s: &Vec<[f64; 3]>| Some((1.0 / s.len() as f64, named())),
-        )
-        .unwrap();
-        for (label, out) in [("not wider", flat), ("not certified", refused)] {
-            assert_eq!(xs(&out), xs(&axis_states()), "{label}");
         }
     }
 

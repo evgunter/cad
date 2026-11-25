@@ -137,7 +137,7 @@ use crate::recourse::{
 pub use boundary::{
     BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact,
 };
-pub use certify::{
+pub use certify::{CoverStop, 
     OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS, SsiCertificate,
     SsiLimb, SsiTube,
 };
@@ -576,6 +576,10 @@ pub enum SsiError {
         verdict: crate::recourse::Refused,
         /// Boxes in the chain.
         boxes: u32,
+        /// On the ℝ³ arm, why the narrowest rung's cover stopped halving
+        /// short of a graph ([`certify::CoverStop`]); `None` on the
+        /// chart arms, whose chains are not halved.
+        stop: Option<certify::CoverStop>,
     },
     /// Limb 3, at every door (either arm): at every rung whose boxes made
     /// the locus a graph, the chain was not proved to hold one arc
@@ -1084,13 +1088,23 @@ impl core::fmt::Display for SsiError {
                  no chain), so limb 3 has nothing to decide — a structural refusal, with \
                  no margin behind it"
             ),
-            Self::TubeStraddles { verdict, boxes } => write!(
-                f,
-                "ssi: over its {boxes}-box chain {} is not clear of the zero band (bound {:e} \
-                 m), so a second branch may lie inside the tube",
-                crate::certify::TUBE_CROSSING_BOUND,
-                verdict.margin()
-            ),
+            Self::TubeStraddles {
+                verdict,
+                boxes,
+                stop,
+            } => {
+                write!(
+                    f,
+                    "ssi: over its {boxes}-box chain {} is not clear of the zero band (bound \
+                     {:e} m), so a second branch may lie inside the tube",
+                    crate::certify::TUBE_CROSSING_BOUND,
+                    verdict.margin()
+                )?;
+                match stop {
+                    Some(stop) => write!(f, "; the chain was halved until {stop}"),
+                    None => Ok(()),
+                }
+            }
             Self::TubeNotOneArc { rungs, cause } => write!(
                 f,
                 "ssi: at {rungs} rungs the uniqueness tube was a graph but not proved one arc; \
@@ -2541,14 +2555,20 @@ impl FittedR3 {
 /// The ℝ³ box chain of a certified branch — the tubes the accounting
 /// pass consumes. A branch with no spatial tube banks nothing, which
 /// only makes the accounting harder.
-fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
-    let (Some(Ok(c)), SsiTube::Spatial { radius }) = (
+fn branch_tubes(branch: &SsiBranch, pair: (&Surface<f64>, &Surface<f64>)) -> Vec<Box3> {
+    let (Some(Ok(c)), SsiTube::Spatial { radius, .. }) = (
         branch.carrier.clamped_net(branch.params),
         branch.certificate.tube,
     ) else {
         return Vec::new();
     };
-    certify::tube_boxes(&c, radius)
+    let boxes = certify::tube_boxes(&c, pair, radius);
+    // The chain the certificate counted, or nothing.
+    if u32::try_from(boxes.len()) == Ok(branch.certificate.tube_boxes) {
+        boxes
+    } else {
+        Vec::new()
+    }
 }
 
 /// The chart windows of a certified chart-lane branch — the tubes
@@ -4020,7 +4040,7 @@ where
             Err(e) => return Err(e),
         };
         let branch = finish_r3(&sys, &trace, a, b, &domain, &ctx, band)?;
-        tubes.extend(branch_tubes(&branch));
+        tubes.extend(branch_tubes(&branch, (a, b)));
         branches.push(branch);
     }
     Ok((branches, tubes))
@@ -4046,8 +4066,7 @@ fn seam_tol(tol: MarchTol, band: Band) -> Result<f64, SsiError> {
 }
 
 /// Fit, certify and wrap an ℝ³ trace, refined where the certificate
-/// refuses it and where its samples hold its tube narrow
-/// ([`refine::refine_for_tube`]).
+/// refuses it ([`refine::refine_by_certificate`]).
 fn finish_r3(
     sys: &ImplicitPairR3<'_>,
     trace: &Trace<3, march::SlabEnd>,
@@ -4060,7 +4079,7 @@ fn finish_r3(
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
     let closed = trace.end == march::SlabEnd::Closed;
-    let (carrier, cert) = refine::refine_for_tube(
+    let (carrier, cert) = refine::refine_by_certificate(
         sys,
         trace.states.clone(),
         ctx,
@@ -4079,14 +4098,6 @@ fn finish_r3(
                 limbs,
             )?;
             Ok((carrier, cert))
-        },
-        |(carrier, cert)| {
-            let SsiTube::Spatial { radius } = cert.tube else {
-                return None;
-            };
-            let spans =
-                certify::coarse_tube_spans(carrier.net(), (a, b), radius, (domain.extent, band));
-            Some((radius, spans))
         },
     )?;
     let params = carrier.net().domain();
@@ -4663,6 +4674,7 @@ mod ending_tests {
             SsiError::TubeStraddles {
                 verdict: zero,
                 boxes: 4,
+                stop: None,
             },
             SsiError::CertificateEscalated {
                 limb: SsiLimb::Tube,
@@ -4799,6 +4811,7 @@ mod ending_tests {
                 band: band(),
             }),
             boxes: 12,
+            stop: None,
         };
         let shown = tube.to_string();
         let literal = shown.split_whitespace().count();
@@ -5585,6 +5598,7 @@ mod ending_tests {
                 SsiError::TubeStraddles {
                     verdict: zero,
                     boxes: 12,
+                    stop: None,
                 },
             ),
             (

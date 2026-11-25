@@ -619,8 +619,20 @@ mod tests {
             let rho = big_r + r * v.cos();
             Point3::new(rho * u.cos(), rho * u.sin(), r * v.sin())
         };
+        // The chain is read against a pair. Two planes whose common line
+        // no edge of these polygons is square to make every box a graph
+        // as it stands, so the chain is the knot spans'.
+        let plane = |n: Vec3<f64>| Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), n, n.orthonormal_basis().0),
+        };
+        let planes = (
+            plane(Vec3::new(1.0, -1.0, 0.0).normalize()),
+            plane(Vec3::new(1.0, 1.0, -2.0).normalize()),
+        );
         let chain = |c: &Curve3<f64>, radius: f64| match c {
-            Curve3::Nurbs(net) => crate::ssi::certify::tube_chain(net, radius),
+            Curve3::Nurbs(net) => {
+                crate::ssi::certify::tube_chain(net, (&planes.0, &planes.1), radius)
+            }
             _ => Vec::new(),
         };
         for (what, c, want) in [
@@ -633,7 +645,8 @@ mod tests {
             ),
         ] {
             let pieces = chain(&c, 1e-3);
-            assert!(pieces.len() >= 32, "{what}: the chain has its boxes");
+            let spans = if what == "a null loop" { 32 } else { 64 };
+            assert_eq!(pieces.len(), spans, "{what}: one box a knot span");
             assert_eq!(
                 winding(&torus(), &c, (0.0, 1.0), &pieces),
                 Ok(Winding {

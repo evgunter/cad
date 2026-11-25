@@ -794,6 +794,139 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     dot(&cross(&g1, &g2), &constv(e))
 }
 
+/// **Limb 3's graph quantity over `b`, read as the pair's forms allow**
+/// (C2). Zero-free, it proves the solution set in `b` a graph over the
+/// `e` axis: no critical point, and at most one solution on each slice.
+///
+/// Two solutions `x ≠ y` on one slice give `∇f₁(ξ₁)·(x − y) = 0` and
+/// `∇f₂(ξ₂)·(x − y) = 0` at mean-value points `ξ₁`, `ξ₂` of the chord,
+/// which differ in general: the quantity that must be zero-free is
+/// `(∇f₁(ξ₁) × ∇f₂(ξ₂))·e` with the two gradients read at independent
+/// points of the box ([`graph_margin`]).
+///
+/// Where both forms are quadratic ([`AffineGradient`]: a plane, a
+/// sphere, a cylinder) the identity `f(x) − f(y) = ∇f((x + y)/2)·(x − y)`
+/// is exact, so both mean-value points are the chord's midpoint, which
+/// lies in the convex box, and the quantity is `(∇f₁(x) × ∇f₂(x))·e` at
+/// one point `x` ([`one_point_margin`]). The two-point enclosure
+/// encloses that range too, so the two are met.
+///
+/// Which reading a pair takes is its forms' alone: a torus's form is
+/// quartic and a cone's is its elevation, so a pair with either reads
+/// two points whatever the box.
+pub(crate) fn graph_quantity<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    b: Box3,
+    e: Vec3<T>,
+) -> Interval {
+    let two_point = graph_margin(s1, s2, b, e);
+    match (AffineGradient::of(s1, b), AffineGradient::of(s2, b)) {
+        (Some(g1), Some(g2)) => one_point_margin(&g1, &g2, b, e).meet(two_point),
+        _ => two_point,
+    }
+}
+
+/// **The gradient of a quadratic form over a box, as the affine map it
+/// is**: `∇f(c + d) = ∇f(c) + J·d` with `c` the box's centre and `J`
+/// the form's constant, symmetric Hessian. `Some` for exactly the kinds
+/// whose [`implicit_enclosure`] form is a polynomial of degree at most
+/// two (the plane's is linear), whatever the box.
+struct AffineGradient {
+    /// `∇f(c)`, enclosed at the centre's point box.
+    centre: [Interval; 3],
+    hessian: Hessian,
+}
+
+/// A quadratic form's Hessian `J`, by the form.
+enum Hessian {
+    /// The plane's: zero.
+    Zero,
+    /// The sphere's: `I/r`.
+    Ball { r: Interval },
+    /// The cylinder's: `(I − k·ââᵀ)/r`, `k = 2 − |â|²`
+    /// ([`implicit_gradient_enclosure`]'s own form).
+    Axial {
+        a: [Interval; 3],
+        k: Interval,
+        r: Interval,
+    },
+}
+
+impl Hessian {
+    /// `J·v`.
+    fn apply(&self, v: &[Interval; 3]) -> [Interval; 3] {
+        match self {
+            Self::Zero => [Interval::point(0.0); 3],
+            Self::Ball { r } => [v[0] / *r, v[1] / *r, v[2] / *r],
+            Self::Axial { a, k, r } => {
+                let h = dot(v, a) * *k;
+                [
+                    (v[0] - a[0] * h) / *r,
+                    (v[1] - a[1] * h) / *r,
+                    (v[2] - a[2] * h) / *r,
+                ]
+            }
+        }
+    }
+}
+
+impl AffineGradient {
+    fn of<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Option<Self> {
+        let hessian = match *surface {
+            Surface::Plane { .. } => Hessian::Zero,
+            Surface::Sphere { radius, .. } => Hessian::Ball {
+                r: Interval::from_certified(radius),
+            },
+            Surface::Cylinder { frame, radius, .. } => {
+                let a = constv(frame.axis());
+                Hessian::Axial {
+                    a,
+                    k: Interval::from_bounds(2.0, 2.0) - norm_sq(&a),
+                    r: Interval::from_certified(radius),
+                }
+            }
+            Surface::Torus { .. }
+            | Surface::Cone { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => return None,
+        };
+        let c = b.center();
+        Some(Self {
+            centre: implicit_gradient_enclosure(surface, Box3::between(c, c)),
+            hessian,
+        })
+    }
+}
+
+/// `(∇f₁(x) × ∇f₂(x))·e` over `x ∈ b`, both gradients at the one point,
+/// for two quadratic forms: with `x = c + d`,
+///
+/// `(g₁ × g₂)·e + L·d + (J₁d × J₂d)·e`, `L = J₁(g₂ × e) + J₂(e × g₁)`,
+///
+/// `gᵢ = ∇fᵢ(c)`. The first-order term is one vector against `d`, so
+/// what the two gradients share of `d` cancels in `L` before the box's
+/// width is read; the last term is second order in the box.
+fn one_point_margin<T: CertifiedBounds>(
+    g1: &AffineGradient,
+    g2: &AffineGradient,
+    b: Box3,
+    e: Vec3<T>,
+) -> Interval {
+    let e = constv(e);
+    let c = b.center();
+    let mid = Box3::between(c, c);
+    let d = [b.x - mid.x, b.y - mid.y, b.z - mid.z];
+    let first = {
+        let l1 = g1.hessian.apply(&cross(&g2.centre, &e));
+        let l2 = g2.hessian.apply(&cross(&e, &g1.centre));
+        [l1[0] + l2[0], l1[1] + l2[1], l1[2] + l2[2]]
+    };
+    let second = cross(&g1.hessian.apply(&d), &g2.hessian.apply(&d));
+    dot(&cross(&g1.centre, &g2.centre), &e) + dot(&first, &d) + dot(&second, &e)
+}
+
 /// **The partner a chart tube reads `φ` of**, along the wall `S`: the
 /// partner's canonical form `f∘S`
 /// ([`ImplicitForm`](super::residual::ImplicitForm)), the plane's `f = z`

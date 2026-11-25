@@ -2768,6 +2768,9 @@ pub enum AnalyticRung3Refusal {
         verdict: Refused,
         /// How many boxes of the chain it was certified over.
         boxes: u32,
+        /// Why the narrowest rung's cover stopped halving short of a
+        /// graph ([`crate::ssi::CoverStop`]).
+        stop: Option<crate::ssi::CoverStop>,
     },
     /// The tube was a graph at some rung, but at none was its chain
     /// proved to hold one arc spanning the carrier and nothing else.
@@ -2836,7 +2839,15 @@ impl AnalyticRung3Refusal {
 
     fn of_tube(e: SsiError) -> Self {
         match e {
-            SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
+            SsiError::TubeStraddles {
+                verdict,
+                boxes,
+                stop,
+            } => Self::TubeStraddles {
+                verdict,
+                boxes,
+                stop,
+            },
             SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
             SsiError::CertificateEscalated {
                 limb: SsiLimb::Tube,
@@ -3001,16 +3012,26 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                  one crossing",
                 operand.name()
             ),
-            Self::TubeStraddles { verdict, boxes } => write!(
-                f,
-                "{} is not clear of the zero band over {boxes} boxes of the chain — {}'s \
-                 enclosure straddles zero, from a near-tangency of the two surfaces along the \
-                 carrier or from the enclosure's slack; the bound reads {:e} m, which is what \
-                 the certificate could prove",
-                crate::certify::TUBE_CROSSING_BOUND,
-                crate::certify::CROSSING_ANGLE,
-                verdict.margin()
-            ),
+            Self::TubeStraddles {
+                verdict,
+                boxes,
+                stop,
+            } => {
+                write!(
+                    f,
+                    "{} is not clear of the zero band over {boxes} boxes of the chain — {}'s \
+                     enclosure straddles zero, from a near-tangency of the two surfaces along \
+                     the carrier or from the enclosure's width over a box; the bound reads \
+                     {:e} m, which is what the certificate could prove",
+                    crate::certify::TUBE_CROSSING_BOUND,
+                    crate::certify::CROSSING_ANGLE,
+                    verdict.margin()
+                )?;
+                match stop {
+                    Some(stop) => write!(f, "; the chain was halved until {stop}"),
+                    None => Ok(()),
+                }
+            }
             Self::TubeNotOneArc { rungs, cause } => write!(
                 f,
                 "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
@@ -3738,7 +3759,8 @@ fn on_carrier_domain<T: SpanLocate>(
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
         SsiError::CertificateLimb { limb, margin } => PlaneNurbsRefusal::Limb { limb, margin },
-        SsiError::TubeStraddles { verdict, boxes } => {
+        // A chart chain is not halved, so its refusal names no stop.
+        SsiError::TubeStraddles { verdict, boxes, .. } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }
         SsiError::CertificateEscalated { limb, cause } => {

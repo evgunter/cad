@@ -114,6 +114,7 @@
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::certification::Certification as _;
 use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{CurveCertData, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
@@ -124,11 +125,11 @@ use geom_core::{
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
-use crate::descent::{Descent, Work};
+use crate::descent::{Descent, Stop, Work};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, tube_margin,
+    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_quantity, tube_margin,
     zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
@@ -201,8 +202,15 @@ pub enum SsiTube<T> {
     /// The ℝ³ arm: a box chain around the carrier padded by `radius`
     /// metres, which is the proved region.
     Spatial {
-        /// The pad, in metres.
+        /// The tube's rung, in metres: the widest of the ladder whose
+        /// cover of the carrier, each box padded by it, is proved one
+        /// arc. The winding and the exhaustiveness accounting read it.
         radius: T,
+        /// The narrowest rung of the ladder whose own cover, each box
+        /// padded by it, is proved one arc: a second claim about the
+        /// same carrier, which a pad is read off. It is `radius` where
+        /// no narrower rung proves.
+        narrow: T,
     },
     /// The chart arm (plane × NURBS): a per-span window chain around
     /// the wall's pcurve, padded per axis in chart units. The rung is
@@ -240,7 +248,10 @@ impl<T> SsiTube<T> {
     /// The tube at another scalar, field by field.
     pub(crate) fn map<U>(self, f: impl Fn(T) -> U) -> SsiTube<U> {
         match self {
-            Self::Spatial { radius } => SsiTube::Spatial { radius: f(radius) },
+            Self::Spatial { radius, narrow } => SsiTube::Spatial {
+                radius: f(radius),
+                narrow: f(narrow),
+            },
             Self::Chart {
                 rung,
                 pad_u,
@@ -395,19 +406,15 @@ fn cert_grid(kv: &KnotVector) -> Vec<f64> {
 }
 
 /// A carrier's control net refined at [`cert_grid`]: its homogeneous
-/// channels `(w·P, w)` through [`RingRefinement::refine`], then
+/// channels `(w·P, w)` through [`RingRefinement::refine`], kept, and
 /// de-homogenized ([`dehomogenize`]), so every point encloses the
-/// refined net of the described carrier. Paired with the refined
-/// vector; `None` when the insertion chain refuses, `coords` is not
-/// three channels, or a refined weight is not certainly positive. A
-/// channel that is not one entry per weight comes back refused entry by
-/// entry ([`RingRefinement::refine`]'s extent guard), which every hull
-/// read off it refuses.
-fn refined_net(
-    kv: &KnotVector,
-    weights: &[f64],
-    coords: &[Vec<Interval>],
-) -> Option<(KnotVector, [Vec<Interval>; 3])> {
+/// refined net of the described carrier. Beside the refined vector;
+/// `None` when the insertion chain refuses, `coords` is not three
+/// channels, or a refined weight is not certainly positive. A channel
+/// that is not one entry per weight comes back refused entry by entry
+/// ([`RingRefinement::refine`]'s extent guard), which every hull read
+/// off it refuses.
+fn refined_net(kv: &KnotVector, weights: &[f64], coords: &[Vec<Interval>]) -> Option<CoverNet> {
     let refinement = RingRefinement::new(kv, &cert_grid(kv)).ok()?;
     let [cx, cy, cz] = coords else {
         return None;
@@ -417,13 +424,22 @@ fn refined_net(
         .map(|w| Interval::from_bounds(*w, *w))
         .collect();
     let rw = refinement.refine(&w);
-    let mut net = [cx, cy, cz].into_iter().map(|c| {
+    let homogeneous = [cx, cy, cz].map(|c| {
         let homogeneous: Vec<Interval> = c.iter().zip(&w).map(|(x, w)| *x * *w).collect();
-        let refined = refinement.refine(&homogeneous);
-        dehomogenize(&refined, &rw)
+        refinement.refine(&homogeneous)
     });
-    let net = [net.next()??, net.next()??, net.next()??];
-    Some((refinement.knots().clone(), net))
+    let [x, y, z] = &homogeneous;
+    let coords = [
+        dehomogenize(x, &rw)?,
+        dehomogenize(y, &rw)?,
+        dehomogenize(z, &rw)?,
+    ];
+    Some(CoverNet {
+        kv: refinement.knots().clone(),
+        coords,
+        homogeneous,
+        weights: rw,
+    })
 }
 
 /// The widest a frame direction's component may enclose and still be
@@ -1213,64 +1229,287 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
     range_grid_points(lo, hi, SSI_CERT_SPANS, &knots)
 }
 
-/// The box chain covering a carrier: one padded box per span of its
+/// One link of limb 3's cover of a carrier: an enclosure of the carrier
+/// over `span`, the axis its slices are square to, and the span of the
+/// cover's net ([`CoverNet`]) it is the whole or a part of.
+#[derive(Clone, Copy, Debug)]
+struct Link<T: Real> {
+    raw: Box3,
+    e: Vec3<T>,
+    span: (f64, f64),
+    base: usize,
+}
+
+/// A link as a reader takes it: its box, its axis and its span.
+pub(crate) type ChainBox<T> = (Box3, Vec3<T>, (f64, f64));
+
+/// **The net limb 3's cover is read off**: a carrier's [`refined_net`]
+/// with its homogeneous channels kept, which a part of a span is
+/// restricted from.
+struct CoverNet {
+    kv: KnotVector,
+    coords: [Vec<Interval>; 3],
+    homogeneous: [Vec<Interval>; 3],
+    weights: Vec<Interval>,
+}
+
+impl CoverNet {
+    /// The control hull of the carrier over `span`, a part of the net's
+    /// span `base`: the Bernstein rows of the homogeneous channels and
+    /// the weights restricted to it (the blossom at the part's ends,
+    /// which is knot insertion at each to full multiplicity),
+    /// de-homogenized and hulled. `None` where a row or the quotient is
+    /// refused.
+    fn part(&self, base: usize, (lo, hi): (f64, f64)) -> Option<Box3> {
+        let ends = (Interval::point(lo), Interval::point(hi));
+        let row = |channel: &[Interval]| {
+            self.kv
+                .with_coeffs(channel)?
+                .span(base)?
+                .restrict(ends)
+                .ok()
+        };
+        let w = row(&self.weights)?;
+        let hull = |channel: &[Interval]| {
+            let cartesian = dehomogenize(&row(channel)?, &w)?;
+            let (first, rest) = cartesian.split_first()?;
+            Some(rest.iter().fold(*first, |acc, c| Interval::hull(acc, *c)))
+        };
+        let [cx, cy, cz] = &self.homogeneous;
+        Some(Box3 {
+            x: hull(cx)?,
+            y: hull(cy)?,
+            z: hull(cz)?,
+        })
+    }
+}
+
+/// **The work bound of limb 3's cover, per box of the carrier's first
+/// reading** (`crate::descent`'s cumulative budget, in boxes halved over
+/// every round of one rung's cover). A box all of whose parts stay no
+/// graph is halved `1 + 2 + 4 + 8 = 15` times before its parts are a
+/// sixteenth of it, so sixteen a box lets every box of a chain be cut
+/// that far, and the bound grows with the chain.
+const COVER_PER_BOX: usize = 16;
+
+/// The least the cover's work bound is, in boxes halved: a short chain
+/// follows one near-tangent box down as far as a long one does.
+const COVER_FLOOR: usize = 1 << 11;
+
+/// **Why limb 3 stopped halving a rung's cover short of a graph**
+/// (`crate::descent`), named by the refusal of a carrier no rung of
+/// which is one ([`SsiError::TubeStraddles`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoverStop {
+    /// Every box that is no graph is no wider than the rung: its padding
+    /// holds it, which halving its span does not narrow, so nothing is
+    /// left to halve.
+    Narrow,
+    /// The widest box that is no graph and can be halved stopped
+    /// narrowing over two rounds running.
+    Stall,
+    /// The next round would pass the work bound: sixteen halvings a box
+    /// of the carrier's first cover, 2048 at least.
+    Work,
+}
+
+impl core::fmt::Display for CoverStop {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Narrow => "every box that is no graph is no wider than the rung",
+            Self::Stall => "the widest box that is no graph stopped narrowing",
+            Self::Work => "the cover's work bound was reached",
+        })
+    }
+}
+
+/// One rung's cover: its links, and why its halving stopped where some
+/// link is no graph.
+struct Cover<T: Real> {
+    links: Vec<Link<T>>,
+    /// The least graph margin over the links, `0` where one is no graph;
+    /// `None` where a link's enclosure is refused.
+    margin: Option<f64>,
+    stop: Option<CoverStop>,
+}
+
+/// **Limb 3's cover of a carrier** (C2): one box per span of its
 /// [`refined_net`], from the span's control hull (containment by the
 /// convex-hull property, positive weights making the rational basis a
-/// partition of unity), beside the box's axis and the span it hulls.
-fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
-    let mut out = Vec::new();
-    // A refused insertion chain returns an EMPTY chain, which limb 3
-    // reads as a definite refusal (no box, so nothing banked).
-    let Some((kv, coords)) = refined_net(
-        carrier.knots_f64_interim(),
-        carrier.weights_f64_interim(),
-        &carrier.certified_coords(),
-    ) else {
-        return out;
-    };
-    let kv = &kv;
-    // One pair per coordinate channel, minted once outside the span
-    // walk. The net and the vector come from one insertion chain, so
-    // the count relation holds by construction and the refusal arm is
-    // unreachable; it too returns an EMPTY chain.
-    let (Some(cx), Some(cy), Some(cz)) = (
-        kv.with_coeffs(&coords[0]),
-        kv.with_coeffs(&coords[1]),
-        kv.with_coeffs(&coords[2]),
-    ) else {
-        return out;
-    };
-    for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and window construction are one step; the
-        // three channels share the vector, so they refuse alike.
-        let (Some(wx), Some(wy), Some(wz)) = (cx.span(index), cy.span(index), cz.span(index))
-        else {
-            continue;
+/// partition of unity), and at a rung, the parts those spans are halved
+/// into ([`Self::at`]). The carrier is read and never changed: a part is
+/// a piece of the same curve over half the span.
+struct CoverBase<'a, T: CertifiedBounds> {
+    carrier: &'a NurbsCurve3<T>,
+    net: Option<CoverNet>,
+    links: Vec<Link<T>>,
+}
+
+impl<'a, T: Decide + Bounds + CertifiedEnclosure> CoverBase<'a, T> {
+    /// A refused insertion chain gives an EMPTY cover, which limb 3
+    /// reads as a definite refusal (no box, so nothing banked).
+    fn of(carrier: &'a NurbsCurve3<T>) -> Self {
+        let mut out = Self {
+            carrier,
+            net: None,
+            links: Vec::new(),
         };
-        let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        let hx = wx.hull();
-        let hy = wy.hull();
-        let hz = wz.hull();
-        let bx = Box3 {
-            x: hx,
-            y: hy,
-            z: hz,
+        let Some(net) = refined_net(
+            carrier.knots_f64_interim(),
+            carrier.weights_f64_interim(),
+            &carrier.certified_coords(),
+        ) else {
+            return out;
         };
-        // The box's axis: the carrier's own tangent at the span
-        // midpoint, normalized. Any direction transverse to the
-        // solution set works; this is the natural one.
-        //
-        // No `n > 0.0` guard: it would be a value branch, which generic
-        // evaluation code may not take (Q1). A degenerate span
-        // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's enclosure is refused with it, and the probe reads
-        // that rung as unprobed ([`tube_margin`]).
-        let t = carrier.deriv(T::from_f64(geom::mid_param(a, b)));
-        out.push((bx, t.normalize(), (a, b)));
+        {
+            let kv = &net.kv;
+            // One pair per coordinate channel, minted once outside the
+            // span walk. The net and the vector come from one insertion
+            // chain, so the count relation holds by construction and
+            // the refusal arm is unreachable; it too leaves the cover
+            // EMPTY.
+            let (Some(cx), Some(cy), Some(cz)) = (
+                kv.with_coeffs(&net.coords[0]),
+                kv.with_coeffs(&net.coords[1]),
+                kv.with_coeffs(&net.coords[2]),
+            ) else {
+                return out;
+            };
+            for index in kv.first_span()..=kv.last_span() {
+                // Emptiness check and window construction are one step;
+                // the three channels share the vector, so they refuse
+                // alike.
+                let (Some(wx), Some(wy), Some(wz)) =
+                    (cx.span(index), cy.span(index), cz.span(index))
+                else {
+                    continue;
+                };
+                let span = (kv.knots()[index], kv.knots()[index + 1]);
+                let raw = Box3 {
+                    x: wx.hull(),
+                    y: wy.hull(),
+                    z: wz.hull(),
+                };
+                out.links.push(out.link(raw, span, index));
+            }
+        }
+        out.net = Some(net);
+        out
     }
-    out
+
+    /// The link of `raw` over `span`. Its axis is the carrier's own
+    /// tangent at the span's midpoint, normalized: any direction
+    /// transverse to the solution set works, and this is the natural
+    /// one.
+    ///
+    /// No `n > 0.0` guard: it would be a value branch, which generic
+    /// evaluation code may not take (Q1). A degenerate span (zero-length
+    /// tangent) divided by zero poisons `e`, the graph quantity's
+    /// enclosure is refused with it, and the probe reads that rung as
+    /// unprobed ([`tube_margin`]).
+    fn link(&self, raw: Box3, span: (f64, f64), base: usize) -> Link<T> {
+        let t = self
+            .carrier
+            .deriv(T::from_f64(geom::mid_param(span.0, span.1)));
+        Link {
+            raw,
+            e: t.normalize(),
+            span,
+            base,
+        }
+    }
+
+    /// `link`'s two halves at its span's midpoint, `None` where the
+    /// midpoint is not strictly inside the span or a half's hull is
+    /// refused.
+    fn halves(&self, link: &Link<T>) -> Option<[Link<T>; 2]> {
+        let (lo, hi) = link.span;
+        let mid = geom::mid_param(lo, hi);
+        if !(lo < mid && mid < hi) {
+            return None;
+        }
+        let net = self.net.as_ref()?;
+        let half = |span| Some(self.link(net.part(link.base, span)?, span, link.base));
+        Some([half((lo, mid))?, half((mid, hi))?])
+    }
+
+    /// **The cover at the rung `radius`** (C2): the first cover, and
+    /// round by round every link that is wider than the rung and,
+    /// padded by it, no graph ([`box_graph_margin`]) halved, until every
+    /// link is a graph or the loop stops through `crate::descent`:
+    ///
+    /// - **nothing to halve** ([`CoverStop::Narrow`]): every link that
+    ///   is no graph is no wider than the rung, or has no halves;
+    /// - **the stall** ([`CoverStop::Stall`]): the widest link that is
+    ///   no graph and can be halved, which every halving narrows, did
+    ///   not narrow over two rounds running;
+    /// - **the work bound** ([`CoverStop::Work`]): the next round would
+    ///   pass [`COVER_PER_BOX`] halvings a link of the first cover
+    ///   ([`COVER_FLOOR`] at least).
+    ///
+    /// A link whose enclosure is refused measured nothing: the cover is
+    /// returned as it stands, its margin `None`.
+    ///
+    /// It is a function of the carrier, the pair and the rung alone, so
+    /// a reader of a certificate's tube re-derives the cover limb 3
+    /// proved over ([`tube_chain`]).
+    fn at(&self, (s1, s2): (&Surface<T>, &Surface<T>), radius: f64) -> Cover<T> {
+        let read = |l: &Link<T>| box_graph_margin(s1, s2, l.raw.pad(radius), l.e);
+        // Each link with its margin and whether it has halves.
+        let mut links: Vec<(Link<T>, Option<f64>, bool)> =
+            self.links.iter().map(|l| (*l, read(l), true)).collect();
+        let mut work = Work::new(COVER_FLOOR.max(COVER_PER_BOX.saturating_mul(links.len())));
+        let mut descent: Option<Descent<()>> = None;
+        let stop = loop {
+            let mut margin = Some(f64::INFINITY);
+            for (_, m, _) in &links {
+                margin = margin.zip(*m).map(|(a, b)| a.min(b));
+            }
+            if !margin.is_some_and(|m| m <= 0.0) {
+                return Cover {
+                    links: links.into_iter().map(|(l, _, _)| l).collect(),
+                    margin,
+                    stop: None,
+                };
+            }
+            let halves = |(l, m, whole): &(Link<T>, Option<f64>, bool)| {
+                *whole && !m.is_some_and(|m| m > 0.0) && l.raw.width() > radius
+            };
+            let cost = links.iter().filter(|l| halves(l)).count();
+            let widest = links
+                .iter()
+                .filter(|l| halves(l))
+                .map(|(l, _, _)| l.raw.width())
+                .fold(0.0, f64::max);
+            let rounds = Descent::after(descent.take(), widest, ());
+            let wall = (!work.admits(cost)).then_some(CoverStop::Work);
+            match rounds.stop(cost == 0, wall) {
+                Some(Stop::Stall) if cost == 0 => break CoverStop::Narrow,
+                Some(Stop::Stall) => break CoverStop::Stall,
+                Some(Stop::Wall(wall)) => break wall,
+                None => {}
+            }
+            descent = Some(rounds);
+            work.spend(cost);
+            links = links
+                .into_iter()
+                .flat_map(|link| {
+                    if !halves(&link) {
+                        return vec![link];
+                    }
+                    match self.halves(&link.0) {
+                        Some(parts) => parts.into_iter().map(|l| (l, read(&l), true)).collect(),
+                        None => vec![(link.0, link.1, false)],
+                    }
+                })
+                .collect();
+        };
+        Cover {
+            links: links.into_iter().map(|(l, _, _)| l).collect(),
+            margin: Some(0.0),
+            stop: Some(stop),
+        }
+    }
 }
 
 /// One rung of either arm's probe: the tube it records, the chain's
@@ -1286,6 +1525,10 @@ pub(crate) struct Rung {
     pub(crate) margin: f64,
     pub(crate) boxes: u32,
     pub(crate) one_arc: Option<Result<(), Shortfall>>,
+    /// Why the rung's cover stopped halving, where it is no graph on
+    /// the ℝ³ arm ([`CoverStop`]); `None` on the chart arms, whose
+    /// chains are not halved.
+    pub(crate) stop: Option<CoverStop>,
 }
 
 impl Rung {
@@ -1298,29 +1541,29 @@ impl Rung {
             margin: f64::NAN,
             boxes: 0,
             one_arc: None,
+            stop: None,
         }
     }
 }
 
 /// **One padded chain box's graph margin** for an analytic pair: the
-/// zero-free reading ([`tube_margin`]) of `(∇f₁ × ∇f₂)·e` over `bx`
-/// ([`graph_margin`]); `None` where the enclosure is refused. Limb 3's
-/// probe and the coarse-span reading ([`coarse_tube_spans`]) read a box
-/// by it.
+/// zero-free reading ([`tube_margin`]) of limb 3's graph quantity over
+/// `bx` ([`graph_quantity`]); `None` where the enclosure is refused.
 fn box_graph_margin<T: CertifiedBounds>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     bx: Box3,
     e: Vec3<T>,
 ) -> Option<f64> {
-    tube_margin(graph_margin(s1, s2, bx, e))
+    tube_margin(graph_quantity(s1, s2, bx, e))
 }
 
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
-/// criterion in ℝ³ over a box chain of the given radius, and, where the
-/// margin is zero-free, the one-arc proof over the chain cut to `slab`
-/// where a search clips to one ([`one_arc_r3`]), spanning the carrier
-/// between its `ends`.
+/// criterion in ℝ³ over the carrier's cover at the given radius
+/// ([`CoverBase::at`]), each box padded by it, and, where the margin is
+/// zero-free, the one-arc proof over the chain cut to `slab` where a
+/// search clips to one ([`one_arc_r3`]), spanning the carrier between
+/// its `ends`.
 ///
 /// Pure enclosure arithmetic — **no trilean here**. Choosing the tube's
 /// radius is cache *structure* (C6's f64 selection lane), and mixing
@@ -1331,58 +1574,46 @@ fn box_graph_margin<T: CertifiedBounds>(
 /// `None` when the chain is empty or broken, a definite structural
 /// refusal; [`Rung::unmeasured`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
-    chain: &[(Box3, Vec3<T>, (f64, f64))],
-    s1: &Surface<T>,
-    s2: &Surface<T>,
+    base: &CoverBase<'_, T>,
+    (s1, s2): (&Surface<T>, &Surface<T>),
     radius: f64,
     (slab, ends, eps): (Option<Box3>, [Box3; 2], f64),
 ) -> Option<Rung> {
-    if chain.is_empty() {
+    let tube = SsiTube::Spatial {
+        radius,
+        narrow: radius,
+    };
+    let cover = base.at((s1, s2), radius);
+    let padded: Vec<Box3> = cover.links.iter().map(|l| l.raw.pad(radius)).collect();
+    // The chain must actually be a chain: consecutive boxes share the
+    // span endpoint the carrier passes through, so a definite separation
+    // means the cover is not connected and the concatenation argument
+    // does not hold.
+    if padded.windows(2).any(|w| w[0].definitely_disjoint(w[1])) {
         return None;
     }
-    let mut worst = f64::INFINITY;
-    let mut prev: Option<Box3> = None;
-    let mut padded = Vec::with_capacity(chain.len());
-    for (raw, e, _) in chain.iter() {
-        // The chain is built once (an O(n²) knot refinement) and padded
-        // per ladder rung, which is a pure interval widening.
-        let bx = raw.pad(radius);
-        // The chain must actually be a chain: consecutive boxes share
-        // the span endpoint the carrier passes through, so a definite
-        // separation means the cover is not connected and the
-        // concatenation argument does not hold.
-        if prev.is_some_and(|p| p.definitely_disjoint(bx)) {
-            return None;
-        }
-        prev = Some(bx);
-        padded.push(bx);
-        let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
-            return Some(Rung::unmeasured(SsiTube::Spatial { radius }));
-        };
-        if m < worst {
-            worst = m;
-        }
-    }
+    let (first, last) = (cover.links.first()?, cover.links.last()?);
+    let Some(worst) = cover.margin else {
+        return Some(Rung::unmeasured(tube));
+    };
     let axis =
         |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| geom::mid_param(c.lo(), c.hi())));
-    let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
-        return None;
-    };
     let one_arc = (worst > 0.0).then(|| {
         one_arc_r3(
             s1,
             s2,
             (&padded, slab),
-            [(ends[0], axis(e0)), (ends[1], axis(e1))],
+            [(ends[0], axis(&first.e)), (ends[1], axis(&last.e))],
             eps,
         )
     });
     #[allow(clippy::cast_possible_truncation)]
     Some(Rung {
-        tube: SsiTube::Spatial { radius },
+        tube,
         margin: worst,
-        boxes: chain.len() as u32,
+        boxes: padded.len() as u32,
         one_arc,
+        stop: cover.stop,
     })
 }
 
@@ -1714,6 +1945,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         margin: worst,
         boxes: probed.len() as u32,
         one_arc: one,
+        stop: None,
     }))
 }
 
@@ -1861,6 +2093,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         margin: worst,
         boxes: boxes.len() as u32,
         one_arc: one,
+        stop: None,
     })
 }
 
@@ -2015,56 +2248,41 @@ pub(crate) fn chart_partner_form<T: Real>(
     Ok(form.with_frame([e0, e2.cross(e0), e2]))
 }
 
-/// The uniqueness tube of a certified carrier, as boxes — what the
-/// exhaustiveness accounting pass consumes to prove cells "accounted"
-/// (spec §4's second state). Same chain limb 3 proved one-arc-ness on,
-/// so a cell inside one of these boxes is inside a region where the
-/// solution set is exactly the branch already found.
+/// The uniqueness tube of a certified carrier at the rung `radius`, as
+/// boxes: what the exhaustiveness accounting pass consumes to prove
+/// cells "accounted" (spec §4's second state). It is the chain limb 3
+/// proved one-arc-ness on ([`tube_chain`]), so a cell inside one of
+/// these boxes is inside a region where the solution set is exactly the
+/// branch already found.
 pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
+    pair: (&Surface<T>, &Surface<T>),
     radius: f64,
 ) -> Vec<Box3> {
-    box_chain(carrier)
+    tube_chain(carrier, pair, radius)
         .into_iter()
-        .map(|(b, _, _)| b.pad(radius))
+        .map(|(b, _, _)| b)
         .collect()
 }
 
-/// [`tube_boxes`], each beside the axis limb 3 read it a graph over the
-/// slices square to, and the carrier's parameter span it hulls.
-pub(crate) fn tube_chain(
-    carrier: &NurbsCurve3<f64>,
+/// **The chain limb 3 proves a rung over, re-derived**: the carrier's
+/// cover against `pair` at `radius` ([`CoverBase::at`]), each box padded
+/// by it, beside the axis limb 3 read it a graph over the slices square
+/// to and the carrier's parameter span it hulls. The cover is a
+/// function of the carrier, the pair in its order and the rung, and
+/// limb 3's probe reads this one, so a reader holding a certificate's
+/// rung holds the region it proved; the certificate's box count is that
+/// chain's ([`SsiCertificate::tube_boxes`]).
+pub(crate) fn tube_chain<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    pair: (&Surface<T>, &Surface<T>),
     radius: f64,
-) -> Vec<(Box3, Vec3<f64>, (f64, f64))> {
-    box_chain(carrier)
+) -> Vec<ChainBox<T>> {
+    CoverBase::of(carrier)
+        .at(pair, radius)
+        .links
         .into_iter()
-        .map(|(b, e, span)| (b.pad(radius), e, span))
-        .collect()
-}
-
-/// **The spans that hold an ℝ³ tube at the rung `radius`**
-/// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
-/// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the
-/// carrier's parameter intervals whose chain box ([`box_chain`]) is wider
-/// than `up` and, padded by it, is not shown a graph
-/// ([`box_graph_margin`]). A box no wider than the rung is held by its
-/// padding, which halving its span does not narrow, so it is not named.
-/// Empty where `radius` is the ladder's widest rung.
-pub(crate) fn coarse_tube_spans(
-    carrier: &NurbsCurve3<f64>,
-    (s1, s2): (&Surface<f64>, &Surface<f64>),
-    radius: f64,
-    (extent, band): (f64, Band),
-) -> Vec<RefusedSpan> {
-    let Some(up) = tube_ladder(extent, band).filter(|r| *r > radius).last() else {
-        return Vec::new();
-    };
-    box_chain(carrier)
-        .into_iter()
-        .filter(|(raw, e, _)| {
-            raw.width() > up && !box_graph_margin(s1, s2, raw.pad(up), *e).is_some_and(|m| m > 0.0)
-        })
-        .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
+        .map(|l| (l.raw.pad(radius), l.e, l.span))
         .collect()
 }
 
@@ -2204,7 +2422,7 @@ fn limb_three<T: Decide>(
         }
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
-                let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
+                let t = tube_transversality(rung.margin, extent, (rung.boxes, None), band)?;
                 return Ok((rung, t));
             }
             // A graph whose proof did not run never reads as proved.
@@ -2227,7 +2445,7 @@ fn limb_three<T: Decide>(
         (true, Some(Err(shortfall))) => shortfall,
         (true, _) => Shortfall::Undecided,
         (false, _) => {
-            let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
+            let t = tube_transversality(rung.margin, extent, (rung.boxes, rung.stop), band)?;
             return Ok((rung, t));
         }
     };
@@ -2256,6 +2474,27 @@ fn limb_three<T: Decide>(
         rungs: not_one_arc,
         cause,
     })
+}
+
+/// **The pad's rung** (C2): the narrowest rung of the ladder below the
+/// tube's `radius` whose own cover is a graph and proved one arc, read
+/// from the narrowest up; `radius` itself where none below it proves.
+/// Like the ladder it is structure: a zero-free enclosure and a one-arc
+/// proof are certified whatever their size, and the one banded decision
+/// stays the tube's ([`tube_transversality`]).
+fn narrowest_proving(
+    (widest, band): (f64, Band),
+    radius: f64,
+    probe: impl Fn(f64) -> Option<Rung>,
+) -> f64 {
+    let below: Vec<f64> = tube_ladder(widest, band).filter(|r| *r < radius).collect();
+    below
+        .into_iter()
+        .rev()
+        .find(|r| {
+            probe(*r).is_some_and(|rung| rung.margin > 0.0 && matches!(rung.one_arc, Some(Ok(()))))
+        })
+        .unwrap_or(radius)
 }
 
 /// The certificate the three limbs proved.
@@ -2594,16 +2833,18 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                     what: BOX_CHAIN_NEEDS_SPLINE,
                 });
             };
-            let chain = box_chain(net);
-            limb_three((widest, extent), band, |radius| {
-                Ok(probe_tube_analytic(
-                    &chain,
-                    s1,
-                    s2,
+            let base = CoverBase::of(net);
+            let probe = |radius| {
+                probe_tube_analytic(&base, (s1, s2), radius, (slab, ends, band.zero()))
+            };
+            let (mut rung, t) = limb_three((widest, extent), band, |radius| Ok(probe(radius)))?;
+            if let SsiTube::Spatial { radius, .. } = rung.tube {
+                rung.tube = SsiTube::Spatial {
                     radius,
-                    (slab, ends, band.zero()),
-                ))
-            })?
+                    narrow: narrowest_proving((widest, band), radius, probe),
+                };
+            }
+            (rung, t)
         }
         (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
         | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
@@ -2708,7 +2949,7 @@ fn node_ends<T: CertifiedBounds>(
 fn tube_transversality<T: Decide>(
     clearance: f64,
     arm: T,
-    boxes: u32,
+    (boxes, stop): (u32, Option<CoverStop>),
     band: Band,
 ) -> Result<T, SsiError> {
     // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
@@ -2718,7 +2959,11 @@ fn tube_transversality<T: Decide>(
     );
     match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
-        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),
+        Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles {
+            verdict,
+            boxes,
+            stop,
+        }),
         Some(BandVerdict::Undecided(cause)) => Err(SsiError::CertificateEscalated {
             limb: SsiLimb::Tube,
             cause,
@@ -2732,6 +2977,17 @@ mod tests {
         /// Chart-lane tube probes run on this thread (one per rung).
         pub(super) static CHART_PROBES: core::cell::Cell<usize> =
             const { core::cell::Cell::new(0) };
+    }
+
+    /// A carrier's cover before any rung halves it.
+    fn first_cover<T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+        carrier: &geom::NurbsCurve3<T>,
+    ) -> Vec<super::ChainBox<T>> {
+        super::CoverBase::of(carrier)
+            .links
+            .iter()
+            .map(|l| (l.raw, l.e, l.span))
+            .collect()
     }
 
     /// A synthetic limb-2 hull over `[0, 1]` with its `cuts` added, every
@@ -2868,7 +3124,11 @@ mod tests {
         use geom_core::{Band, Interval, MarginDiag};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let verdict = |got: Result<(), SsiError>| match got {
-            Err(SsiError::TubeStraddles { verdict, boxes: 4 }) => Some(verdict),
+            Err(SsiError::TubeStraddles {
+                verdict,
+                boxes: 4,
+                stop: None,
+            }) => Some(verdict),
             Ok(()) => None,
             Err(other) => panic!("not the tube's refusal: {other}"),
         };
@@ -2879,13 +3139,13 @@ mod tests {
             (0.0, 1.0, Some(0.0)),
             (1e-6, 1.0, None),
         ] {
-            let at_f64 = tube_transversality(clearance, arm, 4, band);
+            let at_f64 = tube_transversality(clearance, arm, (4, None), band);
             assert_eq!(
                 verdict(at_f64.map(|_| ())),
                 levered.and_then(|m| zero(MarginDiag::value(m))),
                 "f64: {clearance:e} at {arm}"
             );
-            let at_interval = tube_transversality(clearance, Interval::point(arm), 4, band);
+            let at_interval = tube_transversality(clearance, Interval::point(arm), (4, None), band);
             assert_eq!(
                 verdict(at_interval.map(|_| ())),
                 levered.and_then(|m| zero(MarginDiag::enclosure(m, m))),
@@ -3428,7 +3688,7 @@ mod tests {
                     vec![geom_core::Real::one(); 3],
                 )
                 .unwrap();
-                let chain = super::box_chain(&curve);
+                let chain = first_cover(&curve);
                 let worst = chain
                     .iter()
                     .map(|(b, axis, _)| {
@@ -3514,7 +3774,11 @@ mod tests {
         let coords: Vec<Vec<Interval>> = (0..3)
             .map(|d| ctl.iter().map(|p| thin(p[d])).collect())
             .collect();
-        let (fine, net) = super::refined_net(&kv, &weights, &coords).unwrap();
+        let super::CoverNet {
+            kv: fine,
+            coords: net,
+            ..
+        } = super::refined_net(&kv, &weights, &coords).unwrap();
         let breaks = super::cert_grid(&kv);
         let exact: Vec<[Q; 4]> = ctl
             .iter()
@@ -3568,7 +3832,7 @@ mod tests {
         // A channel of the wrong length comes back refused, entry by entry.
         let mut short = coords.clone();
         short[1].pop();
-        let (_, net) = super::refined_net(&kv, &weights, &short).unwrap();
+        let net = super::refined_net(&kv, &weights, &short).unwrap().coords;
         assert!(net[1].iter().all(|x| !x.is_certified()));
         assert!(net[0].iter().all(|x| x.is_certified()));
     }
@@ -3636,14 +3900,14 @@ mod tests {
             }
             out
         };
-        let at_f64: Vec<Box3> = super::box_chain(&curve)
+        let at_f64: Vec<Box3> = first_cover(&curve)
             .into_iter()
             .map(|(b, _, _)| b)
             .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
-            super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
+            first_cover(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
                 .into_iter()
                 .map(|(b, _, _)| b)
                 .collect();
@@ -3925,10 +4189,14 @@ mod tests {
             let (margin, one_arc) = if widest { first } else { rest };
             widest = false;
             Ok(Some(Rung {
-                tube: SsiTube::Spatial { radius },
+                tube: SsiTube::Spatial {
+                    radius,
+                    narrow: radius,
+                },
                 margin,
                 boxes: 4,
                 one_arc,
+                stop: None,
             }))
         })
     }

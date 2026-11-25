@@ -189,7 +189,7 @@ fn threaded_cylinder() -> Surface<f64> {
 /// proves a spatial tube, and a chart tube there is a routing defect.
 fn spatial_radius(cert: &geom_brep::SsiCertificate<f64>) -> f64 {
     match cert.tube {
-        SsiTube::Spatial { radius } => radius,
+        SsiTube::Spatial { radius, .. } => radius,
         SsiTube::Chart { .. } | SsiTube::TwoChart { .. } => {
             panic!("the ℝ³ arm proved a chart tube: {cert:?}")
         }
