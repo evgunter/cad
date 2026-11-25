@@ -23,16 +23,17 @@
 //!   a cone box off its gate the double cone's quadric.
 //! - [`implicit_gradient_enclosure`] — `∇f(B)`, the input to the
 //!   transversality/graph enclosure.
-//! - [`graph_margin`] — `(∇f₁ × ∇f₂)·e` over a box. This number carries
-//!   the graph half of the uniqueness-tube argument: if its enclosure
-//!   excludes zero then, on every slice `e·x = const` meeting the box,
-//!   the 2×2 system `(f₁, f₂)` has non-singular Jacobian, so by the
-//!   implicit function theorem the solution set inside the box is a
-//!   **graph over the `e` axis**: at most one solution on each slice,
-//!   no branch, no loop. A second arc beside the first along `e` is a
-//!   graph too; that it is absent is `super::one_arc`'s proof.
-//!   Straddling zero escalates: either a genuine sliver (F6) or the
-//!   enclosure's remaining slack.
+//! - [`graph_quantity`] — limb 3's graph quantity over a box, which
+//!   carries the graph half of the uniqueness-tube argument: if its
+//!   enclosure excludes zero then the solution set inside the box is a
+//!   **graph over the `e` axis**: at most one solution on each slice
+//!   `e·x = const`, no branch, no loop. It is `(∇f₁ × ∇f₂)·e` with the
+//!   two gradients at independent points of the box ([`graph_margin`]),
+//!   and at one point where both forms are quadratic. A second arc
+//!   beside the first along `e` is a graph too; that it is absent is
+//!   `super::one_arc`'s proof. Straddling zero at every rung
+//!   escalates: a genuine sliver (F6), or a box the cover's halving
+//!   stopped short of.
 //! - [`NurbsBoxes`] — the same three readings for a NURBS chart,
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights

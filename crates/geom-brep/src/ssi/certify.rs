@@ -2904,7 +2904,7 @@ pub(crate) fn certify_located(
 /// spans its own knot domain, any other carrier `params`
 /// ([`crate::carrier_net::carrier_span`]), and limbs 1–2 read it through
 /// the carrier-enclosure door. The ℝ³ tube of two analytic operands
-/// reads a spline's control net ([`box_chain`]) and refuses any other
+/// reads a spline's control net ([`CoverBase`]) and refuses any other
 /// carrier ([`BOX_CHAIN_NEEDS_SPLINE`]).
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &Curve3<T>,
@@ -4001,7 +4001,7 @@ mod tests {
     /// **The tube's box chain encloses the described carrier, at `f64`
     /// and at `Interval`.** The rational cubic of
     /// `refined_net_encloses_the_exact_refined_net`: each box of
-    /// [`super::box_chain`] contains the exact refined control points of
+    /// [`super::CoverBase::of`] contains the exact refined control points of
     /// its span (Boehm's insertion in exact rationals), so by the convex
     /// hull property it contains the carrier's own arc over the span.
     /// A chain read off the `f64` insertion plan (`refine_knots`) misses
@@ -4098,6 +4098,81 @@ mod tests {
             "the f64-planned chain must miss the exact net somewhere, or this row cannot tell \
              the two apart"
         );
+    }
+
+    /// **A link's halves are the same curve over half the span.** The
+    /// rational cubic of `refined_net_encloses_the_exact_refined_net`,
+    /// every link of its first cover halved, and each half again: a
+    /// part's box holds the carrier at seventeen parameters of its span
+    /// (to the evaluator's rounding), the two parts tile their parent's
+    /// span, and each lies within its parent's box and is narrower. Red
+    /// where a part is restricted to another span, or hulled from the
+    /// Cartesian net of a carrier whose weights differ.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_links_halves_enclose_the_carrier_over_their_spans() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Point3};
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [0.9, 1.3, -0.3],
+            [1.7, -0.6, 0.4],
+            [2.3, 0.7, 1.3],
+            [3.1, 0.1, 0.7],
+            [3.7, 0.9, -0.1],
+        ];
+        let curve = NurbsCurve3::new(
+            kv,
+            ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            vec![1.0, 0.3, 2.7, 0.6, 1.1, 0.9],
+        )
+        .unwrap();
+        let base = super::CoverBase::of(&curve);
+        assert!(base.links.len() >= 32, "the first cover");
+        let mut parts = 0;
+        let mut level: Vec<super::Link<f64>> = base.links.clone();
+        for depth in 0..2 {
+            let mut next = Vec::new();
+            for parent in &level {
+                let [a, b] = base.halves(parent).unwrap();
+                assert!(
+                    a.span.0 == parent.span.0 && a.span.1 == b.span.0 && b.span.1 == parent.span.1,
+                    "depth {depth}: the halves tile {:?}",
+                    parent.span
+                );
+                for half in [a, b] {
+                    let sides = |bx: crate::ssi::enclose::Box3| [bx.x, bx.y, bx.z];
+                    for (side, of) in sides(half.raw).into_iter().zip(sides(parent.raw)) {
+                        assert!(
+                            of.lo() - 1e-14 <= side.lo() && side.hi() <= of.hi() + 1e-14,
+                            "depth {depth}: a half within its parent's box"
+                        );
+                    }
+                    assert!(
+                        half.raw.width() < parent.raw.width(),
+                        "depth {depth}: a half is narrower"
+                    );
+                    for k in 0..=16 {
+                        let t = half.span.0 + (half.span.1 - half.span.0) * f64::from(k) / 16.0;
+                        let p = curve.eval(t);
+                        for (side, c) in sides(half.raw).into_iter().zip([p.x, p.y, p.z]) {
+                            assert!(
+                                side.lo() - 1e-14 <= c && c <= side.hi() + 1e-14,
+                                "depth {depth}, span {:?}: the carrier at {t} lies in its part",
+                                half.span
+                            );
+                        }
+                    }
+                    parts += 1;
+                    next.push(half);
+                }
+            }
+            level = next;
+        }
+        assert!(parts >= 6 * 32, "{parts} parts read");
     }
 
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`

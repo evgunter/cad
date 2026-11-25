@@ -3302,7 +3302,7 @@ impl LoopTubeRefusal {
     #[must_use]
     pub const fn recourse(self) -> &'static str {
         match self {
-            // Limb 3 certified the loop over the same `box_chain` of its
+            // Limb 3 certified the loop over the same cover of its
             // carrier, and refuses an empty one
             // (`ssi::certify::probe_tube_analytic`). No row reaches it.
             Self::Empty => geom_core::KERNEL_DEFECT_ENDING,
