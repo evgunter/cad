@@ -904,7 +904,6 @@ fn interior(
     mint: &mut dyn FnMut() -> u64,
 ) -> Result<(), StepImportError> {
     require_read_carriers(solid, fi)?;
-    let face_id = solid.faces[fi].id;
     let Some(chart) = Chart::of(solid.surface(fi)) else {
         unreachable!("the scan reads only sphere and cone faces")
     };
@@ -916,52 +915,11 @@ fn interior(
         .filter(|&(j, _)| j != k)
         .map(|(_, s)| *s)
         .collect();
-    let (axis, origin) = (chart.axis(), chart.origin());
-    // The azimuth: the surface's own u_ref, unless the face holds the
-    // other pole too. Then its loop bounds a pole-free hole, and the
-    // azimuth is that of the loop's centroid, which the hole surrounds:
-    // the meridian there crosses the hole through it, meeting the loop at
-    // two distinct points, rather than grazing it at one (a boundary
-    // vertex's azimuth can be tangent to the hole there). A centroid on
-    // the axis falls back to a boundary vertex's azimuth.
-    let mut d = chart.u_ref();
-    if let Some(&y) = others.first()
-        && holds(solid, fi, chart, 1 - k, read)?
-    {
-        let lp = &solid.faces[fi].loops[0];
-        let radial = |p: Point3<f64>| {
-            let r = geom::Line { origin, dir: axis }.offset(p);
-            (!read.not_apart(STEP_SINGULARITY_POINT, r.norm())).then(|| r.normalize())
-        };
-        let mut sum = Vec3::new(0.0, 0.0, 0.0);
-        let mut count = 0.0;
-        for u in &lp.uses {
-            let spec = &solid.edges[&u.edge];
-            for i in 0..8 {
-                let t = spec.t0 + (spec.t1 - spec.t0) * f64::from(i) / 8.0;
-                sum = sum + (spec.carrier.eval(t) - origin);
-                count += 1.0;
-            }
-        }
-        let centroid = origin + sum * (1.0 / count);
-        let vertex = || {
-            lp.uses.iter().find_map(|u| {
-                let p = solid.vertices[&use_start(solid, *u)];
-                if !read.not_apart(STEP_SINGULARITY_POINT, (p - y).norm()) {
-                    radial(p)
-                } else {
-                    None
-                }
-            })
-        };
-        d = radial(centroid)
-            .or_else(vertex)
-            .ok_or(unreadable(face_id))?;
-    }
     let nappe = match chart {
         Chart::Cone { .. } => nappe(solid, fi, chart, read)?,
         Chart::Sphere { .. } => 1.0,
     };
+    let d = wrap_azimuth(solid, fi, chart, x, read)? * nappe;
     let pole = mint();
     solid.vertices.insert(pole, x);
     let ray = meridian_ray(chart, k, d, nappe);
@@ -969,6 +927,99 @@ fn interior(
     let far = land(solid, hit, p, mint)?;
     let spoke = mint_spoke(solid, ray.carrier, ray.sign, pole, far, mint)?;
     splice(solid, fi, spoke)
+}
+
+/// The azimuth of the wrap edge to the singular point `x` of `chart`
+/// on face `fi`: that of the face's boundary point nearest `x`. Along a
+/// meridian from `x` (a sphere's meridian from its pole, a cone's
+/// generator from its apex) the distance from `x` only grows, so the
+/// meridian through the nearest boundary point meets the boundary there
+/// first, and meets no other singular point before it. The choice reads
+/// the boundary's geometry alone, not how the file splits it into
+/// edges: each edge offers the nearest point of its own span (a line's
+/// foot, a circle's closest point, or an end), and points within the
+/// band of the nearest tie, broken by the least turn from the
+/// surface's `u_ref` (either way; the positive turn first). An arc every point of which lies at one distance
+/// from `x` (a rim coaxial with the surface) offers the point at the
+/// `u_ref` azimuth where its span holds one, and its ends otherwise.
+/// Answers the unit radial direction of the chosen point.
+fn wrap_azimuth(
+    solid: &SolidSpec,
+    fi: usize,
+    chart: Chart,
+    x: Point3<f64>,
+    read: &Read,
+) -> Result<Vec3<f64>, StepImportError> {
+    let face_id = solid.faces[fi].id;
+    let (axis, origin, u_ref) = (chart.axis(), chart.origin(), chart.u_ref());
+    let v_ref = axis.cross(u_ref);
+    let radial = |p: Point3<f64>| geom::Line { origin, dir: axis }.offset(p);
+    // How far round the axis `p` lies from `u_ref`: the turn's size,
+    // then its sign, so a point a rounding either side of `u_ref` reads
+    // as at it.
+    let azimuth = |p: Point3<f64>| {
+        let r = radial(p);
+        let a = r.dot(v_ref).atan2(r.dot(u_ref));
+        (a.abs(), a)
+    };
+    let mut offered: Vec<Point3<f64>> = Vec::new();
+    let mut edges: Vec<u64> = solid.faces[fi]
+        .loops
+        .iter()
+        .flat_map(|lp| lp.uses.iter().map(|u| u.edge))
+        .collect();
+    edges.sort_unstable();
+    edges.dedup();
+    for e in edges {
+        let spec = &solid.edges[&e];
+        let (t0, t1) = (spec.t0.min(spec.t1), spec.t0.max(spec.t1));
+        let mut at = vec![t0, t1];
+        match &spec.carrier {
+            Curve3::Line(geom::Line { origin: o, dir }) => {
+                let t = (x - *o).dot(*dir) / dir.dot(*dir);
+                if t > t0 && t < t1 {
+                    at.push(t);
+                }
+            }
+            Curve3::Circle(c) => {
+                let (o, r) = (c.frame().origin(), c.radius());
+                let (u, v) = (
+                    (spec.carrier.eval(0.0) - o) * (1.0 / r),
+                    (spec.carrier.eval(core::f64::consts::FRAC_PI_2) - o) * (1.0 / r),
+                );
+                // |p(t) − x|² = |o − x|² + r² + 2r(A cos t + B sin t).
+                let (a, b) = (u.dot(o - x), v.dot(o - x));
+                let within = |t: f64| {
+                    let k = ((t0 - t) / core::f64::consts::TAU).ceil();
+                    let t = t + k * core::f64::consts::TAU;
+                    (t <= t1).then_some(t)
+                };
+                if !read.not_apart(STEP_SINGULARITY_POINT, 2.0 * r * a.hypot(b)) {
+                    at.extend(within(b.atan2(a) + core::f64::consts::PI));
+                } else {
+                    // Every point at one distance: a circle about the
+                    // axis, which offers its point at the u_ref azimuth.
+                    at.extend(within(v.dot(u_ref).atan2(u.dot(u_ref))));
+                }
+            }
+            _ => return Err(foreign_carrier(face_id)),
+        }
+        offered.extend(at.into_iter().map(|t| spec.carrier.eval(t)));
+    }
+    let nearest = offered
+        .iter()
+        .map(|p| (*p - x).norm())
+        .fold(f64::INFINITY, f64::min);
+    let chosen = offered
+        .into_iter()
+        .filter(|p| read.not_apart(STEP_SINGULARITY_POINT, (*p - x).norm() - nearest))
+        .filter(|p| !read.not_apart(STEP_SINGULARITY_POINT, radial(*p).norm()))
+        .min_by(|p, q| {
+            let (a, b) = (azimuth(*p), azimuth(*q));
+            a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1))
+        })
+        .ok_or(unreadable(face_id))?;
+    Ok(radial(chosen).normalize())
 }
 
 /// Splices the wrap edge `spoke` (an edge, and whether it runs from the
@@ -997,11 +1048,13 @@ fn splice(solid: &mut SolidSpec, fi: usize, spoke: (u64, bool)) -> Result<(), St
         .collect();
     let at = match leaving.as_slice() {
         [i] => (0, *i),
+        // The wrap edge runs to the boundary point nearest the pole
+        // (`wrap_azimuth`), which it meets before anything farther,
+        // the other pole included.
         [] => {
             return Err(internal(
-                "a sphere face whose wrap edge from one pole reaches the other before any \
-                 of its boundary, which would leave the edge a ring of its own: this \
-                 re-mint adopts no ring on a curved chart",
+                "internal: a wrap edge ends off its face's loop, though it runs to the \
+                 loop's point nearest its tip",
             ));
         }
         _ => {
@@ -1763,6 +1816,95 @@ mod meetings_are_the_kernels {
                 "an arc along the ray to {stop}: {}",
                 shown(&got)
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod a_wrap_edge_landing_where_the_loop_passes_twice {
+    use std::collections::BTreeMap;
+
+    use geom::{Curve3, Surface};
+    use geom_core::{Point3, Vec3};
+
+    use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
+    use crate::error::StepImportError;
+
+    /// **A wrap edge landing at a vertex the loop passes twice refuses
+    /// typed.** A unit sphere's cap about an axis tilted 0.2 from the
+    /// pole, of polar radius 0.6: its rim's point nearest the north pole
+    /// is its vertex `P`, on the `+x` meridian. A spur leaves `P` along
+    /// the parallel through it, inside the cap, every point of it as far
+    /// from the pole as `P`; the tie goes to `P`, the least turn from
+    /// `u_ref`, and the loop passes `P` twice (round the rim, out along
+    /// the spur), so where it walks the wrap edge out and back has no
+    /// one reading.
+    #[test]
+    fn a_wrap_edge_landing_where_the_loop_passes_twice_refuses_typed() {
+        let (tau, beta) = (0.2_f64, 0.6_f64);
+        let c = Vec3::new(-tau.sin(), 0.0, tau.cos());
+        let theta = beta - tau;
+        let p = Point3::new(theta.sin(), 0.0, theta.cos());
+        let centre = Point3::new(0.0, 0.0, 0.0) + c * beta.cos();
+        let rim = Curve3::circle(centre, c, beta.sin(), (p - centre) * (1.0 / beta.sin()));
+        let parallel = Curve3::circle(
+            Point3::new(0.0, 0.0, theta.cos()),
+            Vec3::new(0.0, 0.0, 1.0),
+            theta.sin(),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let edge = |start, end, carrier: &Curve3<f64>, t1| EdgeSpec {
+            start,
+            end,
+            carrier: carrier.clone(),
+            t0: 0.0,
+            t1,
+            reversed: false,
+            curve: None,
+        };
+        let use_ = |edge, forward| EdgeUse { edge, forward };
+        let mut solid = SolidSpec {
+            id: 100,
+            faces: vec![FaceSpec {
+                id: 101,
+                record: 900,
+                sense: true,
+                loops: vec![LoopSpec {
+                    outer: true,
+                    uses: vec![use_(10, true), use_(11, true), use_(11, false)],
+                }],
+                band: false,
+            }],
+            edges: BTreeMap::from([
+                (10, edge(1, 1, &rim, core::f64::consts::TAU)),
+                (11, edge(1, 2, &parallel, 0.3)),
+            ]),
+            vertices: BTreeMap::from([(1, p), (2, parallel.eval(0.3))]),
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Sphere {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    radius: 1.0,
+                },
+            )]),
+            band_seams: Default::default(),
+        };
+        let file = crate::interpret::FileBand::with_run(1e-9, 1e-9, 10.0).unwrap();
+        let mut next = 1000;
+        let mut mint = || {
+            next += 1;
+            next
+        };
+        match super::singularity_vertices(&mut solid, file, &mut mint, &mut Vec::new()) {
+            Err(StepImportError::Topology { id: 101, what }) => {
+                assert!(what.contains("passes more than once"), "{what}");
+            }
+            other => panic!("want the typed refusal, got {other:?}"),
         }
     }
 }

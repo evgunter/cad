@@ -81,6 +81,8 @@ mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
 mod a_straight_seam_on_a_retimed_column_imports;
 #[path = "a_vertex_its_description_fixes_is_built_where_its_surfaces_meet.rs"]
 mod a_vertex_its_description_fixes_is_built_where_its_surfaces_meet;
+#[path = "a_wide_hole_reaches_each_pole_however_its_edges_split.rs"]
+mod a_wide_hole_reaches_each_pole_however_its_edges_split;
 #[path = "an_edge_is_read_on_its_description_whatever_recognition_says.rs"]
 mod an_edge_is_read_on_its_description_whatever_recognition_says;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]

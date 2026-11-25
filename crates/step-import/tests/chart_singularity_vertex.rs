@@ -18,8 +18,7 @@
 
 use core::f64::consts::PI;
 
-use geom::Surface;
-use geom_core::{Point3, Tol};
+use geom_core::Tol;
 use step_import::{
     ImportOptions, NormalizationKind, SingularityFound, StepImport, StepImportError, import_step,
 };
@@ -131,27 +130,8 @@ fn rows() -> Vec<Row> {
     ]
 }
 
-/// The singular points of every sphere and cone face of `body`.
-fn singular_points(body: &topo::Body<f64>) -> Vec<Point3<f64>> {
-    let mut out = Vec::new();
-    for (fk, _) in body.faces() {
-        match *body.face_surface(fk).unwrap() {
-            Surface::Sphere { frame, radius, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                out.extend([center + axis * radius, center - axis * radius])
-            }
-            Surface::Cone { frame, .. } => {
-                let apex = frame.origin();
-                out.push(apex)
-            }
-            _ => {}
-        }
-    }
-    out
-}
-
 #[test]
-fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex() {
+fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_vertex_of_it() {
     let tol = Tol::witness();
     for row in rows() {
         let name = row.path;
@@ -199,35 +179,8 @@ fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex()
             Ok(()),
             "{name}: meshes"
         );
-        // The rule itself: every singular point the body reaches is a
-        // vertex, the tip of one wrap edge whose two sides one face
-        // walks, or where two edges meet.
-        let points: Vec<_> = b.vertex_points().collect();
-        for s in singular_points(b) {
-            let Some((v, _)) = points.iter().find(|(_, p)| (*p - s).norm() <= 1e-9) else {
-                continue;
-            };
-            let leaving: Vec<_> = b
-                .edges()
-                .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                .filter(|h| b.get_half_edge(*h).unwrap().start == *v)
-                .collect();
-            match leaving.as_slice() {
-                [h] => {
-                    let edge = b.get_edge(b.get_half_edge(*h).unwrap().edge).unwrap();
-                    assert_eq!(
-                        b.face_of_half_edge(edge.he_plus),
-                        b.face_of_half_edge(edge.he_minus),
-                        "{name}: the wrap edge at {s:?} has one face on both sides"
-                    );
-                }
-                [_, _] => {}
-                _ => panic!(
-                    "{name}: the singular point {s:?} ends {} edges",
-                    leaving.len()
-                ),
-            }
-        }
+        // The rule itself.
+        crate::common::assert_singular_points_are_vertices(name, b);
     }
 }
 

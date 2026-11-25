@@ -9,8 +9,7 @@
 
 use core::f64::consts::PI;
 
-use geom::Surface;
-use geom_core::{Point3, Tol};
+use geom_core::Tol;
 use step_import::{ImportOptions, NormalizationKind, StepImport, import_step};
 
 /// A two-face solid: a curved face (`surface`, entities #25..#29 stated
@@ -134,44 +133,9 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     )
     .volume;
     // Every singular point of every curved face lying on the body is a
-    // vertex: the tip of one wrap edge one face walks out and back, or
-    // where two edges meet. One lying in a face's closure with no vertex
-    // is the defect the pass exists to remove.
-    let points: Vec<_> = b.vertex_points().collect();
-    for (fk, _) in b.faces() {
-        let s: Vec<Point3<f64>> = match *b.face_surface(fk).unwrap() {
-            Surface::Sphere { frame, radius, .. } => {
-                let (center, axis) = (frame.origin(), frame.axis());
-                vec![center + axis * radius, center - axis * radius]
-            }
-            Surface::Cone { frame, .. } => {
-                let apex = frame.origin();
-                vec![apex]
-            }
-            _ => continue,
-        };
-        for s in s {
-            if let Some((v, _)) = points.iter().find(|(_, p)| (*p - s).norm() <= 1e-9) {
-                let leaving: Vec<_> = b
-                    .edges()
-                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                    .filter(|h| b.get_half_edge(*h).unwrap().start == *v)
-                    .collect();
-                match leaving.as_slice() {
-                    [h] => {
-                        let edge = b.get_edge(b.get_half_edge(*h).unwrap().edge).unwrap();
-                        assert_eq!(
-                            b.face_of_half_edge(edge.he_plus),
-                            b.face_of_half_edge(edge.he_minus),
-                            "{name}: the wrap edge at {s:?} has one face on both sides"
-                        );
-                    }
-                    [_, _] => {}
-                    _ => panic!("{name}: singular point {s:?} ends {} edges", leaving.len()),
-                }
-            }
-        }
-    }
+    // vertex in a form the kernel admits; one lying in a face's closure
+    // with no vertex is the defect the pass exists to remove.
+    crate::common::assert_singular_points_are_vertices(name, b);
     Ok((volume, singular_records))
 }
 
