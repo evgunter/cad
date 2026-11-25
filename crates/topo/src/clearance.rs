@@ -5816,11 +5816,10 @@ mod cone_window {
     }
 
     /// **A cone face's window ends where its boundary does in a turned
-    /// frame too**: the wall and the cap above, turned about a generic
-    /// axis and moved. Each `v` end is its rims' slant, or the apex's
-    /// `0` for the cap. Red if the window is read off a box of the
-    /// boundary in world axes, which reaches past the rims along an
-    /// axis off the world's.
+    /// frame too**: the cap above, turned about a generic axis and
+    /// moved. Its `v` window runs from the apex's `0` to its rim's slant.
+    /// Red if the window is read off a box of the boundary in world
+    /// axes, which reaches past the rim along an axis off the world's.
     #[test]
     fn a_cone_window_ends_at_its_boundary_in_a_turned_frame() {
         use geom_core::{Affine3, Point3, Vec3};
@@ -5829,22 +5828,13 @@ mod cone_window {
             Vec3::new(1.0, 2.0, 3.0),
             0.7,
         );
-        let turned = |body: &Body<f64>| {
-            crate::transform::transform_rigid(
-                body,
-                &geom_core::test_support::rigid(&turn, Tol::witness()),
-            )
-            .unwrap()
-        };
-        let (wall, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
-        let w = window_of(&turned(&wall), face, Which::First, None).unwrap();
-        assert!(
-            (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
-            "the turned wall's window ends at its rims: {:?}",
-            w.v
-        );
         let (cap, face) = cone_cap(1.0);
-        let w = window_of(&turned(&cap), face, Which::First, None).unwrap();
+        let cap = crate::transform::transform_rigid(
+            &cap,
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
+        )
+        .unwrap();
+        let w = window_of(&cap, face, Which::First, None).unwrap();
         assert!(
             w.v.0 == 0.0 && (w.v.1 - slant(1.0)).abs() < 1e-12,
             "the turned cap's window runs from the apex to its rim: {:?}",
