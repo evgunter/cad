@@ -767,3 +767,73 @@ fn a_rod_through_a_ball_pairs_both_loops_alike() {
         );
     }
 }
+
+/// **A cylinder × sphere result ∪, ∖ and ∩ a brick into the ball's
+/// outer cap**: a brick across the sphere at `ρ ≥ 0.7 > R`, which meets
+/// no face of the result but the ball's chorded cap (where a result
+/// holds it). Each of the six runs of poses 0 and 5 that builds is
+/// combined with the brick by all three ops: each builds at tier 2, and
+/// the volumes are additive, `V(X ∪ K) + V(X ∩ K) = V(X) + V(K)` and
+/// `V(X ∖ K) + V(X ∩ K) = V(X)`, within the measured enclosures. The
+/// face door reads the cap's spline chords, so no run stops at it.
+#[test]
+fn a_brick_into_the_chorded_cap_combines_with_every_result() {
+    let tol = Tol::witness();
+    let brick = finished(
+        "the cap brick",
+        sweep::test_support::brick::<f64>((0.7, 0.9), (-0.02, 0.02), (-0.03, 0.03), tol),
+        tol,
+    );
+    let volume = |body: &AtRestBody<f64>| {
+        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("unmeasured: {e:?}"));
+        (m.enclosure.volume, m.enclosure.volume_pad)
+    };
+    let (vk, pk) = volume(&brick);
+    let mut off = Vec::new();
+    let mut built = 0;
+    for index in [0, 5] {
+        let pose = &poses()[index];
+        let (a, b) = pose.operands();
+        for (op_label, op, swapped, _) in runs(0.0, 0.0, 0.0) {
+            let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
+            let Ok(result) = run(op, x, y) else { continue };
+            let Some(body) = result.body() else { continue };
+            let label = format!("{}, {op_label}", pose.label);
+            let (vx, px) = volume(body);
+            let mut with = Vec::new();
+            for (name, by) in [
+                ("∪", BooleanOp::Union),
+                ("∩", BooleanOp::Intersect),
+                ("∖", BooleanOp::Subtract),
+            ] {
+                match run(by, body, &brick) {
+                    Ok(r) => match r.body() {
+                        Some(got) if topo::validate_closed(&got.body).is_ok() => {
+                            with.push(Some(volume(got)));
+                        }
+                        Some(_) => off.push(format!("{label} {name} the brick: not closed")),
+                        // An empty common part: no volume.
+                        None => with.push(Some((0.0, 0.0))),
+                    },
+                    Err(e) => {
+                        off.push(format!("{label} {name} the brick: {e:?}"));
+                        with.push(None);
+                    }
+                }
+            }
+            if let [Some((vu, pu)), Some((vi, pi)), Some((vd, pd))] = with[..] {
+                built += 1;
+                let claim = crate::common::differential::VOLUME_CLAIM;
+                if (vu + vi - vx - vk).abs() > 2.0 * claim + pu + pi + px + pk {
+                    off.push(format!("{label}: ∪ {vu} + ∩ {vi} ≠ {vx} + brick {vk}"));
+                }
+                if (vd + vi - vx).abs() > 2.0 * claim + pd + pi + px {
+                    off.push(format!("{label}: ∖ {vd} + ∩ {vi} ≠ {vx}"));
+                }
+            }
+        }
+    }
+    assert!(off.is_empty(), "{off:#?}");
+    assert!(built >= 6, "the runs that build: {built}");
+}
