@@ -280,7 +280,19 @@ impl ImplicitForm {
             Form::Sphere { radius } => radial + q.z.sqr() - radius.sqr(),
             Form::Torus { major, minor } => {
                 let shifted = radial + q.z.sqr() + major.sqr() - minor.sqr();
-                shifted.sqr() - Interval::point(4.0) * major.sqr() * radial
+                let expanded = shifted.sqr() - Interval::point(4.0) * major.sqr() * radial;
+                // The same quartic as `(D² − r²)(D′² − r²)`, `D` and `D′`
+                // the distances to the core circle's near and far points
+                // in the box's meridian plane. The expanded form cancels
+                // two terms of size `4R⁴`, so over a box of width `w` it
+                // spreads by about `16R³w` where the quartic varies by
+                // `8R²r·w`; the near factor reads its variation at the
+                // tube's own scale.
+                let rho = radial.sqrt();
+                let cross = q.z.sqr() - minor.sqr();
+                let near = (rho - major).sqr() + cross;
+                let far = (rho + major).sqr() + cross;
+                expanded.meet(near * far)
             }
         }
     }
@@ -802,6 +814,56 @@ mod tests {
             floor.hi() <= off * (1.0 + 1e-6) && floor.lo() > 0.0,
             "the floor {floor:?} against the distance {off:e}"
         );
+    }
+
+    /// **A thin torus's form clears a box at the box's own distance.**
+    /// Lily wall 8's stem, `R = 5`, `r = 0.06` (`R/r ≈ 83`): a cube of
+    /// side `w` centred `d = 1 cm` outside the tube on the outer equator
+    /// and one `d` inside it on the inner equator. Each excludes zero
+    /// once `w` is a fifth of `d`, where the expanded quartic's spread of
+    /// about `16R³w` swallows `8R²r·d` until `w ≲ d/170`. Each box's
+    /// enclosure holds the quartic at a 9³ grid of its points. Red under
+    /// the expanded quartic alone.
+    #[test]
+    fn a_thin_torus_form_clears_a_box_at_its_own_distance() {
+        let (big, small) = (5.0, 0.06);
+        let form = ImplicitForm::of(&torus(big, small)).expect("a ring torus");
+        let quartic = |p: Point3<f64>| {
+            let radial = p.x * p.x + p.y * p.y;
+            let s = radial + p.z * p.z + big * big - small * small;
+            s * s - 4.0 * big * big * radial
+        };
+        let (d, w) = (0.01, 0.01 / 5.0);
+        for (centre, sign) in [
+            (Point3::new(big + small + d, 0.0, 0.0), 1.0),
+            (Point3::new(big - small + d, 0.0, 0.0), -1.0),
+        ] {
+            let side = |c: f64| geom_core::Interval::from_bounds(c - w / 2.0, c + w / 2.0);
+            let b = super::Box3 {
+                x: side(centre.x),
+                y: side(centre.y),
+                z: side(centre.z),
+            };
+            let f = form.value(form.framed(b));
+            assert!(
+                f.is_certified() && f.lo() * sign > 0.0 && f.hi() * sign > 0.0,
+                "the box {d:e} off the tube at {centre:?} does not exclude zero: {f:?}"
+            );
+            for i in 0..9 {
+                for j in 0..9 {
+                    for k in 0..9 {
+                        let at = |c: f64, n: usize| c - w / 2.0 + w * n as f64 / 8.0;
+                        let p = Point3::new(at(centre.x, i), at(centre.y, j), at(centre.z, k));
+                        let truth = quartic(p);
+                        let slack = 1e-13 * 4.0 * big.powi(4);
+                        assert!(
+                            f.lo() - slack <= truth && truth <= f.hi() + slack,
+                            "{truth:e} at {p:?} lies outside {f:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// **A partner form reads a stored frame on its polar factor**
