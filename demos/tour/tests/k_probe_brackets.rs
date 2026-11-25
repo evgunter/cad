@@ -94,7 +94,8 @@ const FIT_REL: f64 = 2e-7;
 /// The swept leaves' Pappus volumes: a rigid lens carried along the
 /// spine's normal frame sweeps `A·(len + |curl|·rise)`, the lens being
 /// two circular segments on one chord (`lily.rs`'s `Lance::area` and
-/// `Lance::centroid_rise`). The numbers are `LEAF_B` and `LEAF_C`'s.
+/// `Lance::centroid_rise`). The numbers are `LEAF_B`'s, and
+/// `lily_leaf_c` is its mirror image, so it holds the same volume.
 fn pappus() -> [(&'static str, f64); 2] {
     let segment = |c: f64, h: f64| {
         let r = (0.25 * c * c + h * h) / (2.0 * h);
@@ -111,7 +112,7 @@ fn pappus() -> [(&'static str, f64); 2] {
     };
     [
         ("lily_leaf_b", leaf(0.170, 0.015, 0.007, 1.25, -0.40)),
-        ("lily_leaf_c", leaf(0.140, 0.013, 0.006, 0.95, -0.35)),
+        ("lily_leaf_c", leaf(0.170, 0.015, 0.007, 1.25, -0.40)),
     ]
 }
 
