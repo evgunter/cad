@@ -152,7 +152,10 @@ the end of the session (the badge paragraph above).
   The picture is partial the same way. The pick index and the scene
   draw every drawn body whose node has a value, and hold a body
   without one as undrawn, with its reason: a failure takes away its
-  own picture and no other. A body that has a value and still cannot
+  own picture and no other. A body is left out as an input only while
+  every node that builds from it has a value; one that a node with no
+  value reads as a body is drawn, marked as standing in for that node,
+  with the places the failure names marked on it. A body that has a value and still cannot
   be drawn (not a body, or a tessellation the kernel refused) is held
   undrawn the same way, and said loudly, naming its node, because no
   row of the tree reports it. The index refuses as a whole only

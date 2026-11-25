@@ -6,6 +6,8 @@ status: open
 opened: 2026-11-22
 priority: P1
 cost: H
+design: true
+branch: vgeom/ev-failed-picture
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "when a boolean fails, it'd be cool if the parts did not disappear but instead highlighted where the problem was".
@@ -21,3 +23,15 @@ Three pieces:
 3. The evaluator translates those to stable names as `Blend` does, and the viewer marks them with the held-pick mark lanes (`crates/viewer/src/marks.rs`).
 
 Pieces 2 and 3 need kernel rows filed by whoever specs this one. The words half is `a-failed-boolean-says-so-only-in-its-tree-row`.
+
+## Weighed (2026-11-25)
+
+Two designers agreed on the shape: the hiding rule reads the landed
+run (a body is intermediate only while every reader has a value), the
+bodies a no-value node reads are drawn as stand-ins with a mark of
+their own, and one uniform site (stable names, each with an optional
+point) is translated by the evaluator from a kernel accessor and lit in
+a site lane of its own. Scope is every body-consuming node, not only
+booleans. They split on whether the stand-in rule is stated in GQ2 or
+only in the viewer README. Put to Ev on the `vgeom/ev-failed-picture`
+PR. Kernel and evaluator rows are filed once Ev rules.

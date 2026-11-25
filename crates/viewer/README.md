@@ -2315,7 +2315,8 @@ document; the door's only per-operand check is the node kind
 
 **Every body is shown by default except intermediate ones, and the
 View pane can show or hide any body.** A body is intermediate when
-another body is built from it:
+another body is built from it, which is so only while every node that
+reads it as a body has a value in the landed run:
 - an operand of `∪ − ∩ ⊔`;
 - the input of a fillet, split or mirror;
 - the source of a placement, whose copy is shown in its place.
@@ -2328,7 +2329,20 @@ it is shown in its place, a pattern of it shows the family with member
 0 standing where the body stood, and once the body is placed into the
 world its copy is shown and the body is not. A body beside it that
 nothing builds from stays shown. The default is derived from the recipe
-alone. Show and hide in the View pane are display state on top of it,
+and the landed run's standing.
+
+**A body some node with no value reads is a stand-in.** A failed or
+poisoned reader built nothing, so its inputs are drawn as themselves,
+pickable and toggled like any body, wearing the stand-in mark (a theme
+mark, so the theme's colour-vision claim covers it): a failed union of
+two overlapping parts drawn as the two parts would otherwise read as a
+union that worked. Hovering a stand-in names the node it stands in for.
+The failure's **site**, the operand faces and edges the refusal names
+(as stable names, each with an optional point on it in the operands'
+computing frame), is marked on the stand-ins in a site lane of its own,
+lit for as long as the failure stands; a named entity the picture does
+not draw is said, never dropped. When the failure is fixed the
+stand-ins are intermediate again, with nothing stored. Show and hide in the View pane are display state on top of it,
 and never enter the model. The product stays the slot the document
 writes.
 
