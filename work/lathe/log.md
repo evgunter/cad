@@ -73,3 +73,9 @@ Signed: (CARVE orchestrator)
     - Rows must pin the new rule: no row goes red at 2 samples, and only one witness depends on the reference-point cause, not the box change.
     - Smaller items: three net hull folds and a re-derived spiric cover to give one home each; a design statement in a test title to cite or soften; `spline_trim::ring_decks`, the same pattern on spline faces, to file.
   - Coupled with PR 7575 through `curved_outline_ring`; the orchestrator sequences the two.
+- 2026-11-25 — **PR 7585's fix pass is in (34206b6b9); the same reviewer re-reviews.**
+  - The distinct-apex-vertex pinch refuses typed (`props_cone_apex_vertices`), reading the props tags' vertex identity. A row pins that reading against `topo::loop_points`.
+  - The lobe decision has rows with teeth: six go red on the stub.
+  - Coverage is now combinatorial over decided rulings.
+  - Filed: RESTFRONT P2 (tier 3 passes the two-apex-vertex loop) and SPIRICARM P3 (the spindle sheet reads its apex by position).
+- 2026-11-25 — **Class, mine: I merged PR 7556 into the stack on its lane's report without the gates.** Two gates went red on the stack: `period-spelling` at `mesh/src/trimmed.rs` and `topology-reads-through-topo` at `mesh/tests/reach_probes.rs:997`. The lane's report listed fmt, check and clippy but not `scripts/gates/*.sh`, and hosted CI had not run. Corrected: a gate fix is routed back to the mesh-budget lane. From now on a stacked merge on my read needs every `scripts/gates/*.sh` named green in the report, or a hosted `lint` result.
