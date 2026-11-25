@@ -2,7 +2,7 @@
 id: set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart
 kind: issue
 title: set_face_surfaces_describing keeps a listed edge's rows on a face that keeps its chart, across a spec that moves the carrier or interval
-status: review
+status: closed
 opened: 2026-10-06
 priority: P3
 refs: [set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization]
@@ -10,6 +10,7 @@ cost: M
 parent: producer-closing-mint-is-a-convention-with-thirteen-copies
 branch: walks/finish-completes
 pr: 7497
+closed: 2026-11-25
 ---
 
 
@@ -63,3 +64,7 @@ it. A spec that restates both, as a carried redescription does, keeps
 its rows. `replace_faces_offset`'s
 hand-written drop at a moved vertex stays: it also covers the re-anchored
 edges, which the door does not list.
+
+## Closed
+
+2026-11-25: PR 7497 merged — `set_face_surfaces_describing` drops a kept-chart face's rows for a listed edge whose spec moves its carrier or interval (compared by `Curve3::same_content_by` under `Real::same_value`), and keeps them where the spec restates both.
