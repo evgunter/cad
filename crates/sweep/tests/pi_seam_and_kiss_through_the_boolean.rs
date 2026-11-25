@@ -1252,23 +1252,24 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     }
 }
 
-/// **An arc lying in a curved face refuses `EdgeInFace` (`CurvedFace`)**
-/// where its two faces both leave it into the face's material: the
-/// material parts it into two coincident arcs, a slit or a zero-area ring
-/// of a curved face, which is not measured
-/// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+/// **An arc lying in a curved face refuses `EdgeInFace`, a parting not
+/// built** ([`topo::EdgeInFaceGap::is_defect`] false), where its two
+/// faces both leave it into the face's material, rather than ship it as
+/// one edge. The material parts it into two coincident arcs, which leave
+/// a slit or a zero-area ring of the curved face, not measured
+/// (`CurvedFace`), or divide it between two pieces of the result that
+/// touch only along the rim, whose curved faces the census does not read
+/// (`PartsTouch`); at some poses an end on the boundary or a crossing the
+/// parting does not place refuses first (`EndOnBoundary`, `Unplaced`).
 /// The bowl a sunk dome leaves meets the tube's wall so along the rim's
 /// arcs, and a rod's top rim on the dome's sphere meets the sphere so.
 fn refuses_the_rims_slit(label: &str, r: Result<BooleanResult<f64>, BooleanError>) {
     assert!(
         matches!(
-            r,
-            Err(BooleanError::EdgeInFace {
-                gap: topo::EdgeInFaceGap::CurvedFace,
-                ..
-            })
+            &r,
+            Err(BooleanError::EdgeInFace { gap, .. }) if !gap.is_defect()
         ),
-        "{label}: refuses the rim's slit: {:?}",
+        "{label}: refuses the rim's parting: {:?}",
         r.map(|_| ())
     );
 }
@@ -1419,10 +1420,11 @@ fn quartered_tube() -> AtRestBody<f64> {
 /// pocket the dome leaves meets the wall along the whole rim, the
 /// dome's faces at each rim arc leaving it into the wall's material, so
 /// each arc is two coincident arcs and `t ∖ d` refuses `EdgeInFace`
-/// (`CurvedFace`, [`refuses_the_rims_slit`]). The record carriage it pinned
-/// (v-v at the rulings, v-f off them, v-e and e-e where the join took a
-/// split vertex) is owed back with a curved face's slit form
-/// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+/// ([`refuses_the_rims_slit`]): where the arcs divide the wall, the
+/// pocket's lump touches the rest only along them (`PartsTouch`). The
+/// record carriage it pinned (v-v at the rulings, v-f off them, v-e and
+/// e-e where the join took a split vertex) is owed back with that touch's
+/// reading.
 #[test]
 fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
     type Censuses = [(usize, usize, usize, usize); 3];
@@ -2125,9 +2127,10 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
 /// band's positional slack over less than a unit of surface. `d ∖ a`
 /// leaves the rod's top rim on the sphere with the rod's top and wall
 /// both going into the dome's material, two coincident arcs, and refuses
-/// `EdgeInFace` (`CurvedFace`, [`refuses_the_rims_slit`]); its edge-edge
-/// records at the seam meridian are owed back with a curved face's slit form
-/// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+/// `EdgeInFace` ([`refuses_the_rims_slit`]): the arcs divide the sphere,
+/// and the cap above the rod's top touches the rest only along the rim
+/// (`PartsTouch`); its edge-edge records at the seam meridian are owed
+/// back with that touch's reading.
 #[test]
 fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let tol = Tol::witness();
