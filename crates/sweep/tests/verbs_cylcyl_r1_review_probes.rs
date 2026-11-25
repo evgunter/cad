@@ -69,19 +69,13 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     // Pinned red at 1e-6: the perpendicular pair's union holds its closed
     // form in an enclosure wider than the row's ceiling
     // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
-    let eps = Tol::witness().eps();
-    let (stops_at, says): (&[f64], &[&str]) = (
-        &[1e-6],
-        &[
-            "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true",
-            "want=81.651534544",
-        ],
-    );
     test_utils::pinned_red::row(
-        eps,
-        stops_at,
+        Tol::witness().eps(),
+        &[1e-6],
         "the crossing poses",
-        says,
+        &[
+            "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.651534548 pad=2.1e-6 want=81.651534544",
+        ],
         every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row,
     );
 }

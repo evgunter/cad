@@ -19,21 +19,51 @@ Found by GREEN's ε 1e-6 lane (`green/eps-1e-6`), from nightly 43371638371 (main
 
 The row admits `NodeUnbuilt`, `GermFrameUnsupported` and `FallbackExtentUnsupported` as frontier refusals; `GermSectionUnbuilt` is not one. The raise is `crates/geom-brep/src/ssi.rs`' refinement, stopped by its step budget with limb 2 in band.
 
+**Not bisected.** One run of the row at 1e-12 costs 13 minutes on the nightly's runner. The nights it first failed at 1e-12 were not read either: this lane read the 1e-6 rows.
+
+**Owed.** Name the merge. Then decide: either the section builds at 1e-12, or the refusal is a frontier the row should admit by name, with the reason the residual's floor sits at 1.1e-12 for this pair. `ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall` is the cost side of the same march.
+
+**Pinned** (`green/eps-1e-6`): the row is under `test_utils::pinned_red::row` at ε 1e-12 on this refusal (and at 1e-6 on another stop, `work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`). Take the pin off with the fix.
+
+## Seen by `oneround/unsourced-unions` (PR 7294), 2026-11-21
+
+At 1e-12 (release build, the branch's base: PR 7227 with main at `b80352cd`), `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly` was red in both modes of a differential (each site under test on its old read, and on its new one), with identical payloads. It stopped somewhere the pinned row does not name: `skew axes, crossing walls/intersect: ERR Euler(RebasedCarrier { edge: EdgeKey(17v1), error: PeriodicView(Span { asked: (-0.9887583186488748, 0.01124168…` (`crates/sweep/tests/verbs_cylcyl_r1_review_probes.rs:236`), not at the tall thin pair's limb 2. The row's pin names only that stop.
+
+## Closed (2026-11-25, `ssiarith/tall-thin-limb-2`)
+
+**The refusal no longer happens on main.** Measured on main `6003877ad8`
+(release, the pair alone, each op through the row's own
+`differential::outcome`):
+
+| ε | union | subtract | intersect |
+|---|---|---|---|
+| 1e-12 | OK SOUND, pad 3.8e-12 | OK SOUND, pad 3.7e-12 | OK SOUND, pad 4.1e-12 |
+| 1e-9 | OK SOUND, pad 1.7e-10 | OK SOUND, pad 1.2e-10 | OK SOUND, pad 1.7e-10 |
+| 1e-6 | OK BAD, pad 5.8e-7 | OK BAD, pad 4.4e-7 | OK BAD, pad 5.8e-7 |
+
+Every volume is the closed form's to the digits printed. At 1e-6 each
+enclosure is wider than the row's fixed pad budget, the class of
+`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`
+(evidence added there); the row stops on its first pose there before
+reaching this one.
+
 **Not bisected.** The merge that took the section past limb 2's band
 was not named: one run of the full row costs about 13 minutes hosted,
-and by the nightly of main `6a680cb845` (run 45332993102) the row had
-moved to an earlier stop, `skew axes, crossing walls/intersect: ERR
-Euler(DescriptionUncertified { … PeriodicView(Span { asked: … }) })`,
-the class of
+and the row had already moved to the skew pose's periodic-view stop
+(`RebasedCarrier` at `b80352cd`, above; `DescriptionUncertified` on
+the nightly of main `6a680cb845`, run 45332993102), the class of
 `work/sectarms/main-red-the-tilted-rods-other-spins-row-asks-a-periodic-view-past-its-window.md`
-(evidence added there). On main `6003877ad8` that stop is gone as well:
-the whole row passes at 1e-12 (release, 361 s) and at 1e-9 (62 s).
+(evidence added there). On `6003877ad8` that stop is gone as well: the
+whole row passes at 1e-12 (release, 361 s) and at 1e-9 (62 s). These
+measurements are on `6003877ad8`, not on the PR's merge base; the
+hosted gate re-takes this file's 1e-6 and 1e-12 rows on the merged
+head.
 
 **The row.** Its 1e-12 pin is off, and the tall thin pose joins the
 poses whose every op answers, so the row holds it SOUND at the default
 ε and at 1e-12. Its 1e-6 pin, the perpendicular pair's union past the
 pad budget, had itself moved on main (pad 6.7e-6 → 2.1e-6, the volume
-one digit off the pinned text); it now names the class, `OK BAD` on that
-union with its closed form, not the digits.
+one digit off the pinned text), and is re-pinned on the new whole line.
 `ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall`
 stays open: the cost side was not measured here. — (SSIARITH orchestrator)
+
