@@ -720,6 +720,7 @@ not (
   (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::an_offset_cap_keeps_its_verdict_under_a_move)) |
   (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::a_moved_body_measures_as_its_source_does)) |
   (binary_id(sweep::all) & test(=trimmed_sphere_aims::trimmed_sphere_shells_read_their_side_off_aimed_rays)) |
+  (binary_id(topo) & test(=solid_contain::volume_read_key_rows::a_second_band_racing_the_first_is_read_afresh)) |
   (binary_id(sweep::all) & test(=curved_coincident_fates::a_hemisphere_base_and_a_brick_bottom_are_cut_alike_in_either_order)) |
   (binary_id(sweep::all) & test(=a_seam_inside_a_face_is_no_boundary_of_it::a_turned_tube_reads_its_side_in_its_seam_plane)) |
   (binary_id(sweep::all) & (test(=an_aimed_ray_from_far_reads_a_split_side_right::a_seam_split_a_hair_off_tangency_reads_no_side_inside_out) | test(=an_aimed_ray_from_far_reads_a_split_side_right::the_seam_split_census_reads_no_side_inside_out) | test(=an_aimed_ray_from_far_reads_a_split_side_right::the_side_readers_reach_bounds_a_section_arc_not_its_ellipse))) |
