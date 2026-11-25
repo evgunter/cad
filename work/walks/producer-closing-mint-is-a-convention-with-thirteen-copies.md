@@ -2,12 +2,13 @@
 id: producer-closing-mint-is-a-convention-with-thirteen-copies
 kind: issue
 title: every producer's closing pcurve mint is a prose convention spelled thirteen times, unenforced, and it launders a stale operand row
-status: review
+status: closed
 opened: 2026-09-08
 priority: P1
 cost: M
 branch: walks/finish-completes
 pr: 7497
+closed: 2026-11-25
 ---
 
 
@@ -105,3 +106,7 @@ gone; two readers that read stored rows mid-pipeline (the result sort,
 the same completion, strict, since neither has a closed-form route to a
 spline face's rows. The PR body carries the sweep and the reds it
 measured.
+
+## Closed
+
+2026-11-25: PR 7497 merged — producers stop minting to close; the finish (and the mid-pipeline feeds, through one helper) COMPLETES the rows: keeps every stored row and element, derives the missing, so a stale row is refused rather than replaced (DESIGN `[one-way.places]`, Ev on PR 7420); `mint_pcurves` is test-support only; a source row refuses an `AtRestPolicy` impl overriding `finish`/`leaf`.

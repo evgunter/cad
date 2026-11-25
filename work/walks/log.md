@@ -72,3 +72,11 @@ Friction:
 - A cloud session's `source_revision` must be a full sha: a short one fails `ref_not_found` at init and the session sits PENDING with no error surfaced (the first 7497 re-review was lost to this for ~35 hours across a usage-limit stop).
 - Lanes twice reported "all tests pass" from default-filter runs that skip the slow set, doctests and the release profile; briefs now name those runs explicitly.
 - The orchestrator ran `payload-rung-sweep.py` without CI's `--check` flag and wrongly told a lane main was green; the lane was right.
+
+## 2026-11-25 — sitting closed
+
+All of this sitting's units are merged: 7495 surface-slot (Ev's pending slot, PR 7423) and 7497 finish-completes (Ev's completion clause, PR 7420) were the last, each merged on its lane's local verification of a final main merge (clippy workspace all-targets, tour, fmt, run-gates, the affected crates' ci-profile suites) after hosted CI on the reviewed content was green apart from inherited main reds — main landed faster than CI could turn either PR around, and the merge commits record the basis. 7497's last pass also fixed a stale-row door the new contract exposed: the boolean fallback's join grew an edge through `kev_describing` and left a sphere face's row about the old interval, which the old clearing mint had hidden; the join now drops and re-derives the faces a grown edge bounds.
+
+Main reds fixed by WALKS this sitting: 7544, 7567, 7751 (slit's `pole_beyond` read an edge's curve raw past 7437's source pin). Filed for owners: EXPORT one_record sense fold, GREEN bisector_nodes, TALLY payload-rung-sweep, IMPORTGATE `main-red-halfcap-eps6-pole-margin-moved-one-ulp`, GERM square_search seeds.
+
+No P0 or P1 row remains on WALKS. Tail: `pending-face-refusals-keep-the-placeholder-name` (P3), `unclaimed-half-edge-reads-the-3532-table-does-not-list` (P3), `sweep-reach-respells-a-loops-vertices` (P3), `three-unread-arms-lost-their-lone-ring-witness` (P3), `not-valids-pcurve-finding-names-no-edge-…` (P3), `point-in-loop-certifies-a-unit-axis-…` (P4); `void-birth-marking-at-insert-void` deferred. Track handed back `ready` per the sitting rule.
