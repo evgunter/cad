@@ -595,10 +595,14 @@ mod tests {
     use crate::fixtures::{plane_surface, raw_prism};
 
     /// A prism fixture with one wall re-surfaced as a PLANE, so the
-    /// body carries two surface kinds (the fixture's placeholder
-    /// Nurbs everywhere else) and circle-certified carriers.
+    /// body carries two surface kinds (a finite NURBS patch on every
+    /// other face, read for its kind only) and circle-certified carriers.
     fn mixed() -> Body<f64> {
         let mut p = raw_prism(4, Tol::witness()).body;
+        crate::fixtures::describe_pending_as(
+            &mut p,
+            &crate::fixtures::patch_spanning(Point3::origin(), Point3::new(1.0, 1.0, 1.0)),
+        );
         let face = all_faces(&p)[0];
         let plane = p.add_surface(plane_surface(
             Point3::origin(),

@@ -88,7 +88,7 @@ fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
         let on_cylinder = |he| {
             body.get_half_edge(he)
                 .and_then(|h| body.get_loop(h.parent_loop))
-                .and_then(|l| body.face_surface(l.face))
+                .and_then(|l| body.face_surface(l.face).ok())
                 .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
         };
         let kisses: Vec<_> = body

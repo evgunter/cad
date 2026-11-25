@@ -291,7 +291,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("valid at rest, got {e:?}"));
     let mut spheres = 0;
     for (fk, f) in body.faces() {
-        if let Some(Surface::Sphere { frame, radius, .. }) = body.face_surface(fk) {
+        if let Ok(Surface::Sphere { frame, radius, .. }) = body.face_surface(fk) {
             let center = frame.origin();
             spheres += 1;
             assert!(

@@ -354,7 +354,10 @@ fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
         .find_map(|(he, h)| {
             let p = point(&body, h.start);
             let face = body.face_of_half_edge(he)?;
-            let on_wall = matches!(body.face_surface(face)?, geom::Surface::Cylinder { .. });
+            let on_wall = matches!(
+                body.face_surface(face).ok()?,
+                geom::Surface::Cylinder { .. }
+            );
             (on_wall && p.y.abs() < 1e-12).then_some((he, face))
         })
         .expect("the wall leaves a base vertex");

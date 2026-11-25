@@ -481,8 +481,12 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         // A zero-area ring in a curved face is not measured, so the
         // parting refuses on any face it would part that is no plane.
-        let plane =
-            |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
+        let plane = |f: FaceKey| {
+            matches!(
+                body.proven_face(f).expect_described(),
+                geom::Surface::Plane { .. }
+            )
+        };
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -1278,7 +1282,8 @@ fn pole_beyond<T: Decide>(
     section: &BTreeSet<EdgeKey>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let &geom::Surface::Sphere { frame, radius, .. } = body.proven_face(face).surface() else {
+    let &geom::Surface::Sphere { frame, radius, .. } = body.proven_face(face).expect_described()
+    else {
         return Err(BooleanError::JoinDesync {
             what: "a chart cut's face is not on a sphere",
         });
@@ -1822,7 +1827,7 @@ pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     f: FaceKey,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    let surface = body.proven_face(f).surface();
+    let surface = body.proven_face(f).expect_described();
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -2489,6 +2494,10 @@ fn walls_inside<T: Decide>(
         Err(crate::face_normal::FootNormalError::NoFoot { .. }) => {
             return Err(refused(EdgeInFaceGap::NoNormal));
         }
+        Err(crate::face_normal::FootNormalError::Pending) => unreachable!(
+            "{f:?} is pending in a boolean operand: operands are finished bodies, and tier 3 \
+             refuses a pending face at rest"
+        ),
     };
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?
@@ -2514,7 +2523,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| body.proven_face(face).surface();
+        let surface = |face: FaceKey| body.proven_face(face).expect_described();
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -2606,7 +2615,7 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.proven_face(f).surface();
+    let chart = body.proven_face(f).expect_described();
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -2646,7 +2655,7 @@ fn spline_floor<T: Decide>(
         }
         Err(SplineNormalError::StaleFace) => crate::contain::driver_face_stale(f),
         // The chart was read as a spline above, so the point door's arm
-        // and the placeholder's are a chart with no one normal here.
+        // and a pending face's are a chart with no one normal here.
         Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
         Err(SplineNormalError::At(why)) => match why.refusal() {
             Ok(_) => Ok(None),
@@ -3896,7 +3905,7 @@ mod spline_rider {
         );
         crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
         crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
-        let normal = body.proven_face(face).surface().clone();
+        let normal = body.proven_face(face).expect_described().clone();
         assert!(
             matches!(normal, geom::Surface::Plane { frame, .. }
                 if (frame.origin().x - 1.0).abs() < 1e-12 && frame.axis().x.abs() > 0.99),

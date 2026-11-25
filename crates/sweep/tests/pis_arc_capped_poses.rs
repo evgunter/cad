@@ -346,7 +346,7 @@ fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::Fac
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if frame.axis().cross(normal).norm() < 1e-12 && (at - frame.origin()).dot(frame.axis()).abs() < 1e-12
             )
         })
@@ -708,7 +708,7 @@ fn a_spiric_bounded_face_answers_off_its_spiric_edge() {
 }
 
 pub(crate) fn body_surface(body: &Body<f64>, s: topo::SurfaceKey) -> Option<geom::Surface<f64>> {
-    body.get_surface(s).cloned()
+    body.get_surface(s).ok().cloned()
 }
 
 pub(crate) fn loop_half_edges(body: &Body<f64>, lk: topo::LoopKey) -> Vec<topo::HalfEdgeKey> {
@@ -1207,7 +1207,7 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
     for case in tilted_cut_cases() {
         let mut sections = 0;
         for (key, face) in case.body.faces() {
-            let Some(geom::Surface::Plane { frame, .. }) = case.body.face_surface(key) else {
+            let Ok(geom::Surface::Plane { frame, .. }) = case.body.face_surface(key) else {
                 continue;
             };
             let (origin, normal) = (frame.origin(), frame.axis());

@@ -425,8 +425,8 @@ fn the_straight_arc_prisms_arc_wall_promotes_to_a_cylinder() {
         "the arc wall promotes to a cylinder: {promos:?}"
     );
     assert!(
-        body.surfaces()
-            .all(|(_, s)| !matches!(s, geom::Surface::Nurbs(n) if !n.is_placeholder())),
+        body.described_surfaces()
+            .all(|(_, s)| !matches!(s, geom::Surface::Nurbs(_))),
         "no spline wall is left"
     );
 }
@@ -487,13 +487,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             // The arc wall is the rational one; the bowed `x = −1`
             // wall is integral.
             let rational = |s: &geom::Surface<f64>| match s {
-                geom::Surface::Nurbs(n) if !n.is_placeholder() && n.constant_weight().is_none() => {
-                    Some((**n).clone())
-                }
+                geom::Surface::Nurbs(n) if n.constant_weight().is_none() => Some((**n).clone()),
                 _ => None,
             };
             let wall = body
-                .surfaces()
+                .described_surfaces()
                 .find_map(|(_, s)| rational(s))
                 .expect("the arc wall stays NURBS at every band");
             let (du0, du1) = wall.knots_u_f64_interim().domain();
@@ -502,7 +500,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
                 .filter(|&he| {
                     body.face_of_half_edge(he)
-                        .and_then(|f| body.face_surface(f))
+                        .and_then(|f| body.face_surface(f).ok())
                         .and_then(rational)
                         .is_some()
                 })
@@ -640,9 +638,9 @@ fn plane_nurbs_intersections(
     geom::Surface<f64>,
     geom::NurbsSurface<f64>,
 )> {
-    let surfaces: std::collections::BTreeMap<_, _> = body.surfaces().collect();
+    let surfaces: std::collections::BTreeMap<_, _> = body.described_surfaces().collect();
     let described = |k| match surfaces.get(&k) {
-        Some(geom::Surface::Nurbs(n)) if !n.is_placeholder() => Some((**n).clone()),
+        Some(geom::Surface::Nurbs(n)) => Some((**n).clone()),
         _ => None,
     };
     let plane = |k| match surfaces.get(&k) {

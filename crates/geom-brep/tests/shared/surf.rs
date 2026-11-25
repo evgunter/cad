@@ -72,10 +72,15 @@ pub(crate) fn torus_at<T: Real>(c: [f64; 3], major: f64, minor: f64) -> Surface<
 /// take (keys never resolve inside `geom-brep`).
 pub(crate) fn table<T: Real>(
     surfs: Vec<Surface<T>>,
-) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<T>>) {
+) -> (
+    Vec<SurfaceKey>,
+    impl Fn(SurfaceKey) -> Result<Surface<T>, geom_brep::SurfaceMiss>,
+) {
     let mut map: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
     let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
+    (keys, move |k| {
+        map.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale)
+    })
 }
 
 /// A two-surface arena: the two keys and the map ITSELF, for the doors

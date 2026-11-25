@@ -160,7 +160,7 @@ fn curved_pairs_refused(
     kind: fn(&geom::Surface<f64>) -> bool,
 ) -> usize {
     let on = |id: &EntityId| match id {
-        EntityId::Face(f) => body.face_surface(*f).is_some_and(kind),
+        EntityId::Face(f) => body.face_surface(*f).is_ok_and(kind),
         _ => false,
     };
     errors

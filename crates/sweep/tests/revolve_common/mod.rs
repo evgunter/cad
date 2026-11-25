@@ -14,7 +14,7 @@ use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::RevolveAxis;
 use topo::readback::{EulerCounts, euler_counts};
-use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
+use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed};
 
 pub fn eps() -> f64 {
     Tol::witness().get().eps
@@ -42,6 +42,33 @@ pub fn donut_profile() -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(2.0, -0.5), 1.0),
         (Point2::new(2.0, 0.5), 1.0),
+    ])
+}
+
+/// The football of the spindle sheet `(R, r)` about the sketch `y` axis,
+/// its centre `by` up the axis: the arc from its lower apex to its upper
+/// through the circle's widest point, closed down the axis. Revolved
+/// whole, two sheet faces, each a π-band between meridians ending at
+/// both apexes.
+pub fn football(big: f64, r: f64, by: f64) -> ProfileLoop<f64> {
+    let h = ((r - big) * (r + big)).sqrt();
+    let v_star = (-big / r).acos();
+    bulge_loop(vec![
+        (Point2::new(0.0, by - h), (v_star / 2.0).tan()),
+        (Point2::new(0.0, by + h), 0.0),
+    ])
+}
+
+/// A horn's needle tip: the horn of radius 1 (its centre `(1, 0)`, its
+/// cusp at the origin) reached at its cusp from one side, its arc
+/// `sweep` radians of the circle from the cusp, closed by a line to the
+/// axis and down it. At `sweep = π/2` the arc meets the disc tangent.
+pub fn needle_tip(sweep: f64) -> ProfileLoop<f64> {
+    let (s, c) = sweep.sin_cos();
+    bulge_loop(vec![
+        (Point2::new(0.0, 0.0), -(sweep / 4.0).tan()),
+        (Point2::new(1.0 - c, s), 0.0),
+        (Point2::new(0.0, s), 0.0),
     ])
 }
 
@@ -73,7 +100,10 @@ pub fn axis_y() -> RevolveAxis<f64> {
 pub fn assert_all_tiers(body: &Body<f64>) {
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::test_support::validate_completed(body, Tol::witness()),
+        Ok(())
+    );
 }
 
 /// (v, e, f, r) of a body.
@@ -318,7 +348,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
             None => s.push_str(&format!("{k:?} {c:?}\n")),
         }
     }
-    for (k, srf) in t.body.surfaces() {
+    for (k, srf) in t.body.described_surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
     }
     for (k, f) in t.body.faces() {

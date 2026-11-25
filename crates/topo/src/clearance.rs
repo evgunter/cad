@@ -3585,8 +3585,8 @@ impl RegionMemo {
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
             Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
-                None => CellRegion::Undecided,
-                Some(stored) => {
+                None | Some(Err(_)) => CellRegion::Undecided,
+                Some(Ok(stored)) => {
                     // The carrier is the window's own lift, which
                     // [`window_of`] admitted only where it certifies.
                     let boundary = self
@@ -3646,6 +3646,19 @@ fn full_latitude() -> (f64, f64) {
     )
 }
 
+/// **A spindle sheet's canonical tube-angle range** `[−v*, v*]`, its
+/// apexes' angle ([`geom::sheet_apex`]) taken at its widest over the
+/// lifted datums, widened as [`full_latitude`] is. Evaluating a hair
+/// past an apex lands a hair from it, on the torus's other sheet: the
+/// widening can only ADD points to an enclosure.
+fn sheet_latitude(major_radius: Interval, minor_radius: Interval) -> (f64, f64) {
+    let apex = geom::sheet_apex(major_radius, minor_radius)
+        .v
+        .hi()
+        .next_up();
+    (-apex, apex)
+}
+
 /// **Which carriers are admitted, and the argument for each window.**
 ///
 /// A window must be a SUPERSET of the face's region in carrier
@@ -3676,6 +3689,8 @@ fn full_latitude() -> (f64, f64) {
 ///   take their canonical ranges.
 /// - **Torus**: both coordinates are periodic and no boundary bounds
 ///   either.
+/// - **Spindle sheet**: as the sphere, `u` takes the whole turn and `v`
+///   its canonical range between the apexes ([`sheet_latitude`]).
 /// - **NURBS**: a face whose boundary is its chart's own isos, run
 ///   once around the knot domain — every loft and sweep wall — is the
 ///   whole patch, and its window is that domain
@@ -3706,7 +3721,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = f.surface();
+    let Ok(stored) = f.surface() else {
+        return unsupported("the pending face");
+    };
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3723,12 +3740,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
-    match stored {
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
-        Surface::Nurbs(net) if net.is_placeholder() => {
-            return unsupported("the placeholder free-form face");
-        }
-        _ => {}
+    if let Surface::Approx(_) = stored {
+        return unsupported(APPROXIMATED);
     }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
         return unsupported("a face whose carrier does not certify");
@@ -3767,7 +3780,11 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
-        Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => superset(full_turn(), sheet_latitude(*major_radius, *minor_radius)),
         Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),
@@ -4067,7 +4084,7 @@ pub(crate) fn posed_extents_holding(
     point: [f64; 3],
     band: Band,
 ) -> Option<Vec<Option<bool>>> {
-    let stored = body.face(face)?.surface();
+    let stored = body.face(face)?.surface().ok()?;
     let (_, boundary) = boundary_of(body, face)?;
     let surface = certified_lift(|lift| stored.map_scalar(|x| lift.of(x)))?;
     let p = point.map(|x| Interval::from_bounds(x, x));
@@ -4137,7 +4154,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
             if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
-                    let surface = f.surface();
+                    let surface = f.surface().ok()?;
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                     out.extent = extent_of(
@@ -6209,7 +6226,9 @@ mod trv_rows {
         };
         for axis in 0..3 {
             let carrier = refusal(&|b| {
-                let Some(Surface::Plane { frame, .. }) = b.surfaces.values_mut().next() else {
+                let Some(crate::SurfaceSlot::Described(Surface::Plane { frame, .. })) =
+                    b.surfaces.values_mut().next()
+                else {
                     panic!("a brick's faces are planes");
                 };
                 let mut origin = frame.origin();

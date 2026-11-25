@@ -406,7 +406,6 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::WhollyInside { .. } => "WhollyInside(row 2)",
-        BlendError::PcurveMint { .. } => "PcurveMint",
         BlendError::Op { .. } => "Op",
         BlendError::Join { .. } => "Join",
     }

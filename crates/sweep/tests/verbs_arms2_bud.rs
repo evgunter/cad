@@ -375,7 +375,7 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     // Plant the tilt on the cone wall, apex and half-angle verbatim.
     let (cone_face, apex, half_angle) = source
         .faces()
-        .find_map(|(k, _)| match *source.face_surface(k)? {
+        .find_map(|(k, _)| match *source.face_surface(k).ok()? {
             Surface::Cone {
                 frame, half_angle, ..
             } => {
