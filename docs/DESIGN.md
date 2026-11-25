@@ -2518,16 +2518,19 @@ these. All are shipped in `editor-core` except where noted:
 - **Picking back-references**: tessellation output carries per-patch
   source-`Face` and per-polyline source-`Edge` keys, and
   `editor_core::resolve::pick::pick_face` is the `ray → StableName`
-  service (`bvh::Bvh::ray`, exact ray/triangle tests, each admitted
-  candidate answering a certified `t` INTERVAL, the `resolve::hit`
-  inversion). One candidate is in front of another only when the whole
-  of its interval is; candidates the geometry cannot order are a
-  certified tie, answered as ONE face when they name one — the hull of
-  their intervals — and REFUSED with all of them
-  (`HitTestError::Ambiguous`) when they name several. Nothing else
-  decides a pick: not a claim's width, not where the model sits, not
-  the order the targets were offered in. `NodePick` pairs a mesh with
-  its node by construction.
+  service (`bvh::Bvh::ray`, the `resolve::hit` inversion). Every
+  drawn target is handed in under the map it is drawn with (its body
+  frame composed with any display frame or placement draft), the ray
+  is carried into each target's own coordinates, and each crossing is
+  computed there at `f64` as if exact ([simple.conditioned]). One
+  crossing is in front of another by a margined verdict at the run's
+  band, posed as how far a crossing point lies from the other's
+  triangle, never as a difference of two `t`s; crossings the band does
+  not order are a tie, answered as ONE face when they name one and
+  REFUSED with all of them (`HitTestError::Ambiguous`) when they name
+  several. Nothing else decides a pick: not a claim's width, not where
+  the model sits, not the order the targets were offered in. `NodePick`
+  pairs a mesh with its node by construction.
 - **Cancelation** (`CancelToken`, yielding between nodes/levels and
   before each member of a family; a canceled run returns the completed
   prefix as a typed outcome, a family canceled part-way holding no
