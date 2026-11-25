@@ -62,3 +62,14 @@ Signed: (CARVE orchestrator)
   - docs are fixed and the T1 windows asserted.
   
   Differential: mesh budget 0 red, and the 42 reds on the dependent crates are all red on base. PR 7575 is retargeted onto `lathe/full-revolve-one-band`.
+- 2026-11-25 — **PR 7581 (outline by decision) review adjudicated: APPROVE-WITH-FIXES, fix pass sent.**
+  - Held under probe:
+    - order independence: 124 pose pairs, no class differs;
+    - the new chart boxes: a direct Spiric probe found no escapes;
+    - no new refusal: 112 role passes, every non-placing slot decidedly failed;
+    - the donut's meshing.
+  - Owed:
+    - At `Interval` the greatest-lever reference pick is a no-op: `value_channel` of a non-point interval is NaN, so row 0 always wins. It must rank on a reading that exists at every scalar.
+    - Rows must pin the new rule: no row goes red at 2 samples, and only one witness depends on the reference-point cause, not the box change.
+    - Smaller items: three net hull folds and a re-derived spiric cover to give one home each; a design statement in a test title to cite or soften; `spline_trim::ring_decks`, the same pattern on spline faces, to file.
+  - Coupled with PR 7575 through `curved_outline_ring`; the orchestrator sequences the two.
