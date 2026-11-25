@@ -79,11 +79,6 @@ pub(crate) const IMAGE_ROUNDS: usize = 24;
 /// The most knots an image holds past its chain's (D9).
 pub(crate) const IMAGE_KNOTS: usize = 4096;
 
-/// How many ulps of a wall point's largest coordinate a length there is
-/// resolved to ([`resolution`]): a miss under it asks no knot, and a
-/// foot whose tangential offset is under it is settled.
-const RESOLUTION_ULPS: f64 = 64.0;
-
 /// How many of the seed grid's nearest points [`nearest`] settles a foot
 /// from (D9).
 const START_SEEDS: usize = 8;
@@ -95,13 +90,6 @@ const CROSSING_HALVINGS: u32 = 60;
 /// How near a chain's knot, on the unit interval, a break of the path
 /// is that knot's ([`crossing`]).
 const CREASE_SNAP: f64 = 1e-13;
-
-/// The Newton steps a settled foot is polished by ([`polished`], D9).
-const FOOT_POLISH: usize = 2;
-
-/// How many times [`follow`] halves the way to a foot it cannot reach
-/// from the last one (D9).
-const FOLLOW_HALVINGS: u32 = 16;
 
 /// Why a carrier has no image on a wall.
 #[derive(Debug)]
@@ -162,23 +150,33 @@ struct Foot {
     standoff: f64,
 }
 
-/// The length `f64` resolves at the wall point `p`
-/// ([`RESOLUTION_ULPS`]).
-fn resolution(p: Point3<f64>) -> f64 {
-    RESOLUTION_ULPS * f64::EPSILON * p.x.abs().max(p.y.abs()).max(p.z.abs())
-}
-
 /// A settled foot: its chart point, the wall's point there, and the
 /// carrier's distance from it.
 type Settled<T> = (Point2<f64>, Point3<T>, f64);
 
+/// How many ulps of a wall point's largest coordinate a length there is
+/// resolved to ([`resolution`]): a foot whose tangential offset is under
+/// it is settled ([`settle`]), and a miss under it asks no knot
+/// ([`miss`]). A rounding charge, owed a re-posing
+/// (`work/sectarms/the-wall-images-foot-resolution-counts-ulps-at-the-walls-point.md`):
+/// the projection's own thresholds are absolute, and settle no foot that
+/// stands off a wall hundreds of metres from the origin.
+const RESOLUTION_ULPS: f64 = 64.0;
+
+/// The length `f64` resolves at the wall point `p`
+/// ([`RESOLUTION_ULPS`]).
+fn resolution<T: Decide + Bounds>(p: Point3<T>) -> f64 {
+    RESOLUTION_ULPS
+        * f64::EPSILON
+        * mid(p.x).abs().max(mid(p.y).abs()).max(mid(p.z).abs())
+}
+
 /// **The wall's foot of `p` from the seed `(u, v)`**: Newton's
 /// ([`NurbsSurface::project_from_seed`]). Where Newton's own acceptance
-/// is not met, its last iterate stands as the foot if it is one to
-/// `f64`'s resolution there: both its tangential offsets from the
-/// nearest point, `|S_u · r| / |S_u|` and `v`'s, within [`resolution`].
-/// Far from the origin the wall's own evaluation cannot settle a foot
-/// more finely than that.
+/// is not met, its last iterate stands as the foot if both its
+/// tangential offsets from the nearest point, `|S_u · r| / |S_u|` and
+/// `v`'s, are within [`RESOLUTION_ULPS`] ulps of the wall point's
+/// largest coordinate.
 ///
 /// # Errors
 ///
@@ -188,15 +186,10 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     match wall.project_from_seed(p, u, v) {
-        Ok(proj) => Ok(polished(
-            wall,
-            p,
-            (Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance)),
-        )),
+        Ok(proj) => Ok((Point2::new(proj.u, proj.v), proj.foot, mid(proj.distance))),
         Err(e) => {
             let jet = wall.ders(T::from_computed(e.last_u), T::from_computed(e.last_v));
-            let at = Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
-            let floor = resolution(at);
+            let floor = resolution(jet.point);
             let (su, sv) = (mid3(jet.du).norm(), mid3(jet.dv).norm());
             let settled = e.last_orthogonality_u <= floor * su
                 && e.last_orthogonality_v <= floor * sv
@@ -208,46 +201,6 @@ where
             }
         }
     }
-}
-
-/// **A settled foot, polished**: [`FOOT_POLISH`] more Newton steps on
-/// the two orthogonality conditions, each kept where it brings the foot
-/// no farther from `p`. The projection accepts a foot within its
-/// coincidence threshold of `p` as it stands, wherever along the wall
-/// that is; a path of such feet wanders by that threshold, which a fine
-/// band's image may not.
-fn polished<T>(wall: &NurbsSurface<T>, p: Point3<T>, foot: Settled<T>) -> Settled<T>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
-    let [ud, vd] = rectangle(wall);
-    let mut best = foot;
-    for _ in 0..FOOT_POLISH {
-        let (uv, _, distance) = best;
-        let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
-        let r = mid3(jet.point - p);
-        let (su, sv) = (mid3(jet.du), mid3(jet.dv));
-        let (fu, fv) = (su.dot(r), sv.dot(r));
-        let a = su.dot(su) + mid3(jet.duu).dot(r);
-        let b = su.dot(sv) + mid3(jet.duv).dot(r);
-        let d = sv.dot(sv) + mid3(jet.dvv).dot(r);
-        let det = a * d - b.powi(2);
-        let step = (-(d * fu - b * fv) / det, -(a * fv - b * fu) / det);
-        if !(step.0.is_finite() && step.1.is_finite()) {
-            break;
-        }
-        let next = Point2::new(
-            (uv.x + step.0).clamp(ud.0, ud.1),
-            (uv.y + step.1).clamp(vd.0, vd.1),
-        );
-        let at = wall.eval(T::from_computed(next.x), T::from_computed(next.y));
-        let moved = mid((at - p).norm());
-        if moved.is_nan() || moved > distance || next.equals_exactly(uv) {
-            break;
-        }
-        best = (next, at, moved);
-    }
-    best
 }
 
 fn mid<T: Decide + Bounds>(x: T) -> f64 {
@@ -376,6 +329,22 @@ where
         let uv: Vec<Point2<f64>> = feet.iter().map(|f| f.uv).collect();
         let image =
             NurbsCurve2::<f64>::interpolate_on(&uv, &collocation).map_err(|_| ImageRefusal::Fit)?;
+        // The image lies in the wall's rectangle: a control point the
+        // interpolation puts past a side is put on it. Its feet lie
+        // inside, so where its net does it is inside whole, and what the
+        // move costs is read with the rest of its miss below.
+        let [ud, vd] = rectangle(wall);
+        let held: Vec<Point2<f64>> = image
+            .control()
+            .iter()
+            .map(|p| Point2::new(p.x.clamp(ud.0, ud.1), p.y.clamp(vd.0, vd.1)))
+            .collect();
+        let image = NurbsCurve2::new(
+            image.knots_f64_interim().clone(),
+            held,
+            image.weights().to_vec(),
+        )
+        .map_err(|_| ImageRefusal::Fit)?;
         // The spans that miss, by the knot each takes (at its middle, or
         // on a line of the wall the path crosses in it), and the largest
         // miss read.
@@ -509,7 +478,7 @@ where
         if !(near.at < at && at < far.at) {
             break;
         }
-        let foot = follow(read, wall, near, at, FOLLOW_HALVINGS).ok()?;
+        let foot = follow(read, wall, near, at).ok()?;
         if (along(&foot, axis) > k) == start {
             near = foot;
         } else {
@@ -626,8 +595,7 @@ where
         return Ok((f64::INFINITY, standoff));
     }
     // A miss the wall's own evaluation does not resolve is none.
-    let floor = resolution(Point3::new(mid(here.x), mid(here.y), mid(here.z)));
-    Ok((if d <= floor { 0.0 } else { d }, standoff))
+    Ok((if d <= resolution(here) { 0.0 } else { d }, standoff))
 }
 
 /// The foot path at `nodes`, by continuation from its first foot.
@@ -649,7 +617,7 @@ where
     for (i, &at) in rest.iter().enumerate() {
         #[allow(clippy::cast_possible_truncation)]
         let node = i as u32 + 1;
-        last = follow(read, wall, last, at, FOLLOW_HALVINGS).map_err(|last_distance| {
+        last = follow(read, wall, last, at).map_err(|last_distance| {
             let (t0, t1) = read.domain;
             ImageRefusal::Foot {
                 t: t0 + (t1 - t0) * at,
@@ -813,40 +781,21 @@ where
     Some(((d * fu - b * fv) / det, (a * fv - b * fu) / det))
 }
 
-/// **The next foot of the path**, at the unit fraction `at`, from the
-/// last one: Newton's from the chart point the wall's tangents at the
-/// last foot predict for the carrier's step, so the foot is the last
-/// one's own sheet's and side's, not the wall's nearest point. Where
-/// that does not settle, the path is followed through the halfway
-/// parameter instead, `halvings` deep.
+/// **The next foot of the path**, at the unit fraction `at`: Newton's
+/// from the last foot's chart point, so it is the last one's own
+/// sheet's and side's, not the wall's nearest point found afresh.
 ///
 /// # Errors
 ///
-/// The last distance the projection read, where no halving reaches a
-/// foot.
+/// The last distance the projection read, where it does not settle.
 fn follow<T>(
     read: &Read<'_, T>,
     wall: &NurbsSurface<T>,
     last: Foot,
     at: f64,
-    halvings: u32,
 ) -> Result<Foot, f64>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
-    let p = read.point(at);
-    let dc = mid3(p - read.point(last.at));
-    let seed = predicted(wall, last.uv, dc).map_or(last.uv, |(du, dv)| {
-        Point2::new(last.uv.x + du, last.uv.y + dv)
-    });
-    let last_distance = match settle(wall, p, (seed.x, seed.y)) {
-        Ok(foot) => return Ok(settled(at, foot)),
-        Err(last_distance) => last_distance,
-    };
-    let half = 0.5 * (last.at + at);
-    if halvings == 0 || !(last.at < half && half < at) {
-        return Err(last_distance);
-    }
-    let through = follow(read, wall, last, half, halvings - 1)?;
-    follow(read, wall, through, at, halvings - 1)
+    settle(wall, read.point(at), (last.uv.x, last.uv.y)).map(|foot| settled(at, foot))
 }

@@ -39,9 +39,12 @@
 //!   most [`PROJECT_MAX_ITERS`] steps, each clamped to the knot
 //!   domain rectangle (clamped-v1 surfaces; periodic wraparound is a
 //!   designed absence until the periodic form exists).
-//! - **Acceptance**, exactly the Book's three conditions as named
-//!   constants: *point coincidence* `|r| ≤`
-//!   [`PROJECT_EPS_POINT`]; *cosine*, **both** directions
+//! - **Acceptance**, the Book's three conditions as named constants.
+//!   *Point coincidence*, `|r| ≤` [`PROJECT_EPS_POINT`], is not an exit
+//!   of its own: a point that near `P` may lie that far along the
+//!   surface from the foot, so it takes one Newton step, kept where it
+//!   brings the foot no farther from `P` (and stands where the chart is
+//!   singular and there is no step). *Cosine*, **both** directions
 //!   `|S_u·r| ≤ ε₂·|S_u|·|r|` **and** `|S_v·r| ≤ ε₂·|S_v|·|r|` with
 //!   ε₂ = [`PROJECT_EPS_COSINE`]; *stagnation*
 //!   `|Δu·S_u + Δv·S_v| ≤` [`PROJECT_EPS_POINT`] (this is how a
@@ -247,10 +250,13 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             last_dist = dist;
             let speed_u = mid(j.du.norm());
             let speed_v = mid(j.dv.norm());
-            // Acceptance: coincidence, then the two cosines together.
-            if dist <= PROJECT_EPS_POINT
-                || (fu.abs() <= PROJECT_EPS_COSINE * speed_u * dist
-                    && fv.abs() <= PROJECT_EPS_COSINE * speed_v * dist)
+            // Acceptance: the two cosines together. A point within the
+            // coincidence threshold of `P` is not accepted as it stands:
+            // it may lie that far along the surface from the foot, so it
+            // takes one Newton step too (below).
+            let coincident = dist <= PROJECT_EPS_POINT;
+            if fu.abs() <= PROJECT_EPS_COSINE * speed_u * dist
+                && fv.abs() <= PROJECT_EPS_COSINE * speed_v * dist
             {
                 return Ok(SurfaceProjection {
                     u,
@@ -268,6 +274,17 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             let step_u = -(d * fu - b * fv) / det;
             let step_v = -(a * fv - b * fu) / det;
             if !step_u.is_finite() || !step_v.is_finite() {
+                // No step where the chart is singular (a pole, a
+                // collapsed row): a coincident point stands as the foot.
+                if coincident {
+                    return Ok(SurfaceProjection {
+                        u,
+                        v,
+                        foot: j.point,
+                        distance: r.norm(),
+                        iterations,
+                    });
+                }
                 break;
             }
             let un = (u + step_u).clamp(ulo, uhi);
@@ -278,19 +295,31 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             // a length decided against a tolerance, so it is read at
             // `f64` on the speeds' brackets, as the curve's is.
             let moved = (j.du.map(mid) * (un - u) + j.dv.map(mid) * (vn - v)).norm();
-            if moved <= PROJECT_EPS_POINT {
+            if moved <= PROJECT_EPS_POINT || coincident {
                 let Some(win) = self.window_at(un, vn) else {
                     break;
                 };
                 let jn = win.ders_in_span(T::from_computed(un), T::from_computed(vn));
-                let r = jn.point - p;
-                let dist = r.norm();
-                if !mid(dist).is_nan() {
+                let rn = jn.point - p;
+                let stepped = rn.norm();
+                // A coincident point's one step is kept where it brings
+                // the foot no farther from `P`; otherwise the point
+                // stands, as near as the surface's own evaluation tells.
+                if coincident && !(mid(stepped) <= dist) {
+                    return Ok(SurfaceProjection {
+                        u,
+                        v,
+                        foot: j.point,
+                        distance: r.norm(),
+                        iterations,
+                    });
+                }
+                if !mid(stepped).is_nan() {
                     return Ok(SurfaceProjection {
                         u: un,
                         v: vn,
                         foot: jn.point,
-                        distance: dist,
+                        distance: stepped,
                         iterations,
                     });
                 }
