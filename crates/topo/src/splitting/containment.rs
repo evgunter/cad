@@ -2033,7 +2033,45 @@ pub(in crate::splitting) fn arc_crossings<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
     use geom_brep::recourse::Reading;
+
+    /// **A loop walk's refusal keeps the loop it names, and the door's
+    /// text names it**: the walk's ray schedule, its unwalkable loop and
+    /// its uncrossable edge each reach the door's refusal with their loop,
+    /// and the door's sentence spells that loop's key.
+    #[test]
+    fn a_loop_walks_refusal_keeps_and_names_its_loop() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let lk = LoopKey::from(key(9));
+        let u = Uncrossable {
+            r#loop: lk,
+            edge: EdgeKey::from(key(3)),
+            carrier: UncrossableCarrier::Spline,
+        };
+        for (walk, door) in [
+            (
+                PointInLoopError::RayExhausted { r#loop: lk },
+                crate::contain::ContainError::RayExhausted(lk),
+            ),
+            (
+                PointInLoopError::CorruptLoop { r#loop: lk },
+                crate::contain::ContainError::LoopUnreadable(lk),
+            ),
+            (
+                PointInLoopError::Uncrossable(u),
+                crate::contain::ContainError::Uncrossable(u),
+            ),
+        ] {
+            let got = crate::contain::ContainError::from(walk.clone());
+            assert_eq!(got, door, "{walk:?}: the door's refusal");
+            let text = got.to_string();
+            assert!(
+                text.contains(&format!("loop {lk:?} of the face")),
+                "{walk:?}: the door's text names its loop: {text}"
+            );
+        }
+    }
 
     /// **An edge read in band refuses ahead of a later edge that places
     /// the point** ([`CarrierLoop::place_off`]): which edge holds the
