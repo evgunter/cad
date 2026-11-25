@@ -4247,18 +4247,17 @@ pub(super) struct Incidence {
 
 impl Incidence {
     /// The cells the division of one face into `fragments` minted in
-    /// its interior: each edge between two of them (a chord) or between
-    /// one and a null face (the section the cut ran along), and each
-    /// vertex no face but them bounds (where chords meet inside it), or,
-    /// with `section_vertices`, them and null faces.
+    /// its interior: each edge between two of them (a chord) and each
+    /// vertex no face but them bounds (where chords meet inside it), and,
+    /// with `section`, each edge and vertex beside a null face that
+    /// otherwise bounds only them (the section the cut ran along).
     fn chords<'a>(
         &'a self,
         fragments: &'a [FaceKey],
-        section_vertices: bool,
+        section: bool,
     ) -> impl Iterator<Item = Cell> + 'a {
         let inside = move |c: Cell, fs: &[FaceKey]| {
-            let section =
-                self.section.contains(&c) && (matches!(c, Cell::Edge(_)) || section_vertices);
+            let section = section && self.section.contains(&c);
             !fs.is_empty()
                 && fs.iter().all(|f| fragments.contains(f))
                 && (fs.iter().any(|f| f != &fs[0]) || section)
@@ -4741,9 +4740,9 @@ fn operand_fate<T: Real>(
     back: &mut Vec<Back>,
 ) -> Result<(crate::Fate, Vec<Cell>), BooleanError> {
     let incidence = &ledger.incidence[side.index()];
-    // A carried record's cells meeting at two section vertices would
-    // need a decision between cells no input holds, so this path names
-    // the section's edges alone
+    // A carried record's two cells landing on section cells that meet
+    // at a point would need a decision between cells no input holds, so
+    // this path names no section
     // (`work/heldrecords/a-carried-records-section-vertices-are-not-named-in-the-booleans-division.md`).
     let CloneCells {
         pieces,
@@ -4820,14 +4819,13 @@ impl CloneCells {
 /// **Operand cell `x`'s clone cells** in `side`'s clone, read in `keys`:
 /// a vertex and its null-edge copies ([`Descendants::copies_of`]); an
 /// edge's pieces and the vertices minted between them ([`edge_pieces`]);
-/// a face's fragments and the chords and section between them
-/// ([`face_pieces`], its section vertices named where
-/// `section_vertices`).
+/// a face's fragments and the chords between them, and with `section`
+/// the section the cut ran along ([`face_pieces`]).
 fn clone_cells(
     desc: &Descendants,
     incidence: &Incidence,
     mints: &super::Mints,
-    (side, keys, section_vertices): (Operand, Keys, bool),
+    (side, keys, section): (Operand, Keys, bool),
     x: Cell,
 ) -> CloneCells {
     let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
@@ -4846,8 +4844,7 @@ fn clone_cells(
             }
         }
         Cell::Face(f) => {
-            let (pieces, minted, divided) =
-                face_pieces(desc, incidence, (side, keys), section_vertices, f);
+            let (pieces, minted, divided) = face_pieces(desc, incidence, (side, keys), section, f);
             CloneCells {
                 pieces,
                 minted,
@@ -4867,7 +4864,7 @@ fn face_pieces(
     desc: &Descendants,
     incidence: &Incidence,
     (side, keys): (Operand, Keys),
-    section_vertices: bool,
+    section: bool,
     f: FaceKey,
 ) -> (Vec<Cell>, Vec<Cell>, bool) {
     let mut fragments: Vec<FaceKey> = Vec::new();
@@ -4877,7 +4874,7 @@ fn face_pieces(
             fragments.push(g);
         }
     }
-    let chords = incidence.chords(&fragments, section_vertices).collect();
+    let chords = incidence.chords(&fragments, section).collect();
     let divided = fragments.len() > 1;
     (
         fragments.into_iter().map(Cell::Face).collect(),
