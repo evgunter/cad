@@ -331,7 +331,8 @@ pub(crate) enum Ends {
     Sound,
     /// Its census cannot tell curved faces of two of its parts apart,
     /// and refuses with that alone (`CensusUndecidable`, `MayOverlap`, the
-    /// census's curved-within-reach cause:
+    /// census's curved-within-reach cause, and its two parts' pair left
+    /// unchecked by it:
     /// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`):
     /// a difference that cuts its first operand in two.
     PartsUndecided,
@@ -380,6 +381,7 @@ pub(crate) fn at_its_volume(
                     what,
                     ..
                 } if what.starts_with("a curved face of one is within reach of the other")
+                    || what.starts_with("another finding left their boundaries unchecked")
             )
         }),
         _ => false,
