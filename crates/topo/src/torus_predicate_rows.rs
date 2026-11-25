@@ -47,16 +47,24 @@ fn roots(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, RootRefusal>
     )
 }
 
-/// The coefficient the biquadratic branch is selected on, recomputed in
-/// the row rather than read out of the arm — so a pose can be CLASSIFIED
-/// here and the branch it must take asserted, which is the only way this
-/// module can see a selection the return type does not expose.
+/// The coefficient the biquadratic branch is selected on, read from the
+/// arm's own formation — so a pose can be CLASSIFIED here and the branch
+/// it must take asserted, which is the only way this module can see a
+/// selection the return type does not expose.
 fn q_hat(q: Point3<f64>, d: Vec3<f64>) -> f64 {
-    let d = d.normalize();
-    let w0 = q - centre();
-    let e = d.dot(axis());
-    let perp = w0 - d * w0.dot(d);
-    8.0 * R_MAJOR.powi(2) * e * perp.dot(axis())
+    geom_brep::curve_face::line_quadric::line_torus_quartic(
+        geom::Line {
+            origin: q,
+            dir: geom_core::UnitVec3::squared(d),
+        },
+        geom::Line {
+            origin: centre(),
+            dir: geom::stated_direction(axis()),
+        },
+        R_MAJOR,
+        R_MINOR,
+    )
+    .q_hat
 }
 
 /// **The census.** Every outcome the arm can answer, reached by a real
@@ -351,8 +359,8 @@ fn far_ray(q: Point3<f64>, d: Vec3<f64>) -> Result<QuarticRoots<f64>, RootRefusa
 /// rounding.** Seven near-tangent rays at the `R = 1e6`, `r = 1e4` torus,
 /// each aimed `depth` inside the tube at its tangent point (`depth` 3.4e-8
 /// to 6.4e-7 m, past the rounding of placing it): each one's quartic, on
-/// the coefficients [`line_torus_roots`] forms (recomputed here as it
-/// forms them), has exactly two real roots, and read off the plain
+/// the coefficients [`line_torus_roots`] forms ([`far_coefficients`]
+/// reads its formation), has exactly two real roots, and read off the plain
 /// formula for `Δ` rung 1 certified [`QuarticRoots::Miss`] for every one
 /// — a silent wrong answer, since a miss folds as no crossing. Each must
 /// now answer two crossings or no count.
@@ -468,21 +476,22 @@ fn a_crossing_ray_is_no_miss_on_its_quartics_rounding() {
     }
 }
 
-/// The depressed quartic's `(p, q̂, s)` for [`far_ray`]'s torus, formed
-/// as [`line_torus_roots`] forms them.
+/// The depressed quartic's `(p, q̂, s)` for [`far_ray`]'s ray and torus,
+/// as [`line_torus_roots`] forms them (its one formation).
 fn far_coefficients(q: Point3<f64>, d: Vec3<f64>) -> (f64, f64, f64) {
-    let (big_r, r) = (1e6f64, 1e4f64);
-    let w0 = q - centre();
-    let e = d.dot(axis());
-    let perp = w0 - d * w0.dot(d);
-    let (m, n) = (perp.norm_squared(), perp.dot(axis()));
-    let rr = big_r.powi(2);
-    let big_m = m + rr - r.powi(2);
-    (
-        2.0 * big_m - 4.0 * rr * (1.0 - e.powi(2)),
-        8.0 * rr * e * n,
-        big_m.powi(2) - 4.0 * rr * (m - n.powi(2)),
-    )
+    let quartic = geom_brep::curve_face::line_quadric::line_torus_quartic(
+        geom::Line {
+            origin: q,
+            dir: geom::stated_direction(d),
+        },
+        geom::Line {
+            origin: centre(),
+            dir: geom::stated_direction(axis()),
+        },
+        1e6,
+        1e4,
+    );
+    (quartic.p, quartic.q_hat, quartic.s)
 }
 
 /// **A ray whose crossings could not be built to their certified count is

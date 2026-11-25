@@ -433,10 +433,11 @@ pub enum PointInSolidError {
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
     /// certify ([`Unsettled::CountDisagrees`]). The certified count is
-    /// the quartic's own, read exactly on its coefficients; the
-    /// factorization rounds again, so a disagreement is a kernel
-    /// defect. Another ray's quartic is another computation, so it
-    /// blocks this ray only.
+    /// the quartic's own (its signs are read exactly where its
+    /// coefficients' digits allow, and escalate where they do not), so
+    /// a disagreement is the factorization's own rounding building the
+    /// wrong number of roots: a kernel defect. Another ray's quartic is
+    /// another computation, so it blocks this ray only.
     RootCountDisagrees {
         /// The torus face.
         face: FaceKey,

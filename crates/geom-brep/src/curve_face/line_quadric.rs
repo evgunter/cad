@@ -670,33 +670,78 @@ pub fn line_torus_roots<T: Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<QuarticRoots<T>, RootRefusal> {
-    let geom::Line { origin: q, dir: d } = line;
-    let geom::Line {
-        origin: center,
-        dir: axis,
-    } = torus;
-    let two = T::from_f64(2.0);
-    let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
-    let w0 = q - center;
-    let e = d.get().dot(axis.get());
-    let b = w0.dot(d.get());
-    // The component of `q − c` perpendicular to the ray: its norm is the
-    // line's distance from the centre and its axial part is the height
-    // at the line's closest approach.
-    let perp = w0 - d.get() * b;
-    let m = perp.norm_squared();
-    let n = perp.dot(axis.get());
-    let rr = major_radius.powi(2);
-    let big_m = m + rr - minor_radius.powi(2);
-    let p = two * big_m - four * rr * (T::one() - e.powi(2));
-    let q_hat = T::from_f64(8.0) * rr * e * n;
-    let s = big_m.powi(2) - four * rr * (m - n.powi(2));
+    let LineTorusQuartic { p, q_hat, s, shift } =
+        LineTorusQuartic::of(line, torus, major_radius, minor_radius);
     match depressed_quartic_roots(p, q_hat, s, ext, &crate::rows::LINE_TORUS, band)? {
         // Undo the depression: `t = y − b`.
-        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - b))),
+        Roots::Certified(ys) => Ok(Roots::Certified(ys.map(|y| y - shift))),
         Roots::Miss => Ok(Roots::Miss),
     }
+}
+
+/// **The depressed quartic [`line_torus_roots`] solves**: its
+/// coefficients `p`, `q̂`, `s` (that function's docs) and the shift
+/// `b = (q − c)·d` it was depressed by (`t = y − b`).
+#[derive(Clone, Copy, Debug)]
+pub struct LineTorusQuartic<T> {
+    /// The `y²` coefficient.
+    pub p: T,
+    /// The `y` coefficient.
+    pub q_hat: T,
+    /// The constant term.
+    pub s: T,
+    /// The depression's shift.
+    pub shift: T,
+}
+
+impl<T: Decide> LineTorusQuartic<T> {
+    /// The line's quartic against the torus `(center, axis, R, r)`: the
+    /// one formation, which [`line_torus_roots`] solves and
+    /// [`line_torus_quartic`] hands a pin.
+    pub(crate) fn of(
+        line: geom::Line<T>,
+        torus: geom::Line<T>,
+        major_radius: T,
+        minor_radius: T,
+    ) -> Self {
+        let geom::Line { origin: q, dir: d } = line;
+        let geom::Line {
+            origin: center,
+            dir: axis,
+        } = torus;
+        let two = T::from_f64(2.0);
+        let four = T::from_f64(4.0);
+        let w0 = q - center;
+        let e = d.get().dot(axis.get());
+        let shift = w0.dot(d.get());
+        // The component of `q − c` perpendicular to the ray: its norm is
+        // the line's distance from the centre and its axial part is the
+        // height at the line's closest approach.
+        let perp = w0 - d.get() * shift;
+        let m = perp.norm_squared();
+        let n = perp.dot(axis.get());
+        let rr = major_radius.powi(2);
+        let big_m = m + rr - minor_radius.powi(2);
+        Self {
+            p: two * big_m - four * rr * (T::one() - e.powi(2)),
+            q_hat: T::from_f64(8.0) * rr * e * n,
+            s: big_m.powi(2) - four * rr * (m - n.powi(2)),
+            shift,
+        }
+    }
+}
+
+/// [`LineTorusQuartic::of`], for a pin outside this crate.
+#[cfg(any(test, feature = "test-support"))]
+#[must_use]
+pub fn line_torus_quartic<T: Decide>(
+    line: geom::Line<T>,
+    torus: geom::Line<T>,
+    major_radius: T,
+    minor_radius: T,
+) -> LineTorusQuartic<T> {
+    LineTorusQuartic::of(line, torus, major_radius, minor_radius)
 }
 
 /// **How far along a line its roots against a cone lie from its point

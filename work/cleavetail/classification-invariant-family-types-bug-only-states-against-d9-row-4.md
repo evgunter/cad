@@ -71,6 +71,13 @@ too (`a_far_rays_in_band_discriminant_escalates`). Rung 1 now reads
 gives silent wrong `Miss` answers that no rung sees. INSIDE's P1
 `ray-torus-count-certifies-on-an-uncharged-discriminant` owns the fix.
 
+(2026-11-25, INSIDE.) That row is closed (PR 7754): `Δ` and `D` are read
+exactly on the coefficients (`geom_core::Real::quartic_sign_algebra`), so the
+wrong `Miss` past the band no longer occurs on the kernel's coefficients.
+What remains, a shallow in-band crossing lost to the coefficients' own
+formation, is INSIDE's P2
+`line-torus-coefficients-lose-a-shallow-crossing-to-their-formation`.
+
 - **C17** (`point_in_solid`'s torus arm): `PointInSolidError::RootCountDisagrees
   { face, certified, constructed }`. It blocks that ray (`confined`,
   `RayFault::Blocked`, through `torus_crossings`), since another ray or

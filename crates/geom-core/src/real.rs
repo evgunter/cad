@@ -248,16 +248,16 @@ pub enum Witness {
 }
 
 /// **The plain formula `(q − o)·n`**, in [`crate::Vec3::dot`]'s order:
-/// [`Real::difference_dot`]'s default, and the reading every scalar falls
-/// back to where its posed one does not apply.
+/// the reading a scalar falls back to where its posed one
+/// ([`Real::difference_dot`]) does not apply.
 #[must_use]
 pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
     (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
 }
 
 /// **The plain formulas for a depressed quartic's `Δ` and
-/// `D = 64s − 16p²`**: [`Real::quartic_sign_algebra`]'s default, and the
-/// reading every scalar falls back to where its posed one does not apply.
+/// `D = 64s − 16p²`**: the reading a scalar falls back to where its posed
+/// one ([`Real::quartic_sign_algebra`]) does not apply.
 #[must_use]
 pub fn plain_quartic_sign_algebra<T: Real>(p: T, q_hat: T, s: T) -> [T; 2] {
     let (p2, q2, s2) = (p.powi(2), q_hat.powi(2), s.powi(2));
@@ -304,8 +304,8 @@ impl<T: Copy> StoredHarmonic<T> {
 }
 
 /// **The plain formula for [`Real::harmonic_belly`]**: `√(A² + B²) − |D|`
-/// with every term rounded as it is formed: its default, and the reading
-/// every scalar falls back to where its posed one does not apply.
+/// with every term rounded as it is formed: the reading a scalar falls
+/// back to where its posed one does not apply.
 #[must_use]
 pub fn plain_harmonic_belly<T: Real>(curve: StoredHarmonic<T>, o: [T; 3], n: [T; 3]) -> T {
     let StoredHarmonic {
@@ -607,14 +607,12 @@ pub trait Real:
     /// (Ogita, Rump and Oishi's `Dot2`), so the value is the exact one's
     /// rounding up to a term of order `u²·Σ|nᵢ(qᵢ − oᵢ)|`, whatever the
     /// cancellation; at an enclosure stated at points it is the exact sum
-    /// enclosed. The
-    /// default is the plain formula, the real function every scalar
-    /// computes; a scalar that carries `T`'s value channel computes it
-    /// through `T`'s own.
+    /// enclosed. A scalar that carries `T`'s value channel computes it
+    /// through `T`'s own. There is no default: the plain formula
+    /// ([`plain_difference_dot`]) is what this posing exists to replace,
+    /// so a scalar states its reading.
     #[must_use]
-    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
-        plain_difference_dot(q, o, n)
-    }
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self;
 
     /// **The belly `√(A² + B²) − |D|` of a first harmonic read across a
     /// plane, posed so its digits are the belly's own**: the height
@@ -654,13 +652,12 @@ pub trait Real:
     /// its axis and seam as enclosures of the polar factor, not as
     /// points, so it reads the plain enclosure, about `10¹⁶u` of the
     /// belly wide at a far scale, and a decision on it escalates
-    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`). The default is the plain formula ([`plain_harmonic_belly`]);
-    /// a scalar that carries `T`'s value channel computes it through
-    /// `T`'s own.
+    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`).
+    /// A scalar that carries `T`'s value channel computes it through
+    /// `T`'s own. There is no default ([`plain_harmonic_belly`] is the
+    /// fallback a scalar names), as for [`Real::difference_dot`].
     #[must_use]
-    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
-        plain_harmonic_belly(curve, o, n)
-    }
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self;
 
     /// **The discriminant `Δ` and the depth `D = 64s − 16p²` of the
     /// depressed monic quartic `y⁴ + p y² + q̂ y + s`, posed so their
@@ -677,14 +674,12 @@ pub trait Real:
     /// lowest bit below the least subnormal, or an overflow), so a
     /// decision on it escalates rather than answering on a plain reading.
     /// **At an enclosure** stated at points, the exact expansions
-    /// enclosed; anywhere else the plain enclosure, which is sound. The
-    /// default is the plain formulas ([`plain_quartic_sign_algebra`]); a
+    /// enclosed; anywhere else the plain enclosure, which is sound. A
     /// scalar that carries `T`'s value channel computes it through `T`'s
-    /// own.
+    /// own. There is no default ([`plain_quartic_sign_algebra`] is the
+    /// fallback a scalar names), as for [`Real::difference_dot`].
     #[must_use]
-    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2] {
-        plain_quartic_sign_algebra(p, q_hat, s)
-    }
+    fn quartic_sign_algebra(p: Self, q_hat: Self, s: Self) -> [Self; 2];
 
     /// **The `f64` this value states**, where it is a plain enclosure
     /// that is a certified point (its two ends one `f64`); `None` (the

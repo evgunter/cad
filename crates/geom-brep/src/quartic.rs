@@ -266,7 +266,9 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// `Δ`'s terms are orders larger than it, and on a kilometre-scale lever
 /// the plain formula's rounding alone is past the band, so a sign read
 /// off it would be the rounding's. Read exactly, the count a definite
-/// sign certifies is the coefficients' own. What the coefficients'
+/// sign certifies is the coefficients' own; where their digits do not
+/// fit an exact expansion `Δ` is poison and rung 1 escalates. What the
+/// coefficients'
 /// formation lost is the caller's
 /// (`work/inside/line-torus-coefficients-lose-a-shallow-crossing-to-their-formation.md`).
 ///
@@ -304,10 +306,11 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    discriminant of rung 1. [`Unsettled::Tangency`].
 /// 5. **[`Unsettled::CountDisagrees`]**: the roots CONSTRUCTED
 ///    disagree in number with the count CERTIFIED by rung 1. The count
-///    is the coefficients' own; the construction rounds again (the
-///    resolvent's root, the factors' coefficients and discriminants), and
-///    no decision charges that, so this is the one place the two are made
-///    to agree.
+///    is the coefficients' own wherever their digits fit an exact
+///    expansion (elsewhere `Δ` is poison and rung 1 escalates); the
+///    construction rounds again (the resolvent's root, the factors'
+///    coefficients and discriminants), so this is the one place the two
+///    are made to agree.
 ///
 /// # Errors
 ///
@@ -326,14 +329,17 @@ pub fn depressed_quartic_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
     let [disc, depth] = T::quartic_sign_algebra(p, q_hat, s);
+    // `p² − 4s` is `−D/16` and cancels as `D` does, so it is read from
+    // `D`: the biquadratic arm's split and the resolvent's linear term.
+    let p2_less_4s = T::zero() - depth / T::from_f64(16.0);
     let disc_sign = decide(rows.disc(), Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Err(Unsettled::Tangency.into()),
         Sign::Positive => {
             let shape = decide(rows.shape(), Margin::over_lever(p, lever), band)?;
-            let depth = decide(rows.depth(), Margin::over_lever(depth, lever.powi(3)), band)?;
-            match (shape, depth) {
+            let depth_sign = decide(rows.depth(), Margin::over_lever(depth, lever.powi(3)), band)?;
+            match (shape, depth_sign) {
                 (Sign::Negative, Sign::Negative) => 4,
                 (Sign::Positive, _) | (_, Sign::Positive) => 0,
                 // One of the two is on its own zero while the other does
@@ -356,8 +362,7 @@ pub fn depressed_quartic_roots<T: Decide>(
             // `X² − pX + s`. Those are the NEGATIVES of the roots of the
             // quadratic in `y²`, which is the sign this arm is easy to get
             // backwards and which no in-band case would have caught.
-            // `p² − 4s` is `−D/16`, and cancels as `D` does: read from it.
-            let inner = T::zero() - depth / T::from_f64(16.0);
+            let inner = p2_less_4s;
             let split = Margin::over_lever(inner, lever.powi(3));
             match decide(rows.split(), split, band)? {
                 Sign::Positive => {}
@@ -381,7 +386,7 @@ pub fn depressed_quartic_roots<T: Decide>(
             // already decided above rather than a second decision.
             let z = cubic_largest_real_root(
                 two * p,
-                p.powi(2) - four * s,
+                p2_less_4s,
                 T::zero() - q_hat.powi(2),
                 disc_sign == Sign::Positive,
             );
