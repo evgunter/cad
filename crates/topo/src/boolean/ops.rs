@@ -1558,7 +1558,14 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // and graft other shells, and `carve` keeps every kept
         // entity's key (`crate::carve::carve`), so those
         // names still hold on `a2` and `b2`.
-        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        let cuts = match (
+            apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol),
+            recuts.otherwise,
+        ) {
+            (Err(e @ BooleanError::Escalated { .. }), _) | (Err(e), None) => return Err(e),
+            (Err(_), Some(refusal)) => return Err(refusal),
+            (Ok(cuts), _) => cuts,
+        };
         let survives = |plane: &CutPlane<T>| BooleanError::FallbackExtentUnsupported {
             operand: plane.operand,
             face: plane.face,
@@ -1593,7 +1600,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         && let Ok(pairs) = &pairs
         && let Some(guard) = first_refusing(pairs).map(|i| &pairs[i])
     {
-        let cut_ins = match interior_cuts::cut_ins(a, b, pairs, band) {
+        let cut_ins = match interior_cuts::cut_ins(a, b, pairs, &red.sections, band) {
             Err(e @ BooleanError::Escalated { .. }) => return Err(e),
             Ok(cut_ins) => cut_ins,
             Err(_) => None,
@@ -2569,7 +2576,31 @@ fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
         return Ok(NoCrossings::Recut(recuts));
     }
-    section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
+    let pairs = fallback_section_pairs(a, b, &red.sections, &evidence, band)?;
+    // An interior loop on a sphere face is cut in ([`interior_cuts`]);
+    // a pair the reduction settled one carrier is held, not cut.
+    let raised: Vec<PairVerdict> = pairs
+        .iter()
+        .filter(|p| {
+            !evidence
+                .settled
+                .iter()
+                .any(|q| q.a == p.a_face && q.b == p.b_face)
+        })
+        .cloned()
+        .collect();
+    if raised
+        .iter()
+        .any(|p| p.verdict == Err(SectionRefusal::Loop))
+        && let Some(cut_in) = interior_cuts::cut_ins(a, b, &raised, &red.sections, band)?
+    {
+        return Ok(NoCrossings::Recut(Recuts {
+            rechart: Vec::new(),
+            cut_in,
+            otherwise: section_extent_pass(&pairs, evidence.settled, deferred).err(),
+        }));
+    }
+    section_extent_pass(&pairs, evidence.settled, deferred).map(NoCrossings::Certified)
 }
 
 impl Evidence<'static> {
@@ -2593,21 +2624,18 @@ impl Evidence<'static> {
 /// curved face. A verified `Rest` pair is answered without its section,
 /// and a refusing pair the reduction settled one carrier is held
 /// ([`OnDeferred::hold`]).
-fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
-    sections: &super::section_table::SectionTable<T>,
-    evidence: &Evidence<'_>,
+fn section_extent_pass(
+    pairs: &[PairVerdict],
+    settled: &[super::SettledPair],
     mut deferred: OnDeferred,
-    band: Band,
 ) -> Result<OnDeferred, BooleanError> {
-    for p in &fallback_section_pairs(a, b, sections, evidence, band)? {
+    for p in pairs {
         let Err(refusal) = p.verdict else {
             continue;
         };
         let (operand, face, ..) = p.named();
         deferred.hold(
-            evidence.settled,
+            settled,
             (p.a_face, p.b_face),
             BooleanError::FallbackExtentUnsupported {
                 operand,
@@ -6188,6 +6216,10 @@ struct Recuts<T: Real> {
     /// Trimmed faces, cut across their section circles
     /// ([`apply_cut_ins`]).
     cut_in: Vec<SphereCutIn<T>>,
+    /// The section pass's refusal, where the cut-ins are its interior
+    /// loops' ([`interior_cuts`]): what the op answers where one of them
+    /// cannot be made.
+    otherwise: Option<BooleanError>,
 }
 
 /// A sphere face that a plane face's carrier (the face's group
@@ -6213,15 +6245,36 @@ struct SphereCutIn<T: Real> {
     center: Point3<T>,
     /// Its radius.
     radius: T,
-    /// The section circle's center.
-    foot: Point3<T>,
-    /// The section circle's radius.
-    rho: T,
-    /// The section circle's axis.
-    normal: Vec3<T>,
-    /// A unit direction across the circle, which places a point of it
-    /// where `foot` lies on the chart's polar axis.
-    u_ref: Vec3<T>,
+    /// The section the cut is across.
+    section: CutSection<T>,
+}
+
+/// **The section a cut-in runs across** ([`SphereCutIn`]).
+enum CutSection<T: Real> {
+    /// A circle: the cut's meridian runs through its centre's direction,
+    /// and it crosses the meridian at two points.
+    Circle {
+        /// The circle's center.
+        foot: Point3<T>,
+        /// Its radius.
+        rho: T,
+        /// Its axis.
+        normal: Vec3<T>,
+        /// A unit direction across the circle, which places a point of
+        /// it where `foot` lies on the chart's polar axis.
+        u_ref: Vec3<T>,
+    },
+    /// A marched loop ([`interior_cuts`]): the cut's meridian runs
+    /// through `toward`'s direction from the centre, and the cut-in reads
+    /// where the loop lies off its tube.
+    Loop {
+        /// A direction across the chart's axis, from the centre.
+        toward: Vec3<T>,
+        /// The loop's tube, each piece's least and greatest corners: the
+        /// pieces hold every point of the loop, and each piece a piece of
+        /// it.
+        tube: Vec<([f64; 3], [f64; 3])>,
+    },
 }
 
 /// **The half-meridian a cut-in ran along** ([`apply_cut_ins`]), which
@@ -6616,10 +6669,12 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 face: holder,
                                                 center,
                                                 radius,
-                                                foot,
-                                                rho,
-                                                normal,
-                                                u_ref,
+                                                section: CutSection::Circle {
+                                                    foot,
+                                                    rho,
+                                                    normal,
+                                                    u_ref,
+                                                },
                                             });
                                         }
                                         Err(what) => {
@@ -6765,7 +6820,16 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                         band,
                                                     )?);
                                                 }
-                                                escape_normals.push(cut.normal);
+                                                let CutSection::Circle { normal, .. } = cut.section
+                                                else {
+                                                    return Err(
+                                                        BooleanError::ClassificationInvariant {
+                                                            what: "extent scan: a sphere pair's \
+                                                                   cut is not across a circle",
+                                                        },
+                                                    );
+                                                };
+                                                escape_normals.push(normal);
                                                 sphere_escapes.push(cut);
                                             } else {
                                                 cut_ins.push(cut);
@@ -6905,6 +6969,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Recuts {
             rechart: out,
             cut_in: cut_ins,
+            otherwise: None,
         },
         deferred,
     ))
@@ -6932,10 +6997,12 @@ fn plane_cut_of_sphere<T: Decide>(
                 face: holder,
                 center,
                 radius,
-                foot,
-                rho,
-                normal,
-                u_ref: plane.u_ref(),
+                section: CutSection::Circle {
+                    foot,
+                    rho,
+                    normal,
+                    u_ref: plane.u_ref(),
+                },
             })
         }
         Ok((NonzeroSign::Negative, _)) | Err(_) => None,
@@ -6980,10 +7047,12 @@ fn sphere_pair_cut<T: Decide>(
                 face: holder,
                 center,
                 radius,
-                foot,
-                rho,
-                normal,
-                u_ref,
+                section: CutSection::Circle {
+                    foot,
+                    rho,
+                    normal,
+                    u_ref,
+                },
             })
         }
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
@@ -7387,6 +7456,131 @@ impl Recharts {
     }
 }
 
+/// Each piece of a loop's tube ([`CutSection::Loop`]) by its eight
+/// corners: bounds the march computed, entered as such.
+fn tube_corners<T: Real>(tube: &[([f64; 3], [f64; 3])]) -> Vec<[Point3<T>; 8]> {
+    tube.iter()
+        .map(|&(lo, hi)| {
+            core::array::from_fn(|corner| {
+                let pick =
+                    |i: usize| T::from_computed(if (corner >> i) & 1 == 0 { lo[i] } else { hi[i] });
+                Point3::new(pick(0), pick(1), pick(2))
+            })
+        })
+        .collect()
+}
+
+/// **The side every point of `points` takes**, read by `read`: `Zero`
+/// where two decide different sides, or where `points` is empty. Every
+/// point is needed, so the first reading that refuses is the answer's.
+fn common_side<T: Real, E>(
+    points: &[Point3<T>],
+    mut read: impl FnMut(Point3<T>) -> Result<Sign, E>,
+) -> Result<Sign, E> {
+    let Some((&first, rest)) = points.split_first() else {
+        return Ok(Sign::Zero);
+    };
+    let first = read(first)?;
+    for &q in rest {
+        if read(q)? != first {
+            return Ok(Sign::Zero);
+        }
+    }
+    Ok(first)
+}
+
+/// Why a loop's tube does not place a cut-in ([`read_loop_tube`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LoopTubeRefusal {
+    /// A piece of the tube is not read wholly inside the cut's half-plane.
+    OffHalf,
+    /// No piece is read wholly on one side of the meridian's plane.
+    NoCrossing,
+}
+
+/// **Whether a loop's tube places a cut-in** along the half-meridian of
+/// the sphere about `centre` on `h`'s side of the meridian plane normal to
+/// `k`: every piece (`pieces`, each by its corners) in that half-plane
+/// holds the loop there, off the poles, and a piece wholly on each side
+/// of the plane puts a point of the loop on that side, so the loop
+/// crosses the half-meridian.
+///
+/// # Errors
+///
+/// A corner of a piece in the half-plane read in band; the crossing
+/// search's kept reading where no piece answers ([`some_piece_wholly`]).
+fn read_loop_tube<T: Decide>(
+    pieces: &[[Point3<T>; 8]],
+    centre: Point3<T>,
+    (h, k): (Vec3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Result<(), LoopTubeRefusal>, Indeterminate> {
+    let along =
+        |by: Vec3<T>, name| move |q: Point3<T>| decide(name, Margin::of(by.dot(q - centre)), band);
+    let half = along(h, "bool_sphere_cut_loop_half");
+    for q in pieces {
+        if common_side(q, half)? != Sign::Positive {
+            return Ok(Err(LoopTubeRefusal::OffHalf));
+        }
+    }
+    let side = along(k, "bool_sphere_cut_loop_side");
+    Ok(
+        if some_piece_wholly(pieces, Sign::Positive, side)?
+            && some_piece_wholly(pieces, Sign::Negative, side)?
+        {
+            Ok(())
+        } else {
+            Err(LoopTubeRefusal::NoCrossing)
+        },
+    )
+}
+
+/// **A height on the half-meridian against a loop's tube**, by every
+/// corner of it (`corners`) along `axis` from `centre`: `Negative` below
+/// the whole tube, `Positive` above it, `Zero` within its heights.
+///
+/// # Errors
+///
+/// A corner read in band.
+fn height_against_tube<T: Decide>(
+    corners: &[Point3<T>],
+    (centre, axis): (Point3<T>, Vec3<T>),
+    height: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    common_side(corners, |q| {
+        decide(
+            "bool_sphere_cut_loop_height",
+            Margin::of(height - axis.dot(q - centre)),
+            band,
+        )
+    })
+}
+
+/// **Whether some piece of a tube lies wholly on `side`**, each corner
+/// read by `read`: a search over the pieces through the ladder
+/// ([`geom_core::ladder::climb`]), a piece whose corner `read` does not
+/// decide kept, and refused only where no piece answers.
+///
+/// # Errors
+///
+/// The kept reading, where no piece answers and one was undecided.
+fn some_piece_wholly<T: Real>(
+    pieces: &[[Point3<T>; 8]],
+    side: Sign,
+    read: impl Fn(Point3<T>) -> Result<Sign, Indeterminate>,
+) -> Result<bool, Indeterminate> {
+    use geom_core::ladder::{Answering, Rung, climb};
+    let piece = |corners: &[Point3<T>; 8]| match common_side(corners, &read) {
+        Ok(s) if s == side => Rung::Answers(()),
+        Ok(_) => Rung::Passes,
+        Err(diag) => Rung::InBand(diag),
+    };
+    climb(Answering::First, pieces, piece)
+        .into_reading()
+        .map(|answer| answer.is_some())
+}
+
 /// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
 /// the meridian half-plane of its sphere's chart that holds the section
 /// circle's centre direction.
@@ -7401,6 +7595,12 @@ impl Recharts {
 /// arc splits it there. A hit between `s₁` and `s₂` (a hole inside the
 /// circle), no hit on a side, a carrier the door cannot read, or ends on
 /// different loops of the face refuses typed.
+///
+/// A marched loop names no crossings ([`CutSection::Loop`]): its tube
+/// is read instead. Every piece lies in the half-plane, a piece lies
+/// wholly on each side of the meridian's plane, so the loop crosses the
+/// half-meridian, and each hit is placed below or above every piece.
+/// Anything else refuses typed, as does a loop on a face a cut divided.
 ///
 /// A face an earlier cut split is read piece by piece: the later cut
 /// runs on the piece holding both its circle's crossings
@@ -7449,12 +7649,23 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
-        // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
-        // recompute): a foot on the axis takes the circle's own point
-        // instead, and no two candidates are compared.
-        let mut k = toward(cut.foot - cut.center);
+        // Re-read once, not a minimum: a foot on the axis takes the
+        // circle's own point instead, and no two candidates are compared.
+        let mut k = match cut.section {
+            CutSection::Circle { foot, .. } => toward(foot - cut.center),
+            CutSection::Loop { toward: d, .. } => toward(d),
+        };
         if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
+            let CutSection::Circle {
+                foot, rho, u_ref, ..
+            } = cut.section
+            else {
+                return Err(refuse_at(
+                    cut.face,
+                    "the section loop has no meridian of the face's chart",
+                ));
+            };
+            k = toward(foot + u_ref * rho - cut.center);
             if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
                 return Err(refuse_at(
                     cut.face,
@@ -7480,21 +7691,50 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
-        // The circle's two crossings, both on the half-plane `h`.
-        let across = cut.normal.cross(k);
-        if sign_as(
-            "bool_sphere_cut_section_meridian",
-            Margin::of(across.norm()),
-        )? == Sign::Zero
-        {
-            return Err(refuse_at(
-                cut.face,
-                "the section circle lies in its own meridian plane",
-            ));
-        }
-        let e = across.normalize();
-        let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
-        for p in crossings {
+        // The circle's two crossings, both on the half-plane `h`. A loop
+        // names none: where every piece of its tube lies in the half-plane
+        // and a piece lies wholly on each side of the meridian's plane, it
+        // crosses the half-meridian, and only between its tube's heights.
+        let crossings = match &cut.section {
+            CutSection::Circle {
+                foot, rho, normal, ..
+            } => {
+                let across = normal.cross(k);
+                if sign_as(
+                    "bool_sphere_cut_section_meridian",
+                    Margin::of(across.norm()),
+                )? == Sign::Zero
+                {
+                    return Err(refuse_at(
+                        cut.face,
+                        "the section circle lies in its own meridian plane",
+                    ));
+                }
+                let e = across.normalize();
+                Some([*foot - e * *rho, *foot + e * *rho])
+            }
+            CutSection::Loop { tube, .. } => {
+                match read_loop_tube(&tube_corners(tube), cut.center, (h, k), band).map_err(esc)? {
+                    Ok(()) => {}
+                    Err(LoopTubeRefusal::OffHalf) => {
+                        return Err(refuse_at(
+                            cut.face,
+                            "the section loop is not read inside one half of a meridian \
+                             plane of the face's chart",
+                        ));
+                    }
+                    Err(LoopTubeRefusal::NoCrossing) => {
+                        return Err(refuse_at(
+                            cut.face,
+                            "the section loop is not read crossing the meridian the face \
+                             would be cut along",
+                        ));
+                    }
+                }
+                None
+            }
+        };
+        for p in crossings.into_iter().flatten() {
             if sign_as("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive
             {
                 return Err(refuse_at(
@@ -7520,6 +7760,14 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             if let [only] = candidates[..] {
                 only
             } else {
+                // A loop names no crossing to place it on one piece by.
+                let Some([lo, hi]) = crossings else {
+                    return Err(refuse_at(
+                        cut.face,
+                        "a marched section loop on a sphere face a cut divided, whose piece \
+                         is not read",
+                    ));
+                };
                 let mut holder = None;
                 let mut across_a_cut = false;
                 for &piece in &candidates {
@@ -7548,7 +7796,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         | crate::region::RegionRefusal::WoundPastPeriod
                         | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };
-                    let [lo, hi] = crossings;
                     match (
                         region.contains(lo, band).map_err(read_region)?,
                         region.contains(hi, band).map_err(read_region)?,
@@ -7572,7 +7819,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         let refuse = |what| refuse_at(face, what);
         let view = body.proven_face(face);
-        let mut circle = crossings.map(latitude);
         // `x` lies above `y` by `r·sin(φx − φy)`, a length linear in the
         // arc between them (both lie on the closed half-meridian, so the
         // angle between them is short of π).
@@ -7582,10 +7828,43 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 Margin::of((x.1 * y.0 - x.0 * y.1) / r),
             )
         };
-        if above(circle[0], circle[1])? == Sign::Positive {
-            circle.swap(0, 1);
+        // What a boundary hit is placed against: the circle's two
+        // crossings, low first, or every corner of the loop's tube.
+        enum Against<T: Real> {
+            Circle([(T, T); 2]),
+            Tube(Vec<Point3<T>>),
         }
-        let [s1, s2] = circle;
+        let bounds = match crossings {
+            Some(crossings) => {
+                let mut circle = crossings.map(latitude);
+                if above(circle[0], circle[1])? == Sign::Positive {
+                    circle.swap(0, 1);
+                }
+                Against::Circle(circle)
+            }
+            None => {
+                let CutSection::Loop { tube, .. } = &cut.section else {
+                    return Err(corrupt("cut-in: a circle with no crossings"));
+                };
+                Against::Tube(tube_corners(tube).into_iter().flatten().collect())
+            }
+        };
+        // A boundary hit's place against the section: `Negative` below
+        // it, `Positive` above it, `Zero` between. Along the half-meridian
+        // height orders latitude, and a loop's heights lie within its
+        // tube's.
+        let place = |s: (T, T)| -> Result<Sign, BooleanError> {
+            match &bounds {
+                Against::Circle([s1, s2]) => Ok(match (above(s, *s1)?, above(s, *s2)?) {
+                    (Sign::Negative, _) => Sign::Negative,
+                    (_, Sign::Positive) => Sign::Positive,
+                    _ => Sign::Zero,
+                }),
+                Against::Tube(corners) => {
+                    height_against_tube(corners, (cut.center, axis), s.1, band).map_err(esc)
+                }
+            }
+        };
         // The face's boundary hits on the half-meridian.
         struct Hit<T> {
             s: (T, T),
@@ -7759,13 +8038,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         hits.retain(|h| h.vertex.is_none_or(|v| at_vertex.insert(v)));
         let (mut belows, mut overs): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
         for (k, hit) in hits.iter().enumerate() {
-            match (above(hit.s, s1)?, above(hit.s, s2)?) {
-                (Sign::Negative, _) => belows.push(k),
-                (_, Sign::Positive) => overs.push(k),
-                _ => {
+            match place(hit.s)? {
+                Sign::Negative => belows.push(k),
+                Sign::Positive => overs.push(k),
+                Sign::Zero => {
                     return Err(refuse(
-                        "the sphere face's boundary meets the cut's meridian inside the section \
-                         circle",
+                        "the sphere face's boundary meets the cut's meridian inside the section",
                     ));
                 }
             }
@@ -11905,6 +12183,77 @@ mod witness_rows {
                 Ok(super::PieceRead::NotIn)
             ),
             "a trim's Out is NotIn"
+        );
+    }
+}
+
+#[cfg(test)]
+mod loop_tube_rows {
+    #![allow(clippy::unwrap_used)]
+    use super::{LoopTubeRefusal, height_against_tube, read_loop_tube, tube_corners};
+    use geom_core::{Band, Point3, Sign, Tol, Vec3};
+
+    /// A tube by its pieces' corners.
+    type Tube = [([f64; 3], [f64; 3])];
+
+    /// The reading of the cut on the half-meridian through `+x` of the
+    /// sphere about the origin poled on `z`: the half-plane `x > 0`, the
+    /// meridian plane `y = 0`.
+    fn read(tube: &Tube) -> Result<(), LoopTubeRefusal> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (h, k) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        read_loop_tube(&tube_corners(tube), Point3::origin(), (h, k), band).unwrap()
+    }
+
+    /// `height` along `z` against `tube`.
+    fn place(tube: &Tube, height: f64) -> Sign {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let corners: Vec<Point3<f64>> = tube_corners(tube).into_iter().flatten().collect();
+        let along = (Point3::origin(), Vec3::new(0.0, 0.0, 1.0));
+        height_against_tube(&corners, along, height, band).unwrap()
+    }
+
+    /// **Each of the loop's three readings refuses the tube it should**:
+    /// a piece off the cut's half-plane, no piece wholly on one side of
+    /// the meridian's plane (a straddling piece is no such piece), and a
+    /// boundary hit within the tube's heights. A tube that passes the
+    /// first two places hits below and above it.
+    #[test]
+    fn each_loop_tube_reading_refuses_its_own_tube() {
+        let below = ([0.4, -0.1, 0.1], [0.6, -0.02, 0.3]);
+        let above = ([0.4, 0.02, 0.1], [0.6, 0.1, 0.3]);
+        let crosses = [below, above];
+        assert_eq!(
+            read(&crosses),
+            Ok(()),
+            "a tube in the half-plane, across the plane"
+        );
+        assert_eq!(
+            read(&[below, ([-0.1, 0.02, 0.1], [0.6, 0.1, 0.3])]),
+            Err(LoopTubeRefusal::OffHalf),
+            "a piece across the axis's plane"
+        );
+        assert_eq!(
+            read(&[above, ([0.4, 0.2, 0.1], [0.6, 0.3, 0.3])]),
+            Err(LoopTubeRefusal::NoCrossing),
+            "every piece on the positive side"
+        );
+        assert_eq!(
+            read(&[below, ([0.4, -0.3, 0.1], [0.6, -0.2, 0.3])]),
+            Err(LoopTubeRefusal::NoCrossing),
+            "every piece on the negative side"
+        );
+        assert_eq!(
+            read(&[above, ([0.4, -0.1, 0.1], [0.6, 0.1, 0.3])]),
+            Err(LoopTubeRefusal::NoCrossing),
+            "a piece straddling the plane is on neither side"
+        );
+        assert_eq!(place(&crosses, 0.0), Sign::Negative, "a hit below the tube");
+        assert_eq!(place(&crosses, 0.5), Sign::Positive, "a hit above the tube");
+        assert_eq!(
+            place(&crosses, 0.2),
+            Sign::Zero,
+            "a hit within the tube's heights"
         );
     }
 }

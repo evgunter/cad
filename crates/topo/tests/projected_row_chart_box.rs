@@ -121,10 +121,12 @@ fn swap_first_edge_for_a_chord_net(
 /// - over `[0.1, 0.9]`, `u` reads `[0.056, 4.5]` (true `0.5`) and `v`
 ///   reads `[−2, 2]` (true `[−0.4, 0.4]`).
 ///
-/// The box over the whole net is the image's exact hull. Over a strict
-/// sub-range it reads the whole pieces the sub-range meets: over
-/// `[0.1, 0.9]` it is still `v ∈ [−0.5, 0.5]`, against the true
-/// `[−0.4, 0.4]`.
+/// The box over the whole net is the image's exact hull, and over a
+/// strict sub-range it is the sub-range's own: each piece is boxed
+/// clipped to the span, so over `[0.1, 0.9]` it reads the true
+/// `v ∈ [−0.4, 0.4]`, within a rounding of it (it read the whole piece's
+/// `[−0.5, 0.5]` before the clip; the ring reader halves a span to clear
+/// a point, and needs the box to shrink with it).
 ///
 /// A red here means re-measure and decide, not retire the box: a half
 /// fix that skips the division on a polynomial net turns the whole-edge
@@ -177,17 +179,19 @@ fn a_projected_rows_eval_over_its_edge_is_entire_and_its_box_is_exact() {
         inner.y
     );
 
-    // The box over the whole net is exact, and over a strict sub-range
-    // it reads the whole piece.
-    for (t0, t1) in [(0.0, 1.0), (0.1, 0.9)] {
+    // The box is exact over the whole net and tight over a strict
+    // sub-range: it holds the true `v` range and exceeds it by no more
+    // than a rounding.
+    for (t0, t1, half) in [(0.0, 1.0, 0.5), (0.1, 0.9, 0.4)] {
         let hull = image.chart_box(iv(t0), iv(t1));
         assert!(
             hull.u_min.lo() == 0.5 && hull.u_max.hi() == 0.5,
             "the box's u over [{t0}, {t1}] is not the chord's 0.5: {hull:?}"
         );
+        let (lo, hi) = (hull.v_min.lo(), hull.v_max.hi());
         assert!(
-            hull.v_min.lo() == -0.5 && hull.v_max.hi() == 0.5,
-            "the box's v over [{t0}, {t1}] is not the net's [-0.5, 0.5]: {hull:?}"
+            lo <= -half && hi >= half && lo >= -half - 1e-12 && hi <= half + 1e-12,
+            "the box's v over [{t0}, {t1}] is not the true [-{half}, {half}]: {hull:?}"
         );
     }
 }
