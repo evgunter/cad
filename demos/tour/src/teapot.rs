@@ -8,10 +8,11 @@
 //! that asks the verb for a real part and to report, in numbers, what
 //! came back.
 //!
-//! Three solids rather than one: the pot with its handle joined, the
-//! lid, and the spout. That is the honest exit shape (the lily
-//! precedent), and everything below says which parts of it are the
-//! kernel's answer and which are the modeller's:
+//! Four bodies drawn rather than one: the pot, the lid, the spout and
+//! the handle — which JOINS the pot, though the joined pot cannot yet be
+//! drawn. That is the honest exit shape (the lily precedent), and
+//! everything below says which parts of it are the kernel's answer and
+//! which are the modeller's:
 //!
 //! - **the pot** — one `revolve` of one meridian, hollowed by `shell`
 //!   into a wall and a cavity in one solid. Drawn see-through, because
@@ -31,8 +32,9 @@
 //!   finding moved together.
 //! - **the handle** — one `Node::Tube` window, its two roots set into
 //!   the belly wall and stopping short of the cavity (see
-//!   `HANDLE_OVER`), and JOINED to the pot by a `Node::Union`: the pot
-//!   and its handle are one solid.
+//!   `HANDLE_OVER`). Its `Node::Union` with the pot builds, and the
+//!   joined pot does not mesh, so the montage draws the handle on its
+//!   own (wall 2).
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -126,7 +128,8 @@
 //!    and its three rims are asked for whole, two names each. A vent
 //!    through the finial would buy nothing a lid wants: a real lid's
 //!    steam hole sits off the axis, which no revolve reaches.
-//! 4. **The handle joins; the spout does not.**
+//! 4. **The handle joins and cannot be drawn joined; the spout does not
+//!    join.**
 //!
 //!    handle ∪ pot used to be torus × SPHERE at the operand gate. The
 //!    torus is on the union's KIND roster now, so the join gets past
@@ -142,9 +145,12 @@
 //!    chorded torus face measure through the rotational lane, and wall 2
 //!    is retired into the scene. The handle was re-cut first: as a probe
 //!    its roots ran 11.2 mm into the cavity, and a joined handle sets
-//!    them into the wall instead (`HANDLE_OVER`). The scene ships the
-//!    union, holding its volume to the two operands' less the overlap,
-//!    integrated off the spine and the sphere.
+//!    them into the wall instead (`HANDLE_OVER`). The scene builds the
+//!    union and holds its volume to the two operands' less the overlap,
+//!    integrated off the spine and the sphere. It does not ship it: the
+//!    section edge's image on the sphere and on the torus is the
+//!    projection of a spline, which the mesh's trimmed lane does not
+//!    bound, so the joined pot does not tessellate. Wall 2 pins that.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -288,11 +294,11 @@ use pncad::document::{
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::prelude::SurfaceKind;
 use pncad::prelude::query;
 use pncad::prelude::{
     CapEnd, EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName,
 };
+use pncad::prelude::{SurfaceKind, SurfaceKindSet};
 use pncad::profile::ArcSweep;
 use pncad::select::{
     ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, band_rim_pi, edge_name,
@@ -484,7 +490,8 @@ const DELTA: f64 = 2e-4;
 // document changes is the SEAT: a meridian is a `LoopProgram` over
 // `Formula::literal`, the mouth and the lid's rims are named by ROLE
 // rather than found by a numeric scan, and the two unions are nodes:
-// the handle's composes, the spout's refuses at `evaluate`.
+// the handle's composes (and does not mesh), the spout's refuses at
+// `evaluate`.
 // ---------------------------------------------------------------------
 
 /// A length in the canonical metres this document is authored in.
@@ -804,9 +811,12 @@ pub struct Recipe {
     spout_body: RecipeNodeId,
     /// The spout, placed against the pot.
     spout: RecipeNodeId,
+    /// The handle in its own coordinates.
+    handle_body: RecipeNodeId,
     /// The handle, placed against the pot.
     handle: RecipeNodeId,
-    /// The pot with its handle joined: the body the montage ships.
+    /// The pot with its handle joined: it builds, and does not mesh
+    /// (wall 2).
     handle_union: RecipeNodeId,
     /// The spout's join, which refuses (wall 3).
     spout_union: RecipeNodeId,
@@ -1016,6 +1026,7 @@ fn build_doc(tol: Tol) -> Recipe {
         lid,
         spout_body,
         spout,
+        handle_body,
         handle,
         handle_union,
         spout_union,
@@ -1058,21 +1069,25 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// [`build_doc`] the stops walk, so the gallery cannot be a second
 /// authoring of the scene.
 ///
-/// The product is the three bodies the montage shows — the pot with
-/// its handle joined, the lid and the spout — each placed in the world
-/// once. Nothing places the SEALED hollow, the same operand and wall as
-/// the cup, so it is not in the product. It, the spout's refusing
-/// union, which produces no body, and the spout's placement against
-/// the pot that only that union reads are deleted as well, so the file
-/// holds what the montage shows, no refusal and nothing unused.
+/// The product is the four bodies the montage shows — the handle, the
+/// lid, the cup and the spout — each placed in the world once. Nothing
+/// places the SEALED hollow, the same operand and wall as the cup, so
+/// it is not in the product. It, the two refusing unions, which
+/// produce no body, and the placements of the handle and the spout
+/// against the pot that only the unions read are deleted as well, so
+/// the file holds what the montage shows, no refusal and nothing
+/// unused.
 ///
-/// The spout and the pot interpenetrate, and the file says so: the
-/// spout's root disc sits inside the belly, which is what makes its
-/// union a real request. A separation finding on this document is the
-/// scene's own subject arriving through the checks registry.
+/// They interpenetrate, and the file says so: the handle's roots are
+/// set into the belly wall and the spout's root disc sits inside it,
+/// which is what makes the two unions real requests. The handle's union
+/// builds and is not placed, because the joined pot does not mesh
+/// (wall 2), and a document the GUI opens is one it can draw. A separation
+/// finding on this document is the scene's own subject arriving
+/// through the checks registry.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    let tidied = [r.spout_union, r.pot, r.spout]
+    let tidied = [r.handle_union, r.spout_union, r.pot, r.handle, r.spout]
         .into_iter()
         .fold(r.doc, |doc, id| {
             apply(&doc, &DocEdit::DeleteNode { id }, tol)
@@ -1081,8 +1096,9 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         });
     let mut copies = Vec::new();
     let placed = [
-        (r.handle_union, Vec::new()),
+        (r.handle_body, handle_values()),
         (r.lid, Vec::new()),
+        (r.cup, Vec::new()),
         (r.spout_body, spout_values()),
     ]
     .into_iter()
@@ -1091,7 +1107,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
         copies.push(pncad::document::Operand::Node(placed.placement));
         placed.doc
     });
-    // What the pot is: its three copies.
+    // What the pot is: its four copies.
     crate::world::set_product(&placed, &copies, tol)
 }
 
@@ -1691,16 +1707,45 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// this one takes an evaluation rather than a tolerance and operands of
 /// its own.
 pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
-    // WALL 2 — RETIRED into the scene: the handle joins the pot, and
-    // the montage ships the union ([`stops`]). The section value
-    // carries the vessel's sphere face meeting the handle's torus, the
-    // segment lays its loops, and the union builds and validates: its
-    // chorded sphere face and the handle's chorded torus face measure
-    // through the rotational lane.
+    // WALL 2 — the handle JOINS the pot, and the joined pot cannot be
+    // DRAWN. The section value carries the vessel's sphere face meeting
+    // the handle's torus, the segment lays its loops, and the union
+    // builds and validates: its chorded sphere face and the handle's
+    // chorded torus face measure through the rotational lane, and
+    // [`stops`] holds its volume to an independent reading. What
+    // refuses is the mesh: the section edge's image on either face is
+    // the projection of a spline, and the trimmed lane bounds the UV
+    // speed of a conic's image only
+    // (`work/tesslane/cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm`,
+    // the sphere's half, and
+    // `work/tesslane/a-torus-face-bounded-by-a-projected-spline-image-has-no-chord-bound`,
+    // the torus's). So the montage draws the pot and the handle as two
+    // bodies, and this probe asks for the drawing on every pass.
     assert!(
         join_outcome(ev, r.handle_union).is_ok(),
         "wall 2: the handle no longer joins the vessel: {:?}",
         join_outcome(ev, r.handle_union).err()
+    );
+    let tol = Tol::witness();
+    let potted = body_at(ev, r.handle_union, tol);
+    crate::walls::join_wall(
+        "teapot",
+        2,
+        "draw the pot with its handle joined (mesh the union)",
+        pncad::mesh::tessellate(&potted, DELTA, tol),
+        |e| {
+            matches!(e, pncad::mesh::TessellateError::UnsupportedCurve { edge, note }
+            if note.contains("projected image of a spline")
+                && query::edge_adjacent_matches(
+                    &potted,
+                    *edge,
+                    SurfaceKindSet::just(SurfaceKind::Sphere),
+                    SurfaceKindSet::just(SurfaceKind::Torus),
+                ))
+        },
+        "ship the union in the montage, the STL/STEP exports and the gallery document in \
+         place of the cup and the handle, and re-state the caption (which says four \
+         solids)",
     );
 
     // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
@@ -2769,8 +2814,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
 
     vec![TourStop {
         name: "teapot",
-        caption: "THE TEAPOT (THREE solids: the opened pot with its handle joined, \
-                  the lid lifted, and the spout it will not join)"
+        caption: "THE TEAPOT (FOUR solids drawn: the opened pot, the lid lifted, the \
+                  handle, which joins the pot but cannot be drawn joined, and the spout \
+                  it will not join)"
             .to_string(),
         montage: true,
         story: "shell's designated demo, and ONE recipe document: every body below is a \
@@ -2778,12 +2824,12 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 `Node::Shell` and OPENED at its mouth: a cavity the size of the tea, inside a \
                 wall 7.8 mm thick, in one solid — drawn see-through, because a cavity \
                 cannot be read from an opaque render at any camera. The handle is a `Node::Tube` whose roots are set into the \
-                wall, JOINED to the pot by a `Node::Union`: pot and handle are one \
-                solid. The lid is a SECOND solid, rendered lifted: an exploded view, \
-                not a mate. The spout is a third, and its union with the pot is \
-                attempted on every pass and REFUSES — so what the montage shows is a \
-                pot with its handle, and two more bodies sitting where a teapot's \
-                lid and spout sit",
+                wall, and its `Node::Union` with the pot BUILDS, but the joined pot \
+                does not mesh, so it is drawn as its own body. The lid is a SECOND \
+                solid, rendered lifted: an exploded view, not a mate. The spout is \
+                another, and its union with the pot is attempted on every pass and \
+                REFUSES — so what the montage shows is four bodies sitting where a \
+                teapot's parts sit",
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
               ONE Node::Fillet over the flange rim, the dome foot and the knob top, \
@@ -2791,8 +2837,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
               Node::Loft(v_degree 3, six stations) -> Place against the pot (its root cap \
               on a frame read off the pot) for the spout; \
               Node::Tube -> Place against the pot (its spine's axis on a frame read off \
-              the pot) -> Node::Union with the opened vessel for the handle. One wall \
-              pinned: the spout's union, a Node::Union that refuses at evaluate",
+              the pot) -> Node::Union with the opened vessel for the handle. Two walls \
+              pinned: the joined pot's mesh, and the spout's union, a Node::Union that \
+              refuses at evaluate",
         delta: DELTA,
         note: Some(format!(
             "ONE RECIPE DOCUMENT, AND EVERY BODY HERE IS A NODE'S VALUE — the mouth and \
@@ -2900,7 +2947,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              {shared:.6e} m³ they share, which is integrated off the spine and the \
              sphere (the inside arc of each tube section closed, the rest by \
              tanh-sinh between the points where that arc changes shape) rather than \
-             read off either body. The document says a placement in AXIS-ANGLE and the \
+             read off either body. And it CANNOT BE DRAWN: the section edge's image \
+             on the sphere and on the torus is the projection of a spline, and the \
+             mesh's trimmed lane bounds the UV speed of a conic's image only, so \
+             the montage draws the handle as its own body and wall 2 asks for the \
+             drawing on every pass. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
              axis, stands {tip_residual:e} m from its own exact image and its normal \
@@ -2965,12 +3016,14 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             // See-through for the hollow ring's reason, on this verb's
             // own shape: the subject is a CAVITY, and no camera reads
             // one from an opaque render.
-            // The pot with its handle joined: one solid.
-            SceneBody::plain("teapotvessel", [0.72, 0.70, 0.66], potted)
+            SceneBody::plain("teapotvessel", [0.72, 0.70, 0.66], cup)
                 .transparent(45)
-                .named(&ev, r.handle_union),
+                .named(&ev, r.cup),
             SceneBody::plain("teapotlid", [0.58, 0.64, 0.72], rolled).named(&ev, r.lid),
             SceneBody::plain("teapotspout", [0.72, 0.70, 0.66], spout).named(&ev, r.spout),
+            // The handle joins the pot, and the joined pot does not mesh
+            // (wall 2), so the montage draws the handle as its own body.
+            SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle).named(&ev, r.handle),
         ],
     }]
 }
