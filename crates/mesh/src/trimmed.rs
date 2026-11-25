@@ -5472,6 +5472,114 @@ pub(super) mod tests {
         );
     }
 
+    /// **`repeat_columns` holds every pole side the pole-side rule read**
+    /// (`work/lathe/the-main-merge-drops-mains-pole-form-and-pole-side-column-intents.md`,
+    /// item 3). That rule doubled the column count until no side of the
+    /// polygon between two copies of one singular vertex had exactly one
+    /// column strictly between its ends. Those two copies are one mesh id
+    /// at two `u`s, so each such side is a span `repeat_columns` reads,
+    /// among the spans it reads. On pole sides narrow and wide, single and
+    /// several, at both ends of the box and beside seam copies a period
+    /// apart, from every starting count to 16: the count `repeat_columns`
+    /// answers leaves no pole side one column, and is never below the
+    /// pole-side rule's.
+    #[test]
+    fn repeat_columns_holds_every_pole_side() {
+        use core::f64::consts::{FRAC_PI_2, TAU};
+        // The pole-side rule, read here as the oracle: the sides between
+        // two copies of a singular id that sit at two `u`s.
+        let pole_sides = |p: &super::TrimPolygon, singular: &HashSet<u32>| {
+            (0..p.points.len())
+                .map(|i| (p.points[i], p.points[p.next(i)]))
+                .filter(|&(a, b)| a.2 == b.2 && singular.contains(&a.2) && a.0 != b.0)
+                .map(|(a, b)| (a.0.min(b.0), a.0.max(b.0)))
+                .collect::<Vec<_>>()
+        };
+        let between = |(u0, u1): (f64, f64), nu: usize, (a, b): (f64, f64)| {
+            (1..nu)
+                .filter(|&i| {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = u0 + (u1 - u0) * (i as f64 / nu as f64);
+                    u > a && u < b
+                })
+                .count()
+        };
+        let oracle = |sides: &[(f64, f64)], window: (f64, f64), mut nu: usize| {
+            while sides.iter().any(|&side| between(window, nu, side) == 1) {
+                nu *= 2;
+            }
+            nu
+        };
+        let pole = |u: f64, at: f64| [(u, at, 7u32)];
+        let cases: Vec<(&str, (f64, f64), Vec<(f64, f64, u32)>)> = vec![
+            (
+                "one narrow pole side",
+                (0.0, 1.0),
+                [(0.0, 0.0, 1)]
+                    .into_iter()
+                    .chain(pole(0.45, FRAC_PI_2))
+                    .chain(pole(0.55, FRAC_PI_2))
+                    .chain([(1.0, 0.0, 2)])
+                    .collect(),
+            ),
+            (
+                "a pole side at each end of the box",
+                (0.0, 1.0),
+                vec![
+                    (0.0, -FRAC_PI_2, 8),
+                    (0.3, -FRAC_PI_2, 8),
+                    (0.7, 0.0, 1),
+                    (1.0, FRAC_PI_2, 7),
+                    (0.93, FRAC_PI_2, 7),
+                    (0.1, 0.0, 2),
+                ],
+            ),
+            (
+                "two pole sides of one pole",
+                (0.0, 1.0),
+                vec![
+                    (0.0, 0.0, 1),
+                    (0.2, FRAC_PI_2, 7),
+                    (0.26, FRAC_PI_2, 7),
+                    (0.5, 0.0, 3),
+                    (0.61, FRAC_PI_2, 7),
+                    (0.9, FRAC_PI_2, 7),
+                    (1.0, 0.0, 2),
+                ],
+            ),
+            (
+                "a pole side beside a seam a period apart",
+                (0.0, TAU),
+                vec![
+                    (0.0, 0.0, 1),
+                    (TAU, 0.0, 1),
+                    (TAU, 1.0, 2),
+                    (3.3, FRAC_PI_2, 7),
+                    (2.9, FRAC_PI_2, 7),
+                    (0.0, 1.0, 2),
+                ],
+            ),
+        ];
+        let singular: HashSet<u32> = [7, 8].into_iter().collect();
+        for (what, window, outer) in cases {
+            let polygon = super::TrimPolygon::of_loops(&outer, &[]);
+            let sides = pole_sides(&polygon, &singular);
+            assert!(!sides.is_empty(), "{what}: the case holds a pole side");
+            for start in 1..=16 {
+                let nu = super::repeat_columns(&polygon, window, start).unwrap();
+                assert!(
+                    sides.iter().all(|&side| between(window, nu, side) != 1),
+                    "{what}, from {start}: nu {nu} leaves a pole side one column"
+                );
+                assert!(
+                    nu >= oracle(&sides, window, start),
+                    "{what}, from {start}: nu {nu} below the pole-side rule's {}",
+                    oracle(&sides, window, start)
+                );
+            }
+        }
+    }
+
     /// **The tilted pair's faces meet their poles as polygon sides, and
     /// the runs between the poles sit where the region is.** A ball's
     /// one-face remnant passes both chart poles at loop vertices
