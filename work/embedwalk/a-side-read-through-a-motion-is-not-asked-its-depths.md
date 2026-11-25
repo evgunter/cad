@@ -2,12 +2,13 @@
 id: a-side-read-through-a-motion-is-not-asked-its-depths
 kind: issue
 title: A clearance side read through a motion is not asked the depth gap, so a placed pair and the same pair built in place can read different verdicts, a budget refusal against a Holds at the root
-status: review
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
 branch: embedwalk/placed-depth
 pr: 7778
+closed: 2026-11-25
 ---
 
 
@@ -65,3 +66,12 @@ Holds with no split; before, the inner placed beside an outer built
 where the motion puts it held after 36,998 splits, and both placed
 after 36,706; after, both hold with no split. The row asks at 4,096
 pairs, where before each placed pair refused `Budget(Pairs)`.
+
+## Closed
+
+2026-11-25 by PR 7778: the motion rides on the window, and the depth gap
+carries its sites (an axis, a centre, a core circle) into each face's own
+coordinates by one relative motion (`RigidMotion::relative`), so a placed
+pair and the same pair built in place reach the same verdict. The f64
+rounding of that motion is a term on
+`the-depth-gaps-f64-rounding-is-of-the-pads-order-near-the-least-tolerance`.
